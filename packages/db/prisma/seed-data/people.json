@@ -1,0 +1,365 @@
+[
+  {
+    "ref": "u1",
+    "name": "أحمد إسلام",
+    "email": "ahmed.islam@places.com",
+    "department": "الإدارة",
+    "roles": [
+      "admin"
+    ]
+  },
+  {
+    "ref": "u2",
+    "name": "محمد صفوت",
+    "email": "m.safwat@places.com",
+    "department": "الإدارة",
+    "roles": [
+      "admin"
+    ]
+  },
+  {
+    "ref": "u4",
+    "name": "عبدالله سليم",
+    "email": "abdallah.sleem@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "tl",
+      "sales"
+    ]
+  },
+  {
+    "ref": "u19",
+    "name": "محمود علي",
+    "email": "mahmoud.ali@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "tl"
+    ]
+  },
+  {
+    "ref": "u23",
+    "name": "عبدالرحمن يونس",
+    "email": "abdelrahman.younes@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "tl"
+    ]
+  },
+  {
+    "ref": "u24",
+    "name": "مصطفى عزت",
+    "email": "mostafa.ezzat@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "tl"
+    ]
+  },
+  {
+    "ref": "s1",
+    "name": "محمد محسن",
+    "email": "m.mohsen@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u4",
+    "team": "D"
+  },
+  {
+    "ref": "s2",
+    "name": "محمد عيد",
+    "email": "m.eid@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u4",
+    "team": "D"
+  },
+  {
+    "ref": "s17",
+    "name": "أحمد علي",
+    "email": "ahmed.ali@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u4",
+    "team": "D"
+  },
+  {
+    "ref": "s18",
+    "name": "أحمد يونس",
+    "email": "ahmed.younes@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u4",
+    "team": "D"
+  },
+  {
+    "ref": "s3",
+    "name": "عمر جمال",
+    "email": "omar.gamal@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u23",
+    "team": "C"
+  },
+  {
+    "ref": "s14",
+    "name": "أحمد عمرو",
+    "email": "ahmed.amr@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u23",
+    "team": "C"
+  },
+  {
+    "ref": "s15",
+    "name": "أحمد مدحت",
+    "email": "ahmed.medhat@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u23",
+    "team": "C"
+  },
+  {
+    "ref": "s16",
+    "name": "يوسف حسني",
+    "email": "youssef.hosny@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u23",
+    "team": "C"
+  },
+  {
+    "ref": "s4",
+    "name": "يوسف صفوت",
+    "email": "youssef.safwat@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u19",
+    "team": "A"
+  },
+  {
+    "ref": "s5",
+    "name": "زياد مدحت",
+    "email": "ziad.medhat@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u19",
+    "team": "A"
+  },
+  {
+    "ref": "s7",
+    "name": "أحمد خالد",
+    "email": "ahmed.khaled@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u19",
+    "team": "A"
+  },
+  {
+    "ref": "s8",
+    "name": "صلاح الدين",
+    "email": "salah.eldin@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u19",
+    "team": "A"
+  },
+  {
+    "ref": "s9",
+    "name": "محمد ممدوح",
+    "email": "m.mamdouh@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u19",
+    "team": "A"
+  },
+  {
+    "ref": "s6",
+    "name": "محمد خالد",
+    "email": "m.khaled@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u24",
+    "team": "B"
+  },
+  {
+    "ref": "s10",
+    "name": "عبدالرحمن صلاح",
+    "email": "abdelrahman.salah@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u24",
+    "team": "B"
+  },
+  {
+    "ref": "s11",
+    "name": "إبراهيم سمير",
+    "email": "ibrahim.samir@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u24",
+    "team": "B"
+  },
+  {
+    "ref": "s12",
+    "name": "أنس",
+    "email": "anas@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u24",
+    "team": "B"
+  },
+  {
+    "ref": "s13",
+    "name": "محمد سامي",
+    "email": "m.samy@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "sales"
+    ],
+    "teamLeader": "u24",
+    "team": "B"
+  },
+  {
+    "ref": "u5",
+    "name": "هدير طارق",
+    "email": "hadeer.tarek@places.com",
+    "department": "المبيعات",
+    "roles": [
+      "telesales"
+    ]
+  },
+  {
+    "ref": "u6",
+    "name": "هبة صلاح",
+    "email": "heba.salah@places.com",
+    "department": "Operations",
+    "roles": [
+      "ops"
+    ]
+  },
+  {
+    "ref": "u7",
+    "name": "منار أحمد",
+    "email": "manar.ahmed@places.com",
+    "department": "Inventory",
+    "roles": [
+      "inventory"
+    ]
+  },
+  {
+    "ref": "u8",
+    "name": "رندا محمد",
+    "email": "randa.mohamed@places.com",
+    "department": "Inventory",
+    "roles": [
+      "resale"
+    ]
+  },
+  {
+    "ref": "u9",
+    "name": "سارة عبدالحليم",
+    "email": "sara.abdelhalim@places.com",
+    "department": "Inventory",
+    "roles": [
+      "inventory_staff"
+    ]
+  },
+  {
+    "ref": "u10",
+    "name": "مروة مصطفى",
+    "email": "marwa.mostafa@places.com",
+    "department": "Inventory",
+    "roles": [
+      "inventory_staff"
+    ]
+  },
+  {
+    "ref": "u11",
+    "name": "رحمة حسن",
+    "email": "rahma.hassan@places.com",
+    "department": "Marketing",
+    "roles": [
+      "marketing"
+    ]
+  },
+  {
+    "ref": "u12",
+    "name": "عبدالرحمن بيومي",
+    "email": "abdelrahman.bayoumi@places.com",
+    "department": "Marketing",
+    "roles": [
+      "photographer"
+    ]
+  },
+  {
+    "ref": "u14",
+    "name": "بسنت الصاوي",
+    "email": "basant.elsawy@places.com",
+    "department": "HR",
+    "roles": [
+      "hr"
+    ]
+  },
+  {
+    "ref": "u16",
+    "name": "مختار جمال",
+    "email": "mokhtar.gamal@places.com",
+    "department": "Accounts",
+    "roles": [
+      "procurement"
+    ]
+  },
+  {
+    "ref": "u18",
+    "name": "أحمد أشرف",
+    "email": "ahmed.ashraf@places.com",
+    "department": "Accounts",
+    "roles": [
+      "accountant",
+      "approver"
+    ]
+  },
+  {
+    "ref": "u21",
+    "name": "نانسي إسلام",
+    "email": "nancy.islam@places.com",
+    "department": "الإدارة",
+    "roles": [
+      "officemgr",
+      "approver"
+    ]
+  }
+]

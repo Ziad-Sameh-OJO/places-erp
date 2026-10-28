@@ -1,0 +1,771 @@
+[
+  {
+    "key": "admin",
+    "label": "Super Admin",
+    "tier": "Super Admin",
+    "scope": "all",
+    "permissions": {
+      "home": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "leads": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "deals": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "settings": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "clients": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "contracts": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "inventory": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "notactive": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "tasks": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "marketing": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "hr": [
+        "view",
+        "export"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "finance": [
+        "view",
+        "export"
+      ],
+      "procurement": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "reports": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "kpis": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "access": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "master": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "integrations": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ]
+    }
+  },
+  {
+    "key": "officemgr",
+    "label": "Office Manager",
+    "tier": "Office Manager",
+    "scope": "all",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "leads": [
+        "view"
+      ],
+      "deals": [
+        "view",
+        "edit",
+        "approve",
+        "delete",
+        "export"
+      ],
+      "clients": [
+        "view"
+      ],
+      "contracts": [
+        "view"
+      ],
+      "reports": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "export"
+      ],
+      "access": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "master": [
+        "view",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "opshead",
+    "label": "Operations Head",
+    "tier": "Operations Head",
+    "scope": "all",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "leads": [
+        "view",
+        "export"
+      ],
+      "settings": [
+        "view",
+        "edit"
+      ],
+      "clients": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "contracts": [
+        "view"
+      ],
+      "inventory": [
+        "view",
+        "export"
+      ],
+      "tasks": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete"
+      ],
+      "marketing": [
+        "view"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "reports": [
+        "view",
+        "export"
+      ],
+      "access": [
+        "view"
+      ],
+      "master": [
+        "view",
+        "edit"
+      ],
+      "integrations": [
+        "view"
+      ]
+    }
+  },
+  {
+    "key": "salesdir",
+    "label": "Sales Director",
+    "tier": "Sales Director",
+    "scope": "dept",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "leads": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "deals": [
+        "view",
+        "create",
+        "edit",
+        "export"
+      ],
+      "settings": [
+        "view",
+        "edit"
+      ],
+      "clients": [
+        "view",
+        "create",
+        "edit",
+        "export"
+      ],
+      "contracts": [
+        "view",
+        "export"
+      ],
+      "marketing": [
+        "view"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "reports": [
+        "view",
+        "create",
+        "edit",
+        "export"
+      ]
+    }
+  },
+  {
+    "key": "tl",
+    "label": "Team Leader",
+    "tier": "Team Leaders",
+    "scope": "team",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "leads": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "deals": [
+        "view"
+      ],
+      "hr": [
+        "view",
+        "approve"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "clients": [
+        "view"
+      ],
+      "reports": [
+        "view"
+      ]
+    }
+  },
+  {
+    "key": "sales",
+    "label": "Sales",
+    "tier": "Executive Staff",
+    "scope": "own",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "leads": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "deals": [
+        "view",
+        "create"
+      ],
+      "inventory": [
+        "view"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "clients": [
+        "view"
+      ],
+      "contracts": [
+        "view",
+        "create"
+      ]
+    }
+  },
+  {
+    "key": "telesales",
+    "label": "Telesales",
+    "tier": "Executive Staff",
+    "scope": "own",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "leads": [
+        "view",
+        "create",
+        "edit",
+        "import"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "ops",
+    "label": "Operations · Sales Admin",
+    "tier": "Executive Staff",
+    "scope": "all",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "leads": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "import",
+        "export"
+      ],
+      "settings": [
+        "view"
+      ],
+      "clients": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "master": [
+        "view"
+      ]
+    }
+  },
+  {
+    "key": "inventory",
+    "label": "Inventory Manager",
+    "tier": "Department Head",
+    "scope": "dept",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "inventory": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "notactive": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "tasks": [
+        "view",
+        "create",
+        "edit",
+        "approve"
+      ],
+      "clients": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "master": [
+        "view",
+        "edit"
+      ],
+      "reports": [
+        "view"
+      ]
+    }
+  },
+  {
+    "key": "resale",
+    "label": "Resale & Primary",
+    "tier": "Executive Staff",
+    "scope": "dept",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "inventory": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "tasks": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "clients": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "marketing",
+    "label": "Marketing Manager",
+    "tier": "Department Head",
+    "scope": "dept",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "marketing": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "export"
+      ],
+      "tasks": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "inventory": [
+        "view"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "reports": [
+        "view"
+      ],
+      "integrations": [
+        "view"
+      ],
+      "master": [
+        "view",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "photographer",
+    "label": "Photographer",
+    "tier": "Executive Staff",
+    "scope": "own",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "tasks": [
+        "view",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "designer",
+    "label": "Designer",
+    "tier": "Executive Staff",
+    "scope": "own",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "tasks": [
+        "view",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "hr",
+    "label": "HR",
+    "tier": "Department Head",
+    "scope": "all",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "hr": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "access": [
+        "view",
+        "create"
+      ],
+      "master": [
+        "view",
+        "edit"
+      ],
+      "reports": [
+        "view",
+        "create"
+      ]
+    }
+  },
+  {
+    "key": "accountant",
+    "label": "Accountant",
+    "tier": "Department Head",
+    "scope": "all",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "deals": [
+        "view",
+        "edit"
+      ],
+      "finance": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "import",
+        "export"
+      ],
+      "procurement": [
+        "view",
+        "export"
+      ],
+      "contracts": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "export"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "reports": [
+        "view",
+        "export"
+      ],
+      "master": [
+        "view",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "procurement",
+    "label": "Procurement",
+    "tier": "Executive Staff",
+    "scope": "own",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "procurement": [
+        "view",
+        "create",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "inventory_staff",
+    "label": "Inventory Specialist",
+    "tier": "Executive Staff",
+    "scope": "own",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "notactive": [
+        "view",
+        "edit"
+      ],
+      "tickets": [
+        "view",
+        "create",
+        "edit"
+      ]
+    }
+  },
+  {
+    "key": "approver",
+    "label": "Approver",
+    "tier": "Super Admin",
+    "scope": "all",
+    "permissions": {
+      "home": [
+        "view"
+      ],
+      "procurement": [
+        "view",
+        "approve"
+      ],
+      "finance": [
+        "view"
+      ]
+    }
+  }
+]

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@places/db";
 import type { LeadFilters } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 

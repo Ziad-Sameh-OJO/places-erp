@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@places/db";
 import type { ChangeStage, CreateLead, LeadFilters } from "@places/contracts";
 import { type LeadStage, LeadRouter, isQualifiedAfter } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";

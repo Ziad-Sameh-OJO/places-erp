@@ -2,8 +2,7 @@
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/v1${path}`, {
     method, credentials: "include",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
+    ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
   });
   if (res.status === 401 && typeof window !== "undefined") window.location.href = "/login";
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? res.statusText);

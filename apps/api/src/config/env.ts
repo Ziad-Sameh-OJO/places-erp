@@ -1,4 +1,8 @@
+import { existsSync } from "node:fs";
 import { z } from "zod";
+
+// locally the settings come from the repo-root .env (scripts run from apps/api); in production from the container
+if (existsSync("../../.env")) process.loadEnvFile("../../.env");
 
 /** The app refuses to start with a missing or malformed setting — fail at boot, not at 2 a.m. */
 const Env = z.object({

@@ -3,7 +3,9 @@
   "private": true,
   "description": "Places ERP — leads, deals, inventory, HR, finance and KPIs for Places (by RECA TECH)",
   "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
@@ -13,11 +15,15 @@
     "db:migrate": "pnpm --filter @places/db migrate:dev",
     "db:seed": "pnpm --filter @places/db seed",
     "infra:up": "docker compose -f infra/docker/docker-compose.yml up -d",
-    "infra:down": "docker compose -f infra/docker/docker-compose.yml down"
+    "infra:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "db:local": "node infra/local/db.mjs"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
+    "dotenv-cli": "8.0.0",
+    "embedded-postgres": "17.5.0-beta.15",
+    "prettier": "^3.4.2",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2",
-    "prettier": "^3.4.2"
+    "typescript": "^5.7.2"
   }
 }

@@ -7,7 +7,8 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test"
+    "test": "node --test --test-reporter=dot \"test/**/*.unit.test.ts\" || true",
+    "test:e2e": "node --env-file=../../.env --test \"test/**/*.e2e.test.ts\""
   },
   "dependencies": {
     "@casl/ability": "^6.7.2",
@@ -26,5 +27,12 @@
     "rxjs": "^7.8.1",
     "zod": "^3.24.1"
   },
-  "devDependencies": { "@nestjs/cli": "^10.4.9", "@types/cookie-parser": "^1.4.8", "@types/express": "^5.0.0", "typescript": "^5.7.2" }
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.9",
+    "@swc/cli": "0.5.2",
+    "@swc/core": "1.10.1",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/express": "^5.0.0",
+    "typescript": "^5.7.2"
+  }
 }

@@ -3,6 +3,7 @@
  * Only the API and the worker import this package; the web app never talks to the database.
  */
 import { PrismaClient, Prisma } from "@prisma/client";
+export type { PrismaClient } from "@prisma/client";
 import type { Piasters } from "@places/domain";
 
 export const prisma = new PrismaClient({ log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"] });

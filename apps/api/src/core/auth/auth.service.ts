@@ -1,6 +1,6 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { createHash, randomBytes } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@places/db";
 import { PRISMA } from "../database/database.module";
 import { AuditService } from "../audit/audit.service";
 import { env } from "../../config/env";

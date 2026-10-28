@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@places/db";
 import { PLACES_CALENDAR, type WorkCalendar, localDate } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 

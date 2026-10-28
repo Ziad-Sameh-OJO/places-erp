@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@places/db";
 import { PRISMA } from "../database/database.module";
 
 export interface AuditEntry {

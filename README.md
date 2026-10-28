@@ -6,12 +6,15 @@ ERP / CRM لـ Places (by RECA TECH). المرجع الكامل: **[ARCHITECTURE
 
 ```bash
 corepack enable                 # pnpm
-cp .env.example .env            # واملا SESSION_SECRET (openssl rand -base64 48)
+cp .env.example .env            # واملا SESSION_SECRET (openssl rand -base64 48) و SEED_DEV_PASSWORD
 pnpm install
-pnpm infra:up                   # Postgres · Redis · Mailpit · MinIO
-pnpm db:migrate && pnpm db:seed
-pnpm dev                        # web :3000 · api :4000 · worker
+pnpm db:local                   # Postgres من غير Docker (في تاب لوحده) · أو pnpm infra:up لو عندك Docker
+pnpm db:migrate && pnpm db:seed # 18 دور · 36 شخص حقيقي · كلهم بيدخلوا بـ SEED_DEV_PASSWORD من غير OTP
+pnpm dev                        # web :3000 · api :4000
 ```
+
+الإيميلات بتاعة الحسابات في `packages/db/prisma/seed-data/people.json` (مثلاً `abdallah.sleem@places.com`).
+تستات الـ API الحقيقية (محتاجة الـ API شغال): `pnpm --filter @places/api test:e2e`.
 
 | خدمة | لينك |
 |---|---|

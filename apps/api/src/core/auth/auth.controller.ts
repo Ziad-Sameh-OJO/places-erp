@@ -1,4 +1,6 @@
-import { Body, Controller, HttpCode, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common";
+import { MODULES } from "@places/domain";
+import { Me, type CurrentUser } from "./current-user.decorator";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { ZodPipe } from "../http/zod.pipe";
@@ -19,6 +21,13 @@ export class AuthController {
     const { token, otpRequired } = await this.auth.login(body.email, body.password, { ip: req.ip, userAgent: req.get("user-agent") });
     res.cookie(SESSION_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" });
     return { otpRequired };
+  }
+
+  /** Who is signed in and what they may do: the web app hides what isn't allowed (the API still checks every call). */
+  @Get("me")
+  me(@Me() me: CurrentUser) {
+    const permissions = Object.fromEntries(MODULES.map((m) => [m, [...me.grants.actions(m)]] as const).filter(([, a]) => a.length));
+    return { id: me.id, name: me.name, scope: me.grants.scope, permissions };
   }
 
   @Post("logout")

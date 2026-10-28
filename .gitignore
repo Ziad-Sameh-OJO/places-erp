@@ -9,3 +9,5 @@ coverage/
 !.env.example
 .DS_Store
 infra/docker/data/
+.local/
+*.tsbuildinfo
