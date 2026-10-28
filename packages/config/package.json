@@ -1,0 +1,7 @@
+{
+  "name": "@places/config",
+  "version": "0.1.0",
+  "private": true,
+  "files": ["eslint.config.js", "tsconfig.lib.json"],
+  "devDependencies": { "eslint": "^9.17.0", "typescript-eslint": "^8.18.1" }
+}

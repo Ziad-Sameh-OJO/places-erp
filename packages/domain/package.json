@@ -1,0 +1,13 @@
+{
+  "name": "@places/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Business rules of Places ERP: pure TypeScript, no framework, no I/O",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": { "typescript": "^5.7.2" }
+}

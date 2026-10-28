@@ -1,0 +1,746 @@
+// Places ERP — database schema. One PostgreSQL database, one schema per business area (comments mark the M-xx module).
+// Conventions: ids are cuid strings · money is Decimal(14,2) EGP (the domain package works in integer piasters) ·
+// every table has createdAt/updatedAt · nothing business-relevant is hard-deleted (archivedAt) · times are UTC.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["access", "sales", "inventory", "marketing", "hr", "ops", "finance", "kpi", "system"]
+}
+
+// ───────────────────────────── M-09 · users, roles, permissions ─────────────────────────────
+
+enum AccountStatus {
+  INVITED
+  ACTIVE
+  LOCKED
+  DISABLED
+
+  @@schema("access")
+}
+
+enum DataScope {
+  OWN
+  TEAM
+  DEPT
+  ALL
+
+  @@schema("access")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  phone         String?
+  passwordHash  String?       // argon2id; null until the invite is accepted
+  status        AccountStatus @default(INVITED)
+  failedLogins  Int           @default(0)
+  otpRequired   Boolean       @default(false) // client decision 28/10: off for everyone, admin can turn it on per person
+  lastLoginAt   DateTime?
+  endDate       DateTime?     // last working day: the account stops by itself
+  employee      Employee?
+  roles         UserRole[]
+  overrides     PermissionOverride[]
+  sessions      Session[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@schema("access")
+}
+
+model Session {
+  id        String   @id // random 256-bit token hash
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@schema("access")
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  key         String           @unique // admin, officemgr, sales, tl, … or a custom role
+  label       String
+  tier        String           // Super Admin · Office Manager · Department Head · Executive Staff …
+  behavesLike String?          // a custom role reuses a built-in role's home page and inboxes
+  scope       DataScope        @default(OWN)
+  permissions RolePermission[]
+  users       UserRole[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@schema("access")
+}
+
+model RolePermission {
+  roleId  String
+  role    Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module  String   // see MODULES in @places/domain
+  actions String[] // view · create · edit · approve · delete · import · export
+
+  @@id([roleId, module])
+  @@schema("access")
+}
+
+model UserRole {
+  userId  String
+  roleId  String
+  primary Boolean @default(false)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@schema("access")
+}
+
+/// A per-person exception that replaces the person's roles for one module.
+model PermissionOverride {
+  userId  String
+  module  String
+  actions String[]
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, module])
+  @@schema("access")
+}
+
+// ───────────────────────────── M-05 · employees, attendance, leave ─────────────────────────────
+
+model Employee {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  user            User            @relation(fields: [userId], references: [id])
+  name            String
+  jobTitle        String
+  department      String
+  managerId       String?         // who follows this person (KPIs, approvals)
+  manager         Employee?       @relation("Follows", fields: [managerId], references: [id])
+  reports         Employee[]      @relation("Follows")
+  teamLeaderId    String?         // sales teams A–D
+  teamLeader      Employee?       @relation("SalesTeam", fields: [teamLeaderId], references: [id])
+  teamMembers     Employee[]      @relation("SalesTeam")
+  team            String?         // "A" · "B" · "C" · "D"
+  salary          Decimal         @db.Decimal(14, 2)
+  target          Decimal         @default(0) @db.Decimal(14, 2)
+  commissionPct   Decimal         @default(0) @db.Decimal(5, 2) // the scheme, e.g. 30
+  partTime        Boolean         @default(false)
+  deductionTiers  Json?           // per-person tiers (Q33); null = company default
+  fixedSchedule   String?         // e.g. CFO: Mon & Thu 17:00–19:00
+  leaveBalance    Int             @default(21)
+  attendance      AttendanceDay[]
+  leaves          LeaveRequest[]
+  penalties       Penalty[]
+  oneOnOnes       OneOnOne[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@schema("hr")
+}
+
+enum AttendanceKind {
+  CHECKIN
+  EXCUSE
+  VISIT
+  OUTSIDE_APPROVED
+  FORGOT
+  ABSENT
+  SPECIAL_SCHEDULE
+
+  @@schema("hr")
+}
+
+model AttendanceDay {
+  id               String         @id @default(cuid())
+  employeeId       String
+  employee         Employee       @relation(fields: [employeeId], references: [id])
+  day              DateTime       @db.Date
+  checkInAt        DateTime?
+  checkOutAt       DateTime?
+  kind             AttendanceKind @default(CHECKIN)
+  deduction        Decimal        @default(0) @db.Decimal(3, 2) // 0 · 0.25 · 0.5 · 1
+  lateMinutes      Int            @default(0)
+  hrConfirmed      Boolean        @default(false)
+  source           String         // device · sheet · system
+  createdAt        DateTime       @default(now())
+
+  @@unique([employeeId, day]) // the same sheet uploaded twice never duplicates a day
+  @@schema("hr")
+}
+
+enum LeaveStatus {
+  PENDING_TL
+  APPROVED_BY_TL
+  REJECTED
+  CLOSED_BY_HR
+
+  @@schema("hr")
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  employeeId   String
+  employee     Employee    @relation(fields: [employeeId], references: [id])
+  type         String
+  fromDay      DateTime    @db.Date
+  toDay        DateTime    @db.Date
+  reason       String?
+  status       LeaveStatus @default(PENDING_TL)
+  rejectReason String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@schema("hr")
+}
+
+model Penalty {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  day        DateTime @db.Date
+  text       String
+  byUserId   String
+  createdAt  DateTime @default(now())
+
+  @@schema("hr")
+}
+
+model OneOnOne {
+  id          String    @id @default(cuid())
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  heldOn      DateTime  @db.Date
+  answers     Json
+  hrAction    String?
+  hrActionDue DateTime? @db.Date
+  hrActionDone Boolean  @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@schema("hr")
+}
+
+// ───────────────────────────── M-01 · leads & companies ─────────────────────────────
+
+enum LeadStage {
+  FRESH
+  INTERESTED
+  NOT_INTERESTED
+  NO_ANSWER
+  FOLLOW_UP_TO_VISIT
+  VISIT
+  FOLLOW_UP_AFTER_VISIT
+  MEETING
+  FOLLOW_UP_AFTER_MEETING
+  NEAR_TO_CLOSE
+  DONE_DEAL
+  CANCELLATION
+  HOLD
+
+  @@schema("sales")
+}
+
+model Lead {
+  id             String        @id @default(cuid())
+  code           String        @unique // L-1001…
+  name           String
+  companyId      String?
+  company        Company?      @relation(fields: [companyId], references: [id])
+  phones         String[]
+  area           String
+  type           String        // Rent · Resale · Primary · Income
+  space          Int?
+  condition      String?
+  budget         Decimal?      @db.Decimal(14, 2)
+  channel        String
+  campaignId     String?
+  campaign       Campaign?     @relation(fields: [campaignId], references: [id])
+  stage          LeadStage     @default(FRESH)
+  qualified      Boolean       @default(false) // sticky, see isQualifiedAfter
+  assignedToId   String?
+  assignedAt     DateTime?
+  touched        Boolean       @default(false)
+  ownedByTelesales Boolean     @default(false)
+  noAnswerCount  Int           @default(0)
+  arrivedAt      DateTime      @default(now()) // KPI: first call within 30 min
+  verification   Json?         // Second Call: { called, sent, byUserId, at }
+  activities     LeadActivity[]
+  deals          Deal[]
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  archivedAt     DateTime?
+
+  @@index([assignedToId, stage])
+  @@index([area])
+  @@schema("sales")
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  kind      String   // call · stage · comment · visit · meeting · whatsapp
+  text      String
+  byUserId  String?  // null = the system
+  at        DateTime @default(now())
+
+  @@index([leadId, at])
+  @@schema("sales")
+}
+
+model Company {
+  id                 String   @id @default(cuid())
+  name               String
+  category           String   // 63 categories (M-13 list)
+  number             String?
+  contactName        String?
+  contactTitle       String?
+  email              String?
+  currentLocation    String?
+  currentSpace       Int?
+  contractStart      DateTime? @db.Date
+  contractEnd        DateTime? @db.Date
+  averageRent        Decimal?  @db.Decimal(14, 2)
+  annualEscalation   Decimal?  @db.Decimal(5, 2)
+  feedback           String?
+  outbound           Boolean   @default(false) // added by Telesales herself (KPI)
+  leads              Lead[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([name, number])
+  @@schema("sales")
+}
+
+// ───────────────────────────── M-02 · deals, collections, TCR ─────────────────────────────
+
+enum DealStatus {
+  PENDING_REVIEW
+  APPROVED
+  PARTIALLY_COLLECTED
+  FULLY_COLLECTED
+  REJECTED
+  CANCELLED
+
+  @@schema("sales")
+}
+
+model Deal {
+  id               String            @id @default(cuid())
+  code             String            @unique // D-301…
+  leadId           String?
+  lead             Lead?             @relation(fields: [leadId], references: [id])
+  unitId           String
+  unit             Unit              @relation(fields: [unitId], references: [id])
+  type             String
+  space            Int
+  location         String
+  status           DealStatus        @default(PENDING_REVIEW)
+  commissionOwner  Decimal           @db.Decimal(14, 2)
+  commissionClient Decimal           @db.Decimal(14, 2)
+  targetBase       Decimal?          @db.Decimal(14, 2) // «note» override, target only
+  note             String?
+  offTarget        Boolean           @default(false)    // created and closed within a day (Q13)
+  closedAt         DateTime
+  execDueAt        DateTime?         @db.Date
+  executedAt       DateTime?         @db.Date
+  papersOk         Boolean?          // Finance's check of contract · mandate · registration
+  papersNote       String?
+  participants     DealParticipant[]
+  payments         Payment[]
+  tcrs             Tcr[]
+  createdById      String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status])
+  @@schema("sales")
+}
+
+enum DealSide {
+  BUYER
+  SELLER
+
+  @@schema("sales")
+}
+
+model DealParticipant {
+  dealId     String
+  employeeId String
+  side       DealSide
+  approved   Boolean  @default(true) // the Seller waits for Manar's approval
+  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@id([dealId, employeeId])
+  @@schema("sales")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  dealId      String
+  deal        Deal     @relation(fields: [dealId], references: [id])
+  side        String   // owner · client
+  amount      Decimal  @db.Decimal(14, 2)
+  receivedAt  DateTime // the day it showed in the account (KPI: commission the same day)
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id])
+  recordedById String
+  tcr         Tcr?
+  createdAt   DateTime @default(now())
+
+  @@schema("sales")
+}
+
+model Tcr {
+  id         String         @id @default(cuid())
+  code       Int            @unique // T180, T181 … one sequence for the company
+  dealId     String
+  deal       Deal           @relation(fields: [dealId], references: [id])
+  paymentId  String         @unique
+  payment    Payment        @relation(fields: [paymentId], references: [id])
+  signatures TcrSignature[]
+  pdfKey     String?        // file in object storage
+  createdAt  DateTime       @default(now())
+
+  @@schema("sales")
+}
+
+model TcrSignature {
+  tcrId      String
+  employeeId String
+  signedAt   DateTime?
+  tcr        Tcr       @relation(fields: [tcrId], references: [id], onDelete: Cascade)
+
+  @@id([tcrId, employeeId])
+  @@schema("sales")
+}
+
+// ───────────────────────────── M-03 · inventory & Not Active ─────────────────────────────
+
+model Unit {
+  id               String    @id @default(cuid())
+  code             String    @unique // U-101…
+  type             String    // Rent · Resale · Income
+  alsoType         String?   // available for a second type at the same time (Q17)
+  status           String    @default("available") // available · rented · sold
+  alsoStatus       String?
+  project          String
+  area             String
+  space            Int
+  condition        String
+  floor            String?
+  building         String?
+  parking          Int       @default(0)
+  pricePerSqm      Decimal?  @db.Decimal(14, 2)
+  details          Json      // the type-specific columns (Resale / Income sheets)
+  agentId          String?   // the salesperson who brought it → Seller on a deal
+  divisible        Boolean   @default(false)
+  minSplit         Int?
+  location         String?   // "lat, lng"
+  pdfStatus        String    @default("draft") // draft · confirmed (Manar)
+  receivedAt       DateTime? // KPI: entered within 24h
+  enteredAt        DateTime  @default(now())
+  mediaUrl         String?
+  mediaUploadedAt  DateTime?
+  lastOwnerUpdateAt DateTime @default(now())
+  deals            Deal[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  archivedAt       DateTime?
+
+  @@index([type, status])
+  @@schema("inventory")
+}
+
+model NotActiveSheet {
+  id        String         @id @default(cuid())
+  name      String         @unique // e.g. CFC
+  dedupeBy  String         // column used to merge without duplicates
+  rows      NotActiveRow[]
+  createdAt DateTime       @default(now())
+
+  @@schema("inventory")
+}
+
+model NotActiveRow {
+  id         String         @id @default(cuid())
+  sheetId    String
+  sheet      NotActiveSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  data       Json
+  dedupeKey  String
+  status     String?        // No Answer · Not True · Done
+  feedback   String?        // required for Not True
+  assignedTo String?
+  unitId     String?        // the unit created when Done
+
+  @@unique([sheetId, dedupeKey])
+  @@schema("inventory")
+}
+
+model ListRequest {
+  id           String    @id @default(cuid())
+  requestedBy  String    // Team Leader
+  text         String
+  unitCodes    String[]
+  unconfirmed  Int       @default(0)
+  doneById     String?
+  doneAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@schema("inventory")
+}
+
+// ───────────────────────────── M-04 · marketing & tasks ─────────────────────────────
+
+model Campaign {
+  id        String   @id @default(cuid())
+  name      String
+  channel   String
+  startsOn  DateTime @db.Date
+  endsOn    DateTime @db.Date
+  budget    Decimal  @db.Decimal(14, 2)
+  spent     Decimal  @default(0) @db.Decimal(14, 2)
+  target    String?
+  adUrl     String?
+  leads     Lead[]
+  createdAt DateTime @default(now())
+
+  @@schema("marketing")
+}
+
+model Task {
+  id        String    @id @default(cuid())
+  kind      String    // photo · retouch · followup · toResale · marketing · team
+  title     String?
+  unitId    String?
+  byUserId  String
+  toUserId  String
+  dueOn     DateTime  @db.Date
+  status    String    @default("todo") // todo · progress · uploaded · done
+  returned  Int       @default(0)      // sent back for changes (KPI: accepted first time)
+  doneAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([toUserId, status])
+  @@schema("marketing")
+}
+
+// ───────────────────────────── M-06 · tickets ─────────────────────────────
+
+model Ticket {
+  id           String        @id @default(cuid())
+  code         String        @unique
+  type         String        // request · excuse · hr_letter · dispute · purchase
+  department   String
+  title        String
+  priority     String        @default("normal")
+  status       String        @default("Open")
+  fromUserId   String
+  firstReplyAt DateTime?
+  resolvedAt   DateTime?
+  events       TicketEvent[]
+  createdAt    DateTime      @default(now())
+
+  @@schema("ops")
+}
+
+model TicketEvent {
+  id       String   @id @default(cuid())
+  ticketId String
+  ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  kind     String
+  text     String
+  byUserId String
+  at       DateTime @default(now())
+
+  @@schema("ops")
+}
+
+// ───────────────────────────── M-07 / M-08 · finance & procurement ─────────────────────────────
+
+model Account {
+  id       String    @id @default(cuid())
+  name     String    @unique // main treasury · Nancy · Mokhtar · Ahmed Ashraf · CIB · QNB · Dopay
+  kind     String    // treasury · bank · wallet
+  balance  Decimal   @db.Decimal(14, 2)
+  cap      Decimal?  @db.Decimal(14, 2) // petty-cash ceiling
+  payments Payment[]
+
+  @@schema("finance")
+}
+
+model BudgetLine {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  kind      String     // admin · selling
+  budget    Decimal    @db.Decimal(14, 2)
+  spent     Decimal    @default(0) @db.Decimal(14, 2)
+  purchases Purchase[]
+
+  @@schema("finance")
+}
+
+model Purchase {
+  id          String     @id @default(cuid())
+  code        String     @unique
+  item        String
+  amount      Decimal    @db.Decimal(14, 2)
+  lineId      String
+  line        BudgetLine @relation(fields: [lineId], references: [id])
+  vendor      String?
+  attachments String[]   // required over 10,000 EGP: receipt or two quotes
+  status      String     @default("Pending") // Pending · Approved · Rejected · Paid
+  approvedBy  String?
+  rejectReason String?
+  paidFrom    String?
+  paidAt      DateTime?
+  createdById String
+  createdAt   DateTime   @default(now())
+
+  @@schema("finance")
+}
+
+model Contract {
+  id           String        @id @default(cuid())
+  code         String        @unique
+  dealId       String        @unique
+  startsOn     DateTime      @db.Date
+  endsOn       DateTime      @db.Date
+  value        Decimal       @db.Decimal(14, 2)
+  escalation   Decimal       @default(0) @db.Decimal(5, 2)
+  status       String        @default("Active")
+  installments Installment[]
+
+  @@schema("finance")
+}
+
+model Installment {
+  id         String    @id @default(cuid())
+  contractId String
+  contract   Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  dueOn      DateTime  @db.Date
+  amount     Decimal   @db.Decimal(14, 2)
+  paid       Decimal   @default(0) @db.Decimal(14, 2)
+
+  @@schema("finance")
+}
+
+// ───────────────────────────── M-12 · KPI cards ─────────────────────────────
+
+model KpiCard {
+  id          String    @id @default(cuid())
+  quarter     String    // "2026-Q4"
+  employeeId  String
+  followerId  String?   // null = the owners
+  payBase     String    @default("bonus") // salary · bonus
+  payPeriod   String    @default("quarter")
+  payAmount   Decimal   @default(0) @db.Decimal(14, 2)
+  approvedBy  String?
+  approvedAt  DateTime?
+  finalScore  Decimal?  @db.Decimal(6, 2)
+  finalAmount Decimal?  @db.Decimal(14, 2)
+  plan        String?   // improvement plan under 70%
+  draft       Boolean   @default(false)
+  items       KpiItem[]
+
+  @@unique([quarter, employeeId])
+  @@schema("kpi")
+}
+
+model KpiItem {
+  id          String  @id @default(cuid())
+  cardId      String
+  card        KpiCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  position    Int
+  title       String
+  weight      Int
+  targetText  String
+  source      String
+  measurement String  // auto · handed-in · manual
+  module      String?
+  direction   String  @default("at-least")
+  goal        Decimal @db.Decimal(14, 2)
+  metric      String? // key of the automatic measure
+  manualValue Decimal? @db.Decimal(14, 2)
+  required    Int?    // hand-in: times due
+  delivered   Int     @default(0)
+
+  @@unique([cardId, position])
+  @@schema("kpi")
+}
+
+model KpiBands {
+  id         String @id @default("default")
+  top        Int    @default(100)
+  full       Int    @default(96)
+  partial    Int    @default(70)
+  low        Int    @default(50)
+  rewardPct  Int    @default(15)
+  cutPct     Int    @default(15)
+
+  @@schema("kpi")
+}
+
+// ───────────────────────────── M-13 / M-14 · settings, notifications, audit ─────────────────────────────
+
+model Holiday {
+  day   DateTime @id @db.Date
+  label String
+
+  @@schema("system")
+}
+
+model Setting {
+  key       String   @id // areas, channels, companyCategories, slaRules, deductionTiers, approvalLimit…
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@schema("system")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  text      String
+  link      String?
+  important Boolean   @default(false) // stays until read
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@schema("system")
+}
+
+model NotificationRule {
+  event    String   @id
+  toRoles  String[]
+  channels String[] // app · push · email
+
+  @@schema("system")
+}
+
+/// Every create / update / delete / money change: who, when, what, before → after (Q50).
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  at        DateTime @default(now())
+  userId    String?
+  module    String
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  ip        String?
+
+  @@index([module, at])
+  @@index([entity, entityId])
+  @@schema("system")
+}

@@ -1,0 +1,4 @@
+# Business rules and money: two reviewers, one of them the tech lead.
+/packages/domain/   @reca-tech/tech-lead
+/packages/db/       @reca-tech/tech-lead
+/apps/api/src/core/ @reca-tech/tech-lead

@@ -1,0 +1,23 @@
+# Local development services. `pnpm infra:up` then `pnpm dev`.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: places, POSTGRES_PASSWORD: places, POSTGRES_DB: places, TZ: Africa/Cairo }
+    ports: ["5432:5432"]
+    volumes: ["./data/postgres:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U places"], interval: 5s, retries: 10 }
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  mailpit: # catches every email the system sends; UI on http://localhost:8025
+    image: axllent/mailpit:v1.21
+    ports: ["1025:1025", "8025:8025"]
+
+  minio: # S3-compatible file storage; console on http://localhost:9001
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    command: server /data --console-address ":9001"
+    environment: { MINIO_ROOT_USER: places, MINIO_ROOT_PASSWORD: places-secret }
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["./data/minio:/data"]

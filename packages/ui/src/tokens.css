@@ -1,0 +1,18 @@
+/* Design tokens — copied from the design the client approves (demo design-1 or design-2). Light only for now. */
+:root {
+  --bg: #f2f4f9;
+  --surface: #ffffff;
+  --sunken: #e9edf6;
+  --line: #e3e7f0;
+  --ink: #080d2b;
+  --ink-2: #3a4166;
+  --ink-3: #6b7398;
+  --accent: #0037ff;
+  --accent-soft: #e6ecff;
+  --ok: #08875c; --warn: #b7791f; --bad: #c22a37;
+  --r-sm: 10px; --r: 14px; --r-lg: 18px; --r-xl: 22px;
+  --f-body: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --f-display: "Readex Pro", var(--f-body);
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+html { direction: rtl; background: var(--bg); color: var(--ink); font-family: var(--f-body); }

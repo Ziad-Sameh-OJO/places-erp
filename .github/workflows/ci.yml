@@ -1,0 +1,28 @@
+name: CI
+on:
+  pull_request:
+  push: { branches: [main] }
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: places, POSTGRES_PASSWORD: places, POSTGRES_DB: places_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U places" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://places:places@localhost:5432/places_test
+      TZ: Africa/Cairo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @places/db exec prisma validate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
