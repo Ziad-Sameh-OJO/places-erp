@@ -5,7 +5,10 @@
  * Tick, Avatar, and a toast.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import type { Action, ModuleKey } from "@places/domain";
 import { ICONS, type IconName } from "@places/ui";
+import { api } from "@/lib/api";
+import { useMe } from "@/lib/me";
 
 export function Icon({ name }: { name: IconName }) {
   return <svg className="i" viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ICONS[name] }} />;
@@ -117,4 +120,21 @@ export function useAction() {
     try { await fn(); if (ok) toast(ok); }
     catch (e) { toast(e instanceof Error ? e.message : "حصل خطأ"); }
   }, [toast]);
+}
+
+/**
+ * «تصدير Excel» for any table: sends the table's current filters to the module's export endpoint. Shown only to people
+ * with the module's `export` permission (the API checks it again).
+ */
+export function ExportButton({ module, path, query, filename }: { module: ModuleKey; path: string; query?: URLSearchParams; filename: string }) {
+  const { can } = useMe();
+  const run = useAction();
+  const [busy, setBusy] = useState(false);
+  if (!can(module, "export" as Action)) return null;
+  const qs = query ? `?${query}` : "";
+  return (
+    <button className="btn ghost" disabled={busy} onClick={async () => { setBusy(true); await run(() => api.download(`${path}${qs}`, filename)); setBusy(false); }}>
+      <Icon name="upload" />{busy ? "بيجهّز الملف…" : "تصدير Excel"}
+    </button>
+  );
 }

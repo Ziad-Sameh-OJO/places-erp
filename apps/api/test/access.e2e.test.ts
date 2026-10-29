@@ -5,7 +5,8 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { PW, call, lastMail, login, session, tokenIn } from "./helpers.ts";
+import ExcelJS from "exceljs";
+import { API, PW, call, lastMail, login, session, tokenIn } from "./helpers.ts";
 
 const NEW_PW = "NewPass12345x";
 const stamp = Date.now();
@@ -185,4 +186,20 @@ test("change my password: the old one stops working", async () => {
   assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: PW, next: "Changed12345" } })).status, 204);
   assert.equal((await login("m.eid@places.com")).status, 401);
   await call("/auth/password", { method: "POST", cookie, body: { current: "Changed12345", next: PW } }); // put it back
+});
+
+test("Excel export: the filtered users as .xlsx for whoever has «export»; others get 403; it's audited", async () => {
+  const res = await fetch(`${API}/access/users/export?status=ACTIVE`, { headers: { cookie: nancy } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") ?? "", /spreadsheetml/);
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.load(Buffer.from(await res.arrayBuffer()) as never);
+  const sheet = book.worksheets[0]!;
+  assert.equal(sheet.views[0]?.rightToLeft, true);
+  assert.equal(sheet.getRow(1).getCell(1).value, "الاسم");
+  const active = (await call("/access/users?status=ACTIVE&pageSize=100", { cookie: nancy })).body.total;
+  assert.equal(sheet.rowCount - 1, active);
+  assert.equal((await fetch(`${API}/access/users/export`, { headers: { cookie: sales } })).status, 403);
+  const log = await call("/access/audit?entityId=export", { cookie: nancy });
+  assert.equal(log.body.items[0].action, "export");
 });

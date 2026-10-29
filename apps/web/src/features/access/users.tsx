@@ -5,7 +5,7 @@ import type { Paged } from "@places/contracts";
 import type { ModuleKey } from "@places/domain";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { Avatar, Chip, Field, Icon, Modal, Note, Table, useAction } from "@/components/ui";
+import { Avatar, Chip, ExportButton, Field, Icon, Modal, Note, Table, useAction } from "@/components/ui";
 import { Matrix, type MatrixValue } from "./matrix";
 import { STATUS, type RoleRow, type UserRow } from "./types";
 
@@ -37,6 +37,7 @@ export function UsersTab() {
         </select>
         <span className="spacer" />
         <span className="hint">{users.data?.total ?? 0} حساب</span>
+        <ExportButton module="access" path="/access/users/export" query={new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}) })} filename="المستخدمين.xlsx" />
         {can("access", "create") && <button className="btn" onClick={() => setForm("new")}>+ حساب جديد</button>}
       </div>
       <section className="card">
