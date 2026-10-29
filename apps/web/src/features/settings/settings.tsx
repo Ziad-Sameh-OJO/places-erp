@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Settings } from "@places/contracts";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { Card, Chip, Field, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
+import { Card, Chip, Field, Icon, ImportDialog, Note, Table, Tabs, useAction } from "@/components/ui";
 
 type ListKey = "areas" | "channels" | "companyCategories" | "vendors";
 const LISTS: [ListKey, string][] = [["areas", "المناطق (Areas)"], ["channels", "الـ Channels"], ["companyCategories", "كاتيجوريز الشركات"], ["vendors", "الموردين"]];
@@ -16,6 +16,7 @@ export function SettingsPage() {
   const { can } = useMe();
   const ed = can("master", "edit");
   const [tab, setTab] = useState<"lists" | "stages" | "time" | "holidays">("lists");
+  const [importing, setImporting] = useState(false);
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
   const holidays = useQuery({ queryKey: ["holidays"], queryFn: () => api.get<{ day: string; label: string }[]>("/settings/holidays") });
   const stages = useQuery({ queryKey: ["stages"], queryFn: () => api.get<{ stage: string; qualified: boolean }[]>("/settings/stages"), enabled: tab === "stages" });
@@ -72,7 +73,8 @@ export function SettingsPage() {
         </Card>
       </div>}
 
-      {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="في يوم الإجازة الـ SLA بيمشي بالساعة العادية، والبصمة متحسبش غياب">
+      {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="في يوم الإجازة الـ SLA بيمشي بالساعة العادية، والبصمة متحسبش غياب"
+        extra={ed && <button className="btn ghost sm" onClick={() => setImporting(true)}><Icon name="upload" />استيراد Excel</button>}>
         <Table head={["اليوم", "الإجازة", ""]} empty="مفيش إجازات متسجلة" rows={(holidays.data ?? []).map((h) => {
           const day = h.day.slice(0, 10);
           return [new Date(`${day}T12:00:00`).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long", year: "numeric" }), h.label,
@@ -82,6 +84,9 @@ export function SettingsPage() {
           <input type="date" name="day" required aria-label="اليوم" /><input name="label" placeholder="اسم الإجازة" required minLength={2} aria-label="اسم الإجازة" /><button className="btn ghost">+ إضافة</button>
         </form>}
       </Card>}
+      {importing && <ImportDialog<{ day: string; label: string }> title="استيراد الإجازات الرسمية" path="/settings/holidays/import" template="قالب الإجازات الرسمية.xlsx"
+        columns={[["day", "التاريخ"], ["label", "الإجازة"]]} onClose={() => setImporting(false)}
+        onDone={() => { setImporting(false); void qc.invalidateQueries({ queryKey: ["holidays"] }); }} />}
     </>
   );
 }

@@ -9,3 +9,8 @@ export const Id = z.string().min(1).max(40);
 export const Page = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) });
 export type Page = z.infer<typeof Page>;
 export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number }
+
+/** Excel/CSV import: what the screen shows before «تأكيد» (lines are sheet lines, the header is line 1). */
+export interface ImportError { line: number; column: string; message: string }
+export interface ImportPreview<T> { total: number; valid: number; errors: ImportError[]; sample: T[] }
+export interface ImportDone { imported: number }

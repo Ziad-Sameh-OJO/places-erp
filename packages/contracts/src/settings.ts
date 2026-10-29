@@ -24,6 +24,13 @@ export const SettingKeyParam = z.enum(Object.keys(SETTINGS) as [SettingKey, ...S
 
 export const HolidayInput = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), label: z.string().trim().min(2).max(80) });
 export type HolidayInput = z.infer<typeof HolidayInput>;
+/** 2026-02-30 parses (as March 2nd), so check the date survives the round trip. */
+const realDay = (d: string) => { const t = new Date(`${d}T00:00:00Z`); return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d; };
+/** A row of the holidays sheet (M-13): same fields as the form, Arabic messages for the import screen. */
+export const HolidayRow = z.object({
+  day: z.string({ required_error: "التاريخ ناقص" }).regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ لازم يبقى YYYY-MM-DD").refine(realDay, "تاريخ مش موجود"),
+  label: z.string({ required_error: "اسم الإجازة ناقص" }).trim().min(2, "اسم الإجازة قصير").max(80, "اسم الإجازة طويل"),
+});
 
 export const RuleInput = z.object({ channels: z.array(z.enum(["app", "push", "email"])).max(3) });
 export const Preferences = z.object({ emailNotifications: z.boolean() });

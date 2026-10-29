@@ -1,0 +1,86 @@
+import { BadRequestException } from "@nestjs/common";
+import { Readable } from "node:stream";
+import ExcelJS from "exceljs";
+import type { ZodType } from "zod";
+import type { ImportError, ImportPreview } from "@places/contracts";
+
+/** What multer hands the controller (FileInterceptor keeps the file in memory). */
+export interface UploadedSheet { buffer: Buffer; originalname: string; size: number }
+
+/** Bigger sheets go in parts: one import is one transaction. */
+export const IMPORT_LIMIT = 5_000;
+export const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+
+/** Column key → the header people see in the template (Arabic, same as the screens). */
+export type ImportColumns<K extends string> = Record<K, string>;
+
+export interface ParsedSheet<T> { rows: { line: number; data: T }[]; errors: ImportError[]; total: number }
+
+/**
+ * Reads an .xlsx or .csv, matches the columns by their header (any order, extra columns ignored), and validates every
+ * row with the module's schema. Returns the valid rows with their sheet line, and every error by line and column.
+ * Saving is the module service's job, in its own transaction.
+ */
+export async function parseSheet<K extends string, T>(file: UploadedSheet | undefined, columns: ImportColumns<K>, schema: ZodType<T>, uniqueBy?: (row: T) => string): Promise<ParsedSheet<T>> {
+  if (!file) throw new BadRequestException("ارفع ملف Excel أو CSV");
+  const sheet = await readFirstSheet(file);
+  const headers = new Map<string, number>();
+  sheet.getRow(1).eachCell((cell, col) => headers.set(text(cell.value) ?? "", col));
+  const missing = Object.values<string>(columns).filter((h) => !headers.has(h));
+  if (missing.length) return { rows: [], total: 0, errors: [{ line: 1, column: missing.join("، "), message: "أعمدة ناقصة في الشيت · نزّل القالب" }] };
+
+  const rows: ParsedSheet<T>["rows"] = [];
+  const errors: ImportError[] = [];
+  const seen = new Map<string, number>();
+  let total = 0;
+  for (let line = 2; line <= sheet.rowCount; line++) {
+    const row = sheet.getRow(line);
+    const raw = Object.fromEntries((Object.entries(columns) as [K, string][]).map(([key, h]) => [key, text(row.getCell(headers.get(h)!).value)]));
+    if (Object.values(raw).every((v) => v === undefined)) continue; // blank lines between blocks are common in hand-made sheets
+    if (++total > IMPORT_LIMIT) throw new BadRequestException(`الشيت أكبر من ${IMPORT_LIMIT} صف · قسّمه`);
+    const r = schema.safeParse(raw);
+    if (!r.success) {
+      for (const i of r.error.issues) errors.push({ line, column: columns[i.path[0] as K] ?? "", message: i.message });
+      continue;
+    }
+    const key = uniqueBy?.(r.data);
+    if (key !== undefined && seen.has(key)) { errors.push({ line, column: "", message: `مكرر مع السطر ${seen.get(key)}` }); continue; }
+    if (key !== undefined) seen.set(key, line);
+    rows.push({ line, data: r.data });
+  }
+  return { rows, errors, total };
+}
+
+/** What the screen shows before «تأكيد»: the first 50 valid rows and every error. */
+export function preview<T>(p: ParsedSheet<T>): ImportPreview<T> {
+  return { total: p.total, valid: p.rows.length, errors: p.errors, sample: p.rows.slice(0, 50).map((r) => r.data) };
+}
+
+async function readFirstSheet(file: UploadedSheet) {
+  const book = new ExcelJS.Workbook();
+  try {
+    // CSV cells stay text: ExcelJS would turn "2026-04-10" into a local-time Date, a day early in UTC
+    if (/\.csv$/i.test(file.originalname)) return await book.csv.read(Readable.from(file.buffer), { map: (v: unknown) => v });
+    // ExcelJS's own Buffer type predates Node's generic Buffer
+    await book.xlsx.load(file.buffer as unknown as ExcelJS.Buffer);
+  } catch {
+    throw new BadRequestException("الملف مش Excel (.xlsx) ولا CSV");
+  }
+  const sheet = book.worksheets[0];
+  if (!sheet) throw new BadRequestException("الملف فاضي");
+  return sheet;
+}
+
+/** A cell as trimmed text: dates as YYYY-MM-DD, rich text and formulas by what they show, empty as undefined. */
+function text(v: ExcelJS.CellValue): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === "object") {
+    if ("richText" in v) return text(v.richText.map((t) => t.text).join(""));
+    if ("text" in v) return text(v.text as string);
+    if ("result" in v) return text(v.result as ExcelJS.CellValue);
+    return undefined;
+  }
+  const s = String(v).trim();
+  return s === "" ? undefined : s;
+}
