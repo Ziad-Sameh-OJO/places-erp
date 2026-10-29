@@ -29,6 +29,12 @@ export interface Grants {
 /** Any action implies view (you can't edit what you can't see). */
 const withView = (set: Set<Action>): Set<Action> => (set.size ? set.add("view") : set);
 
+/** The canonical form of one module's actions: no duplicates, view added when anything is granted, fixed order. */
+export const normalizeActions = (actions: readonly Action[]): Action[] => {
+  const set = withView(new Set(actions));
+  return ACTIONS.filter((a) => set.has(a));
+};
+
 export function effectiveGrants(
   roles: readonly RolePolicy[],
   overrides: Partial<Record<ModuleKey, readonly Action[]>> = {},

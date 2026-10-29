@@ -16,6 +16,8 @@ pnpm dev                        # web :3000 · api :4000
 الإيميلات بتاعة الحسابات في `packages/db/prisma/seed-data/people.json` (مثلاً `abdallah.sleem@places.com`).
 تستات الـ API الحقيقية (محتاجة الـ API شغال): `pnpm --filter @places/api test:e2e`.
 
+من غير `SMTP_URL`، الإيميلات اللي السيستم بيبعتها (التفعيل، تغيير الباسورد، كود OTP، الإشعارات) بتتكتب في `.local/outbox/` عشان تفتح اللينكات منها.
+
 | خدمة | لينك |
 |---|---|
 | الواجهة | http://localhost:3000 |

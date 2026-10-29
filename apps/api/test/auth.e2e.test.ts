@@ -6,16 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hash } from "@node-rs/argon2";
 import { prisma } from "@places/db";
-
-const API = (process.env.API_URL ?? "http://localhost:4000") + "/api/v1";
-const PW = process.env.SEED_DEV_PASSWORD!;
-
-async function call(path: string, init: RequestInit & { cookie?: string } = {}) {
-  const res = await fetch(API + path, { ...init, headers: { "content-type": "application/json", ...(init.cookie ? { cookie: init.cookie } : {}) } });
-  const body = res.status === 204 ? null : await res.json().catch(() => null);
-  return { status: res.status, body, cookie: res.headers.get("set-cookie")?.split(";")[0] };
-}
-const login = async (email: string, password = PW) => call("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+import { PW, call, login } from "./helpers.ts";
 
 test("closed by default: no session → 401", async () => {
   assert.equal((await call("/leads")).status, 401);

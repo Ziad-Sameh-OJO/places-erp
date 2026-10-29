@@ -41,6 +41,8 @@ model User {
   status        AccountStatus @default(INVITED)
   failedLogins  Int           @default(0)
   otpRequired   Boolean       @default(false) // client decision 28/10: off for everyone, admin can turn it on per person
+  emailNotifications Boolean  @default(true)  // M-14 «my preferences»: important ones always reach the bell anyway
+  tokens        AuthToken[]
   lastLoginAt   DateTime?
   endDate       DateTime?     // last working day: the account stops by itself
   employee      Employee?
@@ -66,12 +68,35 @@ model Session {
   @@schema("access")
 }
 
+/// One-time secrets sent by email: account activation, password reset, sign-in OTP. Only the hash is stored.
+model AuthToken {
+  id        String        @id // sha256 of the token / of userId+code for OTP
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      AuthTokenKind
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, kind])
+  @@schema("access")
+}
+
+enum AuthTokenKind {
+  INVITE
+  RESET
+  OTP
+
+  @@schema("access")
+}
+
 model Role {
   id          String           @id @default(cuid())
   key         String           @unique // admin, officemgr, sales, tl, … or a custom role
   label       String
   tier        String           // Super Admin · Office Manager · Department Head · Executive Staff …
   behavesLike String?          // a custom role reuses a built-in role's home page and inboxes
+  builtIn     Boolean          @default(false) // the 18 roles from the requirements: can't be deleted
   scope       DataScope        @default(OWN)
   permissions RolePermission[]
   users       UserRole[]
@@ -720,7 +745,7 @@ model Notification {
 }
 
 model NotificationRule {
-  event    String   @id
+  event    String   @id // see NOTIFICATION_EVENTS in @places/domain
   toRoles  String[]
   channels String[] // app · push · email
 

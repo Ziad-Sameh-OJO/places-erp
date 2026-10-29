@@ -12,9 +12,9 @@ export class PoliciesGuard implements CanActivate {
 
   canActivate(ctx: ExecutionContext) {
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [ctx.getHandler(), ctx.getClass()])) return true;
-    const need = this.reflector.getAllAndOverride<{ module: ModuleKey; action: Action }>(REQUIRES, [ctx.getHandler(), ctx.getClass()]);
-    const isAuthRoute = ctx.getClass().name === "AuthController"; // logout only needs a session
-    if (!need) { if (isAuthRoute) return true; throw new ForbiddenException(); }
+    const need = this.reflector.getAllAndOverride<{ module: ModuleKey; action: Action } | "signed-in">(REQUIRES, [ctx.getHandler(), ctx.getClass()]);
+    if (!need) throw new ForbiddenException();
+    if (need === "signed-in") return true;
     const user: CurrentUser = ctx.switchToHttp().getRequest().user;
     if (!user.grants.can(need.module, need.action)) throw new ForbiddenException();
     return true;

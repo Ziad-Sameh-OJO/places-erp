@@ -1,9 +1,7 @@
 import { Providers } from "../providers";
+import { Shell } from "@/components/shell";
 
-/**
- * The signed-in shell, ported from the approved demo: side menu filtered by permissions on desktop;
- * app bar + bottom tab bar + floating «جديد» + bottom sheets on phones (see demo css/mobile.css).
- */
+/** Every signed-in page: the demo's shell (side menu by permission, top bar, bell; tab bar on phones). */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <Providers><div className="app">{children}</div></Providers>;
+  return <Providers><Shell>{children}</Shell></Providers>;
 }

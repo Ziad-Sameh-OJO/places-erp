@@ -76,3 +76,16 @@ test("permissions: roles add up, a personal override replaces them, any action i
   assert.equal(o.can("leads", "create"), false);
   assert.equal(g.can("finance", "view"), false);
 });
+
+test("notifications: email off means app only, unless the notification is important", async () => {
+  const { channelsFor } = await import("../src/notifications.ts");
+  assert.deepEqual(channelsFor(["app", "push", "email"], { emailNotifications: false }, false), ["app", "push"]);
+  assert.deepEqual(channelsFor(["app", "push", "email"], { emailNotifications: false }, true), ["app", "push", "email"]);
+  assert.deepEqual(channelsFor(["app"], { emailNotifications: true }, true), ["app"]);
+});
+
+test("permissions: normalised actions always include view and keep the matrix order", async () => {
+  const { normalizeActions } = await import("../src/permissions.ts");
+  assert.deepEqual(normalizeActions(["export", "edit", "edit"]), ["view", "edit", "export"]);
+  assert.deepEqual(normalizeActions([]), []);
+});

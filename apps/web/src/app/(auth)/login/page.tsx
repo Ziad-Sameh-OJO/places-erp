@@ -2,31 +2,55 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { Field } from "@/components/ui";
+import { AuthForm, str } from "../form";
 
-/** M-09 sign-in: email + password (no OTP by default, per the client). */
+/** M-09 sign-in: email + password; a 6-digit code by email only for people the admin turned OTP on for. */
 export default function LoginPage() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"login" | "otp" | "forgot" | "sent">("login");
+  const [email, setEmail] = useState("");
 
-  async function onSubmit(form: FormData) {
-    setError(null);
-    try {
-      await api.post("/auth/login", { email: form.get("email"), password: form.get("password") });
-      router.replace("/");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "حصل خطأ");
-    }
-  }
-
+  if (step === "otp") return (
+    <>
+      <h1>كود التأكيد</h1><p className="hint">بعتنا كود من 6 أرقام على <b>{email}</b> · صالح 10 دقايق.</p>
+      <AuthForm onSubmit={async (f) => { await api.post("/auth/otp", { email, code: str(f, "code") }); router.replace("/"); }}>
+        <Field label="الكود" req><input name="code" inputMode="numeric" maxLength={6} pattern="\d{6}" required autoComplete="one-time-code" autoFocus /></Field>
+        <button className="btn">تأكيد</button>
+        <button type="button" className="btn ghost sm" onClick={() => setStep("login")}>رجوع</button>
+      </AuthForm>
+    </>
+  );
+  if (step === "forgot") return (
+    <>
+      <h1>نسيت الباسورد</h1><p className="hint">اكتب إيميلك وهنبعتلك لينك تعمل منه باسورد جديد.</p>
+      <AuthForm onSubmit={async (f) => { await api.post("/auth/forgot", { email: str(f, "email") }); setStep("sent"); }}>
+        <Field label="الإيميل" req><input name="email" type="email" required defaultValue={email} autoFocus /></Field>
+        <button className="btn">ابعت اللينك</button>
+        <button type="button" className="btn ghost sm" onClick={() => setStep("login")}>رجوع</button>
+      </AuthForm>
+    </>
+  );
+  if (step === "sent") return (
+    <>
+      <h1>شوف إيميلك</h1><p className="hint">لو الإيميل ده عليه حساب، هيوصلك لينك تغيير الباسورد (صالح 30 دقيقة).</p>
+      <button className="btn ghost" onClick={() => setStep("login")}>رجوع لتسجيل الدخول</button>
+    </>
+  );
   return (
-    <main className="auth">
-      <form action={onSubmit} className="auth-card">
-        <h1>تسجيل الدخول</h1>
-        <label>الإيميل<input name="email" type="email" autoComplete="username" required /></label>
-        <label>الباسورد<input name="password" type="password" autoComplete="current-password" required /></label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit">دخول</button>
-      </form>
-    </main>
+    <>
+      <h1>تسجيل الدخول</h1><p className="hint">ادخل بإيميل الشغل والباسورد بتاعك.</p>
+      <AuthForm onSubmit={async (f) => {
+        const e = str(f, "email");
+        setEmail(e);
+        const r = await api.post<{ otpRequired: boolean }>("/auth/login", { email: e, password: str(f, "password") });
+        if (r.otpRequired) setStep("otp"); else router.replace("/");
+      }}>
+        <Field label="الإيميل" req><input name="email" type="email" autoComplete="username" required defaultValue={email} autoFocus /></Field>
+        <Field label="الباسورد" req><input name="password" type="password" autoComplete="current-password" required /></Field>
+        <button className="btn">دخول</button>
+        <button type="button" className="btn ghost sm" onClick={() => setStep("forgot")}>نسيت الباسورد؟</button>
+      </AuthForm>
+    </>
   );
 }

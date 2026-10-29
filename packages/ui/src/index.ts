@@ -1,3 +1,3 @@
-// Shared components land here as they are extracted from the demo: Button, Chip, Card, DataTable (cards on phones),
-// Drawer (bottom sheet on phones), KpiTile, Stepper … Each with its RTL and mobile behaviour baked in.
-export {};
+// The approved demo's look: app.css (layout, components) + mobile.css (phones as an installed app), and its icons.
+// The web app imports the CSS once in its root layout and renders <Icon> from these paths.
+export { ICONS, type IconName } from "./icons.ts";

@@ -1,0 +1,11 @@
+/* Only what the real app needs on top of the demo's CSS (packages/ui). */
+.auth { grid-template-columns: minmax(0, 440px); }
+.auth-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.matrix-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.perm td.ov { background: var(--warn-soft); }
+.role-list { display: flex; flex-direction: column; gap: 4px; }
+.role-list button { display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: start; padding: 9px 12px; border-radius: var(--r-sm); border: 1px solid transparent; background: none; }
+.role-list button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-text); }
+.role-list small { color: var(--ink-3); }
+.access-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .access-grid { grid-template-columns: 1fr; } }

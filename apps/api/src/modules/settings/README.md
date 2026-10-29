@@ -1,5 +1,5 @@
-# M-13 · الإعدادات
+# M-13 · الإعدادات ✅
 
-Areas and their routing, channels, stages, company categories, holidays, SLA rules, deduction tiers, approval limits, KPI templates.
-
-Pattern: copy `modules/leads` — `settings.controller.ts` (HTTP + @Requires), `settings.service.ts` (use cases, transactions, audit), `settings.repository.ts` (Prisma only). Rules go in `packages/domain`, schemas in `packages/contracts`.
+`GET /settings` (أي حد مسجّل دخول) · `PUT /settings/:key` (master: edit) · `/settings/holidays` · `/settings/stages`.
+كل مفتاح ليه schema في `@places/contracts/settings.ts`؛ أي مفتاح أو قيمة غلط بتترفض. الإجازات بتمسح الكاش بتاع ساعات الشغل فوراً.
+لسه: توزيع المناطق على السيلز (Routing) بيتبني مع M-01 · شرايح الخصم مع M-05 · حدود الموافقات مع M-08.

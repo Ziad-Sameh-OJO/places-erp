@@ -12,3 +12,4 @@ export * from "./attendance.ts";
 export * from "./kpi.ts";
 export * from "./ideal-employee.ts";
 export * from "./permissions.ts";
+export * from "./notifications.ts";

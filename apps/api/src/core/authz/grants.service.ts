@@ -9,8 +9,9 @@ import type { CurrentUser } from "../auth/current-user.decorator";
 export class GrantsService {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  async currentUser(userId: string): Promise<CurrentUser> {
-    const u = await this.db.user.findUniqueOrThrow({
+  /** `db` can be a transaction, so a change can be checked (e.g. «don't lock yourself out») before it commits. */
+  async currentUser(userId: string, db: Pick<PrismaClient, "user"> = this.db): Promise<CurrentUser> {
+    const u = await db.user.findUniqueOrThrow({
       where: { id: userId },
       include: { roles: { include: { role: { include: { permissions: true } } } }, overrides: true, employee: { include: { teamMembers: { select: { id: true } } } } },
     });
@@ -22,6 +23,10 @@ export class GrantsService {
     return {
       id: u.id,
       name: u.employee?.name ?? u.email,
+      email: u.email,
+      emailNotifications: u.emailNotifications,
+      roles: [...u.roles].sort((a, b) => Number(b.primary) - Number(a.primary)).map(({ role }) => role.key),
+      roleLabels: [...u.roles].sort((a, b) => Number(b.primary) - Number(a.primary)).map(({ role }) => role.label),
       employeeId: u.employee?.id ?? null,
       grants: effectiveGrants(roles, overrides),
       teamIds: u.employee ? [u.employee.id, ...u.employee.teamMembers.map((m) => m.id)] : [],

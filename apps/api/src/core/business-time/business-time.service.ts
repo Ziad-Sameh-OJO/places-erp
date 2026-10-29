@@ -17,6 +17,11 @@ export class BusinessTimeService {
     return cal;
   }
 
+  /** Called when the holidays change, so the SLA clock sees them at once. */
+  invalidate() {
+    this.cache = null;
+  }
+
   async isHolidayToday(now = new Date()) {
     return (await this.calendar()).holidays.has(localDate(now));
   }

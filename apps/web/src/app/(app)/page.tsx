@@ -1,19 +1,27 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import Link from "next/link";
+import type { ModuleKey } from "@places/domain";
+import { useMe } from "@/lib/me";
+import { NAV } from "@/lib/nav";
+import { Card, Icon, Note } from "@/components/ui";
 
-interface Me { id: string; name: string; scope: string; permissions: Record<string, string[]> }
-
-/** Home: placeholder until the role dashboards are ported (phase 1). Shows who is signed in and their modules. */
+/** Home: until each role's dashboard is ported (with its module), a greeting and the pages this person can open. */
 export default function HomePage() {
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api.get<Me>("/auth/me") });
-  if (me.isPending) return <p>جاري التحميل…</p>;
-  if (me.isError) return <p role="alert">{me.error.message}</p>;
+  const { me, can } = useMe();
+  if (!me) return <p className="hint">بيحمّل…</p>;
+  const pages = (Object.keys(NAV) as ModuleKey[]).filter((k) => k !== "home" && can(k));
   return (
-    <main>
-      <h1>أهلاً {me.data.name}</h1>
-      <p>نطاق البيانات: {me.data.scope}</p>
-      <ul>{Object.entries(me.data.permissions).map(([m, a]) => <li key={m}>{m}: {a.join(" · ")}</li>)}</ul>
-    </main>
+    <>
+      <Card title={`أهلاً ${me.name}`} icon="home" sub={me.roleLabels.join(" + ")}>
+        <Note>لوحة كل دور (مهامي النهارده) هتتبني مع موديولاتها في المراحل الجاية. الموجود دلوقتي: الحسابات والصلاحيات، والإعدادات، والإشعارات.</Note>
+      </Card>
+      {pages.length > 0 && <div className="cols">
+        {pages.map((k) => (
+          <Link key={k} href={`/${k}`} className="card kpi-btn" style={{ textDecoration: "none", color: "inherit" }}>
+            <div className="card-head"><h3><span className="ico"><Icon name={NAV[k]!.icon} /></span><span>{NAV[k]!.label}<small>{NAV[k]!.sub}</small></span></h3></div>
+          </Link>
+        ))}
+      </div>}
+    </>
   );
 }

@@ -8,7 +8,11 @@ import { AuditModule } from "./core/audit/audit.module";
 import { BusinessTimeModule } from "./core/business-time/business-time.module";
 import { SessionGuard } from "./core/auth/session.guard";
 import { PoliciesGuard } from "./core/authz/policies.guard";
+import { MailModule } from "./core/mail/mail.module";
+import { NotificationsModule } from "./core/notifications/notifications.module";
 import { LeadsModule } from "./modules/leads/leads.module";
+import { AccessModule } from "./modules/access/access.module";
+import { SettingsModule } from "./modules/settings/settings.module";
 
 /**
  * Guards run in this order on every request: rate limit → signed in (unless @Public) → allowed (@Requires).
@@ -16,9 +20,10 @@ import { LeadsModule } from "./modules/leads/leads.module";
  */
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
-    DatabaseModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule,
-    LeadsModule,
+    // rate limits protect production; locally they'd only get in the way of the e2e tests
+    ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 120 }], skipIf: () => process.env.NODE_ENV !== "production" }),
+    DatabaseModule, MailModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule, NotificationsModule,
+    AccessModule, SettingsModule, LeadsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
