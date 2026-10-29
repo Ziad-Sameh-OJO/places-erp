@@ -388,7 +388,7 @@ METHOD = """## الطريقة (اللي اشتغلنا بيها في M-09 و M-1
 - [ ] `pnpm lint && pnpm typecheck && pnpm test` و الـ e2e خضر، والـ CI أخضر
 """
 
-SPRINTS = {1: "Sprint 1 · لحد 12/11", 2: "Sprint 2 · لحد 26/11", 3: "Sprint 3 · لحد 10/12", 4: "Sprint 4 · لحد 24/12", 5: "Sprint 5 · لحد 7/1", 6: "UAT · لحد 21/1"}
+SPRINTS = {1: "Sprint 1", 2: "Sprint 2", 3: "Sprint 3", 4: "Sprint 4", 5: "Sprint 5", 6: "UAT"}
 MILESTONE = {1: "Sprint 1", 2: "Sprint 2", 3: "Sprint 3", 4: "Sprint 4", 5: "Sprint 5", 6: "UAT"}
 
 def card(t, for_issue=False):
