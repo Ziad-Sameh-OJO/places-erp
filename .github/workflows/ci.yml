@@ -4,7 +4,9 @@ on:
   push: { branches: [main] }
 
 # a newer push to the same branch cancels the run that's still going
-concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
