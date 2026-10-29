@@ -9,4 +9,5 @@ the API stores only the record (`system.File`). Unit photos, PDFs, contracts, re
 4. `GET /files/:id/url`: a 5-minute GET link, **only to the uploader**. Modules attach files to their records and
    call `FilesService.downloadUrl()` after their own permission check.
 
-Locally: `pnpm files:local` (a minio you installed) or `pnpm infra:up` (Docker). CI runs the MinIO container.
+Locally: `pnpm infra:up` (Docker, versitygw) or `pnpm files:local` (a minio you installed). CI runs versitygw: MinIO
+no longer publishes binaries or images and its repo is archived, so any S3-compatible store works (only the S3 API is used).

@@ -37,13 +37,14 @@ jobs:
         run: pnpm test
       - run: pnpm build
 
-      # services can't pass MinIO its `server` command, so it runs as a plain container (same image as docker-compose)
-      - name: File storage (MinIO)
+      # S3-compatible storage for the file tests. MinIO no longer publishes images, so versitygw (same S3 API)
+      - name: File storage (S3)
         run: |
           pw=ci-$(openssl rand -hex 12)
           echo "S3_SECRET_KEY=$pw" >> "$GITHUB_ENV"
-          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=places -e MINIO_ROOT_PASSWORD=$pw minio/minio:RELEASE.2024-12-18T13-15-44Z server /data
-          for i in $(seq 1 30); do curl -sf http://localhost:9000/minio/health/live && break; sleep 1; done
+          docker run -d --name s3 -p 9000:9000 -e ROOT_ACCESS_KEY=places -e ROOT_SECRET_KEY=$pw \
+            versity/versitygw:v1.9.0 --port :9000 --iam-dir /tmp/vgw posix /tmp/vgw
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9000 && break; sleep 1; done
 
       # the same .env a developer has locally, with throwaway secrets made for this run only
       - name: Test environment
