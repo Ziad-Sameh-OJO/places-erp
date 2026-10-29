@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { LeadFilters } from "@places/contracts";
+import { dayStart } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 
 /**
@@ -11,19 +12,17 @@ import { PRISMA } from "../../core/database/database.module";
 export class LeadsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
+  /** `scope` is the caller's data scope (ownedBy), always ANDed in the query itself, never filtered afterwards. */
   list(scope: Prisma.LeadWhereInput, f: LeadFilters) {
-    const where: Prisma.LeadWhereInput = {
-      AND: [scope, { archivedAt: null },
-        f.stage ? { stage: f.stage.toUpperCase().replace(/ /g, "_") as Prisma.LeadWhereInput["stage"] } : {},
-        f.area ? { area: f.area } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
-        f.assignedToId ? { assignedToId: f.assignedToId } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
-        f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { phones: { has: f.q.replace(/\D/g, "") } }, { code: f.q }] } : {},
-        f.from || f.to ? { createdAt: { gte: f.from, lte: f.to } } : {}],
-    };
+    const where = leadWhere(scope, f);
     return this.db.$transaction([
-      this.db.lead.findMany({ where, orderBy: { createdAt: "desc" }, skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
+      this.db.lead.findMany({ where, select: LEAD_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.lead.count({ where }),
     ]);
+  }
+
+  employeeNames(ids: string[]) {
+    return this.db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
   findByPhone(phones: string[]) {
@@ -38,3 +37,26 @@ export class LeadsRepository {
     return tx.$queryRaw<Array<{ n: bigint }>>`SELECT nextval('sales.lead_code_seq') AS n`; // created by a migration
   }
 }
+
+const LEAD_ROW = {
+  id: true, code: true, name: true, phones: true, area: true, type: true, channel: true, stage: true, qualified: true, touched: true,
+  assignedToId: true, assignedAt: true, arrivedAt: true, createdAt: true, campaign: { select: { id: true, name: true } },
+} satisfies Prisma.LeadSelect;
+export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
+
+function leadWhere(scope: Prisma.LeadWhereInput, f: LeadFilters): Prisma.LeadWhereInput {
+  const digits = f.q?.replace(/\D/g, "") ?? "";
+  return {
+    AND: [scope, { archivedAt: null },
+      f.stage ? { stage: f.stage.toUpperCase().replace(/ /g, "_") as Prisma.LeadWhereInput["stage"] } : {},
+      f.area ? { area: f.area } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
+      f.assignedToId ? { assignedToId: f.assignedToId } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
+      // the whole mobile (the GIN index), any part of the name, or the code typed in any case («l-1001»)
+      f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { code: f.q.toUpperCase() }, ...(digits.length >= 10 ? [{ phones: { has: digits } }] : [])] } : {},
+      // Cairo days, «to» included: up to the start of the next day
+      f.from ? { createdAt: { gte: dayStart(f.from) } } : {},
+      f.to ? { createdAt: { lt: dayStart(nextDay(f.to)) } } : {}],
+  };
+}
+
+const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);

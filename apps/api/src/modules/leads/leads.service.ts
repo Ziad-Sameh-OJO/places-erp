@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import type { ChangeStage, CreateLead, LeadFilters } from "@places/contracts";
-import { type LeadStage, LeadRouter, isQualifiedAfter } from "@places/domain";
+import type { ChangeStage, CreateLead, LeadFilters, LeadRow, Paged } from "@places/contracts";
+import { LEAD_STAGES, type LeadStage, LeadRouter, isQualifiedAfter } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -9,14 +9,24 @@ import { ownedBy } from "../../core/authz/scope";
 import { LeadsRepository } from "./leads.repository";
 
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
+/** FOLLOW_UP_TO_VISIT → «Follow up to Visit»: the API speaks the stage names the team uses. */
+const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
 
 /** M-01 use cases. The rules themselves live in @places/domain; this class orchestrates them with the database. */
 @Injectable()
 export class LeadsService {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly repo: LeadsRepository, private readonly audit: AuditService) {}
 
-  async list(me: CurrentUser, f: LeadFilters) {
-    const [items, total] = await this.repo.list(ownedBy(me) as never, f);
+  /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
+  async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
+    const [rows, total] = await this.repo.list(ownedBy(me) as never, f);
+    const ids = [...new Set(rows.map((r) => r.assignedToId).filter((x): x is string => !!x))];
+    const names = new Map((await this.repo.employeeNames(ids)).map((e) => [e.id, e.name]));
+    const items = rows.map(({ assignedToId, ...r }) => ({
+      ...r, stage: STAGE_LABEL.get(r.stage) ?? r.stage,
+      assignedTo: assignedToId ? { id: assignedToId, name: names.get(assignedToId) ?? "" } : null,
+      assignedAt: r.assignedAt?.toISOString() ?? null, arrivedAt: r.arrivedAt.toISOString(), createdAt: r.createdAt.toISOString(),
+    }));
     return { items, total, page: f.page, pageSize: f.pageSize };
   }
 
