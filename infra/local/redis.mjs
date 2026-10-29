@@ -2,10 +2,11 @@
 // Uses `redis-server` if it's installed (e.g. Homebrew); otherwise the first run downloads the official source
 // and builds only the server into .local/redis (needs make + a C compiler, about a minute). Ctrl+C stops it.
 import { execFileSync, spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { existsSync, mkdirSync } from "node:fs";
 import { cpus } from "node:os";
 
-const root = new URL("../../.local/", import.meta.url).pathname;
+const root = fileURLToPath(new URL("../../.local/", import.meta.url)); // not .pathname: it keeps spaces as %20
 const built = `${root}redis/src/redis-server`;
 
 function findBinary() {
