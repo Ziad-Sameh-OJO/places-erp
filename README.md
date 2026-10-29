@@ -35,7 +35,7 @@ pnpm dev                        # web :3000 · api :4000
 
 ## فين ألاقي إيه
 
-- **الركوايرمنتس وكل مصادرها:** `docs/requirements/` · **الديمو المعتمد:** `demo/` (افتح `demo/index.html`) · **مين بيعمل إيه:** `docs/team.md`
+- **الركوايرمنتس وكل مصادرها:** `docs/requirements/` · **الديمو المعتمد:** `demo/` (افتح `demo/index.html`) · **التاسكات خطوة بخطوة:** `docs/roadmap.md`
 
 - قواعد البيزنس: `packages/domain/src` (الكوميشن، والـ SLA، والحضور، والـ KPIs، والموظف المثالي، والصلاحيات)
 - الداتابيز: `packages/db/prisma/schema.prisma`

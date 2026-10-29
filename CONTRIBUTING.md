@@ -1,17 +1,14 @@
 # إزاي نشتغل على الريبو
 
-الأركيتكتشر في [ARCHITECTURE.md](ARCHITECTURE.md)، ومين بيعمل إيه في [docs/team.md](docs/team.md)، وقواعد الكود في [docs/conventions.md](docs/conventions.md).
+الأركيتكتشر في [ARCHITECTURE.md](ARCHITECTURE.md)، والتاسكات خطوة بخطوة في [docs/roadmap.md](docs/roadmap.md)، وقواعد الكود في [docs/conventions.md](docs/conventions.md).
 
 ## أول مرة
 اتبع خطوات «تشغيل على جهازك» في [README.md](README.md). محتاج Node 24 (`nvm use`)، و pnpm (`corepack enable`)، و Postgres (Docker أو `pnpm db:local`).
 
 ## دورة أي تاسك
-1. **خد issue** من الـ Milestone الحالية، وحط نفسك Assignee. مفيش شغل من غير issue.
+1. **خد issue** من الـ Milestone الحالية، وحط نفسك Assignee. كل issue كارت كامل (`T-xx` في `docs/roadmap.md`). مفيش شغل من غير issue.
 2. **فرع من `main`:** `git switch -c feature/M-01-lead-routing` (أو `fix/…` و `chore/…`).
-3. **اشتغل بالترتيب:**
-   - القاعدة في `packages/domain` + تستها،
-   - بعدين الـ API (controller ← service ← repository) + تست e2e،
-   - بعدين الواجهة على شكل الديمو (design-2)، ديسكتوب وموبايل.
+3. **اشتغل بالطريقة** اللي في [docs/roadmap.md](docs/roadmap.md#الطريقة-اللي-اشتغلنا-بيها-في-m-09-و-m-13-و-m-14): الركوايرمنتس والديمو، ثم القاعدة وتستها، ثم الـ schema، ثم الـ API وتست e2e، ثم الواجهة، ثم التجربة بالمتصفح.
 4. **قبل الـ push:**
    ```bash
    pnpm lint && pnpm typecheck && pnpm test && pnpm --filter @places/api test:e2e
@@ -29,4 +26,4 @@
 - **أي سؤال للكلاينت** يتكتب في الـ issue بـ label اسمه `needs-client`، ومحدش يخمّن قاعدة بيزنس.
 
 ## Labels
-`feature` · `bug` · `chore` · `needs-client` · `blocked` · `track:sales` · `track:ops` · `track:core` · `M-01` … `M-14`
+`feature` · `bug` · `chore` · `needs-client` · `blocked` · `M-01` … `M-14`
