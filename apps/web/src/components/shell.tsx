@@ -96,7 +96,8 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        <main id="view" className="view" tabIndex={-1}>{children}</main>
+        {/* keyed by page so theme.css replays its «drawing» entrance on every navigation, as in the demo */}
+        <main id="view" key={path} className="view enter" tabIndex={-1}>{children}</main>
       </div>
 
       {bellOpen && (

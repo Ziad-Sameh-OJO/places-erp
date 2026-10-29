@@ -25,9 +25,9 @@ export function NotificationRules() {
     <>
       <div className="cols">
         <Card title="إيميل الإرسال" icon="send" sub="الإيميل اللي كل الإشعارات بتطلع منه">
-          {s.data && <form className="row" action={(f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, "اتحفظ")}>
-            <Field label="من"><input name="from" type="email" defaultValue={s.data.notificationsFrom} disabled={!can("master", "edit")} /></Field>
-            {can("master", "edit") && <button className="btn ghost sm">احفظ</button>}
+          {s.data && <form className="form" action={(f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, "اتحفظ")}>
+            <Field label="من"><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!can("master", "edit")} /></Field>
+            {can("master", "edit") && <div className="row end"><button className="btn ghost sm">احفظ</button></div>}
           </form>}
         </Card>
         <Card title="تفضيلاتي" icon="bell" sub="من صفحة «حسابي»">
