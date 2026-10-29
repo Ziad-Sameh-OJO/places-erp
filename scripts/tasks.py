@@ -655,12 +655,56 @@ GENERAL = {
   "docs": "",
 }
 
+# a task's sprint is its card's, except: the shared foundation (part 0) comes first, tickets come before the Excuse that needs them
+SPRINT_OVERRIDE = {"8.1": 3}
+
+def task_sprint(part, sprint, t):
+    if part == "0": return 1
+    if part == "13": return 6
+    if t[0] in SPRINT_OVERRIDE: return SPRINT_OVERRIDE[t[0]]
+    return CARDS[t[2]][2] if t[2] in CARDS else sprint
+
+def work_order():
+    """Every task in the order to do it: by sprint, never before what it depends on (a task moves to its latest dependency's sprint)."""
+    T, deps = {}, {}
+    for part, name, sprint, t in all_tasks():
+        T[t[0]] = dict(part=int(part), sprint=task_sprint(part, sprint, t), t=t, idx=[int(x) for x in t[0].split(".")])
+        deps[t[0]] = set(deps_of(t[3]))
+    deps["11.5"] |= {j for j in T if 1 <= T[j]["part"] <= 10}
+    for i in ("13.5", "13.6", "13.7"): deps[i] |= {j for j in T if T[j]["part"] <= 12}
+    deps["5.1"].add("2.9"); deps["6.1"].add("5.3"); deps["10.1"].add("9.3"); deps["3.1"].add("1.3")
+    changed = True
+    while changed:
+        changed = False
+        for i in T:
+            sp = max([T[i]["sprint"]] + [T[d]["sprint"] for d in deps[i]])
+            if sp != T[i]["sprint"]: T[i]["sprint"], changed = sp, True
+    key = lambda i: (T[i]["sprint"], T[i]["part"], T[i]["idx"])
+    done, order = set(), []
+    while len(order) < len(T):
+        i = min((i for i in T if i not in done and deps[i] <= done), key=key)
+        order.append(i); done.add(i)
+    return [(i, T[i]["sprint"], T[i]["t"], deps[i]) for i in order]
+
+def write_order(issue_of):
+    R = f"https://github.com/{REPO}/issues/"
+    names = {1: "Sprint 1", 2: "Sprint 2", 3: "Sprint 3", 4: "Sprint 4", 5: "Sprint 5", 6: "التسليم (UAT والإطلاق)"}
+    L = ["# ترتيب الشغل", "", f"الـ {sum(len(p[4]) for p in PARTS)} issue بالترتيب اللي المفروض يتعملوا بيه. مفيش تاسك جاي قبل حاجة محتاجها.",
+         "لو أكتر من حد شغال: خد أول تاسك في اللستة لسه محدش ماسكه، و «بعد» بتاعه خلص.",
+         "الملف ده بيتولّد من `scripts/tasks.py`.", ""]
+    cur = None
+    for k, (i, sp, t, ds) in enumerate(work_order(), 1):
+        if sp != cur: cur = sp; L += ["", f"## {names[sp]}", ""]
+        dep = " · بعد كل اللي قبله" if len(ds) > 6 else (" · بعد " + "، ".join(sorted(ds, key=lambda d: [int(x) for x in d.split(".")])) if ds else "")
+        L.append(f"{k}. [#{issue_of[i]}]({R}{issue_of[i]}) **{i}** {t[1]}{dep}")
+    open("docs/order.md", "w").write("\n".join(L) + "\n")
+
 def all_tasks():
     for n, name, note, sprint, ts in PARTS:
         for t in ts:
             yield n, name, sprint, t
 
-def deps(after):
+def deps_of(after):
     return [d.strip() for d in after.split("·") if re.fullmatch(r"\d+\.\d+", d.strip())]
 
 def write_md(issue_of=None):
@@ -692,7 +736,7 @@ def body(n, name, sprint, t, issue_of):
         if src: out += ["**اقرا:** " + " · ".join(f"`{s}`" for s in src), ""]
         if demo: out += ["**الديمو:** " + " · ".join(f"`{roadmap.DEMO}{d}`" if ".js" in d else d for d in demo), ""]
         if have: out += ["**موجود بالفعل:**"] + [f"- {h}" for h in have] + [""]
-    ds = deps(after)
+    ds = deps_of(after)
     out += ["## لازم يخلص قبله", ""]
     if ds:
         out += [f"- [ ] #{issue_of[d]} · {d}" if d in issue_of else f"- [ ] {d}" for d in ds]
@@ -727,7 +771,7 @@ def sync_issues():
     for n, name, sprint, t in all_tasks():
         tid, title, card = t[:3]
         if tid in m: continue
-        ms = MILESTONE[CARDS[card][2]] if card in CARDS else MILESTONE[sprint]
+        ms = MILESTONE[task_sprint(n, sprint, t)]
         labels = ["task", f"part:{n}"] + ([CARDS[card][3]] if card in CARDS and CARDS[card][3] else [])
         args = ["issue", "create", "--repo", REPO, "--title", f"{tid} · {title}", "--body", "…", "--milestone", ms]
         for l in labels: args += ["--label", l]
@@ -748,7 +792,10 @@ def sync_issues():
         r = subprocess.run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{CARD_ISSUE[card]}/sub_issues", "-F", f"sub_issue_id={child_id}"], capture_output=True, text=True)
         ok = r.returncode == 0 or "already" in (r.stdout + r.stderr).lower() or "duplicate" in (r.stdout + r.stderr).lower()
         print("sub", tid, "→", card, "ok" if ok else r.stderr.strip()[:120]); time.sleep(0.6)
-    write_md(m)
+    # milestones follow the work order (a task never sits in an earlier sprint than what it needs)
+    for i, sp, t, _ in work_order():
+        gh("issue", "edit", str(m[i]), "--repo", REPO, "--milestone", MILESTONE[sp]); time.sleep(0.4)
+    write_md(m); write_order(m)
 
 if __name__ == "__main__":
     if "--issues" in sys.argv:
@@ -756,4 +803,5 @@ if __name__ == "__main__":
     else:
         m = json.load(open(MAP_FILE)) if os.path.exists(MAP_FILE) else None
         write_md(m)
+        if m: write_order(m)
     print("docs/tasks.md written")
