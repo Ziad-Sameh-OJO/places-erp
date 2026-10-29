@@ -157,6 +157,9 @@ importers:
       bullmq:
         specifier: ^5.34.0
         version: 5.81.5
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
 
   packages/config:
     devDependencies:
