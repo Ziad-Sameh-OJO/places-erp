@@ -15,6 +15,11 @@ const Env = z.object({
   WEB_ORIGIN: z.string().url(), // also the base of links in emails (activation, password reset)
   SMTP_URL: z.string().url().optional(),
   MAIL_FROM: z.string().default("Places ERP <notifications@places.com>"),
+  // file storage: MinIO locally (`pnpm files:local`), any S3-compatible store later. The browser talks to it directly.
+  S3_ENDPOINT: z.string().url(),
+  S3_BUCKET: z.string().min(3),
+  S3_ACCESS_KEY: z.string().min(1),
+  S3_SECRET_KEY: z.string().min(8),
 });
 export type Env = z.infer<typeof Env>;
 export const env: Env = Env.parse(process.env);

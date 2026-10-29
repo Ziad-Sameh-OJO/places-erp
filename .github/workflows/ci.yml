@@ -37,6 +37,14 @@ jobs:
         run: pnpm test
       - run: pnpm build
 
+      # services can't pass MinIO its `server` command, so it runs as a plain container (same image as docker-compose)
+      - name: File storage (MinIO)
+        run: |
+          pw=ci-$(openssl rand -hex 12)
+          echo "S3_SECRET_KEY=$pw" >> "$GITHUB_ENV"
+          docker run -d --name minio -p 9000:9000 -e MINIO_ROOT_USER=places -e MINIO_ROOT_PASSWORD=$pw minio/minio:RELEASE.2024-12-18T13-15-44Z server /data
+          for i in $(seq 1 30); do curl -sf http://localhost:9000/minio/health/live && break; sleep 1; done
+
       # the same .env a developer has locally, with throwaway secrets made for this run only
       - name: Test environment
         run: |
@@ -48,6 +56,10 @@ jobs:
           SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n')
           WEB_ORIGIN=http://localhost:3000
           SEED_DEV_PASSWORD=Ci$(openssl rand -hex 8)7
+          S3_ENDPOINT=http://localhost:9000
+          S3_BUCKET=places
+          S3_ACCESS_KEY=places
+          S3_SECRET_KEY=$S3_SECRET_KEY
           ENV
       - name: Migrate + seed
         run: pnpm --filter @places/db migrate:deploy && pnpm db:seed

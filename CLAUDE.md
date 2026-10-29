@@ -58,6 +58,7 @@ Node 24 (`.nvmrc`), pnpm via `corepack enable`.
 ```bash
 pnpm install
 pnpm db:local          # Postgres without Docker (or: pnpm infra:up)
+pnpm files:local       # file storage: a MinIO you installed (or: pnpm infra:up)
 pnpm db:migrate && pnpm db:seed
 pnpm dev               # web :3000 · api :4000
 ```
