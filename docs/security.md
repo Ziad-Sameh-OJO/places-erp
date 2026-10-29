@@ -10,7 +10,7 @@
 | Vulnerable Components | Dependabot · `pnpm audit` في الـ CI · نسخ متثبتة بالـ lockfile | `.github` |
 | Auth Failures | قفل بعد 5 محاولات · رسالة غلط واحدة · انتهاء الجلسة · OTP اختياري لكل شخص | `core/auth` |
 | Data Integrity | transactions للفلوس · unique constraints · optimistic updates في الجوبز | `db`, `worker` |
-| Logging & Monitoring | Audit Log · Sentry · مفيش بيانات شخصية في الـ logs | `core/audit` |
+| Logging & Monitoring | Audit Log · health check وتنبيهات بالإيميل · مفيش بيانات شخصية في الـ logs | `core/audit` · `infra/onprem` |
 | SSRF | مفيش fetch لـ URLs جاية من اليوزر · الملفات بروابط pre-signed | `core/files` |
 
 قبل أي release: `pnpm audit`، ومراجعة الـ endpoints الجديدة، وتجربة الصلاحيات بكل دور.

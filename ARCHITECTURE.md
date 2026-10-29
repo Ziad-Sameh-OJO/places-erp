@@ -53,12 +53,12 @@ Places ERP سيستم داخلي لحوالي 40 موظف: الليدز، وال
 | الباسوردات | **argon2id** (`@node-rs/argon2`) | المعيار الموصى بيه من OWASP. |
 | PDF | **Playwright (HTML ← PDF)** | العربي بيطلع مظبوط. مكتبات زي pdfmake بتبوّظ الحروف. |
 | Excel | **ExcelJS** | الاستيراد والتصدير. |
-| الملفات | **S3-compatible** (MinIO على الجهاز، Cloudflare R2 في الـ production) | صور الوحدات والـ PDF والعقود والإيصالات. |
-| الإشعارات | WebSocket (جوه السيستم) + **Web Push** + إيميل (SMTP / SES) | زي ما M-14 طالب. |
+| الملفات | **MinIO** (S3-compatible) على سيرفر الشركة | صور الوحدات والـ PDF والعقود والإيصالات، والملفات مابتخرجش برا الشركة. |
+| الإشعارات | WebSocket (جوه السيستم) + **Web Push** + إيميل (SMTP الشركة) | زي ما M-14 طالب. |
 | الاختبارات | `node:test` للـ domain · Vitest/Jest للـ API · **Playwright** E2E | الـ E2E بيعيد سيناريوهات الجولة السريعة بتاعة الديمو. |
 | الجودة | ESLint + Prettier + GitHub Actions | مفيش حاجة بتتدمج من غير ما الـ CI ينجح. |
-| المراقبة | **Sentry** + uptime checks | الأخطاء بتوصلنا قبل ما الكلاينت يكلمنا. |
-| الاستضافة | Docker على VPS (Hetzner / DigitalOcean) + Postgres managed + Cloudflare | بسيط ورخيص وكفاية للحجم ده. |
+| المراقبة | health check + تنبيهات بالإيميل + لوجز (و Sentry اختياري لو فيه إنترنت) | الأخطاء بتوصلنا قبل ما الكلاينت يكلمنا. |
+| الاستضافة | **سيرفر جوه الشركة (on-premise)**: Docker Compose (Postgres و Redis و MinIO والتطبيق) + Caddy بـ HTTPS داخلي · من بره بالـ VPN بس | البيانات جوه الشركة، ومفيش اشتراك cloud، وكفاية للحجم ده (حوالي 40 يوزر). |
 
 ---
 
@@ -196,13 +196,15 @@ Controller  ─▶  Service  ─▶  Repository  ─▶  Prisma / PostgreSQL
 | البيئة | فين | البيانات |
 |---|---|---|
 | local | `pnpm infra:up` + `pnpm dev` | seed |
-| staging | `staging.places-erp…` | نسخة من الإنتاج بعد إخفاء البيانات الشخصية · الكلاينت بيجرب عليها |
-| production | VPS + Postgres managed | حقيقية · باك أب يومي + point-in-time |
+| test | سيرفر الشركة · `erp-test.places.local` | بيانات تجربة · بنجرب عليها كل إصدار، والكلاينت بيعمل عليها الـ UAT |
+| live | سيرفر الشركة · `erp.places.local` | حقيقية · باك أب يومي على هارد تاني أو NAS + نسخة أسبوعية برا المكتب |
+
+السيرفر جوه الشركة، والوصول من شبكة المكتب، ومن بره عن طريق VPN بس، ومفيش أي port مفتوح على الإنترنت. التفاصيل في `infra/onprem/README.md` (تاسك 0.4).
 
 - **Git:** فرع `main` محمي، وكل شغل في `feature/M-01-short-name`، ويدخل بـ PR بمراجعة واحدة على الأقل. والـ domain والـ db محتاجين مراجعة الـ tech lead (`CODEOWNERS`).
 - **Commits:** نستخدم Conventional Commits، زي `feat(leads): pull after 3 working hours`.
 - **CI:** بيعمل install، وبعدين `prisma validate`، وبعدين lint، وtypecheck، والتستات، وbuild. ولو أي خطوة فشلت، مفيش merge.
-- **الإصدارات:** staging الأول، والكلاينت يأكد، وبعدين production. وكل نشر ليه tag.
+- **الإصدارات:** كل إصدار ليه tag (`v0.3.0`)، والـ CI بيطلّع image بيه. ننزّله على test الأول بـ `update.sh`، والكلاينت يأكد، وبعدين live. والسكريبت بياخد باك أب قبل التحديث ويرجع للإصدار اللي قبله لو فشل.
 
 ---
 
@@ -217,7 +219,7 @@ Controller  ─▶  Service  ─▶  Repository  ─▶  Prisma / PostgreSQL
 | 4 · الإدارة | M-05، M-06، M-08، M-07، M-11 | الـ HR والبصمة، والتذاكر، والمشتريات، والمالية، والعقود |
 | 5 · الـ KPIs | M-12 | بتقرا من كل اللي قبلها |
 
-كل مرحلة بتخلص بـ: تستات للقواعد في `domain`، و E2E لسيناريو الديمو بتاعها، وتجربة الكلاينت على staging.
+كل مرحلة بتخلص بـ: تستات للقواعد في `domain`، و E2E لسيناريو الديمو بتاعها، وتجربة الكلاينت على نسخة test.
 
 ---
 

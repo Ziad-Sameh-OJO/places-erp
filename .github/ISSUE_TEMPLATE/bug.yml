@@ -12,4 +12,4 @@ body:
     validations: { required: true }
   - type: input
     id: where
-    attributes: { label: فين, placeholder: "local / staging · ديسكتوب / موبايل · الحساب" }
+    attributes: { label: فين, placeholder: "local / test / live · ديسكتوب / موبايل · الحساب" }

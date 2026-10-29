@@ -31,11 +31,11 @@
 - [ ] **0.1** Redis محلي (docker-compose + أمر `pnpm redis:local` من غير Docker) ([#49](https://github.com/Ziad-Sameh-OJO/places-erp/issues/49)) · `T-01`
 - [ ] **0.2** الـ worker يقوم مع `pnpm dev` ويقرا `.env` ويسجّل الجوبز بتوقيت القاهرة ([#50](https://github.com/Ziad-Sameh-OJO/places-erp/issues/50)) · `T-01` · بعد 0.1
 - [ ] **0.3** Redis في الـ CI + خطوة تتأكد إن الـ worker قام ([#51](https://github.com/Ziad-Sameh-OJO/places-erp/issues/51)) · `T-01` · بعد 0.2
-- [ ] **0.4** سيرفر staging: VPS + Postgres + Redis + دومين و HTTPS (Cloudflare) ([#52](https://github.com/Ziad-Sameh-OJO/places-erp/issues/52)) · `T-02`
-- [ ] **0.5** `deploy.yml`: build للـ images + `migrate deploy` + نشر أوتوماتيك بعد الـ CI على main ([#53](https://github.com/Ziad-Sameh-OJO/places-erp/issues/53)) · `T-02` · بعد 0.4
-- [ ] **0.6** أسرار staging في GitHub Environment + SMTP حقيقي للإيميلات ([#54](https://github.com/Ziad-Sameh-OJO/places-erp/issues/54)) · `T-02` · بعد 0.4
-- [ ] **0.7** باك أب يومي للداتابيز + Sentry للـ API والواجهة ([#55](https://github.com/Ziad-Sameh-OJO/places-erp/issues/55)) · `T-02` · بعد 0.4
-- [ ] **0.8** seed الحسابات الـ 36 على staging بحالة INVITED، وإيميلات التفعيل تتبعت ([#56](https://github.com/Ziad-Sameh-OJO/places-erp/issues/56)) · `T-02` · بعد 0.6
+- [ ] **0.4** سيرفر الشركة (on-premise): Docker Compose فيه Postgres و Redis و MinIO والـ API والواجهة والـ worker و Caddy، بنسخة test ونسخة live على شبكة المكتب ([#52](https://github.com/Ziad-Sameh-OJO/places-erp/issues/52)) · `T-02`
+- [ ] **0.5** طريقة التحديث: الـ CI بيطلّع image بإصدار، و `update.sh` على سيرفر الشركة (باك أب ← pull ← migrate ← restart ← رجوع لو فشل) ([#53](https://github.com/Ziad-Sameh-OJO/places-erp/issues/53)) · `T-02` · بعد 0.4
+- [ ] **0.6** أسرار كل نسخة في `.env` محمي على سيرفر الشركة + SMTP لإيميلات السيستم ([#54](https://github.com/Ziad-Sameh-OJO/places-erp/issues/54)) · `T-02` · بعد 0.4
+- [ ] **0.7** باك أب يومي (الداتابيز والملفات) على هارد تاني أو NAS + تجربة استرجاع + health check وتنبيهات بالإيميل ([#55](https://github.com/Ziad-Sameh-OJO/places-erp/issues/55)) · `T-02` · بعد 0.4
+- [ ] **0.8** حسابات الـ 36 على سيرفر الشركة (test الأول وبعدين live) بحالة INVITED، وإيميلات التفعيل تتبعت ([#56](https://github.com/Ziad-Sameh-OJO/places-erp/issues/56)) · `T-02` · بعد 0.6
 - [ ] **0.9** رفع الملفات: S3/MinIO + روابط pre-signed (`core/files`) ([#57](https://github.com/Ziad-Sameh-OJO/places-erp/issues/57)) · `—`
 - [ ] **0.10** PDF بالعربي بـ Playwright (`core/documents`) + قالب أساسي بلوجو Places ([#58](https://github.com/Ziad-Sameh-OJO/places-erp/issues/58)) · `—`
 - [ ] **0.11** تصدير Excel لأي جدول (component في الواجهة + endpoint مشترك) ([#59](https://github.com/Ziad-Sameh-OJO/places-erp/issues/59)) · `T-33`
@@ -215,5 +215,5 @@
 - [ ] **13.4** تستات المتصفح (Playwright) لسيناريو الجولة السريعة بتاعة الديمو ([#194](https://github.com/Ziad-Sameh-OJO/places-erp/issues/194)) · `—`
 - [ ] **13.5** UAT: سيناريو لكل موديول + جلسات مع الكلاينت + تصليح الملاحظات ([#195](https://github.com/Ziad-Sameh-OJO/places-erp/issues/195)) · `T-24` · بعد 0.4
 - [ ] **13.6** تدريب لكل قسم + دليل استخدام مختصر ([#196](https://github.com/Ziad-Sameh-OJO/places-erp/issues/196)) · `T-24` · بعد 13.5
-- [ ] **13.7** الإطلاق: سيرفر production، والدومين، والباك أب، والمراقبة، ونقل البيانات ([#197](https://github.com/Ziad-Sameh-OJO/places-erp/issues/197)) · `—` · بعد 13.2 · 13.5
+- [ ] **13.7** الإطلاق على سيرفر الشركة: نسخة live، والباك أب، والمراقبة، ونقل البيانات، وإيميلات التفعيل ([#197](https://github.com/Ziad-Sameh-OJO/places-erp/issues/197)) · `—` · بعد 13.2 · 13.5
 - [ ] **13.8** ترقية الإصدارات الكبيرة: TypeScript 6 (#34)، و Prisma 7، و ESLint 10 ([#198](https://github.com/Ziad-Sameh-OJO/places-erp/issues/198)) · `—`
