@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Places ERP · Design 2</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/app.css" charset="utf-8">
+<link rel="stylesheet" href="css/theme.css" charset="utf-8">
+<link rel="stylesheet" href="css/mobile.css" charset="utf-8">
+<meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Places">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+
+<div class="app" id="app" dir="rtl" lang="ar">
+  <a class="skip" href="#view">تخطى للمحتوى</a>
+  <aside class="side" id="side" aria-label="القايمة الرئيسية">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 25V7h9a6 6 0 0 1 0 12h-9" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="24" r="2.6" fill="currentColor"/></svg></span>
+      <div class="brand-txt"><strong>Places ERP</strong><small>BY RECA TECH</small></div>
+      <button class="rail-btn" id="railBtn" aria-label="صغّر القايمة" title="صغّر / كبّر القايمة ( [ )"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    </div>
+    <div class="side-quick" id="sideQuick"></div>
+    <nav id="nav" aria-label="الأقسام"></nav>
+    <div class="side-foot">
+      <div class="me-card" id="meCard"></div>
+      <label for="role">دخول سريع بحساب (للعرض)</label>
+      <select id="role"></select>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <button class="round menu-btn" id="menuBtn" aria-label="افتح القايمة"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
+      <span class="page-ico" id="pageIco" aria-hidden="true"></span>
+      <div class="top-title">
+        <nav class="bc" id="breadcrumb" aria-label="مكانك"></nav>
+        <div class="title-row"><h1 id="viewTitle">الرئيسية</h1><button class="fav-btn" id="favBtn" aria-pressed="false" title="ضيف للمفضلة"><svg class="i" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/></svg></button><span class="crumb" id="viewCrumb"></span></div>
+        <p id="viewSub"></p>
+      </div>
+      <button class="search-pill" id="searchBtn" aria-label="بحث في السيستم"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg><span>دوّر على ليد، وحدة، موظف…</span><kbd>⌘K</kbd></button>
+      <div class="top-actions">
+        <button class="btn create-btn" id="createBtn" aria-haspopup="true"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>جديد</span></button>
+        <span class="chip warn" id="holidayBadge" hidden>وضع الإجازة</span>
+        <button class="clock-btn" id="demoBtn" aria-haspopup="true" title="تحكم الديمو"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="clockLbl"></span></button>
+        <button class="round" id="densBtn" aria-label="كثافة العرض" title="عرض مضغوط / مريح"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg></button>
+        <button class="round" id="themeBtn" hidden aria-label="غيّر الثيم"><svg class="i" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        <button class="round" id="bellBtn" aria-label="الإشعارات"><svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><b id="bellCount" hidden>0</b></button>
+      </div>
+      <div class="create-menu" id="createMenu" hidden></div>
+      <div class="demo-panel" id="demoPanel" hidden>
+        <strong>تحكم الديمو</strong>
+        <p class="hint">عشان تعرض القواعد اللي بتعتمد على الوقت قدام الكلاينت.</p>
+        <div class="demo-grid">
+          <button class="btn ghost sm" data-act="demoClock" data-min="30">+30 دقيقة</button>
+          <button class="btn ghost sm" data-act="demoClock" data-min="150">+ساعتين ونص</button>
+          <button class="btn ghost sm" data-act="demoDay">يوم جديد</button>
+          <button class="btn ghost sm" data-act="demoHoliday">وضع الإجازة</button>
+          <button class="btn ghost sm" data-act="demoFinger">سحب البصمة</button>
+          <button class="btn ghost sm" data-act="demoClockReset">الوقت الحقيقي</button>
+        </div>
+        <button class="btn sm" data-act="scnStart">سيناريو العرض (الدورة كلها)</button>
+        <button class="btn ghost sm" data-act="tourStart">جولة سريعة للكلاينت</button>
+        <button class="btn ghost sm" data-act="mailbox">صندوق الإيميل (ديمو)</button>
+        <button class="btn ghost sm" data-act="helpKeys">اختصارات الكيبورد ( ? )</button>
+        <button class="btn danger sm" id="resetBtn">إعادة بيانات الديمو</button>
+      </div>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="التفاصيل"></aside>
+
+<div class="panel" id="notif" hidden>
+  <div class="panel-head"><strong>الإشعارات</strong><button class="icon-btn" data-close="notif" aria-label="قفل">✕</button></div>
+  <div id="notifList"></div>
+</div>
+
+<div class="cmd" id="cmd" hidden>
+  <div class="cmd-box" role="dialog" aria-label="بحث">
+    <div class="cmd-in"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg><input id="cmdInput" placeholder="اكتب اسم ليد، رقم موبايل، كود وحدة، موظف، أو صفحة" autocomplete="off" aria-label="بحث"></div>
+    <div class="cmd-list" id="cmdList" role="listbox"></div>
+    <div class="cmd-foot"><span><kbd>↑</kbd><kbd>↓</kbd> تنقّل</span><span><kbd>Enter</kbd> افتح</span><span><kbd>Esc</kbd> قفل</span></div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head"><h2 id="modalTitle"></h2><button class="icon-btn" data-close="modal" aria-label="قفل">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="tour" id="tour" hidden><div class="tour-hole" id="tourHole"></div><div class="tour-card" id="tourCard" role="dialog" aria-live="polite"></div></div>
+<div class="bulk" id="bulkBar" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/data.js" charset="utf-8"></script>
+<script src="js/app.js" charset="utf-8"></script>
+<script src="js/ui.js" charset="utf-8"></script>
+<script src="js/modules/home.js" charset="utf-8"></script>
+<script src="js/modules/leads.js" charset="utf-8"></script>
+<script src="js/modules/deals.js" charset="utf-8"></script>
+<script src="js/modules/inventory.js" charset="utf-8"></script>
+<script src="js/modules/tasks.js" charset="utf-8"></script>
+<script src="js/modules/marketing.js" charset="utf-8"></script>
+<script src="js/modules/hr.js" charset="utf-8"></script>
+<script src="js/modules/tickets.js" charset="utf-8"></script>
+<script src="js/modules/finance.js" charset="utf-8"></script>
+<script src="js/modules/procurement.js" charset="utf-8"></script>
+<script src="js/modules/admin.js" charset="utf-8"></script>
+<script src="js/modules/clients.js" charset="utf-8"></script>
+<script src="js/modules/kpis.js" charset="utf-8"></script>
+<script src="js/modules/invwork.js" charset="utf-8"></script>
+<script src="js/modules/notactive.js" charset="utf-8"></script>
+<script src="js/modules/auth.js" charset="utf-8"></script>
+<script src="js/modules/scenario.js" charset="utf-8"></script>
+<script src="js/shell.js" charset="utf-8"></script>
+<script src="js/modules/mobile.js" charset="utf-8"></script>
+<script charset="utf-8">if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", APP.init); else APP.init();</script>

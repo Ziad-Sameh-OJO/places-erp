@@ -1,5 +1,6 @@
 # Every PR needs a review; these paths need the tech lead's (business rules, money, the database, security core).
-# Add the team's GitHub usernames here as they join (see docs/team.md).
+# Team (docs/team.md): Ziad = tech lead · Saud = sales track · Ahmed = ops & people track.
+# Add Saud's and Ahmed's GitHub usernames to their paths once they join.
 *                     @Ziad-Sameh-OJO
 /packages/domain/     @Ziad-Sameh-OJO
 /packages/db/         @Ziad-Sameh-OJO
