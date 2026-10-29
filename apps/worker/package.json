@@ -5,5 +5,5 @@
   "type": "module",
   "description": "Background jobs: lead SLA pulls, No Answer rotation, reminders, scheduled reports, KPI refresh, outgoing mail",
   "scripts": { "dev": "node --watch --experimental-strip-types src/main.ts", "start": "node --experimental-strip-types src/main.ts", "typecheck": "tsc --noEmit" },
-  "dependencies": { "bullmq": "^5.34.0", "@places/db": "workspace:*", "@places/domain": "workspace:*" }
+  "dependencies": { "bullmq": "^6.4.2", "@places/db": "workspace:*", "@places/domain": "workspace:*" }
 }
