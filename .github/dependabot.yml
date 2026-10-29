@@ -7,6 +7,10 @@ updates:
     open-pull-requests-limit: 5
     groups:
       minor-and-patch: { update-types: [minor, patch] }
+    # major versions (NestJS 12, BullMQ 6…) are planned upgrades, done in one PR on purpose, not piecemeal
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [dependencies]
   - package-ecosystem: github-actions
     directory: /
