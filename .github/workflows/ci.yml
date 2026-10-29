@@ -37,6 +37,10 @@ jobs:
         run: pnpm test
       - run: pnpm build
 
+      # headless Chromium for the PDFs (ADR-0005), with the system libraries it needs
+      - name: Chromium for PDFs
+        run: cd apps/api && npx playwright-core install --with-deps --only-shell chromium
+
       # services can't pass MinIO its `server` command, so it runs as a plain container (same image as docker-compose)
       - name: File storage (MinIO)
         run: |

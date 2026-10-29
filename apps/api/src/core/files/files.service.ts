@@ -70,6 +70,21 @@ export class FilesService implements OnModuleInit {
     return { ...done, createdAt: done.createdAt.toISOString() };
   }
 
+  /** A file the API made itself (a PDF, an export): straight into storage, READY, audited. */
+  async store(me: CurrentUser, f: { name: string; mime: string; body: Buffer; entity?: string; entityId?: string }) {
+    const file = await this.db.$transaction(async (tx) => {
+      const row = await tx.file.create({ data: { key: "", name: f.name, mime: f.mime, size: f.body.length, uploadedById: me.id, status: "READY", entity: f.entity ?? null, entityId: f.entityId ?? null } });
+      const now = new Date();
+      const key = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${row.id}.${EXT[f.mime] ?? "bin"}`;
+      await this.audit.record({ module: "files", entity: "File", entityId: row.id, action: "create", userId: me.id, after: { name: f.name, mime: f.mime, size: f.body.length, generated: true } }, tx);
+      const saved = await tx.file.update({ where: { id: row.id }, data: { key } });
+      // inside the transaction: if storage refuses, the record isn't kept either
+      await this.s3.send(new PutObjectCommand({ Bucket: env.S3_BUCKET, Key: key, Body: f.body, ContentType: f.mime }));
+      return saved;
+    });
+    return { id: file.id, name: file.name, ...(await this.downloadUrl(file.id)) };
+  }
+
   /** A short GET link. Callers check who may see the file first (by the record it belongs to). */
   async downloadUrl(id: string, inline = true) {
     const file = await this.db.file.findUnique({ where: { id } });
