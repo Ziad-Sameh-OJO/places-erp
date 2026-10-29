@@ -4,12 +4,12 @@
   "description": "Places ERP — leads, deals, inventory, HR, finance and KPIs for Places (by RECA TECH)",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "eslint .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "db:migrate": "pnpm --filter @places/db migrate:dev",
@@ -24,6 +24,9 @@
     "embedded-postgres": "17.5.0-beta.15",
     "prettier": "^3.4.2",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2"
-  }
+    "typescript": "^5.7.2",
+    "eslint": "^9.17.0",
+    "typescript-eslint": "^8.18.1"
+  },
+  "type": "module"
 }

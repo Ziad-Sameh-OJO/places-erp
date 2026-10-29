@@ -1,0 +1,21 @@
+name: Feature (من الركوايرمنتس)
+description: جزء من موديول في الركوايرمنتس (M-01 … M-14)
+labels: [feature]
+body:
+  - type: input
+    id: module
+    attributes: { label: الموديول / السؤال, placeholder: "M-02 · Q14" }
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes: { label: المطلوب, description: "إيه اللي الكلاينت عايزه، بكلامه أو بأرقامه (من الركوايرمنتس والديمو)" }
+    validations: { required: true }
+  - type: textarea
+    id: done
+    attributes:
+      label: يخلص إمتى (Definition of Done)
+      value: |
+        - [ ] القاعدة في packages/domain ومعاها تست بأمثلة الركوايرمنتس
+        - [ ] الـ endpoints عليها @Requires ومتجربة بحساب مسموح وحساب ممنوع (e2e)
+        - [ ] Audit Log لكل تعديل
+        - [ ] الشاشة زي الديمو (design-2) على الديسكتوب والموبايل

@@ -3,26 +3,57 @@ on:
   pull_request:
   push: { branches: [main] }
 
+# a newer push to the same branch cancels the run that's still going
+concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
+
 jobs:
   check:
+    name: lint · typecheck · unit tests · build · e2e
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
-        env: { POSTGRES_USER: places, POSTGRES_PASSWORD: places, POSTGRES_DB: places_test }
+        env: { POSTGRES_USER: places, POSTGRES_PASSWORD: places, POSTGRES_DB: places }
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U places" --health-interval 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://places:places@localhost:5432/places_test
       TZ: Africa/Cairo
+      DATABASE_URL: postgresql://places:places@localhost:5432/places
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
+        with: { node-version-file: .nvmrc, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @places/db exec prisma validate
+
+      - name: Prisma schema + client
+        run: pnpm --filter @places/db exec prisma validate && pnpm --filter @places/db exec prisma generate
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      - name: Business rules (packages/domain)
+        run: pnpm test
       - run: pnpm build
+
+      # the same .env a developer has locally, with throwaway secrets made for this run only
+      - name: Test environment
+        run: |
+          cat > .env <<ENV
+          NODE_ENV=development
+          TZ=Africa/Cairo
+          DATABASE_URL=$DATABASE_URL
+          REDIS_URL=redis://localhost:6379
+          SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n')
+          WEB_ORIGIN=http://localhost:3000
+          SEED_DEV_PASSWORD=Ci$(openssl rand -hex 8)7
+          ENV
+      - name: Migrate + seed
+        run: pnpm --filter @places/db migrate:deploy && pnpm db:seed
+      - name: API end-to-end tests
+        run: |
+          (cd apps/api && node dist/main.js > ../../api.log 2>&1 &)
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:4000/api/v1/auth/me && break; sleep 1; done
+          pnpm --filter @places/api test:e2e
+      - name: API log (on failure)
+        if: failure()
+        run: cat api.log || true

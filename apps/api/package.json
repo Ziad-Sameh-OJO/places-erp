@@ -7,7 +7,6 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --test-reporter=dot \"test/**/*.unit.test.ts\" || true",
     "test:e2e": "node --env-file=../../.env --test \"test/**/*.e2e.test.ts\""
   },
   "dependencies": {

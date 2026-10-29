@@ -1,4 +1,7 @@
-# Business rules and money: two reviewers, one of them the tech lead.
-/packages/domain/   @reca-tech/tech-lead
-/packages/db/       @reca-tech/tech-lead
-/apps/api/src/core/ @reca-tech/tech-lead
+# Every PR needs a review; these paths need the tech lead's (business rules, money, the database, security core).
+# Add the team's GitHub usernames here as they join (see docs/team.md).
+*                     @Ziad-Sameh-OJO
+/packages/domain/     @Ziad-Sameh-OJO
+/packages/db/         @Ziad-Sameh-OJO
+/apps/api/src/core/   @Ziad-Sameh-OJO
+/.github/             @Ziad-Sameh-OJO

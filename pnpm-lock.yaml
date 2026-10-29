@@ -17,6 +17,9 @@ importers:
       embedded-postgres:
         specifier: 17.5.0-beta.15
         version: 17.5.0-beta.15
+      eslint:
+        specifier: ^9.17.0
+        version: 9.39.5
       prettier:
         specifier: ^3.4.2
         version: 3.9.10
@@ -26,6 +29,9 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.18.1
+        version: 8.72.1(eslint@9.39.5)(typescript@5.9.3)
 
   apps/api:
     dependencies:

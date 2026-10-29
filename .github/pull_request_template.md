@@ -1,9 +1,10 @@
-## What & why
-<!-- Which requirement (M-xx / question number) does this change implement? -->
+## إيه وليه
+<!-- أنهي بند من الركوايرمنتس (M-xx / رقم السؤال)؟ واربط الـ issue: Closes #… -->
 
-## How it was tested
-- [ ] Unit tests for any business rule touched (packages/domain)
-- [ ] Permissions checked for every new endpoint (who can / who can't)
-- [ ] Audit log written for every create / update / delete / money change
+## اتجرب إزاي
+- [ ] تستات لأي قاعدة بيزنس اتلمست (packages/domain)
+- [ ] كل endpoint جديد عليه @Requires، ومتجرب بحساب مسموح وحساب ممنوع (apps/api/test)
+- [ ] Audit Log لكل إضافة / تعديل / مسح / مبلغ
+- [ ] مفيش أسرار ولا بيانات شخصية في الكود أو الـ logs
 
-## Screenshots (UI changes, desktop + phone)
+## صور (لو فيه واجهة: ديسكتوب + موبايل 375px)
