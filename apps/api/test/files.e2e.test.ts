@@ -59,6 +59,7 @@ test("wrong type or too big is refused before any link is made", async () => {
   const big = await ask({ name: "big.jpg", mime: "image/jpeg", size: 11 * 1024 * 1024 });
   assert.equal(big.status, 400);
   assert.match(big.body.issues[0].message, /أكبر من 10 ميجا/);
+  assert.match((await ask({ name: "x.png", mime: "image/png", size: 0 })).body.issues[0].message, /الملف فاضي/);
   assert.equal((await ask({ name: "contract.pdf", mime: "application/pdf", size: 15 * 1024 * 1024 })).status, 201);
 });
 
@@ -67,6 +68,16 @@ test("the signed link only takes the declared size and type", { skip }, async ()
   const bigger = Buffer.concat([PNG, Buffer.alloc(10)]);
   assert.equal((await fetch(t.body.url, { method: "PUT", headers: t.body.headers, body: bigger })).status, 403);
   assert.equal((await fetch(t.body.url, { method: "PUT", headers: { "Content-Type": "text/html" }, body: PNG })).status, 403);
+});
+
+test("a file that isn't what it claims (HTML sent as PNG) is rejected after upload and removed", { skip }, async () => {
+  const html = Buffer.from("<html><script>alert(1)</script></html>");
+  const t = await ask({ name: "photo.png", mime: "image/png", size: html.length });
+  assert.equal((await fetch(t.body.url, { method: "PUT", headers: t.body.headers, body: html })).status, 200);
+  const done = await call(`/files/${t.body.id}/complete`, { method: "POST", cookie: admin });
+  assert.equal(done.status, 400);
+  assert.equal((await prisma.file.findUnique({ where: { id: t.body.id } }))?.status, "REJECTED");
+  assert.equal((await call(`/files/${t.body.id}/url`, { cookie: admin })).status, 404);
 });
 
 test("someone else's file can't be completed or downloaded; signed out gets 401", { skip }, async () => {

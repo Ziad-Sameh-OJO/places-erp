@@ -11,6 +11,14 @@ import type { CurrentUser } from "../auth/current-user.decorator";
 /** Links live five minutes: long enough to upload 20 MB on a phone, short enough that a leaked link is useless. */
 const LINK_TTL = 300;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+/** The first bytes each allowed type must start with: the declared type alone is the uploader's word. */
+const SIGNATURE: Record<string, (b: Uint8Array) => boolean> = {
+  "image/jpeg": (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  "image/png": (b) => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((x, i) => b[i] === x),
+  "image/webp": (b) => ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP",
+  "application/pdf": (b) => ascii(b, 0, 5) === "%PDF-",
+};
+const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 const ROW = { id: true, name: true, mime: true, size: true, status: true, createdAt: true } as const;
 
 /**
@@ -59,7 +67,11 @@ export class FilesService implements OnModuleInit {
     if (file.status !== "PENDING") throw new ConflictException("الملف ده اتأكد قبل كده");
     const head = await this.s3.send(new HeadObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key })).catch(() => null);
     if (!head) throw new ConflictException("الملف لسه مترفعش");
-    const ok = head.ContentLength === file.size && head.ContentType === file.mime;
+    let ok = head.ContentLength === file.size && head.ContentType === file.mime;
+    if (ok) {
+      const start = await this.s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key, Range: "bytes=0-11" }));
+      ok = SIGNATURE[file.mime]?.(await start.Body!.transformToByteArray()) ?? false;
+    }
     if (!ok) await this.s3.send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key }));
     const done = await this.db.$transaction(async (tx) => {
       const row = await tx.file.update({ where: { id }, data: { status: ok ? "READY" : "REJECTED" }, select: ROW });
