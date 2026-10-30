@@ -52,6 +52,8 @@ export class DocumentsService implements OnModuleDestroy {
     this.browser ??= chromium.launch();
     const page = await (await this.browser).newPage();
     try {
+      // a PDF never fetches anything (fonts and logo are inline): a value that slipped past esc() can't reach the network
+      await page.route("**/*", (r) => r.abort());
       await page.setContent(html, { waitUntil: "load" });
       const printedAt = now.toLocaleString("ar-EG-u-nu-latn", { timeZone: "Africa/Cairo", dateStyle: "long", timeStyle: "short" });
       return await page.pdf({
