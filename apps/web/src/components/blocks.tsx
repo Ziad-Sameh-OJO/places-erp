@@ -55,10 +55,13 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
 /** Progress through ordered stages (a lead's pipeline). Everything before `current` is done. */
 export function Stepper({ stages, current, done }: { stages: readonly string[]; current: string; done?: boolean }) {
   const at = stages.indexOf(current);
+  const cur = useRef<HTMLLIElement>(null);
+  // 13 stages don't fit on a phone: bring the current one into view (scrollIntoView handles RTL scrolling)
+  useEffect(() => { cur.current?.scrollIntoView({ inline: "center", block: "nearest" }); }, [current]);
   return (
     <ol className="stepper">
       {stages.map((s, i) => (
-        <li key={s} className={i < at || done ? "done" : i === at ? "cur" : ""} aria-current={i === at ? "step" : undefined}>
+        <li key={s} ref={i === at ? cur : undefined} className={i < at || done ? "done" : i === at ? "cur" : ""} aria-current={i === at ? "step" : undefined}>
           <span>{i + 1}</span><b>{s}</b>
         </li>
       ))}
