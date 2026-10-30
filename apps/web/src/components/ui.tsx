@@ -162,7 +162,11 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
   return (
     <Modal title={title} onClose={onClose}>
       <div className="row">
-        <input type="file" accept=".xlsx,.csv" aria-label="ملف Excel" onChange={(e) => pick(e.target.files?.[0])} />
+        {/* the browser's own file field would say «Choose File» in English: an Arabic button opens it instead */}
+        <label className="btn ghost">
+          <Icon name="upload" />{file ? file.name : "اختار ملف Excel أو CSV"}
+          <input type="file" hidden accept=".xlsx,.csv" aria-label="ملف Excel" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
         <button type="button" className="btn ghost sm" onClick={() => run(() => api.download(`${path}/template`, template))}><Icon name="file" />نزّل القالب</button>
       </div>
       <p className="hint">الأعمدة: {columns.map(([, h]) => h).join("، ")} · أول صف هو العناوين.</p>
@@ -171,14 +175,14 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
         <div className="row"><Chip plain>{p.total} صف</Chip><Chip tone="ok">{p.valid} سليم</Chip>{p.errors.length > 0 && <Chip tone="bad">{p.errors.length} خطأ</Chip>}</div>
         {p.errors.length > 0 && <>
           <Note kind="warn">صلّح الأخطاء دي في الشيت وارفعه تاني · مفيش حاجة هتتحفظ قبل كده.</Note>
-          <Table head={["السطر", "العمود", "المشكلة"]} rows={p.errors.slice(0, 100).map((e) => [e.line, e.column || "—", e.message])} />
+          <Table head={["المكان", "العمود", "المشكلة"]} rows={p.errors.slice(0, 100).map((e) => [`السطر ${e.line}`, e.column || "—", e.message])} />
         </>}
         {p.sample.length > 0 && <Table head={columns.map(([, h]) => h)} rows={p.sample.map((r) => columns.map(([k]) => String(r[k] ?? "")))} />}
         {p.valid > p.sample.length && <p className="hint">ظاهر أول {p.sample.length} صف من {p.valid}.</p>}
       </>}
       <div className="row end">
         <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
-        <button type="button" className="btn" disabled={!p || busy || p.errors.length > 0 || p.valid === 0} onClick={confirm}>{busy && p ? "بيحفظ…" : `تأكيد${p?.valid ? ` · ${p.valid} صف` : ""}`}</button>
+        <button type="button" className="btn" disabled={!p || busy || p.errors.length > 0 || p.valid === 0} onClick={confirm}>{busy && p ? "بيحفظ…" : `تأكيد${p?.valid && !p.errors.length ? ` · ${p.valid} صف` : ""}`}</button>
       </div>
     </Modal>
   );
