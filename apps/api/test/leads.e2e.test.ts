@@ -72,6 +72,8 @@ test("dates are Cairo days with both ends included", async () => {
   assert.deepEqual(await codes(ops, "&to=2026-03-10"), []);
   assert.equal((await call("/leads?from=2026-03-12&to=2026-03-11", { cookie: ops })).status, 400);
   assert.equal((await call("/leads?qualified=maybe", { cookie: ops })).status, 400);
+  // impossible days are refused, not a 500
+  for (const d of ["2026-13-45", "2026-02-30"]) assert.equal((await call(`/leads?from=${d}`, { cookie: ops })).status, 400);
 });
 
 test("pagination: newest first, pages don't overlap", async () => {

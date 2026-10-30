@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { LEAD_STAGES } from "@places/domain";
-import { EgyptianMobile, Id, Money, Page } from "./common.ts";
+import { CalendarDay, EgyptianMobile, Id, Money, Page } from "./common.ts";
 
 export const CreateLead = z.object({
   name: z.string().trim().min(2).max(120),
@@ -23,8 +23,6 @@ export type ChangeStage = z.infer<typeof ChangeStage>;
 
 /** Query strings are text: "false" must mean false (z.coerce.boolean() would read any non-empty text as true). */
 const QueryBool = z.enum(["true", "false"]).transform((v) => v === "true");
-/** Cairo calendar days, both ends included. */
-const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ لازم يبقى YYYY-MM-DD");
 
 /** The leads list (M-01): filters of the demo's toolbar + search by name, mobile or code. */
 export const LeadFilters = Page.extend({
@@ -35,8 +33,8 @@ export const LeadFilters = Page.extend({
   campaignId: Id.optional(),
   assignedToId: Id.optional(),
   qualified: QueryBool.optional(),
-  from: Day.optional(),
-  to: Day.optional(),
+  from: CalendarDay.optional(), // Cairo days, both ends included
+  to: CalendarDay.optional(),
 }).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" });
 export type LeadFilters = z.infer<typeof LeadFilters>;
 
