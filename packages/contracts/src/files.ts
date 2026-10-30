@@ -12,9 +12,9 @@ export const fileKind = (mime: string): FileKind | undefined =>
 
 /** Checked before any upload link is handed out; the size and type are checked again once the file is in storage. */
 export const UploadRequest = z.object({
-  name: z.string().trim().min(1).max(200),
+  name: z.string().trim().min(1, "اسم الملف ناقص").max(200, "اسم الملف طويل"),
   mime: z.string(),
-  size: z.number().int().positive(),
+  size: z.number({ invalid_type_error: "حجم الملف ناقص" }).int().positive("الملف فاضي"),
 }).superRefine((f, ctx) => {
   const kind = fileKind(f.mime);
   if (!kind) return ctx.addIssue({ code: "custom", path: ["mime"], message: "نوع الملف مش مسموح · صور jpg/png/webp أو PDF" });
