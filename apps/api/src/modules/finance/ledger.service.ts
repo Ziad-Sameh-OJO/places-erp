@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { AccountLedger, AccountNode, ChartView, EntryView, JournalFilters, JournalView, NewAccount, OpeningBalances } from "@places/contracts";
+import type { AccountLedger, AccountNode, ChartView, EntrySaved, EntryView, JournalFilters, JournalView, ManualEntry, MoveEffect, NewAccount, OpeningBalances, PeriodView } from "@places/contracts";
 import {
-  RETAINED_EARNINGS, YEAR_RESULT, balanceOf, entryProblem, fromDecimal, localDate, natureOf, nextChildCode, openingLines, rollUp,
-  toDecimal, type EntryLine, type Nature, type Piasters,
+  PERIOD_STATUS_LABEL, RETAINED_EARNINGS, YEAR_RESULT, balanceOf, closedProblem, entryProblem, monthLabel, monthOf, periodStatus, fromDecimal, localDate, natureOf, nextChildCode, openingLines, rollUp,
+  toDecimal, type EntryLine, type Nature, type PeriodStatus, type Piasters,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -13,6 +13,8 @@ const dec = (v: { toFixed(n: number): string } | null | undefined): Piasters => 
 const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 /** Codes the system keeps: retained earnings and the year's result take no sub-accounts and no manual lines. */
 const SYSTEM_CODES = new Set([RETAINED_EARNINGS, YEAR_RESULT]);
+/** JV-12 for an automatic entry, JV-M12 for a manual one (9.13). */
+const entryNo = (no: number, source: string) => (source === "manual" ? `JV-M${no}` : `JV-${no}`);
 
 export interface PostInput {
   date: string; // YYYY-MM-DD (Cairo day)
@@ -37,6 +39,11 @@ export class LedgerService {
     const problem = entryProblem(input.lines);
     if (problem) throw new BadRequestException(problem);
     if (input.date > localDate(new Date())) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
+    // opening balances sit on the start date; everything else needs an open month (9.8)
+    if (input.source !== "opening") {
+      const closed = closedProblem(input.date, localDate(new Date()), await this.closed(tx));
+      if (closed) throw new BadRequestException(closed);
+    }
     const accounts = new Map((await this.repo.accounts(tx)).map((a) => [a.id, a]));
     const parents = new Set([...accounts.values()].map((a) => a.parentId).filter(Boolean));
     for (const l of input.lines) {
@@ -51,7 +58,84 @@ export class LedgerService {
     );
     await this.audit.record({ module: "finance", entity: "JournalEntry", entityId: e.id, action: "post", userId: me.id,
       after: { no: e.no, date: input.date, nature: input.nature, memo: input.memo, lines: input.lines.map((l) => ({ accountId: l.accountId, debit: toDecimal(l.debit), credit: toDecimal(l.credit) })) } }, tx);
-    return { id: e.id, no: `JV-${e.no}` };
+    return { id: e.id, no: entryNo(e.no, input.source) };
+  }
+
+  private async closed(tx?: Tx): Promise<Map<string, PeriodStatus>> {
+    return new Map((await this.repo.closedMonths(tx)).map((p) => [p.month, p.status as PeriodStatus]));
+  }
+
+  /** The last six months and their status (9.8): the open one follows today. */
+  async periods(): Promise<PeriodView[]> {
+    const today = localDate(new Date()), closed = await this.closed();
+    const months: string[] = [];
+    for (let d = new Date(`${monthOf(today)}-01T00:00:00Z`), i = 0; i < 6; i++, d.setUTCMonth(d.getUTCMonth() - 1)) months.push(d.toISOString().slice(0, 7));
+    return months.reverse().map((m) => { const st = periodStatus(m, today, closed); return { month: m, label: monthLabel(m), status: st, statusLabel: PERIOD_STATUS_LABEL[st] }; });
+  }
+
+  /** «اقفل الشهر» / «اقفل الربع» (9.8): closes the current month by hand; nothing posts in it after that. */
+  async closePeriod(me: CurrentUser, kind: "month" | "quarter", run: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>) {
+    return run(async (tx) => {
+      const month = monthOf(localDate(new Date()));
+      const before = periodStatus(month, localDate(new Date()), await this.closed(tx));
+      if (before === kind || before === "quarter") throw new BadRequestException(`${monthLabel(month)} ${PERIOD_STATUS_LABEL[before]} قبل كده`);
+      await this.repo.closeMonth(month, kind, me.id, tx);
+      await this.audit.record({ module: "finance", entity: "FinancePeriod", entityId: month, action: "close", userId: me.id, before: { status: before }, after: { status: kind } }, tx);
+      return { month, label: monthLabel(month), status: kind, statusLabel: PERIOD_STATUS_LABEL[kind] };
+    });
+  }
+
+  /** 9.13 · «قيد يومية جديد»: nature «قيد يدوي», numbered JV-M…, with «الأثر على شجرة الحسابات». */
+  async manual(me: CurrentUser, input: ManualEntry, run: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>): Promise<EntrySaved> {
+    const id = await run(async (tx) => {
+      const before = (await this.balances(tx)).balance;
+      const e = await this.post(me, { date: input.date, nature: "قيد يدوي", source: "manual", memo: input.memo, lines: this.lines(input) }, tx);
+      return { id: e.id, before };
+    });
+    return { entry: await this.entry(id.id), effect: await this.effect(input, id.before) };
+  }
+
+  /** M-07 (43): editing a manual entry after it posted — only someone with finance «approve», in an open month, audited before → after. */
+  async editManual(me: CurrentUser, id: string, input: ManualEntry, run: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>): Promise<EntrySaved> {
+    const before = await run(async (tx) => {
+      const old = await this.repo.entry(id);
+      if (!old) throw new NotFoundException("القيد مش موجود");
+      if (old.source !== "manual") throw new BadRequestException("القيود الأوتوماتيك بتتعدّل من السند بتاعها · اعمل قيد تسوية");
+      const today = localDate(new Date()), closed = await this.closed(tx);
+      const shut = closedProblem(dayOf(old.date), today, closed);
+      if (shut) throw new BadRequestException(shut);
+      const lines = this.lines(input);
+      const problem = entryProblem(lines);
+      if (problem) throw new BadRequestException(problem);
+      const shut2 = closedProblem(input.date, today, closed);
+      if (shut2) throw new BadRequestException(shut2);
+      if (input.date > today) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
+      const accounts = await this.repo.accounts(tx), parents = new Set(accounts.map((a) => a.parentId));
+      for (const l of lines) {
+        const a = accounts.find((x) => x.id === l.accountId);
+        if (!a) throw new BadRequestException(NO_ACCOUNT);
+        if (parents.has(a.id) || a.code === YEAR_RESULT) throw new BadRequestException(`«${a.name}» مينفعش يتقيد عليه`);
+      }
+      const balances = (await this.balances(tx)).balance;
+      await this.repo.replaceEntry(id, { date: new Date(`${input.date}T00:00:00Z`), memo: input.memo }, lines.map((l) => ({ accountId: l.accountId, debit: toDecimal(l.debit), credit: toDecimal(l.credit) })), tx);
+      await this.audit.record({ module: "finance", entity: "JournalEntry", entityId: id, action: "update", userId: me.id,
+        before: { date: dayOf(old.date), memo: old.memo, lines: old.lines.map((l) => ({ accountId: l.accountId, debit: l.debit.toFixed(2), credit: l.credit.toFixed(2) })) },
+        after: { date: input.date, memo: input.memo, lines: input.lines } }, tx);
+      return balances;
+    });
+    return { entry: await this.entry(id), effect: await this.effect(input, before) };
+  }
+
+  private lines(input: ManualEntry): EntryLine[] {
+    return input.lines.map((l) => ({ accountId: l.accountId, debit: fromDecimal(l.debit || "0"), credit: fromDecimal(l.credit || "0") }));
+  }
+
+  private async effect(input: ManualEntry, before: Map<string, Piasters>): Promise<MoveEffect[]> {
+    const { accounts, balance } = await this.balances();
+    return [...new Set(input.lines.map((l) => l.accountId))].map((id) => {
+      const a = accounts.find((x) => x.id === id)!;
+      return { code: a.code, name: a.name, before: toDecimal(before.get(id) ?? 0), after: toDecimal(balance.get(id) ?? 0) };
+    });
   }
 
   /** Live balances for every account (each account in its own direction, parents = sum of children) + the year's result in 34. */
@@ -168,7 +252,7 @@ export class LedgerService {
       balance: toDecimal(balance.get(a.id) ?? 0),
       lines: lines.map((l) => {
         running += balanceOf(a.nature as Nature, dec(l.debit), dec(l.credit));
-        return { entryId: l.entryId, no: `JV-${l.entry.no}`, date: dayOf(l.entry.date), nature: l.entry.nature, memo: l.entry.memo, debit: toDecimal(dec(l.debit)), credit: toDecimal(dec(l.credit)), balance: toDecimal(running) };
+        return { entryId: l.entryId, no: entryNo(l.entry.no, l.entry.source), date: dayOf(l.entry.date), nature: l.entry.nature, memo: l.entry.memo, debit: toDecimal(dec(l.debit)), credit: toDecimal(dec(l.credit)), balance: toDecimal(running) };
       }),
     };
   }
@@ -193,7 +277,7 @@ export class LedgerService {
       const a = accounts.find((x) => x.id === l.accountId);
       return { accountId: l.accountId, code: a?.code ?? "", name: a?.name ?? "", path: a ? this.path(a, accounts) : [], debit: toDecimal(dec(l.debit)), credit: toDecimal(dec(l.credit)) };
     });
-    return { id: r.id, no: `JV-${r.no}`, date: dayOf(r.date), nature: r.nature, source: r.source, sourceId: r.sourceId, memo: r.memo, by: names.get(r.createdById) ?? "",
+    return { id: r.id, no: entryNo(r.no, r.source), date: dayOf(r.date), nature: r.nature, source: r.source, sourceId: r.sourceId, memo: r.memo, by: names.get(r.createdById) ?? "",
       lines, debit: toDecimal(r.lines.reduce((s, l) => s + dec(l.debit), 0)), credit: toDecimal(r.lines.reduce((s, l) => s + dec(l.credit), 0)) };
   }
 

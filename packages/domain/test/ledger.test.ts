@@ -60,3 +60,14 @@ test("opening balances close against retained earnings so the entry balances (M-
   const re = lines.find((l) => l.accountId === "33")!;
   assert.deepEqual(re, { accountId: "33", debit: 0, credit: egp(1_686_000) });
 });
+
+test("periods: the open month follows today, the month before closes by itself, a hand close holds (9.8, 4 Nov)", async () => {
+  const { periodStatus, closedProblem, monthLabel } = await import("../src/index.ts");
+  const none = new Map();
+  assert.equal(periodStatus("2026-11", "2026-11-04", none), "open");
+  assert.equal(periodStatus("2026-10", "2026-11-04", none), "month");
+  assert.equal(periodStatus("2026-11", "2026-11-30", new Map([["2026-11", "quarter" as const]])), "quarter");
+  assert.equal(closedProblem("2026-11-02", "2026-11-04", none), null);
+  assert.equal(closedProblem("2026-10-31", "2026-11-04", none), "شهر أكتوبر 2026 مقفول · مينفعش تسجّل حركة فيه");
+  assert.equal(monthLabel("2026-12"), "ديسمبر 2026");
+});

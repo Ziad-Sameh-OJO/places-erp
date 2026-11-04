@@ -47,6 +47,19 @@ export class LedgerRepository {
     return tx.journalEntry.update({ where: { id: entryId }, data: { sourceId } });
   }
 
+  closedMonths(tx: Tx | PrismaClient = this.db) {
+    return tx.financePeriod.findMany({ select: { month: true, status: true } });
+  }
+
+  closeMonth(month: string, status: string, closedById: string, tx: Tx) {
+    return tx.financePeriod.upsert({ where: { month }, create: { month, status, closedById }, update: { status, closedById, closedAt: new Date() } });
+  }
+
+  /** (43) the one person with the right edits a manual entry: new date, memo and lines, same number. */
+  replaceEntry(id: string, data: { date: Date; memo: string }, lines: LineInput[], tx: Tx) {
+    return tx.journalEntry.update({ where: { id }, data: { ...data, lines: { deleteMany: {}, create: lines } }, select: { id: true, no: true } });
+  }
+
   /** An account that gets its first sub-account carries its movements down to «(عام)» (M-07, 4 Nov). */
   moveLines(fromId: string, toId: string, tx: Tx) {
     return tx.journalLine.updateMany({ where: { accountId: fromId }, data: { accountId: toId } });

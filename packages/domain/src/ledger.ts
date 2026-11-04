@@ -110,3 +110,26 @@ export function openingLines(
   if (debit !== credit) lines.push({ accountId: retainedEarningsId, debit: debit < credit ? credit - debit : 0, credit: debit > credit ? debit - credit : 0 });
   return lines;
 }
+
+/* ---- periods (M-07 9.8; the accountant's meeting, 4 Nov) ---- */
+const AR_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+/** «2026-11» for a Cairo day «2026-11-04». */
+export const monthOf = (day: string): string => day.slice(0, 7);
+export const monthLabel = (month: string): string => `${AR_MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
+export type PeriodStatus = "open" | "month" | "quarter";
+export const PERIOD_STATUS_LABEL: Record<PeriodStatus, string> = { open: "مفتوح", month: "مقفول شهرياً", quarter: "مقفول ربع سنوي" };
+
+/**
+ * A month's status: the open month follows today (a new month opens by itself and the one before closes monthly);
+ * the accountant can close the current month (or the quarter) early. `closed` = the months closed by hand.
+ */
+export function periodStatus(month: string, today: string, closed: ReadonlyMap<string, PeriodStatus>): PeriodStatus {
+  const byHand = closed.get(month);
+  if (byHand && byHand !== "open") return byHand;
+  return month < monthOf(today) ? "month" : "open";
+}
+
+/** Why nothing can post on this day, or null. Opening balances sit on the start date and are exempt. */
+export function closedProblem(day: string, today: string, closed: ReadonlyMap<string, PeriodStatus>): string | null {
+  return periodStatus(monthOf(day), today, closed) === "open" ? null : `شهر ${monthLabel(monthOf(day))} مقفول · مينفعش تسجّل حركة فيه`;
+}

@@ -1054,3 +1054,13 @@ model TreasuryMove {
   @@index([date])
   @@schema("finance")
 }
+
+/// M-07 · a month closed by hand (9.8): «اقفل الشهر» / «اقفل الربع». Months before today's close by themselves.
+model FinancePeriod {
+  month       String   @id // 2026-11
+  status      String   // month · quarter
+  closedById  String
+  closedAt    DateTime @default(now())
+
+  @@schema("finance")
+}
