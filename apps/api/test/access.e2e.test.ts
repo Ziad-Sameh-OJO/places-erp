@@ -153,12 +153,18 @@ test("every change is in the audit log", async () => {
 test("settings: everyone reads the lists, only master:edit changes them, bad values are refused", async () => {
   const s = await call("/settings", { cookie: sales });
   assert.equal(s.status, 200);
-  assert.ok(s.body.areas.includes("الشيخ زايد"));
-  assert.equal((await call("/settings/areas", { method: "PUT", cookie: sales, body: { value: [...s.body.areas, "x"] } })).status, 403);
-  const areas = [...s.body.areas, "E2E Area"];
-  assert.equal((await call("/settings/areas", { method: "PUT", cookie: admin, body: { value: areas } })).status, 200);
-  assert.ok((await call("/settings", { cookie: sales })).body.areas.includes("E2E Area"));
-  await call("/settings/areas", { method: "PUT", cookie: admin, body: { value: s.body.areas } });
+  const values = (list: { value: string }[]) => list.map((i) => i.value);
+  assert.ok(values(s.body.areas).includes("الشيخ زايد"));
+  const saved = await prisma.setting.findUnique({ where: { key: "areas" } });
+  try {
+    assert.equal((await call("/settings/areas", { method: "PUT", cookie: sales, body: { value: [...s.body.areas, { value: "x", active: true }] } })).status, 403);
+    const areas = [...s.body.areas, { value: "E2E Area", active: true }];
+    assert.equal((await call("/settings/areas", { method: "PUT", cookie: admin, body: { value: areas } })).status, 200);
+    assert.ok(values((await call("/settings", { cookie: sales })).body.areas).includes("E2E Area"));
+  } finally {
+    // a value is never removed through the API (12.7): the test puts the list back directly
+    if (saved) await prisma.setting.update({ where: { key: "areas" }, data: { value: saved.value as never } });
+  }
   const bad = { warnAfter: 200, pullAfter: 180, holidayWarnAfter: 1320, holidayPullAfter: 1440 };
   assert.equal((await call("/settings/slaRules", { method: "PUT", cookie: admin, body: { value: bad } })).status, 400);
   assert.equal((await call("/settings/nonsense", { method: "PUT", cookie: admin, body: { value: 1 } })).status, 400);

@@ -13,6 +13,9 @@ import { prisma } from "../src/index.ts";
 interface SeedRole { key: string; label: string; tier: string; scope: "own" | "team" | "dept" | "all"; permissions: Record<string, string[]> }
 interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; team?: string }
 
+/** The settings that are lists (contracts LIST_DEFAULTS · M-13 «القوايم»). */
+const LIST_KEYS = new Set(["areas", "channels", "companyCategories", "vendors", "paymentPlans", "finishings", "interactionTypes", "receiveSources", "mkTaskTypes", "ticketDepts"]);
+
 const load = <T>(file: string): T => JSON.parse(readFileSync(new URL(`./seed-data/${file}`, import.meta.url), "utf8"));
 
 async function main() {
@@ -54,7 +57,9 @@ async function main() {
   }
   const settings = load<Record<string, unknown>>("settings.json");
   for (const [key, value] of Object.entries(settings)) {
-    await prisma.setting.upsert({ where: { key }, create: { key, value: value as object }, update: {} });
+    // the lists are {value, active} (12.7); seed-data keeps them as plain text, every value active
+    const stored = LIST_KEYS.has(key) && Array.isArray(value) ? value.map((v) => ({ value: v, active: true })) : value;
+    await prisma.setting.upsert({ where: { key }, create: { key, value: stored as object }, update: {} });
   }
   console.log(`seed: ${Object.keys(settings).length} settings · ${roles.length} roles · ${people.length} people · ${passwordHash ? "ACTIVE with the dev password" : "INVITED"}`);
 }
