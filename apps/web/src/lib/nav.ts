@@ -6,6 +6,7 @@ export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon:
   home: { label: "مهامي النهارده", code: "Today", icon: "home", section: "", short: "الرئيسية", sub: "اللي محتاج منك النهارده" },
   leads: { label: "العملاء المحتملين", code: "M-01", icon: "users", section: "المبيعات", short: "الليدز", sub: "Create lead · توزيع بالـ area · SLA · المراحل · Qualified · روتيشن No Answer" },
   inventory: { label: "مخزون الوحدات", code: "M-03", icon: "building", section: "العمليات", short: "الوحدات", sub: "Rent · Resale · Income في قايمة واحدة بفلتر، وتابات المساحات تحت زي الشيت" },
+  finance: { label: "المالية", code: "M-07", icon: "wallet", section: "الإدارة", sub: "شجرة الحسابات بأرصدتها · القيود · الأرصدة الافتتاحية" },
   access: { label: "الأدوار والصلاحيات", code: "M-09", icon: "lock", section: "النظام", short: "الصلاحيات", sub: "الأدوار ومصفوفة الصلاحيات · المستخدمين · Audit Log" },
   master: { label: "الإعدادات", code: "M-13", icon: "filter", section: "النظام", sub: "القوايم والقواعد اللي بيتبني عليها السيستم · بتتعدّل من غير برمجة" },
   integrations: { label: "الإشعارات والإيميل", code: "M-14", icon: "bolt", section: "النظام", short: "الإشعارات", sub: "الإشعارات بتوصل جوه السيستم وعلى الإيميل · قواعد كل حدث" },

@@ -903,3 +903,9 @@ ul.plain { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-dire
 ul.plain li { display: flex; gap: 8px; align-items: center; }
 table.kpi-items { min-width: 760px; }
 table.kpi-items td:first-child { min-width: 220px; }
+
+/* M-07 finance (design-2): the coded chart of accounts, journal-entry lines, balance-sheet sub-accounts */
+.tree.coa summary { display: flex; align-items: center; gap: 8px; } .tree.coa .kid { display: flex; gap: 10px; align-items: center; } .tree.coa .kid.click { cursor: pointer; } .tree.coa .kid.click:hover { background: var(--sunken); }
+details.bs-acct > summary { list-style: none; cursor: pointer; } details.bs-acct > summary::-webkit-details-marker { display: none; } details.bs-acct > summary::before { content: "▸"; margin-inline-end: 6px; color: var(--muted, #888); } details.bs-acct[open] > summary::before { content: "▾"; } .acct.sub { padding-inline-start: 22px; font-size: .95em; }
+.kids .add-sub { margin: 6px 0 4px; }
+table.je { width: 100%; border-collapse: collapse; } table.je td, table.je th { padding: 4px 6px; text-align: right; } table.je select { width: 100%; } .ok-t { color: var(--ok, #16794c); font-weight: 600; } .bad-t { color: var(--bad, #b42318); font-weight: 600; }

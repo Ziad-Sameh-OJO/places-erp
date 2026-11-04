@@ -1,0 +1,82 @@
+import { Inject, Injectable } from "@nestjs/common";
+import type { Prisma, PrismaClient } from "@places/db";
+import { PRISMA } from "../../core/database/database.module";
+
+export type Tx = Prisma.TransactionClient;
+export interface AccountRow { id: string; code: string; name: string; parentId: string | null; nature: string; kind: string | null; fixed: boolean }
+export interface LineInput { accountId: string; debit: string; credit: string }
+
+const ACCOUNT = { id: true, code: true, name: true, parentId: true, nature: true, kind: true, fixed: true } as const;
+
+/** Prisma only: the chart, the journal and the sums behind the live balances. No decisions here. */
+@Injectable()
+export class LedgerRepository {
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
+
+  accounts(tx: Tx | PrismaClient = this.db): Promise<AccountRow[]> {
+    return tx.account.findMany({ where: { archivedAt: null }, select: ACCOUNT, orderBy: { code: "asc" } });
+  }
+
+  account(id: string, tx: Tx | PrismaClient = this.db) {
+    return tx.account.findFirst({ where: { id, archivedAt: null }, select: { ...ACCOUNT, _count: { select: { lines: true, children: true } } } });
+  }
+
+  accountByCode(code: string, tx: Tx | PrismaClient = this.db) {
+    return tx.account.findUnique({ where: { code }, select: ACCOUNT });
+  }
+
+  childCodes(parentId: string, tx: Tx | PrismaClient = this.db) {
+    return tx.account.findMany({ where: { parentId }, select: { code: true } }).then((r) => r.map((x) => x.code));
+  }
+
+  /** Total debit and credit per account (each account's own lines). */
+  sums(tx: Tx | PrismaClient = this.db) {
+    return tx.journalLine.groupBy({ by: ["accountId"], _sum: { debit: true, credit: true } });
+  }
+
+  createAccount(data: { code: string; name: string; parentId: string; nature: string; kind: string | null }, tx: Tx) {
+    return tx.account.create({ data, select: ACCOUNT });
+  }
+
+  /** An account that gets its first sub-account carries its movements down to «(عام)» (M-07, 4 Nov). */
+  moveLines(fromId: string, toId: string, tx: Tx) {
+    return tx.journalLine.updateMany({ where: { accountId: fromId }, data: { accountId: toId } });
+  }
+
+  archiveAccount(id: string, tx: Tx) {
+    return tx.account.update({ where: { id }, data: { archivedAt: new Date() }, select: ACCOUNT });
+  }
+
+  createEntry(data: { date: Date; nature: string; source: string; sourceId: string | null; memo: string; createdById: string }, lines: LineInput[], tx: Tx) {
+    return tx.journalEntry.create({ data: { ...data, lines: { create: lines } }, select: { id: true, no: true } });
+  }
+
+  private entryWhere(f: { from?: string | undefined; to?: string | undefined; accountId?: string | undefined; q?: string | undefined }): Prisma.JournalEntryWhereInput {
+    return {
+      ...(f.from || f.to ? { date: { ...(f.from ? { gte: new Date(`${f.from}T00:00:00Z`) } : {}), ...(f.to ? { lte: new Date(`${f.to}T00:00:00Z`) } : {}) } } : {}),
+      ...(f.accountId ? { lines: { some: { accountId: f.accountId } } } : {}),
+      ...(f.q ? { OR: [{ memo: { contains: f.q, mode: "insensitive" } }, { nature: { contains: f.q } }] } : {}),
+    };
+  }
+
+  entries(f: { from?: string | undefined; to?: string | undefined; accountId?: string | undefined; q?: string | undefined; page: number; pageSize: number }) {
+    const where = this.entryWhere(f);
+    return this.db.$transaction([
+      this.db.journalEntry.findMany({ where, orderBy: [{ date: "desc" }, { no: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize, include: { lines: { orderBy: { debit: "desc" } } } }),
+      this.db.journalEntry.count({ where }),
+      this.db.journalLine.aggregate({ where: { entry: where }, _sum: { debit: true, credit: true } }),
+    ]);
+  }
+
+  entry(id: string) {
+    return this.db.journalEntry.findUnique({ where: { id }, include: { lines: { orderBy: { debit: "desc" } } } });
+  }
+
+  accountLines(accountId: string) {
+    return this.db.journalLine.findMany({ where: { accountId }, include: { entry: true }, orderBy: [{ entry: { date: "asc" } }, { entry: { no: "asc" } }] });
+  }
+
+  names(userIds: string[]) {
+    return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
+  }
+}
