@@ -109,3 +109,17 @@ export const BudgetPatch = z.object({
 export type BudgetPatch = z.infer<typeof BudgetPatch>;
 export interface BudgetRow { accountId: string; code: string; name: string; group: string; budget: string | null; period: string; alert: number; active: boolean; spent: string; left: string | null; pct: number; level: "ok" | "warn" | "bad" | "" }
 export interface BudgetView { rows: BudgetRow[]; totals: { budget: string; spent: string; left: string; alerts: number } }
+
+/* ---- 9.13 · manual journal entries · 9.8 · periods ---- */
+export const ManualEntry = z.object({
+  date: CalendarDay,
+  memo: z.string().trim().min(2, "اكتب البيان").max(200),
+  lines: z.array(z.object({ accountId: Id, debit: Money, credit: Money })).min(2, "القيد محتاج سطرين على الأقل").max(40),
+});
+export type ManualEntry = z.infer<typeof ManualEntry>;
+/** After saving a manual entry: the entry and «الأثر على شجرة الحسابات». */
+export interface EntrySaved { entry: EntryView; effect: MoveEffect[] }
+
+export interface PeriodView { month: string; label: string; status: "open" | "month" | "quarter"; statusLabel: string }
+export const ClosePeriod = z.object({ kind: z.enum(["month", "quarter"]) });
+export type ClosePeriod = z.infer<typeof ClosePeriod>;

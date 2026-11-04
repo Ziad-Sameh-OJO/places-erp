@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import { BudgetPatch, JournalFilters, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
+import { BudgetPatch, ClosePeriod, JournalFilters, ManualEntry, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -93,5 +93,30 @@ export class FinanceController {
   @Requires("finance", "edit")
   setBudget(@Me() me: CurrentUser, @Param("accountId") accountId: string, @Body(new ZodPipe(BudgetPatch)) body: BudgetPatch) {
     return this.vouchers.setBudget(me, accountId, body, this.run);
+  }
+
+  @Post("journal")
+  @Requires("finance", "create")
+  manual(@Me() me: CurrentUser, @Body(new ZodPipe(ManualEntry)) body: ManualEntry) {
+    return this.ledger.manual(me, body, this.run);
+  }
+
+  /** M-07 (43): editing a posted manual entry is for whoever holds finance «approve». */
+  @Put("journal/:id")
+  @Requires("finance", "approve")
+  editManual(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(ManualEntry)) body: ManualEntry) {
+    return this.ledger.editManual(me, id, body, this.run);
+  }
+
+  @Get("periods")
+  @Requires("finance", "view")
+  periods() {
+    return this.ledger.periods();
+  }
+
+  @Post("periods/close")
+  @Requires("finance", "approve")
+  closePeriod(@Me() me: CurrentUser, @Body(new ZodPipe(ClosePeriod)) body: ClosePeriod) {
+    return this.ledger.closePeriod(me, body.kind, this.run);
   }
 }
