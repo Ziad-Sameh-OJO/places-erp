@@ -19,6 +19,8 @@ export interface TicketType {
   readonly measure: "reply" | "resolve";
   /** who is told when the SLA passes: the department's manager (M-06 2.4) or a role key (a dispute → Nancy) */
   readonly escalateTo: "manager" | string;
+  /** opened and decided only by its own module's flow (the Excuse: TL then HR, 7.4), never from the tickets form */
+  readonly system?: boolean;
 }
 
 export const TICKET_TYPES: readonly TicketType[] = [
@@ -31,6 +33,8 @@ export const TICKET_TYPES: readonly TicketType[] = [
   // M-12: Marwa «طلبات الـ Team Leaders من الـ Lists خلال 24 ساعة من الطلب · طلب الـ List كتذكرة»
   { key: "list", label: "طلب List", department: "Inventory", slaHours: 24, highSlaHours: null, clock: "wall", measure: "reply", escalateTo: "manager" },
   // M-06 3.1: Mokhtar «الشراء والصيانة 48 ساعة»
+  // M-05 7.4: «الـ Excuse نوع تذكرة (8.1): TL ثم HR» — decided in HR's Excuse flow, shown here with its history
+  { key: "excuse", label: "Excuse", department: "HR", slaHours: 24, highSlaHours: null, clock: "working", measure: "resolve", escalateTo: "manager", system: true },
   { key: "purchase", label: "شراء / صيانة", department: "Accounts", slaHours: 48, highSlaHours: null, clock: "wall", measure: "reply", escalateTo: "manager" },
 ];
 

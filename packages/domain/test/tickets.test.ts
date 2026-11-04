@@ -13,7 +13,8 @@ test("each type goes to its own department; a plain request goes where the perso
   assert.equal(ticketDepartment(ticketType("purchase")!, null), "Accounts");
   assert.equal(ticketDepartment(ticketType("request")!, "Inventory"), "Inventory");
   assert.equal(ticketDepartment(ticketType("request")!, null), null);
-  assert.equal(ticketType("excuse"), undefined); // 7.4 adds it
+  assert.equal(ticketDepartment(ticketType("excuse")!, null), "HR"); // 7.4: a system type, decided in HR's flow
+  assert.equal(ticketType("excuse")!.system, true);
 });
 
 test("M-06 7.1: sales opens a ticket to Inventory, nobody answers in 24 working hours → late, escalated to Inventory's manager", () => {

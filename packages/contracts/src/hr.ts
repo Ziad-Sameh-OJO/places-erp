@@ -108,3 +108,12 @@ export type NewOneOnOne = z.infer<typeof NewOneOnOne>;
 export interface OneOnOneView { id: string; heldOn: string; answers: Record<string, string>; hrAction: string | null; hrActionDue: string | null; hrActionDone: boolean; by: string }
 export interface OneOnOnesView { questions: string[]; due: boolean; items: OneOnOneView[] }
 export interface HrActionsView { items: { id: string; employeeId: string; name: string; action: string; due: string; late: boolean }[] }
+
+/* ---- 7.4 · the Excuse ---- */
+export const ExcuseAsk = z.object({ day: CalendarDay, reason: z.string().trim().min(2, "اكتب السبب").max(300) });
+export type ExcuseAsk = z.infer<typeof ExcuseAsk>;
+export type ExcuseStatus = "pending_tl" | "approved_tl" | "confirmed" | "rejected" | "refused";
+export interface ExcuseView {
+  id: string; employeeId: string; name: string; day: string; reason: string; number: number; status: ExcuseStatus; statusLabel: string;
+  cost: string; rejectReason: string | null; ticket: string | null; canDecide: "tl" | "hr" | null;
+}
