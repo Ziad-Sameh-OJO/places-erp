@@ -1,9 +1,11 @@
-import { BadRequestException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, HttpException, HttpStatus, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "@places/db";
+import { otpResendWait } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import { AuditService } from "../audit/audit.service";
 import { MailService } from "../mail/mail.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { env } from "../../config/env";
 import { hashPassword, verifyPassword } from "./password";
 import { TokensService, sha256 } from "./tokens.service";
@@ -22,6 +24,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly tokens: TokensService,
     private readonly mail: MailService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Step 1. Without OTP it opens the session; with OTP it emails a 6-digit code and returns no session. */
@@ -34,15 +37,37 @@ export class AuthService {
     if (!(await verifyPassword(user.passwordHash, password))) {
       const failed = user.failedLogins + 1;
       await this.db.user.update({ where: { id: user.id }, data: { failedLogins: failed, status: failed >= MAX_FAILED ? "LOCKED" : user.status } });
-      if (failed >= MAX_FAILED) await this.audit.record({ module: "access", entity: "User", entityId: user.id, action: "locked", userId: null, ip: meta.ip });
+      if (failed >= MAX_FAILED) {
+        await this.audit.record({ module: "access", entity: "User", entityId: user.id, action: "locked", userId: null, ip: meta.ip });
+        // M-09 6.1 «دخول غريب»: the only suspicious sign-in the requirements define so far is the 5-wrong-passwords lock (2.4)
+        await this.notifications.notify({ event: "access.suspicious", link: "/access", text: `دخول غريب: حساب ${user.email} اتقفل بعد ${MAX_FAILED} محاولات دخول غلط${meta.ip ? ` من ${meta.ip}` : ""}` });
+      }
       throw fail();
     }
     if (user.otpRequired) {
-      const code = await this.tokens.issue(user.id, "OTP");
-      await this.mail.send({ to: user.email, subject: `كود الدخول: ${code}`, text: `كود الدخول على Places ERP: ${code}\nصالح 10 دقايق. لو مش إنت اللي بتحاول تدخل، غيّر الباسورد.` });
+      await this.sendOtp(user.id, user.email);
       return { token: null, otpRequired: true };
     }
     return { token: await this.openSession(user.id, meta), otpRequired: false };
+  }
+
+  private async sendOtp(userId: string, email: string) {
+    const code = await this.tokens.issue(userId, "OTP");
+    await this.mail.send({ to: email, subject: `كود الدخول: ${code}`, text: `كود الدخول على Places ERP: ${code}\nصالح 10 دقايق. لو مش إنت اللي بتحاول تدخل، غيّر الباسورد.` });
+  }
+
+  /**
+   * «ابعت كود تاني» (M-09 2.4): only while a sign-in is waiting for its code (the password step passed and the
+   * code is still live), and only a minute after the last one. Unknown email and no sign-in in progress get the
+   * same answer, so it doesn't reveal which emails exist. The new code replaces the old one.
+   */
+  async resendOtp(email: string) {
+    const user = await this.db.user.findUnique({ where: { email } });
+    const sentAt = user && user.status === "ACTIVE" && user.otpRequired ? await this.tokens.liveSince(user.id, "OTP") : null;
+    if (!user || !sentAt) throw new BadRequestException("الكود خلص · ارجع وادخل بالباسورد تاني");
+    const wait = otpResendWait(sentAt, new Date());
+    if (wait > 0) throw new HttpException(`تقدر تطلب كود تاني بعد ${wait} ثانية`, HttpStatus.TOO_MANY_REQUESTS);
+    await this.sendOtp(user.id, user.email);
   }
 
   /** Step 2 (only for people with OTP on). */

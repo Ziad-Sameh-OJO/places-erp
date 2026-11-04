@@ -1,10 +1,11 @@
-import { Module } from "@nestjs/common";
+import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { DatabaseModule } from "./core/database/database.module";
 import { AuthModule } from "./core/auth/auth.module";
 import { AuthzModule } from "./core/authz/authz.module";
 import { AuditModule } from "./core/audit/audit.module";
+import { requestContextMiddleware } from "./core/audit/request-context";
 import { BusinessTimeModule } from "./core/business-time/business-time.module";
 import { SessionGuard } from "./core/auth/session.guard";
 import { PoliciesGuard } from "./core/authz/policies.guard";
@@ -16,6 +17,10 @@ import { LeadsModule } from "./modules/leads/leads.module";
 import { AccessModule } from "./modules/access/access.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
+import { FinanceModule } from "./modules/finance/finance.module";
+import { ProcurementModule } from "./modules/procurement/procurement.module";
+import { HrModule } from "./modules/hr/hr.module";
+import { TicketsModule } from "./modules/tickets/tickets.module";
 
 /**
  * Guards run in this order on every request: rate limit → signed in (unless @Public) → allowed (@Requires).
@@ -26,7 +31,7 @@ import { InventoryModule } from "./modules/inventory/inventory.module";
     // rate limits protect production; locally they'd only get in the way of the e2e tests
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 120 }], skipIf: () => process.env.NODE_ENV !== "production" }),
     DatabaseModule, MailModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule, NotificationsModule, FilesModule, DocumentsModule,
-    AccessModule, SettingsModule, LeadsModule, InventoryModule,
+    AccessModule, SettingsModule, LeadsModule, InventoryModule, FinanceModule, ProcurementModule, HrModule, TicketsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
@@ -34,4 +39,7 @@ import { InventoryModule } from "./modules/inventory/inventory.module";
     { provide: APP_GUARD, useClass: PoliciesGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // after the body parsers, so the request's device and IP reach every audit record written while serving it
+  configure(consumer: MiddlewareConsumer) { consumer.apply(requestContextMiddleware).forRoutes("*"); }
+}

@@ -1,0 +1,26 @@
+/**
+ * M-07 9.16: on a fixed bill's day the accountant hears about it once («ميعاد فاتورة …»). Nothing is paid here — the
+ * accountant approves and pays (a voucher) or skips the month. The rule is billState() from @places/domain; this file
+ * only applies it. Idempotent: `notifiedFor` holds the month already announced.
+ */
+import { prisma } from "@places/db";
+import { billState, eventByKey, formatEGP, fromDecimal, localDate, monthOf } from "@places/domain";
+
+export async function recurringBillsTick(): Promise<void> {
+  const today = localDate(new Date()), month = monthOf(today);
+  const bills = await prisma.recurringBill.findMany({ where: { active: true, OR: [{ notifiedFor: null }, { notifiedFor: { not: month } }] }, include: { months: { where: { month } } } });
+  const due = bills.filter((b) => billState(b, (b.months[0]?.status as "paid" | "skipped" | undefined) ?? null, today) === "due");
+  if (!due.length) return;
+  const event = eventByKey("finance.bill_due")!;
+  const rule = await prisma.notificationRule.findUnique({ where: { event: event.key } });
+  const roles = rule?.toRoles ?? [...event.toRoles];
+  const people = await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: roles } } } } }, select: { id: true } });
+  for (const b of due) {
+    await prisma.$transaction(async (tx) => {
+      // optimistic: another run already announced it this month
+      const claimed = await tx.recurringBill.updateMany({ where: { id: b.id, OR: [{ notifiedFor: null }, { notifiedFor: { not: month } }] }, data: { notifiedFor: month } });
+      if (!claimed.count) return;
+      await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, text: `ميعاد فاتورة ${b.name} · ${formatEGP(fromDecimal(b.amount.toFixed(2)))} · ${b.vendor} · مستنية موافقتك`, link: "/finance", important: event.important })) });
+    });
+  }
+}

@@ -25,7 +25,8 @@
     "roles": [
       "tl",
       "sales"
-    ]
+    ],
+    "manager": "u1"
   },
   {
     "ref": "u19",
@@ -34,7 +35,8 @@
     "department": "المبيعات",
     "roles": [
       "tl"
-    ]
+    ],
+    "manager": "u1"
   },
   {
     "ref": "u23",
@@ -43,7 +45,8 @@
     "department": "المبيعات",
     "roles": [
       "tl"
-    ]
+    ],
+    "manager": "u1"
   },
   {
     "ref": "u24",
@@ -52,7 +55,8 @@
     "department": "المبيعات",
     "roles": [
       "tl"
-    ]
+    ],
+    "manager": "u1"
   },
   {
     "ref": "s1",
@@ -259,7 +263,8 @@
     "department": "المبيعات",
     "roles": [
       "telesales"
-    ]
+    ],
+    "manager": "u6"
   },
   {
     "ref": "u6",
@@ -268,7 +273,8 @@
     "department": "Operations",
     "roles": [
       "ops"
-    ]
+    ],
+    "manager": "u21"
   },
   {
     "ref": "u7",
@@ -277,7 +283,8 @@
     "department": "Inventory",
     "roles": [
       "inventory"
-    ]
+    ],
+    "manager": "u21"
   },
   {
     "ref": "u8",
@@ -286,7 +293,8 @@
     "department": "Inventory",
     "roles": [
       "resale"
-    ]
+    ],
+    "manager": "u7"
   },
   {
     "ref": "u9",
@@ -295,7 +303,8 @@
     "department": "Inventory",
     "roles": [
       "inventory_staff"
-    ]
+    ],
+    "manager": "u7"
   },
   {
     "ref": "u10",
@@ -304,7 +313,8 @@
     "department": "Inventory",
     "roles": [
       "inventory_staff"
-    ]
+    ],
+    "manager": "u7"
   },
   {
     "ref": "u11",
@@ -313,7 +323,8 @@
     "department": "Marketing",
     "roles": [
       "marketing"
-    ]
+    ],
+    "manager": "u1"
   },
   {
     "ref": "u12",
@@ -322,7 +333,8 @@
     "department": "Marketing",
     "roles": [
       "photographer"
-    ]
+    ],
+    "manager": "u11"
   },
   {
     "ref": "u14",
@@ -331,7 +343,8 @@
     "department": "HR",
     "roles": [
       "hr"
-    ]
+    ],
+    "manager": "u21"
   },
   {
     "ref": "u16",
@@ -340,7 +353,8 @@
     "department": "Accounts",
     "roles": [
       "procurement"
-    ]
+    ],
+    "manager": "u21"
   },
   {
     "ref": "u18",
@@ -350,7 +364,8 @@
     "roles": [
       "accountant",
       "approver"
-    ]
+    ],
+    "manager": "u1"
   },
   {
     "ref": "u21",
@@ -360,6 +375,7 @@
     "roles": [
       "officemgr",
       "approver"
-    ]
+    ],
+    "manager": "u2"
   }
 ]

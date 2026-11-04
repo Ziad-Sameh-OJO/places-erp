@@ -1,7 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AuditFilters, Matrix, Overrides, RoleInput, RoleUpdate, UserFilters, UserInput } from "@places/contracts";
-import { type Action, MODULES, keepsAccessAdmin, normalizeActions } from "@places/domain";
+import {
+  ACTIONS, ACTION_LABEL, type Action, type DataScope, MODULES, MODULE_LABEL, type ModuleKey, OPS_HEAD, effectiveGrants, keepsAccessAdmin,
+  normalizeActions, teamUnder, withinOwnPermissions,
+} from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { AuthService } from "../../core/auth/auth.service";
@@ -18,7 +21,9 @@ const ADMIN = "admin";
  * M-09 use cases. Three rules on top of the permission check of each endpoint:
  *  - only a Super Admin can give or take the Super Admin role;
  *  - nobody can remove their own right to manage permissions (the change is rolled back);
- *  - built-in roles and roles that still have people can't be deleted.
+ *  - built-in roles and roles that still have people can't be deleted;
+ *  - the Operations Head changes only his team's exceptions, inside his own permissions (M-09 2.2 · 4.1).
+ * Every permission change also reaches the Super Admin (6.1).
  */
 @Injectable()
 export class AccessService {
@@ -36,6 +41,10 @@ export class AccessService {
   async listUsers(f: UserFilters) {
     const [items, total] = await this.repo.listUsers(f);
     return { items, total, page: f.page, pageSize: f.pageSize };
+  }
+
+  async departments(): Promise<string[]> {
+    return (await this.repo.departments()).map((e) => e.department);
   }
 
   /** Every user matching the filters, for the Excel export (audited: who exported what). */
@@ -82,7 +91,11 @@ export class AccessService {
       await this.keepSelfAdmin(me, tx);
     });
     const was = before.roles.map((r) => r.role.key).join(",");
-    if (was !== roleKeys.join(",")) await this.notifications.notify({ event: "access.changed", userIds: [id], text: `أدوارك اتغيرت: ${roleKeys.map((k) => roles.get(k)!.label).join(" + ")}` });
+    if (was !== roleKeys.join(",")) {
+      const labels = roleKeys.map((k) => roles.get(k)!.label).join(" + ");
+      await this.notifications.notify({ event: "access.changed", userIds: [id], text: `أدوارك اتغيرت: ${labels}` });
+      await this.tellSuperAdmin(me, `أدوار ${b.name} اتغيرت: ${labels}`);
+    }
     return this.getUser(id);
   }
 
@@ -129,9 +142,36 @@ export class AccessService {
     return { roles: u.roles.map((r) => r.role), fromRoles, overrides, effective };
   }
 
+  /** The person's matrix as `me` sees it: `editable` says whether `me` may change it (the screen's ticks). */
+  async permissionsFor(me: CurrentUser, id: string) {
+    return { ...(await this.permissionsOf(id)), editable: await this.editReach(me, id) !== null };
+  }
+
+  /**
+   * Who may change one person's exceptions (M-09 2.2 · 4.1): whoever has «access: edit» anyone's; the Operations
+   * Head only the people under him in the org structure, and only inside his own permissions; nobody else.
+   */
+  private async editReach(me: CurrentUser, id: string): Promise<"all" | "team" | null> {
+    if (me.grants.can("access", "edit")) return "all";
+    if (!me.roles.includes(OPS_HEAD) || !me.employeeId) return null;
+    const org = await this.repo.org();
+    const team = teamUnder(me.employeeId, org);
+    return org.some((e) => e.userId === id && team.has(e.id)) ? "team" : null;
+  }
+
   /** An exception equal to what the roles already give is dropped, so the matrix stays honest. */
   async setOverrides(me: CurrentUser, id: string, changes: Overrides) {
-    const { fromRoles } = await this.permissionsOf(id);
+    const reach = await this.editReach(me, id);
+    if (!reach) throw new ForbiddenException(me.roles.includes(OPS_HEAD) ? "بتعدّل صلاحيات فريقك بس" : undefined);
+    const { fromRoles, effective } = await this.permissionsOf(id);
+    if (reach === "team") {
+      const outside = (Object.keys(changes) as ModuleKey[]).filter((m) => {
+        const next = changes[m];
+        return !withinOwnPermissions(me.grants, m, (effective[m] ?? []) as Action[], next === null || next === undefined ? (fromRoles[m] ?? []) : next);
+      });
+      if (outside.length) throw new ForbiddenException(`مش في حدود صلاحياتك: ${outside.map((m) => MODULE_LABEL[m]).join("، ")}`);
+    }
+    const target = await this.getUser(id);
     await this.db.$transaction(async (tx) => {
       for (const [module, actions] of Object.entries(changes)) {
         const norm = actions === null ? null : normalizeActions(actions);
@@ -139,9 +179,10 @@ export class AccessService {
         else await tx.permissionOverride.upsert({ where: { userId_module: { userId: id, module } }, create: { userId: id, module, actions: norm }, update: { actions: norm } });
       }
       await this.audit.record({ module: "access", entity: "PermissionOverride", entityId: id, action: "update", userId: me.id, after: changes }, tx);
-      await this.keepSelfAdmin(me, tx);
+      if (reach === "all") await this.keepSelfAdmin(me, tx); // the Operations Head never edits himself (not in his own team)
     });
-    return this.permissionsOf(id);
+    await this.tellSuperAdmin(me, `صلاحيات ${target.employee?.name ?? target.email} اتعدّلت: ${Object.keys(changes).map((m) => MODULE_LABEL[m as ModuleKey] ?? m).join("، ")}`);
+    return this.permissionsFor(me, id);
   }
 
   /* ---------------- roles ---------------- */
@@ -174,6 +215,7 @@ export class AccessService {
       await this.audit.record({ module: "access", entity: "Role", entityId: r.id, action: "update", userId: me.id, before: { label: r.label, tier: r.tier, scope: r.scope }, after: b }, tx);
       await this.keepSelfAdmin(me, tx);
     });
+    if (b.scope && up(b.scope) !== r.scope) await this.tellSuperAdmin(me, `نطاق دور «${r.label}» اتغير`);
   }
 
   /** Replaces the given modules of the role's matrix (modules not sent stay as they are). */
@@ -188,6 +230,7 @@ export class AccessService {
       await this.audit.record({ module: "access", entity: "Role", entityId: r.id, action: "permissions", userId: me.id, after: matrix }, tx);
       await this.keepSelfAdmin(me, tx);
     });
+    await this.tellSuperAdmin(me, `صلاحيات دور «${r.label}» اتعدّلت: ${Object.keys(matrix).map((m) => MODULE_LABEL[m as ModuleKey] ?? m).join("، ")}`);
   }
 
   async deleteRole(me: CurrentUser, key: string) {
@@ -206,6 +249,35 @@ export class AccessService {
     const [items, total] = await this.repo.audit(f);
     // BigInt ids don't serialise to JSON
     return { items: items.map((x) => ({ ...x, id: x.id.toString() })), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** The filtered log for the Excel export (Q0.11 · M-09 6.1), with names; the export itself is audited. */
+  async auditForExport(me: CurrentUser, f: AuditFilters) {
+    const [rows, people] = await Promise.all([this.repo.allAudit(f, EXPORT_LIMIT), this.repo.names()]);
+    const name = new Map(people.map((p) => [p.userId, p.name]));
+    await this.audit.record({ module: "access", entity: "AuditLog", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
+    return rows.map((x) => ({ ...x, who: x.userId ? name.get(x.userId) ?? x.userId : "السيستم", on: x.entity === "User" ? name.get(x.entityId) ?? x.entityId : x.entityId }));
+  }
+
+  /**
+   * «مين عنده أنهي صلاحية» (M-09 6.1): every account that isn't stopped, with what it can do in each module —
+   * its roles together plus its own exceptions (3.2), the same rule the API checks on every call.
+   */
+  async permissionsReport(me: CurrentUser) {
+    const users = await this.repo.permissionHolders();
+    await this.audit.record({ module: "access", entity: "User", entityId: "permissions-report", action: "export", userId: me.id, after: { rows: users.length } });
+    return users.map((u) => {
+      const grants = effectiveGrants(
+        u.roles.map(({ role }) => ({ scope: role.scope.toLowerCase() as DataScope, modules: Object.fromEntries(role.permissions.map((p) => [p.module, p.actions as Action[]])) })),
+        Object.fromEntries(u.overrides.map((o) => [o.module, o.actions as Action[]])),
+      );
+      return {
+        name: u.employee?.name ?? u.email, email: u.email, department: u.employee?.department ?? "", status: u.status,
+        roles: u.roles.map((r) => r.role.label).join(" + "), scope: grants.scope,
+        overrides: u.overrides.map((o) => MODULE_LABEL[o.module as ModuleKey] ?? o.module).join("، "),
+        modules: Object.fromEntries(MODULES.map((m) => [m, ACTIONS.filter((a) => grants.can(m, a)).map((a) => ACTION_LABEL[a]).join(" · ")])) as Record<ModuleKey, string>,
+      };
+    });
   }
 
   /* ---------------- helpers ---------------- */
@@ -230,8 +302,14 @@ export class AccessService {
     return roles;
   }
 
+  /** The direct manager is the one chosen, else the TL; when neither is sent, an edit keeps the current one (M-09 7.2). */
   private employeeData(b: UserInput, jobTitle: string) {
-    return { name: b.name, department: b.department, jobTitle, teamLeaderId: b.teamLeaderId ?? null, managerId: b.teamLeaderId ?? null };
+    return { name: b.name, department: b.department, jobTitle, teamLeaderId: b.teamLeaderId ?? null, managerId: b.managerId ?? b.teamLeaderId ?? undefined };
+  }
+
+  /** M-09 6.1: the Super Admin hears of every permission change (after it's saved, like every notification). */
+  private tellSuperAdmin(me: CurrentUser, text: string) {
+    return this.notifications.notify({ event: "access.permissions", link: "/access", text: `${text} · بواسطة ${me.name}` });
   }
 
   /** Runs inside the transaction: if the change would take «edit permissions» away from whoever made it, roll back. */

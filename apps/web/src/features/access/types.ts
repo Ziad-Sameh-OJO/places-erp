@@ -8,7 +8,7 @@ export interface UserRow {
   id: string; email: string; phone: string | null; status: "INVITED" | "ACTIVE" | "LOCKED" | "DISABLED";
   otpRequired: boolean; lastLoginAt: string | null; endDate: string | null; failedLogins: number;
   roles: { primary: boolean; role: { key: string; label: string } }[];
-  employee: { id: string; name: string; department: string; jobTitle: string; team: string | null; teamLeaderId: string | null } | null;
+  employee: { id: string; name: string; department: string; jobTitle: string; team: string | null; teamLeaderId: string | null; managerId: string | null } | null;
   _count: { overrides: number };
 }
 export const SCOPES: [string, string][] = [["own", "بتاعه بس"], ["team", "فريقه"], ["dept", "قسمه"], ["all", "الكل"]];

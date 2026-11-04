@@ -104,5 +104,10 @@
     }
   ],
   "whatsappDailyLimit": 250,
-  "notificationsFrom": "notifications@places.com"
+  "notificationsFrom": "notifications@places.com",
+  "procurementBigApprovers": [
+    "ahmed.islam@places.com",
+    "m.safwat@places.com",
+    "ahmed.ashraf@places.com"
+  ]
 }
