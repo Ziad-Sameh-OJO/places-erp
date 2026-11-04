@@ -71,3 +71,21 @@ test("periods: the open month follows today, the month before closes by itself, 
   assert.equal(closedProblem("2026-10-31", "2026-11-04", none), "شهر أكتوبر 2026 مقفول · مينفعش تسجّل حركة فيه");
   assert.equal(monthLabel("2026-12"), "ديسمبر 2026");
 });
+
+test("income statement stages: revenue − commissions − selling − admin − other = net = account 34 (9.7)", async () => {
+  const { incomeStatement } = await import("../src/index.ts");
+  const leaves = [
+    { code: "4101", name: "عمولات تسويق عقاري اداري", value: 500_000_00 }, { code: "4204", name: "ايرادات استشارات عقارية", value: 20_000_00 },
+    { code: "5302", name: "عمولة مبيعات", value: 75_000_00 }, { code: "5305", name: "عمولة تيم ليدر", value: 10_000_00 },
+    { code: "5307", name: "سبونسر فيسوك", value: 30_000_00 }, { code: "5201", name: "ايجار", value: 60_000_00 }, { code: "5203", name: "بوفيه", value: 5_000_00 },
+    { code: "55", name: "اهلاك الاصول الثابتة", value: 12_000_00 },
+  ];
+  const s = incomeStatement(leaves, [{ code: "54", name: "مصروفات اخري" }, { code: "55", name: "اهلاك الاصول الثابتة" }]);
+  assert.equal(s.revenue, 520_000_00);
+  assert.equal(s.gross, 435_000_00); // − 85,000 commissions
+  assert.equal(s.contribution, 405_000_00); // − 30,000 selling
+  assert.equal(s.admin, 65_000_00);
+  assert.equal(s.other, 12_000_00);
+  assert.equal(s.net, 328_000_00);
+  assert.equal(s.net, 520_000_00 - leaves.filter((l) => l.code.startsWith("5")).reduce((t, l) => t + l.value, 0)); // = 4 − 5 = account 34
+});

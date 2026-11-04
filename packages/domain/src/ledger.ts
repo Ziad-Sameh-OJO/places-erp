@@ -133,3 +133,27 @@ export function periodStatus(month: string, today: string, closed: ReadonlyMap<s
 export function closedProblem(day: string, today: string, closed: ReadonlyMap<string, PeriodStatus>): string | null {
   return periodStatus(monthOf(day), today, closed) === "open" ? null : `شهر ${monthLabel(monthOf(day))} مقفول · مينفعش تسجّل حركة فيه`;
 }
+
+/* ---- the income statement (M-07 9.7): the stages Dr. Ali reads, from the chart ---- */
+/** Direct costs = the commissions (demo «@» lines under 53): taken off revenue first, for «ربح الصفقات». */
+export const DIRECT_COSTS = ["5302", "5303", "5304", "5305"] as const;
+export interface StatementLine { code: string; name: string; value: Piasters }
+export interface IncomeStatement {
+  revenue: Piasters; direct: Piasters; gross: Piasters; selling: Piasters; contribution: Piasters; admin: Piasters; other: Piasters; net: Piasters;
+  lines: { revenue: StatementLine[]; direct: StatementLine[]; selling: StatementLine[]; admin: StatementLine[]; other: { head: StatementLine; lines: StatementLine[] }[] };
+}
+
+/**
+ * Revenue (4) − direct (commissions) = «ربح الصفقات» − selling (53 without commissions) = «ربح النشاط» − admin (52)
+ * − other expenses (54–58) = net profit. `leaves` = each leaf's movement in the period in its own direction; `heads` =
+ * the 54–58 accounts by name. Net always equals 4 − 5, i.e. account 34 (the accountant's chart, 4 Nov).
+ */
+export function incomeStatement(leaves: readonly StatementLine[], heads: readonly { code: string; name: string }[]): IncomeStatement {
+  const direct = new Set<string>(DIRECT_COSTS);
+  const under = (p: string) => leaves.filter((l) => l.code.startsWith(p));
+  const sum = (ls: readonly StatementLine[]) => ls.reduce((s, l) => s + l.value, 0);
+  const revenue = under("4"), dir = leaves.filter((l) => direct.has(l.code)), selling = under("53").filter((l) => !direct.has(l.code)), admin = under("52");
+  const other = heads.filter((h) => /^5[4-9]/.test(h.code)).map((h) => ({ head: { ...h, value: sum(under(h.code)) }, lines: under(h.code).filter((l) => l.code !== h.code) }));
+  const r = sum(revenue), d = sum(dir), s = sum(selling), a = sum(admin), o = other.reduce((t, x) => t + x.head.value, 0);
+  return { revenue: r, direct: d, gross: r - d, selling: s, contribution: r - d - s, admin: a, other: o, net: r - d - s - a - o, lines: { revenue, direct: dir, selling, admin, other } };
+}
