@@ -11,7 +11,7 @@ import { hash } from "@node-rs/argon2";
 import { prisma } from "../src/index.ts";
 
 interface SeedRole { key: string; label: string; tier: string; scope: "own" | "team" | "dept" | "all"; permissions: Record<string, string[]> }
-interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; team?: string }
+interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; manager?: string; team?: string }
 
 const load = <T>(file: string): T => JSON.parse(readFileSync(new URL(`./seed-data/${file}`, import.meta.url), "utf8"));
 
@@ -47,10 +47,14 @@ async function main() {
     });
     employeeIds.set(p.ref, emp.id);
   }
-  // second pass: a salesperson follows their Team Leader (both for the sales team and for approvals / KPIs)
-  for (const p of people.filter((x) => x.teamLeader)) {
-    const tl = employeeIds.get(p.teamLeader!)!;
-    await prisma.employee.updateMany({ where: { id: employeeIds.get(p.ref)!, teamLeaderId: null }, data: { teamLeaderId: tl, managerId: tl } });
+  // second pass, the org structure (M-09 7.2, KPI file): a salesperson's TL, and everyone's direct manager —
+  // `manager` in people.json, or the TL for salespeople. Only empty fields are filled: changes made in the app stay.
+  const ref = (r: string) => employeeIds.get(r) ?? (() => { throw new Error(`people.json: unknown ref ${r}`); })();
+  for (const p of people) {
+    const id = ref(p.ref);
+    if (p.teamLeader) await prisma.employee.updateMany({ where: { id, teamLeaderId: null }, data: { teamLeaderId: ref(p.teamLeader) } });
+    const boss = p.manager ?? p.teamLeader;
+    if (boss) await prisma.employee.updateMany({ where: { id, managerId: null }, data: { managerId: ref(boss) } });
   }
   const settings = load<Record<string, unknown>>("settings.json");
   for (const [key, value] of Object.entries(settings)) {
