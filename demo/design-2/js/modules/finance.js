@@ -40,7 +40,7 @@
   const dueOf = (d) => (A.countsRevenue(d) ? Math.max(0, A.placesComm(d) - A.collected(d)) : 0);
   // every client of a deal (or one the accountant adds) gets its own account under 113; the code is given once and kept
   function clientKids(st) {
-    const cc = st.clientCodes = st.clientCodes || {}, names = [...st.deals.filter(LIVE).map((d) => d.client), ...st.moves.filter((m) => m.kind === "receive" && m.source === "عمولة من عميل" && m.party).map((m) => m.party)];
+    const cc = st.clientCodes = st.clientCodes || {}, names = [...st.deals.filter(LIVE).slice().reverse().map((d) => d.client), ...st.moves.filter((m) => m.kind === "receive" && m.source === "عمولة من عميل" && m.party).slice().reverse().map((m) => m.party)]; /* oldest first */
     names.forEach((n) => { if (!cc[n]) cc[n] = Object.keys(cc).length + 1; });
     return Object.keys(cc).sort((a, b) => cc[a] - cc[b]).map((n) => ({ code: "113" + String(cc[n]).padStart(3, "0"), name: n, key: "عميل:" + n, bal: st.deals.filter((d) => d.client === n).reduce((s, d) => s + dueOf(d), 0) }));
   }
@@ -97,7 +97,9 @@
   const prCard = () => { const q = prQueue(); if (!q.length) return "";
     return `<section class="card attn">${head("طلبات مشتريات مستنية الصرف", "cart", chip("warn", q.length), "المشتريات سوّتها وبلّغت · الصرف من الخزنة والقيد عندك")}
       ${table(["الطلب", "البند", "المورد", "اتدفع من (حسب المشتريات)", "المبلغ", ""], q.map((p) => `<tr><td><b>${esc(p.item)}</b><span class="sub mono">${p.id} · ${A.fmtDate(p.settledAt)}</span></td><td>${esc(p.line)}</td><td>${esc(p.vendor || "—")}</td><td>${esc(p.suggestedAccount || "—")}</td><td class="n"><b>${A.money(p.amount)}</b></td><td>${canPost() ? `<button class="btn sm" data-act="mvNew" data-k="pay" data-pr="${p.id}">اصرفها</button>` : ""}</td></tr>`))}</section>`; };
-  A.financeInbox = (add) => { if (!canPost()) return; billsDue().forEach((b) => add("warn", "calendar", `ميعاد فاتورة ${b.name}`, `${A.money(b.amount)} · ${b.vendor} · مستنية موافقتك`, "goFinPay", {}, "افتح")); prQueue().forEach((p) => add("warn", "cart", `اصرف طلب شراء ${p.id}`, `${p.item} · ${A.money(p.amount)} · المشتريات سوّته`, "goFinPay", {}, "افتح")); };
+  A.financeInbox = (add) => { if (!canPost()) return;
+    S().deals.filter((d) => d.status === "Approved" && !A.collected(d)).forEach((d) => add("warn", "handshake", `صفقة اتقفلت · حصّل عمولة ${d.id}`, `${d.client} · ${A.money(A.placesComm(d))} · اتفتحله حساب تحت العملاء`, "mvNew", { k: "receive", deal: d.id }, "حصّل"));
+    billsDue().forEach((b) => add("warn", "calendar", `ميعاد فاتورة ${b.name}`, `${A.money(b.amount)} · ${b.vendor} · مستنية موافقتك`, "goFinPay", {}, "افتح")); prQueue().forEach((p) => add("warn", "cart", `اصرف طلب شراء ${p.id}`, `${p.item} · ${A.money(p.amount)} · المشتريات سوّته`, "goFinPay", {}, "افتح")); };
   A.ACT.goFinPay = () => { ui("fnTab", "cash"); location.hash = "#finance"; A.render(); };
   // one form for every voucher kind; the fields follow the kind
   A.ACT.mvNew = (d) => {

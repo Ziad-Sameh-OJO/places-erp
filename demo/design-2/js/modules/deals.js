@@ -91,6 +91,7 @@
     d.status = "Approved"; d.approvedAt = A.nowIso(); if (A.suspicious(d)) d.offTarget = true;
     A.audit("deals", `${d.id}: الـ Office Manager وافقت${ch.length ? " بعد تعديل: " + ch.join(" · ") : ""}`);
     if (u) { u.closeReq = d.id; A.notify([u.type === "Rent" ? "inventory" : "resale"], `Done Deal ${d.id} على ${u.code} اتوافق عليها · أكّد قفل الوحدة`); }
+    A.notify(["accountant"], `صفقة اتقفلت ${d.id} · ${d.client} · العمولة ${A.money(A.placesComm(d))} · اتفتحله حساب تحت «العملاء» · مستنية التحصيل`);
     A.notify(["marketing"], `Done Deal اتسجّلت في الشيت: ${d.type} · ${d.location} · ${A.num(d.space)} م · ${d.company || d.client}`);
     A.toast(d.offTarget ? "اتسجّلت في الشيت · بس خارج تارجت السيلز (Alarm)" : "اتسجّلت في شيت الـ Done Deals · والتسويق وصلها Alarm");
     A.render();

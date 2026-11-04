@@ -32,17 +32,24 @@
       run() { A.ui.rpTab = "pdf"; const st = S(), k = Object.keys(st.statements || {}).find((x) => st.statements[x].status === "draft"); if (!k) A.ACT.pdfMake(); A.ACT.pdfApprove(); return "الورق اتبعت · افتح «صندوق الإيميل» من لوحة الديمو تشوفه."; } }
   ];
   /* «سيناريو المالية»: أحمد (المحاسب) بيحصّل صفقة، وبيشوف أثرها على حساب العميل، وبيصرف فاتورة ثابتة بموافقته، وبيعمل قيد يدوي */
-  const FD = () => S().deals.find((d) => d.id === "D-302"), cl = () => FD().client;
+  const FD = () => S().deals.find((d) => d.id === ctx.fdeal), cl = () => FD().client;
   const tree = () => { A.ui.fnTab = "tree"; setTimeout(() => { const el = [...document.querySelectorAll("details summary")].find((x) => x.textContent.includes("العملاء")); if (el) { el.parentElement.open = true; el.scrollIntoView({ block: "center" }); } }, 50); };
   const FIN = [
-    { who: "u18", go: "finance", t: "رصيد العملاء ليه تحليل فرعي", x: "في شجرة الحسابات، «العملاء» (113) بقى حساب رئيسي، وتحته حساب لكل عميل بكود ثابت (113001، 113002…). الحسابات دي بتتفتح لوحدها من الصفقات اللي اتقفلت، وتقدر تضيف عميل بإيدك. مجموعهم = رصيد العملاء.",
-      run() { const C = APP_COA(); tree(); return C.byCode["113"].kids.map((n) => `${n.code} ${n.name}: ${A.money(n.bal)}`).join(" · ") + ` · الإجمالي ${A.money(C.byCode["113"].bal)}`; } },
-    { who: "u18", go: "finance", t: "الصفقة اللي هنحصّلها", x: "صفقة أ. رنا مجدي (D-302): العمولة 184,800، اتحصّل منها 80,000، والباقي على حسابها في الشجرة.",
-      run() { const d = FD(); return `${d.id} · ${d.client} · العمولة ${A.money(A.placesComm(d))} · اتحصّل ${A.money(A.collected(d))} · الباقي ${A.money(A.placesComm(d) - A.collected(d))}`; }, open: () => A.ACT.dealOpen({ id: "D-302" }) },
-    { who: "u18", go: "finance", t: "إذن توريد خزنة من الصفقة", x: "من «الخزن والحركات» ← إذن توريد: المصدر «عمولة من عميل»، وبتختار الصفقة، فاسم العميل بييجي لوحده. بنحصّل 50,000 في بنك CIB.",
-      run() { A.ui.fnTab = "cash"; A.FORM.mvSave({ kind: "receive", to: "بنك CIB", source: "عمولة من عميل", deal: "D-302", side: "client", amount: "50000", note: "دفعة عمولة من أ. رنا مجدي", date: A.today() }); return "اتعمل إذن التوريد وقيده: من ح/ بنك CIB إلى ح/ " + cl() + "."; }, keep: 1 },
-    { who: "u18", go: "finance", t: "الأثر على حساب العميل", x: "حساب العميل نزل بالمبلغ، والبنك زاد بنفس المبلغ، و«العملاء» (113) نزل معاهم. ولما تدوس على حساب العميل بيظهرلك كشف حسابه بكل الحركات.",
-      run() { const C = APP_COA(), n = C.idx["عميل:" + cl()]; tree(); return `${n.code} ${n.name}: ${A.money(n.bal)} · بنك CIB: ${A.money(C.idx["بنك CIB"].bal)}`; }, open: () => A.ACT.acctLedger({ k: "عميل:" + cl() }) },
+    { who: "s4", go: "deals", t: "السيلز قفل صفقة", x: "م. شريف عادل (شركة Vertex Labs) أجّر مكتب. السيلز بيسجّل Done Deal: الوحدة، والمساحة، والعمولة من الـ Owner ومن الـ Client (30,000 + 30,000).",
+      run() { A.FORM.leadNew({ name: "م. شريف عادل", company: "Vertex Labs", phones: "01011223344", area: "التجمع الخامس", type: "Rent", space: "150", condition: "متشطب", budget: "160000", channel: "Facebook", campaign: "c1", sales: "s4", note: "مكتب للفريق" });
+        const l = S().leads[0], me = l.sales, u = S().units.find((x) => A.availableAs(x, "Rent") && x.pdf === "confirmed" && x.agent && x.agent !== me);
+        A.setStage(l, "Near to Close"); A.FORM.deal({ lead: l.id, unit: u.code, space: String(u.space), type: "Rent", commOwner: "30000", commClient: "30000" }, pick([]));
+        ctx.fdeal = S().deals[0].id; return `الصفقة ${ctx.fdeal} اتسجّلت · ${l.name} · ${u.code} · مستنية مراجعة الـ Office Manager.`; }, open: () => A.ACT.dealOpen({ id: ctx.fdeal }) },
+    { who: "u21", go: "deals", t: "الـ Office Manager وافقت", x: "بعد الموافقة الصفقة بتتقفل في الشيت، وبيروح للمحاسب إشعار ومهمة «حصّل عمولة»، والعميل بيتفتحله حساب تحت «العملاء» (113) لوحده.",
+      run() { const d = FD(); if ((d.sellers || []).length && !d.sellerApproved) A.ACT.sellerOk({ id: d.id }); A.FORM.dealReview({ id: d.id, v: "ok", space: String(d.space), type: d.type, location: d.location, commOwner: String(d.commOwner), commClient: String(d.commClient) }, { querySelector: () => ({ selectedOptions: A.buyersOf(d).map((value) => ({ value })) }) }); return `${d.id} بقت Approved · اتبعتت للمالية.`; }, open: () => A.ACT.dealOpen({ id: ctx.fdeal }) },
+    { who: "u18", go: "home", t: "وصلت للمحاسب", x: "أحمد بيلاقي في «مهامي النهارده»: «صفقة اتقفلت · حصّل عمولة» بالعميل والمبلغ، وإشعار في الجرس. زرار «حصّل» بيفتح إذن توريد متعبّي بالصفقة.",
+      run() { const n = S().notifications.find((x) => (x.text || x.msg || "").includes(ctx.fdeal)); return `مهمة: حصّل عمولة ${ctx.fdeal} · ${cl()} · ${A.money(A.placesComm(FD()))}${n ? " · والإشعار وصل" : ""}`; }, open: () => A.ACT.mvNew({ k: "receive", deal: ctx.fdeal }) },
+    { who: "u18", go: "finance", t: "العميل ليه حساب تحت «العملاء»", x: "في شجرة الحسابات، «العملاء» (113) حساب رئيسي، وتحته حساب لكل عميل بكود ثابت. العميل الجديد اتفتحله حساب لوحده من الصفقة، ومجموع الحسابات = رصيد العملاء.",
+      run() { const C = APP_COA(), n = C.idx["عميل:" + cl()]; tree(); return `${n.code} ${n.name}: ${A.money(n.bal)} · إجمالي العملاء ${A.money(C.byCode["113"].bal)} (${C.byCode["113"].kids.length} حساب)`; } },
+    { who: "u18", go: "finance", t: "إذن توريد خزنة من الصفقة", x: "إذن توريد: المصدر «عمولة من عميل»، والصفقة متختارة، فاسم العميل بييجي لوحده. بنحصّل جزء الـ Client (30,000) في بنك CIB.",
+      run() { A.ui.fnTab = "cash"; A.FORM.mvSave({ kind: "receive", to: "بنك CIB", source: "عمولة من عميل", deal: ctx.fdeal, side: "client", amount: "30000", note: `عمولة ${cl()} · جزء الـ Client`, date: A.today() }); return "اتعمل إذن التوريد وقيده: من ح/ بنك CIB إلى ح/ " + cl() + "."; }, keep: 1 },
+    { who: "u18", go: "finance", t: "الأثر على حساب العميل", x: "أول تحصيل بيدخّل العمولة في الإيرادات، والباقي بيفضل على حساب العميل لحد ما يتحصّل. البنك زاد بالمبلغ. ولما تدوس على حساب العميل بيظهرلك كشف حسابه.",
+      run() { const C = APP_COA(), n = C.idx["عميل:" + cl()]; tree(); return `${n.code} ${n.name}: باقي ${A.money(n.bal)} · بنك CIB: ${A.money(C.idx["بنك CIB"].bal)}`; }, open: () => A.ACT.acctLedger({ k: "عميل:" + cl() }) },
     { who: () => A.buyersOf(FD())[0], go: "home", t: "الـ TCR للسيلز", x: "نفس التحصيل عمل TCR بكود تسلسلي، والسيلز اللي على الصفقة بيجيله تنبيه يمضي عليها. يعني التحصيل بيتسجّل مرة واحدة ويروح للمالية والصفقة الاتنين.",
       run() { const t = FD().tcrs.slice(-1)[0]; return `${t.code} · ${A.money(t.amount)} · مستنية إمضاء ${A.buyersOf(FD()).map(A.person).join(" و")}`; }, open: () => A.ACT.dealOpen({ id: "D-302" }) },
     { who: "u18", go: "home", t: "فاتورة Property Finder ميعادها جه", x: "الفاتورة الثابتة (23,000 كل شهر يوم 1) مابتتصرفش لوحدها: بتظهر لأحمد مهمة في «مهامي النهارده» وكارت في الخزن، مستنية موافقته.",
