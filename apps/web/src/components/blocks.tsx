@@ -78,21 +78,24 @@ export interface Lane<T> { key: string; title: string; tone?: string | undefined
  * Lanes of cards. Dragging a card onto another lane calls onMove(item, laneKey); the caller decides (and the API
  * checks) whether that move is allowed. Without onMove the board is read-only.
  */
-export function Kanban<T>({ lanes, card, itemKey, onMove, empty = "—" }: {
+export function Kanban<T>({ lanes, card, itemKey, cardClass, className = "", onMove, empty = "—" }: {
   lanes: Lane<T>[]; card: (item: T) => ReactNode; itemKey: (item: T) => string; onMove?: (item: T, lane: string) => void; empty?: string;
+  /** extra classes on a card, e.g. «lead-card sla-warn» (the demo colours a lead by its SLA) */
+  cardClass?: (item: T) => string;
+  className?: string;
 }) {
   const [over, setOver] = useState<string | null>(null);
   const dragged = useRef<T | null>(null);
   return (
-    <div className="board">
+    <div className={`board ${className}`}>
       {lanes.map((lane) => (
-        <div key={lane.key} className={`lane l-${lane.key} ${over === lane.key ? "over" : ""}`}
+        <div key={lane.key} className={`lane l-${lane.key.replace(/\s+/g, "-")} ${over === lane.key ? "over" : ""}`}
           onDragOver={(e) => { if (onMove) { e.preventDefault(); setOver(lane.key); } }}
           onDragLeave={() => setOver(null)}
           onDrop={(e) => { e.preventDefault(); setOver(null); if (dragged.current && onMove) onMove(dragged.current, lane.key); dragged.current = null; }}>
           <h4><i style={lane.tone ? { background: `var(--${lane.tone})` } : undefined} />{lane.title}<span className="num">{lane.items.length}</span></h4>
           {lane.items.length ? lane.items.map((item) => (
-            <div key={itemKey(item)} className="tcard" draggable={!!onMove}
+            <div key={itemKey(item)} className={`tcard ${cardClass?.(item) ?? ""}`} draggable={!!onMove}
               onDragStart={() => { dragged.current = item; }}>{card(item)}</div>
           )) : <p className="lane-empty">{empty}</p>}
         </div>

@@ -45,9 +45,11 @@ export type AddComment = z.infer<typeof AddComment>;
 
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
 export interface LeadRow {
-  id: string; code: string; name: string; phones: string[]; area: string; type: string; channel: string;
+  id: string; code: string; name: string; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
   campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean;
   ownedByTelesales: boolean; // demo: «مع Telesales» — she keeps it to call herself, no SLA
+  /** the SLA clock while the lead is Fresh and untouched (null otherwise): level, minutes left, % of the way to the pull */
+  sla: { level: "ok" | "warn" | "pull"; minutesLeft: number; pct: number } | null;
   assignedTo: { id: string; name: string } | null; assignedAt: string | null; arrivedAt: string; createdAt: string;
 }
 
@@ -58,7 +60,7 @@ export interface LeadActivityRow {
 
 /** The lead drawer (M-01): the list row plus the details and the Activity, newest first. */
 export interface LeadDetail extends LeadRow {
-  company: string | null; space: number | null; condition: string | null; budget: string | null; note: string | null;
+  company: string | null; condition: string | null; note: string | null;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
 
@@ -77,4 +79,19 @@ export interface DuplicateRow {
   id: string; at: string; by: { id: string; name: string };
   lead: LeadSide & { id: string; code: string; assignedTo: { id: string; name: string } | null };
   entry: LeadSide;
+}
+
+/** The KPI tiles and the saved views' counts, over the caller's whole scope (not the current filters). */
+export interface LeadSummary {
+  total: number; fresh: number; qualified: number; noAnswer: number; interested: number;
+  /** leads that came in the last 7 days and the 7 before, for «مقارنة بالأسبوع اللي فات» */
+  thisWeek: number; lastWeek: number;
+  /** an official holiday today: the SLA runs on wall-clock hours (the note under the list says so) */
+  holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number };
+}
+
+/** The filters' choices that aren't settings lists: campaigns, and the salespeople inside the caller's scope. */
+export interface LeadOptions {
+  campaigns: { id: string; name: string; channel: string }[];
+  salespeople: { id: string; name: string }[];
 }

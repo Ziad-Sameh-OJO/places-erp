@@ -16,6 +16,19 @@ export class LeadsController {
     return this.leads.list(me, f);
   }
 
+  // before ":id", so these two aren't read as a lead id
+  @Get("summary")
+  @Requires("leads", "view")
+  summary(@Me() me: CurrentUser) {
+    return this.leads.summary(me);
+  }
+
+  @Get("options")
+  @Requires("leads", "view")
+  options(@Me() me: CurrentUser) {
+    return this.leads.options(me);
+  }
+
   @Get(":id")
   @Requires("leads", "view")
   get(@Me() me: CurrentUser, @Param("id") id: string) {
