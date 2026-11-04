@@ -4,5 +4,5 @@ import { AccessService } from "./access.service";
 import { AccessRepository } from "./access.repository";
 
 /** M-09 · المستخدمين والصلاحيات: users, invites, roles, the matrix, per-person exceptions, the audit log. */
-@Module({ controllers: [AccessController], providers: [AccessService, AccessRepository] })
+@Module({ controllers: [AccessController], providers: [AccessService, AccessRepository], exports: [AccessService] })
 export class AccessModule {}

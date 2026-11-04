@@ -36,6 +36,12 @@ export class AuthController {
     return { ok: true };
   }
 
+  /** «ابعت كود تاني» on the code screen (M-09 2.4). Public: the person has no session yet. */
+  @Public() @Post("otp/resend") @HttpCode(204)
+  resendOtp(@Body(new ZodPipe(Forgot)) b: z.infer<typeof Forgot>) {
+    return this.auth.resendOtp(b.email);
+  }
+
   @Public() @Post("activate") @HttpCode(204)
   activate(@Body(new ZodPipe(SetPassword)) b: z.infer<typeof SetPassword>) {
     return this.auth.setPassword(b.token, b.password, "INVITE");
