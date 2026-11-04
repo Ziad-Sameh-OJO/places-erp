@@ -261,3 +261,69 @@ test("the form's options: areas from the settings, the conditions, active people
   assert.ok(o.agents.some((a: { id: string }) => a.id === agentId));
   assert.ok(o.paymentMethods.includes("كاش"));
 });
+
+test("area tabs (2.5): Manar and Randa add / change / remove them, sales only read, every change audited", async () => {
+  const before = (await call("/inventory/area-tabs", { cookie: sales })).body as Array<{ label: string }>;
+  assert.ok(Array.isArray(before));
+  assert.equal((await call("/inventory/area-tabs", { cookie: hr })).status, 403);
+  assert.equal((await call("/inventory/area-tabs", { method: "POST", cookie: sales, body: { min: 9001, max: 9500 } })).status, 403);
+  assert.equal((await call("/inventory/area-tabs", { method: "POST", cookie: rahma, body: { min: 9001, max: 9500 } })).status, 403);
+
+  const made = await call("/inventory/area-tabs", { method: "POST", cookie: randa, body: { min: 9001, max: 9500 } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  assert.equal(made.body.label, "9001 to 9500");
+  const id = made.body.id as string;
+  try {
+    // the new tab shows in the list (for sales too), in its place by «from»
+    const labels = ((await call("/inventory/area-tabs", { cookie: sales })).body as Array<{ label: string }>).map((t) => t.label);
+    assert.ok(labels.includes("9001 to 9500"));
+    assert.equal(await prisma.auditLog.count({ where: { entity: "AreaTab", entityId: id, action: "create" } }), 1);
+    // the same range twice, a range upside down, not a number
+    assert.equal((await call("/inventory/area-tabs", { method: "POST", cookie: manar, body: { min: 9001, max: 9500 } })).status, 409);
+    const upside = await call("/inventory/area-tabs", { method: "POST", cookie: manar, body: { min: 500, max: 100 } });
+    assert.equal(upside.status, 400);
+    assert.match(JSON.stringify(upside.body), /لحد/);
+    assert.equal((await call("/inventory/area-tabs", { method: "POST", cookie: manar, body: { min: "x" } })).status, 400);
+    assert.equal((await call("/inventory/area-tabs", { method: "POST", cookie: manar, body: { min: 0, max: 10 } })).status, 400);
+    // change: sales no, Manar yes («and above» when «لحد» is empty)
+    assert.equal((await call(`/inventory/area-tabs/${id}`, { method: "PATCH", cookie: sales, body: { min: 9001, max: null } })).status, 403);
+    const open = await call(`/inventory/area-tabs/${id}`, { method: "PATCH", cookie: manar, body: { min: 9001, max: null } });
+    assert.equal(open.status, 200, JSON.stringify(open.body));
+    assert.equal(open.body.label, "+9000");
+    assert.equal((await call("/inventory/area-tabs/nope", { method: "PATCH", cookie: manar, body: { min: 1, max: 2 } })).status, 404);
+  } finally {
+    assert.equal((await call(`/inventory/area-tabs/${id}`, { method: "DELETE", cookie: sales })).status, 403);
+    assert.equal((await call(`/inventory/area-tabs/${id}`, { method: "DELETE", cookie: manar })).status, 204);
+  }
+  assert.equal((await call(`/inventory/area-tabs/${id}`, { method: "DELETE", cookie: manar })).status, 404);
+  assert.deepEqual((await prisma.auditLog.findMany({ where: { entity: "AreaTab", entityId: id }, select: { action: true }, orderBy: { at: "asc" } })).map((a) => a.action), ["create", "update", "delete"]);
+});
+
+test("a unit is under the tab Manar picked, otherwise under its area's first tab; removing the tab sends it back", async () => {
+  const T = `${P} Tabs2`;
+  const a = await call("/inventory/area-tabs", { method: "POST", cookie: manar, body: { min: 1, max: 5 } }); // below the team's tabs (they start at 20)
+  const b = await call("/inventory/area-tabs", { method: "POST", cookie: manar, body: { min: 1, max: 12 } }); // overlaps, wider
+  const [narrow, wide] = [a.body.id as string, b.body.id as string];
+  try {
+    const byArea = await create(manar, rent({ project: T, space: 4 })); // fits both: the narrower first
+    const picked = await create(manar, rent({ project: T, space: 4, areaTabId: wide }));
+    const outside = await create(manar, rent({ project: T, space: 10 })); // only the wide one
+    const inTab = async (tabId: string) => (await call(`/inventory/units?q=${encodeURIComponent(T)}&tabId=${tabId}`, { cookie: manar })).body.items.map((u: { code: string }) => u.code).sort();
+    assert.deepEqual(await inTab(narrow), [byArea.code]);
+    assert.deepEqual(await inTab(wide), [picked.code, outside.code].sort());
+    const counts = (await call(`/inventory/area-tabs?q=${encodeURIComponent(T)}`, { cookie: manar })).body as Array<{ id: string; count: number }>;
+    assert.equal(counts.find((t) => t.id === narrow)!.count, 1);
+    assert.equal(counts.find((t) => t.id === wide)!.count, 2);
+    assert.equal((await call(`/inventory/units/${picked.id}`, { cookie: manar })).body.areaTabId, wide);
+    // a tab that isn't there
+    assert.equal((await call("/inventory/units", { method: "POST", cookie: manar, body: rent({ project: T, areaTabId: "gone" }) })).status, 400);
+    assert.deepEqual(await inTab("gone"), []);
+    // removing the wide tab: the unit Manar put there goes back to «by its area» → the narrow tab
+    assert.equal((await call(`/inventory/area-tabs/${wide}`, { method: "DELETE", cookie: manar })).status, 204);
+    assert.deepEqual(await inTab(narrow), [byArea.code, picked.code].sort());
+    assert.equal((await call(`/inventory/units/${picked.id}`, { cookie: manar })).body.areaTabId, null);
+  } finally {
+    await prisma.areaTab.deleteMany({ where: { id: { in: [narrow, wide] } } });
+    await prisma.auditLog.deleteMany({ where: { entity: "AreaTab", entityId: { in: [narrow, wide] } } });
+  }
+});

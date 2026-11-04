@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { UnitFilters } from "@places/contracts";
-import type { UnitType } from "@places/domain";
+import { sortAreaTabs, type AreaRange, type UnitType } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 
 /** What the list reads of a unit (no audit trail, no media keys). */
@@ -9,7 +9,7 @@ export const UNIT_ROW = {
   id: true, code: true, type: true, alsoType: true, status: true, alsoStatus: true, project: true, area: true, space: true,
   condition: true, floor: true, building: true, parking: true, ownerName: true, ownerPhone: true, pricePerSqm: true,
   totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, details: true,
-  divisible: true, minSplit: true, location: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
+  divisible: true, minSplit: true, location: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
 } satisfies Prisma.UnitSelect;
 export const UNIT_DETAIL = { ...UNIT_ROW, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true } satisfies Prisma.UnitSelect;
 export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
@@ -17,14 +17,15 @@ export type UnitRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_DETAIL }>;
 
 /** Who the list is for: drafts and owners' details are for the people who keep the inventory (domain keepsInventory). */
 export interface UnitScope { insider: boolean; staleBefore: Date }
+export type Tab = AreaRange & { id: string };
 
 /** Data access only. The visibility rule (Q15: no drafts for sales) is part of every query, never filtered afterwards. */
 @Injectable()
 export class InventoryRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  list(s: UnitScope, f: UnitFilters) {
-    const where = unitWhere(s, f);
+  list(s: UnitScope, f: UnitFilters, tabs: Tab[]) {
+    const where = unitWhere(s, f, tabs);
     return this.db.$transaction([
       this.db.unit.findMany({ where, select: UNIT_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.unit.count({ where }),
@@ -41,14 +42,23 @@ export class InventoryRepository {
   }
 
   /** The type tabs' counts under the current filters (the tab itself set aside). */
-  tabCounts(s: UnitScope, f: UnitFilters, types: readonly UnitType[]) {
+  tabCounts(s: UnitScope, f: UnitFilters, types: readonly UnitType[], tabs: Tab[]) {
     const count = (w: Prisma.UnitWhereInput) => this.db.unit.count({ where: w });
     const rest = { ...f, type: undefined };
     return this.db.$transaction([
-      count(unitWhere(s, { ...rest, view: "available" })),
-      ...types.map((type) => count(unitWhere(s, { ...rest, view: "available", type }))),
-      count(unitWhere(s, { ...rest, view: "closed" })),
+      count(unitWhere(s, { ...rest, view: "available" }, tabs)),
+      ...types.map((type) => count(unitWhere(s, { ...rest, view: "available", type }, tabs))),
+      count(unitWhere(s, { ...rest, view: "closed" }, tabs)),
     ]);
+  }
+
+  /** The area tabs' counts: available units in each, under the list's other filters (the area tab set aside). */
+  areaTabCounts(s: UnitScope, f: UnitFilters, tabs: Tab[]) {
+    return this.db.$transaction(tabs.map((t) => this.db.unit.count({ where: unitWhere(s, { ...f, view: "available", tabId: t.id }, tabs) })));
+  }
+
+  areaTabs(tx: Prisma.TransactionClient = this.db) {
+    return tx.areaTab.findMany({ select: { id: true, min: true, max: true } }).then(sortAreaTabs);
   }
 
   detail(s: UnitScope, id: string, tx: Prisma.TransactionClient = this.db) {
@@ -87,7 +97,20 @@ const CLOSED: Prisma.UnitWhereInput = { OR: [{ status: { not: "available" } }, {
 /** Archived units are gone for everyone; drafts only for the people who keep the inventory (Q15). */
 const visible = (s: UnitScope): Prisma.UnitWhereInput => ({ archivedAt: null, ...(s.insider ? {} : { pdfStatus: "confirmed" }) });
 
-function unitWhere(s: UnitScope, f: Omit<UnitFilters, "page" | "pageSize">): Prisma.UnitWhereInput {
+const range = (t: AreaRange): Prisma.UnitWhereInput => ({ space: { gte: t.min, ...(t.max != null ? { lte: t.max } : {}) } });
+
+/**
+ * A unit is under an area tab when Manar put it there, or — not put anywhere — when its area is in the tab's range
+ * and in no tab shown before it (domain unitAreaTab: the first range wins). An unknown tab matches nothing.
+ */
+function inTab(tabId: string, tabs: Tab[]): Prisma.UnitWhereInput {
+  const at = tabs.findIndex((t) => t.id === tabId);
+  if (at < 0) return { id: { in: [] } };
+  // a removed tab's units are set back to null by the foreign key, so null = «by its area»
+  return { OR: [{ areaTabId: tabId }, { AND: [{ areaTabId: null }, range(tabs[at]!), ...tabs.slice(0, at).map((e) => ({ NOT: range(e) }))] }] };
+}
+
+function unitWhere(s: UnitScope, f: Omit<UnitFilters, "page" | "pageSize">, tabs: Tab[]): Prisma.UnitWhereInput {
   const and: Prisma.UnitWhereInput[] = [visible(s), f.view === "closed" ? CLOSED : AVAILABLE];
   // a unit is listed under a type when it's open as that type, or as its second type (Q17)
   if (f.type) and.push(f.view === "closed"
@@ -101,6 +124,7 @@ function unitWhere(s: UnitScope, f: Omit<UnitFilters, "page" | "pageSize">): Pri
   if (f.stale === true) and.push({ lastOwnerUpdateAt: { lt: s.staleBefore } });
   if (f.stale === false) and.push({ lastOwnerUpdateAt: { gte: s.staleBefore } });
   if (f.divisible != null) and.push({ divisible: f.divisible });
+  if (f.tabId) and.push(inTab(f.tabId, tabs));
   if (f.q) {
     const q = { contains: f.q, mode: "insensitive" as const };
     const digits = f.q.replace(/\D/g, "");

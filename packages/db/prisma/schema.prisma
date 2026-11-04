@@ -619,6 +619,8 @@ model Unit {
   divisible         Boolean     @default(false)
   minSplit          Int?        // the smallest part it can be split into (M-03 3.1)
   splitNote         String?     // what the split is (Q20: Manar writes it)
+  areaTabId         String?     // the area tab Manar picked (M-03 3.2); null = by its area
+  areaTab           AreaTab?    @relation(fields: [areaTabId], references: [id], onDelete: SetNull)
   location          String?     // "lat, lng" picked on the map
   pdfStatus         String      @default("draft") // draft · confirmed (Manar, Q15/Q19)
   receivedAt        DateTime?   // KPI: entered within 24h of receiving it
@@ -639,6 +641,18 @@ model Unit {
   @@index([space])
   @@index([totalPrice])
   @@index([ownerPhone])
+  @@index([areaTabId])
+  @@schema("inventory")
+}
+
+/// M-03 7.2 · the area tabs under the list (101 to 200 …): the inventory team adds, edits and removes them (12.8).
+model AreaTab {
+  id        String   @id @default(cuid())
+  min       Int
+  max       Int?     // null = and above («+800»)
+  units     Unit[]
+  createdAt DateTime @default(now())
+
   @@schema("inventory")
 }
 

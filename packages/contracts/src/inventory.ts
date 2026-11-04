@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UNIT_TYPES, type UnitStatus, type UnitType } from "@places/domain";
+import { UNIT_TYPES, areaRangeProblem, type UnitStatus, type UnitType } from "@places/domain";
 import { CalendarDay, Id, Money, Page } from "./common.ts";
 
 /** M-03 · the inventory: one unit's sheet per type (sources/inventory-unit-fields.md, M-03 3.1), the list's filters. */
@@ -36,6 +36,8 @@ const Common = {
   divisible: z.boolean({ invalid_type_error: "تنفع تتقسم؟ اه أو لا" }).default(false),
   minSplit: optional(z.number({ invalid_type_error: "أقل مساحة رقم" }).int("أقل مساحة رقم صحيح").positive("أقل مساحة لازم تبقى أكبر من صفر")),
   splitNote: optional(text(500, "كومنت التقسيم طويل")),
+  /** the area tab Manar puts it in (M-03 3.2); empty = by its area */
+  areaTabId: optional(z.string().max(40)),
 };
 
 /** RENT (M-03 3.1): contact, number, price per sqm and the agent are required. */
@@ -109,6 +111,7 @@ export const UnitFilters = Page.extend({
   maxPrice: Money.optional(),
   stale: QueryBool.optional(), // «محتاجة ابديت»: last update older than a month
   divisible: QueryBool.optional(), // «تنفع تتقسم»
+  tabId: Id.optional(), // an area tab (2.5)
 })
   .refine((f) => f.minSpace == null || f.maxSpace == null || f.minSpace <= f.maxSpace, { path: ["maxSpace"], message: "أقصى مساحة أصغر من أقل مساحة" })
   .refine((f) => f.minPrice == null || f.maxPrice == null || Number(f.minPrice) <= Number(f.maxPrice), { path: ["maxPrice"], message: "أقصى سعر أصغر من أقل سعر" });
@@ -123,7 +126,7 @@ export interface UnitRow {
   ownerName: string | null; ownerPhone: string | null;
   pricePerSqm: string | null; totalPrice: string | null; leasePerSqm: string | null;
   maintenance: string | null; commission: string | null; paymentMethod: string | null;
-  divisible: boolean; minSplit: number | null; location: string | null;
+  divisible: boolean; minSplit: number | null; location: string | null; areaTabId: string | null;
   agent: Person | null; lastOwnerUpdateAt: string; stale: boolean; pdfStatus: "draft" | "confirmed"; createdAt: string;
   /** the columns only one type has (Resale delivery, Income contract…) */
   details: Record<string, string | number | null>;
@@ -140,3 +143,12 @@ export interface UnitSummary { available: number; pdfDraft: number; stale: numbe
 export interface UnitTabCounts { all: number; Rent: number; Resale: number; Income: number; Primary: number; closed: number }
 export interface UnitOptions { areas: string[]; conditions: readonly string[]; agents: Person[]; paymentMethods: string[] }
 export interface CreatedUnit { id: string; code: string }
+
+/** An area tab (M-03 7.2): «من» and «لحد» in m², «لحد» empty = and above. */
+export const AreaTabInput = z.object({
+  min: z.number({ required_error: "اكتب «من»", invalid_type_error: "«من» رقم" }),
+  max: z.number({ invalid_type_error: "«لحد» رقم" }).nullable().default(null),
+}).superRefine((t, ctx) => { const problem = areaRangeProblem(t); if (problem) ctx.addIssue({ code: "custom", message: problem, path: ["max"] }); });
+export type AreaTabInput = z.infer<typeof AreaTabInput>;
+/** A tab with its name («101 to 200») and how many available units are in it under the list's filters. */
+export interface AreaTabView { id: string; label: string; min: number; max: number | null; count: number }

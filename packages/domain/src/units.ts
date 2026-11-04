@@ -77,3 +77,35 @@ export const staleBefore = (now: Date): Date => new Date(now.getTime() - STALE_A
  * (Manar's sheet has the owners' numbers; the one the sales see doesn't, M-03 1.2).
  */
 export const keepsInventory = (g: Pick<Grants, "can">): boolean => g.can("inventory", "create") || g.can("inventory", "edit");
+
+/**
+ * M-03 7.2 · the area tabs under the list («101 to 200 · 201 to 500 · 501 to 800 · +»): Manar and Randa set the
+ * ranges themselves (12.8), so nothing about them is fixed here. `max` null = «and above».
+ */
+export interface AreaRange { readonly min: number; readonly max: number | null }
+
+/** «101 to 200», and «+800» for 801 and above — the sheet's own names. */
+export const areaTabLabel = (t: AreaRange): string => (t.max == null ? `+${t.min - 1}` : `${t.min} to ${t.max}`);
+
+/** Why a range can't be a tab (Arabic, shown as is), or null when it can. */
+export function areaRangeProblem(t: AreaRange): string | null {
+  if (!Number.isInteger(t.min) || t.min < 1) return "«من» لازم يبقى رقم صحيح من 1";
+  if (t.max != null && (!Number.isInteger(t.max) || t.max < t.min)) return "«لحد» لازم يبقى أكبر من «من» أو زيه";
+  return null;
+}
+
+/** Tabs in the order they're shown and matched: by «from», then the narrower one first. */
+export function sortAreaTabs<T extends AreaRange>(tabs: readonly T[]): T[] {
+  return [...tabs].sort((a, b) => a.min - b.min || (a.max ?? Infinity) - (b.max ?? Infinity));
+}
+
+export const inAreaRange = (space: number, t: AreaRange): boolean => space >= t.min && (t.max == null || space <= t.max);
+
+/**
+ * The tab a unit shows under: the one Manar picked when she entered it (M-03 3.2), otherwise the first range its
+ * area falls in (the demo's «أوتوماتيك من المساحة»); null when it fits none.
+ */
+export function unitAreaTab<T extends AreaRange & { readonly id: string }>(u: { space: number; areaTabId: string | null }, tabs: readonly T[]): T | null {
+  const picked = u.areaTabId ? tabs.find((t) => t.id === u.areaTabId) : undefined;
+  return picked ?? sortAreaTabs(tabs).find((t) => inAreaRange(u.space, t)) ?? null;
+}

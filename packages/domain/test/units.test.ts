@@ -95,3 +95,26 @@ test("drafts and owners' numbers stay with who keeps the inventory (Q15, Q18): M
   assert.equal(keepsInventory(grants(["view"])), false); // sales, marketing
   assert.equal(keepsInventory(grants(["view", "export"])), false); // Operations Head
 });
+
+test("area tabs (M-03 7.2): the sheet's names and the unit's tab — picked by Manar, otherwise by its area", async () => {
+  const { areaTabLabel, areaRangeProblem, sortAreaTabs, unitAreaTab } = await import("../src/units.ts");
+  const tabs = [
+    { id: "c", min: 201, max: 500 }, { id: "a", min: 20, max: 100 }, { id: "b", min: 101, max: 200 },
+    { id: "e", min: 801, max: null }, { id: "d", min: 501, max: 800 },
+  ];
+  assert.deepEqual(sortAreaTabs(tabs).map(areaTabLabel), ["20 to 100", "101 to 200", "201 to 500", "501 to 800", "+800"]);
+  assert.equal(unitAreaTab({ space: 95, areaTabId: null }, tabs)?.id, "a"); // U-101
+  assert.equal(unitAreaTab({ space: 100, areaTabId: null }, tabs)?.id, "a"); // both ends included
+  assert.equal(unitAreaTab({ space: 101, areaTabId: null }, tabs)?.id, "b");
+  assert.equal(unitAreaTab({ space: 5000, areaTabId: null }, tabs)?.id, "e"); // U-107
+  assert.equal(unitAreaTab({ space: 10, areaTabId: null }, tabs), null); // below every tab
+  assert.equal(unitAreaTab({ space: 95, areaTabId: "c" }, tabs)?.id, "c"); // Manar chose where it goes
+  assert.equal(unitAreaTab({ space: 95, areaTabId: "deleted" }, tabs)?.id, "a"); // a removed tab falls back to the area
+  // overlapping ranges: the narrower one with the same start wins, then the earlier start
+  assert.equal(unitAreaTab({ space: 150, areaTabId: null }, [{ id: "wide", min: 101, max: 500 }, { id: "narrow", min: 101, max: 200 }])?.id, "narrow");
+  assert.equal(areaRangeProblem({ min: 101, max: 200 }), null);
+  assert.equal(areaRangeProblem({ min: 801, max: null }), null);
+  assert.match(areaRangeProblem({ min: 200, max: 100 })!, /لحد/);
+  assert.match(areaRangeProblem({ min: 0, max: 100 })!, /من/);
+  assert.match(areaRangeProblem({ min: 1.5, max: 100 })!, /من/);
+});
