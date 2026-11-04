@@ -64,7 +64,7 @@ export class LeadsRepository {
 }
 
 const LEAD_ROW = {
-  id: true, code: true, name: true, phones: true, area: true, type: true, channel: true, stage: true, qualified: true, touched: true,
+  id: true, code: true, name: true, phones: true, area: true, type: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true,
   assignedToId: true, assignedAt: true, arrivedAt: true, createdAt: true, campaign: { select: { id: true, name: true } },
 } satisfies Prisma.LeadSelect;
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;

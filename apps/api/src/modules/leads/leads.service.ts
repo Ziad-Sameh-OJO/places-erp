@@ -1,13 +1,14 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AddComment, ChangeStage, CreateLead, LeadDetail, LeadFilters, LeadRow, Paged } from "@places/contracts";
-import { LEAD_STAGES, type LeadStage, LeadRouter, isQualifiedAfter } from "@places/domain";
+import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
 
+const TELESALES = "telesales"; // role key (seed-data/roles.json)
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
 /** FOLLOW_UP_TO_VISIT → «Follow up to Visit»: the API speaks the stage names the team uses. */
 const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
@@ -61,10 +62,12 @@ export class LeadsService {
       const state = (routing?.value as { cursor: Record<string, number>; skipTurns: Record<string, number> } | null) ?? { cursor: {}, skipTurns: {} };
       const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
       const router = new LeadRouter(state);
-      let assignedToId = input.assignToId ?? null;
-      if (assignedToId) router.assignedByHand(assignedToId);
-      else if (me.employeeId && me.grants.scope === "own") assignedToId = me.employeeId; // Q3: a salesperson's own lead stays theirs
-      else assignedToId = router.next(input.area, pools[input.area] ?? []);
+      const placement = placeNewLead(
+        { employeeId: me.employeeId, isTelesales: me.roles.includes(TELESALES), ownScope: me.grants.scope === "own" },
+        { assignToId: input.assignToId, keep: input.keep },
+      );
+      if (placement.kind === "hand") router.assignedByHand(placement.to);
+      const assignedToId = placement.kind === "route" ? router.next(input.area, pools[input.area] ?? []) : placement.to;
       await tx.setting.upsert({ where: { key: "routing" }, update: { value: router.snapshot() as never }, create: { key: "routing", value: router.snapshot() as never } });
 
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
@@ -73,9 +76,10 @@ export class LeadsService {
           code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
           condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, campaignId: input.campaignId ?? null,
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
+          ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
         },
       });
-      await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, assignedToId), me.id);
+      await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, placement, assignedToId), me.id);
       if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);
       return lead;
@@ -100,10 +104,11 @@ export class LeadsService {
   }
 
   /** The first line of the Activity, in the demo's words: who entered the lead and where it went. */
-  private async createdText(tx: Prisma.TransactionClient, me: CurrentUser, assignedToId: string | null) {
+  private async createdText(tx: Prisma.TransactionClient, me: CurrentUser, placement: LeadPlacement, assignedToId: string | null) {
     const by = `اتعمل بواسطة ${me.name}`;
-    if (!assignedToId) return by;
-    if (assignedToId === me.employeeId) return `${by} · فضل عنده (هو اللي دخّله)`;
+    if (placement.kind === "telesales") return `${by} · فضل عند Telesales`;
+    if (placement.kind === "own") return `${by} · فضل عنده (هو اللي دخّله)`;
+    if (!assignedToId) return by; // nobody covers the area yet: Operations assigns it by hand
     const [salesperson] = await this.repo.employeeNames([assignedToId], tx);
     return `${by} · اتوزع لـ ${salesperson?.name ?? ""}`;
   }

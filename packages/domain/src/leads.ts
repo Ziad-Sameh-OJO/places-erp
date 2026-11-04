@@ -20,6 +20,27 @@ export function isQualifiedAfter(wasQualified: boolean, next: LeadStage): boolea
   return wasQualified || QUALIFYING.has(next);
 }
 
+/** Who a new lead goes to. `to` is an Employee id; "route" means the area's round-robin (Q1). */
+export type LeadPlacement =
+  | { readonly kind: "hand"; readonly to: string }      // Operations picked the salesperson: uses up their turn (Q2)
+  | { readonly kind: "telesales"; readonly to: string } // Telesales keeps it to call herself: no SLA until it leaves her
+  | { readonly kind: "own"; readonly to: string }       // a salesperson's own lead stays theirs (Q3)
+  | { readonly kind: "route" };
+
+/**
+ * Where a new lead goes (M-01 · answers-telesales-voice): Telesales chooses «يفضل عندي» (keep) or «التوزيع»;
+ * a lead she sends to routing must not stay hers, so unlike a salesperson her lead isn't kept by default.
+ */
+export function placeNewLead(
+  by: { readonly employeeId: string | null; readonly isTelesales: boolean; readonly ownScope: boolean },
+  choice: { readonly assignToId?: string | undefined; readonly keep?: boolean | undefined },
+): LeadPlacement {
+  if (choice.assignToId) return { kind: "hand", to: choice.assignToId };
+  if (by.isTelesales) return choice.keep && by.employeeId ? { kind: "telesales", to: by.employeeId } : { kind: "route" };
+  if (by.ownScope && by.employeeId) return { kind: "own", to: by.employeeId };
+  return { kind: "route" };
+}
+
 export interface SlaRules {
   /** working minutes before the Team Leader is warned / the lead is pulled (2h30 / 3h) */
   readonly warnAfter: number;

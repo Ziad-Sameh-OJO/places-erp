@@ -179,3 +179,69 @@ test("a stage change is an action too: it stops the SLA clock and goes on top of
   assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: tl, body: { text: "x".repeat(2000) } })).status, 201);
   assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: tl, body: { text: "x".repeat(2001) } })).status, 400);
 });
+
+/* ---------------- 1.4 Telesales: «يفضل عندي» or «التوزيع» ---------------- */
+
+const AREA = `E2E منطقة ${stamp}`;
+let hadeer: string, savedRouting: unknown;
+const teleLeads: string[] = [];
+before(async () => {
+  hadeer = await session("hadeer.tarek@places.com");
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  // a test area covered by Mohsen only, so «التوزيع» has someone to go to (1.12 will manage these from a screen)
+  const row = await prisma.setting.findUnique({ where: { key: "areaRouting" } });
+  savedRouting = row?.value;
+  const pools = { ...((row?.value ?? {}) as Record<string, string[]>), [AREA]: [mohsenId] };
+  await prisma.setting.upsert({ where: { key: "areaRouting" }, update: { value: pools }, create: { key: "areaRouting", value: pools } });
+});
+after(async () => {
+  await prisma.lead.deleteMany({ where: { id: { in: teleLeads } } });
+  if (savedRouting === undefined) await prisma.setting.deleteMany({ where: { key: "areaRouting" } });
+  else await prisma.setting.update({ where: { key: "areaRouting" }, data: { value: savedRouting as never } });
+});
+
+const teleLead = async (cookie: string, n: number, extra: object) => {
+  const r = await call("/leads", { method: "POST", cookie, body: {
+    name: `E2E-T ${stamp} ${n}`, phones: [`010${stamp.slice(-7)}${n}`], area: AREA, type: "Rent", channel: "Telesales", ...extra } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  teleLeads.push(r.body.id);
+  return r.body.id as string;
+};
+const listCodes = async (cookie: string) =>
+  (await call(`/leads?q=${encodeURIComponent(`E2E-T ${stamp}`)}&pageSize=100`, { cookie })).body.items.map((l: { name: string }) => l.name).sort();
+
+test("Telesales «يفضل عندي»: stays with her, marked «مع Telesales», no SLA clock; the salesperson doesn't see it", async () => {
+  const id = await teleLead(hadeer, 1, { keep: true });
+  const r = await call(`/leads/${id}`, { cookie: hadeer });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.assignedTo.name, "هدير طارق");
+  assert.equal(r.body.ownedByTelesales, true);
+  assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة هدير طارق · فضل عند Telesales");
+  assert.deepEqual(await listCodes(hadeer), [`E2E-T ${stamp} 1`]);
+  assert.equal((await call(`/leads/${id}`, { cookie: mohsen })).status, 404);
+  // the SLA job reads the lead's own fields: with Telesales → leadSla() is null (domain test)
+  const row = await prisma.lead.findUniqueOrThrow({ where: { id } });
+  assert.equal(row.ownedByTelesales, true);
+});
+
+test("Telesales «التوزيع» (and the default): goes to the area's salesperson and leaves her list — 404 for her", async () => {
+  const routed = await teleLead(hadeer, 2, { keep: false });
+  const byDefault = await teleLead(hadeer, 3, {});
+  for (const id of [routed, byDefault]) {
+    const r = await call(`/leads/${id}`, { cookie: mohsen });
+    assert.equal(r.status, 200, "the salesperson it went to sees it");
+    assert.equal(r.body.ownedByTelesales, false);
+    assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة هدير طارق · اتوزع لـ محمد محسن");
+    assert.equal((await call(`/leads/${id}`, { cookie: hadeer })).status, 404);
+    assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: hadeer, body: { text: "x" } })).status, 404);
+  }
+  assert.deepEqual(await listCodes(hadeer), [`E2E-T ${stamp} 1`]); // only the one she kept
+});
+
+test("«keep» is Telesales' choice only: a salesperson's own lead stays his, not marked «مع Telesales»", async () => {
+  const id = await teleLead(mohsen, 4, { keep: true });
+  const r = await call(`/leads/${id}`, { cookie: mohsen });
+  assert.equal(r.body.assignedTo.name, "محمد محسن");
+  assert.equal(r.body.ownedByTelesales, false);
+  assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة محمد محسن · فضل عنده (هو اللي دخّله)");
+});
