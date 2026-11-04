@@ -85,10 +85,6 @@ export class InventoryRepository {
     return this.db.employee.findUnique({ where: { userId }, select: { name: true } });
   }
 
-  /** The payment methods already written, offered as suggestions in the form. */
-  paymentMethods() {
-    return this.db.unit.findMany({ where: { paymentMethod: { not: null }, archivedAt: null }, select: { paymentMethod: true }, distinct: ["paymentMethod"], take: 50 });
-  }
 }
 
 const AVAILABLE: Prisma.UnitWhereInput = { OR: [{ status: "available" }, { alsoType: { not: null }, alsoStatus: "available" }] };

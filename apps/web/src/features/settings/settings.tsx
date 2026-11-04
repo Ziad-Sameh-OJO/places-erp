@@ -6,8 +6,7 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { Card, Chip, Field, Icon, ImportDialog, Note, Table, Tabs, useAction } from "@/components/ui";
 
-type ListKey = "areas" | "channels" | "companyCategories" | "vendors";
-const LISTS: [ListKey, string][] = [["areas", "المناطق (Areas)"], ["channels", "الـ Channels"], ["companyCategories", "كاتيجوريز الشركات"], ["vendors", "الموردين"]];
+import { ListsTab } from "./lists";
 
 /** M-13 · الإعدادات: lists, lead stages, time rules, official holidays. Everyone reads; «master: edit» changes. */
 export function SettingsPage() {
@@ -30,20 +29,7 @@ export function SettingsPage() {
       <div className="row"><Tabs value={tab} onChange={setTab} items={[["lists", "القوايم"], ["stages", "مراحل الليد"], ["time", "المواعيد والقواعد"], ["holidays", "الإجازات الرسمية", holidays.data?.length]]} /></div>
       {!ed && <Note>عرض بس · التعديل لـ Super Admin أو مدير القسم.</Note>}
 
-      {tab === "lists" && <div className="cols">
-        {LISTS.map(([key, label]) => (
-          <Card key={key} title={label} icon="list" extra={<Chip plain>{d[key].length}</Chip>}>
-            <div className="chips-edit">
-              {d[key].map((x, i) => (
-                <span className="chip-e" key={x}>{x}{ed && <button aria-label={`شيل ${x}`} onClick={() => set(key, d[key].filter((_, j) => j !== i), "اتشال من القوايم الجديدة · البيانات القديمة زي ما هي")}><Icon name="x" /></button>}</span>
-              ))}
-            </div>
-            {ed && <form className="row" action={(f) => { const v = String(f.get("v")).trim(); if (v && !d[key].includes(v)) set(key, [...d[key], v], "اتضاف · ظاهر في كل الشاشات"); }}>
-              <input name="v" placeholder="إضافة…" required aria-label={`إضافة لـ ${label}`} /><button className="btn ghost sm">+ إضافة</button>
-            </form>}
-          </Card>
-        ))}
-      </div>}
+      {tab === "lists" && <ListsTab settings={d} editable={ed} />}
 
       {tab === "stages" && <Card title="مراحل الليد" icon="layers" sub="الترتيب، وأنهي مرحلة بتخلّي الليد Qualified (من الركوايرمنتس)">
         <Table head={["#", "المرحلة", "Qualified؟"]} rows={(stages.data ?? []).map((x, i) => [i + 1, <b key="s">{x.stage}</b>, x.qualified ? <Chip tone="ok">اه · أوتوماتيك</Chip> : <Chip plain>لأ</Chip>])} />

@@ -66,7 +66,7 @@ export function LeadsToolbar({ f, set, settings, options }: {
     <div className="toolbar">
       <label className="search"><Icon name="search" /><input type="search" placeholder="اسم، موبايل، شركة، كود" value={f.q ?? ""} onChange={on("q")} aria-label="بحث في الليدز" /></label>
       <select value={f.channel ?? ""} onChange={on("channel")} aria-label="Channel">
-        <option value="">كل الـ channels</option>{settings?.channels.map((c) => <option key={c} value={c}>{c}</option>)}
+        <option value="">كل الـ channels</option>{settings?.channels.map(({ value }) => <option key={value} value={value}>{value}</option>)}
       </select>
       <select value={f.campaignId ?? ""} onChange={on("campaignId")} aria-label="Campaign">
         <option value="">كل الكامبينز</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -77,7 +77,7 @@ export function LeadsToolbar({ f, set, settings, options }: {
         </select>
       )}
       <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
-        <option value="">كل المناطق</option>{settings?.areas.map((a) => <option key={a} value={a}>{a}</option>)}
+        <option value="">كل المناطق</option>{settings?.areas.map(({ value }) => <option key={value} value={value}>{value}</option>)}
       </select>
       <select value={f.qualified ?? ""} onChange={on("qualified")} aria-label="Qualified">
         <option value="">Qualified؟ الكل</option><option value="true">Qualified بس</option><option value="false">مش Qualified</option>

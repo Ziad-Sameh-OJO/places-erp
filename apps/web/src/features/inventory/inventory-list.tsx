@@ -77,10 +77,10 @@ export function InventoryList() {
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={insider ? "دوّر بأي حاجة: مشروع، كود، مالك، رقم" : "دوّر بأي حاجة: مشروع، كود، مبنى"} value={f.q ?? ""} onChange={on("q")} aria-label="بحث في الوحدات" /></label>
         <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
-          <option value="">كل المناطق</option>{options?.areas.map((a) => <option key={a} value={a}>{a}</option>)}
+          <option value="">كل المناطق</option>{options?.areas.map(({ value }) => <option key={value} value={value}>{value}</option>)}
         </select>
         <select value={f.condition ?? ""} onChange={on("condition")} aria-label="Condition">
-          <option value="">كل التشطيبات</option>{options?.conditions.map((c) => <option key={c} value={c}>{c}</option>)}
+          <option value="">كل التشطيبات</option>{options?.conditions.map(({ value }) => <option key={value} value={value}>{value}</option>)}
         </select>
         <select value={f.agentId ?? ""} onChange={on("agentId")} aria-label="Agent">
           <option value="">كل الـ agents</option>{options?.agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

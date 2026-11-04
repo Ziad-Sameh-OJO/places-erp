@@ -1,10 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  UNIT_CONDITIONS, type CreatedUnit, type Paged, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
+  type CreatedUnit, type Paged, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
   type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
-import { UNIT_TYPES, dayStart, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, staleBefore, toDecimal, unitTotal } from "@places/domain";
+import { UNIT_TYPES, allowedValue, dayStart, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, staleBefore, toDecimal, unitTotal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -13,8 +13,6 @@ import { SettingsService } from "../settings/settings.service";
 import { InventoryRepository, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
 
 const NO_UNIT = "الوحدة مش موجودة";
-/** The demo's payment methods, offered until the team writes its own. */
-const PAYMENT_METHODS = ["كاش", "تقسيط"];
 
 /**
  * M-03 · the units: list (filters, tabs, tiles), one unit, add / edit / archive. Editing is for the people the role
@@ -55,9 +53,8 @@ export class InventoryService {
   }
 
   async options(): Promise<UnitOptions> {
-    const [settings, agents, written] = await Promise.all([this.settings.all(), this.repo.agents(), this.repo.paymentMethods()]);
-    const paymentMethods = [...new Set([...PAYMENT_METHODS, ...written.map((w) => w.paymentMethod!).filter(Boolean)])];
-    return { areas: settings.areas, conditions: UNIT_CONDITIONS, agents, paymentMethods };
+    const [settings, agents] = await Promise.all([this.settings.all(), this.repo.agents()]);
+    return { areas: settings.areas, conditions: settings.finishings, agents, paymentMethods: settings.paymentPlans };
   }
 
   async get(me: CurrentUser, id: string): Promise<UnitDetail> {
@@ -120,14 +117,19 @@ export class InventoryService {
 
   /**
    * A new agent must be someone still working here — the one who brought the unit stays on it after leaving (it's
-   * history, and their KPI). A new area must be on the settings' list (an old one may stay). «Last update» is a day
-   * that happened.
+   * history, and their KPI). Area, finishing and payment method come from the settings' lists. «Last update» is a
+   * day that happened.
    */
   private async check(input: UnitInput, before: UnitRecord | null) {
     if (before?.agentId !== input.agentId && !(await this.repo.agents([input.agentId])).length) throw new BadRequestException("الـ Agent ده مش موجود");
     if (input.lastOwnerUpdateAt && input.lastOwnerUpdateAt > localDate(new Date())) throw new BadRequestException("الـ Last update مايبقاش في المستقبل");
     if (input.areaTabId && !(await this.repo.areaTabs()).some((t) => t.id === input.areaTabId)) throw new BadRequestException("تاب المساحة ده اتشال · اختار تاب تاني");
-    if (before?.area !== input.area && !(await this.settings.all()).areas.includes(input.area)) throw new BadRequestException("اختار Area من القايمة");
+    // the lists (12.7): a new value must be an active one; a unit keeps the value it has even if it was switched off since
+    const lists = await this.settings.all();
+    if (!allowedValue(lists.areas, input.area, before?.area)) throw new BadRequestException("اختار Area من القايمة");
+    if (!allowedValue(lists.finishings, input.condition, before?.condition)) throw new BadRequestException("اختار التشطيب من القايمة");
+    const pay = "paymentMethod" in input ? input.paymentMethod : undefined;
+    if (pay && !allowedValue(lists.paymentPlans, pay, before?.paymentMethod)) throw new BadRequestException("اختار طريقة الدفع من القايمة");
   }
 
   private async names(ids: (string | null)[]) {
