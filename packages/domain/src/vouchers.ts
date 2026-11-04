@@ -7,7 +7,8 @@ import type { EntryLine } from "./ledger.ts";
  */
 export const VOUCHER_KINDS = ["pay", "receive", "transfer", "advance", "custody", "settle"] as const;
 export type VoucherKind = (typeof VOUCHER_KINDS)[number];
-export const VOUCHER_LABEL: Record<VoucherKind, string> = {
+export const VOUCHER_LABEL: Record<VoucherKind | "payroll", string> = {
+  payroll: "صرف مرتبات",
   pay: "إذن صرف خزنة", receive: "إذن توريد خزنة", transfer: "تحويل بين خزن", advance: "سلفة موظف", custody: "عهدة", settle: "تسوية عهدة",
 };
 /** The chart's parents for a person's own account (docs/requirements/sources/chart-of-accounts.md): one sub-account per person. */
@@ -86,4 +87,54 @@ export function budgetCrossed(before: Piasters, after: Piasters, budget: Piaster
   if (now === "bad" && was !== "bad") return "over";
   if (now === "warn" && was === "ok") return "alert";
   return null;
+}
+
+/* ---- recurring bills (9.16; the accountant's meeting, 4 Nov): nothing pays by itself ---- */
+export type BillState = "paid" | "skipped" | "off" | "due" | "soon" | "later";
+export const BILL_STATE_LABEL: Record<BillState, string> = {
+  paid: "اتصرفت الشهر ده", skipped: "اتأجلت الشهر ده", off: "متوقفة", due: "ميعادها جه · مستنية موافقتك", soon: "قرّبت", later: "لسه",
+};
+/** A bill's state this month (demo billState): paid / skipped win, then off, then due from its day on, «قرّبت» 3 days before. */
+export function billState(bill: { day: number; active: boolean }, thisMonth: "paid" | "skipped" | null, today: string): BillState {
+  if (thisMonth) return thisMonth;
+  if (!bill.active) return "off";
+  const day = Number(today.slice(8, 10));
+  if (day >= bill.day) return "due";
+  return bill.day - day <= 3 ? "soon" : "later";
+}
+
+/* ---- payroll (9.14; the accountant's meeting, 4 Nov) ---- */
+export const SALES_SALARIES = "5301"; // مرتبات مبيعات
+export const ADMIN_SALARIES = "5202"; // مرتبات ادارية
+const SALES_ROLES = new Set(["sales", "tl", "telesales"]);
+/** Which salaries account a person's pay goes to (demo salLine): sales roles → 5301, everyone else → 5202. */
+export const salaryLine = (roles: readonly string[]): "sales" | "admin" => (roles.some((r) => SALES_ROLES.has(r)) ? "sales" : "admin");
+
+export interface PayRowInput { salary: Piasters; attendance: Piasters; advanceLeft: Piasters; advancePlan: Piasters | null }
+export interface PayRow { salary: Piasters; attendance: Piasters; advance: Piasters; net: Piasters }
+/**
+ * One person's pay (demo payRows): salary − attendance deduction (after HR approves) − the advance deduction the
+ * accountant chose (default: everything left; never more than what's left or than the pay itself).
+ */
+export function payRow(i: PayRowInput): PayRow {
+  const afterAttendance = Math.max(0, i.salary - i.attendance);
+  const advance = Math.max(0, Math.min(i.advanceLeft, i.advancePlan ?? i.advanceLeft, afterAttendance));
+  return { salary: i.salary, attendance: Math.min(i.attendance, i.salary), advance, net: afterAttendance - advance };
+}
+
+/**
+ * The single payroll entry: debit 5202 / 5301 with the gross salaries; credit each person's advance account with its
+ * deduction, the attendance deductions (a reduction of the salaries expense) and the safe / bank with the net.
+ */
+export function payrollLines(rows: readonly (PayRow & { line: "sales" | "admin"; advanceAccount?: string })[], accounts: { admin: string; sales: string; from: string }): EntryLine[] {
+  const sum = (f: (r: PayRow) => number, line?: "sales" | "admin") => rows.filter((r) => !line || r.line === line).reduce((s, r) => s + f(r), 0);
+  // the expense is what was earned: salary − attendance deductions, split by line
+  const admin = sum((r) => r.salary - r.attendance, "admin"), sales = sum((r) => r.salary - r.attendance, "sales");
+  const out: EntryLine[] = [];
+  if (admin) out.push({ accountId: accounts.admin, debit: admin, credit: 0 });
+  if (sales) out.push({ accountId: accounts.sales, debit: sales, credit: 0 });
+  for (const r of rows) if (r.advance && r.advanceAccount) out.push({ accountId: r.advanceAccount, debit: 0, credit: r.advance });
+  const net = sum((r) => r.net);
+  if (net) out.push({ accountId: accounts.from, debit: 0, credit: net });
+  return out;
 }

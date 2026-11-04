@@ -1,6 +1,6 @@
 "use client";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AccountLedger, AccountNode, BudgetView, CashView, ChartView, EntryView, JournalView, MoveView, MovesView } from "@places/contracts";
+import type { AccountLedger, AccountNode, BillsView, BudgetView, CashView, IncomeView, PayrollView, ChartView, EntryView, JournalView, MoveView, MovesView } from "@places/contracts";
 import { api } from "@/lib/api";
 
 /** M-07 · the chart with live balances (9.1). */
@@ -40,8 +40,11 @@ export function useMoves(accountId: string, page: number, pageSize = 20) {
 export const useMove = (id: string | null) => useQuery({ queryKey: ["finance", "move", id], queryFn: () => api.get<MoveView>(`/finance/moves/${id}`), enabled: !!id });
 export const useBudget = () => useQuery({ queryKey: ["finance", "budget"], queryFn: () => api.get<BudgetView>("/finance/budget") });
 
-export type MoveKind = "pay" | "receive" | "transfer" | "advance" | "custody" | "settle";
+export type MoveKind = "pay" | "receive" | "transfer" | "advance" | "custody" | "settle" | "payroll";
 /** The demo's KIND: label and chip tone. */
 export const KIND: Record<MoveKind, [string, "bad" | "ok" | "info" | "warn" | ""]> = {
-  pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""],
+  payroll: ["صرف مرتبات", "bad"], pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""],
 };
+export const useBills = () => useQuery({ queryKey: ["finance", "bills"], queryFn: () => api.get<BillsView>("/finance/bills") });
+export const useIncome = (range: "month" | "year") => useQuery({ queryKey: ["finance", "income", range], queryFn: () => api.get<IncomeView>(`/finance/statements/income?range=${range}`) });
+export const usePayroll = () => useQuery({ queryKey: ["finance", "payroll"], queryFn: () => api.get<PayrollView>("/finance/payroll") });

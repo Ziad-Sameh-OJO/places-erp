@@ -1,6 +1,11 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
+import type { Response } from "express";
+import { z } from "zod";
+import { sendXlsx } from "../../core/http/excel";
+import { BillsService } from "./bills.service";
+import { PayrollService } from "./payroll.service";
 import type { PrismaClient } from "@places/db";
-import { BudgetPatch, ClosePeriod, JournalFilters, ManualEntry, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
+import { AdvancePlan, BudgetPatch, ClosePeriod, IncomeQuery, PayDay, PayrollRunInput, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -12,7 +17,7 @@ import type { Tx } from "./ledger.repository";
 /** HTTP only: validate input, check the permission, call the service. M-07 · the chart (9.1), the journal (9.5), vouchers (9.2 · 9.3 · 9.11) and the budget. */
 @Controller("finance")
 export class FinanceController {
-  constructor(private readonly ledger: LedgerService, private readonly vouchers: VouchersService, @Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(private readonly ledger: LedgerService, private readonly vouchers: VouchersService, private readonly bills: BillsService, private readonly payroll: PayrollService, @Inject(PRISMA) private readonly db: PrismaClient) {}
 
   private readonly run = <T>(fn: (tx: Tx) => Promise<T>) => this.db.$transaction(fn);
 
@@ -89,6 +94,25 @@ export class FinanceController {
     return this.vouchers.budget();
   }
 
+  // before budget/:accountId
+  @Get("budget/export")
+  @Requires("finance", "export")
+  async exportBudget(@Res() res: Response) {
+    const PERIOD: Record<string, string> = { month: "شهري", quarter: "ربع سنوي", year: "سنوي" };
+    await sendXlsx(res, "البادجت.xlsx", [
+      { header: "الكود", value: (r) => r.code }, { header: "البند", value: (r) => r.name, width: 28 }, { header: "تحت", value: (r) => r.group, width: 20 },
+      { header: "البادجت", value: (r) => (r.budget ? Number(r.budget) : null) }, { header: "الفترة", value: (r) => PERIOD[r.period] },
+      { header: "اتصرف", value: (r) => Number(r.spent) }, { header: "فاضل", value: (r) => (r.left ? Number(r.left) : null) }, { header: "%", value: (r) => r.pct },
+      { header: "التنبيه %", value: (r) => r.alert }, { header: "المسؤول", value: (r) => r.owner?.name }, { header: "شغّال", value: (r) => (r.active ? "اه" : "لأ") },
+    ], await this.vouchers.budgetRows(), "البادجت");
+  }
+
+  @Post("budget")
+  @Requires("finance", "edit")
+  newBudgetLine(@Me() me: CurrentUser, @Body(new ZodPipe(NewBudgetLine)) body: NewBudgetLine) {
+    return this.vouchers.newBudgetLine(me, body, this.run);
+  }
+
   @Patch("budget/:accountId")
   @Requires("finance", "edit")
   setBudget(@Me() me: CurrentUser, @Param("accountId") accountId: string, @Body(new ZodPipe(BudgetPatch)) body: BudgetPatch) {
@@ -118,5 +142,59 @@ export class FinanceController {
   @Requires("finance", "approve")
   closePeriod(@Me() me: CurrentUser, @Body(new ZodPipe(ClosePeriod)) body: ClosePeriod) {
     return this.ledger.closePeriod(me, body.kind, this.run);
+  }
+
+  @Get("bills")
+  @Requires("finance", "view")
+  billList() {
+    return this.bills.list();
+  }
+
+  @Post("bills")
+  @Requires("finance", "create")
+  addBill(@Me() me: CurrentUser, @Body(new ZodPipe(NewBill)) body: NewBill) {
+    return this.bills.create(me, body, this.run);
+  }
+
+  @Patch("bills/:id")
+  @Requires("finance", "edit")
+  toggleBill(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(z.object({ active: z.boolean() }))) body: { active: boolean }) {
+    return this.bills.setActive(me, id, body.active, this.run);
+  }
+
+  @Post("bills/:id/skip")
+  @Requires("finance", "create")
+  skipBill(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(SkipBill)) body: SkipBill) {
+    return this.bills.skip(me, id, body, this.run);
+  }
+
+  @Get("statements/income")
+  @Requires("finance", "view")
+  income(@Query(new ZodPipe(IncomeQuery)) q: IncomeQuery) {
+    return this.ledger.income(q.range);
+  }
+
+  @Get("payroll")
+  @Requires("finance", "view")
+  payrollView() {
+    return this.payroll.view();
+  }
+
+  @Patch("payroll/day")
+  @Requires("finance", "edit")
+  payDay(@Me() me: CurrentUser, @Body(new ZodPipe(PayDay)) body: { day: number }) {
+    return this.payroll.setPayDay(me, body.day, this.run);
+  }
+
+  @Put("payroll/advances/:userId")
+  @Requires("finance", "create")
+  planAdvance(@Me() me: CurrentUser, @Param("userId") userId: string, @Body(new ZodPipe(AdvancePlan)) body: { amount: string }) {
+    return this.payroll.planAdvance(me, userId, body.amount, this.run);
+  }
+
+  @Post("payroll/run")
+  @Requires("finance", "create")
+  payrollRun(@Me() me: CurrentUser, @Body(new ZodPipe(PayrollRunInput)) body: PayrollRunInput) {
+    return this.payroll.run(me, body, this.run);
   }
 }

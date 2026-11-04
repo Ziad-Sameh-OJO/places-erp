@@ -1,5 +1,7 @@
 # M-06 · التذاكر الداخلية
 
-Tickets between departments with SLA per type (dispute 48h, HR letter 24h, purchase 48h), escalation, audit trail, Excuse tickets to the TL then HR.
+Tickets between departments. The types, the department each one goes to and its SLA are data in `@places/domain` (`TICKET_TYPES`): a plain request (24 working hours, 4 if high), HR Letter (HR, 24h), dispute (الإدارة, settled in 48h, Nancy told), List request (Inventory, 24h), purchase / maintenance (Accounts, 48h). The Excuse (TL then HR) is added with HR (7.4).
 
-Pattern: copy `modules/leads` — `tickets.controller.ts` (HTTP + @Requires), `tickets.service.ts` (use cases, transactions, audit), `tickets.repository.ts` (Prisma only). Rules go in `packages/domain`, schemas in `packages/contracts`.
+- `tickets.controller.ts` HTTP + `@Requires` · `tickets.service.ts` use cases, transactions, audit, notifications · `tickets.repository.ts` Prisma only.
+- Who sees what (M-06 4.1): the tickets I opened and my department's; «tickets: approve» sees all. The department the ticket is with replies, transfers and closes it (7.2 · 35).
+- The SLA escalation runs every few minutes in `apps/worker/src/processors/ticket-sla.ts`; the response report is `GET /tickets/report`.

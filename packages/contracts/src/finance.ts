@@ -70,6 +70,8 @@ export const NewMove = z.object({
   party: z.string().trim().max(120).optional(),
   ref: z.string().trim().max(60).optional(),
   memo: z.string().trim().min(2, "اكتب البيان").max(200),
+  /** paying a recurring bill this month (9.16) */
+  billId: Id.optional(),
 });
 export type NewMove = z.infer<typeof NewMove>;
 
@@ -105,10 +107,40 @@ export const BudgetPatch = z.object({
   period: z.enum(["month", "quarter", "year"]).optional(),
   alert: z.number().int().min(1).max(100).optional(),
   active: z.boolean().optional(),
+  ownerId: Id.nullable().optional(),
 });
 export type BudgetPatch = z.infer<typeof BudgetPatch>;
-export interface BudgetRow { accountId: string; code: string; name: string; group: string; budget: string | null; period: string; alert: number; active: boolean; spent: string; left: string | null; pct: number; level: "ok" | "warn" | "bad" | "" }
-export interface BudgetView { rows: BudgetRow[]; totals: { budget: string; spent: string; left: string; alerts: number } }
+export interface BudgetRow { accountId: string; code: string; name: string; group: string; budget: string | null; period: string; alert: number; active: boolean; owner: { userId: string; name: string } | null; spent: string; left: string | null; pct: number; level: "ok" | "warn" | "bad" | "" }
+export interface BudgetView { rows: BudgetRow[]; totals: { budget: string; spent: string; left: string; alerts: number }; people: { userId: string; name: string }[] }
+/** «بند جديد بالبادجت بتاعه» (9.9): opens a sub-account under 52 / 53 with its budget. */
+export const NewBudgetLine = z.object({
+  parent: z.enum(["52", "53"]),
+  name: z.string().trim().min(2, "اكتب اسم البند").max(120),
+  budget: Money,
+  period: z.enum(["month", "quarter", "year"]).default("month"),
+  alert: z.number().int().min(1).max(100).default(80),
+  ownerId: Id.optional(),
+});
+export type NewBudgetLine = z.infer<typeof NewBudgetLine>;
+
+/* ---- 9.16 · recurring bills ---- */
+export const NewBill = z.object({
+  name: z.string().trim().min(2, "اكتب اسم الفاتورة").max(120),
+  vendor: z.string().trim().min(1, "اكتب المورد").max(120),
+  accountId: Id,
+  fromId: Id,
+  amount: Money,
+  day: z.number().int().min(1).max(28),
+});
+export type NewBill = z.infer<typeof NewBill>;
+export const SkipBill = z.object({ reason: z.string().trim().min(2, "اكتب السبب").max(200) });
+export type SkipBill = z.infer<typeof SkipBill>;
+export interface BillView {
+  id: string; name: string; vendor: string; amount: string; day: number; active: boolean;
+  account: { id: string; code: string; name: string }; from: { id: string; code: string; name: string };
+  state: "paid" | "skipped" | "off" | "due" | "soon" | "later"; stateLabel: string; move: { id: string; no: string } | null; reason: string | null;
+}
+export interface BillsView { month: string; label: string; items: BillView[]; due: number }
 
 /* ---- 9.13 · manual journal entries · 9.8 · periods ---- */
 export const ManualEntry = z.object({
@@ -123,3 +155,25 @@ export interface EntrySaved { entry: EntryView; effect: MoveEffect[] }
 export interface PeriodView { month: string; label: string; status: "open" | "month" | "quarter"; statusLabel: string }
 export const ClosePeriod = z.object({ kind: z.enum(["month", "quarter"]) });
 export type ClosePeriod = z.infer<typeof ClosePeriod>;
+
+/* ---- 9.7 · the income statement ---- */
+export const IncomeQuery = z.object({ range: z.enum(["month", "year"]).default("month") });
+export type IncomeQuery = z.infer<typeof IncomeQuery>;
+export interface StatementLineView { id: string; code: string; name: string; value: string }
+export interface IncomeView {
+  range: "month" | "year"; label: string; from: string;
+  revenue: string; direct: string; gross: string; selling: string; contribution: string; admin: string; other: string; net: string;
+  lines: { revenue: StatementLineView[]; direct: StatementLineView[]; selling: StatementLineView[]; admin: StatementLineView[]; other: { head: StatementLineView; lines: StatementLineView[] }[] };
+}
+
+/* ---- 9.14 · payroll ---- */
+export interface PayrollRowView { userId: string; name: string; line: "admin" | "sales"; salary: string; attendance: string; advanceLeft: string; advance: string; net: string; advanceAccountId: string | null }
+export interface PayrollView {
+  month: string; label: string; payDay: number; due: boolean;
+  run: { id: string; at: string; net: string; gross: string; from: string; move: { id: string; no: string } } | null;
+  rows: PayrollRowView[]; totals: { salary: string; attendance: string; advance: string; net: string; people: number };
+}
+export const PayDay = z.object({ day: z.number().int().min(1).max(28) });
+export const AdvancePlan = z.object({ amount: Money });
+export const PayrollRunInput = z.object({ fromId: Id, date: CalendarDay.optional() });
+export type PayrollRunInput = z.infer<typeof PayrollRunInput>;

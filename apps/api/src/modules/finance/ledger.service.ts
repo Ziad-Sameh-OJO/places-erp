@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { AccountLedger, AccountNode, ChartView, EntrySaved, EntryView, JournalFilters, JournalView, ManualEntry, MoveEffect, NewAccount, OpeningBalances, PeriodView } from "@places/contracts";
+import type { AccountLedger, AccountNode, ChartView, EntrySaved, EntryView, IncomeView, JournalFilters, JournalView, ManualEntry, MoveEffect, NewAccount, OpeningBalances, PeriodView } from "@places/contracts";
 import {
-  PERIOD_STATUS_LABEL, RETAINED_EARNINGS, YEAR_RESULT, balanceOf, closedProblem, entryProblem, monthLabel, monthOf, periodStatus, fromDecimal, localDate, natureOf, nextChildCode, openingLines, rollUp,
+  PERIOD_STATUS_LABEL, RETAINED_EARNINGS, incomeStatement, YEAR_RESULT, balanceOf, closedProblem, entryProblem, monthLabel, monthOf, periodStatus, fromDecimal, localDate, natureOf, nextChildCode, openingLines, rollUp,
   toDecimal, type EntryLine, type Nature, type PeriodStatus, type Piasters,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
@@ -63,6 +63,30 @@ export class LedgerService {
 
   private async closed(tx?: Tx): Promise<Map<string, PeriodStatus>> {
     return new Map((await this.repo.closedMonths(tx)).map((p) => [p.month, p.status as PeriodStatus]));
+  }
+
+  /**
+   * 9.7 · قايمة الدخل: «الشهر ده» (entries dated this month) or «من أول السنة», from the chart's leaves, in the stages
+   * revenue → direct → selling → admin → other → net (= 4 − 5 = account 34 for the year).
+   */
+  async income(range: "month" | "year"): Promise<IncomeView> {
+    const today = localDate(new Date()), from = range === "month" ? `${monthOf(today)}-01` : `${today.slice(0, 4)}-01-01`;
+    const [accounts, sums] = await Promise.all([this.repo.accounts(), this.repo.sumsSince(new Date(`${from}T00:00:00Z`))]);
+    const parents = new Set(accounts.map((a) => a.parentId));
+    const moved = new Map(sums.map((s) => [s.accountId, s]));
+    const leaves = accounts.filter((a) => /^[45]/.test(a.code) && !parents.has(a.id)).map((a) => {
+      const m = moved.get(a.id);
+      return { id: a.id, code: a.code, name: a.name, value: m ? balanceOf(a.nature as Nature, dec(m._sum.debit), dec(m._sum.credit)) : 0 };
+    });
+    const st = incomeStatement(leaves, accounts.filter((a) => a.code.length === 2 && a.code.startsWith("5")));
+    const ids = new Map(accounts.map((a) => [a.code, a.id]));
+    const v = (l: { code: string; name: string; value: Piasters }) => ({ id: ids.get(l.code) ?? "", code: l.code, name: l.name, value: toDecimal(l.value) });
+    return {
+      range, from, label: range === "month" ? monthLabel(monthOf(today)) : `من أول ${today.slice(0, 4)}`,
+      revenue: toDecimal(st.revenue), direct: toDecimal(st.direct), gross: toDecimal(st.gross), selling: toDecimal(st.selling), contribution: toDecimal(st.contribution),
+      admin: toDecimal(st.admin), other: toDecimal(st.other), net: toDecimal(st.net),
+      lines: { revenue: st.lines.revenue.map(v), direct: st.lines.direct.map(v), selling: st.lines.selling.map(v), admin: st.lines.admin.map(v), other: st.lines.other.map((o) => ({ head: v(o.head), lines: o.lines.map(v) })) },
+    };
   }
 
   /** The last six months and their status (9.8): the open one follows today. */
@@ -202,8 +226,14 @@ export class LedgerService {
     const parent = await this.repo.accountByCode(parentCode, tx);
     if (!parent) throw new BadRequestException(NO_ACCOUNT);
     const found = await this.repo.holderAccount(parent.id, holder.userId, tx);
-    if (found) return found;
-    const account = await this.repo.createAccount({ code: nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx)), name: holder.name, parentId: parent.id, nature: parent.nature, kind: null, holderId: holder.userId }, tx);
+    return found ?? this.subAccount(me, parentCode, holder.name, tx, holder.userId);
+  }
+
+  /** A sub-account opened by the system inside the caller's transaction (a person's 131/134, a new budget line under 52/53). */
+  async subAccount(me: CurrentUser, parentCode: string, name: string, tx: Tx, holderId?: string): Promise<AccountRow> {
+    const parent = await this.repo.accountByCode(parentCode, tx);
+    if (!parent) throw new BadRequestException(NO_ACCOUNT);
+    const account = await this.repo.createAccount({ code: nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx)), name, parentId: parent.id, nature: parent.nature, kind: null, ...(holderId ? { holderId } : {}) }, tx);
     await this.audit.record({ module: "finance", entity: "Account", entityId: account.id, action: "create", userId: me.id, after: { code: account.code, name: account.name, parent: parent.code } }, tx);
     return account;
   }

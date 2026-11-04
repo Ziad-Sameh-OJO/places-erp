@@ -30,6 +30,7 @@ export const UserFilters = Page.extend({
   q: z.string().max(80).optional(),
   status: z.enum(["INVITED", "ACTIVE", "LOCKED", "DISABLED"]).optional(),
   role: Id.optional(),
+  department: z.string().trim().max(60).optional(), // M-09 5.2: search by department
 });
 export type UserFilters = z.infer<typeof UserFilters>;
 

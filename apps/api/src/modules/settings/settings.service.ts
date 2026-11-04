@@ -1,7 +1,7 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import { LIST_DEFAULTS, LOCKED_VALUES, SETTINGS, type HolidayInput, type ImportDone, type ListKey, type SettingKey, type Settings } from "@places/contracts";
-import { DEFAULT_SLA, LEAD_STAGES, asListValues, isQualifiedAfter, listChangeProblem } from "@places/domain";
+import { LIST_DEFAULTS, LOCKED_VALUES, SETTINGS, type HolidayInput, type HolidayView, type ImportDone, type ListKey, type SettingKey, type Settings } from "@places/contracts";
+import { LEAD_STAGES, asListValues, isQualifiedAfter, listChangeProblem } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -16,7 +16,6 @@ const DEFAULTS: Settings = {
   leaveTypes: [{ name: "سنوية", days: 21 }],
   whatsappDailyLimit: 250,
   notificationsFrom: "notifications@places.com",
-  slaRules: { ...DEFAULT_SLA },
   leadLogRoles: [], // only the admin until the admin picks more (1.25)
   procurementBigApprovers: [], // the seed writes the client's (M-08 Q44)
 };
@@ -53,28 +52,33 @@ export class SettingsService {
     return LEAD_STAGES.map((s) => ({ stage: s, qualified: isQualifiedAfter(false, s) }));
   }
 
-  holidays() {
-    return this.db.holiday.findMany({ orderBy: { day: "asc" } });
+  /** The official holidays, earliest first, as «من … لحد …» (1.29). */
+  async holidays(): Promise<HolidayView[]> {
+    const rows = await this.db.holiday.findMany({ orderBy: [{ from: "asc" }, { to: "asc" }] });
+    return rows.map((h) => ({ id: h.id, from: isoDay(h.from), to: isoDay(h.to), label: h.label }));
   }
 
-  async addHoliday(me: CurrentUser, h: HolidayInput) {
-    const day = new Date(`${h.day}T00:00:00Z`);
-    if (Number.isNaN(day.getTime())) throw new BadRequestException("تاريخ غلط");
-    await this.db.$transaction(async (tx) => {
-      await tx.holiday.upsert({ where: { day }, create: { day, label: h.label }, update: { label: h.label } });
-      await this.audit.record({ module: "master", entity: "Holiday", entityId: h.day, action: "create", userId: me.id, after: h }, tx);
+  /** `module`: added from M-13 («master») or from «قواعد الليدز» («settings»), for the audit log. */
+  async addHoliday(me: CurrentUser, h: HolidayInput, module = "master"): Promise<HolidayView> {
+    const row = await this.db.$transaction(async (tx) => {
+      const created = await tx.holiday.create({ data: { from: asDate(h.from), to: asDate(h.to), label: h.label } });
+      await this.audit.record({ module, entity: "Holiday", entityId: created.id, action: "create", userId: me.id, after: h }, tx);
+      return created;
     });
     this.time.invalidate();
+    return { id: row.id, ...h };
   }
 
-  /** All or nothing: a sheet with errors is fixed and uploaded again, so half a calendar never goes in. */
-  async importHolidays(me: CurrentUser, sheet: ParsedSheet<HolidayInput>): Promise<ImportDone> {
+  /** All or nothing: a sheet with errors is fixed and uploaded again, so half a calendar never goes in. The same range twice keeps one row. */
+  async importHolidays(me: CurrentUser, sheet: ParsedSheet<{ from: string; to?: string | undefined; label: string }>): Promise<ImportDone> {
     if (sheet.errors.length) throw new BadRequestException(`الشيت فيه ${sheet.errors.length} خطأ · صلّحهم وارفعه تاني`);
     if (!sheet.rows.length) throw new BadRequestException("الشيت مفيهوش صفوف");
     await this.db.$transaction(async (tx) => {
       for (const { data: h } of sheet.rows) {
-        const day = new Date(`${h.day}T00:00:00Z`);
-        await tx.holiday.upsert({ where: { day }, create: { day, label: h.label }, update: { label: h.label } });
+        const range = { from: asDate(h.from), to: asDate(h.to || h.from) }; // «لحد» empty = one day
+        const same = await tx.holiday.findFirst({ where: range });
+        if (same) await tx.holiday.update({ where: { id: same.id }, data: { label: h.label } });
+        else await tx.holiday.create({ data: { ...range, label: h.label } });
       }
       await this.audit.record({ module: "master", entity: "Holiday", entityId: "import", action: "import", userId: me.id, after: { rows: sheet.rows.length } }, tx);
     });
@@ -82,11 +86,16 @@ export class SettingsService {
     return { imported: sheet.rows.length };
   }
 
-  async removeHoliday(me: CurrentUser, day: string) {
+  async removeHoliday(me: CurrentUser, id: string, module = "master") {
     await this.db.$transaction(async (tx) => {
-      await tx.holiday.deleteMany({ where: { day: new Date(`${day}T00:00:00Z`) } });
-      await this.audit.record({ module: "master", entity: "Holiday", entityId: day, action: "delete", userId: me.id }, tx);
+      const h = await tx.holiday.findUnique({ where: { id } });
+      if (!h) throw new NotFoundException("الإجازة دي مش موجودة");
+      await tx.holiday.delete({ where: { id } });
+      await this.audit.record({ module, entity: "Holiday", entityId: id, action: "delete", userId: me.id, before: { from: isoDay(h.from), to: isoDay(h.to), label: h.label } }, tx);
     });
     this.time.invalidate();
   }
 }
+
+const asDate = (day: string) => new Date(`${day}T00:00:00Z`);
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
