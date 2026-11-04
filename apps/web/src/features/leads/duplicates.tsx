@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { DuplicateDecision, DuplicateRow, LeadSide } from "@places/contracts";
 import { DUPLICATE_FIELDS } from "@places/domain";
 import { useMe } from "@/lib/me";
-import { Card, Chip, Icon, Modal, Note, Table, useAction } from "@/components/ui";
+import { Card, Chip, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { useDecideDuplicate, useDuplicates } from "./use-duplicates";
 
 /** Demo «طلبات مستنية الأوبريشن»: each duplicate with «قرّري». Shown only to people who may decide (M-01 Q7). */
@@ -50,7 +50,7 @@ function DuplicateReview({ row, onClose }: { row: DuplicateRow; onClose: () => v
 
   return (
     <Modal title={`عميل مكرر · ${row.lead.code}`} onClose={onClose}>
-      <form className="grid" action={save}>
+      <form className="grid" onSubmit={onFormSubmit(save)}>
         {/* full width: side by side in the form's grid the table got squeezed and «الجديد» was cut off */}
         <div className="wide"><Note>اختاري لكل خانة البيانات اللي تفضل، والليد يتحسب على أنهي channel. الأرقام بتتجمّع من الاتنين.</Note></div>
         <div className="wide"><Table head={["الخانة", "الموجود", "الجديد"]} rows={rows} /></div>
