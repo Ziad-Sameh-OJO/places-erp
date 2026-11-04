@@ -86,3 +86,23 @@ test("decimal strings ↔ piasters without floats", () => {
   assert.throws(() => toDecimal(1.5));
   for (const s of ["0.01", "104500.00", "9000000.00", "36000.99"]) assert.equal(toDecimal(fromDecimal(s)), s);
 });
+
+test("drafts and owners' numbers stay with who keeps the inventory (Q15, Q18): Manar / Randa yes, sales no", async () => {
+  const { keepsInventory } = await import("../src/units.ts");
+  const grants = (actions: string[]) => ({ can: (m: string, a: string) => m === "inventory" && actions.includes(a) });
+  assert.equal(keepsInventory(grants(["view", "create", "edit", "approve", "delete"])), true); // Manar
+  assert.equal(keepsInventory(grants(["view", "create", "edit"])), true); // Randa
+  assert.equal(keepsInventory(grants(["view"])), false); // sales, marketing
+  assert.equal(keepsInventory(grants(["view", "export"])), false); // Operations Head
+});
+
+test("a unit's amounts must fit the sheet's money columns (999,999,999,999.99)", async () => {
+  const { unitFiguresFit, MAX_MONEY } = await import("../src/units.ts");
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(1_100), leasePerSqm: null, area: 95 }), true);
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(9_999_999.99), leasePerSqm: null, area: 100_000 }), true); // 999,999,999,000
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(99_999_999), leasePerSqm: null, area: 1_000_000 }), false);
+  // Income: a year's rent too (lease × area × 12)
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(36_000), leasePerSqm: egp(99_999_999_999), area: 900_000 }), false);
+  assert.equal(unitFiguresFit({ pricePerSqm: null, leasePerSqm: null, area: 10 }), true);
+  assert.equal(MAX_MONEY, fromDecimal("999999999999.99"));
+});

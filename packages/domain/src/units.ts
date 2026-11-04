@@ -3,6 +3,7 @@
  * Money is in piasters; areas are whole square metres (the sheet's «gross area»).
  */
 import type { Piasters } from "./money.ts";
+import type { Grants } from "./permissions.ts";
 
 /** The unit sheets (M-03 3.1). Primary has the common columns only until the client sends its own. */
 export const UNIT_TYPES = ["Rent", "Resale", "Income", "Primary"] as const;
@@ -59,6 +60,18 @@ export function splitPrice(u: { divisible: boolean; minSplit: number | null; spa
   return { ok: true, area: requested, price: unitTotal(u.pricePerSqm, requested) };
 }
 
+/** The largest amount a money column holds (Decimal(14,2)): 999,999,999,999.99. */
+export const MAX_MONEY: Piasters = 99_999_999_999_999;
+
+/**
+ * Whether what the system works out for a unit can be stored and shown: the total (price × area) and, for Income,
+ * a year's rent. A typo of a few extra zeros is refused instead of overflowing the sheet.
+ */
+export function unitFiguresFit(u: { pricePerSqm: Piasters | null; leasePerSqm: Piasters | null; area: number }): boolean {
+  const fits = (perSqm: Piasters | null, times: number) => perSqm == null || perSqm * u.area * times <= MAX_MONEY;
+  return fits(u.pricePerSqm, 1) && fits(u.leasePerSqm, 12);
+}
+
 /** M-03 2.4: the owner update is due every month; past that the unit is late (it stays visible to sales, Q21). */
 export const STALE_AFTER_DAYS = 30;
 const DAY_MS = 24 * 60 * 60_000;
@@ -69,3 +82,10 @@ export function isStale(lastOwnerUpdateAt: Date, now: Date): boolean {
 
 /** The newest «last update» that is still on time: older than this is late (for queries). */
 export const staleBefore = (now: Date): Date => new Date(now.getTime() - STALE_AFTER_DAYS * DAY_MS);
+
+/**
+ * The people who keep the inventory (Manar, Randa, the admin: whoever may add or edit units, M-03 Q18). Only they see
+ * a unit before Manar confirms it (Q15: sales see it after the confirm) and the owners' names and numbers
+ * (Manar's sheet has the owners' numbers; the one the sales see doesn't, M-03 1.2).
+ */
+export const keepsInventory = (g: Pick<Grants, "can">): boolean => g.can("inventory", "create") || g.can("inventory", "edit");
