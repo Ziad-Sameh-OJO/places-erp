@@ -786,6 +786,8 @@ model Account {
   createdAt  DateTime      @default(now())
   payments   Payment[]
   lines      JournalLine[]
+  purchases  Purchase[]    @relation("PurchaseLine")
+  paidFor    Purchase[]    @relation("PurchasePaidFrom")
 
   @@index([parentId])
   @@schema("finance")
@@ -834,28 +836,43 @@ model BudgetLine {
   period    String     @default("month") // month · quarter · year
   alert     Int        @default(80) // «نبّهني عند %»
   active    Boolean    @default(true)
-  purchases Purchase[]
 
   @@schema("finance")
 }
 
+/// M-08 · a purchase / payment request: Pending → Approved → Settled («اتسوّى» by procurement) → Posted (finance's
+/// payment voucher, 10.2), or Rejected with the reason. Procurement never moves a balance (4 Nov meeting).
 model Purchase {
-  id          String     @id @default(cuid())
-  code        String     @unique
-  item        String
-  amount      Decimal    @db.Decimal(14, 2)
-  lineId      String
-  line        BudgetLine @relation(fields: [lineId], references: [id])
-  vendor      String?
-  attachments String[]   // required over 10,000 EGP: receipt or two quotes
-  status      String     @default("Pending") // Pending · Approved · Rejected · Paid
-  approvedBy  String?
+  id           String    @id @default(cuid())
+  no           Int       @unique @default(autoincrement()) // shown as PR-<no>
+  item         String
+  amount       Decimal   @db.Decimal(14, 2)
+  /// the line: an expense account (5…) from the chart; its budget is the BudgetLine on that account
+  accountId    String
+  account      Account   @relation("PurchaseLine", fields: [accountId], references: [id])
+  vendor       String?
+  attachments  String[]  // File ids: a receipt or two quotes, required over 10,000 EGP
+  status       String    @default("Pending") // Pending · Approved · Rejected · Settled · Posted
+  decidedById  String?
+  decidedAt    DateTime?
   rejectReason String?
-  paidFrom    String?
-  paidAt      DateTime?
-  createdById String
-  createdAt   DateTime   @default(now())
+  /// the cash account procurement says it paid from: a suggestion for finance
+  paidFromId   String?
+  paidFrom     Account?  @relation("PurchasePaidFrom", fields: [paidFromId], references: [id])
+  settledById  String?
+  settledAt    DateTime?
+  moveId       String?   @unique // finance's payment voucher once posted
+  move         TreasuryMove? @relation(fields: [moveId], references: [id])
+  postedById   String?
+  postedAt     DateTime?
+  remindedAt   DateTime? // the approvers' one-working-day reminder went out (2.4)
+  createdById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
+  @@index([status])
+  @@index([createdById])
+  @@index([accountId])
   @@schema("finance")
 }
 
@@ -1048,6 +1065,7 @@ model TreasuryMove {
   entryId     String   @unique
   createdById String
   createdAt   DateTime @default(now())
+  purchase    Purchase?
 
   @@index([fromId])
   @@index([toId])

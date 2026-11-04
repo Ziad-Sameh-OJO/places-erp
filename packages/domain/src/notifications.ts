@@ -21,6 +21,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },
+  { key: "procurement.reminder", label: "تذكير بطلب شراء مستني موافقة", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push"], important: false }, // M-08 2.4
+  { key: "procurement.decided", label: "طلب شراء اتوافق / اترفض / اترحّل", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "procurement.settled", label: "طلب شراء اتسوّى · مستني الصرف", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false },
   { key: "unit.new", label: "وحدة جديدة (Live Alert)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-03 7.1
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "finance.budget", label: "بند قرّب يخلص أو عدّى البادجت", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.2 / 9.9

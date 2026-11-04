@@ -43,6 +43,14 @@ export class LedgerRepository {
     return tx.account.findFirst({ where: { parentId, holderId, archivedAt: null }, select: ACCOUNT });
   }
 
+  caps(tx: Tx | PrismaClient = this.db) {
+    return tx.account.findMany({ where: { cap: { not: null }, archivedAt: null }, select: { id: true, cap: true } });
+  }
+
+  setCap(id: string, cap: string, tx: Tx) {
+    return tx.account.update({ where: { id }, data: { cap }, select: { id: true } });
+  }
+
   setEntrySource(entryId: string, sourceId: string, tx: Tx) {
     return tx.journalEntry.update({ where: { id: entryId }, data: { sourceId } });
   }

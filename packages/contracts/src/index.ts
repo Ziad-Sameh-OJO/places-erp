@@ -6,4 +6,5 @@ export * from "./files.ts";
 export * from "./inventory.ts";
 export * from "./finance.ts";
 export * from "./office-assets.ts";
+export * from "./procurement.ts";
 // one file per module as it is built: deals.ts, inventory.ts, hr.ts, kpis.ts …

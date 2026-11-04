@@ -19,3 +19,4 @@ export * from "./ideal-employee.ts";
 export * from "./permissions.ts";
 export * from "./notifications.ts";
 export * from "./office-assets.ts";
+export * from "./procurement.ts";
