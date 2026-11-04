@@ -141,3 +141,13 @@ export interface LeadOptions {
 /** «مين يشوف الـ Logs» (demo: a card in the lead's Logs tab, for whoever manages access): the roles besides the admin. */
 export const LogRoles = z.object({ roles: z.array(z.string().trim().min(1).max(40)).max(30).transform((r) => [...new Set(r)]) });
 export type LogRoles = z.infer<typeof LogRoles>;
+
+/** One tick in «إعدادات توزيع المناطق» (1.12): this salesperson covers this area, or no longer does. */
+export const RoutingCell = z.object({
+  area: z.string({ required_error: "اختار الـ Area" }).trim().min(1, "اختار الـ Area").max(80),
+  employeeId: z.string({ required_error: "اختار السيلز" }).min(1, "اختار السيلز").max(40),
+  on: z.boolean({ required_error: "اه أو لا", invalid_type_error: "اه أو لا" }),
+});
+export type RoutingCell = z.infer<typeof RoutingCell>;
+/** The routing table: the active areas (M-13 lists), the salespeople, and who covers each area in rotation order. */
+export interface RoutingView { areas: string[]; salespeople: { id: string; name: string }[]; routing: Record<string, string[]> }
