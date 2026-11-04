@@ -245,8 +245,14 @@ model Penalty {
   day        DateTime @db.Date
   text       String
   byUserId   String
+  /// M-05 7.7: the deduction in days, and HR's approval (a TL's proposal waits for it)
+  deductionDays Decimal @default(0) @db.Decimal(4, 2)
+  status     String   @default("approved") // pending · approved · rejected
+  approvedById String?
+  decidedAt  DateTime?
   createdAt  DateTime @default(now())
 
+  @@index([day])
   @@schema("hr")
 }
 
@@ -259,6 +265,9 @@ model OneOnOne {
   hrAction    String?
   hrActionDue DateTime? @db.Date
   hrActionDone Boolean  @default(false)
+  /// M-05 7.8: who held it, and when «حل الـ HR» rang (once)
+  byUserId    String?
+  alarmedAt   DateTime?
   createdAt   DateTime  @default(now())
 
   @@schema("hr")

@@ -28,3 +28,18 @@ test("fingerprint days: 11:16 on time, 11:18 quarter, 11:45 half, 12:10 a day; W
   assert.equal(normName(" أحمد  أشرف "), normName("احمد اشرف"));
   assert.equal(deductionAmount(12_000_00, 0.25), 11_538); // a quarter day at 12,000 / 26
 });
+
+test("penalties: a quarter-day step up to 3 days, counted only once HR approved; the 1-to-1 monthly; the HR action alarm (7.7 · 7.8)", async () => {
+  const { penaltyDaysOk, penaltyCounts, oneOnOneDue, actionAlarm } = await import("../src/index.ts");
+  assert.ok(penaltyDaysOk(0) && penaltyDaysOk(0.25) && penaltyDaysOk(1) && penaltyDaysOk(3));
+  assert.ok(!penaltyDaysOk(0.3) && !penaltyDaysOk(4) && !penaltyDaysOk(-1));
+  assert.equal(penaltyCounts("pending"), false);
+  assert.equal(penaltyCounts("approved"), true);
+  assert.equal(oneOnOneDue("2026-10-25", "2026-11-05"), "due"); // «قعدت معاه 25/10، يبقى الجاية في نوفمبر»
+  assert.equal(oneOnOneDue("2026-11-02", "2026-11-05"), "done");
+  assert.equal(oneOnOneDue(null, "2026-11-05"), "due");
+  assert.equal(actionAlarm("2026-11-05", "2026-11-05", false, false), true);
+  assert.equal(actionAlarm("2026-11-06", "2026-11-05", false, false), false);
+  assert.equal(actionAlarm("2026-11-04", "2026-11-05", true, false), false);
+  assert.equal(actionAlarm("2026-11-04", "2026-11-05", false, true), false);
+});

@@ -1,12 +1,13 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import type { PrismaClient } from "@places/db";
-import { LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
+import { NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
 import { sendXlsx } from "../../core/http/excel";
 import { IMPORT_MAX_BYTES, parseSheet, preview, type UploadedSheet } from "../../core/http/import";
 import { AttendanceService } from "./attendance.service";
 import { LeavesService } from "./leaves.service";
+import { PeopleCareService } from "./people-care.service";
 import { PRISMA } from "../../core/database/database.module";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -20,7 +21,7 @@ const byPersonDay = (r: FingerprintRow) => `${r.name.trim()}|${r.day}`;
 /** HTTP only: validate input, check the permission, call the service. M-05 · the employee file (7.1) and attendance (7.2 · 7.10 · 7.12). */
 @Controller("hr")
 export class HrController {
-  constructor(private readonly hr: HrService, private readonly attendance: AttendanceService, private readonly leaves: LeavesService, @Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(private readonly hr: HrService, private readonly attendance: AttendanceService, private readonly leaves: LeavesService, private readonly care: PeopleCareService, @Inject(PRISMA) private readonly db: PrismaClient) {}
 
   private readonly run = <T>(fn: (tx: Tx) => Promise<T>) => this.db.$transaction(fn);
 
@@ -143,5 +144,74 @@ export class HrController {
   @Requires("hr", "view")
   balances(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
     return this.leaves.balancesReport(me, q.month);
+  }
+
+  /* ---- 7.7 · penalties ---- */
+  @Get("penalties")
+  @Requires("hr", "view")
+  penalties(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
+    return this.care.penalties(me, q.month);
+  }
+
+  /** HR records (approved at once); a TL proposes for his team (hr: approve) and it waits for HR. */
+  @Post("penalties")
+  @Requires("hr", "approve")
+  addPenalty(@Me() me: CurrentUser, @Body(new ZodPipe(NewPenalty)) body: NewPenalty) {
+    return this.care.addPenalty(me, body, this.run);
+  }
+
+  @Post("penalties/:id/approve")
+  @Requires("hr", "edit")
+  approvePenalty(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.care.decidePenalty(me, id, true, this.run);
+  }
+
+  @Post("penalties/:id/reject")
+  @Requires("hr", "edit")
+  rejectPenalty(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.care.decidePenalty(me, id, false, this.run);
+  }
+
+  @Delete("penalties/:id")
+  @Requires("hr", "delete")
+  removePenalty(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.care.removePenalty(me, id, this.run);
+  }
+
+  /* ---- 7.8 · the 1-to-1 ---- */
+  @Get("one-on-one/questions")
+  @Requires("hr", "view")
+  questions() {
+    return this.care.questions();
+  }
+
+  @Put("one-on-one/questions")
+  @Requires("hr", "edit")
+  setQuestions(@Me() me: CurrentUser, @Body(new ZodPipe(OneQuestions)) body: { questions: string[] }) {
+    return this.care.setQuestions(me, body.questions, this.run);
+  }
+
+  @Get("one-on-one/actions")
+  @Requires("hr", "edit")
+  actions() {
+    return this.care.actions();
+  }
+
+  @Post("one-on-one/:id/done")
+  @Requires("hr", "edit")
+  actionDone(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.care.actionDone(me, id, this.run);
+  }
+
+  @Get("employees/:id/one-on-one")
+  @Requires("hr", "view")
+  oneOnOnes(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.care.oneOnOnes(me, id);
+  }
+
+  @Post("employees/:id/one-on-one")
+  @Requires("hr", "edit")
+  addOneOnOne(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(NewOneOnOne)) body: NewOneOnOne) {
+    return this.care.addOneOnOne(me, id, body, this.run);
   }
 }
