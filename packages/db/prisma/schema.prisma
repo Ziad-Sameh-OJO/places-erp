@@ -294,9 +294,17 @@ model Lead {
   touched        Boolean       @default(false)
   ownedByTelesales Boolean     @default(false)
   noAnswerCount  Int           @default(0)
-  arrivedAt      DateTime      @default(now()) // KPI: first call within 30 min
+  rotation       Int           @default(1)  // how many salespeople it went through on No Answer; the 3rd goes to Telesales (M-01 3.2)
+  arrivedAt      DateTime      @default(now()) // KPI: first call within 30 min · the campaign WhatsApp message time if it came that way
+  firstActionAt  DateTime?     // the salesperson's first call / stage change: stops the SLA clock (M-01 3.2 (4))
+  slaWarnedAt    DateTime?     // the TL got the 2h30 warning for this assignment (cleared on reassign)
+  note           String?
+  post           String?       // the campaign post it came from (M-04: channel → campaign → post)
+  answers        Json?         // answers to the recommendation questions, they narrow the suggested units
   verification   Json?         // Second Call: { called, sent, byUserId, at }
   activities     LeadActivity[]
+  visits         LeadVisit[]
+  suggestedUnits LeadUnit[]
   deals          Deal[]
   createdById    String
   createdAt      DateTime      @default(now())
@@ -305,6 +313,51 @@ model Lead {
 
   @@index([assignedToId, stage])
   @@index([area])
+  @@index([createdAt])
+  @@index([phones], type: Gin) // the duplicate check on every new lead
+  @@schema("sales")
+}
+
+/// Visits and meetings (M-01 3.3 «Visit»): the time, the units shown, an alarm at the time, then Done / not done.
+model LeadVisit {
+  id        String      @id @default(cuid())
+  leadId    String
+  lead      Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  kind      String      @default("visit") // visit · meeting
+  at        DateTime
+  extra     String?     // spaces that aren't in the inventory sheet yet («دور 4 في مبنى B6»)
+  outcome   String?     // done · not_done (not done shows for HR in attendance, M-07); null = still planned
+  units     VisitUnit[]
+  byUserId  String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([leadId, at])
+  @@index([at]) // the alarm job: visits due now and not marked
+  @@schema("sales")
+}
+
+model VisitUnit {
+  visitId String
+  visit   LeadVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  unitId  String
+  unit    Unit      @relation(fields: [unitId], references: [id])
+
+  @@id([visitId, unitId])
+  @@schema("sales")
+}
+
+/// Units the salesperson picked for this client from the inventory (with the recommendations, M-01 3.2).
+model LeadUnit {
+  leadId   String
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  unitId   String
+  unit     Unit     @relation(fields: [unitId], references: [id])
+  byUserId String
+  at       DateTime @default(now())
+
+  @@id([leadId, unitId])
+  @@index([unitId])
   @@schema("sales")
 }
 
@@ -477,6 +530,8 @@ model Unit {
   mediaUploadedAt  DateTime?
   lastOwnerUpdateAt DateTime @default(now())
   deals            Deal[]
+  suggestedFor     LeadUnit[]
+  shownInVisits    VisitUnit[]
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   archivedAt       DateTime?
