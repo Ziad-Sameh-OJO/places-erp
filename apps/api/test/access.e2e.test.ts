@@ -54,6 +54,22 @@ test("new account: created INVITED, gets the activation email, sets a password, 
   assert.equal(emp.teamLeaderId, tlEmployeeId);
 });
 
+test("search users by mobile and department (M-09 5.2); sales can't list departments", async () => {
+  const dept = `E2E قسم ${stamp}`;
+  assert.equal((await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input({ department: dept, phone: "01000001234" }) })).status, 200);
+  const ids = async (qs: string) => (await call(`/access/users?${qs}`, { cookie: nancy })).body.items.map((u: { id: string }) => u.id);
+  assert.deepEqual(await ids(`q=${encodeURIComponent("0100 000 1234")}`), [newId]); // typed with spaces
+  assert.deepEqual(await ids("q=01000001234"), [newId]);
+  assert.deepEqual(await ids(`department=${encodeURIComponent(dept)}`), [newId]);
+  assert.deepEqual(await ids(`q=${encodeURIComponent(dept)}`), [newId]);
+  assert.deepEqual(await ids(`department=${encodeURIComponent(dept)}&status=DISABLED`), []);
+  const depts = await call("/access/users/departments", { cookie: nancy });
+  assert.ok(depts.body.includes(dept) && depts.body.includes("المبيعات"));
+  assert.equal((await call("/access/users/departments", { cookie: sales })).status, 403);
+  assert.equal((await call("/access/users?department=x", { cookie: sales })).status, 403);
+  await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input() }); // back as it was
+});
+
 test("the same email can't get two accounts", async () => {
   assert.equal((await call("/access/users", { method: "POST", cookie: nancy, body: input({ name: "تاني" }) })).status, 409);
 });
@@ -127,6 +143,28 @@ test("OTP on for one person: no session until the emailed code", async () => {
   const ok = await call("/auth/otp", { method: "POST", body: { email, code } });
   assert.equal(ok.status, 200);
   assert.equal((await call("/auth/me", { cookie: ok.cookie })).status, 200);
+});
+
+test("OTP «ابعت تاني» (M-09 2.4): refused before a minute, then a new code that replaces the old one", async () => {
+  const resend = (e = email) => call("/auth/otp/resend", { method: "POST", body: { email: e } });
+  // no sign-in waiting for a code (the last one was used), unknown email, someone without OTP: same answer
+  assert.equal((await resend()).status, 400);
+  assert.equal((await resend(`nobody-${stamp}@places.test`)).status, 400);
+  assert.equal((await resend("m.mohsen@places.com")).status, 400);
+  const since = Date.now();
+  await login(email, "Another12345");
+  const first = lastMail(email, since).subject.match(/\d{6}/)![0];
+  const early = await resend();
+  assert.equal(early.status, 429);
+  assert.match(early.body.error, /بعد \d+ ثانية/);
+  // a minute later (moved back in the database instead of waiting)
+  await prisma.authToken.updateMany({ where: { userId: newId, kind: "OTP" }, data: { createdAt: new Date(Date.now() - 61_000) } });
+  const again = Date.now();
+  assert.equal((await resend()).status, 204);
+  const second = lastMail(email, again).subject.match(/\d{6}/)![0];
+  assert.equal((await resend()).status, 429); // the minute starts over
+  if (first !== second) assert.equal((await call("/auth/otp", { method: "POST", body: { email, code: first } })).status, 401);
+  assert.equal((await call("/auth/otp", { method: "POST", body: { email, code: second } })).status, 200);
 });
 
 test("roles: copy, edit the matrix, built-in and in-use roles can't be deleted", async () => {
