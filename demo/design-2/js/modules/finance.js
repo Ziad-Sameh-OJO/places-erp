@@ -17,15 +17,152 @@
     return { rev, byKind, direct, d, selling, se, admin, ad, saved, gross: rev - d, contrib: rev - d - se, net: rev - d - se - ad + saved };
   }
   V.finance = {
-    sub: () => "شجرة الحسابات · قايمة الدخل · الميزانية · Cost Center · المرتبات",
+    sub: () => "سندات الصرف والقبض · التحويلات · العهد والسلف · القيود · قايمة الدخل · الميزانية",
     render() {
       const t = ui("fnTab") || "dash";
-      return `<div class="row">${U.tabs("fnTab", [["dash", "Dashboard"], ["pnl", "قايمة الدخل"], ["bs", "الميزانية العمومية"], ["cost", "Cost Center"], ["payroll", "المرتبات"], ["tree", "شجرة الحسابات"]], t)}</div>${FN[t]()}`;
+      return `<div class="row">${U.tabs("fnTab", [["dash", "Dashboard"], ["cash", "الخزن والحركات"], ["custody", "العهد والسلف"], ["journal", "القيود"], ["pnl", "قايمة الدخل"], ["bs", "الميزانية العمومية"], ["cost", "Cost Center"], ["payroll", "المرتبات"], ["tree", "شجرة الحسابات"]], t)}</div>${FN[t]()}`;
     }
   };
   A.ACT.fnTab = (d) => { ui("fnTab", d.v); A.render(); };
   const row = (l, v, cls, drill) => `<tr class="${cls || ""} ${v < 0 ? "neg" : ""} ${drill ? "click" : ""}" ${drill ? `data-act="drill" data-k="${esc(drill)}"` : ""}><td>${esc(l)}${drill ? ` <span class="hint">${I("search")}</span>` : ""}</td><td class="n">${A.money(v)}</td></tr>`;
+  /* ---------- treasury: every movement is a voucher; balances, statements and journal entries all come from it ---------- */
+  const KIND = { pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""] };
+  const acc = (name) => S().accounts.find((a) => a.name === name);
+  const lines = () => [...S().expenses.admin.map(([k]) => [k, "مصروفات إدارية"]), ...S().expenses.selling.map(([k]) => [k, "مصروفات بيعية"])];
+  const lineOpts = (v) => `<optgroup label="مصروفات إدارية">${S().expenses.admin.map(([k]) => opt(k, k, v)).join("")}</optgroup><optgroup label="مصروفات بيعية">${S().expenses.selling.map(([k]) => opt(k, k, v)).join("")}</optgroup>`;
+  const accOpts = (v, skip) => S().accounts.filter((a) => a.name !== skip).map((a) => opt(a.name, `${a.name} · ${A.money(a.balance)}`, v)).join("");
+  const people = () => S().employees.map((e) => opt(e.id, A.person(e.id))).join("");
+  const partyName = (m) => (m.party && S().people.some((p) => p.id === m.party) ? A.person(m.party) : m.party || "—");
+  const canPost = () => A.canDo("finance", "create");
+  const openPeriod = () => S().periods[S().periods.length - 1].status === "مفتوح";
+  const NATURE = { pay: "صرف نقدية", receive: "توريد نقدية", transfer: "تحويل نقدية بين الخزن", advance: "سلفة موظف", custody: "صرف عهدة", settle: "تسوية عهدة" };
+  function coa() {
+    const st = S(), p = figures(), cash = st.accounts, kids = (code, list) => list.map((x, i) => Object.assign({ code: code + String(i + 1).padStart(2, "0") }, x));
+    const ar = st.deals.filter(A.countsRevenue).reduce((s, d) => s + Math.max(0, A.placesComm(d) - A.collected(d)), 0), adv = st.advances.reduce((s, a) => s + a.amount, 0), cust = st.custody.reduce((s, c) => s + c.amount, 0);
+    const comPay = st.deals.filter((d) => A.dealStatus(d) === "Fully Collected").reduce((s, d) => s + A.salesComm(d), 0), other = st.moves.filter((m) => m.kind === "receive" && m.source !== "عمولة من عميل").reduce((s, m) => s + m.amount, 0);
+    const assets = cash.reduce((s, a) => s + a.balance, 0) + ar + adv + cust + 420000, liab = comPay + 86000;
+    const T = [
+      { code: "1", name: "الأصول", nat: "dr", kids: [
+        { code: "11", name: "الأصول المتداولة", kids: [
+          { code: "111", name: "النقدية بالخزن", kids: kids("111", cash.filter((a) => a.kind === "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
+          { code: "112", name: "النقدية بالبنوك والمحافظ", kids: kids("112", cash.filter((a) => a.kind !== "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
+          { code: "113", name: "العملاء (عمولات مستحقة)", bal: ar, key: "عملاء" }, { code: "114", name: "سلف الموظفين", bal: adv, key: "سلف موظفين" }, { code: "115", name: "العهد", bal: cust, key: "عهد" }] },
+        { code: "12", name: "الأصول الثابتة (صافي)", bal: 420000 }] },
+      { code: "2", name: "الخصوم", nat: "cr", kids: [{ code: "21", name: "الخصوم المتداولة", kids: [{ code: "211", name: "عمولة مبيعات مستحقة", bal: comPay }, { code: "212", name: "ضرائب قيمة مضافة", bal: 86000 }] }] },
+      { code: "3", name: "حقوق الملكية", nat: "cr", kids: [{ code: "31", name: "رأس المال", bal: 1500000 }, { code: "32", name: "الأرباح المحتجزة", bal: assets - liab - 1500000 - p.net - other }, { code: "33", name: "أرباح وخسائر العام", bal: p.net }] },
+      { code: "4", name: "الإيرادات", nat: "cr", kids: [{ code: "41", name: "عمولات تسويق عقاري", kids: kids("41", Object.entries(p.byKind).map(([k, v]) => ({ name: k, bal: v }))) }, { code: "42", name: "إيرادات أخرى", bal: other, key: "إيرادات أخرى" }] },
+      { code: "5", name: "المصروفات", nat: "dr", kids: [
+        { code: "51", name: "مصروفات مباشرة (العمولات)", kids: kids("51", p.direct.map(([k, v]) => ({ name: k, bal: v }))) },
+        { code: "52", name: "مصروفات إدارية", kids: kids("52", p.admin.map(([k, v]) => ({ name: k, bal: v, key: k }))) },
+        { code: "53", name: "مصروفات بيعية", kids: kids("53", p.selling.map(([k, v]) => ({ name: k, bal: v, key: k }))) }] }];
+    const idx = {}, walk = (n, path, nat) => { n.nat = n.nat || nat; n.path = [...path, n.name]; if (n.kids) n.bal = n.kids.reduce((s, k) => s + walk(k, n.path, n.nat), 0); if (n.key) idx[n.key] = n; return n.bal; };
+    T.forEach((n) => walk(n, [], n.nat));
+    return { T, idx };
+  }
+  const acctLabel = (key, C) => { const n = (C || coa()).idx[key]; return n ? `${n.code} · ${n.path.join(" ← ")}` : key; };
+  // how much a movement changes one account (+ in, − out)
+  const effect = (m, name) => (m.to === name ? (m.kind === "settle" ? m.returned : m.amount) : 0) - (m.from === name ? m.amount : 0);
+  // the journal entry of a movement: debit / credit lines
+  const entry = (m) => ({
+    pay: [[m.line, m.amount, 0], [m.from, 0, m.amount]], receive: [[m.to, m.amount, 0], [m.source === "عمولة من عميل" ? "عملاء" : "إيرادات أخرى", 0, m.amount]],
+    transfer: [[m.to, m.amount, 0], [m.from, 0, m.amount]], advance: [["سلف موظفين", m.amount, 0], [m.from, 0, m.amount]],
+    custody: [["عهد", m.amount, 0], [m.from, 0, m.amount]],
+    settle: [[m.line, m.spent, 0], ...(m.returned ? [[m.to, m.returned, 0]] : []), ["عهد", 0, m.spent + m.returned]]
+  })[m.kind];
+  const jvOf = (m) => "JV-" + m.id.slice(3);
+  const entryTable = (m, C) => U.table(["كود الحساب · الحساب", "مدين", "دائن"], entry(m).map(([a, dr, cr]) => `<tr><td>${esc(acctLabel(a, C))}${["سلف موظفين", "عهد"].includes(a) || (a === "عملاء" && m.party) ? `<span class="sub">${esc(partyName(m))}</span>` : ""}</td><td class="n">${dr ? A.money(dr) : ""}</td><td class="n">${cr ? A.money(cr) : ""}</td></tr>`));
+  // after Done: what each account in the entry was and is now
+  const effectOnTree = (m) => { const C = coa(); return `<h4 class="mini-h">الأثر على شجرة الحسابات</h4>${U.table(["الحساب", "قبل", "بعد"], entry(m).map(([a, dr, cr]) => { const n = C.idx[a]; if (!n) return ""; const d = n.nat === "dr" ? dr - cr : cr - dr; return `<tr><td>${esc(n.code)} · ${esc(n.name)}</td><td class="n">${A.money(n.bal - d)}</td><td class="n"><b>${A.money(n.bal)}</b> ${chip(d >= 0 ? "ok" : "bad", (d >= 0 ? "+" : "−") + A.money(Math.abs(d)), 1)}</td></tr>`; }))}${note("القيد اتسمّع في شجرة الحسابات، فـ قايمة الدخل والميزانية العمومية اتحدّثوا لوحدهم.")}`; };
+  const voucher = (m, after) => `<div class="pdf"><div class="pdf-head"><b>Places · ${KIND[m.kind][0]}</b><span class="mono">${m.id}</span></div>
+    ${U.kv([["التاريخ", `${A.fmtDate(m.at)} ${A.fmtTime(m.at)}`], ["المبلغ", `<b>${A.money(m.amount)}</b>`], ["قيد اليومية", `<span class="mono">${jvOf(m)}</span> · ${NATURE[m.kind]}`], ...(m.ref ? [["رقم الفاتورة / المرجع", esc(m.ref)]] : []), ...(m.from ? [["من", esc(m.from)]] : []), ...(m.to ? [["لـ", esc(m.to)]] : []), ...(m.party ? [["الطرف", esc(partyName(m))]] : []), ...(m.line ? [["البند", esc(m.line)]] : []), ...(m.kind === "settle" ? [["اتصرف", A.money(m.spent)], ["رجع للخزنة", A.money(m.returned)]] : []), ["البيان", esc(m.note || "—")], ["سجّله", esc(A.person(m.by))]])}
+    <h4 class="mini-h">قيد اليومية ${jvOf(m)}</h4>${entryTable(m)}${after ? effectOnTree(m) : ""}
+    <div class="row" style="margin-top:28px"><span class="spacer">توقيع المستلم: ____________</span><span>توقيع المحاسب: ____________</span></div></div><div class="row end no-print"><button class="btn ghost sm" data-act="printModal">${I("file")}اطبع السند</button></div>`;
+  A.ACT.mvView = (d) => { const m = S().moves.find((x) => x.id === d.id); A.openModal(`${KIND[m.kind][0]} · ${m.id}`, voucher(m)); };
+  const mvRow = (m, name) => `<tr class="click" data-act="mvView" data-id="${m.id}"><td class="mono">${m.id}</td><td>${A.fmtDate(m.at)}</td><td>${chip(KIND[m.kind][1], KIND[m.kind][0], 1)}</td><td>${esc(m.from || "—")}${m.to ? ` ← ${esc(m.to)}` : ""}</td><td>${esc(partyName(m))}${m.line ? `<span class="sub">${esc(m.line)}</span>` : ""}</td><td>${esc(m.note || "")}</td><td class="n">${name ? (effect(m, name) >= 0 ? "+" : "−") + A.money(Math.abs(effect(m, name))) : A.money(m.amount)}</td></tr>`;
+  // one form for every voucher kind; the fields follow the kind
+  A.ACT.mvNew = (d) => {
+    const k = d.k, F = U.field;
+    const C = coa(), expOpts = ["52", "53"].map((pc) => { const g = C.T[4].kids.find((x) => x.code === pc); return `<optgroup label="${g.code} · ${g.name}">${g.kids.map((n) => opt(n.key, `${n.code} · ${n.name}`)).join("")}</optgroup>`; }).join("");
+    const body = { pay: F("التاريخ", `<input name="date" type="date" value="${A.today()}" max="${A.today()}" required>`, 1) + F("من خزنة / بنك", `<select name="from" required>${accOpts()}</select>`, 1) + F("نوع المصروف (من شجرة الحسابات)", `<select name="line" required>${expOpts}</select>`, 1)
+        + F("المستلم", `<input name="party" list="pp-list" required placeholder="اسم اللي هيستلم الفلوس"><datalist id="pp-list">${S().employees.map((e) => `<option value="${esc(A.person(e.id))}">`).join("")}${S().vendors.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`, 1) + F("رقم الفاتورة / المرجع", `<input name="ref" placeholder="اختياري">`),
+      receive: F("لخزنة / بنك", `<select name="to" required>${accOpts()}</select>`, 1) + F("المصدر", `<select name="source">${["عمولة من عميل", "إيراد آخر", "استرداد"].map((x) => opt(x)).join("")}</select>`) + F("من مين", `<input name="party" placeholder="اسم العميل أو الشركة">`),
+      transfer: F("من", `<select name="from" required>${accOpts()}</select>`, 1) + F("لـ", `<select name="to" required>${accOpts("خزينة رئيسية")}</select>`, 1),
+      advance: F("من خزنة / بنك", `<select name="from" required>${accOpts()}</select>`, 1) + F("الموظف", `<select name="party" required>${people()}</select>`, 1),
+      custody: F("من خزنة / بنك", `<select name="from" required>${accOpts()}</select>`, 1) + F("العهدة مع", `<select name="party" required>${people()}</select>`, 1) }[k];
+    A.openModal(KIND[k][0], `<form data-form="mvSave" class="grid"><input type="hidden" name="kind" value="${k}">${body}
+      ${U.field("المبلغ", `<input name="amount" type="number" min="1" step="any" required>`, 1)}${U.field("البيان", `<input name="note" required placeholder="مثلاً: فاتورة كهرباء أكتوبر">`, 1, 1)}
+      <div class="row end wide"><button type="button" class="btn ghost" data-close="modal">إلغاء</button><button class="btn">${I("check")}سجّل</button></div></form>`);
+  };
+  A.FORM.mvSave = (f) => {
+    const st = S(), amt = +f.amount, k = f.kind, from = f.from && acc(f.from), to = f.to && acc(f.to);
+    if (!canPost()) return A.toast("مالكش صلاحية تسجّل حركات");
+    if (!openPeriod()) return A.toast("الشهر مقفول · مينفعش تسجّل حركة فيه");
+    if (!(amt > 0)) return A.toast("المبلغ لازم يبقى أكبر من صفر");
+    if (k === "transfer" && f.from === f.to) return A.toast("اختار خزنتين مختلفتين");
+    if (from && from.balance < amt) return A.toast(`الرصيد في ${from.name} (${A.money(from.balance)}) مش كفاية`);
+    if (f.date && f.date > A.today()) return A.toast("مينفعش تاريخ بعد النهارده");
+    const at = f.date && f.date !== A.today() ? new Date(`${f.date}T12:00:00`).toISOString() : A.nowIso();
+    const m = { id: "MV-" + (109 + st.moves.length), at, kind: k, amount: amt, note: f.note.trim(), by: A.me(), ...(f.ref ? { ref: f.ref.trim() } : {}), ...(f.from ? { from: f.from } : {}), ...(f.to ? { to: f.to } : {}), ...(f.party ? { party: f.party } : {}), ...(f.line ? { line: f.line } : {}), ...(f.source ? { source: f.source } : {}) };
+    if (from) from.balance -= amt; if (to) to.balance += amt;
+    if (k === "pay") { const L = [...st.expenses.admin, ...st.expenses.selling].find((x) => x[0] === f.line); L[1] += amt; const b = st.budgets.find((x) => x.line === f.line); if (b) b.spent += amt; } // lands in the income statement and the budget
+    if (k === "advance") st.advances.push({ emp: f.party, amount: amt, date: A.today() });
+    if (k === "custody") { const c = st.custody.find((x) => x.emp === f.party); c ? (c.amount += amt) : st.custody.push({ emp: f.party, amount: amt, date: A.today() }); }
+    st.moves.unshift(m); A.audit("finance", `${KIND[k][0]} ${m.id} · ${A.money(amt)} · ${m.note}`);
+    A.render(); A.openModal(`${KIND[k][0]} · ${m.id}`, voucher(m, true)); A.toast(`اتسجّل · قيد اليومية ${jvOf(m)} اتعمل لوحده`);
+  };
+  // settling custody: what was spent (on which line) and what came back to which safe
+  A.ACT.custSettle = (d) => { const c = S().custody.find((x) => x.emp === d.emp);
+    A.openModal(`تسوية عهدة · ${A.person(c.emp)}`, `<form data-form="custSave" class="grid"><input type="hidden" name="emp" value="${c.emp}">${note(`العهدة دلوقتي: <b>${A.money(c.amount)}</b>`)}
+      ${U.field("اتصرف منها", `<input name="spent" type="number" min="0" step="any" value="0" required>`, 1)}${U.field("على بند", `<select name="line">${lineOpts()}</select>`, 1)}
+      ${U.field("رجع نقدي", `<input name="returned" type="number" min="0" step="any" value="0" required>`, 1)}${U.field("رجع لخزنة", `<select name="to">${accOpts()}</select>`, 1)}
+      ${U.field("البيان", `<input name="note" required placeholder="مثلاً: 6 فواتير صيانة">`, 1, 1)}
+      <div class="row end wide"><button type="button" class="btn ghost" data-close="modal">إلغاء</button><button class="btn">${I("check")}سجّل التسوية</button></div></form>`); };
+  A.FORM.custSave = (f) => {
+    const st = S(), c = st.custody.find((x) => x.emp === f.emp), spent = +f.spent || 0, ret = +f.returned || 0;
+    if (!openPeriod()) return A.toast("الشهر مقفول · مينفعش تسجّل حركة فيه");
+    if (spent + ret <= 0) return A.toast("اكتب اتصرف كام أو رجع كام");
+    if (spent + ret > c.amount) return A.toast(`المجموع أكبر من العهدة (${A.money(c.amount)})`);
+    const m = { id: "MV-" + (109 + st.moves.length), at: A.nowIso(), kind: "settle", party: f.emp, to: f.to, amount: spent + ret, spent, returned: ret, line: f.line, note: f.note.trim(), by: A.me() };
+    c.amount -= spent + ret; acc(f.to).balance += ret;
+    if (spent) { const L = [...st.expenses.admin, ...st.expenses.selling].find((x) => x[0] === f.line); L[1] += spent; }
+    st.moves.unshift(m); A.audit("finance", `تسوية عهدة ${A.person(f.emp)} · اتصرف ${A.money(spent)} · رجع ${A.money(ret)}`);
+    A.render(); A.openModal(`تسوية عهدة · ${m.id}`, voucher(m, true)); A.toast(c.amount ? `اتسوّى · فاضل ${A.money(c.amount)} عهدة` : "العهدة اتقفلت");
+  };
+  // account statement: every movement on one safe / bank with the running balance
+  A.ACT.accStatement = (d) => {
+    const a = acc(d.name), ms = S().moves.filter((m) => effect(m, a.name)); let bal = a.balance;
+    const rows = ms.map((m) => { const r = { m, bal }; bal -= effect(m, a.name); return r; });
+    A.openModal(`كشف حساب · ${a.name}`, `<div class="pdf">${note(`الرصيد دلوقتي <b>${A.money(a.balance)}</b> · رصيد أول المدة في الكشف ${A.money(bal)}`)}
+      ${U.table(["التاريخ", "الحركة", "البيان", "داخل", "خارج", "الرصيد بعدها"], rows.map(({ m, bal: b }) => { const e = effect(m, a.name); return `<tr><td>${A.fmtDate(m.at)}</td><td>${chip(KIND[m.kind][1], KIND[m.kind][0], 1)} <span class="mono">${m.id}</span></td><td>${esc(m.note || "")}</td><td class="n">${e > 0 ? A.money(e) : ""}</td><td class="n">${e < 0 ? A.money(-e) : ""}</td><td class="n"><b>${A.money(b)}</b></td></tr>`; }))}</div>
+      <div class="row end no-print"><button class="btn ghost sm" data-act="printModal">${I("file")}اطبع الكشف</button></div>`);
+  };
   const FN = {
+    cash() {
+      const st = S(), f = ui("mvF") || "", list = st.moves.filter((m) => !f || m.from === f || m.to === f), today = st.moves.filter((m) => m.at.slice(0, 10) === A.today());
+      const btn = (k, ic, l) => `<button class="btn ${k === "pay" ? "" : "ghost"}" data-act="mvNew" data-k="${k}">${I(ic)}${l}</button>`;
+      return `${openPeriod() ? "" : note("الشهر مقفول · مفيش حركات جديدة لحد ما يتفتح شهر جديد", "warn")}
+        <div class="kpis">${U.kpi("الخزن والبنوك", A.money(st.accounts.reduce((s, a) => s + a.balance, 0)), `${st.accounts.length} حساب`, "bank")}${U.kpi("حركات النهارده", today.length, `صرف ${A.short(today.filter((m) => m.kind === "pay").reduce((s, m) => s + m.amount, 0))} · قبض ${A.short(today.filter((m) => m.kind === "receive").reduce((s, m) => s + m.amount, 0))}`, "list")}${U.kpi("عهد مفتوحة", A.money(st.custody.reduce((s, c) => s + c.amount, 0)), `${st.custody.filter((c) => c.amount).length} شخص`, "wallet", "warn")}${U.kpi("سلف الموظفين", A.money(st.advances.reduce((s, a) => s + a.amount, 0)), "بتتخصم من المرتب", "users")}</div>
+        ${canPost() ? `<div class="row">${btn("pay", "send", "إذن صرف خزنة")}${btn("receive", "wallet", "إذن توريد خزنة")}${btn("transfer", "swap", "تحويل بين خزن")}${btn("advance", "users", "سلفة موظف")}${btn("custody", "wallet", "عهدة لشخص")}</div>` : ""}
+        <div class="cols wide"><section class="card">${head("الحركات", "list", chip("", list.length), "دوس على أي حركة تشوف السند والقيد وتطبعه")}
+          <div class="toolbar"><select data-change="mvF" aria-label="الحساب">${opt("", "كل الخزن والبنوك", f)}${st.accounts.map((a) => opt(a.name, a.name, f)).join("")}</select></div>
+          ${table(["رقم", "التاريخ", "النوع", "من ← لـ", "الطرف / البند", "البيان", f ? "على الحساب" : "المبلغ"], list.map((m) => mvRow(m, f)))}</section>
+        <section class="card">${head("الأرصدة", "bank")}${st.accounts.map((a) => `<div class="acct click" data-act="accStatement" data-name="${esc(a.name)}"><span class="a-ico">${I(a.kind === "بنك" ? "bank" : "wallet")}</span><span class="spacer">${esc(a.name)}<small>${esc(a.kind)} · كشف حساب</small></span><b class="num">${A.money(a.balance)}</b></div>`).join("")}</section></div>`;
+    },
+    custody() {
+      const st = S();
+      return `<div class="cols"><section class="card">${head("العهد المفتوحة", "wallet", chip("warn", A.money(st.custody.reduce((s, c) => s + c.amount, 0))), "الفلوس اللي مع الناس ومستنية تسوية")}
+          ${table(["مع", "المبلغ", "من", ""], st.custody.filter((c) => c.amount).map((c) => `<tr><td>${A.who(c.emp)}</td><td class="n"><b>${A.money(c.amount)}</b></td><td>${A.fmtDate(c.date)}</td><td>${canPost() ? `<button class="btn sm" data-act="custSettle" data-emp="${c.emp}">سوّي</button>` : ""}</td></tr>`))}
+          ${canPost() ? `<div class="row end"><button class="btn ghost sm" data-act="mvNew" data-k="custody">${I("plus")}عهدة جديدة</button></div>` : ""}</section>
+        <section class="card">${head("سلف الموظفين", "users", chip("", A.money(st.advances.reduce((s, a) => s + a.amount, 0))), "بتتخصم من المرتب في شيت المرتبات")}
+          ${table(["الموظف", "التاريخ", "المبلغ"], st.advances.map((a) => `<tr><td>${A.who(a.emp)}</td><td>${A.fmtDate(a.date)}</td><td class="n">${A.money(a.amount)}</td></tr>`))}
+          ${canPost() ? `<div class="row end"><button class="btn ghost sm" data-act="mvNew" data-k="advance">${I("plus")}سلفة جديدة</button></div>` : ""}</section></div>`;
+    },
+    journal() {
+      const st = S(), C = coa(), rows = st.moves.flatMap((m) => entry(m).map(([a, dr, cr], i) => `<tr class="${i ? "" : "jr-top"} click" data-act="mvView" data-id="${m.id}"><td>${i ? "" : `<span class="mono">${jvOf(m)}</span><span class="sub">${NATURE[m.kind]}</span>`}</td><td>${i ? "" : A.fmtDate(m.at)}</td><td>${esc(acctLabel(a, C))}</td><td class="n">${dr ? A.money(dr) : ""}</td><td class="n">${cr ? A.money(cr) : ""}</td><td>${i ? "" : esc(m.note || "")}</td></tr>`));
+      const dr = st.moves.reduce((s, m) => s + entry(m).reduce((x, e) => x + e[1], 0), 0), cr = st.moves.reduce((s, m) => s + entry(m).reduce((x, e) => x + e[2], 0), 0);
+      return `${note(`كل سند بيعمل قيده لوحده (مدين = دائن). إجمالي المدين ${A.money(dr)} · إجمالي الدائن ${A.money(cr)}${dr === cr ? " · متوازن ✓" : " · مش متوازن!"}`, dr === cr ? "" : "warn")}
+        ${table(["قيد اليومية", "التاريخ", "كود الحساب · الحساب", "مدين", "دائن", "البيان"], rows)}`;
+    },
     dash() {
       const st = S(), p = figures(), bal = st.accounts.reduce((s, a) => s + a.balance, 0), payroll = st.employees.reduce((s, e) => s + e.salary, 0);
       const wf = [["الإيرادات", p.rev, "acc"], ["مصاريف مباشرة", -p.d, "bad"], ["مصاريف بيعية", -p.se, "bad"], ["مصاريف إدارية", -p.ad, "bad"], ["خصومات", p.saved, "ok"], ["صافي الربح", p.net, "ok"]];
@@ -82,10 +219,17 @@
         ${note((S().dedApproved || {})[month] ? "الخصومات اتعتمدت من الـ HR واترحّلت. والمرتبات بعد الخصم بتتحمّل على المصروفات أوتوماتيك." : "خصومات الشهر لسه مستنية اعتماد الـ HR، فمش محسوبة هنا.", (S().dedApproved || {})[month] ? "" : "warn")}`;
     },
     tree() {
-      const T = [["1 · الأصول", ["الخزينة: رئيسية · نانسي · مختار · احمد اشرف", "أرصدة البنوك: CIB · QNB · Dopay", "عملاء (حسابات فرعية)", "مصروفات مقدمة", "تامينات لدى الغير", "الأصول الثابتة: أثاث · موبيلات · لابتوبات · أجهزة أخرى", "مجمع إهلاك الأصول", "سلف موظفين (حساب لكل موظف)", "مسحوبات جاري شركاء: أحمد إسلام · محمد صفوت", "عهد"]], ["2 · الخصوم", ["مصروفات مستحقة: مرتبات · إيجار · عمولة مبيعات · عمولة أوبريشن · تأمينات", "إيراد مقدم", "موردين", "قروض وأقساط طويلة الأجل", "ضرائب قيمة مضافة · خصم وإضافة · دخل", "دفعات وتأمينات من العملاء"]], ["3 · حقوق الملكية", ["رأس المال", "جاري الشركاء", "الأرباح المحتجزة", "أرباح وخسائر العام"]], ["4 · الإيرادات", ["عمولات تسويق عقاري: إداري · تجاري · resale · سكني", "عمولات إدارة عقارات", "إيرادات أخرى: بيع أجهزة · أثاث · استشارات"]], ["5 · المصروفات", ["مصروفات إدارية: إيجار · مرتبات إدارية · بوفيه · انتقالات · إنترنت · كهرباء · محاماة · تأمينات …", "مصروفات بيعية: مرتبات وعمولات مبيعات · سبونسر فيسبوك ولينكدإن · Google Ads · Lusha · CRM · منصات (دوبيزل، عقار ماب، بروبرتي فايندر) · بتتحمّل على الصفقات"]]];
-      return `<div class="tree">${T.map(([h, k]) => `<details open><summary><b>${esc(h)}</b><span></span><span></span><span class="hint num">${k.length}</span></summary><div class="kids">${k.map((x) => `<div class="kid"><span>${esc(x)}</span></div>`).join("")}</div></details>`).join("")}</div>${note("ملخص من «شجرة الحسابات.xlsx» بتاعة د. علي. الشجرة ثابتة، والتقارير بتتسحب منها.")}`;
+      const C = coa(), node = (n, depth) => n.kids ? `<details ${depth < 2 ? "open" : ""}><summary><b class="mono">${n.code}</b> <b>${esc(n.name)}</b><span class="spacer"></span><span class="hint">${n.nat === "dr" ? "مدين" : "دائن"}</span><b class="num">${A.money(n.bal)}</b></summary><div class="kids">${n.kids.map((k) => node(k, depth + 1)).join("")}</div></details>`
+        : `<div class="kid ${n.key ? "click" : ""}" ${n.key ? `data-act="acctLedger" data-k="${esc(n.key)}"` : ""}><span class="mono">${n.code}</span><span class="spacer">${esc(n.name)}</span><b class="num">${A.money(n.bal)}</b></div>`;
+      const tot = (c) => C.T.find((n) => n.code === c).bal;
+      return `${note(`كل حساب بكوده وطبيعته ورصيده دلوقتي. أي إذن صرف أو توريد أو تحويل بيعمل قيد يومية بيتسمّع هنا لوحده. الأصول ${A.short(tot("1"))} = الخصوم ${A.short(tot("2"))} + حقوق الملكية ${A.short(tot("3"))}.`)}<div class="tree coa">${C.T.map((n) => node(n, 0)).join("")}</div>
+        ${note("الأكواد والحسابات ملخص من «شجرة الحسابات.xlsx». أرصدة البداية الحقيقية هتتدخل وقت الإطلاق.")}`;
     }
   };
+  A.CHANGE.mvF = (v) => { ui("mvF", v); A.render(); };
+  // one account's movements from the journal (حركات الحساب)
+  A.ACT.acctLedger = (d) => { const C = coa(), n = C.idx[d.k], ms = S().moves.filter((m) => entry(m).some((e) => e[0] === d.k));
+    A.openModal(`حركات الحساب · ${n.code} ${n.name}`, `<div class="pdf">${note(`${esc(n.path.join(" ← "))} · الرصيد ${A.money(n.bal)} (${n.nat === "dr" ? "مدين" : "دائن"})`)}${U.table(["قيد اليومية", "التاريخ", "البيان", "مدين", "دائن"], ms.map((m) => { const e = entry(m).filter((x) => x[0] === d.k).reduce((s, x) => [s[0] + x[1], s[1] + x[2]], [0, 0]); return `<tr class="click" data-act="mvView" data-id="${m.id}"><td class="mono">${jvOf(m)}</td><td>${A.fmtDate(m.at)}</td><td>${esc(m.note || "")}</td><td class="n">${e[0] ? A.money(e[0]) : ""}</td><td class="n">${e[1] ? A.money(e[1]) : ""}</td></tr>`; }))}</div><div class="row end no-print"><button class="btn ghost sm" data-act="printModal">${I("file")}اطبع</button></div>`); };
   A.CHANGE.ccf = (v, el) => { ui("ccf", Object.assign({}, ui("ccf"), { [el.dataset.k]: v })); A.render(); };
   A.ACT.advances = () => A.openModal("سلف الموظفين", U.table(["الموظف", "التاريخ", "رصيد السلفة"], S().advances.map((a) => `<tr><td>${A.who(a.emp)}</td><td>${A.fmtDate(a.date)}</td><td class="n">${A.money(a.amount)}</td></tr>`)));
   A.ACT.drill = (d) => {

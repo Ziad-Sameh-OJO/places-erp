@@ -9,6 +9,7 @@
   ["draft", "draftAdmin"].forEach((k) => { if (!S.leadRules[k]) S.leadRules[k] = clone(window.SEED.leadRules[k]); });
   if ((S.schedReports || []).some((r) => !r.freq)) S.schedReports = clone(window.SEED.schedReports); // reports from before they had real schedules
   if (!S.kpiWatch) S.kpiWatch = clone(window.SEED.kpiWatch);
+  if (!S.moves) { S.moves = clone(window.SEED.moves); S.custody = clone(window.SEED.custody); } // saved demos from before the treasury vouchers
   if (!S.activities) { S.activities = clone(window.SEED.activities); S.daily = {}; }
   if (!(S.schedReports || []).some((r) => r.daily)) S.schedReports.push(clone(window.SEED.schedReports.find((r) => r.daily)));
   const V0 = S.leadRules.visit; if (!V0.postponeInfo) { V0.postponeInfo = { to: ["u6"], ch: ["app"] }; if (V0.postpone.to.join() === "u6") V0.postpone.to = ["ownerTl"]; } // saved demos: the TL approves now, Heba is told

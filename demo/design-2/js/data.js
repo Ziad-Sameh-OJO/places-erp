@@ -287,6 +287,17 @@ window.SEED = (function () {
     { name: "خزينة رئيسية", balance: 412000, kind: "خزينة" }, { name: "خزينة نانسي", balance: 38500, kind: "خزينة" }, { name: "خزينة مختار", balance: 21700, kind: "خزينة" },
     { name: "خزينة احمد اشرف", balance: 9800, kind: "خزينة" }, { name: "بنك CIB", balance: 2860000, kind: "بنك" }, { name: "بنك QNB", balance: 1145000, kind: "بنك" }, { name: "حساب Dopay", balance: 64300, kind: "محفظة" }
   ];
+  // treasury movements (vouchers): pay · receive · transfer · advance · custody · settle; the balances above already include them
+  const moves = [
+    { id: "MV-108", at: ago(60 * 26), kind: "transfer", from: "بنك CIB", to: "خزينة رئيسية", amount: 50000, note: "سحب نقدية للمصروفات الأسبوعية", by: "u18" },
+    { id: "MV-107", at: ago(60 * 30), kind: "pay", from: "بنك CIB", line: "ايجار", amount: 85000, party: "مالك المقر", note: "إيجار شهر نوفمبر", by: "u18" },
+    { id: "MV-106", at: ago(60 * 50), kind: "custody", from: "خزينة رئيسية", party: "u16", amount: 15000, note: "عهدة مشتريات الأسبوع", by: "u18" },
+    { id: "MV-105", at: ago(60 * 52), kind: "receive", to: "بنك QNB", amount: 120000, party: "Orbit Tech", source: "عمولة من عميل", note: "دفعة عمولة صفقة", by: "u18" },
+    { id: "MV-104", at: ago(60 * 75), kind: "pay", from: "خزينة رئيسية", line: "بوفيه", amount: 2300, party: "Office Plus", note: "قهوة وسكر وشاي", by: "u18" },
+    { id: "MV-103", at: ago(60 * 24 * 5), kind: "advance", from: "خزينة رئيسية", party: "s6", amount: 2000, note: "سلفة على المرتب", by: "u18" },
+    { id: "MV-102", at: ago(60 * 24 * 6), kind: "settle", party: "u16", to: "خزينة مختار", amount: 9800, spent: 8300, line: "صيانات", returned: 1500, note: "تسوية عهدة الأسبوع اللي فات · 6 فواتير", by: "u18" }
+  ];
+  const custody = [{ emp: "u16", amount: 15000, date: dayKey(2) }, { emp: "u21", amount: 4000, date: dayKey(9) }];
   const advances = [{ emp: "s2", amount: 6000, date: dayKey(20) }, { emp: "u12", amount: 3500, date: dayKey(12) }, { emp: "s6", amount: 2000, date: dayKey(5) }];
   const expenses = {
     admin: [["ايجار", 85000], ["مرتبات ادارية", 210000], ["كهرباء", 9400], ["مياه", 1200], ["انترنت", 3200], ["اتصالات", 4100], ["بوفيه", 6100], ["صيانات", 4800], ["ادوات مكتبية", 2300], ["تامين طبي", 12500], ["تامينات اجتماعية", 26000]],
@@ -562,5 +573,5 @@ window.SEED = (function () {
       (daily[id] = daily[id] || {})[k] = { vals: {}, note: (NOTE[role] || ((n) => `خلّصت شغل اليوم · ${n + 1} مهام`))(d % 6), at: new Date(`${k}T${late ? "19:10" : "17:4" + (d % 10)}:00`).toISOString() };
     }
   });
-  return { activities, daily, leadRules, kpiWatch, kpis, penalties, listReqs, invReports: {}, webAds, compReports, officeAssets, officeBoys, assetsReviewed: dayKey(12), pettyCap: 50000, pwHashSeed: DEMO_PASSWORD, mails, perms, users, audit, holidays, leaveTypes, targets, tlTiers, tcrSeq, naSheets, pdfFields: ["salary", "target", "achieved", "scheme", "commission", "bonus"], bonuses: [{ minPct: 100, amount: 5000 }, { minPct: 120, amount: 10000 }], statements: {}, schedReports, notifRules, notifEmail: "notifications@places.com", interactions, contracts: [], people, areas, areaRouting, channels, campaigns, posts, stages, leads, units, areaTabs, importSample, invAccess, tasks, broadcasts, deals, employees, attendance, excuses, requests, oneQuestions, oneOnOnes, leaves, tickets, companies, companyCats, pendingCompanies, accounts, advances, expenses, monthly, budgets, vendors, purchases, periods, notifications, bulk: [], imports: [], unitSeq: 304, leadSeq: seq, clock: 0, holiday: false, waSentToday: 140, waLimit: 250 };
+  return { moves, custody, activities, daily, leadRules, kpiWatch, kpis, penalties, listReqs, invReports: {}, webAds, compReports, officeAssets, officeBoys, assetsReviewed: dayKey(12), pettyCap: 50000, pwHashSeed: DEMO_PASSWORD, mails, perms, users, audit, holidays, leaveTypes, targets, tlTiers, tcrSeq, naSheets, pdfFields: ["salary", "target", "achieved", "scheme", "commission", "bonus"], bonuses: [{ minPct: 100, amount: 5000 }, { minPct: 120, amount: 10000 }], statements: {}, schedReports, notifRules, notifEmail: "notifications@places.com", interactions, contracts: [], people, areas, areaRouting, channels, campaigns, posts, stages, leads, units, areaTabs, importSample, invAccess, tasks, broadcasts, deals, employees, attendance, excuses, requests, oneQuestions, oneOnOnes, leaves, tickets, companies, companyCats, pendingCompanies, accounts, advances, expenses, monthly, budgets, vendors, purchases, periods, notifications, bulk: [], imports: [], unitSeq: 304, leadSeq: seq, clock: 0, holiday: false, waSentToday: 140, waLimit: 250 };
 })();
