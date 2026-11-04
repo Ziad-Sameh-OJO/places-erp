@@ -57,3 +57,9 @@ export function effectiveGrants(
  * Returns true when the proposed change is allowed.
  */
 export const keepsAccessAdmin = (after: Grants): boolean => after.can("access", "edit");
+
+/** M-09 2.4: a new sign-in code can be asked for one minute after the last one was sent. */
+export const OTP_RESEND_SECONDS = 60;
+/** Seconds left before another code may be sent (0 = now). */
+export const otpResendWait = (sentAt: Date, now: Date): number =>
+  Math.max(0, Math.ceil(OTP_RESEND_SECONDS - (now.getTime() - sentAt.getTime()) / 1000));
