@@ -11,6 +11,8 @@ import { LeadDuplicatesService } from "./duplicates.service";
 import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 
+/** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
+const NO_LEAD = "الليد ده مش موجود أو مبقاش معاك";
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
 /** The demo's Kanban shows the newest 30 cards of a lane; its header shows the real count. */
 const CARDS_PER_LANE = 30;
@@ -77,7 +79,7 @@ export class LeadsService {
   /** The lead drawer. A lead outside the caller's scope is a 404, not a 403: it doesn't say the lead exists. */
   async get(me: CurrentUser, id: string): Promise<LeadDetail> {
     const lead = await this.repo.detail(ownedBy(me) as never, id);
-    if (!lead) throw new NotFoundException();
+    if (!lead) throw new NotFoundException(NO_LEAD);
     const [salespeople, people, sla] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
       this.repo.userNames([...new Set(lead.activities.map((a) => a.byUserId).filter(isId))]),
@@ -90,7 +92,7 @@ export class LeadsService {
   async addComment(me: CurrentUser, id: string, input: AddComment) {
     await this.db.$transaction(async (tx) => {
       const lead = await this.repo.findInScope(ownedBy(me) as never, id, tx);
-      if (!lead) throw new NotFoundException();
+      if (!lead) throw new NotFoundException(NO_LEAD);
       const activity = await this.repo.addActivity(tx, id, "comment", input.text, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "comment", userId: me.id, after: { leadId: id, text: input.text } }, tx);
@@ -176,7 +178,7 @@ export class LeadsService {
   async changeStage(me: CurrentUser, id: string, input: ChangeStage) {
     return this.db.$transaction(async (tx) => {
       const lead = await tx.lead.findFirst({ where: { id, ...(ownedBy(me) as object) } });
-      if (!lead) throw new NotFoundException();
+      if (!lead) throw new NotFoundException(NO_LEAD);
       const next = await tx.lead.update({
         where: { id },
         data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), touched: true,

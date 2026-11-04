@@ -2,20 +2,22 @@ import { z } from "zod";
 import { LEAD_STAGES } from "@places/domain";
 import { CalendarDay, EgyptianMobile, Id, Money, Page } from "./common.ts";
 
+/** Messages are shown to the person as they are: Arabic, like the demo. */
 export const CreateLead = z.object({
-  name: z.string().trim().min(2).max(120),
-  company: z.string().trim().max(160).optional(),
-  phones: z.array(EgyptianMobile).min(1).max(5),
-  area: z.string().min(1),
+  name: z.string().trim().min(2, "الاسم قصير").max(120, "الاسم طويل"),
+  company: z.string().trim().max(160, "اسم الشركة طويل").optional(),
+  // the same mobile written twice is kept once
+  phones: z.array(EgyptianMobile).min(1, "اكتب رقم موبايل").max(5, "5 أرقام بالكتير").transform((ps) => [...new Set(ps)]),
+  area: z.string().min(1, "اختار الـ Area"),
   type: z.enum(["Rent", "Resale", "Primary", "Income"]),
-  space: z.number().int().positive().optional(),
+  space: z.number().int("المساحة رقم صحيح").positive("المساحة لازم تبقى أكبر من صفر").optional(),
   condition: z.string().optional(),
   budget: Money.optional(),
-  channel: z.string().min(1),
+  channel: z.string().min(1, "اختار الـ Channel"),
   campaignId: Id.optional(),
   assignToId: Id.optional(), // Operations choosing a salesperson by hand (uses up their turn)
   keep: z.boolean().optional(), // Telesales: «يفضل عندي (بكلّمه أنا)» instead of «التوزيع (حسب الـ area)»
-  note: z.string().max(2000).optional(),
+  note: z.string().max(2000, "الملاحظة طويلة · 2000 حرف بالكتير").optional(),
 });
 export type CreateLead = z.infer<typeof CreateLead>;
 
@@ -50,7 +52,7 @@ export interface DuplicateCheckResult { hit: DuplicateHit | null }
 export interface CreatedLead { id: string; code: string; ownedByTelesales: boolean; assignedTo: { id: string; name: string } | null }
 
 /** A comment or a call result written on the lead's Activity tab (demo: «اكتب كومنت أو نتيجة مكالمة»). */
-export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000) });
+export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000, "الكومنت طويل · 2000 حرف بالكتير") });
 export type AddComment = z.infer<typeof AddComment>;
 
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */

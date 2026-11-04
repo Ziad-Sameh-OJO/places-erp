@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { LeadOptions, LeadSummary, Settings } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
-import { Field, Icon, Modal, useToast } from "@/components/ui";
+import { Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
 import { num } from "@/lib/format";
 import { type LeadQuery, PRESETS, type SavedView, activeCount, sameFilters } from "./filters";
 
@@ -45,7 +45,7 @@ export function ViewsBar({ f, s, views, onPick, onAdd, onRemove }: {
       {activeCount(f) > 0 && !known && <button className="vchip add" onClick={() => setSaving(true)}><Icon name="plus" />احفظ الفلتر ده كعرض</button>}
       {saving && (
         <Modal title="احفظ الفلتر كعرض" onClose={() => setSaving(false)}>
-          <form className="grid" action={(d) => { const name = String(d.get("name") ?? "").trim(); if (!name) return; onAdd({ name, f }); setSaving(false); toast(`اتحفظ «${name}» · هتلاقيه فوق الفلاتر`); }}>
+          <form className="grid" onSubmit={onFormSubmit((d) => { const name = String(d.get("name") ?? "").trim(); if (!name) return; onAdd({ name, f }); setSaving(false); toast(`اتحفظ «${name}» · هتلاقيه فوق الفلاتر`); })}>
             <Field label="اسم العرض" req wide><input name="name" required placeholder="مثلاً: التجمع · Qualified" /></Field>
             <div className="row end wide"><button className="btn"><Icon name="star" />احفظ</button></div>
           </form>

@@ -39,9 +39,10 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
           <div className="dr-tools">
             {(onPrev || onNext) && (
               <span className="dr-nav">
-                <button className="round" onClick={onPrev} disabled={!onPrev} aria-label="السابق">›</button>
-                {position}
-                <button className="round" onClick={onNext} disabled={!onNext} aria-label="التالي">‹</button>
+                {/* small, like the demo's «round sm»: full-size ones squeezed the lead's name onto 3 lines on a phone */}
+                <button className="round sm" onClick={onPrev} disabled={!onPrev} aria-label="السابق">›</button>
+                {position && <span>{position}</span>}
+                <button className="round sm" onClick={onNext} disabled={!onNext} aria-label="التالي">‹</button>
               </span>
             )}
             <button className="round" onClick={onClose} aria-label="قفل"><Icon name="x" /></button>
