@@ -23,3 +23,26 @@ export const asListValues = (raw: unknown): ListValue[] =>
 export function allowedValue(items: readonly ListValue[], value: string, current: string | null = null): boolean {
   return value === current || items.some((i) => i.active && i.value === value);
 }
+
+/**
+ * Who changes which list (client's answer on #186): per list, the roles / people (user ids) that may add a value and
+ * the ones that may switch values off and back on. A list nobody has set up yet stays with «master: edit».
+ */
+export type ListAction = "add" | "off";
+export type ListEditorsOf = Readonly<Record<ListAction, readonly string[]>>;
+
+/** What a save does: adds a new value, and / or switches values off or back on (a list is never renamed or shortened). */
+export function listActions(before: readonly ListValue[], after: readonly ListValue[]): ListAction[] {
+  const was = new Map(before.map((i) => [i.value, i.active]));
+  const out = new Set<ListAction>();
+  for (const i of after) {
+    if (!was.has(i.value)) out.add("add");
+    else if (was.get(i.value) !== i.active) out.add("off");
+  }
+  return [...out];
+}
+
+export function canChangeList(rule: ListEditorsOf | undefined, action: ListAction, me: { id: string; roles: readonly string[]; masterEdit: boolean }): boolean {
+  if (!rule) return me.masterEdit;
+  return rule[action].some((x) => x === me.id || me.roles.includes(x));
+}

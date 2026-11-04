@@ -170,6 +170,43 @@ test("settings: everyone reads the lists, only master:edit changes them, bad val
   assert.equal((await call("/settings/nonsense", { method: "PUT", cookie: admin, body: { value: 1 } })).status, 400);
 });
 
+test("who changes which list (#186): its own roles / people, add apart from switch off; set up by «access: edit» only", async () => {
+  const adminId = (await prisma.user.findUniqueOrThrow({ where: { email: "ahmed.islam@places.com" } })).id;
+  const savedList = await prisma.setting.findUnique({ where: { key: "mkTaskTypes" } });
+  const put = (key: string, cookie: string, value: unknown) => call(`/settings/${key}`, { method: "PUT", cookie, body: { value } });
+  const list = async () => (await call("/settings", { cookie: sales })).body.mkTaskTypes as { value: string; active: boolean }[];
+  try {
+    const editors = { mkTaskTypes: { add: ["sales"], off: [adminId] } };
+    assert.equal((await put("listEditors", sales, editors)).status, 403);
+    assert.equal((await put("listEditors", nancy, { mkTaskTypes: { add: ["no-such-role"], off: [] } })).status, 400);
+    assert.equal((await put("listEditors", nancy, editors)).status, 200);
+    assert.ok(await prisma.auditLog.findFirst({ where: { module: "access", entity: "Setting", entityId: "listEditors" } }));
+    assert.deepEqual((await call("/settings", { cookie: sales })).body.listEditors, editors);
+
+    // the sales role adds without «master: edit», but may not switch off
+    const added = [...(await list()), { value: "E2E تاسك", active: true }];
+    assert.equal((await put("mkTaskTypes", sales, added)).status, 200);
+    const off = added.map((i) => (i.value === "E2E تاسك" ? { ...i, active: false } : i));
+    const refused = await put("mkTaskTypes", sales, off);
+    assert.equal(refused.status, 403);
+    assert.match(refused.body.error, /توقّف أو ترجّع.*أنواع تاسكات التسويق/);
+    // «master: edit» is not enough once the list is set up; the admin is named for switching off only
+    assert.equal((await put("mkTaskTypes", nancy, [...added, { value: "E2E تاني", active: true }])).status, 403);
+    assert.equal((await put("mkTaskTypes", admin, off)).status, 200);
+    assert.equal((await list()).find((i) => i.value === "E2E تاسك")?.active, false);
+    assert.equal((await put("mkTaskTypes", admin, [...off, { value: "E2E تاني", active: true }])).status, 403);
+    // a list nobody set up stays with «master: edit»
+    assert.equal((await put("ticketDepts", sales, [...(await call("/settings", { cookie: sales })).body.ticketDepts, { value: "E2E قسم", active: true }])).status, 403);
+    assert.equal((await call("/settings/list-editors/options", { cookie: sales })).status, 403);
+    const o = (await call("/settings/list-editors/options", { cookie: nancy })).body;
+    assert.ok(o.roles.some((r: { key: string }) => r.key === "sales") && o.people.some((p: { id: string }) => p.id === adminId));
+  } finally {
+    await prisma.setting.deleteMany({ where: { key: "listEditors" } });
+    if (savedList) await prisma.setting.update({ where: { key: "mkTaskTypes" }, data: { value: savedList.value as never } });
+    else await prisma.setting.deleteMany({ where: { key: "mkTaskTypes" } });
+  }
+});
+
 test("holidays «من … لحد …» (1.29): add and remove, both audited; a backwards range is refused", async () => {
   const made = await call("/settings/holidays", { method: "POST", cookie: admin, body: { from: "2027-03-09", to: "2027-03-12", label: "E2E عيد" } });
   assert.equal(made.status, 201, JSON.stringify(made.body));

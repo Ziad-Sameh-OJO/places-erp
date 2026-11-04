@@ -42,6 +42,11 @@ export const LIST_DEFAULTS: Record<ListKey, readonly string[]> = {
   ticketDepts: ["HR", "Inventory", "Marketing", "Accounts", "Operations", "الإدارة"],
 };
 
+/** Per list: the roles / people (user ids) who add, and who switch values off or back on (#186). Missing = «master: edit». */
+const Names = z.array(z.string().trim().min(1).max(40)).max(50);
+export const ListEditors = z.record(z.enum(Object.keys(LIST_DEFAULTS) as [ListKey, ...ListKey[]]), z.object({ add: Names, off: Names }));
+export type ListEditors = z.infer<typeof ListEditors>;
+
 /** What a form offers: the active values only. */
 export const activeValues = (items: readonly ListItem[]): string[] => items.filter((i) => i.active).map((i) => i.value);
 
@@ -60,6 +65,7 @@ export const SETTINGS = {
   notificationsFrom: z.string().trim().email(),
   // the roles that see a lead's «Logs» tab besides the admin (1.25); role keys from الأدوار والصلاحيات
   leadLogRoles: z.array(z.string().trim().min(1).max(40)).max(30),
+  listEditors: ListEditors,
 } as const;
 export type SettingKey = keyof typeof SETTINGS;
 export type Settings = { [K in SettingKey]: z.infer<(typeof SETTINGS)[K]> };
