@@ -38,9 +38,24 @@ export const LeadFilters = Page.extend({
 }).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" });
 export type LeadFilters = z.infer<typeof LeadFilters>;
 
+/** A comment or a call result written on the lead's Activity tab (demo: «اكتب كومنت أو نتيجة مكالمة»). */
+export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000) });
+export type AddComment = z.infer<typeof AddComment>;
+
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
 export interface LeadRow {
   id: string; code: string; name: string; phones: string[]; area: string; type: string; channel: string;
   campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean;
   assignedTo: { id: string; name: string } | null; assignedAt: string | null; arrivedAt: string; createdAt: string;
+}
+
+/** One line of the lead's Activity: what happened, who did it (null = the system) and when. */
+export interface LeadActivityRow {
+  id: string; kind: string; text: string; by: { id: string; name: string } | null; at: string;
+}
+
+/** The lead drawer (M-01): the list row plus the details and the Activity, newest first. */
+export interface LeadDetail extends LeadRow {
+  company: string | null; space: number | null; condition: string | null; budget: string | null; note: string | null;
+  noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
