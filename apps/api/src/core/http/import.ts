@@ -71,10 +71,11 @@ async function readFirstSheet(file: UploadedSheet) {
   return sheet;
 }
 
-/** A cell as trimmed text: dates as YYYY-MM-DD, rich text and formulas by what they show, empty as undefined. */
+/** A cell as trimmed text: dates as YYYY-MM-DD, times as HH:MM, rich text and formulas by what they show, empty as undefined. */
 function text(v: ExcelJS.CellValue): string | undefined {
   if (v === null || v === undefined) return undefined;
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  // a time-only cell (a fingerprint sheet's «11:05») is a date on Excel's day zero: keep the time
+  if (v instanceof Date) return v.getUTCFullYear() < 1901 ? v.toISOString().slice(11, 16) : v.toISOString().slice(0, 10);
   if (typeof v === "object") {
     if ("richText" in v) return text(v.richText.map((t) => t.text).join(""));
     if ("text" in v) return text(v.text as string);
