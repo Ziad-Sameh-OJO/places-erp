@@ -68,7 +68,8 @@
     if (["approver", "admin"].includes(r)) st.purchases.filter((p) => p.status === "Pending").forEach((p) => add("warn", "cart", `طلب شراء: ${p.item}`, `${A.money(p.amount)} · ${p.line}`, "goProc", {}, "قرّر"));
     if (r === "procurement") st.purchases.filter((p) => p.status === "Approved").forEach((p) => add("", "wallet", `اتوافق: ${p.item}`, "جاهز للصرف", "goProc", {}, "صرف"));
     if (A.kpiInbox) A.kpiInbox(add);
-    if (A.reportInbox) A.reportInbox(add); // reports due today that this person hands in
+    if (A.reportInbox) A.reportInbox(add);
+    if (A.financeInbox) A.financeInbox(add); // purchases waiting for Finance to post them // reports due today that this person hands in
     if (A.invInbox) A.invInbox(add); // inventory team: Manar's tasks, list requests, the daily report // KPI cards: what I hand in, and what my team waits on me for
     return out;
   }

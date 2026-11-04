@@ -79,18 +79,25 @@
     <div class="row" style="margin-top:28px"><span class="spacer">توقيع المستلم: ____________</span><span>توقيع المحاسب: ____________</span></div></div><div class="row end no-print"><button class="btn ghost sm" data-act="printModal">${I("file")}اطبع السند</button></div>`;
   A.ACT.mvView = (d) => { const m = S().moves.find((x) => x.id === d.id); A.openModal(`${KIND[m.kind][0]} · ${m.id}`, voucher(m)); };
   const mvRow = (m, name) => `<tr class="click" data-act="mvView" data-id="${m.id}"><td class="mono">${m.id}</td><td>${A.fmtDate(m.at)}</td><td>${chip(KIND[m.kind][1], KIND[m.kind][0], 1)}</td><td>${esc(m.from || "—")}${m.to ? ` ← ${esc(m.to)}` : ""}</td><td>${esc(partyName(m))}${m.line ? `<span class="sub">${esc(m.line)}</span>` : ""}</td><td>${esc(m.note || "")}</td><td class="n">${name ? (effect(m, name) >= 0 ? "+" : "−") + A.money(Math.abs(effect(m, name))) : A.money(m.amount)}</td></tr>`;
+  // purchases Procurement settled: Finance posts each one (the only place balances change)
+  const prQueue = () => S().purchases.filter((p) => p.status === "Settled");
+  const prCard = () => { const q = prQueue(); if (!q.length) return "";
+    return `<section class="card attn">${head("طلبات مشتريات مستنية الصرف", "cart", chip("warn", q.length), "المشتريات سوّتها وبلّغت · الصرف من الخزنة والقيد عندك")}
+      ${table(["الطلب", "البند", "المورد", "اتدفع من (حسب المشتريات)", "المبلغ", ""], q.map((p) => `<tr><td><b>${esc(p.item)}</b><span class="sub mono">${p.id} · ${A.fmtDate(p.settledAt)}</span></td><td>${esc(p.line)}</td><td>${esc(p.vendor || "—")}</td><td>${esc(p.suggestedAccount || "—")}</td><td class="n"><b>${A.money(p.amount)}</b></td><td>${canPost() ? `<button class="btn sm" data-act="mvNew" data-k="pay" data-pr="${p.id}">اصرفها</button>` : ""}</td></tr>`))}</section>`; };
+  A.financeInbox = (add) => { if (!canPost()) return; prQueue().forEach((p) => add("warn", "cart", `اصرف طلب شراء ${p.id}`, `${p.item} · ${A.money(p.amount)} · المشتريات سوّته`, "goFinPay", {}, "افتح")); };
+  A.ACT.goFinPay = () => { ui("fnTab", "cash"); location.hash = "#finance"; A.render(); };
   // one form for every voucher kind; the fields follow the kind
   A.ACT.mvNew = (d) => {
-    const k = d.k, F = U.field;
-    const C = coa(), expOpts = ["52", "53"].map((pc) => { const g = C.T[4].kids.find((x) => x.code === pc); return `<optgroup label="${g.code} · ${g.name}">${g.kids.map((n) => opt(n.key, `${n.code} · ${n.name}`)).join("")}</optgroup>`; }).join("");
-    const body = { pay: F("التاريخ", `<input name="date" type="date" value="${A.today()}" max="${A.today()}" required>`, 1) + F("من خزنة / بنك", `<select name="from" required>${accOpts()}</select>`, 1) + F("نوع المصروف (من شجرة الحسابات)", `<select name="line" required>${expOpts}</select>`, 1)
-        + F("المستلم", `<input name="party" list="pp-list" required placeholder="اسم اللي هيستلم الفلوس"><datalist id="pp-list">${S().employees.map((e) => `<option value="${esc(A.person(e.id))}">`).join("")}${S().vendors.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`, 1) + F("رقم الفاتورة / المرجع", `<input name="ref" placeholder="اختياري">`),
+    const k = d.k, F = U.field, pr = d.pr && S().purchases.find((x) => x.id === d.pr);
+    const C = coa(), expOpts = ["52", "53"].map((pc) => { const g = C.T[4].kids.find((x) => x.code === pc); return `<optgroup label="${g.code} · ${g.name}">${g.kids.map((n) => opt(n.key, `${n.code} · ${n.name}`, pr && pr.line)).join("")}</optgroup>`; }).join("");
+    const body = { pay: (pr ? `<input type="hidden" name="pr" value="${pr.id}">${note(`من طلب الشراء <b>${pr.id}</b> · ${esc(pr.item)} · المبلغ المعتمد ${A.money(pr.amount)}`)}` : "") + F("التاريخ", `<input name="date" type="date" value="${A.today()}" max="${A.today()}" required>`, 1) + F("من خزنة / بنك", `<select name="from" required>${accOpts(pr && pr.suggestedAccount)}</select>`, 1) + F("نوع المصروف (من شجرة الحسابات)", `<select name="line" required>${expOpts}</select>`, 1)
+        + F("المستلم", `<input name="party" list="pp-list" required placeholder="اسم اللي هيستلم الفلوس" value="${esc(pr ? pr.vendor || "" : "")}"><datalist id="pp-list">${S().employees.map((e) => `<option value="${esc(A.person(e.id))}">`).join("")}${S().vendors.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`, 1) + F("رقم الفاتورة / المرجع", `<input name="ref" placeholder="اختياري" value="${pr ? pr.id : ""}">`),
       receive: F("لخزنة / بنك", `<select name="to" required>${accOpts()}</select>`, 1) + F("المصدر", `<select name="source">${["عمولة من عميل", "إيراد آخر", "استرداد"].map((x) => opt(x)).join("")}</select>`) + F("من مين", `<input name="party" placeholder="اسم العميل أو الشركة">`),
       transfer: F("من", `<select name="from" required>${accOpts()}</select>`, 1) + F("لـ", `<select name="to" required>${accOpts("خزينة رئيسية")}</select>`, 1),
       advance: F("من خزنة / بنك", `<select name="from" required>${accOpts()}</select>`, 1) + F("الموظف", `<select name="party" required>${people()}</select>`, 1),
       custody: F("من خزنة / بنك", `<select name="from" required>${accOpts()}</select>`, 1) + F("العهدة مع", `<select name="party" required>${people()}</select>`, 1) }[k];
     A.openModal(KIND[k][0], `<form data-form="mvSave" class="grid"><input type="hidden" name="kind" value="${k}">${body}
-      ${U.field("المبلغ", `<input name="amount" type="number" min="1" step="any" required>`, 1)}${U.field("البيان", `<input name="note" required placeholder="مثلاً: فاتورة كهرباء أكتوبر">`, 1, 1)}
+      ${U.field("المبلغ", `<input name="amount" type="number" min="1" step="any" required ${pr ? `value="${pr.amount}" readonly` : ""}>`, 1)}${U.field("البيان", `<input name="note" required placeholder="مثلاً: فاتورة كهرباء أكتوبر" value="${esc(pr ? pr.item : "")}">`, 1, 1)}
       <div class="row end wide"><button type="button" class="btn ghost" data-close="modal">إلغاء</button><button class="btn">${I("check")}سجّل</button></div></form>`);
   };
   A.FORM.mvSave = (f) => {
@@ -104,6 +111,7 @@
     const at = f.date && f.date !== A.today() ? new Date(`${f.date}T12:00:00`).toISOString() : A.nowIso();
     const m = { id: "MV-" + (109 + st.moves.length), at, kind: k, amount: amt, note: f.note.trim(), by: A.me(), ...(f.ref ? { ref: f.ref.trim() } : {}), ...(f.from ? { from: f.from } : {}), ...(f.to ? { to: f.to } : {}), ...(f.party ? { party: f.party } : {}), ...(f.line ? { line: f.line } : {}), ...(f.source ? { source: f.source } : {}) };
     if (from) from.balance -= amt; if (to) to.balance += amt;
+    if (f.pr) { const pr = st.purchases.find((x) => x.id === f.pr); if (pr.status !== "Settled") return A.toast("الطلب ده اترحّل قبل كده"); Object.assign(pr, { status: "Posted", account: f.from, postedAt: A.nowIso(), move: m.id, paidAt: pr.settledAt }); A.notify(["procurement"], `المالية رحّلت ${pr.id} من ${f.from}`); }
     if (k === "pay") { const L = [...st.expenses.admin, ...st.expenses.selling].find((x) => x[0] === f.line); L[1] += amt; const b = st.budgets.find((x) => x.line === f.line); if (b) b.spent += amt; } // lands in the income statement and the budget
     if (k === "advance") st.advances.push({ emp: f.party, amount: amt, date: A.today() });
     if (k === "custody") { const c = st.custody.find((x) => x.emp === f.party); c ? (c.amount += amt) : st.custody.push({ emp: f.party, amount: amt, date: A.today() }); }
@@ -140,7 +148,7 @@
     cash() {
       const st = S(), f = ui("mvF") || "", list = st.moves.filter((m) => !f || m.from === f || m.to === f), today = st.moves.filter((m) => m.at.slice(0, 10) === A.today());
       const btn = (k, ic, l) => `<button class="btn ${k === "pay" ? "" : "ghost"}" data-act="mvNew" data-k="${k}">${I(ic)}${l}</button>`;
-      return `${openPeriod() ? "" : note("الشهر مقفول · مفيش حركات جديدة لحد ما يتفتح شهر جديد", "warn")}
+      return `${openPeriod() ? "" : note("الشهر مقفول · مفيش حركات جديدة لحد ما يتفتح شهر جديد", "warn")}${prCard()}
         <div class="kpis">${U.kpi("الخزن والبنوك", A.money(st.accounts.reduce((s, a) => s + a.balance, 0)), `${st.accounts.length} حساب`, "bank")}${U.kpi("حركات النهارده", today.length, `صرف ${A.short(today.filter((m) => m.kind === "pay").reduce((s, m) => s + m.amount, 0))} · قبض ${A.short(today.filter((m) => m.kind === "receive").reduce((s, m) => s + m.amount, 0))}`, "list")}${U.kpi("عهد مفتوحة", A.money(st.custody.reduce((s, c) => s + c.amount, 0)), `${st.custody.filter((c) => c.amount).length} شخص`, "wallet", "warn")}${U.kpi("سلف الموظفين", A.money(st.advances.reduce((s, a) => s + a.amount, 0)), "بتتخصم من المرتب", "users")}</div>
         ${canPost() ? `<div class="row">${btn("pay", "send", "إذن صرف خزنة")}${btn("receive", "wallet", "إذن توريد خزنة")}${btn("transfer", "swap", "تحويل بين خزن")}${btn("advance", "users", "سلفة موظف")}${btn("custody", "wallet", "عهدة لشخص")}</div>` : ""}
         <div class="cols wide"><section class="card">${head("الحركات", "list", chip("", list.length), "دوس على أي حركة تشوف السند والقيد وتطبعه")}

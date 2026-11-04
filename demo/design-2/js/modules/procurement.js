@@ -3,7 +3,8 @@
   const A = window.APP, U = window.UI, esc = A.esc, I = A.icon, S = () => A.S, { chip, opt, field, head, note, table, kv } = U;
   const V = (window.VIEWS = window.VIEWS || {});
   const ui = (k, v) => { if (v !== undefined) A.ui[k] = v; return A.ui[k]; };
-  const LV = { Pending: "warn", Approved: "info", Rejected: "bad", Paid: "ok" };
+  const LV = { Pending: "warn", Approved: "info", Rejected: "bad", Settled: "warn", Paid: "ok", Posted: "ok" };
+  const SL = { Settled: "اتسوّى · مستني المالية", Posted: "اترحّل في المالية" };
   const isApprover = () => A.canDo("procurement", "approve");
   // Q44: any approver can release up to 50,000; above that only Ahmed or Safwat. Q45: over the budget, only management (Super Admin)
   const LIMIT = 50000, BIG = ["u1", "u2", "u18"]; // أحمد إسلام · محمد صفوت · أحمد أشرف
@@ -21,7 +22,7 @@
       const tb = st.budgets.reduce((s, b) => s + b.budget, 0), ts = st.budgets.reduce((s, b) => s + b.spent, 0);
       return `<div class="kpis">${U.kpi("مستنية موافقة", st.purchases.filter((p) => p.status === "Pending").length, "الإدارة / نانسي / أحمد / صفوت", "clock", "warn")}${U.kpi("جاهزة للصرف", st.purchases.filter((p) => p.status === "Approved").length, "اتوافق عليها", "check", "ok")}${U.kpi("إجمالي الـ Budget", A.money(tb), `${st.budgets.length} بنود`, "wallet")}${U.kpi("فاضل", A.money(tb - ts), `اتصرف ${Math.round((ts / tb) * 100)}%`, "chart", ts / tb > 0.8 ? "bad" : "ok")}</div>
         <div class="toolbar"><select id="pf-s" data-change="prF" data-k="status">${opt("", "كل الحالات", f.status)}${Object.keys(LV).map((k) => opt(k, k, f.status)).join("")}</select><select id="pf-l" data-change="prF" data-k="line">${opt("", "كل البنود", f.line)}${st.budgets.map((b) => opt(b.line, b.line, f.line)).join("")}</select><select id="pf-v" data-change="prF" data-k="vendor">${opt("", "كل الموردين", f.vendor)}${st.vendors.map((v) => opt(v, v, f.vendor)).join("")}</select><label class="date-f"><span>من</span><input type="date" id="pf-f" value="${esc(f.from || "")}" data-change="prF" data-k="from"></label><label class="date-f"><span>لحد</span><input type="date" id="pf-t" value="${esc(f.to || "")}" data-change="prF" data-k="to"></label><span class="spacer"></span>${U.exportBtn("purchases", "الطلبات")}${isBuyer() ? `<button class="btn" data-act="prNew">${I("plus")}طلب شراء / دفع</button>` : ""}</div>
-        <div class="cols wide"><div>${table(["الطلب", "الحاجة", "المبلغ", "البند", "المورد", "الحالة"], list.map((p) => `<tr class="click" data-act="prOpen" data-id="${p.id}"><td class="mono">${p.id}</td><td><b>${esc(p.item)}</b><span class="sub">${A.ago(p.created)}${p.attach ? " · " + I("file") + esc(p.attach) : ""}</span></td><td class="n">${A.money(p.amount)}</td><td>${esc(p.line)}${over(p) ? `<span class="sub">${chip("bad", "هيعدّي الـ Budget")}</span>` : ""}</td><td>${esc(p.vendor)}</td><td>${chip(LV[p.status], p.status)}${p.approver ? `<span class="sub">${esc(A.person(p.approver))}</span>` : ""}</td></tr>`))}</div>
+        <div class="cols wide"><div>${table(["الطلب", "الحاجة", "المبلغ", "البند", "المورد", "الحالة"], list.map((p) => `<tr class="click" data-act="prOpen" data-id="${p.id}"><td class="mono">${p.id}</td><td><b>${esc(p.item)}</b><span class="sub">${A.ago(p.created)}${p.attach ? " · " + I("file") + esc(p.attach) : ""}</span></td><td class="n">${A.money(p.amount)}</td><td>${esc(p.line)}${over(p) ? `<span class="sub">${chip("bad", "هيعدّي الـ Budget")}</span>` : ""}</td><td>${esc(p.vendor)}</td><td>${chip(LV[p.status], SL[p.status] || p.status)}${p.approver ? `<span class="sub">${esc(A.person(p.approver))}</span>` : ""}</td></tr>`))}</div>
           <section class="card">${head("Budget لكل بند", "wallet", "", "اتصرف كام وفاضل كام")}${st.budgets.map((b) => { const pct = Math.min(100, (b.spent / b.budget) * 100); return `<div class="bud"><div class="row"><b class="spacer">${esc(b.line)}</b><span class="num hint">${A.short(b.spent)} / ${A.short(b.budget)}</span></div>${U.bar(pct, pct > 90 ? "bad" : pct > 70 ? "warn" : "")}<small class="hint">${esc(b.kind)} · فاضل ${A.money(b.budget - b.spent)}</small></div>`; }).join("")}</section></div>
         ${officeCards()}
         ${note("الفاضل في البند = Budget البند − اللي اتصرف عليه. مثال: Budget 100,000 واتصرف 65,000، يبقى فاضل 35,000. أي مصروف معتمد بيتحمّل على بنده في شجرة الحسابات في المالية.")}`;
@@ -42,15 +43,16 @@
   function prDrawer(id) {
     const st = S(), p = st.purchases.find((x) => x.id === id); if (!p) return "";
     const b = st.budgets.find((x) => x.line === p.line);
-    const body = `${U.stepper(["Pending", "Approved", "Paid"], p.status === "Rejected" ? "Pending" : p.status)}
+    const body = `${U.stepper(["Pending", "Approved", "اتسوّى", "اترحّل في المالية"], p.status === "Rejected" ? "Pending" : { Settled: "اتسوّى", Paid: "اترحّل في المالية", Posted: "اترحّل في المالية" }[p.status] || p.status)}
       ${over(p) ? note(`<b>تنبيه:</b> الطلب ده هيعدّي الـ Budget الفاضل في بند ${esc(p.line)} (فاضل ${A.money(b.budget - b.spent)}). مايتصرفش غير بموافقة الإدارة.`, "warn") : ""}
       ${p.amount > LIMIT && p.status === "Pending" ? note(`المبلغ أكتر من ${A.money(LIMIT)}: الموافقة لأحمد أو صفوت بس.`) : ""}
       ${p.rejectReason ? note(`سبب الرفض: ${esc(p.rejectReason)}`, "warn") : ""}
       ${kv([["الحاجة", esc(p.item)], ["المبلغ", A.money(p.amount)], ["البند", esc(p.line)], ["المورد", esc(p.vendor)], ["المرفقات", p.attach ? `${I("file")} ${esc(p.attach)}` : "—"], ["المعتمد", p.approver ? A.who(p.approver) : "—"], ["اتصرف من", esc(p.account || "—")], ["اتطلب", A.ago(p.created)], b ? ["الـ Budget بعد الصرف", A.money(b.budget - b.spent - (p.status === "Paid" ? 0 : p.amount))] : null])}
       ${isApprover() && p.status === "Pending" && blocker(p) ? note(blocker(p), "warn") : ""}
       ${isApprover() && p.status === "Pending" && !blocker(p) ? `<form class="card flat" data-form="prDecide"><input type="hidden" name="id" value="${p.id}">${head("قرارك", "check")}<input name="reason" id="pr-r" placeholder="سبب الرفض (لو هترفض)"><div class="row end"><button class="btn danger" name="v" value="Rejected">رفض</button><button class="btn" name="v" value="Approved">موافقة</button></div></form>` : ""}
-      ${isBuyer() && p.status === "Approved" ? `<form class="card flat" data-form="prPay"><input type="hidden" name="id" value="${p.id}">${head("الصرف", "wallet", "", "مختار بيأكّد الصرف من خزنته، والمبلغ بيتخصم من الـ Budget بعد الدفع")}${field("اتصرف من", `<select name="acc" id="pp-acc">${st.accounts.map((a) => opt(a.name, `${a.name} · ${A.short(a.balance)}`)).join("")}</select>`, 1)}${field("المبلغ وقت الدفع", `<input name="amount" id="pp-amt" type="number" value="${p.amount}">`)}<div class="row end"><button class="btn">صرف</button></div></form>` : ""}`;
-    return U.drawer(p.item, `${p.id} · طلب شراء`, chip(LV[p.status], p.status), body);
+      ${isBuyer() && p.status === "Approved" ? `<form class="card flat" data-form="prPay"><input type="hidden" name="id" value="${p.id}">${head("التسوية", "wallet", "", "المشتريات بتبلّغ المالية بس · الأرصدة والقيد بيعملهم المحاسب")}${field("اتدفع من (معلومة للمالية)", `<select name="acc" id="pp-acc">${st.accounts.map((a) => opt(a.name, a.name, /مختار/.test(a.name) ? a.name : "")).join("")}</select>`, 1)}${field("المبلغ وقت الدفع", `<input name="amount" id="pp-amt" type="number" value="${p.amount}">`)}<div class="row end"><button class="btn">اتسوّى · ابعته للمالية</button></div></form>` : ""}
+      ${p.status === "Settled" ? note(`اتسوّى يوم ${A.fmtDate(p.settledAt)} · مستني المالية تصرفه من الخزنة وتعمل القيد`, "warn") : p.status === "Posted" ? note(`المالية رحّلته · ${esc(p.move || "")} من ${esc(p.account || "")}`) : ""}`;
+    return U.drawer(p.item, `${p.id} · طلب شراء`, chip(LV[p.status], SL[p.status] || p.status), body);
   }
   A.ACT.prNew = () => A.openModal("طلب شراء / دفع", `<form data-form="prNew" class="grid">
     ${field("الحاجة", `<input name="item" id="pr-item" required>`, 1)}${field("المبلغ", `<input name="amount" id="pr-amt" type="number" required min="1">`, 1)}
@@ -62,8 +64,9 @@
   A.FORM.prPay = (f) => {
     const st = S(), p = st.purchases.find((x) => x.id === f.id);
     if (+f.amount !== p.amount) { p.amount = +f.amount; p.status = "Pending"; p.approver = ""; A.notify(["approver", "admin"], `${p.item}: المبلغ اتغير وقت الدفع · محتاج موافقة تاني`); A.toast("المبلغ اتغير · الطلب رجع للموافقة تاني"); A.render(); return; }
-    const box = st.accounts.find((x) => x.name === f.acc); if (/مختار/.test(f.acc) && box && box.balance - p.amount < 0) return A.toast("المبلغ أكبر من رصيد عهدة مختار");
-    A.audit("procurement", `${p.id}: اتصرف ${A.money(p.amount)} من ${f.acc}`); p.status = "Paid"; p.account = f.acc; p.paidAt = A.nowIso(); const b = st.budgets.find((x) => x.line === p.line); if (b) b.spent += p.amount; const a = st.accounts.find((x) => x.name === f.acc); if (a) a.balance -= p.amount;
-    A.toast(`اتصرف من ${f.acc} واتحمّل على بند ${p.line}`); A.render();
+    Object.assign(p, { status: "Settled", suggestedAccount: f.acc, settledAt: A.nowIso(), settledBy: A.me() });
+    A.audit("procurement", `${p.id}: اتسوّى ${A.money(p.amount)} (اتدفع من ${f.acc}) · راح للمالية`);
+    A.notify(["accountant"], `طلب شراء ${p.id} (${p.item}) اتسوّى بـ ${A.money(p.amount)} · مستني تصرفه من الخزنة`);
+    A.toast("اتبعت للمالية · الأرصدة مااتغيرتش"); A.render();
   };
 })();

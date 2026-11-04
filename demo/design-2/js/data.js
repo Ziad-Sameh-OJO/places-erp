@@ -313,6 +313,7 @@ window.SEED = (function () {
   const purchases = [
     { id: "PR-23", item: "شاشات عرض لقاعة الاجتماعات", amount: 72000, line: "اجهزة اخري", vendor: "Raya", attach: "quote-screens.pdf", status: "Pending", created: ago(60 * 5) },
     { id: "PR-21", item: "لابتوب Dell لسيلز جديد", amount: 30000, line: "اجهزة اخري", vendor: "Raya", attach: "quote-raya.pdf", status: "Pending", created: ago(60 * 3) },
+    { id: "PR-24", item: "طلبات بوفيه الأسبوع (قهوة وسكر وشاي)", amount: 1000, line: "بوفيه", vendor: "Office Plus", attach: "", status: "Settled", approver: "u21", suggestedAccount: "خزينة مختار", settledAt: ago(60 * 2), settledBy: "u16", created: ago(60 * 26) },
     { id: "PR-22", item: "ورق وحبر للمكتب", amount: 1800, line: "ادوات مكتبية", vendor: "Office Plus", attach: "", status: "Pending", created: ago(60 * 1) },
     { id: "PR-20", item: "تجديد اشتراك بروبيرتي فايندر", amount: 1500, line: "اشتراكات منصات و برامج", vendor: "Property Finder", attach: "invoice-pf.pdf", status: "Paid", approver: "u21", account: "بنك CIB", created: ago(60 * 48), paidAt: ago(60 * 40) },
     { id: "PR-19", item: "قهوة وسكر للبوفيه", amount: 1400, line: "بوفيه", vendor: "Office Plus", attach: "", status: "Rejected", approver: "u18", rejectReason: "البند قرّب يخلص · اطلبها الشهر الجاي", created: ago(60 * 70) }
