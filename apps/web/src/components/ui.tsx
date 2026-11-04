@@ -6,6 +6,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Action, ModuleKey } from "@places/domain";
+import type { ImportDone, ImportPreview } from "@places/contracts";
 import { ICONS, type IconName } from "@places/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
@@ -136,5 +137,53 @@ export function ExportButton({ module, path, query, filename }: { module: Module
     <button className="btn ghost" disabled={busy} onClick={async () => { setBusy(true); await run(() => api.download(`${path}${qs}`, filename)); setBusy(false); }}>
       <Icon name="upload" />{busy ? "بيجهّز الملف…" : "تصدير Excel"}
     </button>
+  );
+}
+
+/**
+ * The shared Excel import: upload → preview (first 50 rows) → errors by line and column → «تأكيد». The API reads the
+ * file again on confirm and saves nothing if it has errors. `path` serves `/template`, `/preview` and the import itself.
+ */
+export function ImportDialog<T extends Record<string, unknown>>({ title, path, columns, template, onDone, onClose }: {
+  title: string; path: string; columns: [keyof T & string, string][]; template: string; onDone: () => void; onClose: () => void;
+}) {
+  const run = useAction();
+  const toast = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [p, setP] = useState<ImportPreview<T> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const step = async (fn: () => Promise<void>) => { setBusy(true); await run(fn); setBusy(false); };
+  const pick = (f: File | undefined) => { setFile(f ?? null); setP(null); if (f) step(async () => setP(await api.upload<ImportPreview<T>>(`${path}/preview`, f))); };
+  const confirm = () => step(async () => {
+    const r = await api.upload<ImportDone>(path, file!);
+    toast(`اتستورد ${r.imported} صف`);
+    onDone();
+  });
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="row">
+        {/* the browser's own file field would say «Choose File» in English: an Arabic button opens it instead */}
+        <label className="btn ghost">
+          <Icon name="upload" />{file ? file.name : "اختار ملف Excel أو CSV"}
+          <input type="file" hidden accept=".xlsx,.csv" aria-label="ملف Excel" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+        <button type="button" className="btn ghost sm" onClick={() => run(() => api.download(`${path}/template`, template))}><Icon name="file" />نزّل القالب</button>
+      </div>
+      <p className="hint">الأعمدة: {columns.map(([, h]) => h).join("، ")} · أول صف هو العناوين.</p>
+      {busy && !p && <p className="hint">بيقرا الشيت…</p>}
+      {p && <>
+        <div className="row"><Chip plain>{p.total} صف</Chip><Chip tone="ok">{p.valid} سليم</Chip>{p.errors.length > 0 && <Chip tone="bad">{p.errors.length} خطأ</Chip>}</div>
+        {p.errors.length > 0 && <>
+          <Note kind="warn">صلّح الأخطاء دي في الشيت وارفعه تاني · مفيش حاجة هتتحفظ قبل كده.</Note>
+          <Table head={["المكان", "العمود", "المشكلة"]} rows={p.errors.slice(0, 100).map((e) => [`السطر ${e.line}`, e.column || "—", e.message])} />
+        </>}
+        {p.sample.length > 0 && <Table head={columns.map(([, h]) => h)} rows={p.sample.map((r) => columns.map(([k]) => String(r[k] ?? "")))} />}
+        {p.valid > p.sample.length && <p className="hint">ظاهر أول {p.sample.length} صف من {p.valid}.</p>}
+      </>}
+      <div className="row end">
+        <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
+        <button type="button" className="btn" disabled={!p || busy || p.errors.length > 0 || p.valid === 0} onClick={confirm}>{busy && p ? "بيحفظ…" : `تأكيد${p?.valid && !p.errors.length ? ` · ${p.valid} صف` : ""}`}</button>
+      </div>
+    </Modal>
   );
 }
