@@ -107,6 +107,7 @@ test("details: in scope 200 with the drawer's fields; out of scope 404 (not 403)
   assert.equal(r.body.assignedTo.name, "محمد محسن");
   assert.ok(Array.isArray(r.body.activities));
   assert.equal(r.body.createdById, undefined);
+  assert.equal(r.body.post, null); // the drawer's «البوست اللي جابه»
 
   assert.equal((await call(`/leads/${await idOf(2)}`, { cookie: tl })).status, 200);   // a teammate's lead
   assert.equal((await call(`/leads/${await idOf(3)}`, { cookie: mohsen })).status, 404); // another team's

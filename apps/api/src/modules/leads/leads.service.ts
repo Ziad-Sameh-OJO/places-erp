@@ -183,9 +183,9 @@ function toRow({ assignedToId, budget, ...r }: LeadRecord, names: Map<string, st
 }
 
 function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): LeadDetail {
-  const { activities, company, firstActionAt, condition, note, noAnswerCount, rotation, ...row } = lead;
+  const { activities, company, firstActionAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
   return {
-    ...toRow(row, salespeople, sla), condition, note, noAnswerCount, rotation,
+    ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation,
     company: company?.name ?? null, firstActionAt: iso(firstActionAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,
