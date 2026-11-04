@@ -16,6 +16,8 @@
   if (S.leadRules.noAnswer.hours == null) S.leadRules.noAnswer.hours = 24;
   if (!S.stages.includes("Follow up to Meeting") && S.stages.includes("Meeting")) S.stages.splice(S.stages.indexOf("Meeting"), 0, "Follow up to Meeting"); // saved demos from before this stage
   ["bills", "clientCodes", "receiveSources", "interactionTypes", "finishings", "unitPurposes", "paymentPlans", "mkTaskTypes", "ticketDepts"].forEach((k) => { if (!S[k]) S[k] = clone(window.SEED[k]); }); // saved demos from before these lists were editable
+  // every expense line has a budget to start from (about 10% over its usual month), so the budget page is never empty
+  [["admin", "مصروفات إدارية"], ["selling", "مصروفات بيعية"]].forEach(([k, kind]) => (S.expenses[k] || []).forEach(([line, v]) => { if (!S.budgets.some((b) => b.line === line)) S.budgets.push({ line, kind, budget: Math.max(500, Math.ceil((v * 1.1) / 500) * 500), spent: 0, period: "month", alert: 80 }); }));
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* demo still works without storage */ } };
 
   /* ---------- roles & navigation ---------- */

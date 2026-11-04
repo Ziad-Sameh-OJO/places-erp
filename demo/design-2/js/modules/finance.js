@@ -24,7 +24,7 @@
     render() {
       const t = ui("fnTab") || "dash";
       ensurePeriod();
-      return `<div class="row">${U.tabs("fnTab", [["dash", "Dashboard"], ["cash", "الخزن والحركات"], ["custody", "العهد والسلف"], ["journal", "القيود"], ["bills", "الفواتير الثابتة", billsDue().length || ""], ["pnl", "قايمة الدخل"], ["bs", "الميزانية العمومية"], ["cost", "Cost Center"], ["payroll", "المرتبات"], ["tree", "شجرة الحسابات"]], t)}</div>${FN[t]()}`;
+      return `<div class="row">${U.tabs("fnTab", [["dash", "Dashboard"], ["cash", "الخزن والحركات"], ["custody", "العهد والسلف"], ["journal", "القيود"], ["bills", "الفواتير الثابتة", billsDue().length || ""], ["pnl", "قايمة الدخل"], ["bs", "الميزانية العمومية"], ["budget", "البادجت", budOver().length || ""], ["cost", "Cost Center"], ["payroll", "المرتبات"], ["tree", "شجرة الحسابات"]], t)}</div>${FN[t]()}`;
     }
   };
   A.ACT.fnTab = (d) => { ui("fnTab", d.v); A.render(); };
@@ -129,6 +129,7 @@
     return `<section class="card attn">${head("طلبات مشتريات مستنية الصرف", "cart", chip("warn", q.length), "المشتريات سوّتها وبلّغت · الصرف من الخزنة والقيد عندك")}
       ${table(["الطلب", "البند", "المورد", "اتدفع من (حسب المشتريات)", "المبلغ", ""], q.map((p) => `<tr><td><b>${esc(p.item)}</b><span class="sub mono">${p.id} · ${A.fmtDate(p.settledAt)}</span></td><td>${esc(p.line)}</td><td>${esc(p.vendor || "—")}</td><td>${esc(p.suggestedAccount || "—")}</td><td class="n"><b>${A.money(p.amount)}</b></td><td>${canPost() ? `<button class="btn sm" data-act="mvNew" data-k="pay" data-pr="${p.id}">اصرفها</button>` : ""}</td></tr>`))}</section>`; };
   A.financeInbox = (add) => { if (!canPost()) return;
+    S().budgets.filter((b) => b.on !== false && b.budget && budSpent(b) >= b.budget).forEach((b) => add("bad", "wallet", `بند «${b.line}» عدّى البادجت`, `اتصرف ${A.money(budSpent(b))} من ${A.money(b.budget)}`, "goFinTab", { t: "budget" }, "افتح"));
     const due = salesIds().filter((id) => commDue(id) > 0); if (due.length) add("warn", "wallet", `عمولات سيلز مستحقة · ${due.length} سيلز`, `${A.money(due.reduce((s, id) => s + commDue(id), 0))} · صفقات اتحصّلت بالكامل`, "goFinTab", { t: "payroll" }, "افتح");
     S().deals.filter((d) => d.status === "Approved" && !A.collected(d)).forEach((d) => add("warn", "handshake", `صفقة اتقفلت · حصّل عمولة ${d.id}`, `${d.client} · ${A.money(A.placesComm(d))} · اتفتحله حساب تحت العملاء`, "mvNew", { k: "receive", deal: d.id }, "حصّل"));
     billsDue().forEach((b) => add("warn", "calendar", `ميعاد فاتورة ${b.name}`, `${A.money(b.amount)} · ${b.vendor} · مستنية موافقتك`, "goFinPay", {}, "افتح")); prQueue().forEach((p) => add("warn", "cart", `اصرف طلب شراء ${p.id}`, `${p.item} · ${A.money(p.amount)} · المشتريات سوّته`, "goFinPay", {}, "افتح")); };
@@ -150,7 +151,7 @@
   A.ACT.mvNew = (d) => {
     let ccd, cemp; const k = d.k, F = U.field, bill = d.bill && S().bills.find((x) => x.id === d.bill), dl = d.deal && S().deals.find((x) => x.id === d.deal);
     const pr = (d.pr && S().purchases.find((x) => x.id === d.pr)) || (bill && { id: "", item: `${bill.name} · ${monthName()}`, amount: bill.amount, line: bill.line, vendor: bill.vendor, suggestedAccount: bill.from, bill: bill.id });
-    const C = coa(), expOpts = ["52", "53"].map((pc) => { const g = C.T[4].kids.find((x) => x.code === pc); return `<optgroup label="${g.code} · ${g.name}">${g.kids.map((n) => opt(n.key, `${n.code} · ${n.name}`, pr && pr.line)).join("")}</optgroup>`; }).join("");
+    const C = coa(), expOpts = ["52", "53"].map((pc) => { const g = C.T[4].kids.find((x) => x.code === pc); return `<optgroup label="${g.code} · ${g.name}">${g.kids.map((n) => { const b = S().budgets.find((x) => x.line === n.key && x.on !== false && x.budget); return opt(n.key, `${n.code} · ${n.name}${b ? ` · فاضل من البادجت ${A.money(b.budget - budSpent(b))}` : ""}`, pr && pr.line); }).join("")}</optgroup>`; }).join("");
     const body = { pay: (bill ? `<input type="hidden" name="bill" value="${bill.id}">${note(`فاتورة ثابتة <b>${esc(bill.name)}</b> · ميعادها يوم ${bill.day} · المبلغ المعتاد ${A.money(bill.amount)} (عدّله لو الفاتورة مختلفة)`)}` : pr ? `<input type="hidden" name="pr" value="${pr.id}">${note(`من طلب الشراء <b>${pr.id}</b> · ${esc(pr.item)} · المبلغ المعتمد ${A.money(pr.amount)}`)}` : "") + F("التاريخ", `<input name="date" type="date" value="${A.today()}" max="${A.today()}" required>`, 1) + F("من خزنة / بنك", `<select name="from" required>${accOpts(pr && pr.suggestedAccount)}</select>`, 1) + F("نوع المصروف (من شجرة الحسابات)", `<select name="line" required>${expOpts}</select>`, 1)
         + F("المستلم", `<input name="party" list="pp-list" required placeholder="اسم اللي هيستلم الفلوس" value="${esc(pr ? pr.vendor || "" : "")}"><datalist id="pp-list">${S().employees.map((e) => `<option value="${esc(A.person(e.id))}">`).join("")}${S().vendors.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`, 1) + F("رقم الفاتورة / المرجع", `<input name="ref" placeholder="اختياري" value="${pr ? pr.id : ""}">`),
       receive: F("لخزنة / بنك", `<select name="to" required>${accOpts(dl && "بنك CIB")}</select>`, 1) + F("المصدر", `<select name="source">${S().receiveSources.map((x) => opt(x)).join("")}</select>`)
@@ -193,13 +194,14 @@
     if (from) from.balance -= amt; if (to) to.balance += amt;
     if (bill) { bill.paid[monthKey()] = m.id; m.bill = bill.id; }
     if (f.pr) { const pr = st.purchases.find((x) => x.id === f.pr); Object.assign(pr, { status: "Posted", account: f.from, postedAt: A.nowIso(), move: m.id, paidAt: pr.settledAt }); A.notify(["procurement"], `المالية رحّلت ${pr.id} من ${f.from}`); }
+    const bud0 = k === "pay" && st.budgets.find((x) => x.line === f.line), budBefore = bud0 ? budSpent(bud0) : 0;
     if (k === "pay") { const L = [...st.expenses.admin, ...st.expenses.selling].find((x) => x[0] === f.line); L[1] += amt; const b = st.budgets.find((x) => x.line === f.line); if (b) b.spent += amt; } // lands in the income statement and the budget
     if (k === "advance") st.advances.push({ emp: f.party, amount: amt, date: A.today() });
     if (k === "commission") { m.deal = cdl.id; if (f.tcr) m.tcr = f.tcr; (st.commPaid = st.commPaid || []).push({ emp: f.party, amount: amt, at: m.at, move: m.id, deal: cdl.id, tcr: f.tcr || "" });
       const t = f.tcr && (cdl.tcrs || []).find((x) => x.code === f.tcr); A.notify([f.party], `اتصرفتلك عمولة ${A.money(amt)} عن ${cdl.id} · ${m.id}${t && !(t.signed || {})[f.party] ? ` · امضي على ${t.code}` : ""}`); }
     if (k === "custody") { const c = st.custody.find((x) => x.emp === f.party); c ? (c.amount += amt) : st.custody.push({ emp: f.party, amount: amt, date: A.today() }); }
     st.moves.unshift(m); A.audit("finance", `${KIND[k][0]} ${m.id} · ${A.money(amt)} · ${m.note}`);
-    A.render(); A.openModal(`${KIND[k][0]} · ${m.id}`, voucher(m, true)); A.toast(`اتسجّل · قيد اليومية ${jvOf(m)} اتعمل لوحده`);
+    A.render(); A.openModal(`${KIND[k][0]} · ${m.id}`, voucher(m, true)); A.toast(`اتسجّل · قيد اليومية ${jvOf(m)} اتعمل لوحده`); if (bud0) budCheck(f.line, budBefore);
   };
   // settling custody: what was spent (on which line) and what came back to which safe
   A.ACT.custSettle = (d) => { const c = S().custody.find((x) => x.emp === d.emp);
@@ -287,6 +289,33 @@
         <div class="cols">${["1", "2", "3"].map((c) => blk(N(c), N(c).kids.flatMap((k) => (["11", "21"].includes(k.code) && k.kids ? k.kids : [k])))).join("")}</div>
         ${note(`الأصول (${A.short(N("1").bal)}) = الخصوم (${A.short(N("2").bal)}) + حقوق الملكية (${A.short(N("3").bal)}). الأرقام تجريبية، وأرصدة البداية الحقيقية هتتدخل وقت الإطلاق.`)}`;
     },
+    budget() {
+      const st = S(), C = coa(), ed = canPost() || A.canDo("finance", "approve"), f = ui("budF") || "", P = { month: "شهري", quarter: "ربع سنوي", year: "سنوي" };
+      const lines = C.leaves.filter((n) => /^5[23]\d/.test(n.code)), extra = st.budgets.filter((b) => !C.idx[b.line] || !/^5[23]/.test(C.idx[b.line].code));
+      const row = (n, b) => { const sp = b ? budSpent(b) : 0, pct = b && b.budget ? (sp / b.budget) * 100 : 0, al = b ? b.alert ?? 80 : 80, lv = !b || !b.budget ? "" : pct >= 100 ? "bad" : pct >= al ? "warn" : "ok";
+        const name = n ? `<span class="mono hint">${n.code}</span> ${esc(n.name)}` : `${esc(b.line)} <span class="hint">· ${esc(b.kind)}</span>`, key = esc(b ? b.line : n.key);
+        const inp = (k, v, w, extraAttr) => `<input type="number" min="0" step="any" value="${v}" data-change="budEdit" data-line="${key}" data-k="${k}" style="max-width:${w}px" ${extraAttr || ""}>`;
+        return `<tr class="${b && b.on === false ? "muted" : ""}"><td>${name}</td>
+          <td class="n">${ed ? inp("budget", b ? b.budget : "", 120, `placeholder="مالوش بادجت"`) : b ? A.money(b.budget) : "—"}</td>
+          <td>${ed ? `<select data-change="budEdit" data-line="${key}" data-k="period">${Object.entries(P).map(([k, l]) => opt(k, l, (b && b.period) || "month")).join("")}</select>` : P[(b && b.period) || "month"]}</td>
+          <td class="n">${n ? `<a class="click" data-act="pnlWhy" data-c="${n.code}" data-m="${(b && b.period) === "year" ? "" : "month"}">${A.money(sp)}</a>` : A.money(sp)}</td>
+          <td class="n">${b && b.budget ? `<b class="${sp > b.budget ? "bad-t" : ""}">${A.money(b.budget - sp)}</b>` : "—"}</td>
+          <td style="min-width:120px">${b && b.budget ? `${U.bar(Math.min(100, pct), lv === "ok" ? "" : lv)}<small class="hint">${Math.round(pct)}%${lv === "bad" ? " · عدّى البادجت" : lv === "warn" ? " · قرّب يخلص" : ""}</small>` : ""}</td>
+          <td class="n">${ed ? inp("alert", al, 70, 'max="100"') + "%" : al + "%"}</td>
+          <td>${ed ? `<select data-change="budEdit" data-line="${key}" data-k="owner"><option value="">—</option>${st.employees.map((e) => opt(e.id, A.person(e.id), b && b.owner)).join("")}</select>` : b && b.owner ? esc(A.person(b.owner)) : "—"}</td>
+          <td>${ed && b ? `<button class="btn ghost sm" data-act="budToggle" data-line="${key}">${b.on === false ? "شغّل" : "وقّف"}</button>` : ""}</td></tr>`; };
+      const of = (n) => st.budgets.find((b) => b.line === n.key), pass = (n, b) => !f || (f === "over" ? b && b.budget && budSpent(b) >= (b.budget * (b.alert ?? 80)) / 100 : f === "none" ? !b || !b.budget : n && n.code.startsWith(f));
+      const H = ["البند", "البادجت", "الفترة", "اتصرف في الفترة", "فاضل", "", "نبّهني عند", "مسؤول البند", ""];
+      const grp = (code, title) => { const r = lines.filter((n) => n.code.startsWith(code)).filter((n) => pass(n, of(n))); if (!r.length) return ""; const bs = r.map(of).filter(Boolean), tb = bs.reduce((s, b) => s + (b.budget || 0), 0), ts = bs.reduce((s, b) => s + budSpent(b), 0);
+        return `<section class="card">${head(`${code} · ${title}`, "wallet", chip(ts > tb && tb ? "bad" : "", `${A.short(ts)} / ${A.short(tb)}`, 1))}${table(H, r.map((n) => row(n, of(n))))}</section>`; };
+      const all = st.budgets.filter((b) => b.on !== false), TB = all.reduce((s, b) => s + (b.budget || 0), 0), TS = all.reduce((s, b) => s + budSpent(b), 0);
+      return `<div class="kpis">${U.kpi("إجمالي البادجت", A.money(TB), `${all.filter((b) => b.budget).length} بند ليه بادجت`, "wallet")}${U.kpi("اتصرف", A.money(TS), "في فترة كل بند", "trend")}${U.kpi("فاضل", A.money(TB - TS), "", "layers", TB - TS < 0 ? "bad" : "ok")}${U.kpi("بنود عدّت التنبيه", budOver().length, "قرّبت تخلص أو عدّت", "clock", budOver().length ? "bad" : "")}</div>
+        <div class="row">${U.seg("budF", [["", "الكل"], ["52", "إدارية"], ["53", "بيعية"], ["over", "عدّت التنبيه"], ["none", "مالهاش بادجت"]], f)}<span class="spacer"></span></div>
+        ${note("كل بند مصروفات في شجرة الحسابات ليه بادجت بتعدّله براحتك: المبلغ، والفترة (شهري · ربع سنوي · سنوي)، ونسبة التنبيه، والمسؤول. «اتصرف» محسوب من الأذونات والقيود في الفترة (دوس عليه تشوف التفاصيل). لما بند يعدّي نسبة التنبيه بيوصل إشعار للمحاسب ومسؤول البند، ولو عدّى البادجت بتظهر مهمة في الرئيسية.")}
+        ${grp("52", "مصروفات إدارية")}${grp("53", "مصروفات بيعية")}
+        ${extra.filter((b) => !f || pass(null, b)).length ? `<section class="card">${head("بادجت بنود تانية", "layers", "", "بنود مش مصروفات في الشجرة (زي الأصول الثابتة أو الماركتينج كإجمالي) · اتصرف بيتدخّل بإيدك")}${table(H, extra.map((b) => row(null, b)))}</section>` : ""}
+        ${ed ? `<form class="card flat grid" data-form="budAdd">${head("بند جديد بالبادجت بتاعه", "plus")}${U.field("اسم البند", `<input name="line" required placeholder="مثلاً: صيانة التكييفات">`, 1)}${U.field("تحت", `<select name="kind">${opt("52", "52 · مصروفات إدارية")}${opt("53", "53 · مصروفات بيعية")}${opt("other", "بند تاني (مش في الشجرة)")}</select>`, 1)}${U.field("البادجت", `<input name="budget" type="number" min="0" step="any" required>`, 1)}${U.field("الفترة", `<select name="period">${Object.entries(P).map(([k, l]) => opt(k, l, "month")).join("")}</select>`)}${U.field("نبّهني عند %", `<input name="alert" type="number" min="1" max="100" value="80">`)}<div class="row end wide"><button class="btn">${I("plus")}ضيف البند</button></div></form>` : ""}`;
+    },
     cost() {
       const st = S(), f = ui("ccf") || {};
       let ds = st.deals.filter(A.countsRevenue);
@@ -325,6 +354,27 @@
     }
   };
   A.CHANGE.mvF = (v) => { ui("mvF", v); A.render(); };
+  /* ---- budgets: spent = the line's vouchers and entries inside the budget's period ---- */
+  const inPeriod = (at, period) => { if (!at) return false; const t = A.today(); if (period === "year") return at.slice(0, 4) === t.slice(0, 4); if (period === "quarter") return at.slice(0, 4) === t.slice(0, 4) && Math.floor((+at.slice(5, 7) - 1) / 3) === Math.floor((+t.slice(5, 7) - 1) / 3); return at.slice(0, 7) === t.slice(0, 7); };
+  const budSpent = (b) => { const n = coa().idx[b.line]; if (!n || n.kids || !/^5/.test(n.code)) return b.spent || 0; if ((b.period || "month") === "year") return n.bal; return leafRows(n.code).rows.filter((x) => inPeriod(x.at, b.period || "month")).reduce((s, x) => s + x.v, 0); };
+  A.budSpent = budSpent;
+  const budOver = () => S().budgets.filter((b) => b.on !== false && b.budget && budSpent(b) >= (b.budget * (b.alert ?? 80)) / 100);
+  A.ACT.budF = (d) => { ui("budF", d.v); A.render(); };
+  A.CHANGE.budEdit = (v, el) => { const st = S(), line = el.dataset.line, k = el.dataset.k, n = coa().idx[line];
+    let b = st.budgets.find((x) => x.line === line); if (!b) { b = { line, kind: n && n.code.startsWith("53") ? "مصروفات بيعية" : "مصروفات إدارية", budget: 0, spent: 0, period: "month", alert: 80 }; st.budgets.push(b); }
+    const old = b[k]; b[k] = ["budget", "alert"].includes(k) ? Math.max(0, +v || 0) : v; if (k === "alert") b.alert = Math.min(100, b.alert || 80);
+    A.audit("finance", `البادجت · ${line}: ${k} ${old ?? "—"} ← ${b[k]}`); A.toast("اتحفظ"); A.render(); };
+  A.ACT.budToggle = (d) => { const b = S().budgets.find((x) => x.line === d.line); b.on = b.on === false; A.audit("finance", `البادجت · ${b.line}: ${b.on ? "اتشغّل" : "اتوقف"}`); A.render(); };
+  A.FORM.budAdd = (f) => { const st = S(), name = f.line.trim(); if (!name) return;
+    if (st.budgets.some((b) => b.line === name) || coa().idx[name]) return A.toast("البند ده موجود · عدّل البادجت بتاعه من الجدول");
+    const kindAr = f.kind === "53" ? "مصروفات بيعية" : f.kind === "52" ? "مصروفات إدارية" : "بند تاني";
+    if (f.kind !== "other") st.expenses[f.kind === "52" ? "admin" : "selling"].push([name, 0]);
+    st.budgets.push({ line: name, kind: kindAr, budget: +f.budget || 0, spent: 0, period: f.period || "month", alert: Math.min(100, +f.alert || 80) });
+    A.audit("finance", `بند جديد بالبادجت: ${name} · ${A.money(+f.budget || 0)} ${f.period}`); A.toast(f.kind === "other" ? "اتضاف البند" : `اتضاف البند واتفتحله حساب ${coa().idx[name].code}`); A.render(); };
+  // after any posting on an expense line: tell the accountant and the line's owner once it passes the alert %
+  const budCheck = (line, before) => { const b = S().budgets.find((x) => x.line === line); if (!b || b.on === false || !b.budget) return; const sp = budSpent(b), al = b.alert ?? 80, lim = (b.budget * al) / 100;
+    if (sp >= b.budget) { if (before < b.budget) A.notify(["accountant", ...(b.owner ? [b.owner] : [])], `بند «${line}» عدّى البادجت: اتصرف ${A.money(sp)} من ${A.money(b.budget)}`); A.toast(`تنبيه: «${line}» عدّى البادجت (${A.money(sp)} من ${A.money(b.budget)})`); }
+    else if (sp >= lim && before < lim) { A.notify(["accountant", ...(b.owner ? [b.owner] : [])], `بند «${line}» وصل ${Math.round((sp / b.budget) * 100)}% من البادجت · فاضل ${A.money(b.budget - sp)}`); A.toast(`«${line}» وصل ${Math.round((sp / b.budget) * 100)}% من البادجت`); } };
   const advCard = () => { const st = S(), mk = A.today().slice(0, 7), done = advPosted(mk), ids = advEmps().filter((id) => advLeft(id) > 0 || advPlan(id, mk) > 0), tot = ids.reduce((s, id) => s + advPlan(id, mk), 0);
     return `<section class="card">${head("سلف الموظفين", "users", chip("", A.money(advEmps().reduce((s, id) => s + advLeft(id), 0))), "كل واحد عليه كام · وانت بتختار يتخصم منه كام الشهر ده")}
       ${table(["الموظف", "اتسلّف", "اتخصم قبل كده", "عليه دلوقتي", `يتخصم ${esc(st.periods[st.periods.length - 1].name)}`, ""], ids.map((id) => { const plan = advPlan(id, mk), left = advLeft(id) + (done ? plan : 0);
