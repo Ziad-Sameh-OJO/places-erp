@@ -790,14 +790,56 @@ model TicketEvent {
 
 // ───────────────────────────── M-07 / M-08 · finance & procurement ─────────────────────────────
 
+/// The chart of accounts (M-07, 4 Nov): the five fixed roots, the accountant's tree under them, and sub-accounts added later.
+/// Safes and banks are accounts in the same tree (kind set). Balances are live: the sum of the journal lines.
 model Account {
-  id       String    @id @default(cuid())
-  name     String    @unique // main treasury · Nancy · Mokhtar · Ahmed Ashraf · CIB · QNB · Dopay
-  kind     String    // treasury · bank · wallet
-  balance  Decimal   @db.Decimal(14, 2)
-  cap      Decimal?  @db.Decimal(14, 2) // petty-cash ceiling
-  payments Payment[]
+  id         String        @id @default(cuid())
+  code       String        @unique // 1 · 11 · 111 · 11101 — a child's code starts with its parent's
+  name       String
+  parentId   String?
+  parent     Account?      @relation("AccountTree", fields: [parentId], references: [id])
+  children   Account[]     @relation("AccountTree")
+  nature     String        // dr · cr (from the root: assets and expenses debit)
+  kind       String?       // treasury · bank · wallet: the cash accounts vouchers pay from and into
+  fixed      Boolean       @default(false) // the seeded chart: can't be removed
+  cap        Decimal?      @db.Decimal(14, 2) // petty-cash ceiling
+  archivedAt DateTime?
+  createdAt  DateTime      @default(now())
+  payments   Payment[]
+  lines      JournalLine[]
 
+  @@index([parentId])
+  @@schema("finance")
+}
+
+/// One double-entry journal entry (M-07 9.5): every movement posts one, debit = credit.
+model JournalEntry {
+  id          String        @id @default(cuid())
+  no          Int           @unique @default(autoincrement()) // shown as JV-<no>
+  date        DateTime      // the day it counts for (UTC midnight of the Cairo day)
+  nature      String        // صرف نقدية · توريد نقدية · تحويل · رصيد افتتاحي · قيد يدوي …
+  source      String        // opening · manual · voucher …
+  sourceId    String?
+  memo        String
+  createdById String
+  createdAt   DateTime      @default(now())
+  lines       JournalLine[]
+
+  @@index([date])
+  @@index([source, sourceId])
+  @@schema("finance")
+}
+
+model JournalLine {
+  id        String       @id @default(cuid())
+  entryId   String
+  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account      @relation(fields: [accountId], references: [id])
+  debit     Decimal      @default(0) @db.Decimal(14, 2)
+  credit    Decimal      @default(0) @db.Decimal(14, 2)
+
+  @@index([accountId])
   @@schema("finance")
 }
 

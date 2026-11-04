@@ -16,6 +16,7 @@ import { LeadsModule } from "./modules/leads/leads.module";
 import { AccessModule } from "./modules/access/access.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
+import { FinanceModule } from "./modules/finance/finance.module";
 import { ProcurementModule } from "./modules/procurement/procurement.module";
 import { HrModule } from "./modules/hr/hr.module";
 import { TicketsModule } from "./modules/tickets/tickets.module";
@@ -29,7 +30,7 @@ import { TicketsModule } from "./modules/tickets/tickets.module";
     // rate limits protect production; locally they'd only get in the way of the e2e tests
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 120 }], skipIf: () => process.env.NODE_ENV !== "production" }),
     DatabaseModule, MailModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule, NotificationsModule, FilesModule, DocumentsModule,
-    AccessModule, SettingsModule, LeadsModule, InventoryModule, ProcurementModule, HrModule, TicketsModule,
+    AccessModule, SettingsModule, LeadsModule, InventoryModule, FinanceModule, ProcurementModule, HrModule, TicketsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
