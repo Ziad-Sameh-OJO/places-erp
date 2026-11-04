@@ -349,7 +349,8 @@ test("list rows carry the SLA: a Fresh untouched lead assigned a month ago is pu
 test("summary: the tiles agree with the list for the same person; HR 403", async () => {
   for (const cookie of [mohsen, tl, ops]) {
     const s = (await call("/leads/summary", { cookie })).body;
-    const total = async (q: string) => (await call(`/leads?pageSize=1${q}`, { cookie })).body.total;
+    // the tiles are the «الليدز» tab's (clients); brokers have their own tab (1.28)
+    const total = async (q: string) => (await call(`/leads?pageSize=1&kind=client${q}`, { cookie })).body.total;
     assert.equal(s.total, await total(""));
     assert.equal(s.fresh, await total("&stage=Fresh"));
     assert.equal(s.qualified, await total("&qualified=true"));
@@ -485,6 +486,26 @@ test("Logs: the admin opens it to a role → that role sees it; still only insid
   const tlOnly = await session("mahmoud.ali@places.com"); // TL only (Abdallah is TL + sales, and sales was picked)
   assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: tlOnly })).status, 403);
   assert.equal((await call(`/leads/${logLeadId}`, { cookie: tl })).body.canSeeLogs, true); // Abdallah: his sales role counts
+});
+
+test("Logs: «مين يشوف الـ Logs» from the lead's Logs tab — whoever manages access sets it, audited under access; the tab's count", async () => {
+  // the demo's card is for access:edit — sales and operations can't, the admin can
+  assert.equal((await call("/leads/log-roles", { method: "PUT", cookie: mohsen, body: { roles: ["sales"] } })).status, 403);
+  assert.equal((await call("/leads/log-roles", { method: "PUT", cookie: ops, body: { roles: ["ops"] } })).status, 403);
+  assert.equal((await call("/leads/log-roles", { method: "PUT", cookie: admin, body: { roles: "ops" } })).status, 400);
+  const since = new Date();
+  const r = await call("/leads/log-roles", { method: "PUT", cookie: admin, body: { roles: ["ops", "ops", "telesales"] } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.roles, ["ops", "telesales"]); // twice is kept once
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entity: "Setting", entityId: "leadLogRoles", at: { gte: since } }, orderBy: { at: "desc" } });
+  assert.equal(audit.module, "access");
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: mohsen })).body.canSeeLogs, false); // sales was taken off
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: mohsen })).body.logCount, null);
+  // the tab's count is the number of lines the tab lists
+  const detail = (await call(`/leads/${logLeadId}`, { cookie: ops })).body;
+  const lines = (await call(`/leads/${logLeadId}/logs`, { cookie: ops })).body as unknown[];
+  assert.equal(detail.logCount, lines.length);
+  assert.ok(lines.length >= 5);
 });
 
 /* ---------------- 1.28 Client / Broker: two tabs, the same filters in both ---------------- */

@@ -1,19 +1,19 @@
 "use client";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LeadDetail, LeadLogRow } from "@places/contracts";
 import { LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { Chip, Empty, Icon, Tabs, useAction, useToast } from "@/components/ui";
+import type { Settings } from "@places/contracts";
 import { useMe } from "@/lib/me";
-import { ago, money, num } from "@/lib/format";
+import { ago, day, dayTime, money, num } from "@/lib/format";
 import { api } from "@/lib/api";
 import { StageChip, Who, slaText, slaTone } from "./lead-bits";
 import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
 
 /** The pipeline the stepper shows (demo PIPE); the side stages (No Answer, Hold…) hide it. */
 const PIPE: readonly LeadStage[] = ["Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal"];
-const fmt = (iso: string) => new Date(iso).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 
 /**
  * The demo's lead drawer: «نظرة عامة» (stepper, details, change the stage) and «Activity» (comment + timeline).
@@ -32,6 +32,7 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}
       chips={<>
+        {l.kind === "broker" && <Chip tone="info">Broker</Chip>}
         <StageChip stage={l.stage} />
         {l.qualified && <Chip tone="ok">Qualified</Chip>}
         {l.sla && <Chip tone={slaTone(l.sla)}>{slaText(l.sla)}</Chip>}
@@ -40,7 +41,7 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
       </>}>
       <Tabs value={tab} onChange={setTab} items={[
         ["overview", "نظرة عامة"], ["activity", "Activity", comments(l).length],
-        ...(l.canSeeLogs ? [["logs", "Logs"] as ["logs", string]] : []),
+        ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
       {tab === "overview" ? <Overview l={l} /> : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} />}
     </Drawer>
@@ -55,7 +56,7 @@ function Overview({ l }: { l: LeadDetail }) {
     ["الموبايل", <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>],
     ["Area", l.area || "—"], ["Type", l.type], ["Space", l.space != null ? `${num(l.space)} م` : "—"], ["Condition", l.condition ?? "—"],
     ["Budget", money(l.budget)], ["Channel", l.channel], ["Campaign", l.campaign?.name ?? "—"], ["البوست اللي جابه", l.post ?? "—"],
-    ["Sales", <Who key="w" person={l.assignedTo} />], ["دخل", `${fmt(l.createdAt)} · ${ago(l.createdAt)}`],
+    ["Sales", <Who key="w" person={l.assignedTo} />], ["دخل", `${day(l.createdAt)} · ${ago(l.createdAt)}`],
   ];
   return (
     <>
@@ -122,28 +123,73 @@ function Activity({ l }: { l: LeadDetail }) {
         </form>
       )}
       {mine.length
-        ? <div className="timeline">{mine.map((a) => <div key={a.id}>{a.text}<small>{a.by?.name ?? "السيستم"} · {fmt(a.at)}</small></div>)}</div>
-        : <Empty text="مفيش Activity لسه" />}
+        ? <div className="timeline">{mine.map((a) => <div key={a.id}>{a.text}<small>{a.by?.name ?? "السيستم"} · {dayTime(a.at)}</small></div>)}</div>
+        : <Empty text="مفيش كومنتات لسه" icon="clock" />}
     </>
   );
 }
 
-const SOURCE: Record<LeadLogRow["source"], [string, "" | "acc" | "warn"]> = { auto: ["تلقائي", ""], comment: ["كومنت", "acc"], audit: ["Audit", "warn"] };
+const SOURCE: Record<LeadLogRow["source"], [string, "" | "info" | "warn"]> = { auto: ["تلقائي", ""], comment: ["كومنت", "info"], audit: ["Audit", "warn"] };
 
 /** «Logs» (1.25): everything recorded on the lead, newest first, each line tagged تلقائي / كومنت / Audit. */
 function Logs({ id }: { id: string }) {
+  const { can } = useMe();
   const logs = useQuery({ queryKey: ["lead", id, "logs"], queryFn: () => api.get<LeadLogRow[]>(`/leads/${id}/logs`) });
-  if (logs.error) return <Empty text={logs.error.message} />;
-  if (!logs.data) return <p className="hint">بيحمّل…</p>;
-  if (!logs.data.length) return <Empty text="مفيش حاجة اتسجلت لسه" />;
   return (
-    <div className="timeline">
-      {logs.data.map((x) => (
-        <div key={x.id}>
-          <Chip tone={SOURCE[x.source][1]}>{SOURCE[x.source][0]}</Chip> {x.text}
-          <small>{x.by?.name ?? "السيستم"} · {fmt(x.at)}</small>
+    <>
+      {can("access", "edit") && <LogRoles />}
+      {logs.error ? <Empty text={logs.error.message} />
+        : !logs.data ? <p className="hint">بيحمّل…</p>
+        : !logs.data.length ? <Empty text="مفيش Logs لسه" icon="clock" />
+        : (
+          <div className="timeline">
+            {logs.data.map((x) => (
+              <div key={x.id}>
+                <Chip tone={SOURCE[x.source][1]}>{SOURCE[x.source][0]}</Chip> {x.text}
+                <small>{x.by?.name ?? "السيستم"} · {dayTime(x.at)}</small>
+              </div>
+            ))}
+          </div>
+        )}
+    </>
+  );
+}
+
+/**
+ * Demo «مين يشوف الـ Logs», in the Logs tab for whoever manages access: every role but the admin (who always sees
+ * them), for all leads. The ticks live here and one save goes out half a second after the last click, with the
+ * whole list — saving on every click from the server's last answer lost clicks made before it came back.
+ */
+function LogRoles() {
+  const qc = useQueryClient();
+  const run = useAction();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
+  const roles = useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ key: string; label: string }[]>("/access/roles") });
+  const chosen = settings.data?.leadLogRoles;
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const now = picked ?? chosen ?? [];
+  const toggle = (key: string, on: boolean) => {
+    const next = on ? [...now.filter((k) => k !== key), key] : now.filter((k) => k !== key);
+    setPicked(next);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => void run(async () => {
+      await api.put("/leads/log-roles", { roles: next });
+      await qc.invalidateQueries({ queryKey: ["settings"] });
+      setPicked(null);
+    }, "اتحفظ"), 500);
+  };
+  return (
+    <section className="card flat">
+      <div className="card-head"><h3><span className="ico"><Icon name="lock" /></span><span>مين يشوف الـ Logs<small>الأدمن بيشوفها دايماً · بيتطبّق على كل الليدز</small></span></h3></div>
+      {roles.data && chosen ? (
+        <div className="row">
+          {roles.data.filter((r) => r.key !== "admin").map((r) => (
+            <label key={r.key} className="tog"><input type="checkbox" checked={now.includes(r.key)} onChange={(e) => toggle(r.key, e.target.checked)} /><span>{r.label}</span></label>
+          ))}
         </div>
-      ))}
-    </div>
+      ) : <p className="hint">بيحمّل…</p>}
+    </section>
   );
 }

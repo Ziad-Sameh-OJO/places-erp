@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
 import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -92,7 +92,15 @@ export class LeadsService {
       this.slaClock(),
       this.settings.all(),
     ]);
-    return { ...toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla), canSeeLogs: canSeeLeadLogs(me.roles, leadLogRoles) };
+    const canSeeLogs = canSeeLeadLogs(me.roles, leadLogRoles);
+    // the same lines the Logs tab lists: the lead's own records plus its audit trail
+    const logCount = canSeeLogs ? lead.activities.length + (await this.repo.auditCount(id)) : null;
+    return { ...toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla), canSeeLogs, logCount };
+  }
+
+  /** «مين يشوف الـ Logs» from the lead's Logs tab (demo): whoever manages access picks the roles; audited under «access». */
+  async setLogRoles(me: CurrentUser, input: LogRoles) {
+    return { roles: await this.settings.set(me, "leadLogRoles", input.roles, "access") };
   }
 
   /**
@@ -257,7 +265,7 @@ function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<stri
   };
 }
 
-function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs"> {
+function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
   const { activities, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation,

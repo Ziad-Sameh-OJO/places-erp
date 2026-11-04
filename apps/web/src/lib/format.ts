@@ -52,3 +52,6 @@ export function day(value: string | null | undefined, now = new Date()) {
   const year = (x: Date) => x.toLocaleDateString("en-US", { timeZone: "Africa/Cairo", year: "numeric" });
   return d.toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", day: "numeric", month: "short", ...(year(d) !== year(now) ? { year: "numeric" } : {}) });
 }
+
+/** The demo's date and time on a timeline line (fmtDate + fmtTime): «٤ نوفمبر ٩:١٥ م», Cairo time. */
+export const dayTime = (iso: string) => `${day(iso)} ${new Date(iso).toLocaleTimeString("ar-EG", { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" })}`;

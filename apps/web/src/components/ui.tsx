@@ -71,7 +71,8 @@ export const Note = ({ kind, children }: { kind?: "warn" | "ok"; children: React
   <div className={`note ${kind ?? ""}`}><Icon name={kind === "warn" ? "alert" : kind === "ok" ? "check" : "info"} /><span className="spacer">{children}</span></div>
 );
 
-export const Empty = ({ text }: { text: string }) => <div className="empty"><Icon name="sparkle" /><p>{text}</p></div>;
+/** The demo's U.empty(text, icon): «sparkle» unless the screen picks one (a timeline's is «clock»). */
+export const Empty = ({ text, icon = "sparkle" }: { text: string; icon?: IconName }) => <div className="empty"><Icon name={icon} /><p>{text}</p></div>;
 
 /** A checkbox in the demo's style (the permission matrix, the notification rules). */
 export const Tick = ({ checked, disabled, onChange, label }: { checked: boolean; disabled?: boolean; onChange?: (v: boolean) => void; label: string }) => (
