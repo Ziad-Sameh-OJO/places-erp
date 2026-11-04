@@ -116,3 +116,16 @@ export function fingerprintDay(i: FingerprintDayInput): DayResult {
 
 /** The deduction in money: a day = salary ÷ 26 (piasters, rounded). */
 export const deductionAmount = (salaryPiasters: number, fraction: number): number => Math.round((salaryPiasters / 26) * fraction);
+
+/* ---- penalties (7.7) and the 1-to-1 (7.8) ---- */
+/** A penalty's deduction in days: none, a quarter, a half, or whole days up to 3 (M-05 3.1). */
+export const penaltyDaysOk = (d: number): boolean => d >= 0 && d <= 3 && Number.isInteger(d * 4);
+/** A penalty reaches the deductions (and blocks «الموظف المثالي») only once HR approved it. */
+export const penaltyCounts = (status: string): boolean => status === "approved";
+/** The 1-to-1 is monthly (M-05): the next one is due in the month after the last (25/10 → November). */
+export function oneOnOneDue(lastHeld: string | null, today: string): "due" | "done" {
+  if (!lastHeld) return "due";
+  return lastHeld.slice(0, 7) >= today.slice(0, 7) ? "done" : "due";
+}
+/** «حل الـ HR» rings on its day, once, until it's done. */
+export const actionAlarm = (due: string | null, today: string, done: boolean, alarmed: boolean): boolean => !!due && !done && !alarmed && due <= today;

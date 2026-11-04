@@ -86,3 +86,25 @@ export interface MyLeaves { items: LeaveView[]; balances: LeaveBalance[]; types:
 export interface LeaveCalendarView { month: string; byDay: Record<string, { name: string; type: string }[]>; today: { employeeId: string; name: string; type: string; to: string }[] }
 export interface LeaveBalancesView { month: string; types: string[]; rows: { employeeId: string; name: string; department: string; byType: Record<string, { total: number; used: number; month: number; left: number }> }[] }
 export const MonthQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/, "الشهر بالشكل 2026-11").optional() });
+
+/* ---- 7.7 · penalties · 7.8 · the 1-to-1 ---- */
+export const NewPenalty = z.object({
+  employeeId: z.string().min(1), day: CalendarDay,
+  text: z.string().trim().min(2, "اكتب الجزاء").max(300),
+  deductionDays: z.number().min(0).max(3).default(0),
+});
+export type NewPenalty = z.infer<typeof NewPenalty>;
+export interface PenaltyView { id: string; employeeId: string; name: string; day: string; text: string; deductionDays: number; deductionAmount: string; status: "pending" | "approved" | "rejected"; by: string; canDecide: boolean }
+export interface PenaltiesView { month: string; items: PenaltyView[]; totals: { approved: number; pending: number; deductions: string } }
+
+export const OneQuestions = z.object({ questions: z.array(z.string().trim().min(2).max(200)).min(1).max(20) });
+export const NewOneOnOne = z.object({
+  heldOn: CalendarDay,
+  answers: z.record(z.string(), z.string().max(2000)),
+  hrAction: z.string().trim().max(300).optional(),
+  hrActionDue: CalendarDay.optional(),
+});
+export type NewOneOnOne = z.infer<typeof NewOneOnOne>;
+export interface OneOnOneView { id: string; heldOn: string; answers: Record<string, string>; hrAction: string | null; hrActionDue: string | null; hrActionDone: boolean; by: string }
+export interface OneOnOnesView { questions: string[]; due: boolean; items: OneOnOneView[] }
+export interface HrActionsView { items: { id: string; employeeId: string; name: string; action: string; due: string; late: boolean }[] }

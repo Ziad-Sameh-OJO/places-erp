@@ -8,6 +8,7 @@ import { Drawer } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { money, short } from "@/lib/format";
+import { OneOnOneTab } from "./people-care";
 
 /** M-05 · الموظفين (7.1, demo hr.js emps()): the list in scope, search and department filter; a row opens the file. */
 export function Employees() {
@@ -42,7 +43,7 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const { can } = useMe();
   const qc = useQueryClient();
   const run = useAction();
-  const [tab, setTab] = useState<"file" | "edit">("file");
+  const [tab, setTab] = useState<"file" | "one" | "edit">("file");
   const q = useQuery({ queryKey: ["hr", "employee", id], queryFn: () => api.get<EmployeeFile>(`/hr/employees/${id}`) });
   const e = q.data;
   const [custom, setCustom] = useState<boolean | null>(null);
@@ -69,10 +70,10 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   ];
   return (
     <Drawer title={e.name} sub={`${e.department} · فايل الموظف`} onClose={onClose} chips={e.partTime ? <Chip tone="info">Part-time</Chip> : <Chip plain>Full-time</Chip>}>
-      <Tabs items={[["file", "الفايل"], ...(can("hr", "edit") ? [["edit", "البيانات"] as ["edit", string]] : [])]} value={tab} onChange={setTab} />
+      <Tabs items={[["file", "الفايل"], ["one", "1-to-1"], ...(can("hr", "edit") ? [["edit", "البيانات"] as ["edit", string]] : [])]} value={tab} onChange={setTab} />
       {tab === "file" ? (
         <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-      ) : (
+      ) : tab === "one" ? <OneOnOneTab employeeId={id} /> : (
         <form className="grid" onSubmit={save}>
           <Field label="المرتب" req><input name="salary" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue={Number(e.salary) ? e.salary : ""} required /></Field>
           <Field label="التارجت"><input name="target" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue={Number(e.target) ? e.target : ""} /></Field>
