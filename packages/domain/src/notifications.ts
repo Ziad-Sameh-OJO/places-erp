@@ -25,6 +25,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "contract.renewal", label: "تجديد عقد (90/60/30)", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app", "email"], important: false },
   { key: "access.changed", label: "تغيير في حسابك أو صلاحياتك", to: "صاحب الحساب", toRoles: [], channels: ["app", "email"], important: true },
+  // M-09 6.1: the Super Admin hears of any permission change and of any strange sign-in
+  { key: "access.permissions", label: "تغيير في الصلاحيات", to: "Super Admin", toRoles: ["admin"], channels: ["app", "email"], important: true },
+  { key: "access.suspicious", label: "دخول غريب", to: "Super Admin", toRoles: ["admin"], channels: ["app", "push", "email"], important: true },
 ];
 
 export const eventByKey = (key: string): NotificationEvent | undefined => NOTIFICATION_EVENTS.find((e) => e.key === key);

@@ -98,3 +98,28 @@ test("OTP «ابعت تاني»: only one minute after the last code (M-09 2.4)"
   assert.equal(otpResendWait(sent, new Date("2026-11-04T10:01:00Z")), 0);
   assert.equal(otpResendWait(sent, new Date("2026-11-04T10:05:00Z")), 0);
 });
+
+test("M-09 7.2: a manager's team is everyone under him, at any depth, never himself", async () => {
+  const { teamUnder } = await import("../src/permissions.ts");
+  // the shape of the KPI file's structure: u2 ← u21 ← (u6 ← u5) · (u7 ← u8, u9, u10) · u14 · u16, and u1 ← u11
+  const org = [
+    { id: "u2", managerId: null }, { id: "u21", managerId: "u2" }, { id: "u6", managerId: "u21" }, { id: "u5", managerId: "u6" },
+    { id: "u7", managerId: "u21" }, { id: "u8", managerId: "u7" }, { id: "u9", managerId: "u7" }, { id: "u10", managerId: "u7" },
+    { id: "u14", managerId: "u21" }, { id: "u16", managerId: "u21" }, { id: "u1", managerId: null }, { id: "u11", managerId: "u1" },
+  ];
+  assert.deepEqual([...teamUnder("u7", org)].sort(), ["u10", "u8", "u9"]);
+  assert.equal(teamUnder("u21", org).size, 8);
+  assert.ok(!teamUnder("u21", org).has("u11")); // another branch
+  assert.equal(teamUnder("u5", org).size, 0);
+  assert.deepEqual([...teamUnder("a", [{ id: "a", managerId: "b" }, { id: "b", managerId: "a" }])], ["b"]); // a loop ends
+});
+
+test("M-09 4.1: the Operations Head gives and takes only what he has himself", async () => {
+  const { withinOwnPermissions } = await import("../src/permissions.ts");
+  const opsHead = effectiveGrants([{ scope: "all", modules: { inventory: ["view", "export"], tasks: ["view", "create", "edit"], access: ["view"] } }]);
+  assert.equal(withinOwnPermissions(opsHead, "inventory", ["view"], ["view", "export"]), true); // open export for one person
+  assert.equal(withinOwnPermissions(opsHead, "tasks", ["view", "create"], []), true);           // close a module he has
+  assert.equal(withinOwnPermissions(opsHead, "finance", [], ["view"]), false);                   // finance: not his
+  assert.equal(withinOwnPermissions(opsHead, "access", ["view"], ["view", "edit"]), false);      // management: not his
+  assert.equal(withinOwnPermissions(opsHead, "inventory", ["view", "edit"], ["view"]), false);   // can't take what he doesn't have
+});

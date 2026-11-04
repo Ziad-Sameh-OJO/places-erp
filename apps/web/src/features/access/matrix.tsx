@@ -1,10 +1,9 @@
 "use client";
-import { ACTIONS, MODULES, normalizeActions, type Action, type ModuleKey } from "@places/domain";
+import { ACTIONS, ACTION_LABEL, MODULES, normalizeActions, type Action, type ModuleKey } from "@places/domain";
 import { MODULE_LABEL } from "@/lib/nav";
 import { Tick } from "@/components/ui";
 
 export type MatrixValue = Partial<Record<ModuleKey, Action[]>>;
-export const ACTION_LABEL: Record<Action, string> = { view: "يشوف", create: "يضيف", edit: "يعدّل", approve: "يوافق", delete: "يأرشف / يمسح", import: "يستورد", export: "يصدّر" };
 
 /**
  * One permission matrix (modules × actions), for a role or for one person. With `base`, the cells where the

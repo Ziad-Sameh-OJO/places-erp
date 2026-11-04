@@ -63,3 +63,45 @@ export const OTP_RESEND_SECONDS = 60;
 /** Seconds left before another code may be sent (0 = now). */
 export const otpResendWait = (sentAt: Date, now: Date): number =>
   Math.max(0, Math.ceil(OTP_RESEND_SECONDS - (now.getTime() - sentAt.getTime()) / 1000));
+
+/** The screen names of the modules and actions (the demo's wording), shared by the web app and the Excel reports. */
+export const MODULE_LABEL: Record<ModuleKey, string> = {
+  home: "الرئيسية", leads: "العملاء المحتملين", deals: "الصفقات", settings: "إعدادات التوزيع", clients: "العملاء والملاك",
+  contracts: "العقود والتحصيل", inventory: "مخزون الوحدات", notactive: "Not Active", tasks: "المهام", marketing: "التسويق",
+  hr: "الموارد البشرية", tickets: "التذاكر", finance: "المالية", procurement: "المشتريات", reports: "التقارير والتارجت",
+  kpis: "مؤشرات الأداء", access: "الأدوار والصلاحيات", master: "الإعدادات", integrations: "الإشعارات والإيميل",
+};
+export const ACTION_LABEL: Record<Action, string> = { view: "يشوف", create: "يضيف", edit: "يعدّل", approve: "يوافق", delete: "يأرشف / يمسح", import: "يستورد", export: "يصدّر" };
+
+/** The Audit Log's actions in words (screen and Excel). */
+export const AUDIT_ACTION_LABEL: Record<string, string> = {
+  create: "إضافة", update: "تعديل", delete: "مسح", login: "دخول", locked: "اتقفل (5 محاولات غلط)", unlock: "فتح الحساب", disable: "إيقاف",
+  enable: "تفعيل", activated: "فعّل حسابه", "password-reset": "غيّر الباسورد (لينك)", "password-changed": "غيّر الباسورد", permissions: "تعديل المصفوفة",
+  "invite-resent": "إعادة إيميل التفعيل", "reset-sent": "إرسال لينك تغيير الباسورد", export: "تصدير", import: "استيراد",
+};
+
+/** M-09 1.2 · 4.1: the role whose permission edits stop at his own team. */
+export const OPS_HEAD = "opshead";
+
+/**
+ * Everyone under a manager in the org structure (M-09 7.2 · `managerId`), at any depth: his reports, their
+ * reports… Never the manager himself, and a loop in the data can't hang it.
+ */
+export function teamUnder(managerId: string, people: readonly { id: string; managerId: string | null }[]): Set<string> {
+  const team = new Set<string>();
+  let frontier = [managerId];
+  while (frontier.length) {
+    const next = people.filter((p) => p.managerId !== null && frontier.includes(p.managerId) && p.id !== managerId && !team.has(p.id)).map((p) => p.id);
+    for (const id of next) team.add(id);
+    frontier = next;
+  }
+  return team;
+}
+
+/**
+ * M-09 2.2 · 4.1: the Operations Head changes his team's permissions «في حدود دوره»: a module he touches must hold
+ * only actions he has himself, before and after the change. So he can't hand out, or take away, what he doesn't
+ * have (management and finance stay out of his reach).
+ */
+export const withinOwnPermissions = (mine: Grants, module: ModuleKey, before: readonly Action[], after: readonly Action[]): boolean =>
+  [...before, ...after].every((a) => mine.can(module, a));
