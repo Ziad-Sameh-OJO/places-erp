@@ -57,7 +57,7 @@ export class LeadDuplicatesService {
   async decide(me: CurrentUser, id: string, choice: DuplicateDecision) {
     await this.db.$transaction(async (tx) => {
       const d = await this.repo.duplicate(tx, id);
-      if (!d) throw new NotFoundException();
+      if (!d) throw new NotFoundException("طلب التكرار ده مش موجود");
       if (d.decidedAt) throw new ConflictException(ALREADY_DECIDED);
       const existing = factsOfLead(d.lead);
       const { changes, took } = mergeDuplicate(existing, factsOfEntry(Entry.parse(d.data)), choice);

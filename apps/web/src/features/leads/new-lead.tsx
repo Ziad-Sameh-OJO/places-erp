@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreatedLead, DuplicateCheckResult } from "@places/contracts";
-import { Field, Icon, Modal, Note, useToast } from "@/components/ui";
+import { Field, Icon, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { useLeadOptions, useSettings } from "./use-leads";
@@ -55,7 +55,8 @@ export function NewLead({ onClose, onOpenLead }: { onClose: () => void; onOpenLe
     setBusy(true);
     try {
       const lead = await api.post<CreatedLead>("/leads", body);
-      toast(lead.ownedByTelesales || ownLead || !lead.assignedTo ? "الليد اتحفظ عندك" : `الليد راح لـ ${lead.assignedTo.name}`);
+      toast(lead.assignedTo === null ? "الليد اتحفظ · مفيش سيلز بيغطي المنطقة دي، الأوبريشن هتوزّعه"
+        : lead.ownedByTelesales || ownLead ? "الليد اتحفظ عندك" : `الليد راح لـ ${lead.assignedTo.name}`);
       onClose();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "حصل خطأ";
@@ -69,7 +70,7 @@ export function NewLead({ onClose, onOpenLead }: { onClose: () => void; onOpenLe
 
   return (
     <Modal title="ليد جديد" onClose={onClose}>
-      <form className="grid" action={save}>
+      <form className="grid" onSubmit={onFormSubmit(save)}>
         <Field label="الاسم" req><input name="name" required minLength={2} maxLength={120} /></Field>
         <Field label="الشركة"><input name="company" maxLength={160} placeholder="اكتب أو اختار من شيت الشركات" /></Field>
         <Field label="الموبايل (رقم في كل سطر)" req>
