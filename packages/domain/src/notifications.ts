@@ -39,6 +39,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "ticket.new", label: "تذكرة جديدة / اتحوّلت لقسمك", to: "القسم المسؤول", toRoles: [], channels: ["app", "push"], important: false }, // M-06 2.1
   { key: "ticket.late", label: "تذكرة اتأخرت · تصعيد", to: "مدير القسم · نانسي للنزاعات", toRoles: [], channels: ["app", "push", "email"], important: true }, // M-06 2.4
   { key: "access.changed", label: "تغيير في حسابك أو صلاحياتك", to: "صاحب الحساب", toRoles: [], channels: ["app", "email"], important: true },
+  // M-09 6.1: the Super Admin hears of any permission change and of any strange sign-in
+  { key: "access.permissions", label: "تغيير في الصلاحيات", to: "Super Admin", toRoles: ["admin"], channels: ["app", "email"], important: true },
+  { key: "access.suspicious", label: "دخول غريب", to: "Super Admin", toRoles: ["admin"], channels: ["app", "push", "email"], important: true },
 ];
 
 export const eventByKey = (key: string): NotificationEvent | undefined => NOTIFICATION_EVENTS.find((e) => e.key === key);

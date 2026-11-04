@@ -1,10 +1,11 @@
-import { Module } from "@nestjs/common";
+import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { DatabaseModule } from "./core/database/database.module";
 import { AuthModule } from "./core/auth/auth.module";
 import { AuthzModule } from "./core/authz/authz.module";
 import { AuditModule } from "./core/audit/audit.module";
+import { requestContextMiddleware } from "./core/audit/request-context";
 import { BusinessTimeModule } from "./core/business-time/business-time.module";
 import { SessionGuard } from "./core/auth/session.guard";
 import { PoliciesGuard } from "./core/authz/policies.guard";
@@ -38,4 +39,7 @@ import { TicketsModule } from "./modules/tickets/tickets.module";
     { provide: APP_GUARD, useClass: PoliciesGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // after the body parsers, so the request's device and IP reach every audit record written while serving it
+  configure(consumer: MiddlewareConsumer) { consumer.apply(requestContextMiddleware).forRoutes("*"); }
+}

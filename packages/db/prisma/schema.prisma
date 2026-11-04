@@ -1067,8 +1067,10 @@ model AuditLog {
   before    Json?
   after     Json?
   ip        String?
+  userAgent String? // the device (M-09 2.1 step 5)
 
   @@index([module, at])
+  @@index([userId, at])
   @@index([entity, entityId])
   @@schema("system")
 }

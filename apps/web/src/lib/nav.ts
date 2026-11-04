@@ -1,5 +1,5 @@
 import type { IconName } from "@places/ui";
-import type { ModuleKey } from "@places/domain";
+import { MODULE_LABEL as DOMAIN_MODULE_LABEL, type ModuleKey } from "@places/domain";
 
 /** The side menu, from the demo: label, requirements code, icon, section. Only modules that are built are listed. */
 export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon: IconName; section: string; short?: string; sub?: string }>> = {
@@ -16,9 +16,5 @@ export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon:
   integrations: { label: "الإشعارات والإيميل", code: "M-14", icon: "bolt", section: "النظام", short: "الإشعارات", sub: "الإشعارات بتوصل جوه السيستم وعلى الإيميل · قواعد كل حدث" },
 };
 export const SECTIONS = ["", "المبيعات", "العمليات", "الإدارة", "النظام"];
-export const MODULE_LABEL: Record<string, string> = {
-  home: "الرئيسية", leads: "العملاء المحتملين", deals: "الصفقات", settings: "إعدادات التوزيع", clients: "العملاء والملاك",
-  contracts: "العقود والتحصيل", inventory: "مخزون الوحدات", notactive: "Not Active", tasks: "المهام", marketing: "التسويق",
-  hr: "الموارد البشرية", tickets: "التذاكر", finance: "المالية", procurement: "المشتريات", reports: "التقارير والتارجت",
-  kpis: "مؤشرات الأداء", access: "الأدوار والصلاحيات", master: "الإعدادات", integrations: "الإشعارات والإيميل",
-};
+// the labels live in @places/domain so the API's Excel reports use the same words
+export const MODULE_LABEL: Record<string, string> = DOMAIN_MODULE_LABEL;
