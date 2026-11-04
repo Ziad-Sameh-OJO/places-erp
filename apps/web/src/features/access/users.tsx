@@ -11,17 +11,20 @@ import { STATUS, type RoleRow, type UserRow } from "./types";
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" }) : "—");
 
-/** M-09 users: search, filter, new account (activation email), edit, exceptions, stop / unlock / resend / reset. */
+/** M-09 users: search (name, email, mobile, department — 5.2), filter, new account (activation email), edit, exceptions, stop / unlock / resend / reset. */
 export function UsersTab() {
   const qc = useQueryClient();
   const run = useAction();
   const { me, can } = useMe();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [dept, setDept] = useState("");
   const [page, setPage] = useState(1);
   const [form, setForm] = useState<UserRow | "new" | null>(null);
   const [perms, setPerms] = useState<UserRow | null>(null);
-  const qs = new URLSearchParams({ page: String(page), pageSize: "25", ...(q ? { q } : {}), ...(status ? { status } : {}) });
+  const filters = { ...(q ? { q } : {}), ...(status ? { status } : {}), ...(dept ? { department: dept } : {}) };
+  const qs = new URLSearchParams({ page: String(page), pageSize: "25", ...filters });
+  const depts = useQuery({ queryKey: ["users", "departments"], queryFn: () => api.get<string[]>("/access/users/departments") });
   const users = useQuery({ queryKey: ["users", qs.toString()], queryFn: () => api.get<Paged<UserRow>>(`/access/users?${qs}`), placeholderData: keepPreviousData });
   const refresh = () => qc.invalidateQueries({ queryKey: ["users"] });
   const act = (u: UserRow, path: string, ok: string) => run(async () => { await api.post(`/access/users/${u.id}/${path}`); await refresh(); }, ok);
@@ -31,13 +34,16 @@ export function UsersTab() {
   return (
     <>
       <div className="toolbar">
-        <label className="search"><Icon name="search" /><input type="search" placeholder="دوّر بالاسم أو الإيميل" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label="بحث" /></label>
+        <label className="search"><Icon name="search" /><input type="search" placeholder="اسم، إيميل، موبايل، قسم" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label="بحث" /></label>
         <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label="الحالة">
           <option value="">كل الحالات</option>{Object.entries(STATUS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}
         </select>
+        <select value={dept} onChange={(e) => { setDept(e.target.value); setPage(1); }} aria-label="القسم">
+          <option value="">كل الأقسام</option>{depts.data?.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
         <span className="spacer" />
         <span className="hint">{users.data?.total ?? 0} حساب</span>
-        <ExportButton module="access" path="/access/users/export" query={new URLSearchParams({ ...(q ? { q } : {}), ...(status ? { status } : {}) })} filename="المستخدمين.xlsx" />
+        <ExportButton module="access" path="/access/users/export" query={new URLSearchParams(filters)} filename="المستخدمين.xlsx" />
         {can("access", "create") && <button className="btn" onClick={() => setForm("new")}>+ حساب جديد</button>}
       </div>
       <section className="card">

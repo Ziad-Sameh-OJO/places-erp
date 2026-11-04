@@ -17,6 +17,7 @@ import { AccessModule } from "./modules/access/access.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { HrModule } from "./modules/hr/hr.module";
+import { TicketsModule } from "./modules/tickets/tickets.module";
 
 /**
  * Guards run in this order on every request: rate limit → signed in (unless @Public) → allowed (@Requires).
@@ -28,6 +29,7 @@ import { HrModule } from "./modules/hr/hr.module";
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 120 }], skipIf: () => process.env.NODE_ENV !== "production" }),
     DatabaseModule, MailModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule, NotificationsModule, FilesModule, DocumentsModule,
     AccessModule, SettingsModule, LeadsModule, InventoryModule, HrModule,
+    AccessModule, SettingsModule, LeadsModule, InventoryModule, TicketsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

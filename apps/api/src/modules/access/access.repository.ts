@@ -28,6 +28,10 @@ export class AccessRepository {
     return this.db.user.findMany({ where: userWhere(f), select: USER_ROW, orderBy: { employee: { name: "asc" } }, take });
   }
 
+  departments() {
+    return this.db.employee.findMany({ distinct: ["department"], select: { department: true }, orderBy: { department: "asc" } });
+  }
+
   user(id: string) {
     return this.db.user.findUnique({ where: { id }, select: { ...USER_ROW, overrides: { select: { module: true, actions: true } } } });
   }
@@ -53,6 +57,19 @@ const userWhere = (f: UserFilters): Prisma.UserWhereInput => ({
   AND: [
     f.status ? { status: f.status } : {},
     f.role ? { roles: { some: { role: { key: f.role } } } } : {},
-    f.q ? { OR: [{ email: { contains: f.q, mode: "insensitive" } }, { employee: { name: { contains: f.q, mode: "insensitive" } } }] } : {},
+    f.department ? { employee: { department: { equals: f.department, mode: "insensitive" } } } : {},
+    f.q ? { OR: searchText(f.q) } : {},
   ],
 });
+
+/** M-09 5.2: name, email, mobile or department. A mobile typed with spaces or dashes still matches its digits. */
+const searchText = (q: string): Prisma.UserWhereInput[] => {
+  const digits = q.replace(/\D/g, "");
+  return [
+    { email: { contains: q, mode: "insensitive" } },
+    { phone: { contains: q } },
+    ...(digits.length >= 3 && digits !== q ? [{ phone: { contains: digits } }] : []),
+    { employee: { name: { contains: q, mode: "insensitive" } } },
+    { employee: { department: { contains: q, mode: "insensitive" } } },
+  ];
+};
