@@ -8,11 +8,9 @@ import { useSavedViews } from "./filters";
 import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
 import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
-import { useLeadOptions, useLeadSummary, useLeads, useSettings } from "./use-leads";
+import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useSettings } from "./use-leads";
 
 const PAGE = 50;
-/** The board shows every lane at once, so it asks for the most the API gives in one page (30 cards per lane shown). */
-const BOARD_PAGE = 100;
 
 /** M-01 · the leads list (demo «العملاء المحتملين»): tiles, saved views, filters, list or Kanban, the SLA note. */
 export function LeadsList() {
@@ -24,9 +22,12 @@ export function LeadsList() {
   const options = useLeadOptions();
   const settings = useSettings();
   const saved = useSavedViews();
-  const leads = useLeads(f, mode === "board" ? 1 : page, mode === "board" ? BOARD_PAGE : PAGE);
+  const leads = useLeads(f, page, PAGE);
+  const board = useLeadBoard(f, mode === "board");
+  // a filter the API refuses (e.g. «لحد» before «من») says why, instead of quietly keeping the previous results
+  const failed = (mode === "board" ? board.error : leads.error)?.message;
   const filter = (next: LeadQuery) => { setF(next); setPage(1); };
-  const total = leads.data?.total ?? 0;
+  const total = failed ? 0 : mode === "board" && board.data ? board.data.lanes.reduce((n, l) => n + l.total, 0) : leads.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const s = summary.data;
 
@@ -43,10 +44,10 @@ export function LeadsList() {
         <span className="hint num">{num(total)} ليد</span>
         <span className="spacer" />
       </div>
-      {mode === "board"
-        ? <LeadsBoard leads={leads.data?.items ?? []} canMove={can("leads", "edit")} />
+      {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
+        ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} />
         : <LeadsTable leads={leads.data?.items ?? []} />}
-      {mode === "list" && pages > 1 && (
+      {!failed && mode === "list" && pages > 1 && (
         <div className="row end">
           <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button>
           <span className="hint">{page} / {pages}</span>

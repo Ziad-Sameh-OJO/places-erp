@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import type { AddComment, ChangeStage, CreateLead, LeadBoard, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
 import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -12,6 +12,8 @@ import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
+/** The demo's Kanban shows the newest 30 cards of a lane; its header shows the real count. */
+const CARDS_PER_LANE = 30;
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
 /** FOLLOW_UP_TO_VISIT → «Follow up to Visit»: the API speaks the stage names the team uses. */
 const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
@@ -33,6 +35,14 @@ export class LeadsService {
     const [rows, total] = await this.repo.list(ownedBy(me) as never, f);
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.map((r) => r.assignedToId)), this.slaClock()]);
     return { items: rows.map((r) => toRow(r, names, sla)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
+  async board(me: CurrentUser, f: LeadFilters): Promise<LeadBoard> {
+    const [counts, rows] = await this.repo.board(ownedBy(me) as never, f, LEAD_STAGES.map(toDb), CARDS_PER_LANE);
+    const total = new Map(counts.map((c) => [c.stage as string, c._count._all]));
+    const [names, sla] = await Promise.all([this.salespeopleNames(rows.flat().map((r) => r.assignedToId)), this.slaClock()]);
+    return { lanes: LEAD_STAGES.map((stage, i) => ({ stage, total: total.get(toDb(stage)) ?? 0, items: rows[i]!.map((r) => toRow(r, names, sla)) })) };
   }
 
   /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */

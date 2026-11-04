@@ -72,7 +72,8 @@ export function Stepper({ stages, current, done }: { stages: readonly string[]; 
   );
 }
 
-export interface Lane<T> { key: string; title: string; tone?: string | undefined; items: T[] }
+/** `count` is the lane's real total when only some of its items are loaded (otherwise the items are counted). */
+export interface Lane<T> { key: string; title: string; tone?: string | undefined; items: T[]; count?: number }
 
 /**
  * Lanes of cards. Dragging a card onto another lane calls onMove(item, laneKey); the caller decides (and the API
@@ -93,7 +94,7 @@ export function Kanban<T>({ lanes, card, itemKey, cardClass, className = "", onM
           onDragOver={(e) => { if (onMove) { e.preventDefault(); setOver(lane.key); } }}
           onDragLeave={() => setOver(null)}
           onDrop={(e) => { e.preventDefault(); setOver(null); if (dragged.current && onMove) onMove(dragged.current, lane.key); dragged.current = null; }}>
-          <h4><i style={lane.tone ? { background: `var(--${lane.tone})` } : undefined} />{lane.title}<span className="num">{lane.items.length}</span></h4>
+          <h4><i style={lane.tone ? { background: `var(--${lane.tone})` } : undefined} />{lane.title}<span className="num">{lane.count ?? lane.items.length}</span></h4>
           {lane.items.length ? lane.items.map((item) => (
             <div key={itemKey(item)} className={`tcard ${cardClass?.(item) ?? ""}`} draggable={!!onMove}
               onDragStart={() => { dragged.current = item; }}>{card(item)}</div>

@@ -16,7 +16,13 @@ export class LeadsController {
     return this.leads.list(me, f);
   }
 
-  // before ":id", so these two aren't read as a lead id
+  // before ":id", so these aren't read as a lead id
+  @Get("board")
+  @Requires("leads", "view")
+  board(@Me() me: CurrentUser, @Query(new ZodPipe(LeadFilters)) f: LeadFilters) {
+    return this.leads.board(me, f);
+  }
+
   @Get("summary")
   @Requires("leads", "view")
   summary(@Me() me: CurrentUser) {

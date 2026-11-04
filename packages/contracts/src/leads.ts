@@ -90,6 +90,9 @@ export interface LeadSummary {
   holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number };
 }
 
+/** The Kanban: every stage with its real count under the filters, and its newest cards (the demo shows 30 per lane). */
+export interface LeadBoard { lanes: { stage: string; total: number; items: LeadRow[] }[] }
+
 /** The filters' choices that aren't settings lists: campaigns, and the salespeople inside the caller's scope. */
 export interface LeadOptions {
   campaigns: { id: string; name: string; channel: string }[];

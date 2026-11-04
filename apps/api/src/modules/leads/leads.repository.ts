@@ -42,6 +42,17 @@ export class LeadsRepository {
     return this.db.campaign.findMany({ select: { id: true, name: true, channel: true }, orderBy: { startsOn: "desc" } });
   }
 
+  /** The Kanban: per stage the real count and the newest `perLane` rows, under the same scope and filters as the list. */
+  board(scope: Prisma.LeadWhereInput, f: LeadFilters, stages: readonly string[], perLane: number) {
+    const where = leadWhere(scope, f);
+    return Promise.all([
+      this.db.lead.groupBy({ by: ["stage"], where, _count: { _all: true } }),
+      Promise.all(stages.map((stage) => this.db.lead.findMany({
+        where: { AND: [where, { stage: stage as Prisma.LeadWhereInput["stage"] }] }, select: LEAD_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: perLane,
+      }))),
+    ]);
+  }
+
   /** One lead with its Activity (newest first). Out of the caller's scope it simply isn't found. */
   detail(scope: Prisma.LeadWhereInput, id: string) {
     return this.db.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: LEAD_DETAIL });

@@ -373,3 +373,19 @@ test("filter choices: sales get no salespeople, a TL his team only, operations e
   assert.ok(Array.isArray((await call("/leads/options", { cookie: ops })).body.campaigns));
   assert.equal((await call("/leads/options", { cookie: hr })).status, 403);
 });
+
+test("board: every stage once, each lane's total is the list's count for that stage, at most 30 cards, same scope", async () => {
+  for (const cookie of [mohsen, ops]) {
+    const b = (await call("/leads/board", { cookie })).body;
+    assert.equal(b.lanes.length, 13);
+    for (const lane of b.lanes) {
+      const listTotal = (await call(`/leads?pageSize=1&stage=${encodeURIComponent(lane.stage)}`, { cookie })).body.total;
+      assert.equal(lane.total, listTotal, lane.stage);
+      assert.ok(lane.items.length <= 30 && lane.items.length === Math.min(30, lane.total), lane.stage);
+      assert.ok(lane.items.every((l: { stage: string }) => l.stage === lane.stage));
+    }
+  }
+  const filtered = (await call(`/leads/board?q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: ops })).body;
+  assert.equal(filtered.lanes.reduce((n: number, l: { total: number }) => n + l.total, 0), (await call(`/leads?pageSize=1&q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: ops })).body.total);
+  assert.equal((await call("/leads/board", { cookie: hr })).status, 403);
+});

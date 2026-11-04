@@ -1,6 +1,6 @@
 "use client";
-import type { LeadRow } from "@places/contracts";
-import { LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
+import type { LeadBoard, LeadRow } from "@places/contracts";
+import { type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Kanban } from "@/components/blocks";
 import { Avatar, Chip, Icon, useAction, useToast } from "@/components/ui";
 import { ago, num, short } from "@/lib/format";
@@ -9,14 +9,12 @@ import { useChangeStage } from "./use-leads";
 
 /** The lane dot's colour as a CSS variable (the chips' tones). */
 const LANE_COLOR: Record<string, string> = { ok: "ok", warn: "warn", bad: "bad", info: "info", acc: "accent", "": "ink-3" };
-/** The demo shows at most 30 cards per lane. */
-const PER_LANE = 30;
 
 /**
  * The demo's Kanban: a lane per stage, each card coloured by its SLA. Dropping a card on another lane changes its
  * stage (the API checks the permission and the scope). Visit needs a date and units, so it isn't a drop (1.9).
  */
-export function LeadsBoard({ leads, canMove }: { leads: LeadRow[]; canMove: boolean }) {
+export function LeadsBoard({ board, canMove }: { board: LeadBoard | undefined; canMove: boolean }) {
   const run = useAction();
   const toast = useToast();
   const changeStage = useChangeStage();
@@ -26,7 +24,7 @@ export function LeadsBoard({ leads, canMove }: { leads: LeadRow[]; canMove: bool
     const willQualify = !l.qualified && isQualifiedAfter(false, stage as LeadStage); // the toast says so, like the demo
     void run(() => changeStage(l.id, stage), willQualify ? `${l.name} بقى ${stage} واتعلّم Qualified` : `${l.name} بقى ${stage}`);
   };
-  const lanes = LEAD_STAGES.map((s) => ({ key: s, title: s, tone: LANE_COLOR[stageTone(s)], items: leads.filter((l) => l.stage === s).slice(0, PER_LANE) }));
+  const lanes = (board?.lanes ?? []).map((l) => ({ key: l.stage, title: l.stage, tone: LANE_COLOR[stageTone(l.stage)], items: l.items, count: l.total }));
   return (
     <Kanban className="leads-board" lanes={lanes} itemKey={(l) => l.id} empty="اسحب ليد هنا"
       cardClass={(l) => `lead-card ${l.sla ? `sla-${slaTone(l.sla)}` : ""}`}

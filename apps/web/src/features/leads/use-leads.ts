@@ -1,6 +1,6 @@
 "use client";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LeadOptions, LeadRow, LeadSummary, Paged, Settings } from "@places/contracts";
+import type { LeadBoard, LeadOptions, LeadRow, LeadSummary, Paged, Settings } from "@places/contracts";
 import { api } from "@/lib/api";
 import { type LeadQuery, toParams } from "./filters";
 
@@ -8,6 +8,12 @@ import { type LeadQuery, toParams } from "./filters";
 export function useLeads(f: LeadQuery, page: number, pageSize: number) {
   const qs = toParams(f, page, pageSize).toString();
   return useQuery({ queryKey: ["leads", qs], queryFn: () => api.get<Paged<LeadRow>>(`/leads?${qs}`), placeholderData: keepPreviousData });
+}
+
+/** The Kanban: every lane's real count and its newest cards, under the same filters. */
+export function useLeadBoard(f: LeadQuery, enabled: boolean) {
+  const qs = toParams(f, 1, 1).toString();
+  return useQuery({ queryKey: ["leads", "board", qs], queryFn: () => api.get<LeadBoard>(`/leads/board?${qs}`), placeholderData: keepPreviousData, enabled });
 }
 
 export const useLeadSummary = () => useQuery({ queryKey: ["leads-summary"], queryFn: () => api.get<LeadSummary>("/leads/summary") });
