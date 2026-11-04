@@ -250,3 +250,76 @@ test("«keep» is Telesales' choice only: a salesperson's own lead stays his, no
   assert.equal(r.body.ownedByTelesales, false);
   assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة محمد محسن · فضل عنده (هو اللي دخّله)");
 });
+
+/* ---------------- 1.5 duplicates: every arrival counts, Operations decides (M-01 Q7, M-04 Q22) ---------------- */
+
+const dupLeads: string[] = [];
+after(async () => {
+  await prisma.lead.deleteMany({ where: { id: { in: dupLeads } } }); // arrivals and duplicates go with it (cascade)
+  await prisma.notification.deleteMany({ where: { text: { contains: `E2E-D ${stamp}` } } });
+});
+const P1 = `011${stamp.slice(-7)}5`, P2 = `011${stamp.slice(-7)}6`;
+let dupLeadId: string, dupCode: string, dupId: string;
+
+test("a mobile we already have: no new lead, the arrival counts for its channel, the old lead says who tried, Operations is notified", async () => {
+  const first = await call("/leads", { method: "POST", cookie: mohsen, body: {
+    name: `E2E-D ${stamp} الأول`, phones: [P1], area: "التجمع الخامس", type: "Rent", channel: "Facebook", budget: "50000" } });
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  [dupLeadId, dupCode] = [first.body.id, first.body.code];
+  dupLeads.push(dupLeadId);
+
+  const again = await call("/leads", { method: "POST", cookie: hadeer, body: {
+    name: `E2E-D ${stamp} التاني`, phones: [P2, P1], area: "التجمع الخامس", type: "Resale", space: 120, channel: "Google Ads", budget: "50000.00", keep: true } });
+  assert.equal(again.status, 409);
+  assert.equal(again.body.error, `العميل ده موجود (${dupCode}) · اتبعت للأوبريشن تقرر`);
+
+  assert.equal(await prisma.lead.count({ where: { phones: { has: P1 } } }), 1); // no second lead
+  const arrivals = await prisma.leadArrival.findMany({ where: { leadId: dupLeadId }, orderBy: { at: "asc" } });
+  assert.deepEqual(arrivals.map((a) => [a.channel, a.duplicate]), [["Facebook", false], ["Google Ads", true]]);
+
+  const d = await call(`/leads/${dupLeadId}`, { cookie: mohsen });
+  assert.equal(d.body.activities[0].text, `هدير طارق حاول يدخّل العميل ده تاني (${P2} / ${P1}) · مستني قرار الأوبريشن`);
+  assert.equal(d.body.firstActionAt, null); // someone else's attempt isn't the salesperson's action
+
+  const heba = await prisma.user.findUniqueOrThrow({ where: { email: "heba.salah@places.com" } });
+  assert.ok(await prisma.notification.findFirst({ where: { userId: heba.id, text: `عميل مكرر: E2E-D ${stamp} التاني موجود في ${dupCode} · قرّري أنهي بيانات تفضل` } }));
+});
+
+test("the queue is Operations' only: both sides side by side; sales and HR get 403", async () => {
+  assert.equal((await call("/leads/duplicates", { cookie: mohsen })).status, 403);
+  assert.equal((await call("/leads/duplicates", { cookie: hadeer })).status, 403);
+  assert.equal((await call("/leads/duplicates", { cookie: hr })).status, 403);
+  const r = await call("/leads/duplicates", { cookie: ops });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const row = r.body.find((x: { lead: { id: string } }) => x.lead.id === dupLeadId);
+  assert.ok(row);
+  dupId = row.id;
+  assert.equal(row.by.name, "هدير طارق");
+  assert.equal(row.lead.code, dupCode);
+  assert.equal(row.lead.assignedTo.name, "محمد محسن");
+  assert.deepEqual([row.lead.name, row.lead.channel, row.lead.type, row.lead.budget], [`E2E-D ${stamp} الأول`, "Facebook", "Rent", "50000.00"]);
+  assert.deepEqual([row.entry.name, row.entry.channel, row.entry.type, row.entry.space, row.entry.budget], [`E2E-D ${stamp} التاني`, "Google Ads", "Resale", 120, "50000.00"]);
+  assert.equal((await call(`/leads/duplicates/${dupId}/decide`, { method: "POST", cookie: mohsen, body: {} })).status, 403);
+});
+
+test("Operations decides: chosen fields and the channel move, both mobiles stay, audited before/after; deciding twice is 409", async () => {
+  const r = await call(`/leads/duplicates/${dupId}/decide`, { method: "POST", cookie: ops, body: { name: "new", channel: "new", budget: "new" } });
+  assert.equal(r.status, 204, JSON.stringify(r.body));
+  const lead = await prisma.lead.findUniqueOrThrow({ where: { id: dupLeadId } });
+  assert.equal(lead.name, `E2E-D ${stamp} التاني`);
+  assert.equal(lead.channel, "Google Ads");
+  assert.equal(lead.type, "Rent"); // not chosen: the old one stays
+  assert.equal(lead.budget?.toFixed(2), "50000.00"); // «50000» and «50000.00» are the same: nothing taken
+  assert.deepEqual(lead.phones, [P1, P2]);
+
+  const d = await call(`/leads/${dupLeadId}`, { cookie: mohsen });
+  assert.equal(d.body.activities[0].text, "الأوبريشن قررت في التكرار: اتاخد من الجديد الاسم، الـ channel");
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: dupLeadId, action: "duplicate-decision" } });
+  assert.deepEqual((audit.before as { name: string }).name, `E2E-D ${stamp} الأول`);
+  assert.equal((audit.after as { channel: string }).channel, "Google Ads");
+
+  assert.equal((await call(`/leads/duplicates/${dupId}/decide`, { method: "POST", cookie: ops, body: {} })).status, 409);
+  assert.ok(!(await call("/leads/duplicates", { cookie: ops })).body.some((x: { id: string }) => x.id === dupId));
+  assert.equal((await call("/leads/duplicates/nope/decide", { method: "POST", cookie: ops, body: {} })).status, 404);
+  assert.equal((await call(`/leads/duplicates/${dupId}/decide`, { method: "POST", cookie: ops, body: { name: "maybe" } })).status, 400);
+});

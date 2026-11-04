@@ -17,6 +17,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.sla_warn", label: "SLA ساعتين ونص", to: "Team Leader", toRoles: ["tl"], channels: ["app", "push", "email"], important: true },
   { key: "lead.pulled", label: "سحب ليد (3 ساعات)", to: "الأوبريشن · Sales Director", toRoles: ["ops", "salesdir"], channels: ["app", "push", "email"], important: true },
   { key: "lead.no_answer", label: "No Answer كل 4 ساعات", to: "السيلز المسؤول", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "lead.duplicate", label: "عميل مكرر", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 Q7
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },

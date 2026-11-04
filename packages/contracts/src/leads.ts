@@ -61,3 +61,20 @@ export interface LeadDetail extends LeadRow {
   company: string | null; space: number | null; condition: string | null; budget: string | null; note: string | null;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
+
+/** Operations' decision on a duplicate: per field, «old» (default) keeps what the lead has, «new» takes the entry's. */
+const Side = z.enum(["old", "new"]).default("old");
+export const DuplicateDecision = z.object({ name: Side, area: Side, type: Side, space: Side, budget: Side, channel: Side });
+export type DuplicateDecision = z.infer<typeof DuplicateDecision>;
+
+/** One side of the comparison table. */
+export interface LeadSide {
+  name: string; company: string | null; phones: string[]; area: string; type: string; space: number | null; budget: string | null;
+  channel: string; campaign: { id: string; name: string } | null;
+}
+/** A duplicate waiting for Operations: who entered it, when, and both sides. */
+export interface DuplicateRow {
+  id: string; at: string; by: { id: string; name: string };
+  lead: LeadSide & { id: string; code: string; assignedTo: { id: string; name: string } | null };
+  entry: LeadSide;
+}
