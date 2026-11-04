@@ -171,7 +171,7 @@
     }
   };
   const LOCKED = { receiveSources: ["عمولة من عميل"] }; // the system posts on these
-  A.FORM.msAcc = (f) => { const st = S(); if (st.accounts.some((a) => a.name === f.name.trim())) return A.toast("الاسم ده موجود"); st.accounts.push({ name: f.name.trim(), kind: f.kind, balance: +f.balance || 0 }); A.audit("master", `اتضاف ${f.kind}: ${f.name}`); A.toast("اتضاف · ليه حساب في شجرة الحسابات وظاهر في الأذونات"); A.render(); };
+  A.FORM.msAcc = (f) => { if (A.FORM.acctAdd) return A.FORM.acctAdd({ parent: f.kind === "خزينة" ? "111" : "112", name: f.name, kind: f.kind, opening: f.balance || "0", counter: "32" }); /* through the chart, so an opening balance gets its entry */ const st = S(); if (st.accounts.some((a) => a.name === f.name.trim())) return A.toast("الاسم ده موجود"); st.accounts.push({ name: f.name.trim(), kind: f.kind, balance: +f.balance || 0 }); A.audit("master", `اتضاف ${f.kind}: ${f.name}`); A.toast("اتضاف · ليه حساب في شجرة الحسابات وظاهر في الأذونات"); A.render(); };
   A.FORM.msLine = (f) => { const st = S(), name = f.line.trim(), kindAr = f.kind === "admin" ? "مصروفات إدارية" : "مصروفات بيعية";
     if ([...st.expenses.admin, ...st.expenses.selling].some((x) => x[0] === name)) return A.toast("البند ده موجود");
     st.expenses[f.kind].push([name, 0]); st.budgets.push({ line: name, kind: kindAr, budget: +f.budget || 0, spent: 0 }); A.audit("master", `بند مصروفات جديد: ${name} (${kindAr})`); A.toast("اتضاف البند · ليه حساب في الشجرة"); A.render(); };
