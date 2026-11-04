@@ -9,6 +9,8 @@ import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
 import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
 import { LeadDrawer } from "./lead-drawer";
+import { NewLead } from "./new-lead";
+import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useSettings } from "./use-leads";
 
 const PAGE = 50;
@@ -20,6 +22,7 @@ export function LeadsList() {
   const [mode, setMode] = useState<"list" | "board">("list");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const summary = useLeadSummary();
   const options = useLeadOptions();
   const settings = useSettings();
@@ -47,10 +50,13 @@ export function LeadsList() {
         </div>
         <span className="hint num">{num(total)} ليد</span>
         <span className="spacer" />
+        {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />ليد جديد</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
         ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
         : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} />}
+      {creating && <NewLead onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
+      {can("leads", "create") && <Fab onClick={() => setCreating(true)} label="ليد جديد" />}
       {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
       {!failed && mode === "list" && pages > 1 && (
         <div className="row end">

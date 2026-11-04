@@ -39,6 +39,16 @@ export const LeadFilters = Page.extend({
 }).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" });
 export type LeadFilters = z.infer<typeof LeadFilters>;
 
+/** The new-lead form checks the mobiles while they're typed (demo «الرقم ده موجود قبل كده»). */
+export const DuplicateCheck = z.object({ phones: z.string().max(200).transform((s) => s.split(",").map((p) => p.replace(/\D/g, "")).filter((p) => /^01[0-25]\d{8}$/.test(p))) });
+export type DuplicateCheck = z.infer<typeof DuplicateCheck>;
+/** The existing lead's code; its id only when the person may open it (M-01 Q7: only Operations sees both clients). */
+export interface DuplicateHit { code: string; leadId: string | null }
+export interface DuplicateCheckResult { hit: DuplicateHit | null }
+
+/** What a new lead answers: its code and who it went to («الليد راح لـ …»). */
+export interface CreatedLead { id: string; code: string; ownedByTelesales: boolean; assignedTo: { id: string; name: string } | null }
+
 /** A comment or a call result written on the lead's Activity tab (demo: «اكتب كومنت أو نتيجة مكالمة»). */
 export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000) });
 export type AddComment = z.infer<typeof AddComment>;

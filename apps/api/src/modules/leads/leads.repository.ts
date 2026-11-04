@@ -117,6 +117,11 @@ export class LeadsRepository {
     return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
+  /** A company from the companies sheet, by name in any case (the form's «الشركة»; adding new ones is 1.20). */
+  companyByName(tx: Prisma.TransactionClient, name: string) {
+    return tx.company.findFirst({ where: { name: { equals: name.trim(), mode: "insensitive" } }, select: { id: true } });
+  }
+
   salesForArea(area: string) {
     return this.db.setting.findUnique({ where: { key: `routing:${area}` } });
   }

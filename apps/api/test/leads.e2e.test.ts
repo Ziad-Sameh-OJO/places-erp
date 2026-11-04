@@ -390,3 +390,22 @@ test("board: every stage once, each lane's total is the list's count for that st
   assert.equal(filtered.lanes.reduce((n: number, l: { total: number }) => n + l.total, 0), (await call(`/leads?pageSize=1&q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: ops })).body.total);
   assert.equal((await call("/leads/board", { cookie: hr })).status, 403);
 });
+
+/* ---------------- 1.8 the new-lead form: mobiles checked while typed; the answer says who it went to ---------------- */
+
+test("duplicate-check: the code for anyone who may create; the lead's id only for someone who may open it (M-01 Q7)", async () => {
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const phone = `0128${stamp.slice(-7)}`;
+  const made = await call("/leads", { method: "POST", cookie: ops, body: { name: `E2E-N ${stamp}`, phones: [phone], area: "التجمع الخامس", type: "Primary", channel: "Facebook", assignToId: mohsenId, note: "دور أرضي" } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  assert.deepEqual([made.body.assignedTo.name, made.body.ownedByTelesales, typeof made.body.code], ["محمد محسن", false, "string"]);
+  dupLeads.push(made.body.id);
+  assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: made.body.id } })).note, "دور أرضي"); // the drawer's quote
+
+  const check = async (cookie: string, q: string) => (await call(`/leads/duplicate-check?phones=${q}`, { cookie })).body;
+  assert.deepEqual(await check(mohsen, `0100,${phone.slice(0, 4)}-${phone.slice(4)}`), { hit: { code: made.body.code, leadId: made.body.id } }); // his lead: link
+  assert.deepEqual(await check(hadeer, phone), { hit: { code: made.body.code, leadId: null } }); // not hers: the code only
+  assert.deepEqual(await check(mohsen, "01099999999"), { hit: null });
+  assert.deepEqual(await check(mohsen, "abc"), { hit: null });
+  assert.equal((await call(`/leads/duplicate-check?phones=${phone}`, { cookie: nancy })).status, 403); // can't create leads
+});
