@@ -3,8 +3,9 @@ import type { Response } from "express";
 import { z } from "zod";
 import { sendXlsx } from "../../core/http/excel";
 import { BillsService } from "./bills.service";
+import { PayrollService } from "./payroll.service";
 import type { PrismaClient } from "@places/db";
-import { BudgetPatch, ClosePeriod, IncomeQuery, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
+import { AdvancePlan, BudgetPatch, ClosePeriod, IncomeQuery, PayDay, PayrollRunInput, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -16,7 +17,7 @@ import type { Tx } from "./ledger.repository";
 /** HTTP only: validate input, check the permission, call the service. M-07 · the chart (9.1), the journal (9.5), vouchers (9.2 · 9.3 · 9.11) and the budget. */
 @Controller("finance")
 export class FinanceController {
-  constructor(private readonly ledger: LedgerService, private readonly vouchers: VouchersService, private readonly bills: BillsService, @Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(private readonly ledger: LedgerService, private readonly vouchers: VouchersService, private readonly bills: BillsService, private readonly payroll: PayrollService, @Inject(PRISMA) private readonly db: PrismaClient) {}
 
   private readonly run = <T>(fn: (tx: Tx) => Promise<T>) => this.db.$transaction(fn);
 
@@ -171,5 +172,29 @@ export class FinanceController {
   @Requires("finance", "view")
   income(@Query(new ZodPipe(IncomeQuery)) q: IncomeQuery) {
     return this.ledger.income(q.range);
+  }
+
+  @Get("payroll")
+  @Requires("finance", "view")
+  payrollView() {
+    return this.payroll.view();
+  }
+
+  @Patch("payroll/day")
+  @Requires("finance", "edit")
+  payDay(@Me() me: CurrentUser, @Body(new ZodPipe(PayDay)) body: { day: number }) {
+    return this.payroll.setPayDay(me, body.day, this.run);
+  }
+
+  @Put("payroll/advances/:userId")
+  @Requires("finance", "create")
+  planAdvance(@Me() me: CurrentUser, @Param("userId") userId: string, @Body(new ZodPipe(AdvancePlan)) body: { amount: string }) {
+    return this.payroll.planAdvance(me, userId, body.amount, this.run);
+  }
+
+  @Post("payroll/run")
+  @Requires("finance", "create")
+  payrollRun(@Me() me: CurrentUser, @Body(new ZodPipe(PayrollRunInput)) body: PayrollRunInput) {
+    return this.payroll.run(me, body, this.run);
   }
 }

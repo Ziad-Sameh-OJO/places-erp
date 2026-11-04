@@ -8,10 +8,10 @@ import type { IconName } from "@places/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { money, short } from "@/lib/format";
-import { useBills, useBudget, useCash, useIncome } from "./use-finance";
+import { useBills, useBudget, useCash, useIncome, usePayroll } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
 
-export type FinanceTab = "dash" | "cash" | "custody" | "journal" | "bills" | "pnl" | "bs" | "budget" | "tree";
+export type FinanceTab = "dash" | "cash" | "custody" | "journal" | "bills" | "pnl" | "bs" | "budget" | "payroll" | "tree";
 interface Todo { tone: "warn" | "bad"; icon: IconName; title: string; sub: string; tab: FinanceTab; btn: string }
 
 /**
@@ -21,7 +21,7 @@ interface Todo { tone: "warn" | "bad"; icon: IconName; title: string; sub: strin
  */
 export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   const { can } = useMe();
-  const year = useIncome("year"), cash = useCash(), bills = useBills(), budget = useBudget();
+  const year = useIncome("year"), cash = useCash(), bills = useBills(), budget = useBudget(), payroll = usePayroll();
   const periods = useQuery({ queryKey: ["finance", "periods"], queryFn: () => api.get<PeriodView[]>("/finance/periods") });
   const [advances, setAdvances] = useState(false);
   const [ledger, setLedger] = useState<string | null>(null);
@@ -29,6 +29,8 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   const p = year.data, c = cash.data;
   const todo: Todo[] = [];
   if (can("finance", "create")) {
+    const pr = payroll.data;
+    if (pr?.due && pr.rows.length) todo.push({ tone: "warn", icon: "wallet", title: `اصرف مرتبات ${pr.label}`, sub: `${pr.totals.people} موظف · صافي ${money(pr.totals.net)} · مرة واحدة`, tab: "payroll", btn: "افتح" });
     for (const b of bills.data?.items.filter((x) => x.state === "due") ?? []) todo.push({ tone: "warn", icon: "calendar", title: `ميعاد فاتورة ${b.name}`, sub: `${money(b.amount)} · ${b.vendor} · مستنية موافقتك`, tab: "cash", btn: "افتح" });
     for (const r of budget.data?.rows.filter((x) => x.level === "bad" || x.level === "warn") ?? [])
       todo.push({ tone: r.level === "bad" ? "bad" : "warn", icon: "wallet", title: r.level === "bad" ? `بند «${r.name}» عدّى البادجت` : `بند «${r.name}» قرّب يخلص`, sub: `اتصرف ${money(r.spent)} من ${money(r.budget ?? "0")}`, tab: "budget", btn: "افتح" });
@@ -40,7 +42,7 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   return (
     <>
       {todo.length > 0 && (
-        <Card title="مستنيك النهارده" icon="check" sub="الفواتير الثابتة والبنود اللي عدّت البادجت" className="attn" extra={<Chip tone="warn">{todo.length}</Chip>}>
+        <Card title="مستنيك النهارده" icon="check" sub="المرتبات والفواتير الثابتة والبنود اللي عدّت البادجت" className="attn" extra={<Chip tone="warn">{todo.length}</Chip>}>
           <ul className="inbox">{todo.map((x, i) => (
             <li key={i} className={x.tone}><span className="ib-ico"><Icon name={x.icon} /></span><div className="ib-txt"><b>{x.title}</b><small>{x.sub}</small></div>
               <button className={`btn sm ${x.tone === "bad" ? "" : "ghost"}`} onClick={() => go(x.tab)}>{x.btn}</button></li>
