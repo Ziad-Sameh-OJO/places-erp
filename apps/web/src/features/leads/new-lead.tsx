@@ -1,14 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreatedLead, DuplicateCheckResult } from "@places/contracts";
+import { activeValues, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { useLeadOptions, useSettings } from "./use-leads";
 
 const TYPES = ["Rent", "Resale", "Primary", "Income"] as const; // requirements M-01 (the demo leaves Primary out)
-const CONDITIONS = ["متشطب", "نص تشطيب", "Core & Shell"];
 /** «رقم في كل سطر» (or commas), digits only, as the API normalises them. */
 const phonesOf = (text: string) => text.split(/[\n,]/).map((p) => p.replace(/\D/g, "")).filter(Boolean);
 
@@ -87,15 +86,15 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
           </div>
         )}
         <Field label="Area" req>
-          <select name="area" required defaultValue=""><option value="">اختار</option>{settings.data?.areas.map((a) => <option key={a}>{a}</option>)}</select>
+          <select name="area" required defaultValue=""><option value="">اختار</option>{activeValues(settings.data?.areas ?? []).map((a) => <option key={a}>{a}</option>)}</select>
         </Field>
         <Field label="Type"><select name="type">{TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
         <Field label="Space (م)"><input name="space" type="number" min="1" step="1" /></Field>
-        <Field label="Condition"><select name="condition">{CONDITIONS.map((c) => <option key={c}>{c}</option>)}</select></Field>
+        <Field label="Condition"><select name="condition">{activeValues(settings.data?.finishings ?? []).map((c) => <option key={c}>{c}</option>)}</select></Field>
         <Field label="Budget"><input name="budget" type="number" min="0" step="1" dir="ltr" /></Field>
         <Field label="Channel" req>
           <select name="channel" required value={channel} onChange={(e) => setChannel(e.target.value)}>
-            <option value="">اختار</option>{settings.data?.channels.map((c) => <option key={c}>{c}</option>)}
+            <option value="">اختار</option>{activeValues(settings.data?.channels ?? []).map((c) => <option key={c}>{c}</option>)}
           </select>
         </Field>
         <Field label="Campaign name">

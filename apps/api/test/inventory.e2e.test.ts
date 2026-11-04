@@ -254,12 +254,52 @@ test("tabs and tiles count what the person can see", async () => {
   assert.equal((await call("/inventory/units/summary", { cookie: sales })).body.pdfDraft, 0); // drafts aren't theirs to count
 });
 
-test("the form's options: areas from the settings, the conditions, active people as agents", async () => {
+test("the form's options come from the settings' lists (12.7): the defaults, and active people as agents", async () => {
   const o = (await call("/inventory/units/options", { cookie: manar })).body;
-  assert.ok(o.areas.includes("التجمع الخامس"));
-  assert.deepEqual(o.conditions, ["متشطب", "نص تشطيب", "Core & Shell"]);
+  const values = (list: { value: string }[]) => list.map((i) => i.value);
+  assert.ok(values(o.areas).includes("التجمع الخامس"));
+  // «التشطيب» and «طرق الدفع» start with the values used today (the demo's), all active
+  assert.deepEqual(o.conditions, [{ value: "متشطب", active: true }, { value: "نص تشطيب", active: true }, { value: "Core & Shell", active: true }]);
+  assert.deepEqual(values(o.paymentMethods), ["كاش", "تقسيط 3 سنين", "تقسيط 5 سنين"]);
   assert.ok(o.agents.some((a: { id: string }) => a.id === agentId));
-  assert.ok(o.paymentMethods.includes("كاش"));
+});
+
+test("lists (12.7): a switched-off finishing can't be picked for a new unit, an old unit keeps it; nothing is deleted", async () => {
+  const admin = await session("ahmed.islam@places.com");
+  const saved = await prisma.setting.findMany({ where: { key: { in: ["finishings", "paymentPlans"] } } });
+  const finishings = (await call("/settings", { cookie: manar })).body.finishings as { value: string; active: boolean }[];
+  const u = await create(manar, rent({ project: `${P} Lists`, condition: "نص تشطيب", paymentMethod: undefined }));
+  try {
+    // only «master: edit» changes a list; sales can't
+    const off = finishings.map((i) => (i.value === "نص تشطيب" ? { ...i, active: false } : i));
+    assert.equal((await call("/settings/finishings", { method: "PUT", cookie: sales, body: { value: off } })).status, 403);
+    assert.equal((await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: off } })).status, 200);
+    const audit = await prisma.auditLog.findFirstOrThrow({ where: { entity: "Setting", entityId: "finishings" }, orderBy: { at: "desc" } });
+    assert.deepEqual((audit.after as { value: string; active: boolean }[]).find((i) => i.value === "نص تشطيب"), { value: "نص تشطيب", active: false });
+    // the options still list it (filters need it), marked off; a new unit can't take it
+    assert.deepEqual((await call("/inventory/units/options", { cookie: manar })).body.conditions.find((i: { value: string }) => i.value === "نص تشطيب"), { value: "نص تشطيب", active: false });
+    const refused = await call("/inventory/units", { method: "POST", cookie: manar, body: rent({ project: `${P} Lists`, condition: "نص تشطيب" }) });
+    assert.equal(refused.status, 400);
+    assert.match(refused.body.error, /التشطيب/);
+    // the old unit keeps it through an edit, and the filter still finds it
+    assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: manar, body: rent({ project: `${P} Lists`, condition: "نص تشطيب", floor: "8" }) })).status, 200);
+    assert.ok((await list(manar, "&condition=" + encodeURIComponent("نص تشطيب"))).items.some((x) => x.code === u.code));
+    // a value is never removed (locked values are the domain's tests: no list has one today)
+    const removed = await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: finishings.filter((i) => i.value !== "Core & Shell") } });
+    assert.equal(removed.status, 400);
+    assert.match(removed.body.error, /Core & Shell.*ماتتمسحش/);
+    // a value twice, or an empty one
+    assert.equal((await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: [...finishings, { value: "متشطب", active: true }] } })).status, 400);
+    assert.equal((await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: [...finishings, { value: " ", active: true }] } })).status, 400);
+    // back on: a new unit can take it again
+    assert.equal((await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: finishings } })).status, 200);
+    await create(manar, rent({ project: `${P} Lists`, condition: "نص تشطيب" }));
+    // a payment method not on the list is refused for a new unit
+    assert.equal((await call("/inventory/units", { method: "POST", cookie: randa, body: resale({ paymentMethod: "بيتكوين" }) })).status, 400);
+  } finally {
+    for (const r of saved) await prisma.setting.update({ where: { key: r.key }, data: { value: r.value as never } });
+    await prisma.setting.deleteMany({ where: { key: { in: ["finishings", "paymentPlans"].filter((k) => !saved.some((r) => r.key === k)) } } });
+  }
 });
 
 test("area tabs (2.5): Manar and Randa add / change / remove them, sales only read, every change audited", async () => {
@@ -346,9 +386,9 @@ test("hard cases: huge amounts refused (no 500), every refusal in Arabic, no fut
   assert.equal((await call(`/inventory/units/${big.id}`, { cookie: manar })).body.totalPrice, "999999999000.00");
   assert.equal((await call("/inventory/units?minPrice=-5", { cookie: manar })).status, 400);
 
-  // the agent who brought a unit stays on it after leaving; a new unit can't take them. Sara is no other test's
-  // account, so switching her off for a moment doesn't disturb the files running alongside this one.
-  const user = await prisma.user.findUniqueOrThrow({ where: { email: "sara.abdelhalim@places.com" }, include: { employee: true } });
+  // the agent who brought a unit stays on it after leaving; a new unit can't take them. A person made for this test
+  // (invited, never active): switching a real account off would change the counts other test files compare meanwhile.
+  const user = await prisma.user.create({ data: { email: `e2e-agent-${stamp}@places.test`, employee: { create: { name: `E2E وكيل ${stamp}`, jobTitle: "Sales", department: "Sales", salary: 0 } } }, include: { employee: true } });
   const departed = { project: `${P} Departed`, agentId: user.employee!.id };
   const u = await create(manar, rent(departed));
   await prisma.user.update({ where: { id: user.id }, data: { status: "DISABLED" } });
@@ -356,6 +396,8 @@ test("hard cases: huge amounts refused (no 500), every refusal in Arabic, no fut
     assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: manar, body: rent({ ...departed, floor: "7" }) })).status, 200);
     assert.equal((await post(rent(departed))).status, 400);
   } finally {
-    await prisma.user.update({ where: { id: user.id }, data: { status: "ACTIVE" } });
+    await prisma.unit.deleteMany({ where: { agentId: user.employee!.id } });
+    await prisma.employee.delete({ where: { id: user.employee!.id } });
+    await prisma.user.delete({ where: { id: user.id } });
   }
 });

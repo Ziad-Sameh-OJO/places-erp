@@ -158,6 +158,8 @@ model Employee {
   target          Decimal         @default(0) @db.Decimal(14, 2)
   commissionPct   Decimal         @default(0) @db.Decimal(5, 2) // the scheme, e.g. 30
   partTime        Boolean         @default(false)
+  partTimeDeductions Boolean      @default(false) // M-05 3.1: HR decides if a part-timer has deductions
+  joinedAt        DateTime?
   deductionTiers  Json?           // per-person tiers (Q33); null = company default
   fixedSchedule   String?         // e.g. CFO: Mon & Thu 17:00–19:00
   leaveBalance    Int             @default(21)
@@ -220,9 +222,19 @@ model LeaveRequest {
   reason       String?
   status       LeaveStatus @default(PENDING_TL)
   rejectReason String?
+  /// M-05 7.5: days counted, the document (sick / emergency), who decides at each step, the 24 / 48-hour chase
+  days         Int         @default(0)
+  documentId   String?
+  tlUserId     String?     // the Team Leader (or manager) who decides first; null = straight to HR
+  tlDecidedAt  DateTime?
+  hrUserId     String?
+  closedAt     DateTime?
+  remindedAt   DateTime?
+  escalatedAt  DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@index([status])
   @@schema("hr")
 }
 
@@ -233,8 +245,14 @@ model Penalty {
   day        DateTime @db.Date
   text       String
   byUserId   String
+  /// M-05 7.7: the deduction in days, and HR's approval (a TL's proposal waits for it)
+  deductionDays Decimal @default(0) @db.Decimal(4, 2)
+  status     String   @default("approved") // pending · approved · rejected
+  approvedById String?
+  decidedAt  DateTime?
   createdAt  DateTime @default(now())
 
+  @@index([day])
   @@schema("hr")
 }
 
@@ -247,6 +265,9 @@ model OneOnOne {
   hrAction    String?
   hrActionDue DateTime? @db.Date
   hrActionDone Boolean  @default(false)
+  /// M-05 7.8: who held it, and when «حل الـ HR» rang (once)
+  byUserId    String?
+  alarmedAt   DateTime?
   createdAt   DateTime  @default(now())
 
   @@schema("hr")
@@ -734,18 +755,23 @@ model Task {
 
 model Ticket {
   id           String        @id @default(cuid())
-  code         String        @unique
-  type         String        // request · excuse · hr_letter · dispute · purchase
-  department   String
+  number       Int           @unique @default(autoincrement()) // shown as TK-<number>
+  type         String        // a key of TICKET_TYPES in @places/domain: request · hr_letter · dispute · list · purchase
+  department   String        // a value of «أقسام التذاكر» (M-13); a transfer changes it, the events keep the history
   title        String
-  priority     String        @default("normal")
-  status       String        @default("Open")
+  priority     String        @default("normal") // normal · high
+  status       String        @default("Open")   // Open · In Progress · Resolved · Closed
   fromUserId   String
-  firstReplyAt DateTime?
-  resolvedAt   DateTime?
+  firstReplyAt DateTime?     // the department's first reply (M-06 3.2: response time)
+  resolvedAt   DateTime?     // settled (Resolved, or Closed straight away): «اتقفلت في الـ SLA»
+  closedAt     DateTime?
+  escalatedAt  DateTime?     // M-06 2.4: the late ticket was escalated (once)
   events       TicketEvent[]
   createdAt    DateTime      @default(now())
 
+  @@index([department, status])
+  @@index([fromUserId])
+  @@index([createdAt])
   @@schema("ops")
 }
 
@@ -753,24 +779,75 @@ model TicketEvent {
   id       String   @id @default(cuid())
   ticketId String
   ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  kind     String
+  kind     String   // open · reply · status · transfer · close · escalate
   text     String
-  byUserId String
+  byUserId String?  // null = the system (an escalation)
   at       DateTime @default(now())
 
+  @@index([ticketId, at])
   @@schema("ops")
 }
 
 // ───────────────────────────── M-07 / M-08 · finance & procurement ─────────────────────────────
 
+/// The chart of accounts (M-07, 4 Nov): the five fixed roots, the accountant's tree under them, and sub-accounts added later.
+/// Safes and banks are accounts in the same tree (kind set). Balances are live: the sum of the journal lines.
 model Account {
-  id       String    @id @default(cuid())
-  name     String    @unique // main treasury · Nancy · Mokhtar · Ahmed Ashraf · CIB · QNB · Dopay
-  kind     String    // treasury · bank · wallet
-  balance  Decimal   @db.Decimal(14, 2)
-  cap      Decimal?  @db.Decimal(14, 2) // petty-cash ceiling
-  payments Payment[]
+  id         String        @id @default(cuid())
+  code       String        @unique // 1 · 11 · 111 · 11101 — a child's code starts with its parent's
+  name       String
+  parentId   String?
+  parent     Account?      @relation("AccountTree", fields: [parentId], references: [id])
+  children   Account[]     @relation("AccountTree")
+  nature     String        // dr · cr (from the root: assets and expenses debit)
+  kind       String?       // treasury · bank · wallet: the cash accounts vouchers pay from and into
+  fixed      Boolean       @default(false) // the seeded chart: can't be removed
+  cap        Decimal?      @db.Decimal(14, 2) // petty-cash ceiling
+  /// the person a 131 (سلف) / 134 (عهد) sub-account belongs to (M-07 9.3)
+  holderId   String?
+  budget     BudgetLine?
+  movesFrom  TreasuryMove[] @relation("MoveFrom")
+  movesTo    TreasuryMove[] @relation("MoveTo")
+  movesOn    TreasuryMove[] @relation("MoveAccount")
+  archivedAt DateTime?
+  createdAt  DateTime      @default(now())
+  payments   Payment[]
+  lines      JournalLine[]
+  purchases  Purchase[]    @relation("PurchaseLine")
+  paidFor    Purchase[]    @relation("PurchasePaidFrom")
 
+  @@index([parentId])
+  @@schema("finance")
+}
+
+/// One double-entry journal entry (M-07 9.5): every movement posts one, debit = credit.
+model JournalEntry {
+  id          String        @id @default(cuid())
+  no          Int           @unique @default(autoincrement()) // shown as JV-<no>
+  date        DateTime      // the day it counts for (UTC midnight of the Cairo day)
+  nature      String        // صرف نقدية · توريد نقدية · تحويل · رصيد افتتاحي · قيد يدوي …
+  source      String        // opening · manual · voucher …
+  sourceId    String?
+  memo        String
+  createdById String
+  createdAt   DateTime      @default(now())
+  lines       JournalLine[]
+
+  @@index([date])
+  @@index([source, sourceId])
+  @@schema("finance")
+}
+
+model JournalLine {
+  id        String       @id @default(cuid())
+  entryId   String
+  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account      @relation(fields: [accountId], references: [id])
+  debit     Decimal      @default(0) @db.Decimal(14, 2)
+  credit    Decimal      @default(0) @db.Decimal(14, 2)
+
+  @@index([accountId])
   @@schema("finance")
 }
 
@@ -780,28 +857,51 @@ model BudgetLine {
   kind      String     // admin · selling
   budget    Decimal    @db.Decimal(14, 2)
   spent     Decimal    @default(0) @db.Decimal(14, 2)
-  purchases Purchase[]
+  /// the expense account it budgets (M-07 9.2): spent = that account's movements inside the period
+  accountId String?    @unique
+  account   Account?   @relation(fields: [accountId], references: [id])
+  period    String     @default("month") // month · quarter · year
+  alert     Int        @default(80) // «نبّهني عند %»
+  active    Boolean    @default(true)
+  /// who answers for the line: gets its alerts with the accountant (9.9)
+  ownerId   String?
 
   @@schema("finance")
 }
 
+/// M-08 · a purchase / payment request: Pending → Approved → Settled («اتسوّى» by procurement) → Posted (finance's
+/// payment voucher, 10.2), or Rejected with the reason. Procurement never moves a balance (4 Nov meeting).
 model Purchase {
-  id          String     @id @default(cuid())
-  code        String     @unique
-  item        String
-  amount      Decimal    @db.Decimal(14, 2)
-  lineId      String
-  line        BudgetLine @relation(fields: [lineId], references: [id])
-  vendor      String?
-  attachments String[]   // required over 10,000 EGP: receipt or two quotes
-  status      String     @default("Pending") // Pending · Approved · Rejected · Paid
-  approvedBy  String?
+  id           String    @id @default(cuid())
+  no           Int       @unique @default(autoincrement()) // shown as PR-<no>
+  item         String
+  amount       Decimal   @db.Decimal(14, 2)
+  /// the line: an expense account (5…) from the chart; its budget is the BudgetLine on that account
+  accountId    String
+  account      Account   @relation("PurchaseLine", fields: [accountId], references: [id])
+  vendor       String?
+  attachments  String[]  // File ids: a receipt or two quotes, required over 10,000 EGP
+  status       String    @default("Pending") // Pending · Approved · Rejected · Settled · Posted
+  decidedById  String?
+  decidedAt    DateTime?
   rejectReason String?
-  paidFrom    String?
-  paidAt      DateTime?
-  createdById String
-  createdAt   DateTime   @default(now())
+  /// the cash account procurement says it paid from: a suggestion for finance
+  paidFromId   String?
+  paidFrom     Account?  @relation("PurchasePaidFrom", fields: [paidFromId], references: [id])
+  settledById  String?
+  settledAt    DateTime?
+  moveId       String?   @unique // finance's payment voucher once posted
+  move         TreasuryMove? @relation(fields: [moveId], references: [id])
+  postedById   String?
+  postedAt     DateTime?
+  remindedAt   DateTime? // the approvers' one-working-day reminder went out (2.4)
+  createdById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
+  @@index([status])
+  @@index([createdById])
+  @@index([accountId])
   @@schema("finance")
 }
 
@@ -888,10 +988,14 @@ model KpiBands {
 
 // ───────────────────────────── M-13 / M-14 · settings, notifications, audit ─────────────────────────────
 
+/// Official holidays as ranges «من … لحد …» (an Eid is several days · 1.29); every day in between is off for the SLA.
 model Holiday {
-  day   DateTime @id @db.Date
+  id    String   @id @default(cuid())
+  from  DateTime @db.Date
+  to    DateTime @db.Date
   label String
 
+  @@index([from])
   @@schema("system")
 }
 
@@ -969,4 +1073,203 @@ model AuditLog {
   @@index([userId, at])
   @@index([entity, entityId])
   @@schema("system")
+}
+
+/// M-05 7.12 · a name in a fingerprint sheet that matched nobody: waits for HR to link it.
+model FingerprintUnmatched {
+  id           String   @id @default(cuid())
+  name         String
+  day          DateTime @db.Date
+  checkIn      String?  // HH:MM, Cairo
+  checkOut     String?
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@unique([name, day])
+  @@schema("hr")
+}
+
+/// A sheet / device name HR linked to an employee once; the next sheets match it by itself.
+model FingerprintAlias {
+  name       String   @id // normalised (normName)
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  @@schema("hr")
+}
+
+/// M-05 7.4 · an Excuse: a ticket to the Team Leader, then HR; its number in the month decides what it costs.
+model ExcuseRequest {
+  id          String    @id @default(cuid())
+  employeeId  String
+  day         DateTime  @db.Date
+  reason      String
+  number      Int       // its number in the month (1, 2, 3 …)
+  status      String    @default("pending_tl") // pending_tl · approved_tl · confirmed · rejected · refused
+  ticketId    String?   @unique
+  tlUserId    String?
+  hrUserId    String?
+  rejectReason String?
+  createdById String
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([employeeId, day])
+  @@schema("hr")
+}
+
+/// M-08 3.1 · the office assets register Mokhtar keeps (KPI M-12: updated and reviewed every month).
+model OfficeAsset {
+  id          String    @id @default(cuid())
+  name        String
+  place       String    @default("")
+  needsRepair Boolean   @default(false) // «محتاج صيانة»; false = «سليم»
+  archivedAt  DateTime? // taken off the register (sold, thrown away): kept for the audit trail
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([archivedAt])
+  @@schema("ops")
+}
+
+/// Every «اتراجع الشهر ده» on the register: who reviewed it and when (the KPI reads the latest).
+model OfficeAssetReview {
+  id           String   @id @default(cuid())
+  reviewedById String
+  at           DateTime @default(now())
+
+  @@index([at])
+  @@schema("ops")
+}
+
+/// M-08 3.1 · the office boys' rota by area (KPI M-12: ≥90% compliance, rated by Nancy on Mokhtar's card).
+model OfficeBoyShift {
+  id        String   @id @default(cuid())
+  area      String   // «الدور الأرضي + الاستقبال»
+  name      String   // the office boy: not a system user
+  slots     String   // «9:00 · 13:00 · 17:00» or «قبل كل اجتماع»
+  createdAt DateTime @default(now())
+
+  @@schema("ops")
+}
+
+/// M-07 · one treasury voucher (9.2, 9.3, 9.11): pay · receive · transfer · advance · custody · settle, with its journal entry.
+model TreasuryMove {
+  id          String   @id @default(cuid())
+  no          Int      @unique @default(autoincrement())
+  kind        String
+  date        DateTime
+  fromId      String?
+  from        Account? @relation("MoveFrom", fields: [fromId], references: [id])
+  toId        String?
+  to          Account? @relation("MoveTo", fields: [toId], references: [id])
+  /// the expense / revenue / the person's 131 or 134 account
+  accountId   String?
+  account     Account? @relation("MoveAccount", fields: [accountId], references: [id])
+  /// settle: the expense the custody was spent on
+  expenseId   String?
+  amount      Decimal  @db.Decimal(14, 2)
+  spent       Decimal? @db.Decimal(14, 2)
+  returned    Decimal? @db.Decimal(14, 2)
+  party       String   // who received / paid (an employee's name, a vendor, a company)
+  partyId     String?  // the employee (user id) for advances and custody
+  ref         String?
+  memo        String
+  entryId     String   @unique
+  createdById String
+  createdAt   DateTime @default(now())
+  purchase    Purchase?
+
+  @@index([fromId])
+  @@index([toId])
+  @@index([date])
+  @@schema("finance")
+}
+
+/// M-07 · a month closed by hand (9.8): «اقفل الشهر» / «اقفل الربع». Months before today's close by themselves.
+model FinancePeriod {
+  month       String   @id // 2026-11
+  status      String   // month · quarter
+  closedById  String
+  closedAt    DateTime @default(now())
+
+  @@schema("finance")
+}
+
+/// M-07 · a fixed bill (9.16): never pays by itself — on its day the accountant approves and pays, or skips the month.
+model RecurringBill {
+  id           String   @id @default(cuid())
+  name         String
+  vendor       String
+  accountId    String   // the expense line (5…)
+  fromId       String   // the usual safe / bank
+  amount       Decimal  @db.Decimal(14, 2) // the usual amount (the voucher can differ)
+  day          Int      // 1–28
+  active       Boolean  @default(true)
+  /// the month its «ميعاد فاتورة» notification went out (the job runs daily; once a month)
+  notifiedFor  String?
+  createdById  String
+  createdAt    DateTime @default(now())
+  months       RecurringBillMonth[]
+
+  @@schema("finance")
+}
+
+model RecurringBillMonth {
+  id        String        @id @default(cuid())
+  billId    String
+  bill      RecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  month     String        // 2026-11
+  status    String        // paid · skipped
+  moveId    String?       // the payment voucher
+  reason    String?       // why not this month
+  byId      String
+  at        DateTime      @default(now())
+
+  @@unique([billId, month])
+  @@schema("finance")
+}
+
+/// M-07 · one month's payroll (9.14): paid once, as one voucher «صرف مرتبات» with one entry.
+model PayrollRun {
+  id          String        @id @default(cuid())
+  month       String        @unique // 2026-11
+  moveId      String        @unique
+  fromId      String
+  gross       Decimal       @db.Decimal(14, 2)
+  net         Decimal       @db.Decimal(14, 2)
+  createdById String
+  at          DateTime      @default(now())
+  lines       PayrollLine[]
+
+  @@schema("finance")
+}
+
+model PayrollLine {
+  id         String     @id @default(cuid())
+  runId      String
+  run        PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  userId     String
+  name       String
+  line       String     // admin · sales
+  salary     Decimal    @db.Decimal(14, 2)
+  attendance Decimal    @db.Decimal(14, 2)
+  advance    Decimal    @db.Decimal(14, 2)
+  net        Decimal    @db.Decimal(14, 2)
+
+  @@index([userId])
+  @@schema("finance")
+}
+
+/// «يتخصم كام الشهر ده» from a person's advance (9.3 / 9.14); the next month starts with the same choice.
+model AdvanceDeduction {
+  id       String   @id @default(cuid())
+  userId   String
+  month    String
+  amount   Decimal  @db.Decimal(14, 2)
+  byId     String
+  at       DateTime @default(now())
+
+  @@unique([userId, month])
+  @@schema("finance")
 }

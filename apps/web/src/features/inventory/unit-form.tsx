@@ -1,7 +1,7 @@
 "use client";
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { AreaTabView, CreatedUnit, UnitDetail, UnitOptions } from "@places/contracts";
+import { activeValues, type AreaTabView, type CreatedUnit, type UnitDetail, type UnitOptions } from "@places/contracts";
 import { areaTabLabel, fromDecimal, incomeFigures, toDecimal, unitAreaTab, unitFiguresFit, unitTotal } from "@places/domain";
 import { Field, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -37,7 +37,7 @@ const TEXT_KEYS: Key[] = ["project", "area", "space", "floor", "building", "agen
 /** A new unit: today's «last update», received now (the demo's defaults). */
 function empty(type: UnitTypeName): Form {
   const blank = Object.fromEntries(TEXT_KEYS.map((k) => [k, ""])) as Record<Key, string>;
-  return { ...blank, type, condition: "متشطب", parking: "0", divisible: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
+  return { ...blank, type, condition: "", parking: "0", divisible: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
 }
 
 /** An existing unit as the form's text fields (edit). */
@@ -99,10 +99,17 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
   const run = useAction();
   const toast = useToast();
   const [f, setF] = useState<Form>(() => (unit ? fromUnit(unit) : empty("Rent")));
+  // a new unit starts on the first active finishing, like the demo's select (the list comes from the settings, 12.7)
+  useEffect(() => {
+    const first = activeValues(options?.conditions ?? [])[0];
+    if (!unit && first) setF((x) => (x.condition ? x : { ...x, condition: first }));
+  }, [options, unit]);
   const [busy, setBusy] = useState(false);
   const original = unit ? fromUnit(unit).receivedAt : null;
   const set = (k: Key) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   const type = f.type as UnitTypeName;
+  // a form offers the active values of a list (12.7), plus the one the unit already has (it may have been switched off since)
+  const choices = (items: { value: string; active: boolean }[] | undefined, current: string) => [...new Set([...activeValues(items ?? []), ...(current ? [current] : [])])];
   const auto = Number(f.space) > 0 ? unitAreaTab({ space: Number(f.space), areaTabId: null }, tabs) : null;
   // the agent who brought the unit stays on it after leaving; they're no longer in the list of people working here
   const agents = [...(options?.agents ?? []), ...(unit?.agent && !options?.agents.some((a) => a.id === unit.agent!.id) ? [{ ...unit.agent, name: `${unit.agent.name} (مش في الشركة دلوقتي)` }] : [])];
@@ -131,12 +138,13 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
 
   const input = ([k, label, kind, req]: TypeField): ReactNode => (
     <Field key={k} label={label} req={req} wide={k === "note"}>
-      {kind === "money"
+      {k === "paymentMethod"
+        ? <select name={k} required={req} value={f[k]} onChange={set(k)}><option value="">—</option>{choices(options?.paymentMethods, f[k]).map((p) => <option key={p}>{p}</option>)}</select>
+        : kind === "money"
         ? <input name={k} inputMode="decimal" pattern="\d+(\.\d{1,2})?" title="رقم بالجنيه، ولحد قرشين بعد العلامة" required={req} value={f[k]} onChange={set(k)} />
         : k === "note"
           ? <textarea name={k} value={f[k]} onChange={set(k)} maxLength={2000} />
-          : <input name={k} type={kind} required={req} value={f[k]} onChange={set(k)} {...(kind === "number" ? { min: 0, max: 100, step: "any" } : {})}
-            {...(k === "paymentMethod" ? { list: "unit-payments" } : {})} {...(kind === "tel" ? { dir: "ltr", inputMode: "tel" as const } : {})} />}
+          : <input name={k} type={kind} required={req} value={f[k]} onChange={set(k)} {...(kind === "number" ? { min: 0, max: 100, step: "any" } : {})} {...(kind === "tel" ? { dir: "ltr", inputMode: "tel" as const } : {})} />}
     </Field>
   );
 
@@ -150,12 +158,12 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
         <Field label="Area" req>
           <select name="area" required value={f.area} onChange={set("area")}>
             <option value="">اختار</option>
-            {[...new Set([...(options?.areas ?? []), ...(f.area ? [f.area] : [])])].map((a) => <option key={a}>{a}</option>)}
+            {choices(options?.areas, f.area).map((a) => <option key={a}>{a}</option>)}
           </select>
         </Field>
         <Field label="Gross area (م)" req><input name="space" type="number" min={1} step={1} required value={f.space} onChange={set("space")} /></Field>
         <Field label="Condition / التشطيب" req>
-          <select name="condition" required value={f.condition} onChange={set("condition")}>{(options?.conditions ?? ["متشطب"]).map((c) => <option key={c}>{c}</option>)}</select>
+          <select name="condition" required value={f.condition} onChange={set("condition")}><option value="">اختار</option>{choices(options?.conditions, f.condition).map((c) => <option key={c}>{c}</option>)}</select>
         </Field>
         <Field label="Floor"><input name="floor" maxLength={40} value={f.floor} onChange={set("floor")} /></Field>
         <Field label="Build num" req><input name="building" required maxLength={40} value={f.building} onChange={set("building")} /></Field>
@@ -189,7 +197,6 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
         </>}
         {type === "Primary" && <div className="wide"><Note kind="warn">خانات الـ Primary لسه مستنية الكلاينت يبعتها · دلوقتي الخانات المشتركة بس.</Note></div>}
         <div className="wide"><Figures f={f} /></div>
-        <datalist id="unit-payments">{options?.paymentMethods.map((p) => <option key={p} value={p} />)}</datalist>
         <div className="row end wide">
           <span className="hint spacer">{unit ? "التعديل بيتسجّل في الـ Audit Log، والـ PDF بيستنى Confirm منار تاني." : "الكود التسلسلي والـ total price بيتعملوا أوتوماتيك."}</span>
           <button className="btn" disabled={busy}>{busy ? "بيحفظ…" : unit ? "حفظ" : "حفظ الوحدة"}</button>

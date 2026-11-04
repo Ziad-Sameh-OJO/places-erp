@@ -104,3 +104,19 @@ test("Logs tab (1.25): the admin always; other roles only when the admin picked 
   assert.equal(canSeeLeadLogs(["tl", "sales"], ["ops"]), false);
   assert.equal(canSeeLeadLogs(["tl", "sales"], ["sales"]), true); // any of the person's roles
 });
+
+test("areas × salespeople (1.12): ticking adds to the end of the area's rotation, unticking removes; never twice", async () => {
+  const { setAreaMember, LeadRouter: Router } = await import("../src/leads.ts");
+  let r = setAreaMember({}, "التجمع الخامس", "s1", true);
+  r = setAreaMember(r, "التجمع الخامس", "s2", true);
+  r = setAreaMember(r, "التجمع الخامس", "s1", true); // ticked twice: still once, keeps its place at the end
+  assert.deepEqual(r["التجمع الخامس"], ["s2", "s1"]);
+  r = setAreaMember(r, "الشيخ زايد", "s3", true);
+  r = setAreaMember(r, "التجمع الخامس", "s2", false);
+  assert.deepEqual(r, { "التجمع الخامس": ["s1"], "الشيخ زايد": ["s3"] });
+  assert.deepEqual(setAreaMember(r, "أكتوبر", "s9", false), { ...r, "أكتوبر": [] }); // unticking someone who isn't there
+  // the next lead in an area goes to the next person in that area's list (Q1)
+  const router = new Router();
+  const pool = ["s1", "s2", "s3"];
+  assert.deepEqual([router.next("x", pool), router.next("x", pool), router.next("x", pool), router.next("x", pool)], ["s1", "s2", "s3", "s1"]);
+});

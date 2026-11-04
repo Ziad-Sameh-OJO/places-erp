@@ -1,11 +1,10 @@
 import { z } from "zod";
 import { UNIT_TYPES, areaRangeProblem, fromDecimal, unitFiguresFit, type UnitStatus, type UnitType } from "@places/domain";
 import { CalendarDay, Id, Money, Page } from "./common.ts";
+import type { ListItem } from "./settings.ts";
 
 /** M-03 · the inventory: one unit's sheet per type (sources/inventory-unit-fields.md, M-03 3.1), the list's filters. */
 
-/** «Conditions» / «التشطيب»: the client's list, the same one the lead form uses. */
-export const UNIT_CONDITIONS = ["متشطب", "نص تشطيب", "Core & Shell"] as const;
 
 const text = (max: number, tooLong: string) => z.string({ invalid_type_error: `${tooLong.split(" ")[0]} كلام` }).trim().max(max, tooLong);
 /** An empty field from the form is «not filled», not an empty string in the sheet. */
@@ -24,7 +23,7 @@ const Common = {
   project: required(160, "اكتب الـ Project / اسم المبنى"),
   area: required(80, "اختار الـ Area"),
   space: z.number({ required_error: "اكتب المساحة", invalid_type_error: "المساحة رقم" }).int("المساحة رقم صحيح").positive("المساحة لازم تبقى أكبر من صفر").max(1_000_000, "المساحة كبيرة أوي"),
-  condition: z.enum(UNIT_CONDITIONS, { errorMap: () => ({ message: "اختار التشطيب" }) }),
+  condition: required(80, "اختار التشطيب"), // from «الإعدادات ← القوايم ← التشطيب» (12.7); the API checks it's on the list
   floor: optional(text(40, "الدور طويل")),
   building: required(40, "اكتب رقم المبنى"),
   parking: z.number({ invalid_type_error: "الـ Parking رقم" }).int("الـ Parking رقم صحيح").min(0, "الـ Parking مايبقاش بالسالب").max(10_000, "الـ Parking كبير أوي").default(0),
@@ -109,7 +108,7 @@ export const UnitFilters = Page.extend({
   view: UnitView.default("available"),
   type: z.enum(UNIT_TYPES).optional(),
   area: z.string().max(80).optional(),
-  condition: z.enum(UNIT_CONDITIONS).optional(),
+  condition: z.string().max(80).optional(),
   agentId: Id.optional(),
   minSpace: QueryInt.optional(),
   maxSpace: QueryInt.optional(),
@@ -147,7 +146,8 @@ export interface UnitDetail extends UnitRow {
 export interface UnitSummary { available: number; pdfDraft: number; stale: number; divisible: number }
 /** The type tabs' counts (الكل · Rent · Resale · Income · Primary · Rented / Sold) under the current filters. */
 export interface UnitTabCounts { all: number; Rent: number; Resale: number; Income: number; Primary: number; closed: number }
-export interface UnitOptions { areas: string[]; conditions: readonly string[]; agents: Person[]; paymentMethods: string[] }
+/** The lists from the settings (12.7): a form offers the active values, a filter all of them (old records keep switched-off ones). */
+export interface UnitOptions { areas: ListItem[]; conditions: ListItem[]; agents: Person[]; paymentMethods: ListItem[] }
 export interface CreatedUnit { id: string; code: string }
 
 /** An area tab (M-03 7.2): «من» and «لحد» in m², «لحد» empty = and above. */
