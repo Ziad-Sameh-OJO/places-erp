@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UNIT_TYPES, areaRangeProblem, type UnitStatus, type UnitType } from "@places/domain";
+import { UNIT_TYPES, areaRangeProblem, fromDecimal, unitFiguresFit, type UnitStatus, type UnitType } from "@places/domain";
 import { CalendarDay, Id, Money, Page } from "./common.ts";
 
 /** M-03 · the inventory: one unit's sheet per type (sources/inventory-unit-fields.md, M-03 3.1), the list's filters. */
@@ -7,13 +7,16 @@ import { CalendarDay, Id, Money, Page } from "./common.ts";
 /** «Conditions» / «التشطيب»: the client's list, the same one the lead form uses. */
 export const UNIT_CONDITIONS = ["متشطب", "نص تشطيب", "Core & Shell"] as const;
 
-const text = (max: number, tooLong: string) => z.string().trim().max(max, tooLong);
+const text = (max: number, tooLong: string) => z.string({ invalid_type_error: `${tooLong.split(" ")[0]} كلام` }).trim().max(max, tooLong);
 /** An empty field from the form is «not filled», not an empty string in the sheet. */
 const optional = <T extends z.ZodTypeAny>(s: T) => z.preprocess((v) => (v === "" || v === null ? undefined : v), s.optional());
-const required = (max: number, missing: string) => z.string({ required_error: missing }).trim().min(1, missing).max(max, `${missing} · طويل`);
+const required = (max: number, missing: string) => z.string({ required_error: missing, invalid_type_error: missing }).trim().min(1, missing).max(max, `${missing} · طويل`);
 /** The owner's number as they gave it: a mobile, a landline or a number abroad (7 to 15 digits). */
 const Phone = z.string({ required_error: "اكتب الرقم", invalid_type_error: "الرقم غلط" }).transform((s) => s.replace(/[\s\-()]/g, "")).pipe(z.string().regex(/^\+?\d{7,15}$/, "الرقم غلط"));
-const Price = (missing: string) => z.string({ required_error: missing, invalid_type_error: missing }).pipe(Money).refine((m) => !m.startsWith("-"), "السعر مايبقاش بالسالب").refine((m) => Number(m) > 0, missing);
+/** A price per m²: up to 10 digits of pounds (a few extra zeros typed by mistake are refused, not stored). */
+const PRICE = /^\d{1,10}(\.\d{1,2})?$/;
+const Price = (missing: string) => z.string({ required_error: missing, invalid_type_error: missing }).pipe(Money)
+  .refine((m) => !m.startsWith("-"), "السعر مايبقاش بالسالب").refine((m) => PRICE.test(m), "السعر كبير أوي").refine((m) => Number(m) > 0, missing);
 const Location = z.string().trim().regex(/^-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$/, "اللوكيشن «خط العرض, خط الطول» من الخريطة");
 
 /** What every type has (the demo's form top): the agent is who brought the unit → Seller on the deal (M-02). */
@@ -24,8 +27,8 @@ const Common = {
   condition: z.enum(UNIT_CONDITIONS, { errorMap: () => ({ message: "اختار التشطيب" }) }),
   floor: optional(text(40, "الدور طويل")),
   building: required(40, "اكتب رقم المبنى"),
-  parking: z.number({ invalid_type_error: "الـ Parking رقم" }).int("الـ Parking رقم صحيح").min(0, "الـ Parking مايبقاش بالسالب").max(10_000).default(0),
-  agentId: z.string({ required_error: "اختار الـ Agent" }).min(1, "اختار الـ Agent").max(40),
+  parking: z.number({ invalid_type_error: "الـ Parking رقم" }).int("الـ Parking رقم صحيح").min(0, "الـ Parking مايبقاش بالسالب").max(10_000, "الـ Parking كبير أوي").default(0),
+  agentId: z.string({ required_error: "اختار الـ Agent", invalid_type_error: "اختار الـ Agent" }).min(1, "اختار الـ Agent").max(40),
   maintenance: optional(text(80, "الصيانة طويلة")),
   commission: optional(text(80, "الـ Commission طويل")),
   location: optional(Location),
@@ -37,7 +40,7 @@ const Common = {
   minSplit: optional(z.number({ invalid_type_error: "أقل مساحة رقم" }).int("أقل مساحة رقم صحيح").positive("أقل مساحة لازم تبقى أكبر من صفر")),
   splitNote: optional(text(500, "كومنت التقسيم طويل")),
   /** the area tab Manar puts it in (M-03 3.2); empty = by its area */
-  areaTabId: optional(z.string().max(40)),
+  areaTabId: optional(z.string({ invalid_type_error: "اختار تاب المساحة" }).max(40)),
 };
 
 /** RENT (M-03 3.1): contact, number, price per sqm and the agent are required. */
@@ -87,7 +90,10 @@ const Primary = z.object({
 });
 
 /** The unit form (create and edit send the whole sheet). */
-export const UnitInput = z.discriminatedUnion("type", [Rent, Resale, Income, Primary])
+export const UnitInput = z.discriminatedUnion("type", [Rent, Resale, Income, Primary], { errorMap: () => ({ message: "اختار الـ Type: Rent أو Resale أو Income أو Primary" }) })
+  .refine((u) => unitFiguresFit({
+    pricePerSqm: u.pricePerSqm ? fromDecimal(u.pricePerSqm) : null, leasePerSqm: u.type === "Income" ? fromDecimal(u.leasePerSqm) : null, area: u.space,
+  }), { path: ["pricePerSqm"], message: "الإجمالي كبير أوي · راجع السعر والمساحة" })
   .refine((u) => !u.minSplit || u.minSplit < u.space, { path: ["minSplit"], message: "أقل مساحة للتقسيم لازم تبقى أصغر من مساحة الوحدة" })
   .refine((u) => u.type !== "Income" || !u.startsOn || !u.endsOn || u.startsOn <= u.endsOn, { path: ["endsOn"], message: "الـ End date قبل الـ Start date" });
 export type UnitInput = z.infer<typeof UnitInput>;
@@ -107,8 +113,8 @@ export const UnitFilters = Page.extend({
   agentId: Id.optional(),
   minSpace: QueryInt.optional(),
   maxSpace: QueryInt.optional(),
-  minPrice: Money.optional(), // on the total price (Rent: a month's rent · the others: the sale price)
-  maxPrice: Money.optional(),
+  minPrice: Money.refine((m) => !m.startsWith("-"), "السعر مايبقاش بالسالب").optional(), // on the total price (Rent: a month's rent · the others: the sale price)
+  maxPrice: Money.refine((m) => !m.startsWith("-"), "السعر مايبقاش بالسالب").optional(),
   stale: QueryBool.optional(), // «محتاجة ابديت»: last update older than a month
   divisible: QueryBool.optional(), // «تنفع تتقسم»
   tabId: Id.optional(), // an area tab (2.5)

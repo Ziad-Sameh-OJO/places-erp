@@ -118,3 +118,14 @@ test("area tabs (M-03 7.2): the sheet's names and the unit's tab — picked by M
   assert.match(areaRangeProblem({ min: 0, max: 100 })!, /من/);
   assert.match(areaRangeProblem({ min: 1.5, max: 100 })!, /من/);
 });
+
+test("a unit's amounts must fit the sheet's money columns (999,999,999,999.99)", async () => {
+  const { unitFiguresFit, MAX_MONEY } = await import("../src/units.ts");
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(1_100), leasePerSqm: null, area: 95 }), true);
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(9_999_999.99), leasePerSqm: null, area: 100_000 }), true); // 999,999,999,000
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(99_999_999), leasePerSqm: null, area: 1_000_000 }), false);
+  // Income: a year's rent too (lease × area × 12)
+  assert.equal(unitFiguresFit({ pricePerSqm: egp(36_000), leasePerSqm: egp(99_999_999_999), area: 900_000 }), false);
+  assert.equal(unitFiguresFit({ pricePerSqm: null, leasePerSqm: null, area: 10 }), true);
+  assert.equal(MAX_MONEY, fromDecimal("999999999999.99"));
+});

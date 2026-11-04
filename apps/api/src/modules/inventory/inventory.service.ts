@@ -118,10 +118,14 @@ export class InventoryService {
     });
   }
 
-  /** The agent must be someone still working here; a new area must be on the settings' list (an old one may stay). */
+  /**
+   * A new agent must be someone still working here — the one who brought the unit stays on it after leaving (it's
+   * history, and their KPI). A new area must be on the settings' list (an old one may stay). «Last update» is a day
+   * that happened.
+   */
   private async check(input: UnitInput, before: UnitRecord | null) {
-    const [agent] = await this.repo.agents([input.agentId]);
-    if (!agent) throw new BadRequestException("الـ Agent ده مش موجود");
+    if (before?.agentId !== input.agentId && !(await this.repo.agents([input.agentId])).length) throw new BadRequestException("الـ Agent ده مش موجود");
+    if (input.lastOwnerUpdateAt && input.lastOwnerUpdateAt > localDate(new Date())) throw new BadRequestException("الـ Last update مايبقاش في المستقبل");
     if (input.areaTabId && !(await this.repo.areaTabs()).some((t) => t.id === input.areaTabId)) throw new BadRequestException("تاب المساحة ده اتشال · اختار تاب تاني");
     if (before?.area !== input.area && !(await this.settings.all()).areas.includes(input.area)) throw new BadRequestException("اختار Area من القايمة");
   }

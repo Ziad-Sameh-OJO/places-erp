@@ -1,15 +1,20 @@
+/** What the person reads when the API itself failed (its body only says «internal») or can't be reached. */
+const SERVER_ERROR = "حصل خطأ في السيستم · جرّب تاني كمان شوية";
+const OFFLINE = "مفيش اتصال بالسيستم · اتأكد من النت وجرّب تاني";
+
 /** Thin fetch wrapper: same-origin /api (proxied to the API), session cookie included, errors as Error(message). */
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/v1${path}`, {
     method, credentials: "include",
     // FormData (file uploads) sets its own multipart Content-Type with the boundary
     ...(body instanceof FormData ? { body } : body !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
-  });
+  }).catch(() => { throw new Error(OFFLINE); });
   // a lost session sends you to sign in, except on the sign-in pages themselves (wrong password is also a 401)
   if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/")) window.location.href = "/login";
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    throw new Error(e.issues?.[0]?.message ?? e.error ?? res.statusText);
+    // a 500 says «internal» in English: the person gets a sentence instead
+    throw new Error(res.status >= 500 ? SERVER_ERROR : e.issues?.[0]?.message ?? e.error ?? res.statusText);
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
@@ -17,7 +22,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 /** Downloads a file the API builds (Excel export, PDF) with the session cookie, and saves it under its own name. */
 async function download(path: string, fallbackName: string): Promise<void> {
   const res = await fetch(`/api/v1${path}`, { credentials: "include" });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? res.statusText);
+  if (!res.ok) throw new Error(res.status >= 500 ? SERVER_ERROR : (await res.json().catch(() => ({}))).error ?? res.statusText);
   const cd = res.headers.get("Content-Disposition") ?? "";
   const name = decodeURIComponent(/filename\*=UTF-8''([^;]+)/.exec(cd)?.[1] ?? fallbackName);
   const url = URL.createObjectURL(await res.blob());
