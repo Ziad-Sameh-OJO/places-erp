@@ -19,6 +19,10 @@ jobs:
         env: { POSTGRES_USER: places, POSTGRES_PASSWORD: places, POSTGRES_DB: places }
         ports: ["5432:5432"]
         options: --health-cmd "pg_isready -U places" --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
     env:
       TZ: Africa/Cairo
       DATABASE_URL: postgresql://places:places@localhost:5432/places
@@ -56,6 +60,13 @@ jobs:
           (cd apps/api && node dist/main.js > ../../api.log 2>&1 &)
           for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:4000/api/v1/auth/me && break; sleep 1; done
           pnpm --filter @places/api test:e2e
+      - name: Worker starts and registers its jobs
+        run: |
+          (cd apps/worker && node src/main.ts > ../../worker.log 2>&1 &)
+          for i in $(seq 1 30); do grep -q "worker: up" worker.log && break; sleep 1; done
+          cat worker.log
+          grep -q "worker: up" worker.log
+          pkill -TERM -f "node src/main.ts" || true
       - name: API log (on failure)
         if: failure()
-        run: cat api.log || true
+        run: cat api.log worker.log || true
