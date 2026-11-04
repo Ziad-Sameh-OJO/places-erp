@@ -46,7 +46,7 @@ export function NewLead({ onClose, onOpenLead }: { onClose: () => void; onOpenLe
   const save = async (f: FormData) => {
     const text = (k: string) => String(f.get(k) ?? "").trim();
     const body = {
-      name: text("name"), phones: phonesOf(text("phones")), area: text("area"), type: text("type"), channel: text("channel"),
+      name: text("name"), kind: text("kind") === "broker" ? "broker" : "client", phones: phonesOf(text("phones")), area: text("area"), type: text("type"), channel: text("channel"),
       ...(text("company") ? { company: text("company") } : {}), ...(text("space") ? { space: Number(text("space")) } : {}),
       ...(text("condition") ? { condition: text("condition") } : {}), ...(text("budget") ? { budget: text("budget") } : {}),
       ...(text("campaignId") ? { campaignId: text("campaignId") } : {}), ...(text("assignToId") ? { assignToId: text("assignToId") } : {}),
@@ -72,6 +72,7 @@ export function NewLead({ onClose, onOpenLead }: { onClose: () => void; onOpenLe
     <Modal title="ليد جديد" onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit(save)}>
         <Field label="الاسم" req><input name="name" required minLength={2} maxLength={120} /></Field>
+        <Field label="ده"><select name="kind"><option value="client">Client</option><option value="broker">Broker</option></select></Field>
         <Field label="الشركة"><input name="company" maxLength={160} placeholder="اكتب أو اختار من شيت الشركات" /></Field>
         <Field label="الموبايل (رقم في كل سطر)" req>
           <textarea name="phones" required placeholder="01xxxxxxxxx" value={phones} onChange={(e) => setPhones(e.target.value)} />

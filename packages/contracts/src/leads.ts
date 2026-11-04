@@ -2,9 +2,14 @@ import { z } from "zod";
 import { LEAD_STAGES } from "@places/domain";
 import { CalendarDay, EgyptianMobile, Id, Money, Page } from "./common.ts";
 
+/** A lead is a client or a broker (client meeting 4 Nov · 1.28): brokers have their own tab, same stages. */
+export const LeadKind = z.enum(["client", "broker"]);
+export type LeadKind = z.infer<typeof LeadKind>;
+
 /** Messages are shown to the person as they are: Arabic, like the demo. */
 export const CreateLead = z.object({
   name: z.string().trim().min(2, "الاسم قصير").max(120, "الاسم طويل"),
+  kind: LeadKind.default("client"), // the form's «ده: Client / Broker»
   company: z.string().trim().max(160, "اسم الشركة طويل").optional(),
   // the same mobile written twice is kept once
   phones: z.array(EgyptianMobile).min(1, "اكتب رقم موبايل").max(5, "5 أرقام بالكتير").transform((ps) => [...new Set(ps)]),
@@ -36,6 +41,7 @@ export const LeadFilters = Page.extend({
   campaignId: Id.optional(),
   assignedToId: Id.optional(),
   qualified: QueryBool.optional(),
+  kind: LeadKind.optional(), // the page's tab: «الليدز» (client) or «البروكرز»
   from: CalendarDay.optional(), // Cairo days, both ends included
   to: CalendarDay.optional(),
 }).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" });
@@ -58,7 +64,7 @@ export type AddComment = z.infer<typeof AddComment>;
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
 export interface LeadRow {
   id: string; code: string; name: string; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
-  campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean;
+  campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean; kind: LeadKind;
   ownedByTelesales: boolean; // demo: «مع Telesales» — she keeps it to call herself, no SLA
   /** the SLA clock while the lead is Fresh and untouched (null otherwise): level, minutes left, % of the way to the pull */
   sla: { level: "ok" | "warn" | "pull"; minutesLeft: number; pct: number } | null;
@@ -97,6 +103,12 @@ export interface DuplicateRow {
   lead: LeadSide & { id: string; code: string; assignedTo: { id: string; name: string } | null };
   entry: LeadSide;
 }
+
+/** The tiles follow the tab: clients or brokers. */
+export const SummaryQuery = z.object({ kind: LeadKind.default("client") });
+export type SummaryQuery = z.infer<typeof SummaryQuery>;
+/** Each tab's count under the current filters (they stay when moving between tabs · 1.28). */
+export interface LeadTabCounts { client: number; broker: number }
 
 /** The KPI tiles and the saved views' counts, over the caller's whole scope (not the current filters). */
 export interface LeadSummary {

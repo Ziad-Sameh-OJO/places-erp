@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { AddComment, ChangeStage, CreateLead, DuplicateCheck, LeadFilters } from "@places/contracts";
+import { AddComment, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, SummaryQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -37,8 +37,14 @@ export class LeadsController {
 
   @Get("summary")
   @Requires("leads", "view")
-  summary(@Me() me: CurrentUser) {
-    return this.leads.summary(me);
+  summary(@Me() me: CurrentUser, @Query(new ZodPipe(SummaryQuery)) q: SummaryQuery) {
+    return this.leads.summary(me, q);
+  }
+
+  @Get("tabs")
+  @Requires("leads", "view")
+  tabs(@Me() me: CurrentUser, @Query(new ZodPipe(LeadFilters)) f: LeadFilters) {
+    return this.leads.tabs(me, f);
   }
 
   @Get("options")
