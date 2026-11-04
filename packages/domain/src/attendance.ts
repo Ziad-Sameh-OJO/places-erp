@@ -62,3 +62,14 @@ export function attendanceDay(day: DayKind, tiers: DeductionTiers = DEFAULT_TIER
 
 /** One day's pay: salary ÷ 26 working days. */
 export const dayRate = (monthlySalary: number): number => monthlySalary / 26;
+
+/**
+ * Per-person tiers (M-05 3.1, Q33): HR picks the minute each deduction starts. Why they can't be saved, or null:
+ * after the 16-minute grace, in order quarter < half < day, within the working day.
+ */
+export function tiersProblem(t: DeductionTiers): string | null {
+  const ok = (n: number) => Number.isInteger(n) && n > GRACE_MINUTES && n <= 8 * 60;
+  if (![t.quarterFrom, t.halfFrom, t.dayFrom].every(ok)) return `الشرايح بتبدأ بعد ${GRACE_MINUTES} دقيقة ولحد آخر اليوم`;
+  if (!(t.quarterFrom < t.halfFrom && t.halfFrom < t.dayFrom)) return "الربع قبل النص، والنص قبل اليوم";
+  return null;
+}
