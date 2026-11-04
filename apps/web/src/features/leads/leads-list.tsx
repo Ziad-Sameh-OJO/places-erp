@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Icon, Note, Tabs } from "@/components/ui";
 import type { LeadKind } from "@places/contracts";
 import { useMe } from "@/lib/me";
-import { hoursText, num } from "@/lib/format";
+import { num } from "@/lib/format";
+import { durationText } from "@places/domain";
 import type { LeadQuery } from "./filters";
 import { useSavedViews } from "./filters";
 import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
@@ -79,8 +80,8 @@ export function LeadsList() {
       )}
       {s && (
         <Note>
-          الـ SLA{s.holidayMode && <> <b>(النهارده إجازة رسمية)</b></>}: تنبيه بعد {hoursText(s.holidayMode ? s.slaRules.holidayWarnAfter : s.slaRules.warnAfter)} من غير أكشن،
-          والليد بيتسحب أوتوماتيك بعد {hoursText(s.holidayMode ? s.slaRules.holidayPullAfter : s.slaRules.pullAfter)} للسيلز اللي عليه الدور.
+          الـ SLA{s.holidayMode && <> <b>(النهارده إجازة رسمية)</b></>}: تنبيه بعد {durationText(s.holidayMode ? s.slaRules.holidayWarnAfter : s.slaRules.warnAfter)} من غير أكشن،
+          والليد بيتسحب أوتوماتيك بعد {durationText(s.holidayMode ? s.slaRules.holidayPullAfter : s.slaRules.pullAfter)} للسيلز اللي عليه الدور.
         </Note>
       )}
     </>

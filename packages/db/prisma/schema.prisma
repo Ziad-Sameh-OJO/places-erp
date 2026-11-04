@@ -890,10 +890,14 @@ model KpiBands {
 
 // ───────────────────────────── M-13 / M-14 · settings, notifications, audit ─────────────────────────────
 
+/// Official holidays as ranges «من … لحد …» (an Eid is several days · 1.29); every day in between is off for the SLA.
 model Holiday {
-  day   DateTime @id @db.Date
+  id    String   @id @default(cuid())
+  from  DateTime @db.Date
+  to    DateTime @db.Date
   label String
 
+  @@index([from])
   @@schema("system")
 }
 
