@@ -968,3 +968,41 @@ model AuditLog {
   @@index([entity, entityId])
   @@schema("system")
 }
+
+// 10.4 · office assets & office boys
+// ───────────────────────────── M-08 · office assets register & office boys' rota ─────────────────────────────
+
+/// M-08 3.1 · the office assets register Mokhtar keeps (KPI M-12: updated and reviewed every month).
+model OfficeAsset {
+  id          String    @id @default(cuid())
+  name        String
+  place       String    @default("")
+  needsRepair Boolean   @default(false) // «محتاج صيانة»; false = «سليم»
+  archivedAt  DateTime? // taken off the register (sold, thrown away): kept for the audit trail
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([archivedAt])
+  @@schema("ops")
+}
+
+/// Every «اتراجع الشهر ده» on the register: who reviewed it and when (the KPI reads the latest).
+model OfficeAssetReview {
+  id           String   @id @default(cuid())
+  reviewedById String
+  at           DateTime @default(now())
+
+  @@index([at])
+  @@schema("ops")
+}
+
+/// M-08 3.1 · the office boys' rota by area (KPI M-12: ≥90% compliance, rated by Nancy on Mokhtar's card).
+model OfficeBoyShift {
+  id        String   @id @default(cuid())
+  area      String   // «الدور الأرضي + الاستقبال»
+  name      String   // the office boy: not a system user
+  slots     String   // «9:00 · 13:00 · 17:00» or «قبل كل اجتماع»
+  createdAt DateTime @default(now())
+
+  @@schema("ops")
+}
