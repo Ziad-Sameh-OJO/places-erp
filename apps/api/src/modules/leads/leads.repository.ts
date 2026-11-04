@@ -77,6 +77,19 @@ export class LeadsRepository {
     return tx.leadActivity.create({ data: { leadId, kind, text, byUserId } });
   }
 
+  addCall(tx: Prisma.TransactionClient, leadId: string, byUserId: string) {
+    return tx.leadCall.create({ data: { leadId, byUserId } });
+  }
+
+  /** Only the first call is the one the 30-minute KPI looks at. */
+  markFirstCall(tx: Prisma.TransactionClient, id: string, at: Date) {
+    return tx.lead.updateMany({ where: { id, firstCallAt: null }, data: { firstCallAt: at } });
+  }
+
+  countCalls(byUserId: string, since: Date) {
+    return this.db.leadCall.count({ where: { byUserId, at: { gte: since } } });
+  }
+
   /** Any action by the salesperson stops the SLA clock (M-01 «3 ساعات من غير أي أكشن»); only the first one is kept. */
   markActed(tx: Prisma.TransactionClient, id: string, at: Date) {
     return tx.lead.updateMany({ where: { id, firstActionAt: null }, data: { firstActionAt: at, touched: true } });
@@ -141,7 +154,7 @@ const LEAD_ROW = {
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
-  ...LEAD_ROW, condition: true, note: true, post: true, noAnswerCount: true, rotation: true, firstActionAt: true,
+  ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;

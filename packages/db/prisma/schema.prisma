@@ -296,6 +296,7 @@ model Lead {
   noAnswerCount  Int           @default(0)
   rotation       Int           @default(1)  // how many salespeople it went through on No Answer; the 3rd goes to Telesales (M-01 3.2)
   arrivedAt      DateTime      @default(now()) // KPI: first call within 30 min · the campaign WhatsApp message time if it came that way
+  firstCallAt    DateTime?     // KPI: the first call within 30 minutes of arrivedAt (domain firstCallOnTime)
   firstActionAt  DateTime?     // the salesperson's first action (comment, call, stage change…): stops the SLA clock (M-01 «من غير أي أكشن»)
   slaWarnedAt    DateTime?     // the TL got the 2h30 warning for this assignment (cleared on reassign)
   note           String?
@@ -304,6 +305,7 @@ model Lead {
   verification   Json?         // Second Call: { called, sent, byUserId, at }
   activities     LeadActivity[]
   arrivals       LeadArrival[]
+  calls          LeadCall[]
   duplicates     LeadDuplicate[]
   visits         LeadVisit[]
   suggestedUnits LeadUnit[]
@@ -399,6 +401,20 @@ model LeadDuplicate {
   decision    Json?
 
   @@index([decidedAt])
+  @@schema("sales")
+}
+
+/// Every call a salesperson or Telesales logs on a lead (M-01 3.1): the KPIs count them (Telesales 100 a day,
+/// sales 50 a week) and the first one is measured against the lead's arrival (30 minutes).
+model LeadCall {
+  id       String   @id @default(cuid())
+  leadId   String
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  byUserId String
+  at       DateTime @default(now())
+
+  @@index([byUserId, at])
+  @@index([leadId, at])
   @@schema("sales")
 }
 

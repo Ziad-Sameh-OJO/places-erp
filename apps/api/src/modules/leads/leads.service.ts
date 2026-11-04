@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView } from "@places/domain";
+import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, MyCalls, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, callGoal, callPeriodStart, firstCallOnTime } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -96,6 +96,27 @@ export class LeadsService {
       await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "comment", userId: me.id, after: { leadId: id, text: input.text } }, tx);
     });
     return this.get(me, id);
+  }
+
+  /** «سجّل مكالمة» (demo): a call is an action, so it stops the SLA clock; the first one is kept for the 30-minute KPI. */
+  async logCall(me: CurrentUser, id: string) {
+    await this.db.$transaction(async (tx) => {
+      const lead = await this.repo.findInScope(ownedBy(me) as never, id, tx);
+      if (!lead) throw new NotFoundException();
+      const call = await this.repo.addCall(tx, id, me.id);
+      await this.repo.addActivity(tx, id, "call", "مكالمة اتسجّلت", me.id);
+      await this.repo.markActed(tx, id, call.at);
+      await this.repo.markFirstCall(tx, id, call.at);
+      await this.audit.record({ module: "leads", entity: "LeadCall", entityId: call.id, action: "call", userId: me.id, after: { leadId: id } }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  /** The person's calls in their KPI period (Telesales today, sales / TLs the last 7 days). */
+  async myCalls(me: CurrentUser): Promise<MyCalls> {
+    const goal = callGoal(me.roles);
+    if (!goal) return { goal: null, count: 0 };
+    return { goal, count: await this.repo.countCalls(me.id, callPeriodStart(goal, new Date(), await this.time.calendar())) };
   }
 
   private async salespeopleNames(ids: Array<string | null>) {
@@ -194,10 +215,11 @@ function toRow({ assignedToId, budget, ...r }: LeadRecord, names: Map<string, st
 }
 
 function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): LeadDetail {
-  const { activities, company, firstActionAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
+  const { activities, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation,
     company: company?.name ?? null, firstActionAt: iso(firstActionAt),
+    firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,
     })),
