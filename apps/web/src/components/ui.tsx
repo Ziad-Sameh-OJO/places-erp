@@ -16,7 +16,7 @@ export function Icon({ name }: { name: IconName }) {
   return <svg className="i" viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ICONS[name] }} />;
 }
 
-type Tone = "" | "ok" | "warn" | "bad" | "info";
+type Tone = "" | "ok" | "warn" | "bad" | "info" | "acc";
 export const Chip = ({ tone = "", plain, children }: { tone?: Tone; plain?: boolean; children: ReactNode }) => (
   <span className={`chip ${tone} ${plain ? "plain" : ""}`}>{children}</span>
 );

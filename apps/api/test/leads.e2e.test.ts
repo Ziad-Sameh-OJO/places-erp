@@ -323,3 +323,69 @@ test("Operations decides: chosen fields and the channel move, both mobiles stay,
   assert.equal((await call("/leads/duplicates/nope/decide", { method: "POST", cookie: ops, body: {} })).status, 404);
   assert.equal((await call(`/leads/duplicates/${dupId}/decide`, { method: "POST", cookie: ops, body: { name: "maybe" } })).status, 400);
 });
+
+/* ---------------- 1.6 the list's SLA column, the KPI tiles, the filters' choices ---------------- */
+
+const slaCodes: string[] = [];
+after(async () => { await prisma.lead.deleteMany({ where: { code: { in: slaCodes } } }); });
+
+test("list rows carry the SLA: a Fresh untouched lead assigned a month ago is pulled (100%); touched, with Telesales or unassigned → none", async () => {
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const monthAgo = new Date(Date.now() - 30 * 24 * 3600e3);
+  const mk = (n: number, extra: object) => {
+    const c = `L-E2ES${stamp}${n}`; slaCodes.push(c);
+    return { code: c, name: `E2E-S ${stamp} ${n}`, phones: [`0102${stamp.slice(-7)}${n}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook",
+      assignedToId: mohsenId, assignedAt: monthAgo, createdById: "e2e", ...extra };
+  };
+  await prisma.lead.createMany({ data: [mk(1, {}), mk(2, { touched: true }), mk(3, { ownedByTelesales: true }), mk(4, { assignedAt: null })] });
+  const r = await call(`/leads?q=${encodeURIComponent(`E2E-S ${stamp}`)}&pageSize=10`, { cookie: ops });
+  const sla = Object.fromEntries(r.body.items.map((l: { name: string; sla: unknown }) => [l.name.slice(-1), l.sla]));
+  assert.deepEqual(sla["1"], { level: "pull", minutesLeft: 0, pct: 100 });
+  assert.deepEqual([sla["2"], sla["3"], sla["4"]], [null, null, null]);
+  assert.equal((await call(`/leads/${(await prisma.lead.findUniqueOrThrow({ where: { code: slaCodes[0]! } })).id}`, { cookie: mohsen })).body.sla.level, "pull");
+});
+
+test("summary: the tiles agree with the list for the same person; HR 403", async () => {
+  for (const cookie of [mohsen, tl, ops]) {
+    const s = (await call("/leads/summary", { cookie })).body;
+    const total = async (q: string) => (await call(`/leads?pageSize=1${q}`, { cookie })).body.total;
+    assert.equal(s.total, await total(""));
+    assert.equal(s.fresh, await total("&stage=Fresh"));
+    assert.equal(s.qualified, await total("&qualified=true"));
+    assert.equal(s.noAnswer, await total("&stage=No%20Answer"));
+    assert.equal(s.interested, await total("&stage=Interested"));
+    assert.equal(typeof s.holidayMode, "boolean");
+    assert.ok(s.slaRules.pullAfter > s.slaRules.warnAfter);
+  }
+  assert.equal((await call("/leads/summary", { cookie: hr })).status, 403);
+});
+
+test("filter choices: sales get no salespeople, a TL his team only, operations everyone; HR 403", async () => {
+  const names = async (cookie: string) => (await call("/leads/options", { cookie })).body.salespeople.map((p: { name: string }) => p.name);
+  assert.deepEqual(await names(mohsen), []);
+  const team = await names(tl);
+  assert.ok(team.includes("محمد محسن"));
+  const otherTeamMember = (await prisma.employee.findFirstOrThrow({ where: { teamLeader: { user: { email: "mahmoud.ali@places.com" } } } })).name;
+  assert.ok(!team.includes(otherTeamMember));
+  const all = await names(ops);
+  assert.ok(all.includes("محمد محسن") && all.includes(otherTeamMember) && all.includes("هدير طارق"));
+  assert.ok(!all.includes("بسنت الصاوي")); // HR doesn't hold leads
+  assert.ok(Array.isArray((await call("/leads/options", { cookie: ops })).body.campaigns));
+  assert.equal((await call("/leads/options", { cookie: hr })).status, 403);
+});
+
+test("board: every stage once, each lane's total is the list's count for that stage, at most 30 cards, same scope", async () => {
+  for (const cookie of [mohsen, ops]) {
+    const b = (await call("/leads/board", { cookie })).body;
+    assert.equal(b.lanes.length, 13);
+    for (const lane of b.lanes) {
+      const listTotal = (await call(`/leads?pageSize=1&stage=${encodeURIComponent(lane.stage)}`, { cookie })).body.total;
+      assert.equal(lane.total, listTotal, lane.stage);
+      assert.ok(lane.items.length <= 30 && lane.items.length === Math.min(30, lane.total), lane.stage);
+      assert.ok(lane.items.every((l: { stage: string }) => l.stage === lane.stage));
+    }
+  }
+  const filtered = (await call(`/leads/board?q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: ops })).body;
+  assert.equal(filtered.lanes.reduce((n: number, l: { total: number }) => n + l.total, 0), (await call(`/leads?pageSize=1&q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: ops })).body.total);
+  assert.equal((await call("/leads/board", { cookie: hr })).status, 403);
+});

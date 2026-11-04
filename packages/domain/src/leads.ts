@@ -72,6 +72,21 @@ export function leadSla(
   return { level, elapsed, minutesLeft: Math.max(0, pull - elapsed) };
 }
 
+/** What the list and the Kanban show (demo: the SLA bar and the card colour): the clock plus how far along it is. */
+export interface SlaView extends SlaState { readonly pct: number }
+
+export function slaView(
+  lead: Parameters<typeof leadSla>[0],
+  now: Date,
+  opts: { holidayMode: boolean; rules?: SlaRules; calendar?: WorkCalendar } = { holidayMode: false },
+): SlaView | null {
+  const s = leadSla(lead, now, opts);
+  if (!s) return null;
+  const r = opts.rules ?? DEFAULT_SLA;
+  const pull = opts.holidayMode ? r.holidayPullAfter : r.pullAfter;
+  return { ...s, pct: Math.min(100, Math.round((s.elapsed / pull) * 100)) };
+}
+
 /**
  * Round-robin routing per area (Q1–Q3). Each area has its own ordered list of salespeople and its own cursor.
  * When Operations hands a lead to someone by hand, that person's next turn is skipped (Q2).

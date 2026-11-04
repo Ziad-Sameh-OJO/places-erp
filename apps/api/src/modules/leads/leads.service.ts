@@ -1,15 +1,19 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, LeadDetail, LeadFilters, LeadRow, Paged } from "@places/contracts";
-import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead } from "@places/domain";
+import type { AddComment, ChangeStage, CreateLead, LeadBoard, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
 import { LeadDuplicatesService } from "./duplicates.service";
+import { SettingsService } from "../settings/settings.service";
+import { BusinessTimeService } from "../../core/business-time/business-time.service";
 
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
+/** The demo's Kanban shows the newest 30 cards of a lane; its header shows the real count. */
+const CARDS_PER_LANE = 30;
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
 /** FOLLOW_UP_TO_VISIT → «Follow up to Visit»: the API speaks the stage names the team uses. */
 const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
@@ -22,24 +26,64 @@ export class LeadsService {
     private readonly repo: LeadsRepository,
     private readonly audit: AuditService,
     private readonly duplicates: LeadDuplicatesService,
+    private readonly settings: SettingsService,
+    private readonly time: BusinessTimeService,
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
   async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
     const [rows, total] = await this.repo.list(ownedBy(me) as never, f);
-    const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
-    return { items: rows.map((r) => toRow(r, names)), total, page: f.page, pageSize: f.pageSize };
+    const [names, sla] = await Promise.all([this.salespeopleNames(rows.map((r) => r.assignedToId)), this.slaClock()]);
+    return { items: rows.map((r) => toRow(r, names, sla)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
+  async board(me: CurrentUser, f: LeadFilters): Promise<LeadBoard> {
+    const [counts, rows] = await this.repo.board(ownedBy(me) as never, f, LEAD_STAGES.map(toDb), CARDS_PER_LANE);
+    const total = new Map(counts.map((c) => [c.stage as string, c._count._all]));
+    const [names, sla] = await Promise.all([this.salespeopleNames(rows.flat().map((r) => r.assignedToId)), this.slaClock()]);
+    return { lanes: LEAD_STAGES.map((stage, i) => ({ stage, total: total.get(toDb(stage)) ?? 0, items: rows[i]!.map((r) => toRow(r, names, sla)) })) };
+  }
+
+  /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */
+  async summary(me: CurrentUser): Promise<LeadSummary> {
+    const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
+    const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], { slaRules }, holidayMode] = await Promise.all([
+      this.repo.summary(ownedBy(me) as never, new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
+      this.settings.all(), this.time.isHolidayToday(),
+    ]);
+    return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules };
+  }
+
+  /** The filters' choices: campaigns, and the salespeople a person may filter by (a TL their team; sales nobody). */
+  async options(me: CurrentUser): Promise<LeadOptions> {
+    const scope = me.grants.scope;
+    const people = scope === "own" ? Promise.resolve([]) : this.repo.salespeople(scope === "team" ? { id: { in: me.teamIds } } : {});
+    const [campaigns, salespeople] = await Promise.all([this.repo.campaigns(), people]);
+    return { campaigns, salespeople };
+  }
+
+  /** The SLA as the list shows it, with the admin's rules (M-13), the official holidays and today's holiday mode. */
+  private async slaClock(now = new Date()): Promise<SlaClock> {
+    const [{ slaRules }, calendar, holidayMode] = await Promise.all([this.settings.all(), this.time.calendar(), this.time.isHolidayToday(now)]);
+    return (r) => {
+      if (!r.assignedAt) return null; // not with a salesperson yet: no clock
+      const stage = (STAGE_LABEL.get(r.stage) ?? r.stage) as LeadStage;
+      const v = slaView({ stage, touched: r.touched, ownedByTelesales: r.ownedByTelesales, assignedAt: r.assignedAt }, now, { holidayMode, rules: slaRules, calendar });
+      return v && { level: v.level, minutesLeft: v.minutesLeft, pct: v.pct };
+    };
   }
 
   /** The lead drawer. A lead outside the caller's scope is a 404, not a 403: it doesn't say the lead exists. */
   async get(me: CurrentUser, id: string): Promise<LeadDetail> {
     const lead = await this.repo.detail(ownedBy(me) as never, id);
     if (!lead) throw new NotFoundException();
-    const [salespeople, people] = await Promise.all([
+    const [salespeople, people, sla] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
       this.repo.userNames([...new Set(lead.activities.map((a) => a.byUserId).filter(isId))]),
+      this.slaClock(),
     ]);
-    return toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])));
+    return toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla);
   }
 
   /** A comment (or a call result) on the Activity tab. It is an action, so it stops the SLA clock (M-01: «من غير أي أكشن»). */
@@ -127,19 +171,22 @@ export class LeadsService {
 const isId = (x: string | null): x is string => !!x;
 const iso = (d: Date | null) => d?.toISOString() ?? null;
 
-function toRow({ assignedToId, ...r }: LeadRecord, names: Map<string, string>): LeadRow {
+type SlaClock = (r: Pick<LeadRecord, "stage" | "touched" | "ownedByTelesales" | "assignedAt">) => LeadRow["sla"];
+
+function toRow({ assignedToId, budget, ...r }: LeadRecord, names: Map<string, string>, sla: SlaClock): LeadRow {
   return {
-    ...r, stage: STAGE_LABEL.get(r.stage) ?? r.stage,
+    ...r, budget: budget?.toFixed(2) ?? null, // money on the wire is a decimal string
+    stage: STAGE_LABEL.get(r.stage) ?? r.stage, sla: sla(r),
     assignedTo: assignedToId ? { id: assignedToId, name: names.get(assignedToId) ?? "" } : null,
     assignedAt: iso(r.assignedAt), arrivedAt: r.arrivedAt.toISOString(), createdAt: r.createdAt.toISOString(),
   };
 }
 
-function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>): LeadDetail {
-  const { activities, company, budget, firstActionAt, space, condition, note, noAnswerCount, rotation, ...row } = lead;
+function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): LeadDetail {
+  const { activities, company, firstActionAt, condition, note, noAnswerCount, rotation, ...row } = lead;
   return {
-    ...toRow(row, salespeople), space, condition, note, noAnswerCount, rotation,
-    company: company?.name ?? null, budget: budget?.toFixed(2) ?? null, firstActionAt: iso(firstActionAt), // money on the wire is a decimal string
+    ...toRow(row, salespeople, sla), condition, note, noAnswerCount, rotation,
+    company: company?.name ?? null, firstActionAt: iso(firstActionAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,
     })),

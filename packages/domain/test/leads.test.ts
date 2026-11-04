@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead } from "../src/leads.ts";
+import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead, slaView } from "../src/leads.ts";
 
 const cairo = (iso: string) => new Date(`${iso}+03:00`);
 const fresh = (assignedAt: Date) => ({ stage: "Fresh" as const, touched: false, ownedByTelesales: false, assignedAt });
@@ -86,4 +86,13 @@ test("duplicate (M-01 Q7): Operations keeps the old data unless «new» is picke
   const same = mergeDuplicate(old, { ...old }, { name: "new", channel: "new" });
   assert.deepEqual(same, { changes: {}, took: [] });
   assert.deepEqual(mergeDuplicate(old, neu, { budget: "new" }).changes.budget, null); // «new» can also clear a value
+});
+
+test("SLA view for the list and the Kanban: 1h30 of a 3h clock is 50%, pulled is 100%, custom rules from settings (M-13)", () => {
+  const at = cairo("2026-10-25T11:00:00");
+  assert.deepEqual(slaView(fresh(at), cairo("2026-10-25T12:30:00")), { level: "ok", elapsed: 90, minutesLeft: 90, pct: 50 });
+  assert.equal(slaView(fresh(at), cairo("2026-10-25T15:00:00"))?.pct, 100);
+  const rules = { warnAfter: 60, pullAfter: 120, holidayWarnAfter: 600, holidayPullAfter: 720 };
+  assert.deepEqual(slaView(fresh(at), cairo("2026-10-25T12:00:00"), { holidayMode: false, rules }), { level: "warn", elapsed: 60, minutesLeft: 60, pct: 50 });
+  assert.equal(slaView({ ...fresh(at), touched: true }, cairo("2026-10-25T12:00:00")), null);
 });

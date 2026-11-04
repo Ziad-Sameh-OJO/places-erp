@@ -21,6 +21,38 @@ export class LeadsRepository {
     ]);
   }
 
+  /** The KPI tiles and saved views' counts over the whole scope (one round trip). */
+  summary(scope: Prisma.LeadWhereInput, weekAgo: Date, twoWeeksAgo: Date) {
+    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null }, w] } });
+    return this.db.$transaction([
+      count({}), count({ stage: "FRESH" }), count({ qualified: true }), count({ stage: "NO_ANSWER" }), count({ stage: "INTERESTED" }),
+      count({ createdAt: { gte: weekAgo } }), count({ createdAt: { gte: twoWeeksAgo, lt: weekAgo } }),
+    ]);
+  }
+
+  /** People who hold leads (sales, TLs, Telesales), still active, within `where` (the caller's scope). */
+  salespeople(where: Prisma.EmployeeWhereInput) {
+    return this.db.employee.findMany({
+      where: { AND: [where, { user: { status: { not: "DISABLED" }, roles: { some: { role: { key: { in: [...LEAD_HOLDERS] } } } } } }] },
+      select: { id: true, name: true }, orderBy: { name: "asc" },
+    });
+  }
+
+  campaigns() {
+    return this.db.campaign.findMany({ select: { id: true, name: true, channel: true }, orderBy: { startsOn: "desc" } });
+  }
+
+  /** The Kanban: per stage the real count and the newest `perLane` rows, under the same scope and filters as the list. */
+  board(scope: Prisma.LeadWhereInput, f: LeadFilters, stages: readonly string[], perLane: number) {
+    const where = leadWhere(scope, f);
+    return Promise.all([
+      this.db.lead.groupBy({ by: ["stage"], where, _count: { _all: true } }),
+      Promise.all(stages.map((stage) => this.db.lead.findMany({
+        where: { AND: [where, { stage: stage as Prisma.LeadWhereInput["stage"] }] }, select: LEAD_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: perLane,
+      }))),
+    ]);
+  }
+
   /** One lead with its Activity (newest first). Out of the caller's scope it simply isn't found. */
   detail(scope: Prisma.LeadWhereInput, id: string) {
     return this.db.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: LEAD_DETAIL });
@@ -94,14 +126,17 @@ export class LeadsRepository {
   }
 }
 
+/** Role keys of the people a lead can be assigned to (seed-data/roles.json). */
+const LEAD_HOLDERS = ["sales", "tl", "telesales"] as const;
+
 const LEAD_ROW = {
-  id: true, code: true, name: true, phones: true, area: true, type: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true,
+  id: true, code: true, name: true, phones: true, area: true, type: true, space: true, budget: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true,
   assignedToId: true, assignedAt: true, arrivedAt: true, createdAt: true, campaign: { select: { id: true, name: true } },
 } satisfies Prisma.LeadSelect;
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
-  ...LEAD_ROW, space: true, condition: true, budget: true, note: true, noAnswerCount: true, rotation: true, firstActionAt: true,
+  ...LEAD_ROW, condition: true, note: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;
