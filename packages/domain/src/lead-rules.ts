@@ -80,3 +80,12 @@ export function holidayDays(ranges: readonly { from: string; to: string }[]): Se
   }
   return out;
 }
+
+/**
+ * Who a rule reaches for one lead: «owner» becomes the lead's salesperson, «ownerTl» their Team Leader (dropped when
+ * there's none); roles and people stay as they are (the notification service looks both up). Never twice.
+ */
+export function ruleRecipients(who: RuleWho, lead: { readonly ownerUserId: string | null; readonly ownerTlUserId: string | null }): string[] {
+  const out = who.to.flatMap((x) => (x === OWNER ? (lead.ownerUserId ? [lead.ownerUserId] : []) : x === OWNER_TL ? (lead.ownerTlUserId ? [lead.ownerTlUserId] : []) : [x]));
+  return [...new Set(out)];
+}

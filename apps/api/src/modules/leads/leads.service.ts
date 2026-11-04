@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
+import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -9,6 +9,7 @@ import { ownedBy } from "../../core/authz/scope";
 import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
 import { LeadDuplicatesService } from "./duplicates.service";
 import { LeadRulesService } from "./lead-rules.service";
+import { NotificationsService } from "../../core/notifications/notifications.service";
 import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 
@@ -32,6 +33,7 @@ export class LeadsService {
     private readonly settings: SettingsService,
     private readonly time: BusinessTimeService,
     private readonly rules: LeadRulesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
@@ -177,9 +179,8 @@ export class LeadsService {
       throw new ConflictException(`العميل ده موجود (${dup.code}) · اتبعت للأوبريشن تقرر`); // demo wording
     }
 
-    return this.db.$transaction(async (tx) => {
-      const routing = await tx.setting.findUnique({ where: { key: "routing" } });
-      const state = (routing?.value as { cursor: Record<string, number>; skipTurns: Record<string, number> } | null) ?? { cursor: {}, skipTurns: {} };
+    const created = await this.db.$transaction(async (tx) => {
+      const state = await this.repo.lockRouting(tx); // first: leads created at the same moment take their turns one after the other
       const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
       const router = new LeadRouter(state);
       const placement = placeNewLead(
@@ -187,8 +188,9 @@ export class LeadsService {
         { assignToId: input.assignToId, keep: input.keep },
       );
       if (placement.kind === "hand") router.assignedByHand(placement.to);
-      const assignedToId = placement.kind === "route" ? router.next(input.area, pools[input.area] ?? []) : placement.to;
-      await tx.setting.upsert({ where: { key: "routing" }, update: { value: router.snapshot() as never }, create: { key: "routing", value: router.snapshot() as never } });
+      // the area's rotation, without anyone whose account was switched off since they were ticked (1.13)
+      const assignedToId = placement.kind === "route" ? router.next(input.area, await this.repo.stillWorking(pools[input.area] ?? [], tx)) : placement.to;
+      await this.repo.saveRouting(tx, router.snapshot());
 
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
       const company = input.company ? await this.repo.companyByName(tx, input.company) : null;
@@ -207,8 +209,20 @@ export class LeadsService {
       if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);
       const [to] = assignedToId ? await this.repo.employeeNames([assignedToId], tx) : [];
-      return { id: lead.id, code: lead.code, ownedByTelesales: lead.ownedByTelesales, assignedTo: to ?? null };
+      return { id: lead.id, code: lead.code, ownedByTelesales: lead.ownedByTelesales, assignedTo: to ?? null, placement: placement.kind, name: lead.name, area: lead.area };
     });
+    // «ليد جديد اتوزع» (1.29 rules, default: the salesperson and the Team Leaders): a lead that went to someone by
+    // the rotation or by Operations' hand — not one Telesales keeps or a salesperson entered for themselves (demo)
+    if (created.assignedTo && (created.placement === "route" || created.placement === "hand")) await this.notifyAssigned(created.id, created.name, created.area, created.assignedTo.id);
+    return { id: created.id, code: created.code, ownedByTelesales: created.ownedByTelesales, assignedTo: created.assignedTo };
+  }
+
+  /** The lead rules' «ليد جديد اتوزع» for one lead and the salesperson it went to. */
+  private async notifyAssigned(leadId: string, name: string, area: string, employeeId: string) {
+    const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(employeeId)]);
+    if (!owner) return;
+    const to = ruleRecipients(rules.newLead, { ownerUserId: owner.userId, ownerTlUserId: owner.teamLeader?.userId ?? null });
+    await this.notifications.notify({ event: "lead.assigned", text: `ليد جديد ${name} راح لـ ${owner.name} (${area})`, link: `/leads?open=${leadId}`, to, channels: [...rules.newLead.ch] });
   }
 
   /** Stage change: Qualified is sticky (isQualifiedAfter), the SLA clock stops on the first action. */

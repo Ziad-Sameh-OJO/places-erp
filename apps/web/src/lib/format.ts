@@ -25,13 +25,6 @@ export function ago(iso: string, now = Date.now()) {
   return `من ${Math.floor(m / 1440)} يوم`;
 }
 
-/** 150 → «ساعتين ونص», 180 → «3 ساعات», 1320 → «22 ساعة» (the SLA note under the leads list). */
-export function hoursText(minutes: number) {
-  const h = Math.floor(minutes / 60), rest = minutes % 60;
-  const hours = h === 1 ? "ساعة" : h === 2 ? "ساعتين" : h <= 10 ? `${h} ساعات` : `${h} ساعة`;
-  if (!h) return `${minutes} دقيقة`;
-  return rest === 0 ? hours : rest === 30 ? `${hours} ونص` : `${hours} و${rest} دقيقة`;
-}
 
 /** A decimal string as a grouped number without the currency («1100.50» → «1,100.50», «104500.00» → «104,500»): the sheet's price per m². */
 export function amount(s: string | null | undefined) {

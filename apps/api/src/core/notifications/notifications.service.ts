@@ -11,6 +11,12 @@ export interface Notify {
   link?: string;
   /** specific people (the lead's owner, the account holder…), on top of the rule's roles */
   userIds?: string[];
+  /**
+   * When «قواعد الليدز» (1.29) names who is told and how: role keys and user ids, and the channels. They replace the
+   * event's own rule (the lead events live in the lead rules, demo «notifRules»).
+   */
+  to?: string[];
+  channels?: Channel[];
 }
 
 /**
@@ -39,12 +45,13 @@ export class NotificationsService {
     const e = eventByKey(n.event);
     if (!e) throw new Error(`unknown notification event ${n.event}`);
     const rule = (await this.rules()).find((r) => r.key === n.event)!;
+    const roles = n.to ?? [...rule.toRoles];
     const people = await this.db.user.findMany({
-      where: { status: "ACTIVE", OR: [{ id: { in: n.userIds ?? [] } }, { roles: { some: { role: { key: { in: [...rule.toRoles] } } } } }] },
+      where: { status: "ACTIVE", OR: [{ id: { in: [...(n.userIds ?? []), ...(n.to ?? [])] } }, { roles: { some: { role: { key: { in: roles } } } } }] },
       select: { id: true, email: true, emailNotifications: true },
     });
     for (const p of people) {
-      const ch = channelsFor(rule.channels, p, e.important);
+      const ch = channelsFor(n.channels ?? rule.channels, p, e.important);
       if (ch.includes("app")) await this.db.notification.create({ data: { userId: p.id, text: n.text, link: n.link ?? null, important: e.important } });
       if (ch.includes("email")) await this.mail.send({ to: p.email, subject: `${e.label} · Places ERP`, text: `${n.text}${n.link ? `\n${env.WEB_ORIGIN}${n.link}` : ""}` });
     }
