@@ -50,7 +50,7 @@ export interface DuplicateCheckResult { hit: DuplicateHit | null }
 export interface CreatedLead { id: string; code: string; ownedByTelesales: boolean; assignedTo: { id: string; name: string } | null }
 
 /** A comment or a call result written on the lead's Activity tab (demo: «اكتب كومنت أو نتيجة مكالمة»). */
-export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000) });
+export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000, "الكومنت طويل · 2000 حرف بالكتير") });
 export type AddComment = z.infer<typeof AddComment>;
 
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
