@@ -41,6 +41,10 @@ jobs:
         run: pnpm test
       - run: pnpm build
 
+      # headless Chromium for the PDFs (ADR-0005), with the system libraries it needs
+      - name: Chromium for PDFs
+        run: cd apps/api && npx playwright-core install --with-deps --only-shell chromium
+
       # S3-compatible storage for the file tests. MinIO no longer publishes images, so versitygw (same S3 API)
       - name: File storage (S3)
         run: |
