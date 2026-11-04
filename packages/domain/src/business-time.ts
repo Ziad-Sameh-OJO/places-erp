@@ -40,6 +40,17 @@ export function localDate(instant: Date, cal: WorkCalendar = PLACES_CALENDAR): s
   return new Date(instant.getTime() + offsetMs(instant, cal.timeZone)).toISOString().slice(0, 10);
 }
 
+/**
+ * The instant a local day starts, in UTC: date filters («from 1/10 to 15/10») mean Cairo days. Two passes, because the
+ * offset at UTC midnight can differ from the offset at local midnight on a daylight-saving day.
+ */
+export function dayStart(isoDate: string, cal: WorkCalendar = PLACES_CALENDAR): Date {
+  const utcMidnight = Date.parse(`${isoDate}T00:00:00Z`);
+  let t = utcMidnight - offsetMs(new Date(utcMidnight), cal.timeZone);
+  t = utcMidnight - offsetMs(new Date(t), cal.timeZone);
+  return new Date(t);
+}
+
 export function isWorkingDay(isoDate: string, cal: WorkCalendar = PLACES_CALENDAR): boolean {
   const weekday = new Date(`${isoDate}T00:00:00Z`).getUTCDay();
   return !cal.weekendDays.includes(weekday) && !cal.holidays.has(isoDate);
