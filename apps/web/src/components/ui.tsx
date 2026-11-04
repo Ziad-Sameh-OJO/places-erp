@@ -48,10 +48,10 @@ export function Tabs<K extends string>({ items, value, onChange }: { items: [K, 
 }
 
 /** On phones every row becomes a card; each cell is labelled with its column (data-label, styled by mobile.css). */
-/** `onRow` makes rows clickable (the demo opens a record's drawer from its row). */
-export function Table({ head, rows, empty = "مفيش بيانات", onRow }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void }) {
+/** `onRow` makes rows clickable (the demo opens a record's drawer from its row); `className` goes on the wrapper («has-sheets»). */
+export function Table({ head, rows, empty = "مفيش بيانات", onRow, className = "" }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void; className?: string }) {
   return (
-    <div className="tbl-wrap">
+    <div className={`tbl-wrap ${className}`}>
       <table className="cardable">
         <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>

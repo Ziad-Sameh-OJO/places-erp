@@ -1,0 +1,106 @@
+"use client";
+import { useState } from "react";
+import { keepsInventory } from "@places/domain";
+import { KpiTile } from "@/components/blocks";
+import { Chip, Empty, Icon, Note, Table, Tabs } from "@/components/ui";
+import { useMe } from "@/lib/me";
+import { num, short } from "@/lib/format";
+import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
+import { UnitDrawer } from "./unit-drawer";
+import { type UnitQuery, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
+
+const PAGE = 50;
+type TypeTab = "all" | "Rent" | "Resale" | "Income" | "Primary" | "closed";
+
+/**
+ * M-03 · مخزون الوحدات (demo inventory.js): the tiles, Rent · Resale · Income in one list with a type tab, the
+ * filters, the sheet or the folders (cards), and a unit's drawer. Sales see confirmed units only (Q15, the API).
+ */
+export function InventoryList() {
+  const me = useMe();
+  const insider = keepsInventory({ can: me.can });
+  const [tab, setTab] = useState<TypeTab>("all");
+  const [f, setF] = useState<UnitQuery>({});
+  const [mode, setMode] = useState<"table" | "drive">("table");
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
+  const query: UnitQuery = { ...f, ...(tab === "closed" ? { view: "closed" } : tab !== "all" ? { type: tab } : {}) };
+  const units = useUnits(query, page, PAGE);
+  const tabs = useUnitTabs(f).data;
+  const s = useUnitSummary().data;
+  const options = useUnitOptions().data;
+  const unit = useUnit(open);
+  const filter = (next: UnitQuery) => { setF(next); setPage(1); };
+  const on = (k: keyof UnitQuery) => (e: { target: { value: string } }) => filter({ ...f, [k]: e.target.value });
+  const toggle = (k: "stale" | "divisible") => (e: { target: { checked: boolean } }) => filter({ ...f, [k]: e.target.checked ? "true" : undefined });
+  const failed = units.error?.message;
+  const list = failed ? [] : units.data?.items ?? [];
+  const total = failed ? 0 : units.data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE));
+  const cols = columnsFor(tab === "all" || tab === "closed" ? "all" : tab, insider);
+  // Primary isn't confirmed by the client as a sheet yet: its tab shows once there are Primary units
+  const types: [TypeTab, string, number | undefined][] = [
+    ["all", "الكل", tabs?.all], ["Rent", "Rent", tabs?.Rent], ["Resale", "Resale", tabs?.Resale], ["Income", "Income", tabs?.Income],
+    ...(tabs?.Primary || tab === "Primary" ? [["Primary", "Primary", tabs?.Primary] as [TypeTab, string, number | undefined]] : []),
+    ["closed", "Rented / Sold", tabs?.closed],
+  ];
+
+  return (
+    <>
+      <div className="kpis">
+        <KpiTile label="وحدات متاحة" value={s ? num(s.available) : "…"} sub="Rent · Resale · Income" icon="building" />
+        {insider && <KpiTile label="PDF مستني Confirm" value={s ? num(s.pdfDraft) : "…"} sub="قبل ما يتنشر للسيلز" icon="file" tone="warn" />}
+        <KpiTile label="محتاجة ابديت" value={s ? num(s.stale) : "…"} sub="last update أكتر من شهر" icon="clock" tone="bad" onClick={() => filter({ ...f, stale: "true" })} />
+        <KpiTile label="تنفع تتقسم" value={s ? num(s.divisible) : "…"} sub="مساحات كبيرة" icon="layers" tone="ok" />
+      </div>
+      <div className="row">
+        <Tabs value={tab} onChange={(t) => { setTab(t); setPage(1); }} items={types} />
+        <span className="spacer" />
+      </div>
+      <div className="toolbar">
+        <label className="search"><Icon name="search" /><input type="search" placeholder={insider ? "دوّر بأي حاجة: مشروع، كود، مالك، رقم" : "دوّر بأي حاجة: مشروع، كود، مبنى"} value={f.q ?? ""} onChange={on("q")} aria-label="بحث في الوحدات" /></label>
+        <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
+          <option value="">كل المناطق</option>{options?.areas.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select value={f.condition ?? ""} onChange={on("condition")} aria-label="Condition">
+          <option value="">كل التشطيبات</option>{options?.conditions.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={f.agentId ?? ""} onChange={on("agentId")} aria-label="Agent">
+          <option value="">كل الـ agents</option>{options?.agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={toggle("stale")} /><span>محتاجة ابديت</span></label>
+        <label className="tog"><input type="checkbox" checked={!!f.divisible} onChange={toggle("divisible")} /><span>تنفع تتقسم</span></label>
+        <span className="spacer" />
+        <div className="seg" role="group" aria-label="طريقة العرض">
+          <button aria-pressed={mode === "table"} title="شيت" onClick={() => setMode("table")}><Icon name="list" /><span>شيت</span></button>
+          <button aria-pressed={mode === "drive"} title="فولدرات" onClick={() => setMode("drive")}><Icon name="board" /><span>فولدرات</span></button>
+        </div>
+      </div>
+      <div className="row"><span className="hint num">{num(total)} وحدة</span></div>
+      {failed ? <Note kind="warn">{failed}</Note> : mode === "drive"
+        ? (list.length
+          ? <div className="drive">{list.map((u) => (
+            <article key={u.id} className="ucard" role="button" tabIndex={0} onClick={() => setOpen(u.id)} onKeyDown={(e) => e.key === "Enter" && setOpen(u.id)}>
+              <div className={`u-img u-${u.type}`}><Icon name="image" /><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <Chip tone="warn">PDF draft</Chip>}</div>
+              <div className="u-body">
+                <b>{u.project}</b>
+                <small>{u.area} · الدور {u.floor || "—"}</small>
+                <div className="row"><span className="num u-space">{num(u.space)} م</span><span className="spacer" /><b className="num">{short(u.totalPrice)}</b></div>
+                <div className="row"><Chip tone={TYPE_TONE[u.type]}>{u.type}</Chip>{u.divisible && <Chip tone="info">تتقسم</Chip>}{u.stale && <Chip tone="bad">ابديت</Chip>}</div>
+              </div>
+            </article>
+          ))}</div>
+          : <Empty text="مفيش وحدات في الفلتر ده" />)
+        : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k)))} empty="مفيش وحدات في الفلتر ده" onRow={(i) => setOpen(list[i]!.id)} />}
+      {!failed && pages > 1 && (
+        <div className="row end">
+          <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button>
+          <span className="hint">{page} / {pages}</span>
+          <button className="btn ghost sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>التالي</button>
+        </div>
+      )}
+      <p className="hint">الوحدة اللي الـ last update بتاعها عدّى عليه أكتر من شهر بتظهر متأخرة، وبتتحسب في الـ activity بتاعة منار ورندا.</p>
+      {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)} />}
+    </>
+  );
+}

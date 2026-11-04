@@ -29,3 +29,23 @@ export function hoursText(minutes: number) {
   if (!h) return `${minutes} دقيقة`;
   return rest === 0 ? hours : rest === 30 ? `${hours} ونص` : `${hours} و${rest} دقيقة`;
 }
+
+/** A decimal string as a grouped number without the currency («1100.50» → «1,100.50», «104500.00» → «104,500»): the sheet's price per m². */
+export function amount(s: string | null | undefined) {
+  if (s == null) return "—";
+  const [whole, frac] = s.split(".");
+  const grouped = whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return frac && Number(frac) ? `${grouped}.${frac}` : grouped;
+}
+
+/**
+ * The demo's short date («4 نوفمبر»), with the year when it isn't this year. An instant is shown as its Cairo day;
+ * a calendar day «YYYY-MM-DD» as itself.
+ */
+export function day(value: string | null | undefined, now = new Date()) {
+  if (!value) return "—";
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00Z`) : new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const year = (x: Date) => x.toLocaleDateString("en-US", { timeZone: "Africa/Cairo", year: "numeric" });
+  return d.toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", day: "numeric", month: "short", ...(year(d) !== year(now) ? { year: "numeric" } : {}) });
+}
