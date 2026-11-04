@@ -73,3 +73,46 @@ export function tiersProblem(t: DeductionTiers): string | null {
   if (!(t.quarterFrom < t.halfFrom && t.halfFrom < t.dayFrom)) return "الربع قبل النص، والنص قبل اليوم";
   return null;
 }
+
+/* ---- the fingerprint sheet and the day (7.2 · 7.12) ---- */
+/** Work starts 11:00 for everyone (M-05 2.1). */
+export const WORK_START = "11:00";
+/** Minutes after the start for a check-in «HH:MM» (negative = early). */
+export function minutesAfterStart(checkIn: string, start = WORK_START): number {
+  const m = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
+  return m(checkIn) - m(start);
+}
+/** «11:5» / «11.05» / «1105» → «11:05», or null when it isn't a time. */
+export function normTime(raw: string | null | undefined): string | null {
+  const s = String(raw ?? "").trim().replace(".", ":");
+  const x = /^(\d{1,2}):?(\d{2})(?::\d{2})?$/.exec(s);
+  if (!x) return null;
+  const h = Number(x[1]), mi = Number(x[2]);
+  return h < 24 && mi < 60 ? `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}` : null;
+}
+/** A name from the device or a sheet, compared loosely: case, spaces, Arabic letter variants (أ/إ/آ → ا, ة → ه, ى → ي). */
+export const normName = (s: string): string =>
+  s.trim().toLowerCase().replace(/[ً-ْ]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ");
+
+export interface FingerprintDayInput {
+  checkIn: string | null;
+  partTime: boolean;
+  /** HR decides if a part-timer has deductions (M-05 3.1) */
+  partTimeDeductions: boolean;
+  tiers: DeductionTiers | null;
+  /** a person with fixed hours of their own (e.g. the CFO on Mon & Thu): no tiers against 11:00 */
+  specialSchedule: boolean;
+}
+/**
+ * One fingerprint day: the tiers against 11:00 (per-person tiers if HR set them); a part-timer without deductions
+ * and a special schedule get none; Weekly Delay still counts every minute after 11:16 (M-05 3.2).
+ */
+export function fingerprintDay(i: FingerprintDayInput): DayResult {
+  if (i.specialSchedule) return attendanceDay({ kind: "special-schedule" });
+  const r = attendanceDay({ kind: "checkin", minutesAfterStart: minutesAfterStart(i.checkIn ?? WORK_START) }, i.tiers ?? DEFAULT_TIERS);
+  if (i.partTime && !i.partTimeDeductions) return { ...r, deduction: 0, label: "Part-time" };
+  return r;
+}
+
+/** The deduction in money: a day = salary ÷ 26 (piasters, rounded). */
+export const deductionAmount = (salaryPiasters: number, fraction: number): number => Math.round((salaryPiasters / 26) * fraction);
