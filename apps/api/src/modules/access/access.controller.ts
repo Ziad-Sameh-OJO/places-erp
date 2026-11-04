@@ -32,6 +32,10 @@ export class AccessController {
     ], rows, "المستخدمين");
   }
 
+  /** The departments people are in, for the search filter (M-09 5.2). Before users/:id too. */
+  @Get("users/departments") @Requires("access", "view")
+  departments() { return this.access.departments(); }
+
   @Get("users/:id") @Requires("access", "view")
   user(@Param("id") id: string) { return this.access.getUser(id); }
 

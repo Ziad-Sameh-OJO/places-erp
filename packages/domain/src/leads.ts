@@ -125,6 +125,18 @@ export class LeadRouter {
   }
 }
 
+/** Who covers each area (M-01 Q1: «هيتوزع على الناس اللي متحدده للـ area دي بس»), in the order they rotate. */
+export type AreaRouting = Record<string, string[]>;
+
+/**
+ * Ticking / unticking a salesperson for an area (1.12, the demo's areas × salespeople table): someone added goes to
+ * the end of that area's rotation, someone removed leaves it; the others keep their order. Never twice.
+ */
+export function setAreaMember(routing: AreaRouting, area: string, employeeId: string, on: boolean): AreaRouting {
+  const pool = (routing[area] ?? []).filter((id) => id !== employeeId);
+  return { ...routing, [area]: on ? [...pool, employeeId] : pool };
+}
+
 /** Bulk upload (Telesales → Operations approval): spread `count` numbers over today's salespeople in order. */
 export function distributeEvenly(count: number, salespeople: readonly string[]): Map<string, number> {
   const out = new Map<string, number>();
