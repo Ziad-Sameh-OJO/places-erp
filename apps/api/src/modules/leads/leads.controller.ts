@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { ChangeStage, CreateLead, LeadFilters } from "@places/contracts";
+import { AddComment, ChangeStage, CreateLead, LeadFilters } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -14,6 +14,18 @@ export class LeadsController {
   @Requires("leads", "view")
   list(@Me() me: CurrentUser, @Query(new ZodPipe(LeadFilters)) f: LeadFilters) {
     return this.leads.list(me, f);
+  }
+
+  @Get(":id")
+  @Requires("leads", "view")
+  get(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.leads.get(me, id);
+  }
+
+  @Post(":id/comments")
+  @Requires("leads", "edit")
+  addComment(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(AddComment)) body: AddComment) {
+    return this.leads.addComment(me, id, body);
   }
 
   @Post()

@@ -1,12 +1,12 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { PrismaClient } from "@places/db";
-import type { ChangeStage, CreateLead, LeadFilters, LeadRow, Paged } from "@places/contracts";
+import type { Prisma, PrismaClient } from "@places/db";
+import type { AddComment, ChangeStage, CreateLead, LeadDetail, LeadFilters, LeadRow, Paged } from "@places/contracts";
 import { LEAD_STAGES, type LeadStage, LeadRouter, isQualifiedAfter } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
-import { LeadsRepository } from "./leads.repository";
+import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
 
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
 /** FOLLOW_UP_TO_VISIT → «Follow up to Visit»: the API speaks the stage names the team uses. */
@@ -20,14 +20,35 @@ export class LeadsService {
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
   async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
     const [rows, total] = await this.repo.list(ownedBy(me) as never, f);
-    const ids = [...new Set(rows.map((r) => r.assignedToId).filter((x): x is string => !!x))];
-    const names = new Map((await this.repo.employeeNames(ids)).map((e) => [e.id, e.name]));
-    const items = rows.map(({ assignedToId, ...r }) => ({
-      ...r, stage: STAGE_LABEL.get(r.stage) ?? r.stage,
-      assignedTo: assignedToId ? { id: assignedToId, name: names.get(assignedToId) ?? "" } : null,
-      assignedAt: r.assignedAt?.toISOString() ?? null, arrivedAt: r.arrivedAt.toISOString(), createdAt: r.createdAt.toISOString(),
-    }));
-    return { items, total, page: f.page, pageSize: f.pageSize };
+    const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
+    return { items: rows.map((r) => toRow(r, names)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** The lead drawer. A lead outside the caller's scope is a 404, not a 403: it doesn't say the lead exists. */
+  async get(me: CurrentUser, id: string): Promise<LeadDetail> {
+    const lead = await this.repo.detail(ownedBy(me) as never, id);
+    if (!lead) throw new NotFoundException();
+    const [salespeople, people] = await Promise.all([
+      this.salespeopleNames([lead.assignedToId]),
+      this.repo.userNames([...new Set(lead.activities.map((a) => a.byUserId).filter(isId))]),
+    ]);
+    return toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])));
+  }
+
+  /** A comment (or a call result) on the Activity tab. It is an action, so it stops the SLA clock (M-01: «من غير أي أكشن»). */
+  async addComment(me: CurrentUser, id: string, input: AddComment) {
+    await this.db.$transaction(async (tx) => {
+      const lead = await this.repo.findInScope(ownedBy(me) as never, id, tx);
+      if (!lead) throw new NotFoundException();
+      const activity = await this.repo.addActivity(tx, id, "comment", input.text, me.id);
+      await this.repo.markActed(tx, id, activity.at);
+      await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "comment", userId: me.id, after: { leadId: id, text: input.text } }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  private async salespeopleNames(ids: Array<string | null>) {
+    return new Map((await this.repo.employeeNames([...new Set(ids.filter(isId))])).map((e) => [e.id, e.name]));
   }
 
   /** Create → duplicate check by phone (Q7: Operations decides) → route by area round-robin (Q1–Q3) → audit. */
@@ -52,9 +73,10 @@ export class LeadsService {
           code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
           condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, campaignId: input.campaignId ?? null,
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
-          activities: input.note ? { create: { kind: "comment", text: input.note, byUserId: me.id } } : undefined,
         },
       });
+      await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, assignedToId), me.id);
+      if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);
       return lead;
     });
@@ -68,11 +90,43 @@ export class LeadsService {
       const next = await tx.lead.update({
         where: { id },
         data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), touched: true,
-          noAnswerCount: input.stage === "No Answer" ? { increment: 1 } : undefined,
-          activities: { create: { kind: "stage", text: `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, byUserId: me.id } } },
+          noAnswerCount: input.stage === "No Answer" ? { increment: 1 } : undefined },
       });
+      const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
+      await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id, before: { stage: lead.stage }, after: { stage: next.stage } }, tx);
       return next;
     });
   }
+
+  /** The first line of the Activity, in the demo's words: who entered the lead and where it went. */
+  private async createdText(tx: Prisma.TransactionClient, me: CurrentUser, assignedToId: string | null) {
+    const by = `اتعمل بواسطة ${me.name}`;
+    if (!assignedToId) return by;
+    if (assignedToId === me.employeeId) return `${by} · فضل عنده (هو اللي دخّله)`;
+    const [salesperson] = await this.repo.employeeNames([assignedToId], tx);
+    return `${by} · اتوزع لـ ${salesperson?.name ?? ""}`;
+  }
+}
+
+const isId = (x: string | null): x is string => !!x;
+const iso = (d: Date | null) => d?.toISOString() ?? null;
+
+function toRow({ assignedToId, ...r }: LeadRecord, names: Map<string, string>): LeadRow {
+  return {
+    ...r, stage: STAGE_LABEL.get(r.stage) ?? r.stage,
+    assignedTo: assignedToId ? { id: assignedToId, name: names.get(assignedToId) ?? "" } : null,
+    assignedAt: iso(r.assignedAt), arrivedAt: r.arrivedAt.toISOString(), createdAt: r.createdAt.toISOString(),
+  };
+}
+
+function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>): LeadDetail {
+  const { activities, company, budget, firstActionAt, space, condition, note, noAnswerCount, rotation, ...row } = lead;
+  return {
+    ...toRow(row, salespeople), space, condition, note, noAnswerCount, rotation,
+    company: company?.name ?? null, budget: budget?.toFixed(2) ?? null, firstActionAt: iso(firstActionAt), // money on the wire is a decimal string
+    activities: activities.map(({ byUserId, at, ...a }) => ({
+      ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,
+    })),
+  };
 }

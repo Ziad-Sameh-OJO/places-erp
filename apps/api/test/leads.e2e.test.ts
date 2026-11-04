@@ -85,3 +85,97 @@ test("pagination: newest first, pages don't overlap", async () => {
   assert.equal(new Set(all).size, 4);
   assert.equal(all.at(-1), code(2)); // the oldest (March) comes last
 });
+
+/* ---------------- 1.3 lead details · Activity · comments ---------------- */
+
+const idOf = async (n: number) => (await prisma.lead.findUniqueOrThrow({ where: { code: code(n) } })).id;
+let nancy: string; // Office Manager: leads «view» only
+let apiLeadId: string | undefined;
+before(async () => { nancy = await session("nancy.islam@places.com"); });
+after(async () => { if (apiLeadId) await prisma.lead.delete({ where: { id: apiLeadId } }).catch(() => {}); });
+
+test("details: in scope 200 with the drawer's fields; out of scope 404 (not 403); no leads permission 403", async () => {
+  const r = await call(`/leads/${await idOf(1)}`, { cookie: mohsen });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.code, code(1));
+  assert.equal(r.body.stage, "Interested");
+  assert.equal(r.body.assignedTo.name, "محمد محسن");
+  assert.ok(Array.isArray(r.body.activities));
+  assert.equal(r.body.createdById, undefined);
+
+  assert.equal((await call(`/leads/${await idOf(2)}`, { cookie: tl })).status, 200);   // a teammate's lead
+  assert.equal((await call(`/leads/${await idOf(3)}`, { cookie: mohsen })).status, 404); // another team's
+  assert.equal((await call(`/leads/${await idOf(3)}`, { cookie: tl })).status, 404);
+  assert.equal((await call(`/leads/${await idOf(3)}`, { cookie: ops })).status, 200);   // operations see all
+  assert.equal((await call("/leads/no-such-lead", { cookie: ops })).status, 404);
+  assert.equal((await call(`/leads/${await idOf(1)}`, { cookie: hr })).status, 403);
+});
+
+test("comment: goes on top of the Activity with who and when, stops the SLA clock once, and is audited", async () => {
+  const id = await idOf(1);
+  const r = await call(`/leads/${id}/comments`, { method: "POST", cookie: mohsen, body: { text: "  كلمته وهيبعت الميزانية  " } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const [top] = r.body.activities;
+  assert.equal(top.kind, "comment");
+  assert.equal(top.text, "كلمته وهيبعت الميزانية"); // trimmed
+  assert.equal(top.by.name, "محمد محسن");
+  assert.equal(r.body.touched, true);
+  const firstAction = r.body.firstActionAt;
+  assert.ok(firstAction);
+
+  const again = await call(`/leads/${id}/comments`, { method: "POST", cookie: mohsen, body: { text: "متابعة" } });
+  assert.equal(again.body.firstActionAt, firstAction); // the first action stays the first
+  assert.equal(again.body.activities.length, r.body.activities.length + 1);
+
+  const audit = await prisma.auditLog.findFirst({ where: { module: "leads", action: "comment", entityId: top.id } });
+  assert.ok(audit);
+});
+
+test("comment: empty is 400, view-only is 403, someone else's lead is 404", async () => {
+  assert.equal((await call(`/leads/${await idOf(1)}/comments`, { method: "POST", cookie: mohsen, body: { text: "   " } })).status, 400);
+  assert.equal((await call(`/leads/${await idOf(1)}`, { cookie: nancy })).status, 200); // she can read it…
+  assert.equal((await call(`/leads/${await idOf(1)}/comments`, { method: "POST", cookie: nancy, body: { text: "x" } })).status, 403); // …not write
+  assert.equal((await call(`/leads/${await idOf(3)}/comments`, { method: "POST", cookie: mohsen, body: { text: "x" } })).status, 404);
+});
+
+test("a new lead's Activity starts with who entered it and who it went to (demo wording)", async () => {
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const created = await call("/leads", { method: "POST", cookie: ops, body: {
+    name: "عميل تجربة التفاصيل", phones: [`015${stamp.slice(-8)}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook",
+    assignToId: mohsenId, note: "عايز مكتب قريب من التسعين",
+  } });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  apiLeadId = created.body.id;
+  const r = await call(`/leads/${apiLeadId}`, { cookie: mohsen });
+  const texts = r.body.activities.map((a: { text: string }) => a.text);
+  assert.ok(texts.includes("اتعمل بواسطة هبة صلاح · اتوزع لـ محمد محسن"), JSON.stringify(texts));
+  assert.ok(texts.includes("عايز مكتب قريب من التسعين"));
+  assert.equal(r.body.firstActionAt, null); // entering a lead isn't the salesperson's action
+});
+
+test("lead codes come from the sequence: L-1001…, never shared even when created at the same moment", async () => {
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const made = await Promise.all([1, 2, 3].map((i) => call("/leads", { method: "POST", cookie: ops, body: {
+    name: `عميل كود ${i}`, phones: [`012${stamp.slice(-7)}${i}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook", assignToId: mohsenId,
+  } })));
+  try {
+    for (const r of made) assert.equal(r.status, 201, JSON.stringify(r.body));
+    const codes = made.map((r) => r.body.code);
+    assert.ok(codes.every((c) => /^L-\d{4,}$/.test(c) && Number(c.slice(2)) >= 1001), codes.join());
+    assert.equal(new Set(codes).size, 3);
+  } finally {
+    await prisma.lead.deleteMany({ where: { id: { in: made.map((r) => r.body?.id).filter(Boolean) } } });
+  }
+});
+
+test("a stage change is an action too: it stops the SLA clock and goes on top of the Activity; the TL can comment on his team's lead", async () => {
+  const id = await idOf(2); // the teammate's lead, untouched so far
+  assert.equal((await call(`/leads/${id}`, { cookie: tl })).body.firstActionAt, null);
+  assert.equal((await call(`/leads/${id}/stage`, { method: "PATCH", cookie: tl, body: { stage: "No Answer" } })).status, 200);
+  const r = await call(`/leads/${id}`, { cookie: tl });
+  assert.ok(r.body.firstActionAt);
+  assert.equal(r.body.activities[0].kind, "stage");
+  assert.equal(r.body.noAnswerCount, 1);
+  assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: tl, body: { text: "x".repeat(2000) } })).status, 201);
+  assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: tl, body: { text: "x".repeat(2001) } })).status, 400);
+});

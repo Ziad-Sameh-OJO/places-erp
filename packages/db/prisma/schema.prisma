@@ -296,7 +296,7 @@ model Lead {
   noAnswerCount  Int           @default(0)
   rotation       Int           @default(1)  // how many salespeople it went through on No Answer; the 3rd goes to Telesales (M-01 3.2)
   arrivedAt      DateTime      @default(now()) // KPI: first call within 30 min · the campaign WhatsApp message time if it came that way
-  firstActionAt  DateTime?     // the salesperson's first call / stage change: stops the SLA clock (M-01 3.2 (4))
+  firstActionAt  DateTime?     // the salesperson's first action (comment, call, stage change…): stops the SLA clock (M-01 «من غير أي أكشن»)
   slaWarnedAt    DateTime?     // the TL got the 2h30 warning for this assignment (cleared on reassign)
   note           String?
   post           String?       // the campaign post it came from (M-04: channel → campaign → post)
