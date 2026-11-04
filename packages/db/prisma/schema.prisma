@@ -861,6 +861,8 @@ model BudgetLine {
   period    String     @default("month") // month · quarter · year
   alert     Int        @default(80) // «نبّهني عند %»
   active    Boolean    @default(true)
+  /// who answers for the line: gets its alerts with the accountant (9.9)
+  ownerId   String?
   purchases Purchase[]
 
   @@schema("finance")
@@ -1171,5 +1173,39 @@ model FinancePeriod {
   closedById  String
   closedAt    DateTime @default(now())
 
+  @@schema("finance")
+}
+
+/// M-07 · a fixed bill (9.16): never pays by itself — on its day the accountant approves and pays, or skips the month.
+model RecurringBill {
+  id           String   @id @default(cuid())
+  name         String
+  vendor       String
+  accountId    String   // the expense line (5…)
+  fromId       String   // the usual safe / bank
+  amount       Decimal  @db.Decimal(14, 2) // the usual amount (the voucher can differ)
+  day          Int      // 1–28
+  active       Boolean  @default(true)
+  /// the month its «ميعاد فاتورة» notification went out (the job runs daily; once a month)
+  notifiedFor  String?
+  createdById  String
+  createdAt    DateTime @default(now())
+  months       RecurringBillMonth[]
+
+  @@schema("finance")
+}
+
+model RecurringBillMonth {
+  id        String        @id @default(cuid())
+  billId    String
+  bill      RecurringBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  month     String        // 2026-11
+  status    String        // paid · skipped
+  moveId    String?       // the payment voucher
+  reason    String?       // why not this month
+  byId      String
+  at        DateTime      @default(now())
+
+  @@unique([billId, month])
   @@schema("finance")
 }

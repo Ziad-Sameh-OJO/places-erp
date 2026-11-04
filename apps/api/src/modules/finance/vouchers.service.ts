@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { BudgetPatch, BudgetView, CashView, MoveEffect, MoveFilters, MoveSaved, MoveView, MovesView, NewMove } from "@places/contracts";
+import type { BudgetPatch, BudgetRow, BudgetView, CashView, MoveEffect, MoveFilters, MoveSaved, MoveView, MovesView, NewBudgetLine, NewMove } from "@places/contracts";
 import {
-  ADVANCES_PARENT, BUDGET_PERIODS, CUSTODY_PARENT, OTHER_REVENUE, VOUCHER_LABEL, budgetCrossed, budgetLevel, formatEGP, fromDecimal, localDate,
+  ADVANCES_PARENT, BUDGET_PERIODS, CUSTODY_PARENT, monthOf, OTHER_REVENUE, VOUCHER_LABEL, budgetCrossed, budgetLevel, formatEGP, fromDecimal, localDate,
   periodStart, toDecimal, voucherLines, voucherProblem, type BudgetPeriod, type Piasters, type VoucherKind, type VoucherSides,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
@@ -56,14 +56,14 @@ export class VouchersService {
   }
 
   async create(me: CurrentUser, input: NewMove, run: Run): Promise<MoveSaved> {
-    let crossed: { line: string; text: string } | null = null;
+    let crossed: { line: string; text: string; ownerId: string | null } | null = null;
     const saved = await run(async (tx) => {
       const r = await this.save(me, input, tx);
       crossed = r.crossed;
       return r.saved;
     });
-    const c = crossed as { line: string; text: string } | null;
-    if (c) await this.notifications.notify({ event: "finance.budget", text: c.text, link: "/finance" });
+    const c = crossed as { line: string; text: string; ownerId: string | null } | null;
+    if (c) await this.notifications.notify({ event: "finance.budget", text: c.text, link: "/finance", ...(c.ownerId ? { userIds: [c.ownerId] } : {}) });
     return { ...saved, budget: c?.text ?? null };
   }
 
@@ -72,7 +72,7 @@ export class VouchersService {
     return (await this.save(me, { kind: "pay", fromId: e.fromId, accountId: e.accountId, amount: e.amount, party: e.party, memo: e.memo, ...(e.date ? { date: e.date } : {}), ...(e.ref ? { ref: e.ref } : {}) }, tx)).saved;
   }
 
-  private async save(me: CurrentUser, input: NewMove, tx: Tx): Promise<{ saved: Omit<MoveSaved, "budget">; crossed: { line: string; text: string } | null }> {
+  private async save(me: CurrentUser, input: NewMove, tx: Tx): Promise<{ saved: Omit<MoveSaved, "budget">; crossed: { line: string; text: string; ownerId: string | null } | null }> {
     const kind = input.kind as VoucherKind;
     const date = input.date ?? localDate(new Date());
     if (date > localDate(new Date())) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
@@ -107,6 +107,13 @@ export class VouchersService {
       party = account.name;
     }
     if (!party) throw new BadRequestException("اكتب اسم اللي هيستلم الفلوس");
+    // a recurring bill (9.16): once a month, paid or skipped
+    const bill = input.billId ? await this.repo.bill(input.billId, tx) : null;
+    if (input.billId) {
+      if (!bill || kind !== "pay") throw new BadRequestException("الفاتورة مش موجودة");
+      const done = bill.months.find((m) => m.month === monthOf(date));
+      if (done) throw new BadRequestException(done.status === "paid" ? "الفاتورة دي اتصرفت الشهر ده" : "الفاتورة دي اتأجلت الشهر ده");
+    }
 
     const sides: VoucherSides = { amount, spent, returned, ...(from ? { from: from.id } : {}), ...(to ? { to: to.id } : {}), ...(account ? { account: account.id } : {}), ...(expense ? { expense: expense.id } : {}) };
     const problem = voucherProblem(kind, sides, { ...(from ? { from: balance.get(from.id) ?? 0, fromName: from.name } : {}), ...(kind === "settle" && account ? { custody: balance.get(account.id) ?? 0 } : {}) });
@@ -125,6 +132,7 @@ export class VouchersService {
       party, partyId: partyId ?? null, ref: input.ref || null, memo: input.memo, entryId: entry.id, createdById: me.id,
     }, tx);
     await this.ledger.linkEntry(entry.id, move.id, tx);
+    if (bill) await this.repo.markBill({ billId: bill.id, month: monthOf(date), status: "paid", moveId: move.id, byId: me.id }, tx);
     await this.audit.record({ module: "finance", entity: "TreasuryMove", entityId: move.id, action: "create", userId: me.id,
       after: { no: `MV-${move.no}`, kind, date, amount: toDecimal(total), from: from?.code, to: to?.code, account: account?.code, party, entry: entry.no } }, tx);
 
@@ -133,12 +141,12 @@ export class VouchersService {
     const touched = [from, to, account, expense].filter((a): a is AccountRow => !!a);
     const effect: MoveEffect[] = touched.map((a) => ({ code: a.code, name: a.name, before: toDecimal(balance.get(a.id) ?? 0), after: toDecimal(after.get(a.id) ?? 0) }));
 
-    let crossed: { line: string; text: string } | null = null;
+    let crossed: { line: string; text: string; ownerId: string | null } | null = null;
     if (bud && budBefore !== null && line) {
       const b = dec(bud.budget), now = budBefore + (kind === "pay" ? amount : spent);
       const c = budgetCrossed(budBefore, now, b, bud.alert);
-      if (c === "over") crossed = { line: line.name, text: `بند «${line.name}» عدّى البادجت: اتصرف ${formatEGP(now)} من ${formatEGP(b)}` };
-      if (c === "alert") crossed = { line: line.name, text: `بند «${line.name}» وصل ${Math.round((now * 100) / b)}% من البادجت · فاضل ${formatEGP(b - now)}` };
+      if (c === "over") crossed = { line: line.name, ownerId: bud.ownerId, text: `بند «${line.name}» عدّى البادجت: اتصرف ${formatEGP(now)} من ${formatEGP(b)}` };
+      if (c === "alert") crossed = { line: line.name, ownerId: bud.ownerId, text: `بند «${line.name}» وصل ${Math.round((now * 100) / b)}% من البادجت · فاضل ${formatEGP(b - now)}` };
     }
     return { saved: { move: this.view(move, entry.no, me.name), effect }, crossed };
   }
@@ -186,19 +194,35 @@ export class VouchersService {
   }
 
   async budget(): Promise<BudgetView> {
-    const [{ accounts }, lines] = await Promise.all([this.ledger.balances(), this.repo.budgets()]);
+    const [{ accounts }, lines, people] = await Promise.all([this.ledger.balances(), this.repo.budgets(), this.repo.people()]);
+    const person = (id: string | null | undefined) => (id ? people.find((p) => p.userId === id) ?? null : null);
     const parents = new Set(accounts.map((a) => a.parentId));
     const leaves = accounts.filter((a) => a.code.startsWith("5") && !parents.has(a.id));
     const spent = await this.spent(leaves.map((a) => ({ accountId: a.id, period: (lines.find((l) => l.accountId === a.id)?.period ?? "month") as BudgetPeriod })));
     const group = (code: string) => accounts.find((a) => a.code === code.slice(0, 2))?.name ?? "";
     const rows = leaves.map((a) => {
       const l = lines.find((x) => x.accountId === a.id), b = l ? dec(l.budget) : 0, sp = spent.get(a.id) ?? 0, on = l?.active ?? true;
-      return { accountId: a.id, code: a.code, name: a.name, group: group(a.code), budget: b ? toDecimal(b) : null, period: l?.period ?? "month", alert: l?.alert ?? 80, active: on,
+      return { accountId: a.id, code: a.code, name: a.name, group: group(a.code), budget: b ? toDecimal(b) : null, period: l?.period ?? "month", alert: l?.alert ?? 80, active: on, owner: person(l?.ownerId),
         spent: toDecimal(sp), left: b ? toDecimal(b - sp) : null, pct: b ? Math.round((sp * 100) / b) : 0, level: on ? budgetLevel(sp, b, l?.alert ?? 80) : ("" as const) };
     });
     const live = rows.filter((r) => r.active && r.budget);
     const tb = live.reduce((s, r) => s + fromDecimal(r.budget!), 0), ts = live.reduce((s, r) => s + fromDecimal(r.spent), 0);
-    return { rows, totals: { budget: toDecimal(tb), spent: toDecimal(ts), left: toDecimal(tb - ts), alerts: live.filter((r) => r.level === "warn" || r.level === "bad").length } };
+    return { rows, totals: { budget: toDecimal(tb), spent: toDecimal(ts), left: toDecimal(tb - ts), alerts: live.filter((r) => r.level === "warn" || r.level === "bad").length }, people };
+  }
+
+  /** «بند جديد بالبادجت بتاعه» (9.9): a sub-account under 52 / 53 with its budget, in one transaction. */
+  async newBudgetLine(me: CurrentUser, input: NewBudgetLine, run: Run) {
+    const accountId = await run(async (tx) => {
+      const account = await this.ledger.subAccount(me, input.parent, input.name, tx);
+      return account.id;
+    });
+    await this.setBudget(me, accountId, { budget: input.budget, period: input.period, alert: input.alert, ...(input.ownerId ? { ownerId: input.ownerId } : {}) }, run);
+    return { accountId };
+  }
+
+  /** The budget page as rows for «تصدير Excel». */
+  async budgetRows(): Promise<BudgetRow[]> {
+    return (await this.budget()).rows;
   }
 
   async setBudget(me: CurrentUser, accountId: string, patch: BudgetPatch, run: Run) {
@@ -208,12 +232,12 @@ export class VouchersService {
       if (!a || !a.code.startsWith("5") || accounts.some((x) => x.parentId === a.id)) throw new BadRequestException("البادجت بيتحط على حساب مصروف فرعي");
       if (patch.budget && fromDecimal(patch.budget) < 0) throw new BadRequestException("البادجت مايبقاش بالسالب");
       const before = await this.repo.budgetOf(a.id, tx);
-      const data = { ...(patch.budget !== undefined ? { budget: patch.budget } : {}), ...(patch.period ? { period: patch.period } : {}), ...(patch.alert ? { alert: patch.alert } : {}), ...(patch.active !== undefined ? { active: patch.active } : {}) };
+      const data = { ...(patch.budget !== undefined ? { budget: patch.budget } : {}), ...(patch.period ? { period: patch.period } : {}), ...(patch.alert ? { alert: patch.alert } : {}), ...(patch.active !== undefined ? { active: patch.active } : {}), ...(patch.ownerId !== undefined ? { ownerId: patch.ownerId } : {}) };
       const kind = a.code.startsWith("52") ? "admin" : a.code.startsWith("53") ? "selling" : "other";
       const saved = await this.repo.upsertBudget(a.id, `${a.code} · ${a.name}`, kind, data, tx);
       await this.audit.record({ module: "finance", entity: "BudgetLine", entityId: saved.id, action: before ? "update" : "create", userId: me.id,
-        before: before ? { budget: toDecimal(dec(before.budget)), period: before.period, alert: before.alert, active: before.active } : null,
-        after: { account: a.code, budget: toDecimal(dec(saved.budget)), period: saved.period, alert: saved.alert, active: saved.active } }, tx);
+        before: before ? { budget: toDecimal(dec(before.budget)), period: before.period, alert: before.alert, active: before.active, ownerId: before.ownerId } : null,
+        after: { account: a.code, budget: toDecimal(dec(saved.budget)), period: saved.period, alert: saved.alert, active: saved.active, ownerId: saved.ownerId } }, tx);
       return { accountId: a.id };
     });
   }

@@ -202,8 +202,14 @@ export class LedgerService {
     const parent = await this.repo.accountByCode(parentCode, tx);
     if (!parent) throw new BadRequestException(NO_ACCOUNT);
     const found = await this.repo.holderAccount(parent.id, holder.userId, tx);
-    if (found) return found;
-    const account = await this.repo.createAccount({ code: nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx)), name: holder.name, parentId: parent.id, nature: parent.nature, kind: null, holderId: holder.userId }, tx);
+    return found ?? this.subAccount(me, parentCode, holder.name, tx, holder.userId);
+  }
+
+  /** A sub-account opened by the system inside the caller's transaction (a person's 131/134, a new budget line under 52/53). */
+  async subAccount(me: CurrentUser, parentCode: string, name: string, tx: Tx, holderId?: string): Promise<AccountRow> {
+    const parent = await this.repo.accountByCode(parentCode, tx);
+    if (!parent) throw new BadRequestException(NO_ACCOUNT);
+    const account = await this.repo.createAccount({ code: nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx)), name, parentId: parent.id, nature: parent.nature, kind: null, ...(holderId ? { holderId } : {}) }, tx);
     await this.audit.record({ module: "finance", entity: "Account", entityId: account.id, action: "create", userId: me.id, after: { code: account.code, name: account.name, parent: parent.code } }, tx);
     return account;
   }

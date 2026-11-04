@@ -52,8 +52,9 @@ test("the admin can view but not add accounts (finance: view / export)", async (
 
 test("a loan under 22 with an opening balance from CIB: code from the parent, a balanced entry, parent = sum of children (M-07, 4 Nov)", async () => {
   const chart = (await call("/finance/accounts", { cookie: ahmed })).body;
-  const longTerm = find(chart.roots, "22")!, cib = find(chart.roots, "11201")!;
-  const before22 = cents(longTerm.balance), beforeCib = cents(cib.balance);
+  const longTerm = find(chart.roots, "22")!;
+  const cib = (await call("/finance/accounts", { method: "POST", cookie: ahmed, body: { parentId: find(chart.roots, "112")!.id, name: `${P} بنك مصر` } })).body as { id: string; code: string };
+  const before22 = cents(longTerm.balance), beforeCib = 0;
   const r = await call("/finance/accounts", { method: "POST", cookie: ahmed, body: { parentId: longTerm.id, name: `${P} قرض بنك مصر`, opening: "100000", counterId: cib.id } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.match(r.body.code, /^22\d{2}$/);
@@ -63,7 +64,7 @@ test("a loan under 22 with an opening balance from CIB: code from the parent, a 
   assert.equal(cents(loan.balance), 100_000_00);
   assert.equal(cents(parent.balance), before22 + 100_000_00);
   assert.equal(cents(parent.balance), parent.children.reduce((s, c) => s + cents(c.balance), 0));
-  assert.equal(cents(find(after.roots, "11201")!.balance), beforeCib + 100_000_00); // the bank got the money (debit)
+  assert.equal(cents(find(after.roots, cib.code)!.balance), beforeCib + 100_000_00); // the bank got the money (debit)
   assert.equal(after.check.balanced, true);
   assert.equal(loan.removable, false); // it has a movement now
 
@@ -79,7 +80,7 @@ test("a loan under 22 with an opening balance from CIB: code from the parent, a 
   const e = j.body.items[0];
   entryIds.push(e.id);
   assert.equal(e.debit, e.credit);
-  assert.equal(e.lines.find((l: { code: string }) => l.code === "11201").debit, "100000.00");
+  assert.equal(e.lines.find((l: { code: string }) => l.code === cib.code).debit, "100000.00");
   assert.equal(j.body.totals.balanced, true);
 
   // the change is in the audit log

@@ -8,13 +8,15 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
+import { balance, cleanFinance, fresh } from "./finance-helpers.ts";
 
-const P = `E2E ${Date.now()}`;
+const START = new Date();
+const P = `E2E ${START.getTime()}`;
+let safe: { id: string; code: string }, exp: { id: string; code: string };
 let ahmed: string, sales: string, admin: string, mokhtar: string;
 const entries: string[] = [];
 interface Node { id: string; code: string; balance: string; children: Node[] }
 const find = (nodes: Node[], code: string): Node | undefined => { for (const n of nodes) { if (n.code === code) return n; const c = find(n.children, code); if (c) return c; } return undefined; };
-const cents = (s: string) => Math.round(Number(s) * 100);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const chart = async () => (await call("/finance/accounts", { cookie: ahmed })).body.roots as Node[];
 const entry = async (body: Record<string, unknown>, cookie = ahmed) => {
@@ -26,29 +28,26 @@ const entry = async (body: Record<string, unknown>, cookie = ahmed) => {
 before(async () => {
   const adminEmail = (await prisma.user.findFirstOrThrow({ where: { roles: { some: { role: { key: "admin" } } } }, select: { email: true } })).email;
   [ahmed, sales, admin, mokhtar] = await Promise.all(["ahmed.ashraf@places.com", "m.mohsen@places.com", adminEmail, "mokhtar.gamal@places.com"].map((e) => session(e)));
+  safe = await fresh(ahmed, P, "111", "خزينة", "1000");
+  exp = await fresh(ahmed, P, "52", "بوفيه");
 });
-after(async () => {
-  await prisma.auditLog.deleteMany({ where: { entityId: { in: entries } } });
-  await prisma.journalEntry.deleteMany({ where: { id: { in: entries } } });
-  await prisma.$disconnect();
-});
+after(async () => { await cleanFinance(P, START); await prisma.$disconnect(); });
 
 test("a manual entry: JV-M…, «قيد يدوي», the tree moves, the effect shows (9.13)", async () => {
-  const c = await chart(), safe = find(c, "11104")!, buffet = find(c, "5203")!;
-  const r = await entry({ lines: [{ accountId: buffet.id, debit: "120", credit: "0" }, { accountId: safe.id, debit: "0", credit: "120" }] });
+  const safe0 = await balance(ahmed, safe.id), exp0 = await balance(ahmed, exp.id);
+  const r = await entry({ lines: [{ accountId: exp.id, debit: "120", credit: "0" }, { accountId: safe.id, debit: "0", credit: "120" }] });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.match(r.body.entry.no, /^JV-M\d+$/);
   assert.equal(r.body.entry.nature, "قيد يدوي");
-  const after = await chart();
-  assert.equal(cents(find(after, "5203")!.balance), cents(buffet.balance) + 120_00);
-  assert.equal(cents(find(after, "11104")!.balance), cents(safe.balance) - 120_00);
-  assert.deepEqual(r.body.effect.map((e: { code: string }) => e.code).sort(), ["11104", "5203"]);
-  const ledger = (await call(`/finance/accounts/${buffet.id}/ledger`, { cookie: ahmed })).body;
+  assert.equal(await balance(ahmed, exp.id), exp0 + 120_00);
+  assert.equal(await balance(ahmed, safe.id), safe0 - 120_00);
+  assert.deepEqual(r.body.effect.map((e: { code: string }) => e.code).sort(), [safe.code, exp.code].sort());
+  const ledger = (await call(`/finance/accounts/${exp.id}/ledger`, { cookie: ahmed })).body;
   assert.ok(ledger.lines.some((l: { entryId: string; no: string }) => l.entryId === r.body.entry.id && l.no.startsWith("JV-M")));
 });
 
 test("refusals: unbalanced, one line, a line both sides, a parent, a closed month (last month), no permission", async () => {
-  const c = await chart(), a = find(c, "11104")!.id, b = find(c, "5203")!.id;
+  const c = await chart(), a = safe.id, b = exp.id;
   assert.equal((await entry({ lines: [{ accountId: b, debit: "100", credit: "0" }, { accountId: a, debit: "0", credit: "90" }] })).body.error, "القيد مش متوازن: المدين لازم يساوي الدائن");
   assert.equal((await entry({ lines: [{ accountId: b, debit: "100", credit: "0" }] })).status, 400);
   assert.equal((await entry({ lines: [{ accountId: b, debit: "100", credit: "100" }, { accountId: a, debit: "0", credit: "0" }] })).status, 400);
@@ -62,7 +61,7 @@ test("refusals: unbalanced, one line, a line both sides, a parent, a closed mont
 });
 
 test("editing a manual entry: finance «approve» only, same number, audited before → after (M-07 43)", async () => {
-  const c = await chart(), a = find(c, "11104")!.id, b = find(c, "5203")!.id;
+  const a = safe.id, b = exp.id;
   const r = await entry({ lines: [{ accountId: b, debit: "50", credit: "0" }, { accountId: a, debit: "0", credit: "50" }] });
   const body = { date: today(), memo: `${P} اتعدّل`, lines: [{ accountId: b, debit: "75", credit: "0" }, { accountId: a, debit: "0", credit: "75" }] };
   assert.equal((await call(`/finance/journal/${r.body.entry.id}`, { method: "PUT", cookie: mokhtar, body })).status, 403);

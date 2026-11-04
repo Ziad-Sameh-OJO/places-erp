@@ -39,3 +39,15 @@ test("budget periods and levels: 80% warns, above 100% is over, a crossing notif
   assert.equal(budgetCrossed(8_500_00, 9_000_00, 10_000_00), null);
   assert.equal(budgetCrossed(9_000_00, 11_000_00, 10_000_00), "over");
 });
+
+test("recurring bills: due from its day, «قرّبت» 3 days before, paid / skipped / off (9.16)", async () => {
+  const { billState } = await import("../src/index.ts");
+  const pf = { day: 5, active: true }; // Property Finder on the 5th
+  assert.equal(billState(pf, null, "2026-11-05"), "due");
+  assert.equal(billState(pf, null, "2026-11-20"), "due");
+  assert.equal(billState(pf, null, "2026-11-02"), "soon");
+  assert.equal(billState(pf, null, "2026-11-01"), "later");
+  assert.equal(billState(pf, "paid", "2026-11-20"), "paid");
+  assert.equal(billState(pf, "skipped", "2026-11-20"), "skipped");
+  assert.equal(billState({ day: 5, active: false }, null, "2026-11-20"), "off");
+});
