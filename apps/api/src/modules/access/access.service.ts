@@ -38,6 +38,10 @@ export class AccessService {
     return { items, total, page: f.page, pageSize: f.pageSize };
   }
 
+  async departments(): Promise<string[]> {
+    return (await this.repo.departments()).map((e) => e.department);
+  }
+
   /** Every user matching the filters, for the Excel export (audited: who exported what). */
   async usersForExport(me: CurrentUser, f: UserFilters) {
     const rows = await this.repo.allUsers(f, EXPORT_LIMIT);
