@@ -60,7 +60,7 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
 export function Stepper({ stages, current, done }: { stages: readonly string[]; current: string; done?: boolean }) {
   const at = stages.indexOf(current);
   const cur = useRef<HTMLLIElement>(null);
-  // 13 stages don't fit on a phone: bring the current one into view (scrollIntoView handles RTL scrolling)
+  // 14 stages don't fit on a phone: bring the current one into view (scrollIntoView handles RTL scrolling)
   useEffect(() => { cur.current?.scrollIntoView({ inline: "center", block: "nearest" }); }, [current]);
   return (
     <ol className="stepper">
