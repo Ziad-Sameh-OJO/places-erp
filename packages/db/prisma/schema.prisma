@@ -1100,3 +1100,47 @@ model RecurringBillMonth {
   @@unique([billId, month])
   @@schema("finance")
 }
+
+/// M-07 · one month's payroll (9.14): paid once, as one voucher «صرف مرتبات» with one entry.
+model PayrollRun {
+  id          String        @id @default(cuid())
+  month       String        @unique // 2026-11
+  moveId      String        @unique
+  fromId      String
+  gross       Decimal       @db.Decimal(14, 2)
+  net         Decimal       @db.Decimal(14, 2)
+  createdById String
+  at          DateTime      @default(now())
+  lines       PayrollLine[]
+
+  @@schema("finance")
+}
+
+model PayrollLine {
+  id         String     @id @default(cuid())
+  runId      String
+  run        PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  userId     String
+  name       String
+  line       String     // admin · sales
+  salary     Decimal    @db.Decimal(14, 2)
+  attendance Decimal    @db.Decimal(14, 2)
+  advance    Decimal    @db.Decimal(14, 2)
+  net        Decimal    @db.Decimal(14, 2)
+
+  @@index([userId])
+  @@schema("finance")
+}
+
+/// «يتخصم كام الشهر ده» from a person's advance (9.3 / 9.14); the next month starts with the same choice.
+model AdvanceDeduction {
+  id       String   @id @default(cuid())
+  userId   String
+  month    String
+  amount   Decimal  @db.Decimal(14, 2)
+  byId     String
+  at       DateTime @default(now())
+
+  @@unique([userId, month])
+  @@schema("finance")
+}

@@ -5,6 +5,7 @@ import { LedgerRepository } from "./ledger.repository";
 import { VouchersService } from "./vouchers.service";
 import { VouchersRepository } from "./vouchers.repository";
 import { BillsService } from "./bills.service";
+import { PayrollService } from "./payroll.service";
 
 /**
  * M-07 · المالية. 9.1 + 9.5: the chart of accounts and the journal; LedgerService.post() is the one engine every
@@ -12,7 +13,7 @@ import { BillsService } from "./bills.service";
  */
 @Module({
   controllers: [FinanceController],
-  providers: [LedgerService, LedgerRepository, VouchersService, VouchersRepository, BillsService],
+  providers: [LedgerService, LedgerRepository, VouchersService, VouchersRepository, BillsService, PayrollService],
   exports: [LedgerService, VouchersService],
 })
 export class FinanceModule {}

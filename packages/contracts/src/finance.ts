@@ -165,3 +165,15 @@ export interface IncomeView {
   revenue: string; direct: string; gross: string; selling: string; contribution: string; admin: string; other: string; net: string;
   lines: { revenue: StatementLineView[]; direct: StatementLineView[]; selling: StatementLineView[]; admin: StatementLineView[]; other: { head: StatementLineView; lines: StatementLineView[] }[] };
 }
+
+/* ---- 9.14 · payroll ---- */
+export interface PayrollRowView { userId: string; name: string; line: "admin" | "sales"; salary: string; attendance: string; advanceLeft: string; advance: string; net: string; advanceAccountId: string | null }
+export interface PayrollView {
+  month: string; label: string; payDay: number; due: boolean;
+  run: { id: string; at: string; net: string; gross: string; from: string; move: { id: string; no: string } } | null;
+  rows: PayrollRowView[]; totals: { salary: string; attendance: string; advance: string; net: string; people: number };
+}
+export const PayDay = z.object({ day: z.number().int().min(1).max(28) });
+export const AdvancePlan = z.object({ amount: Money });
+export const PayrollRunInput = z.object({ fromId: Id, date: CalendarDay.optional() });
+export type PayrollRunInput = z.infer<typeof PayrollRunInput>;

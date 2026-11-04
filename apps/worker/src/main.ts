@@ -8,12 +8,14 @@ import { prisma } from "@places/db";
 import { env } from "./env.ts";
 import { leadSlaTick } from "./processors/lead-sla.ts";
 import { recurringBillsTick } from "./processors/recurring-bills.ts";
+import { payrollDueTick } from "./processors/payroll-due.ts";
 
 const connection = { url: env.REDIS_URL };
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: leadSlaTick }, // every minute (M-01 2.4)
   { name: "recurring-bills", pattern: "0 11 * * *", processor: recurringBillsTick }, // daily at the start of work (M-07 9.16)
+  { name: "payroll-due", pattern: "5 11 * * *", processor: payrollDueTick }, // daily: pay day reached and not paid (M-07 9.14)
   // next: no-answer-rotation (T-07), contracts (T-16), kpis (T-23)… one processor file each, same shape as lead-sla.ts
 ];
 
