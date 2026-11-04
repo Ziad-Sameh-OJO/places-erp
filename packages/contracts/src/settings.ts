@@ -66,6 +66,8 @@ export const SETTINGS = {
   // the roles that see a lead's «Logs» tab besides the admin (1.25); role keys from الأدوار والصلاحيات
   leadLogRoles: z.array(z.string().trim().min(1).max(40)).max(30),
   listEditors: ListEditors,
+  // M-08 Q44: who may approve a purchase above 50,000 («أحمد أو صفوت»), by their sign-in email
+  procurementBigApprovers: z.array(z.string().trim().toLowerCase().email()).max(10),
 } as const;
 export type SettingKey = keyof typeof SETTINGS;
 export type Settings = { [K in SettingKey]: z.infer<(typeof SETTINGS)[K]> };

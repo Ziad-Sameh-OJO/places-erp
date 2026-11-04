@@ -146,7 +146,7 @@ export function useAction() {
  * «تصدير Excel» for any table: sends the table's current filters to the module's export endpoint. Shown only to people
  * with the module's `export` permission (the API checks it again).
  */
-export function ExportButton({ module, path, query, filename }: { module: ModuleKey; path: string; query?: URLSearchParams; filename: string }) {
+export function ExportButton({ module, path, query, filename, label = "تصدير Excel" }: { module: ModuleKey; path: string; query?: URLSearchParams; filename: string; label?: string }) {
   const { can } = useMe();
   const run = useAction();
   const [busy, setBusy] = useState(false);
@@ -154,7 +154,7 @@ export function ExportButton({ module, path, query, filename }: { module: Module
   const qs = query ? `?${query}` : "";
   return (
     <button className="btn ghost" disabled={busy} onClick={async () => { setBusy(true); await run(() => api.download(`${path}${qs}`, filename)); setBusy(false); }}>
-      <Icon name="upload" />{busy ? "بيجهّز الملف…" : "تصدير Excel"}
+      <Icon name="upload" />{busy ? "بيجهّز الملف…" : label}
     </button>
   );
 }

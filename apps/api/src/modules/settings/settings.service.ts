@@ -18,6 +18,7 @@ const DEFAULTS: Settings = {
   notificationsFrom: "notifications@places.com",
   leadLogRoles: [], // only the admin until the admin picks more (1.25)
   listEditors: {}, // every list with «master: edit» until the admin sets it up (#186)
+  procurementBigApprovers: [], // the seed writes the client's (M-08 Q44)
 };
 
 /** M-13: the lists and rules the system is built on, editable without a developer. Every change is audited. */

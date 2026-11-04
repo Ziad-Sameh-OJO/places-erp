@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ACTIONS, MODULES } from "@places/domain";
-import { Id, Page } from "./common.ts";
+import { CalendarDay, Id, Page } from "./common.ts";
 
 /** M-09: at least 10 characters with letters and digits. */
 export const Password = z.string().min(10, "10 حروف على الأقل").max(200)
@@ -21,6 +21,7 @@ export const UserInput = z.object({
   role: Id,                        // primary role key
   extraRoles: z.array(Id).max(5).default([]),
   teamLeaderId: Id.nullish(),      // Employee id of the TL (sales)
+  managerId: Id.nullish(),         // Employee id of the direct manager (M-09 3.1); empty = the TL
   endDate: z.coerce.date().nullish(), // last working day: the account stops by itself
   otpRequired: z.boolean().default(false),
 });
@@ -30,6 +31,7 @@ export const UserFilters = Page.extend({
   q: z.string().max(80).optional(),
   status: z.enum(["INVITED", "ACTIVE", "LOCKED", "DISABLED"]).optional(),
   role: Id.optional(),
+  department: z.string().trim().max(60).optional(), // M-09 5.2: search by department
 });
 export type UserFilters = z.infer<typeof UserFilters>;
 
@@ -48,7 +50,10 @@ export type RoleInput = z.infer<typeof RoleInput>;
 export const RoleUpdate = RoleInput.omit({ copyFrom: true, behavesLike: true }).partial();
 export type RoleUpdate = z.infer<typeof RoleUpdate>;
 
-export const AuditFilters = Page.extend({ module: z.string().max(30).optional(), entityId: Id.optional() });
+/** M-09 5.2: the log by module, by who did it (a User id) and by Cairo calendar days, both ends included. */
+export const AuditFilters = Page.extend({
+  module: z.string().max(30).optional(), entityId: Id.optional(), userId: Id.optional(), from: CalendarDay.optional(), to: CalendarDay.optional(),
+});
 export type AuditFilters = z.infer<typeof AuditFilters>;
 
 export const Login = z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200) });

@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
 import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { PrismaClient } from "@places/db";
+import type { Prisma, PrismaClient } from "@places/db";
 import type { StoredFile, UploadRequest, UploadTicket } from "@places/contracts";
 import { PRISMA } from "../database/database.module";
 import { AuditService } from "../audit/audit.service";
@@ -104,6 +104,18 @@ export class FilesService implements OnModuleInit {
     const disposition = `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.name)}`;
     const url = await getSignedUrl(this.s3, new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key, ResponseContentDisposition: disposition }), { expiresIn: LINK_TTL });
     return { url, expiresIn: LINK_TTL };
+  }
+
+  /** Ties the caller's own finished, still-unattached uploads to a record; from then on that record decides who sees them. */
+  async attach(me: CurrentUser, ids: string[], entity: string, entityId: string, tx: Prisma.TransactionClient) {
+    const unique = [...new Set(ids)];
+    if (!unique.length) return;
+    const n = await tx.file.updateMany({ where: { id: { in: unique }, uploadedById: me.id, status: "READY", entity: null }, data: { entity, entityId } });
+    if (n.count !== unique.length) throw new BadRequestException("فيه مرفق مش موجود أو لسه مترفعش");
+  }
+
+  names(ids: string[]) {
+    return this.db.file.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
   /** The generic endpoint only serves your own uploads (the preview right after uploading). */
