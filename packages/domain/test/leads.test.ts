@@ -120,3 +120,21 @@ test("areas × salespeople (1.12): ticking adds to the end of the area's rotatio
   const pool = ["s1", "s2", "s3"];
   assert.deepEqual([router.next("x", pool), router.next("x", pool), router.next("x", pool), router.next("x", pool)], ["s1", "s2", "s3", "s1"]);
 });
+
+test("Visit / Meeting moves the stage forward only (1.9, 4 Nov demo meeting)", async () => {
+  const { visitStage } = await import("../src/leads.ts");
+  // the card's example: Interested + Visit → Follow up to Visit → Done → Visit
+  assert.equal(visitStage("Interested", "Visit", "booked"), "Follow up to Visit");
+  assert.equal(visitStage("Follow up to Visit", "Visit", "done"), "Visit");
+  assert.equal(visitStage("Follow up after Visit", "Meeting", "booked"), "Follow up to Meeting");
+  assert.equal(visitStage("Follow up to Meeting", "Meeting", "done"), "Meeting");
+  // Near to Close + Visit doesn't go back
+  assert.equal(visitStage("Near to Close", "Visit", "booked"), null);
+  assert.equal(visitStage("Near to Close", "Visit", "done"), null);
+  assert.equal(visitStage("Meeting", "Visit", "done"), null);
+  assert.equal(visitStage("Visit", "Visit", "done"), null);
+  // a side stage joins the pipeline
+  assert.equal(visitStage("No Answer", "Visit", "booked"), "Follow up to Visit");
+  // the new stage counts as Qualified
+  assert.equal(isQualifiedAfter(false, "Follow up to Meeting"), true);
+});

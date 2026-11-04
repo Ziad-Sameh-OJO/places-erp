@@ -270,6 +270,7 @@ enum LeadStage {
   FOLLOW_UP_TO_VISIT
   VISIT
   FOLLOW_UP_AFTER_VISIT
+  FOLLOW_UP_TO_MEETING
   MEETING
   FOLLOW_UP_AFTER_MEETING
   NEAR_TO_CLOSE
@@ -342,6 +343,7 @@ model LeadVisit {
   at        DateTime
   extra     String?     // spaces that aren't in the inventory sheet yet («دور 4 في مبنى B6»)
   outcome   String?     // done · not_done (not done shows for HR in attendance, M-07); null = still planned
+  alarmedAt DateTime?   // the salesperson got the Alarm at its time (the worker sends it once; editing the time sends it again)
   units     VisitUnit[]
   byUserId  String
   createdAt DateTime    @default(now())
