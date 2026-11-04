@@ -34,7 +34,7 @@ after(async () => {
 const tick = (cookie: string, area: string, employeeId: string, on: boolean) => call("/leads/routing", { method: "PUT", cookie, body: { area, employeeId, on } });
 const pool = async () => ((await call("/leads/routing", { cookie: admin })).body.routing[AREA] ?? []) as string[];
 const newLead = async (n: number) => {
-  const r = await call("/leads", { method: "POST", cookie: admin, body: { name: `E2E-R ${stamp} ${n}`, phones: [`0128${stamp.slice(-6)}${n}`], area: AREA, type: "Rent", channel: "Facebook" } });
+  const r = await call("/leads", { method: "POST", cookie: admin, body: { name: `E2E-R ${stamp} ${n}`, phones: [`0128${stamp.slice(-5)}${String(n).padStart(2, "0")}`], area: AREA, type: "Rent", channel: "Facebook" } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   leads.push(r.body.id);
   return r.body.assignedTo?.id as string | undefined;
@@ -86,4 +86,71 @@ test("changing who covers the area changes where the next lead goes (Q1)", async
   // nobody covers it: the lead waits for Operations to assign it by hand
   await tick(admin, AREA, b, false);
   assert.equal(await newLead(3), undefined);
+});
+
+/* ---------------- 1.13 · the rotation and «ليد جديد اتوزع» ---------------- */
+
+test("three leads in the same area go round its salespeople in order, then start again (1.13)", async () => {
+  const people = ((await call("/leads/routing", { cookie: admin })).body.salespeople as { id: string }[]).slice(0, 3).map((p) => p.id);
+  for (const id of await pool()) await tick(admin, AREA, id, false);
+  for (const id of people) await tick(admin, AREA, id, true);
+  const got = [await newLead(11), await newLead(12), await newLead(13), await newLead(14)];
+  // the cursor may sit anywhere from earlier leads: what matters is the order — each next one, all three, then the first again
+  const start = people.indexOf(got[0]!);
+  assert.ok(start >= 0, `${got[0]} isn't in the area`);
+  assert.deepEqual(got, [0, 1, 2, 3].map((i) => people[(start + i) % 3]));
+});
+
+test("someone whose account was switched off since they were ticked is skipped (1.13)", async () => {
+  const leaver = await prisma.user.create({ data: { email: `e2e-left-${stamp}@places.test`, status: "DISABLED", employee: { create: { name: `E2E ساب ${stamp}`, jobTitle: "Sales", department: "Sales", salary: 0 } } }, include: { employee: true } });
+  try {
+    for (const id of await pool()) await tick(admin, AREA, id, false);
+    await tick(admin, AREA, a, true);
+    // put the leaver in the area directly (the screen only offers people still working here)
+    await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([leaver.employee!.id, a])}::jsonb) WHERE "key" = 'areaRouting'`;
+    assert.equal(await newLead(21), a);
+    assert.equal(await newLead(22), a);
+  } finally {
+    await prisma.employee.delete({ where: { id: leaver.employee!.id } });
+    await prisma.user.delete({ where: { id: leaver.id } });
+  }
+});
+
+test("«ليد جديد اتوزع» reaches the salesperson and the Team Leaders (the rule's default), with a link to the lead (1.13)", async () => {
+  for (const id of await pool()) await tick(admin, AREA, id, false);
+  await tick(admin, AREA, a, true);
+  const since = new Date();
+  const name = `E2E-R ${stamp} 31`;
+  assert.equal(await newLead(31), a);
+  const owner = (await prisma.employee.findUniqueOrThrow({ where: { id: a } })).userId;
+  const sent = await prisma.notification.findMany({ where: { text: { contains: name }, createdAt: { gte: since } } });
+  assert.ok(sent.some((n) => n.userId === owner), "the salesperson got it");
+  const tls = (await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: "tl" } } } }, select: { id: true } })).map((u) => u.id);
+  assert.ok(tls.length && tls.every((id) => sent.some((n) => n.userId === id)), "every Team Leader got it");
+  const mine = sent.find((n) => n.userId === owner)!;
+  const salesName = (await prisma.employee.findUniqueOrThrow({ where: { id: a } })).name;
+  assert.equal(mine.text, `ليد جديد ${name} راح لـ ${salesName} (${AREA})`); // the demo's words
+  assert.match(mine.link ?? "", /^\/leads\?open=/);
+  await prisma.notification.deleteMany({ where: { text: { contains: `E2E-R ${stamp}` } } });
+});
+
+test("a lead Telesales keeps, or a salesperson enters for themselves, tells nobody (demo)", async () => {
+  const since = new Date();
+  const hadeer = await session("hadeer.tarek@places.com");
+  const kept = await call("/leads", { method: "POST", cookie: hadeer, body: { name: `E2E-R ${stamp} 41`, phones: [`0128${stamp.slice(-5)}41`], area: AREA, type: "Rent", channel: "Facebook", keep: true } });
+  assert.equal(kept.status, 201, JSON.stringify(kept.body));
+  leads.push(kept.body.id);
+  const own = await call("/leads", { method: "POST", cookie: sales, body: { name: `E2E-R ${stamp} 42`, phones: [`0128${stamp.slice(-5)}42`], area: AREA, type: "Rent", channel: "Facebook" } });
+  assert.equal(own.status, 201, JSON.stringify(own.body));
+  leads.push(own.body.id);
+  assert.equal(await prisma.notification.count({ where: { text: { contains: `E2E-R ${stamp} 4` }, createdAt: { gte: since } } }), 0);
+});
+
+test("nine leads created at the same moment in one area: each of its three salespeople gets exactly three (no lost turn)", async () => {
+  const people = ((await call("/leads/routing", { cookie: admin })).body.salespeople as { id: string }[]).slice(0, 3).map((p) => p.id);
+  for (const id of await pool()) await tick(admin, AREA, id, false);
+  for (const id of people) await tick(admin, AREA, id, true);
+  const got = await Promise.all([51, 52, 53, 54, 55, 56, 57, 58, 59].map((n) => newLead(n)));
+  const count = (id: string) => got.filter((x) => x === id).length;
+  assert.deepEqual(people.map(count), [3, 3, 3], JSON.stringify(got));
 });

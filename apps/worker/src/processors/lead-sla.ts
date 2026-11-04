@@ -26,7 +26,9 @@ export async function leadSlaTick(): Promise<void> {
       continue;
     }
     await prisma.$transaction(async (tx) => {
-      const routing = await tx.setting.findUnique({ where: { key: "routing" } });
+      // locked like the API does when it creates a lead: a pull and a new lead at the same moment both keep their turn
+      await tx.$executeRaw`INSERT INTO "system"."Setting" ("key", "value", "updatedAt") VALUES ('routing', '{"cursor":{},"skipTurns":{}}'::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
+      const [routing] = await tx.$queryRaw<Array<{ value: unknown }>>`SELECT "value" FROM "system"."Setting" WHERE "key" = 'routing' FOR UPDATE`;
       const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
       const router = new LeadRouter((routing?.value as never) ?? { cursor: {}, skipTurns: {} });
       const pool = (pools[lead.area] ?? []).filter((id) => id !== lead.assignedToId);

@@ -57,3 +57,14 @@ test("the sentences' durations, word for word like the demo's A.dur", () => {
   assert.equal(durationText(75), "ساعة و15 دقيقة");
   assert.equal(durationText(120), "ساعتين");
 });
+
+test("a rule's people for one lead: «owner» is its salesperson, «ownerTl» their Team Leader; roles and people as they are", async () => {
+  const { ruleRecipients } = await import("../src/lead-rules.ts");
+  // the demo's «ليد جديد اتوزع»: the salesperson and the Team Leaders
+  assert.deepEqual(ruleRecipients(R.newLead, { ownerUserId: "u-mohsen", ownerTlUserId: "u-abdallah" }), ["u-mohsen", "tl"]);
+  assert.deepEqual(ruleRecipients({ to: ["ownerTl", "owner", "ops", "u-heba"], ch: ["app"] }, { ownerUserId: "u-mohsen", ownerTlUserId: "u-abdallah" }), ["u-abdallah", "u-mohsen", "ops", "u-heba"]);
+  // nobody assigned yet / no Team Leader: those simply drop out
+  assert.deepEqual(ruleRecipients({ to: ["owner", "ownerTl", "ops"], ch: ["app"] }, { ownerUserId: null, ownerTlUserId: null }), ["ops"]);
+  // the salesperson also named as a person: once
+  assert.deepEqual(ruleRecipients({ to: ["owner", "u-mohsen"], ch: ["app"] }, { ownerUserId: "u-mohsen", ownerTlUserId: null }), ["u-mohsen"]);
+});

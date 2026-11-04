@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { LeadFilters } from "@places/contracts";
-import { dayStart } from "@places/domain";
+import { dayStart, type RoutingState } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 
 /**
@@ -36,6 +36,31 @@ export class LeadsRepository {
       where: { AND: [where, { user: { status: { not: "DISABLED" }, roles: { some: { role: { key: { in: [...LEAD_HOLDERS] } } } } } }] },
       select: { id: true, name: true }, orderBy: { name: "asc" },
     });
+  }
+
+  /**
+   * The rotation state (every area's cursor, everyone's skipped turns), locked until the transaction ends: two leads
+   * created at the same moment would otherwise both read the same cursor and one turn would be lost (found by testing).
+   */
+  async lockRouting(tx: Prisma.TransactionClient): Promise<RoutingState> {
+    await tx.$executeRaw`INSERT INTO "system"."Setting" ("key", "value", "updatedAt") VALUES ('routing', '{"cursor":{},"skipTurns":{}}'::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
+    const [row] = await tx.$queryRaw<Array<{ value: RoutingState }>>`SELECT "value" FROM "system"."Setting" WHERE "key" = 'routing' FOR UPDATE`;
+    return { cursor: {}, skipTurns: {}, ...row?.value };
+  }
+
+  saveRouting(tx: Prisma.TransactionClient, state: RoutingState) {
+    return tx.setting.update({ where: { key: "routing" }, data: { value: state as never } });
+  }
+
+  /** Of these employees, the ones still working here, in the same order (a routing pool skips who left, 1.13). */
+  async stillWorking(ids: string[], tx: Prisma.TransactionClient = this.db) {
+    const active = new Set((await tx.employee.findMany({ where: { id: { in: ids }, user: { status: { not: "DISABLED" } } }, select: { id: true } })).map((e) => e.id));
+    return ids.filter((id) => active.has(id));
+  }
+
+  /** A salesperson's account and their Team Leader's: who «owner» and «ownerTl» are in the lead rules. */
+  ownerAccounts(employeeId: string) {
+    return this.db.employee.findUnique({ where: { id: employeeId }, select: { name: true, userId: true, teamLeader: { select: { userId: true } } } });
   }
 
   /** People still working here, by user id (the rules name people: «مين يتبلّغ», 1.29). */
