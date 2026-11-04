@@ -9,6 +9,7 @@ import { GrantsService } from "../../core/authz/grants.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { AccessRepository } from "./access.repository";
+import { EXPORT_LIMIT } from "../../core/http/excel";
 
 type Tx = Prisma.TransactionClient;
 const ADMIN = "admin";
@@ -35,6 +36,13 @@ export class AccessService {
   async listUsers(f: UserFilters) {
     const [items, total] = await this.repo.listUsers(f);
     return { items, total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** Every user matching the filters, for the Excel export (audited: who exported what). */
+  async usersForExport(me: CurrentUser, f: UserFilters) {
+    const rows = await this.repo.allUsers(f, EXPORT_LIMIT);
+    await this.audit.record({ module: "access", entity: "User", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
+    return rows;
   }
 
   async getUser(id: string) {

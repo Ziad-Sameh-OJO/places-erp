@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
+import type { Response } from "express";
 import { AuditFilters, Matrix, Overrides, RoleInput, RoleUpdate, UserFilters, UserInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
+import { sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { AccessService } from "./access.service";
@@ -12,6 +14,23 @@ export class AccessController {
 
   @Get("users") @Requires("access", "view")
   users(@Query(new ZodPipe(UserFilters)) f: UserFilters) { return this.access.listUsers(f); }
+
+  // before users/:id, or "export" would be read as an id
+  @Get("users/export") @Requires("access", "export")
+  async exportUsers(@Me() me: CurrentUser, @Query(new ZodPipe(UserFilters)) f: UserFilters, @Res() res: Response) {
+    const rows = await this.access.usersForExport(me, f);
+    const STATUS = { ACTIVE: "شغال", INVITED: "مستني التفعيل", LOCKED: "مقفول", DISABLED: "متوقف" } as const;
+    await sendXlsx(res, "المستخدمين.xlsx", [
+      { header: "الاسم", value: (u) => u.employee?.name, width: 24 },
+      { header: "الإيميل", value: (u) => u.email, width: 30 },
+      { header: "الموبايل", value: (u) => u.phone },
+      { header: "القسم", value: (u) => u.employee?.department },
+      { header: "الأدوار", value: (u) => u.roles.map((r) => r.role.label).join(" + "), width: 30 },
+      { header: "الحالة", value: (u) => STATUS[u.status] },
+      { header: "OTP", value: (u) => (u.otpRequired ? "اه" : "لأ") },
+      { header: "آخر دخول", value: (u) => u.lastLoginAt, width: 20 },
+    ], rows, "المستخدمين");
+  }
 
   @Get("users/:id") @Requires("access", "view")
   user(@Param("id") id: string) { return this.access.getUser(id); }

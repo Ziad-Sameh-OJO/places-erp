@@ -16,17 +16,16 @@ export class AccessRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
   listUsers(f: UserFilters) {
-    const where: Prisma.UserWhereInput = {
-      AND: [
-        f.status ? { status: f.status } : {},
-        f.role ? { roles: { some: { role: { key: f.role } } } } : {},
-        f.q ? { OR: [{ email: { contains: f.q, mode: "insensitive" } }, { employee: { name: { contains: f.q, mode: "insensitive" } } }] } : {},
-      ],
-    };
+    const where = userWhere(f);
     return this.db.$transaction([
       this.db.user.findMany({ where, select: USER_ROW, orderBy: { employee: { name: "asc" } }, skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.user.count({ where }),
     ]);
+  }
+
+  /** Same filters, every row (the Excel export), capped by the caller. */
+  allUsers(f: UserFilters, take: number) {
+    return this.db.user.findMany({ where: userWhere(f), select: USER_ROW, orderBy: { employee: { name: "asc" } }, take });
   }
 
   user(id: string) {
@@ -49,3 +48,11 @@ export class AccessRepository {
     ]);
   }
 }
+
+const userWhere = (f: UserFilters): Prisma.UserWhereInput => ({
+  AND: [
+    f.status ? { status: f.status } : {},
+    f.role ? { roles: { some: { role: { key: f.role } } } } : {},
+    f.q ? { OR: [{ email: { contains: f.q, mode: "insensitive" } }, { employee: { name: { contains: f.q, mode: "insensitive" } } }] } : {},
+  ],
+});
