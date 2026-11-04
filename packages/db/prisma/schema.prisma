@@ -571,40 +571,74 @@ model TcrSignature {
 
 // ───────────────────────────── M-03 · inventory & Not Active ─────────────────────────────
 
+/// M-03 3.1: the unit's sheet. Rent · Resale · Income each have their own columns (sources/inventory-unit-fields.md).
+/// Primary is in the client's KPIs (Randa enters «Resale / Primary» units) but its own columns weren't sent yet,
+/// so it has the common ones only (needs-client).
+enum UnitType {
+  Rent
+  Resale
+  Income
+  Primary
+
+  @@schema("inventory")
+}
+
+/// rented / sold units move to the «rented» sheet (M-03 1.3, 5.2)
+enum UnitStatus {
+  available
+  rented
+  sold
+
+  @@schema("inventory")
+}
+
 model Unit {
-  id               String    @id @default(cuid())
-  code             String    @unique // U-101…
-  type             String    // Rent · Resale · Income
-  alsoType         String?   // available for a second type at the same time (Q17)
-  status           String    @default("available") // available · rented · sold
-  alsoStatus       String?
-  project          String
-  area             String
-  space            Int
-  condition        String
-  floor            String?
-  building         String?
-  parking          Int       @default(0)
-  pricePerSqm      Decimal?  @db.Decimal(14, 2)
-  details          Json      // the type-specific columns (Resale / Income sheets)
-  agentId          String?   // the salesperson who brought it → Seller on a deal
-  divisible        Boolean   @default(false)
-  minSplit         Int?
-  location         String?   // "lat, lng"
-  pdfStatus        String    @default("draft") // draft · confirmed (Manar)
-  receivedAt       DateTime? // KPI: entered within 24h
-  enteredAt        DateTime  @default(now())
-  mediaUrl         String?
-  mediaUploadedAt  DateTime?
-  lastOwnerUpdateAt DateTime @default(now())
-  deals            Deal[]
-  suggestedFor     LeadUnit[]
-  shownInVisits    VisitUnit[]
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  archivedAt       DateTime?
+  id                String      @id @default(cuid())
+  code              String      @unique // U-101… from inventory.unit_code_seq (M-03 3.2: serial codes)
+  type              UnitType
+  alsoType          UnitType?   // available as a second type at the same time (M-03 Q17)
+  status            UnitStatus  @default(available)
+  alsoStatus        UnitStatus? // closing one side leaves the other open (Q17)
+  project           String      // Rent «project» · Resale / Income «اسم المبنى»
+  area              String
+  space             Int         // gross area, m²
+  condition         String      // Rent «conditions» · Resale «التشطيب»
+  floor             String?
+  building          String?     // «build num» / «رقم المبنى» (number and text)
+  parking           Int         @default(0)
+  ownerName         String?     // Rent «contact» · Resale «اسم الأونر» · Income «الاسم»
+  ownerPhone        String?     // «number»: the owner's number (Not Active sheets are compared by it, M-03 1.1)
+  pricePerSqm       Decimal?    @db.Decimal(14, 2) // Rent: rent per m² · Resale / Income: sale price per m²
+  totalPrice        Decimal?    @db.Decimal(14, 2) // pricePerSqm × space, written by the domain on every save (filters by price)
+  leasePerSqm       Decimal?    @db.Decimal(14, 2) // Income: lease price per m²
+  maintenance       String?     // number and text
+  commission        String?     // number and text
+  paymentMethod     String?     // Resale / Income
+  details           Json        @default("{}") // the columns only one type has (Resale delivery, Income contract…), checked by @places/contracts
+  agentId           String?     // hr.Employee: who brought the unit → Seller on a deal (M-02), counted in their activity
+  divisible         Boolean     @default(false)
+  minSplit          Int?        // the smallest part it can be split into (M-03 3.1)
+  splitNote         String?     // what the split is (Q20: Manar writes it)
+  location          String?     // "lat, lng" picked on the map
+  pdfStatus         String      @default("draft") // draft · confirmed (Manar, Q15/Q19)
+  receivedAt        DateTime?   // KPI: entered within 24h of receiving it
+  enteredAt         DateTime    @default(now())
+  mediaUrl          String?
+  mediaUploadedAt   DateTime?
+  lastOwnerUpdateAt DateTime    @default(now()) // «last update»: older than a month = late (M-03 2.4)
+  createdById       String?     // the user who entered it (Manar / Randa activity)
+  deals             Deal[]
+  suggestedFor      LeadUnit[]
+  shownInVisits     VisitUnit[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  archivedAt        DateTime?
 
   @@index([type, status])
+  @@index([area])
+  @@index([space])
+  @@index([totalPrice])
+  @@index([ownerPhone])
   @@schema("inventory")
 }
 
