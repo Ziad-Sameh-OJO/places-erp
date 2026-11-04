@@ -86,3 +86,12 @@ test("decimal strings ↔ piasters without floats", () => {
   assert.throws(() => toDecimal(1.5));
   for (const s of ["0.01", "104500.00", "9000000.00", "36000.99"]) assert.equal(toDecimal(fromDecimal(s)), s);
 });
+
+test("drafts and owners' numbers stay with who keeps the inventory (Q15, Q18): Manar / Randa yes, sales no", async () => {
+  const { keepsInventory } = await import("../src/units.ts");
+  const grants = (actions: string[]) => ({ can: (m: string, a: string) => m === "inventory" && actions.includes(a) });
+  assert.equal(keepsInventory(grants(["view", "create", "edit", "approve", "delete"])), true); // Manar
+  assert.equal(keepsInventory(grants(["view", "create", "edit"])), true); // Randa
+  assert.equal(keepsInventory(grants(["view"])), false); // sales, marketing
+  assert.equal(keepsInventory(grants(["view", "export"])), false); // Operations Head
+});

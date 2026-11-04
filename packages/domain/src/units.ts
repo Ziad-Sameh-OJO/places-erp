@@ -3,6 +3,7 @@
  * Money is in piasters; areas are whole square metres (the sheet's «gross area»).
  */
 import type { Piasters } from "./money.ts";
+import type { Grants } from "./permissions.ts";
 
 /** The unit sheets (M-03 3.1). Primary has the common columns only until the client sends its own. */
 export const UNIT_TYPES = ["Rent", "Resale", "Income", "Primary"] as const;
@@ -69,3 +70,10 @@ export function isStale(lastOwnerUpdateAt: Date, now: Date): boolean {
 
 /** The newest «last update» that is still on time: older than this is late (for queries). */
 export const staleBefore = (now: Date): Date => new Date(now.getTime() - STALE_AFTER_DAYS * DAY_MS);
+
+/**
+ * The people who keep the inventory (Manar, Randa, the admin: whoever may add or edit units, M-03 Q18). Only they see
+ * a unit before Manar confirms it (Q15: sales see it after the confirm) and the owners' names and numbers
+ * (Manar's sheet has the owners' numbers; the one the sales see doesn't, M-03 1.2).
+ */
+export const keepsInventory = (g: Pick<Grants, "can">): boolean => g.can("inventory", "create") || g.can("inventory", "edit");

@@ -21,6 +21,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },
+  { key: "unit.new", label: "وحدة جديدة (Live Alert)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-03 7.1
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "contract.renewal", label: "تجديد عقد (90/60/30)", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app", "email"], important: false },
   { key: "access.changed", label: "تغيير في حسابك أو صلاحياتك", to: "صاحب الحساب", toRoles: [], channels: ["app", "email"], important: true },
