@@ -63,6 +63,29 @@
       run() { A.ui.fnTab = "bs"; const C = APP_COA(); return `الأصول ${A.money(C.byCode["1"].bal)} = الخصوم ${A.money(C.byCode["2"].bal)} + حقوق الملكية ${A.money(C.byCode["3"].bal)}`; } }
   ];
   const APP_COA = () => A.coa();
+  /* «جرّب بإيدك»: a deal is closed and approved in the background, then you are Ahmed with the task waiting · each click is a new client */
+  const TRY = [["م. كريم فؤاد", "Nile Bridge", "01015557711", 25000, 25000], ["أ. منى رشاد", "Delta Studio", "01126668822", 18000, 22000], ["م. وليد حامد", "Apex Pharma", "01237779933", 40000, 35000], ["أ. سلمى نبيل", "Blue Orbit", "01148880044", 15000, 15000]];
+  A.ACT.demoDeal = () => {
+    const st = S(), [name, company, phone, cO, cC] = TRY[((st.demoTry = (st.demoTry || 0) + 1) - 1) % TRY.length], tag = st.demoTry > TRY.length ? ` ${Math.ceil(st.demoTry / TRY.length)}` : "", nm = name + tag;
+    try {
+      A.signIn("s4", 1); A.FORM.leadNew({ name: nm, company, phones: phone.slice(0, -2) + String(st.demoTry).padStart(2, "0"), area: "التجمع الخامس", type: "Rent", space: "140", condition: "متشطب", budget: "150000", channel: "Facebook", campaign: "c1", sales: "s4", note: "صفقة للتجربة" });
+      const l = S().leads[0], u = S().units.find((x) => A.availableAs(x, "Rent") && x.pdf === "confirmed" && x.agent && x.agent !== l.sales && !S().deals.some((d) => d.unit === x.code && d.status !== "Cancelled"));
+      A.setStage(l, "Near to Close"); A.FORM.deal({ lead: l.id, unit: u.code, space: String(u.space), type: "Rent", commOwner: String(cO), commClient: String(cC) }, pick([]));
+      const d = S().deals[0]; A.signIn("u21", 1); if ((d.sellers || []).length && !d.sellerApproved) A.ACT.sellerOk({ id: d.id });
+      A.FORM.dealReview({ id: d.id, v: "ok", space: String(d.space), type: d.type, location: d.location, commOwner: String(d.commOwner), commClient: String(d.commClient) }, { querySelector: () => ({ selectedOptions: A.buyersOf(d).map((value) => ({ value })) }) });
+      document.getElementById("demoPanel").hidden = true; A.closeModal(); A.signIn("u18", 1); location.hash = "home"; A.render();
+      const C = A.coa(), acct = C.idx["عميل:" + d.client];
+      A.openModal("جاهزة للتجربة · انت دلوقتي أحمد (المحاسب)", `<div class="pdf">${U.kv([["الصفقة", `<b class="mono">${d.id}</b> · ${esc(d.client)} (${esc(company)})`], ["الوحدة", esc(d.unit)], ["العمولة", `${A.money(d.commOwner)} من الـ Owner + ${A.money(d.commClient)} من الـ Client = <b>${A.money(A.placesComm(d))}</b>`], ["حساب العميل", acct ? `${acct.code} تحت «العملاء» (113)` : "هيتفتح مع أول تحصيل"]])}
+        <h4 class="mini-h">جرّب بإيدك</h4><ol class="steps">
+          <li>في «مهامي النهارده» هتلاقي <b>«صفقة اتقفلت · حصّل عمولة ${d.id}»</b> والإشعار في الجرس.</li>
+          <li>دوس <b>«حصّل»</b>: إذن توريد متعبّي بالصفقة. اختار الخزنة، و«التحصيل من» (الـ Client أو الـ Owner)، واكتب المبلغ (جرّب جزء بس).</li>
+          <li>بعد «سجّل» هيظهر السند وقيده (من ح/ الخزنة إلى ح/ العميل) و«الأثر على شجرة الحسابات».</li>
+          <li>المالية ← «شجرة الحسابات» ← «العملاء»: دوس على حساب ${esc(d.client)} تشوف كشف حسابه والباقي عليه.</li>
+          <li>«قايمة الدخل» و«الميزانية العمومية»: دوس على أي رقم تشوف وصل لكده إزاي.</li>
+          <li>حصّل الباقي (من الصفقة نفسها أو إذن توريد تاني) لحد ما حساب العميل يبقى صفر والصفقة «اتحصّلت بالكامل».</li></ol></div>
+        <div class="row end"><button class="btn" data-close="modal">${I("check")}يلا</button></div>`);
+    } catch (e) { A.toast("ماقدرتش أجهّز الصفقة · جرّب «إعادة بيانات الديمو» الأول"); }
+  };
   const SETS = { main: STEPS, fin: FIN };
   let STEPS_ = STEPS;
   let i = 0, out = "";
