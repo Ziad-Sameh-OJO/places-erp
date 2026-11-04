@@ -26,6 +26,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "hr.penalty", label: "جزاء مقترح من Team Leader", to: "الـ HR", toRoles: ["hr"], channels: ["app"], important: false }, // M-05 7.7
   { key: "hr.action_due", label: "ميعاد «حل الـ HR» من الـ 1-to-1", to: "الـ HR", toRoles: ["hr"], channels: ["app", "email"], important: true }, // M-05 7.8
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },
+  { key: "procurement.reminder", label: "تذكير بطلب شراء مستني موافقة", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push"], important: false }, // M-08 2.4
+  { key: "procurement.decided", label: "طلب شراء اتوافق / اترفض / اترحّل", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "procurement.settled", label: "طلب شراء اتسوّى · مستني الصرف", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false },
   { key: "unit.new", label: "وحدة جديدة (Live Alert)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-03 7.1
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "finance.budget", label: "بند قرّب يخلص أو عدّى البادجت", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.2 / 9.9

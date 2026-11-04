@@ -238,6 +238,20 @@ export class LedgerService {
     return account;
   }
 
+  /** The petty-cash ceilings finance set on cash accounts (M-08 3.1 «سقف العهدة»), as decimal strings. */
+  async caps(): Promise<Map<string, string>> {
+    return new Map((await this.repo.caps()).map((a) => [a.id, a.cap!.toFixed(2)]));
+  }
+
+  /** «سقف العهدة» on a safe (Q47: Mokhtar's own safe he pays from). Only a cash account can carry one. */
+  async setCap(me: CurrentUser, accountId: string, cap: string, tx: Tx) {
+    const a = await this.repo.account(accountId, tx);
+    if (!a || !a.kind) throw new BadRequestException("السقف بيتحط على خزنة أو بنك");
+    const before = (await this.repo.caps(tx)).find((x) => x.id === accountId)?.cap?.toFixed(2) ?? null;
+    await this.repo.setCap(accountId, cap, tx);
+    await this.audit.record({ module: "finance", entity: "Account", entityId: accountId, action: "update", userId: me.id, before: { cap: before }, after: { code: a.code, cap } }, tx);
+  }
+
   /** Marks an entry with the voucher that made it (so the journal links back to its voucher). */
   linkEntry(entryId: string, sourceId: string, tx: Tx) {
     return this.repo.setEntrySource(entryId, sourceId, tx);

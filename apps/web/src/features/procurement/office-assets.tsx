@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { OfficeAssetView, OfficeBoyShiftView } from "@places/contracts";
 import { Card, Chip, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
@@ -9,11 +9,12 @@ import { useMe } from "@/lib/me";
 import { useOfficeAssets, useOfficeBoys } from "./use-office-assets";
 
 /** The demo's office cards under procurement (M-08 3.1): the assets register and the office boys' rota by area. */
-export function OfficeCards() {
+export function OfficeCards({ lead }: { lead?: ReactNode }) {
   const { can } = useMe();
   const keeps = can("procurement", "edit"); // Mokhtar and the admins; the API decides
   return (
     <div className="cols">
+      {lead}
       <AssetsCard keeps={keeps} />
       <OfficeBoysCard keeps={keeps} />
     </div>
