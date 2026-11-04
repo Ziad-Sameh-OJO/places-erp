@@ -60,6 +60,18 @@ export function splitPrice(u: { divisible: boolean; minSplit: number | null; spa
   return { ok: true, area: requested, price: unitTotal(u.pricePerSqm, requested) };
 }
 
+/** The largest amount a money column holds (Decimal(14,2)): 999,999,999,999.99. */
+export const MAX_MONEY: Piasters = 99_999_999_999_999;
+
+/**
+ * Whether what the system works out for a unit can be stored and shown: the total (price × area) and, for Income,
+ * a year's rent. A typo of a few extra zeros is refused instead of overflowing the sheet.
+ */
+export function unitFiguresFit(u: { pricePerSqm: Piasters | null; leasePerSqm: Piasters | null; area: number }): boolean {
+  const fits = (perSqm: Piasters | null, times: number) => perSqm == null || perSqm * u.area * times <= MAX_MONEY;
+  return fits(u.pricePerSqm, 1) && fits(u.leasePerSqm, 12);
+}
+
 /** M-03 2.4: the owner update is due every month; past that the unit is late (it stays visible to sales, Q21). */
 export const STALE_AFTER_DAYS = 30;
 const DAY_MS = 24 * 60 * 60_000;
