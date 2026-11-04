@@ -2,10 +2,10 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AreaTabView, CreatedUnit, UnitDetail, UnitOptions } from "@places/contracts";
-import { areaTabLabel, fromDecimal, incomeFigures, toDecimal, unitAreaTab, unitTotal } from "@places/domain";
+import { areaTabLabel, fromDecimal, incomeFigures, toDecimal, unitAreaTab, unitFiguresFit, unitTotal } from "@places/domain";
 import { Field, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
-import { money } from "@/lib/format";
+import { moneyExact } from "@/lib/format";
 import type { UnitTypeName } from "./unit-bits";
 
 type Key =
@@ -73,13 +73,16 @@ function Figures({ f }: { f: Form }) {
   const area = Number(f.space);
   if (!Number.isInteger(area) || area <= 0) return null;
   try {
+    // the same ceiling the API checks: a few extra zeros typed by mistake
+    const price = f.pricePerSqm ? fromDecimal(f.pricePerSqm) : null, lease = f.type === "Income" && f.leasePerSqm ? fromDecimal(f.leasePerSqm) : null;
+    if (!unitFiguresFit({ pricePerSqm: price, leasePerSqm: lease, area })) return <Note kind="warn">الإجمالي كبير أوي · راجع السعر والمساحة</Note>;
     if (f.type === "Income") {
       if (!f.pricePerSqm || !f.leasePerSqm) return null;
       const x = incomeFigures({ salePerSqm: fromDecimal(f.pricePerSqm), leasePerSqm: fromDecimal(f.leasePerSqm), area });
-      return <Note>Sale total = {money(toDecimal(x.saleTotal))} · Monthly = Lease/m × Area = {money(toDecimal(x.monthlyRent))} · Annual = ×12 = {money(toDecimal(x.annualRent))} · Yield = <b>{x.yieldPct != null ? `${x.yieldPct.toFixed(2)}%` : "—"}</b></Note>;
+      return <Note>Sale total = {moneyExact(toDecimal(x.saleTotal))} · Monthly = Lease/m × Area = {moneyExact(toDecimal(x.monthlyRent))} · Annual = ×12 = {moneyExact(toDecimal(x.annualRent))} · Yield = <b>{x.yieldPct != null ? `${x.yieldPct.toFixed(2)}%` : "—"}</b></Note>;
     }
     if (!f.pricePerSqm) return null;
-    return <Note>Total price = السعر للمتر × المساحة = <b>{money(toDecimal(unitTotal(fromDecimal(f.pricePerSqm), area)))}</b>{f.type === "Rent" ? " في الشهر" : ""}</Note>;
+    return <Note>Total price = السعر للمتر × المساحة = <b>{moneyExact(toDecimal(unitTotal(fromDecimal(f.pricePerSqm), area)))}</b>{f.type === "Rent" ? " في الشهر" : ""}</Note>;
   } catch {
     return null; // a half-typed price («12.») isn't a number yet
   }
@@ -101,6 +104,8 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
   const set = (k: Key) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   const type = f.type as UnitTypeName;
   const auto = Number(f.space) > 0 ? unitAreaTab({ space: Number(f.space), areaTabId: null }, tabs) : null;
+  // the agent who brought the unit stays on it after leaving; they're no longer in the list of people working here
+  const agents = [...(options?.agents ?? []), ...(unit?.agent && !options?.agents.some((a) => a.id === unit.agent!.id) ? [{ ...unit.agent, name: `${unit.agent.name} (مش في الشركة دلوقتي)` }] : [])];
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -157,7 +162,7 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
         <Field label="Parking slots"><input name="parking" type="number" min={0} step={1} value={f.parking} onChange={set("parking")} /></Field>
         <Field label="Agent (السيلز اللي جاب الوحدة)" req>
           <select name="agentId" required value={f.agentId} onChange={set("agentId")}>
-            <option value="">اختار</option>{options?.agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            <option value="">اختار</option>{agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Field>
         <Field label="تاب المساحة">
