@@ -27,11 +27,16 @@ before(async () => {
     lead(3, otherTeam, { channel: "Instagram" }),
     lead(4, null),
   ] });
+  savedRoutingState = (await prisma.setting.findUnique({ where: { key: "routing" } }))?.value;
 });
 after(async () => {
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-E2E${stamp}` } } });
+  // creating leads with assignToId uses up the salesperson's turn (Q2): put the rotation back as it was
+  if (savedRoutingState === undefined) await prisma.setting.deleteMany({ where: { key: "routing" } });
+  else await prisma.setting.update({ where: { key: "routing" }, data: { value: savedRoutingState as never } });
   await prisma.$disconnect();
 });
+let savedRoutingState: unknown;
 
 const codes = async (cookie: string, query = "") => {
   const r = await call(`/leads?q=${encodeURIComponent(`E2E ${stamp}`)}&pageSize=100${query}`, { cookie });
