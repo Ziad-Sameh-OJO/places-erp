@@ -7,6 +7,7 @@ import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
+import { LeadDuplicatesService } from "./duplicates.service";
 
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
@@ -16,7 +17,12 @@ const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCas
 /** M-01 use cases. The rules themselves live in @places/domain; this class orchestrates them with the database. */
 @Injectable()
 export class LeadsService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly repo: LeadsRepository, private readonly audit: AuditService) {}
+  constructor(
+    @Inject(PRISMA) private readonly db: PrismaClient,
+    private readonly repo: LeadsRepository,
+    private readonly audit: AuditService,
+    private readonly duplicates: LeadDuplicatesService,
+  ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
   async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
@@ -55,7 +61,10 @@ export class LeadsService {
   /** Create → duplicate check by phone (Q7: Operations decides) → route by area round-robin (Q1–Q3) → audit. */
   async create(me: CurrentUser, input: CreateLead) {
     const dup = await this.repo.findByPhone(input.phones);
-    if (dup) throw new ConflictException({ duplicateOf: dup.code }); // goes to Operations' duplicate queue in the UI
+    if (dup) {
+      await this.duplicates.record(me, dup, input);
+      throw new ConflictException(`العميل ده موجود (${dup.code}) · اتبعت للأوبريشن تقرر`); // demo wording
+    }
 
     return this.db.$transaction(async (tx) => {
       const routing = await tx.setting.findUnique({ where: { key: "routing" } });
@@ -79,6 +88,7 @@ export class LeadsService {
           ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
         },
       });
+      await this.repo.addArrival(tx, { leadId: lead.id, channel: lead.channel, campaignId: lead.campaignId, duplicate: false, byUserId: me.id });
       await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, placement, assignedToId), me.id);
       if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);

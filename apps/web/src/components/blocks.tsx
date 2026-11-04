@@ -5,6 +5,7 @@
  * KpiTile (with the decorative spark line) and Fab (the floating «جديد» on phones).
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { IconName } from "@places/ui";
 import { Icon } from "./ui";
 
@@ -23,7 +24,8 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
   const initial = title.replace(/^(د\.|م\.|أ\.)\s*/, "").charAt(0);
-  return (
+  // on <body> for the same reason as Modal: a card's entrance animation would trap it (components/ui.tsx)
+  return createPortal(
     <>
       <div className="scrim" onClick={onClose} />
       <aside className={`drawer ${shown ? "in" : ""}`} aria-label={title} tabIndex={-1} ref={ref}>
@@ -48,7 +50,8 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
         <div className="dr-body">{children}</div>
         {foot && <footer className="dr-foot">{foot}</footer>}
       </aside>
-    </>
+    </>,
+    document.body,
   );
 }
 

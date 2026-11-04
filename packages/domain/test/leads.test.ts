@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, placeNewLead } from "../src/leads.ts";
+import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead } from "../src/leads.ts";
 
 const cairo = (iso: string) => new Date(`${iso}+03:00`);
 const fresh = (assignedAt: Date) => ({ stage: "Fresh" as const, touched: false, ownedByTelesales: false, assignedAt });
@@ -69,4 +69,21 @@ test("new lead placement: Telesales keeps it («يفضل عندي») or sends it
 
 test("SLA doesn't run while the lead is with Telesales", () => {
   assert.equal(leadSla({ stage: "Fresh", touched: false, ownedByTelesales: true, assignedAt: new Date("2026-11-03T09:00:00Z") }, new Date("2026-11-03T15:00:00Z")), null);
+});
+
+test("duplicate (M-01 Q7): Operations keeps the old data unless «new» is picked; both mobiles are kept once; the channel moves with its campaign", () => {
+  const old = { name: "أ. هبة رضا", area: "التجمع الخامس", type: "Rent", space: 100, budget: "120000.00", channel: "Google Ads", campaignId: "c5", phones: ["01033221100"] };
+  const neu = { name: "هبة رضا محمد", area: "التجمع الخامس", type: "Resale", space: 150, budget: null, channel: "Facebook", campaignId: "c1", phones: ["01033221100", "01155554444"] };
+
+  const keepAll = mergeDuplicate(old, neu, {});
+  assert.deepEqual(keepAll.changes, { phones: ["01033221100", "01155554444"] }); // nothing chosen: only the new mobile joins
+  assert.deepEqual(keepAll.took, []);
+
+  const r = mergeDuplicate(old, neu, { name: "new", space: "new", area: "new", channel: "new", type: "old" });
+  assert.deepEqual(r.changes, { name: "هبة رضا محمد", space: 150, channel: "Facebook", campaignId: "c1", phones: ["01033221100", "01155554444"] });
+  assert.deepEqual(r.took, ["الاسم", "Space", "الـ channel"]); // «area» was picked but is the same: nothing to take
+
+  const same = mergeDuplicate(old, { ...old }, { name: "new", channel: "new" });
+  assert.deepEqual(same, { changes: {}, took: [] });
+  assert.deepEqual(mergeDuplicate(old, neu, { budget: "new" }).changes.budget, null); // «new» can also clear a value
 });

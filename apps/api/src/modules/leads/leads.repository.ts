@@ -54,6 +54,37 @@ export class LeadsRepository {
     return this.db.lead.findFirst({ where: { phones: { hasSome: phones }, archivedAt: null }, select: { id: true, code: true } });
   }
 
+  /** Every arrival counts for its channel / campaign, the duplicate ones too (M-04 Q22). */
+  addArrival(tx: Prisma.TransactionClient, a: { leadId: string; channel: string; campaignId: string | null; duplicate: boolean; byUserId: string }) {
+    return tx.leadArrival.create({ data: a });
+  }
+
+  addDuplicate(tx: Prisma.TransactionClient, d: { leadId: string; arrivalId: string; data: Prisma.InputJsonValue; byUserId: string }) {
+    return tx.leadDuplicate.create({ data: d });
+  }
+
+  /** Operations' queue: duplicates still waiting for a decision, oldest first. */
+  pendingDuplicates() {
+    return this.db.leadDuplicate.findMany({ where: { decidedAt: null, lead: { archivedAt: null } }, select: DUPLICATE_ROW, orderBy: { at: "asc" } });
+  }
+
+  duplicate(tx: Prisma.TransactionClient, id: string) {
+    return tx.leadDuplicate.findFirst({ where: { id, lead: { archivedAt: null } }, select: DUPLICATE_ROW });
+  }
+
+  /** Only the first decision wins: two people deciding at once can't both apply theirs. */
+  claimDuplicate(tx: Prisma.TransactionClient, id: string, decidedById: string, decision: Prisma.InputJsonValue) {
+    return tx.leadDuplicate.updateMany({ where: { id, decidedAt: null }, data: { decidedAt: new Date(), decidedById, decision } });
+  }
+
+  updateLead(tx: Prisma.TransactionClient, id: string, data: Prisma.LeadUncheckedUpdateInput) {
+    return tx.lead.update({ where: { id }, data });
+  }
+
+  campaignNames(ids: string[]) {
+    return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+  }
+
   salesForArea(area: string) {
     return this.db.setting.findUnique({ where: { key: `routing:${area}` } });
   }
@@ -77,7 +108,16 @@ const LEAD_DETAIL = {
 export type LeadDetailRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_DETAIL }>;
 
 /** What a line of Activity is about (the column is text; these are the kinds the flows write). */
-export type ActivityKind = "comment" | "stage" | "assign" | "call" | "visit" | "meeting" | "whatsapp";
+export type ActivityKind = "comment" | "stage" | "assign" | "call" | "visit" | "meeting" | "whatsapp" | "duplicate";
+
+const DUPLICATE_ROW = {
+  id: true, at: true, byUserId: true, data: true, decidedAt: true,
+  lead: { select: {
+    id: true, code: true, name: true, phones: true, area: true, type: true, space: true, budget: true, channel: true, assignedToId: true,
+    company: { select: { name: true } }, campaign: { select: { id: true, name: true } },
+  } },
+} satisfies Prisma.LeadDuplicateSelect;
+export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DUPLICATE_ROW }>;
 
 function leadWhere(scope: Prisma.LeadWhereInput, f: LeadFilters): Prisma.LeadWhereInput {
   const digits = f.q?.replace(/\D/g, "") ?? "";

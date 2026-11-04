@@ -303,6 +303,8 @@ model Lead {
   answers        Json?         // answers to the recommendation questions, they narrow the suggested units
   verification   Json?         // Second Call: { called, sent, byUserId, at }
   activities     LeadActivity[]
+  arrivals       LeadArrival[]
+  duplicates     LeadDuplicate[]
   visits         LeadVisit[]
   suggestedUnits LeadUnit[]
   deals          Deal[]
@@ -358,6 +360,45 @@ model LeadUnit {
 
   @@id([leadId, unitId])
   @@index([unitId])
+  @@schema("sales")
+}
+
+/// Every time a lead reaches us — the first time and every duplicate — counted for its channel / campaign
+/// (M-04 Q22: «الليد المكرر بيتحسب كل مرة»). The lead's own channel is the one that gets the credit.
+model LeadArrival {
+  id         String         @id @default(cuid())
+  leadId     String
+  lead       Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  channel    String
+  campaignId String?
+  campaign   Campaign?      @relation(fields: [campaignId], references: [id])
+  duplicate  Boolean        @default(false)
+  byUserId   String?        // null = imported / the system
+  at         DateTime       @default(now())
+  review     LeadDuplicate?
+
+  @@index([leadId])
+  @@index([campaignId, at])
+  @@index([channel, at])
+  @@schema("sales")
+}
+
+/// A lead entered again with a mobile we already have. Operations compares both and chooses what stays and which
+/// channel gets the credit (M-01 Q7). `data` is what was entered; `decision` what Operations chose.
+model LeadDuplicate {
+  id          String      @id @default(cuid())
+  leadId      String
+  lead        Lead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  arrivalId   String      @unique
+  arrival     LeadArrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+  data        Json
+  byUserId    String
+  at          DateTime    @default(now())
+  decidedAt   DateTime?
+  decidedById String?
+  decision    Json?
+
+  @@index([decidedAt])
   @@schema("sales")
 }
 
@@ -591,6 +632,7 @@ model Campaign {
   target    String?
   adUrl     String?
   leads     Lead[]
+  arrivals  LeadArrival[]
   createdAt DateTime @default(now())
 
   @@schema("marketing")

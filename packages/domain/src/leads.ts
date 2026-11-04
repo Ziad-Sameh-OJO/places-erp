@@ -118,3 +118,38 @@ export function distributeEvenly(count: number, salespeople: readonly string[]):
   salespeople.forEach((id, i) => out.set(id, base + (i < count % salespeople.length ? 1 : 0)));
   return out;
 }
+
+/** What Operations compares when a lead comes in twice (demo «عميل مكرر»): the label is the table's first column. */
+export const DUPLICATE_FIELDS = [["name", "الاسم"], ["area", "Area"], ["type", "Type"], ["space", "Space"], ["budget", "Budget"]] as const;
+export type DuplicateField = (typeof DUPLICATE_FIELDS)[number][0];
+export type DuplicateChoice = Partial<Record<DuplicateField | "channel", "old" | "new">>;
+
+/** The facts both sides have. Budget stays a decimal string: nothing is computed on it here. */
+export interface LeadFacts {
+  readonly name: string; readonly area: string; readonly type: string; readonly space: number | null; readonly budget: string | null;
+  readonly channel: string; readonly campaignId: string | null; readonly phones: readonly string[];
+}
+
+/**
+ * Operations' decision on a duplicate (M-01 Q7): for each field the existing value stays unless «new» is chosen,
+ * the channel (with its campaign) that gets the credit likewise, and the mobiles of both are kept, once each.
+ * Returns only what changes, and the labels of what was taken from the new entry (for the Activity line).
+ */
+export function mergeDuplicate(existing: LeadFacts, incoming: LeadFacts, choice: DuplicateChoice): { changes: Partial<LeadFacts>; took: string[] } {
+  const changes: { -readonly [K in keyof LeadFacts]?: LeadFacts[K] } = {};
+  const took: string[] = [];
+  for (const [field, label] of DUPLICATE_FIELDS) {
+    if (choice[field] === "new" && incoming[field] !== existing[field]) {
+      (changes as Record<string, unknown>)[field] = incoming[field];
+      took.push(label);
+    }
+  }
+  if (choice.channel === "new" && (incoming.channel !== existing.channel || incoming.campaignId !== existing.campaignId)) {
+    changes.channel = incoming.channel;
+    changes.campaignId = incoming.campaignId;
+    took.push("الـ channel");
+  }
+  const phones = [...new Set([...existing.phones, ...incoming.phones])];
+  if (phones.length !== existing.phones.length) changes.phones = phones;
+  return { changes, took };
+}

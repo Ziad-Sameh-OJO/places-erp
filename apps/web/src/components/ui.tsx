@@ -5,6 +5,7 @@
  * Tick, Avatar, and a toast.
  */
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { Action, ModuleKey } from "@places/domain";
 import type { ImportDone, ImportPreview } from "@places/contracts";
 import { ICONS, type IconName } from "@places/ui";
@@ -91,13 +92,16 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     ref.current?.querySelector<HTMLElement>("input, select, textarea, button")?.focus();
     return () => window.removeEventListener("keydown", esc);
   }, [onClose]);
-  return (
+  // Rendered on <body>: the design-2 entrance animation (transform, fill «both») turns the page's top-level cards into
+  // the containing block of anything position:fixed inside them, which trapped a modal opened from a card in that card.
+  return createPortal(
     <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={title} ref={ref}>
         <div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="قفل">✕</button></div>
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
