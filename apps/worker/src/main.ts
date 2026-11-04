@@ -8,11 +8,13 @@ import { prisma } from "@places/db";
 import { env } from "./env.ts";
 import { leadSlaTick } from "./processors/lead-sla.ts";
 import { leaveChaseTick } from "./processors/leave-chase.ts";
+import { ticketSlaTick } from "./processors/ticket-sla.ts";
 
 const connection = { url: env.REDIS_URL };
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: leadSlaTick }, // every minute (M-01 2.4)
+  { name: "ticket-sla", pattern: "*/5 * * * *", processor: () => ticketSlaTick() }, // every 5 minutes: SLAs are hours long (M-06 2.4)
   // next: no-answer-rotation (T-07), contracts (T-16), kpis (T-23)… one processor file each, same shape as lead-sla.ts
   { name: "leave-chase", pattern: "15 * * * *", processor: leaveChaseTick }, // hourly: remind at 24h, escalate at 48h (M-05 7.5)
 ];

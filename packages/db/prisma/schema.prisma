@@ -746,18 +746,23 @@ model Task {
 
 model Ticket {
   id           String        @id @default(cuid())
-  code         String        @unique
-  type         String        // request · excuse · hr_letter · dispute · purchase
-  department   String
+  number       Int           @unique @default(autoincrement()) // shown as TK-<number>
+  type         String        // a key of TICKET_TYPES in @places/domain: request · hr_letter · dispute · list · purchase
+  department   String        // a value of «أقسام التذاكر» (M-13); a transfer changes it, the events keep the history
   title        String
-  priority     String        @default("normal")
-  status       String        @default("Open")
+  priority     String        @default("normal") // normal · high
+  status       String        @default("Open")   // Open · In Progress · Resolved · Closed
   fromUserId   String
-  firstReplyAt DateTime?
-  resolvedAt   DateTime?
+  firstReplyAt DateTime?     // the department's first reply (M-06 3.2: response time)
+  resolvedAt   DateTime?     // settled (Resolved, or Closed straight away): «اتقفلت في الـ SLA»
+  closedAt     DateTime?
+  escalatedAt  DateTime?     // M-06 2.4: the late ticket was escalated (once)
   events       TicketEvent[]
   createdAt    DateTime      @default(now())
 
+  @@index([department, status])
+  @@index([fromUserId])
+  @@index([createdAt])
   @@schema("ops")
 }
 
@@ -765,11 +770,12 @@ model TicketEvent {
   id       String   @id @default(cuid())
   ticketId String
   ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  kind     String
+  kind     String   // open · reply · status · transfer · close · escalate
   text     String
-  byUserId String
+  byUserId String?  // null = the system (an escalation)
   at       DateTime @default(now())
 
+  @@index([ticketId, at])
   @@schema("ops")
 }
 
