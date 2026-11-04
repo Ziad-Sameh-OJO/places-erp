@@ -27,16 +27,17 @@ before(async () => {
     lead(3, otherTeam, { channel: "Instagram" }),
     lead(4, null),
   ] });
-  savedRoutingState = (await prisma.setting.findUnique({ where: { key: "routing" } }))?.value;
+  // creating leads with assignToId uses up Mohsen's next turn (Q2): only his count is put back afterwards
+  mohsenEmployee = mohsenId;
+  savedSkips = ((await prisma.setting.findUnique({ where: { key: "routing" } }))?.value as { skipTurns?: Record<string, number> } | undefined)?.skipTurns?.[mohsenId] ?? 0;
 });
 after(async () => {
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-E2E${stamp}` } } });
-  // creating leads with assignToId uses up the salesperson's turn (Q2): put the rotation back as it was
-  if (savedRoutingState === undefined) await prisma.setting.deleteMany({ where: { key: "routing" } });
-  else await prisma.setting.update({ where: { key: "routing" }, data: { value: savedRoutingState as never } });
+  // only Mohsen's skipped turns, in one statement: the rotation tests (1.12 / 1.13) move other cursors meanwhile
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY['skipTurns', ${mohsenEmployee}], to_jsonb(${savedSkips}::int)) WHERE "key" = 'routing' AND "value" ? 'skipTurns'`;
   await prisma.$disconnect();
 });
-let savedRoutingState: unknown;
+let savedSkips = 0, mohsenEmployee = "";
 
 const codes = async (cookie: string, query = "") => {
   const r = await call(`/leads?q=${encodeURIComponent(`E2E ${stamp}`)}&pageSize=100${query}`, { cookie });
@@ -189,21 +190,19 @@ test("a stage change is an action too: it stops the SLA clock and goes on top of
 /* ---------------- 1.4 Telesales: «يفضل عندي» or «التوزيع» ---------------- */
 
 const AREA = `E2E منطقة ${stamp}`;
-let hadeer: string, savedRouting: unknown;
+let hadeer: string;
 const teleLeads: string[] = [];
 before(async () => {
   hadeer = await session("hadeer.tarek@places.com");
   const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
-  // a test area covered by Mohsen only, so «التوزيع» has someone to go to (1.12 will manage these from a screen)
-  const row = await prisma.setting.findUnique({ where: { key: "areaRouting" } });
-  savedRouting = row?.value;
-  const pools = { ...((row?.value ?? {}) as Record<string, string[]>), [AREA]: [mohsenId] };
-  await prisma.setting.upsert({ where: { key: "areaRouting" }, update: { value: pools }, create: { key: "areaRouting", value: pools } });
+  // a test area covered by Mohsen only, so «التوزيع» has someone to go to. Only that area is touched, in one
+  // statement: the routing tests (1.12) change other areas at the same time.
+  await prisma.setting.upsert({ where: { key: "areaRouting" }, update: {}, create: { key: "areaRouting", value: {} } });
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([mohsenId])}::jsonb) WHERE "key" = 'areaRouting'`;
 });
 after(async () => {
   await prisma.lead.deleteMany({ where: { id: { in: teleLeads } } });
-  if (savedRouting === undefined) await prisma.setting.deleteMany({ where: { key: "areaRouting" } });
-  else await prisma.setting.update({ where: { key: "areaRouting" }, data: { value: savedRouting as never } });
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = "value" - ${AREA} WHERE "key" = 'areaRouting'`;
 });
 
 const teleLead = async (cookie: string, n: number, extra: object) => {
@@ -348,16 +347,19 @@ test("list rows carry the SLA: a Fresh untouched lead assigned a month ago is pu
 
 test("summary: the tiles agree with the list for the same person; HR 403", async () => {
   for (const cookie of [mohsen, tl, ops]) {
-    const s = (await call("/leads/summary", { cookie })).body;
     // the tiles are the «الليدز» tab's (clients); brokers have their own tab (1.28)
     const total = async (q: string) => (await call(`/leads?pageSize=1&kind=client${q}`, { cookie })).body.total;
-    assert.equal(s.total, await total(""));
-    assert.equal(s.fresh, await total("&stage=Fresh"));
-    assert.equal(s.qualified, await total("&qualified=true"));
-    assert.equal(s.noAnswer, await total("&stage=No%20Answer"));
-    assert.equal(s.interested, await total("&stage=Interested"));
-    assert.equal(typeof s.holidayMode, "boolean");
-    assert.ok(s.slaRules.pullAfter > s.slaRules.warnAfter);
+    const read = async () => {
+      const s = (await call("/leads/summary", { cookie })).body;
+      const list = { total: await total(""), fresh: await total("&stage=Fresh"), qualified: await total("&qualified=true"), noAnswer: await total("&stage=No%20Answer"), interested: await total("&stage=Interested") };
+      return { s, list, tiles: { total: s.total, fresh: s.fresh, qualified: s.qualified, noAnswer: s.noAnswer, interested: s.interested } };
+    };
+    // other test files create leads at the same time: compare a reading taken while nothing changed in between
+    let r = await read();
+    for (let i = 0; i < 5 && JSON.stringify(r.tiles) !== JSON.stringify(r.list); i++) r = await read();
+    assert.deepEqual(r.tiles, r.list);
+    assert.equal(typeof r.s.holidayMode, "boolean");
+    assert.ok(r.s.slaRules.pullAfter > r.s.slaRules.warnAfter);
   }
   assert.equal((await call("/leads/summary", { cookie: hr })).status, 403);
 });

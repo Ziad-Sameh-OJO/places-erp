@@ -11,6 +11,7 @@ import { ago, day, dayTime, money, num } from "@/lib/format";
 import { api } from "@/lib/api";
 import { StageChip, Who, slaText, slaTone } from "./lead-bits";
 import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
+import { useLeadOptions } from "./use-leads";
 
 /** The pipeline the stepper shows (demo PIPE); the side stages (No Answer, Hold…) hide it. */
 const PIPE: readonly LeadStage[] = ["Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal"];
@@ -64,7 +65,32 @@ function Overview({ l }: { l: LeadDetail }) {
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {l.note && <div className="quote">{l.note}</div>}
       {can("leads", "edit") && <CallButton id={l.id} />}
+      {can("leads", "approve") && <Reassign key={l.id} l={l} />}
     </>
+  );
+}
+
+/**
+ * Demo «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand the lead to another
+ * salesperson; that salesperson's next turn in the rotation is used up (Q2).
+ */
+function Reassign({ l }: { l: LeadDetail }) {
+  const run = useAction();
+  const refresh = useRefreshLead();
+  const people = useLeadOptions().data?.assignable ?? [];
+  const [to, setTo] = useState(l.assignedTo?.id ?? "");
+  const name = people.find((p) => p.id === to)?.name ?? "";
+  return (
+    <form className="card flat" onSubmit={(e) => { e.preventDefault(); if (to && to !== l.assignedTo?.id) void run(async () => { await api.post(`/leads/${l.id}/assign`, { to }); await refresh(l.id); }, `اتحوّل لـ ${name}`); }}>
+      <div className="card-head"><h3><span className="ico"><Icon name="swap" /></span><span>اسحب الليد وحوّله<small>مدير المبيعات والإدارة</small></span></h3></div>
+      <div className="row">
+        <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="حوّل لـ">
+          {!l.assignedTo && <option value="">اختار السيلز</option>}
+          {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <button className="btn ghost" disabled={!to || to === l.assignedTo?.id}><Icon name="swap" />حوّل</button>
+      </div>
+    </form>
   );
 }
 
