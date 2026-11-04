@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, LeadBoard, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
 import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -102,8 +102,16 @@ export class LeadsService {
     return new Map((await this.repo.employeeNames([...new Set(ids.filter(isId))])).map((e) => [e.id, e.name]));
   }
 
+  /** While the form is filled: is one of these mobiles already a lead? The id only if the person may open that lead. */
+  async checkDuplicate(me: CurrentUser, q: DuplicateCheck): Promise<DuplicateCheckResult> {
+    const dup = q.phones.length ? await this.repo.findByPhone(q.phones) : null;
+    if (!dup) return { hit: null };
+    const visible = await this.repo.findInScope(ownedBy(me) as never, dup.id);
+    return { hit: { code: dup.code, leadId: visible ? dup.id : null } };
+  }
+
   /** Create → duplicate check by phone (Q7: Operations decides) → route by area round-robin (Q1–Q3) → audit. */
-  async create(me: CurrentUser, input: CreateLead) {
+  async create(me: CurrentUser, input: CreateLead): Promise<CreatedLead> {
     const dup = await this.repo.findByPhone(input.phones);
     if (dup) {
       await this.duplicates.record(me, dup, input);
@@ -124,19 +132,22 @@ export class LeadsService {
       await tx.setting.upsert({ where: { key: "routing" }, update: { value: router.snapshot() as never }, create: { key: "routing", value: router.snapshot() as never } });
 
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
+      const company = input.company ? await this.repo.companyByName(tx, input.company) : null;
       const lead = await tx.lead.create({
         data: {
           code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
           condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, campaignId: input.campaignId ?? null,
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
           ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
+          companyId: company?.id ?? null, note: input.note ?? null,
         },
       });
       await this.repo.addArrival(tx, { leadId: lead.id, channel: lead.channel, campaignId: lead.campaignId, duplicate: false, byUserId: me.id });
       await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, placement, assignedToId), me.id);
       if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);
-      return lead;
+      const [to] = assignedToId ? await this.repo.employeeNames([assignedToId], tx) : [];
+      return { id: lead.id, code: lead.code, ownedByTelesales: lead.ownedByTelesales, assignedTo: to ?? null };
     });
   }
 

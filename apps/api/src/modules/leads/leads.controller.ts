@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { AddComment, ChangeStage, CreateLead, LeadFilters } from "@places/contracts";
+import { AddComment, ChangeStage, CreateLead, DuplicateCheck, LeadFilters } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -17,6 +17,12 @@ export class LeadsController {
   }
 
   // before ":id", so these aren't read as a lead id
+  @Get("duplicate-check")
+  @Requires("leads", "create")
+  duplicateCheck(@Me() me: CurrentUser, @Query(new ZodPipe(DuplicateCheck)) q: DuplicateCheck) {
+    return this.leads.checkDuplicate(me, q);
+  }
+
   @Get("board")
   @Requires("leads", "view")
   board(@Me() me: CurrentUser, @Query(new ZodPipe(LeadFilters)) f: LeadFilters) {
