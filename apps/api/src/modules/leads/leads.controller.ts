@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
-import { AddComment, AssignLead, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery } from "@places/contracts";
+import { AddComment, AssignLead, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -33,6 +33,13 @@ export class LeadsController {
   @Requires("leads", "view")
   myCalls(@Me() me: CurrentUser) {
     return this.leads.myCalls(me);
+  }
+
+  /** The Visit form's unit search (1.9): whoever books visits on leads, even without the inventory page. */
+  @Get("visit-units")
+  @Requires("leads", "edit")
+  visitUnits(@Query(new ZodPipe(VisitUnitQuery)) q: VisitUnitQuery) {
+    return this.leads.visitUnits(q.q);
   }
 
   @Get("summary")
@@ -82,6 +89,27 @@ export class LeadsController {
   @Requires("leads", "edit")
   addComment(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(AddComment)) body: AddComment) {
     return this.leads.addComment(me, id, body);
+  }
+
+  /** «Visit / Meeting جديدة» (1.9). */
+  @Post(":id/visits")
+  @Requires("leads", "edit")
+  addVisit(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(VisitInput)) body: VisitInput) {
+    return this.leads.addVisit(me, id, body);
+  }
+
+  @Put(":id/visits/:visitId")
+  @Requires("leads", "edit")
+  editVisit(@Me() me: CurrentUser, @Param("id") id: string, @Param("visitId") visitId: string, @Body(new ZodPipe(VisitInput)) body: VisitInput) {
+    return this.leads.editVisit(me, id, visitId, body);
+  }
+
+  /** «Done» / «معملتهاش». */
+  @Post(":id/visits/:visitId/outcome")
+  @HttpCode(200)
+  @Requires("leads", "edit")
+  markVisit(@Me() me: CurrentUser, @Param("id") id: string, @Param("visitId") visitId: string, @Body(new ZodPipe(VisitOutcome)) body: VisitOutcome) {
+    return this.leads.markVisit(me, id, visitId, body);
   }
 
   @Post()

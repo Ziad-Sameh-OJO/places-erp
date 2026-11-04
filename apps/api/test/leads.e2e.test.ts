@@ -381,7 +381,7 @@ test("filter choices: sales get no salespeople, a TL his team only, operations e
 test("board: every stage once, each lane's total is the list's count for that stage, at most 30 cards, same scope", async () => {
   for (const cookie of [mohsen, ops]) {
     const b = (await call("/leads/board", { cookie })).body;
-    assert.equal(b.lanes.length, 13);
+    assert.equal(b.lanes.length, 14); // «Follow up to Meeting» since 1.9
     for (const lane of b.lanes) {
       const listTotal = (await call(`/leads?pageSize=1&stage=${encodeURIComponent(lane.stage)}`, { cookie })).body.total;
       assert.equal(lane.total, listTotal, lane.stage);

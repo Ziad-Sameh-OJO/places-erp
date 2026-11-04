@@ -7,11 +7,13 @@ import { Queue, Worker, type Processor } from "bullmq";
 import { prisma } from "@places/db";
 import { env } from "./env.ts";
 import { leadSlaTick } from "./processors/lead-sla.ts";
+import { visitAlarmTick } from "./processors/visit-alarm.ts";
 
 const connection = { url: env.REDIS_URL };
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: leadSlaTick }, // every minute (M-01 2.4)
+  { name: "visit-alarm", pattern: "* * * * *", processor: () => visitAlarmTick() }, // every minute (M-01 3.3 · 1.9)
   // next: no-answer-rotation (T-07), contracts (T-16), kpis (T-23)… one processor file each, same shape as lead-sla.ts
 ];
 
