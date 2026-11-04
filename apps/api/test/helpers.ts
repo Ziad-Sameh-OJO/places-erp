@@ -22,9 +22,16 @@ export async function session(email: string, password = PW) {
   return r.cookie;
 }
 
-/** The newest email to `to` written after `since` (ms). */
+/**
+ * The API names each mail with its own clock, the test passes its own `since`: two processes whose `Date.now()`
+ * can be a few ms apart on Windows (more with several test files running at once). A mail sent right after
+ * `since` was then dated just before it and «not found» — the forgot-password / OTP flake. So allow a margin.
+ */
+const CLOCK_SKEW_MS = 2_000;
+
+/** The newest email to `to` written after `since` (ms), give or take the two clocks' skew. */
 export function lastMail(to: string, since: number): { subject: string; text: string } {
-  const f = readdirSync(OUTBOX).filter((n) => n.endsWith(`-${to}.json`) && Number(n.split("-")[0]) >= since).sort().at(-1);
+  const f = readdirSync(OUTBOX).filter((n) => n.endsWith(`-${to}.json`) && Number(n.split("-")[0]) >= since - CLOCK_SKEW_MS).sort().at(-1);
   if (!f) throw new Error(`no mail to ${to}`);
   return JSON.parse(readFileSync(`${OUTBOX}/${f}`, "utf8"));
 }
