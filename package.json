@@ -17,7 +17,8 @@
     "infra:up": "docker compose -f infra/docker/docker-compose.yml up -d",
     "infra:down": "docker compose -f infra/docker/docker-compose.yml down",
     "db:local": "node infra/local/db.mjs",
-    "redis:local": "node infra/local/redis.mjs"
+    "redis:local": "node infra/local/redis.mjs",
+    "files:local": "node infra/local/files.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -753,6 +753,33 @@ model NotificationRule {
 }
 
 /// Every create / update / delete / money change: who, when, what, before → after (Q50).
+enum FileStatus {
+  PENDING  // link handed out, the browser hasn't finished uploading
+  READY    // uploaded and checked (size and type match what was asked)
+  REJECTED // the uploaded object didn't match: deleted from storage
+
+  @@schema("system")
+}
+
+/// Every stored object (photos, PDFs, receipts, sheets). The bytes live in S3/MinIO under `key`; this is the record.
+model File {
+  id           String     @id @default(cuid())
+  key          String     @unique // <yyyy>/<mm>/<id>.<ext> in the bucket: never built from the uploaded name
+  name         String     // the original file name, shown on download
+  mime         String
+  size         Int        // bytes, as declared before upload and checked after
+  status       FileStatus @default(PENDING)
+  uploadedById String
+  entity       String?    // what it belongs to, e.g. "Unit" + its id; set by the module that uses it
+  entityId     String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([entity, entityId])
+  @@index([uploadedById])
+  @@schema("system")
+}
+
 model AuditLog {
   id        BigInt   @id @default(autoincrement())
   at        DateTime @default(now())

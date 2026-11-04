@@ -41,6 +41,15 @@ jobs:
         run: pnpm test
       - run: pnpm build
 
+      # S3-compatible storage for the file tests. MinIO no longer publishes images, so versitygw (same S3 API)
+      - name: File storage (S3)
+        run: |
+          pw=ci-$(openssl rand -hex 12)
+          echo "S3_SECRET_KEY=$pw" >> "$GITHUB_ENV"
+          docker run -d --name s3 -p 9000:9000 -e ROOT_ACCESS_KEY=places -e ROOT_SECRET_KEY=$pw \
+            versity/versitygw:v1.9.0 --port :9000 --iam-dir /tmp/vgw posix /tmp/vgw
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9000 && break; sleep 1; done
+
       # the same .env a developer has locally, with throwaway secrets made for this run only
       - name: Test environment
         run: |
@@ -52,6 +61,10 @@ jobs:
           SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n')
           WEB_ORIGIN=http://localhost:3000
           SEED_DEV_PASSWORD=Ci$(openssl rand -hex 8)7
+          S3_ENDPOINT=http://localhost:9000
+          S3_BUCKET=places
+          S3_ACCESS_KEY=places
+          S3_SECRET_KEY=$S3_SECRET_KEY
           ENV
       - name: Migrate + seed
         run: pnpm --filter @places/db migrate:deploy && pnpm db:seed

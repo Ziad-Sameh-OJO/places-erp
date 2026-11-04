@@ -10,6 +10,7 @@ import { SessionGuard } from "./core/auth/session.guard";
 import { PoliciesGuard } from "./core/authz/policies.guard";
 import { MailModule } from "./core/mail/mail.module";
 import { NotificationsModule } from "./core/notifications/notifications.module";
+import { FilesModule } from "./core/files/files.module";
 import { LeadsModule } from "./modules/leads/leads.module";
 import { AccessModule } from "./modules/access/access.module";
 import { SettingsModule } from "./modules/settings/settings.module";
@@ -22,7 +23,7 @@ import { SettingsModule } from "./modules/settings/settings.module";
   imports: [
     // rate limits protect production; locally they'd only get in the way of the e2e tests
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 120 }], skipIf: () => process.env.NODE_ENV !== "production" }),
-    DatabaseModule, MailModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule, NotificationsModule,
+    DatabaseModule, MailModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule, NotificationsModule, FilesModule,
     AccessModule, SettingsModule, LeadsModule,
   ],
   providers: [
