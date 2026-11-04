@@ -89,3 +89,12 @@ test("permissions: normalised actions always include view and keep the matrix or
   assert.deepEqual(normalizeActions(["export", "edit", "edit"]), ["view", "edit", "export"]);
   assert.deepEqual(normalizeActions([]), []);
 });
+
+test("OTP «ابعت تاني»: only one minute after the last code (M-09 2.4)", async () => {
+  const { otpResendWait } = await import("../src/permissions.ts");
+  const sent = new Date("2026-11-04T10:00:00Z");
+  assert.equal(otpResendWait(sent, sent), 60);
+  assert.equal(otpResendWait(sent, new Date("2026-11-04T10:00:59.500Z")), 1);
+  assert.equal(otpResendWait(sent, new Date("2026-11-04T10:01:00Z")), 0);
+  assert.equal(otpResendWait(sent, new Date("2026-11-04T10:05:00Z")), 0);
+});
