@@ -12,7 +12,7 @@ export class HrRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
   employees(where: Prisma.EmployeeWhereInput) {
-    return this.db.employee.findMany({ where: { user: { status: { not: "DISABLED" } }, ...where }, ...FILE, orderBy: { name: "asc" } });
+    return this.db.employee.findMany({ where: { AND: [{ user: { status: { not: "DISABLED" } } }, where] }, ...FILE, orderBy: { name: "asc" } });
   }
 
   departments(where: Prisma.EmployeeWhereInput) {
@@ -20,7 +20,7 @@ export class HrRepository {
   }
 
   employee(id: string, where: Prisma.EmployeeWhereInput, tx: Tx | PrismaClient = this.db) {
-    return tx.employee.findFirst({ where: { id, ...where }, ...FILE });
+    return tx.employee.findFirst({ where: { AND: [{ id }, where] }, ...FILE }); // AND: a scope on `id` (team) mustn't replace the id asked for
   }
 
   update(id: string, data: Prisma.EmployeeUncheckedUpdateInput, tx: Tx) {

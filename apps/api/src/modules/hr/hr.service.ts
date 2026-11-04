@@ -29,11 +29,12 @@ export class HrService {
   }
 
   async list(me: CurrentUser, f: EmployeeFilters): Promise<EmployeesView> {
-    const where: Prisma.EmployeeWhereInput = {
-      ...this.scope(me),
-      ...(f.department ? { department: f.department } : {}),
-      ...(f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { department: { contains: f.q, mode: "insensitive" } }, { jobTitle: { contains: f.q, mode: "insensitive" } }] } : {}),
-    };
+    // AND: the filters narrow the scope, never replace it (a department filter mustn't lift a department scope)
+    const where: Prisma.EmployeeWhereInput = { AND: [
+      this.scope(me),
+      f.department ? { department: f.department } : {},
+      f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { department: { contains: f.q, mode: "insensitive" } }, { jobTitle: { contains: f.q, mode: "insensitive" } }] } : {},
+    ] };
     const [rows, deps] = await Promise.all([this.repo.employees(where), this.repo.departments(this.scope(me))]);
     return { items: rows.map((e) => this.row(e)), departments: deps.map((d) => d.department) };
   }
