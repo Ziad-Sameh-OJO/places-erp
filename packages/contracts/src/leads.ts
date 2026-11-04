@@ -61,6 +61,7 @@ export interface LeadActivityRow {
 /** The lead drawer (M-01): the list row plus the details and the Activity, newest first. */
 export interface LeadDetail extends LeadRow {
   company: string | null; condition: string | null; note: string | null;
+  post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
 

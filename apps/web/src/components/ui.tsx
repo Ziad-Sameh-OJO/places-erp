@@ -48,13 +48,14 @@ export function Tabs<K extends string>({ items, value, onChange }: { items: [K, 
 }
 
 /** On phones every row becomes a card; each cell is labelled with its column (data-label, styled by mobile.css). */
-export function Table({ head, rows, empty = "مفيش بيانات" }: { head: string[]; rows: ReactNode[][]; empty?: string }) {
+/** `onRow` makes rows clickable (the demo opens a record's drawer from its row). */
+export function Table({ head, rows, empty = "مفيش بيانات", onRow }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void }) {
   return (
     <div className="tbl-wrap">
       <table className="cardable">
         <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
-          {rows.length ? rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}</tr>)
+          {rows.length ? rows.map((r, i) => <tr key={i} className={onRow ? "click" : undefined} onClick={onRow ? () => onRow(i) : undefined}>{r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}</tr>)
             : <tr><td colSpan={head.length}><Empty text={empty} /></td></tr>}
         </tbody>
       </table>

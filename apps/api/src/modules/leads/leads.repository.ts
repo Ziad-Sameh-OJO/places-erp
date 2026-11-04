@@ -136,7 +136,7 @@ const LEAD_ROW = {
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
-  ...LEAD_ROW, condition: true, note: true, noAnswerCount: true, rotation: true, firstActionAt: true,
+  ...LEAD_ROW, condition: true, note: true, post: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;

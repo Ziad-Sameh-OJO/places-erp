@@ -8,6 +8,7 @@ import { useSavedViews } from "./filters";
 import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
 import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
+import { LeadDrawer } from "./lead-drawer";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useSettings } from "./use-leads";
 
 const PAGE = 50;
@@ -18,6 +19,7 @@ export function LeadsList() {
   const [f, setF] = useState<LeadQuery>({});
   const [mode, setMode] = useState<"list" | "board">("list");
   const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
   const summary = useLeadSummary();
   const options = useLeadOptions();
   const settings = useSettings();
@@ -30,6 +32,8 @@ export function LeadsList() {
   const total = failed ? 0 : mode === "board" && board.data ? board.data.lanes.reduce((n, l) => n + l.total, 0) : leads.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const s = summary.data;
+  // prev / next in the drawer walk what's on screen: this page of the list, or the board's cards lane by lane
+  const ids = mode === "board" ? (board.data?.lanes ?? []).flatMap((l) => l.items.map((x) => x.id)) : (leads.data?.items ?? []).map((x) => x.id);
 
   return (
     <>
@@ -45,8 +49,9 @@ export function LeadsList() {
         <span className="spacer" />
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
-        ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} />
-        : <LeadsTable leads={leads.data?.items ?? []} />}
+        ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
+        : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} />}
+      {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
       {!failed && mode === "list" && pages > 1 && (
         <div className="row end">
           <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button>
