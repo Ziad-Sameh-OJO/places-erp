@@ -215,7 +215,7 @@
           <select id="ra-proj" data-change="recAns" data-k="project" data-id="${l.id}">${opt("", "المشروع: أي مشروع", ans.project)}${projects.map((p) => opt(p, p, ans.project)).join("")}</select>
           <select id="ra-area" data-change="recAns" data-k="area" data-id="${l.id}">${opt("", "المنطقة: أي منطقة", ans.area)}${opt("same", "نفس منطقة الكلاينت", ans.area)}</select>
           <select id="ra-split" data-change="recAns" data-k="split" data-id="${l.id}">${opt("", "مساحة متقسمة: تنفع", ans.split)}${opt("no", "مش عايز مساحة متقسمة", ans.split)}</select>
-          ${l.type === "Resale" ? `<select id="ra-pay" data-change="recAns" data-k="payment" data-id="${l.id}">${opt("", "الدفع: أي طريقة", ans.payment)}${["كاش", "تقسيط 3 سنين", "تقسيط 5 سنين"].map((p) => opt(p, p, ans.payment)).join("")}</select>` : ""}
+          ${l.type === "Resale" ? `<select id="ra-pay" data-change="recAns" data-k="payment" data-id="${l.id}">${opt("", "الدفع: أي طريقة", ans.payment)}${S().paymentPlans.map((p) => opt(p, p, ans.payment)).join("")}</select>` : ""}
           ${Object.values(ans).some(Boolean) ? `<button class="btn ghost sm" data-act="recReset" data-id="${l.id}">مسح الإجابات</button>` : ""}
         </div>
         <div class="rec-list">${recs.map((x) => `<label class="rec"><input type="checkbox" class="rec-pick" value="${x.u.code}"><span class="rec-match num">${x.match}%</span><div class="rec-main"><b>${x.u.code} · ${esc(x.u.project)}</b><small>${esc(x.u.area)} · الدور ${esc(x.u.floor || "—")} · ${A.num(x.u.space)} م · ${esc(x.u.condition)} · Parking ${x.u.parking || 0}</small></div><div class="rec-price"><b class="num">${A.money(x.price)}</b><small>${x.u.type === "Rent" ? "في الشهر" : "إجمالي"}</small></div>${x.split ? chip("info", `تتقسم · من ${A.num(x.u.minSplit)} م`) : x.u.area === l.area ? chip("ok", "نفس المنطقة") : ""}</label>`).join("") || U.empty("مفيش وحدات مطابقة. جرّب تشيل إجابة من الأسئلة.", "building")}</div>
@@ -321,8 +321,8 @@
       ${field("ده", `<select name="kind" id="le-k">${opt("client", "Client (عميل)", l.kind || "client")}${opt("broker", "Broker", l.kind || "client")}</select>`, 1)}
       ${field("الاسم", `<input name="name" id="le-n" value="${esc(l.name)}" required>`, 1)}${field("الشركة", `<input name="company" id="le-c" value="${esc(l.company)}">`)}
       ${field("الموبايل (رقم في كل سطر)", `<textarea name="phones" id="le-p">${esc(l.phones.join("\n"))}</textarea>`, 1)}
-      ${field("Area", `<select name="area" id="le-a">${st.areas.map((a) => opt(a, a, l.area)).join("")}</select>`)}${field("Type", `<select name="type" id="le-t">${["Rent", "Resale", "Income"].map((t) => opt(t, t, l.type)).join("")}</select>`)}
-      ${field("Space", `<input name="space" id="le-s" type="number" value="${l.space}">`)}${field("Condition", `<select name="condition" id="le-co">${["متشطب", "نص تشطيب", "Core & Shell"].map((t) => opt(t, t, l.condition)).join("")}</select>`)}
+      ${field("Area", `<select name="area" id="le-a">${st.areas.map((a) => opt(a, a, l.area)).join("")}</select>`)}${field("Type", `<select name="type" id="le-t">${S().unitPurposes.map((t) => opt(t, t, l.type)).join("")}</select>`)}
+      ${field("Space", `<input name="space" id="le-s" type="number" value="${l.space}">`)}${field("Condition", `<select name="condition" id="le-co">${S().finishings.map((t) => opt(t, t, l.condition)).join("")}</select>`)}
       ${field("Budget", `<input name="budget" id="le-b" type="number" value="${l.budget}">`)}${field("Note", `<textarea name="note" id="le-no">${esc(l.note)}</textarea>`, 0, 1)}
       <div class="row end wide"><button class="btn">حفظ</button></div></form>`);
   };
@@ -340,9 +340,9 @@
       ${field("الموبايل (رقم في كل سطر)", `<textarea name="phones" id="nl-phones" required placeholder="01xxxxxxxxx" data-input="nlPhones"></textarea>`, 1)}
       <div class="field wide" id="nl-dupe" hidden></div>
       ${field("Area", `<select name="area" id="nl-area" data-change="nlArea" required>${opt("", "اختار")}${st.areas.map((a) => opt(a)).join("")}</select><small class="hint" id="nl-route"></small>`, 1)}
-      ${field("Type", `<select name="type" id="nl-type">${["Rent", "Resale", "Income"].map((t) => opt(t)).join("")}</select>`)}
+      ${field("Type", `<select name="type" id="nl-type">${S().unitPurposes.map((t) => opt(t)).join("")}</select>`)}
       ${field("Space (م)", `<input name="space" id="nl-space" type="number" min="0">`)}
-      ${field("Condition", `<select name="condition" id="nl-cond">${["متشطب", "نص تشطيب", "Core & Shell"].map((t) => opt(t)).join("")}</select>`)}
+      ${field("Condition", `<select name="condition" id="nl-cond">${S().finishings.map((t) => opt(t)).join("")}</select>`)}
       ${field("Budget", `<input name="budget" id="nl-budget" type="number" min="0">`)}
       ${field("Channel", `<select name="channel" id="nl-channel" data-change="nlChannel" required>${opt("", "اختار")}${st.channels.map((c) => opt(c)).join("")}</select>`, 1)}
       ${field("Campaign name", `<select name="campaign" id="nl-campaign"><option value="">اختار الـ channel الأول</option></select>`)}

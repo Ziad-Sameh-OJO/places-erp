@@ -31,21 +31,48 @@
     { who: "u21", go: "reports", t: "ورقة الـ Quarter لكل سيلز", x: "السيستم بيعمل ورقة لكل سيلز (المرتب، التارجت، الـ Scheme، العمولة، الجوايز). الـ Office Manager بتوافق، والورق بيتبعت على إيميل كل واحد.",
       run() { A.ui.rpTab = "pdf"; const st = S(), k = Object.keys(st.statements || {}).find((x) => st.statements[x].status === "draft"); if (!k) A.ACT.pdfMake(); A.ACT.pdfApprove(); return "الورق اتبعت · افتح «صندوق الإيميل» من لوحة الديمو تشوفه."; } }
   ];
+  /* «سيناريو المالية»: أحمد (المحاسب) بيحصّل صفقة، وبيشوف أثرها على حساب العميل، وبيصرف فاتورة ثابتة بموافقته، وبيعمل قيد يدوي */
+  const FD = () => S().deals.find((d) => d.id === "D-302"), cl = () => FD().client;
+  const tree = () => { A.ui.fnTab = "tree"; setTimeout(() => { const el = [...document.querySelectorAll("details summary")].find((x) => x.textContent.includes("العملاء")); if (el) { el.parentElement.open = true; el.scrollIntoView({ block: "center" }); } }, 50); };
+  const FIN = [
+    { who: "u18", go: "finance", t: "رصيد العملاء ليه تحليل فرعي", x: "في شجرة الحسابات، «العملاء» (113) بقى حساب رئيسي، وتحته حساب لكل عميل بكود ثابت (113001، 113002…). الحسابات دي بتتفتح لوحدها من الصفقات اللي اتقفلت، وتقدر تضيف عميل بإيدك. مجموعهم = رصيد العملاء.",
+      run() { const C = APP_COA(); tree(); return C.byCode["113"].kids.map((n) => `${n.code} ${n.name}: ${A.money(n.bal)}`).join(" · ") + ` · الإجمالي ${A.money(C.byCode["113"].bal)}`; } },
+    { who: "u18", go: "finance", t: "الصفقة اللي هنحصّلها", x: "صفقة أ. رنا مجدي (D-302): العمولة 184,800، اتحصّل منها 80,000، والباقي على حسابها في الشجرة.",
+      run() { const d = FD(); return `${d.id} · ${d.client} · العمولة ${A.money(A.placesComm(d))} · اتحصّل ${A.money(A.collected(d))} · الباقي ${A.money(A.placesComm(d) - A.collected(d))}`; }, open: () => A.ACT.dealOpen({ id: "D-302" }) },
+    { who: "u18", go: "finance", t: "إذن توريد خزنة من الصفقة", x: "من «الخزن والحركات» ← إذن توريد: المصدر «عمولة من عميل»، وبتختار الصفقة، فاسم العميل بييجي لوحده. بنحصّل 50,000 في بنك CIB.",
+      run() { A.ui.fnTab = "cash"; A.FORM.mvSave({ kind: "receive", to: "بنك CIB", source: "عمولة من عميل", deal: "D-302", side: "client", amount: "50000", note: "دفعة عمولة من أ. رنا مجدي", date: A.today() }); return "اتعمل إذن التوريد وقيده: من ح/ بنك CIB إلى ح/ " + cl() + "."; }, keep: 1 },
+    { who: "u18", go: "finance", t: "الأثر على حساب العميل", x: "حساب العميل نزل بالمبلغ، والبنك زاد بنفس المبلغ، و«العملاء» (113) نزل معاهم. ولما تدوس على حساب العميل بيظهرلك كشف حسابه بكل الحركات.",
+      run() { const C = APP_COA(), n = C.idx["عميل:" + cl()]; tree(); return `${n.code} ${n.name}: ${A.money(n.bal)} · بنك CIB: ${A.money(C.idx["بنك CIB"].bal)}`; }, open: () => A.ACT.acctLedger({ k: "عميل:" + cl() }) },
+    { who: () => A.buyersOf(FD())[0], go: "home", t: "الـ TCR للسيلز", x: "نفس التحصيل عمل TCR بكود تسلسلي، والسيلز اللي على الصفقة بيجيله تنبيه يمضي عليها. يعني التحصيل بيتسجّل مرة واحدة ويروح للمالية والصفقة الاتنين.",
+      run() { const t = FD().tcrs.slice(-1)[0]; return `${t.code} · ${A.money(t.amount)} · مستنية إمضاء ${A.buyersOf(FD()).map(A.person).join(" و")}`; }, open: () => A.ACT.dealOpen({ id: "D-302" }) },
+    { who: "u18", go: "home", t: "فاتورة Property Finder ميعادها جه", x: "الفاتورة الثابتة (23,000 كل شهر يوم 1) مابتتصرفش لوحدها: بتظهر لأحمد مهمة في «مهامي النهارده» وكارت في الخزن، مستنية موافقته.",
+      run() { const b = S().bills.find((x) => x.id === "BL-1"); return b.paid[A.today().slice(0, 7)] ? "اتصرفت قبل كده الشهر ده." : `${b.name} · ${A.money(b.amount)} · ميعادها يوم ${b.day} · لسه ماتصرفتش`; } },
+    { who: "u18", go: "finance", t: "أحمد بيوافق ويصرف", x: "«وافق واصرف» بيفتح إذن صرف متعبّي (البند، المورد، الخزنة) والمبلغ بيتعدّل لو الفاتورة مختلفة. بعد الحفظ بيتعمل القيد والفاتورة بتتعلّم «اتصرفت الشهر ده».",
+      run() { A.ui.fnTab = "bills"; A.FORM.mvSave({ kind: "pay", bill: "BL-1", date: A.today(), from: "بنك CIB", line: "اشتراكات منصات و برامج", party: "Property Finder", ref: "PF-INV-11", amount: "23000", note: "اشتراك Property Finder · نوفمبر" }); return "اتصرفت: من ح/ اشتراكات منصات و برامج إلى ح/ بنك CIB."; }, keep: 1 },
+    { who: "u18", go: "finance", t: "قيد يومية يدوي", x: "المحاسب يقدر يعمل قيد بإيده من «القيود» ← «قيد يومية جديد»: يختار الحسابات من الشجرة، مدين ودائن، ومايتسجّلش غير لو متوازن. مثال: مصاريف بنكية 150 على بنك CIB.",
+      run() { A.ui.fnTab = "journal"; const C = APP_COA(), line = C.leaves.find((n) => n.key === "اتصالات"), bank = C.idx["بنك CIB"];
+        A.FORM.jeSave({ date: A.today(), note: "عمولة تحويل بنكي", lines: [{ code: line.code, dr: 150, cr: 0 }, { code: bank.code, dr: 0, cr: 150 }] }); return `اتسجّل القيد: من ح/ ${line.name} إلى ح/ بنك CIB.`; }, keep: 1 },
+    { who: "u18", go: "finance", t: "الميزانية متوازنة", x: "كل اللي فات (التحصيل، الفاتورة، القيد اليدوي) اتسمّع في الشجرة، فالميزانية العمومية وقايمة الدخل اتحدّثوا لوحدهم.",
+      run() { A.ui.fnTab = "bs"; const C = APP_COA(); return `الأصول ${A.money(C.byCode["1"].bal)} = الخصوم ${A.money(C.byCode["2"].bal)} + حقوق الملكية ${A.money(C.byCode["3"].bal)}`; } }
+  ];
+  const APP_COA = () => A.coa();
+  const SETS = { main: STEPS, fin: FIN };
+  let STEPS_ = STEPS;
   let i = 0, out = "";
   const who = (s) => (typeof s.who === "function" ? s.who() : s.who);
   function show() {
     let el = document.getElementById("scn"); if (!el) { document.body.insertAdjacentHTML("beforeend", `<aside class="scn" id="scn" role="dialog" aria-live="polite" dir="rtl"></aside>`); el = document.getElementById("scn"); }
-    const s = STEPS[i]; el.hidden = false;
-    el.innerHTML = `<div class="row"><span class="crumb">سيناريو العرض · ${i + 1} / ${STEPS.length}</span><span class="spacer"></span><button class="icon-btn" data-act="scnEnd" aria-label="إنهاء">${I("x")}</button></div><h3>${esc(s.t)}</h3><p>${esc(s.x)}</p>${out ? `<div class="scn-out">${I("check")}<span>${esc(out)}</span></div>` : ""}<div class="row end">${i ? `<button class="btn ghost sm" data-act="scnPrev">السابق</button>` : ""}${out ? (i < STEPS.length - 1 ? `<button class="btn sm" data-act="scnNext">الخطوة الجاية</button>` : `<button class="btn sm" data-act="scnEnd">خلصت</button>`) : `<button class="btn sm" data-act="scnRun">${I("bolt")}نفّذ الخطوة</button>`}</div>`;
+    const s = STEPS_[i]; el.hidden = false;
+    el.innerHTML = `<div class="row"><span class="crumb">سيناريو العرض · ${i + 1} / ${STEPS_.length}</span><span class="spacer"></span><button class="icon-btn" data-act="scnEnd" aria-label="إنهاء">${I("x")}</button></div><h3>${esc(s.t)}</h3><p>${esc(s.x)}</p>${out ? `<div class="scn-out">${I("check")}<span>${esc(out)}</span></div>` : ""}<div class="row end">${i ? `<button class="btn ghost sm" data-act="scnPrev">السابق</button>` : ""}${out ? (i < STEPS_.length - 1 ? `<button class="btn sm" data-act="scnNext">الخطوة الجاية</button>` : `<button class="btn sm" data-act="scnEnd">خلصت</button>`) : `<button class="btn sm" data-act="scnRun">${I("bolt")}نفّذ الخطوة</button>`}</div>`;
   }
-  A.ACT.scnStart = () => { document.getElementById("demoPanel").hidden = true; i = 0; out = ""; Object.keys(ctx).forEach((k) => delete ctx[k]); show(); };
+  A.ACT.scnStart = (d) => { STEPS_ = SETS[(d && d.s) || "main"]; document.getElementById("demoPanel").hidden = true; i = 0; out = ""; Object.keys(ctx).forEach((k) => delete ctx[k]); show(); };
   A.ACT.scnRun = () => {
-    const s = STEPS[i];
-    try { A.signIn(who(s), 1); location.hash = s.go; out = s.run() || "اتنفّذت"; A.render(); if (s.open) s.open(); }
+    const s = STEPS_[i];
+    try { A.signIn(who(s), 1); location.hash = s.go; out = s.run() || "اتنفّذت"; if (!s.keep) A.render(); if (s.open) s.open(); }
     catch (e) { out = "الخطوة دي محتاجة اللي قبلها يتنفّذ الأول"; }
     show();
   };
-  A.ACT.scnNext = () => { i = Math.min(STEPS.length - 1, i + 1); out = ""; A.closeDrawer(); show(); };
+  A.ACT.scnNext = () => { i = Math.min(STEPS_.length - 1, i + 1); out = ""; A.closeDrawer(); A.closeModal(); show(); };
   A.ACT.scnPrev = () => { i = Math.max(0, i - 1); out = ""; show(); };
   A.ACT.scnEnd = () => { const el = document.getElementById("scn"); if (el) el.hidden = true; };
 })();

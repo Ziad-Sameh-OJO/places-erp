@@ -3,7 +3,6 @@
   const A = window.APP, U = window.UI, esc = A.esc, I = A.icon, S = () => A.S, { chip, opt, field, head, note, table, kv } = U;
   const V = (window.VIEWS = window.VIEWS || {});
   const ui = (k, v) => { if (v !== undefined) A.ui[k] = v; return A.ui[k]; };
-  const DEPTS = ["HR", "Inventory", "Marketing", "Accounts", "Operations", "الإدارة"];
   // response time by request type (KPI cards read the share answered in time): dispute 48h · HR letter 24h · purchase/maintenance 48h · otherwise 24h (4h if urgent)
   const SLA_H = { dispute: 48, hr_letter: 24, purchase: 48 };
   const LIMIT = (t) => (SLA_H[t.type] || (t.priority === "عالية" ? 4 : 24)) * 60;
@@ -25,7 +24,7 @@
           <button class="btn ghost" data-act="selfReq" data-k="leave">${I("calendar")}طلب إجازة</button><button class="btn ghost" data-act="selfReq" data-k="outside">${I("pin")}شغل من بره</button><button class="btn" data-act="tkNew">${I("plus")}تذكرة جديدة</button></div>
         <div class="tk-list">${list.map((t) => `<article class="tk ${late(t) ? "late" : ""}" data-act="tkOpen" data-id="${t.id}"><div class="tk-side">${A.avatar(t.from)}</div><div class="tk-main"><div class="row"><b class="spacer">${esc(t.title)}</b>${t.type === "excuse" ? chip("info", "Excuse") : ""}${t.type === "dispute" ? chip("bad", "نزاع") : ""}${t.priority === "عالية" ? chip("warn", "عالية") : ""}${chip(ST[t.status], t.status)}</div><small>${t.id} · من ${esc(A.person(t.from))} → ${esc(t.dept)} · ${A.ago(t.created)} · ${t.log.length} حركة${late(t) ? ` · <b class="bad-t">اتأخرت · اتصعّدت</b>` : ""}</small></div></article>`).join("") || U.empty("مفيش تذاكر هنا", "ticket")}</div>
         ${note("الرد خلال 24 ساعة عمل (4 ساعات لو الأولوية عالية)، ولو اتأخرت بتتصعّد لمدير القسم. كل تذكرة ليها سجل زمني رسمي (Audit Trail) ومعدل استجابة لكل قسم.")}
-        <section class="card">${head("معدل الاستجابة لكل قسم", "chart")}${U.hbars(DEPTS.map((d) => ({ label: d, sub: `${S().tickets.filter((t) => t.dept === d).length} تذكرة`, value: respMins(d) || 0 })), (v) => (v ? v + " د" : "—"))}</section>`;
+        <section class="card">${head("معدل الاستجابة لكل قسم", "chart")}${U.hbars(S().ticketDepts.map((d) => ({ label: d, sub: `${S().tickets.filter((t) => t.dept === d).length} تذكرة`, value: respMins(d) || 0 })), (v) => (v ? v + " د" : "—"))}</section>`;
     }
   };
   A.ACT.tkF = (d) => { ui("tkF", d.v); A.render(); };
@@ -40,7 +39,7 @@
       ${kv([["من", A.who(t.from)], ["القسم", esc(t.dept)], ["الأولوية", esc(t.priority)], ["اتفتحت", `${A.fmtDate(t.created)} ${A.fmtTime(t.created)}`], ["أول رد", t.firstReply ? `بعد ${Math.round((new Date(t.firstReply) - new Date(t.created)) / 60000)} د` : "لسه"]])}
       <h4 class="mini-h">Audit Trail</h4><div class="thread">${t.log.map((x) => `<div class="msg ${x.by === t.from ? "me" : ""} k-${x.kind}">${A.avatar(x.by, 1)}<div><small>${esc(A.person(x.by))} · ${(KIND[x.kind] || ["", ""])[0]} · ${A.fmtDate(x.at)} ${A.fmtTime(x.at)}</small><p>${esc(x.text)}</p></div></div>`).join("")}</div>
       ${open && (handler || mine) ? `<form class="card flat" data-form="tkReply"><input type="hidden" name="id" value="${t.id}"><textarea name="text" id="tk-r" required placeholder="اكتب رد"></textarea><div class="row end">${handler ? `<select name="status" id="tk-s">${opt("", "من غير تغيير الحالة")}${opt("In Progress", "In Progress")}${opt("Resolved", "Resolved · خلّصت")}</select>` : ""}<button class="btn">${I("send")}ابعت</button></div></form>` : ""}
-      ${open && handler ? `<form class="row" data-form="tkTransfer"><input type="hidden" name="id" value="${t.id}"><span class="hint">اتبعتت للقسم الغلط؟</span><select name="dept" id="tk-tr">${DEPTS.filter((d) => d !== t.dept).map((d) => opt(d)).join("")}</select><button class="btn ghost sm">${I("swap")}حوّلها</button></form>` : ""}
+      ${open && handler ? `<form class="row" data-form="tkTransfer"><input type="hidden" name="id" value="${t.id}"><span class="hint">اتبعتت للقسم الغلط؟</span><select name="dept" id="tk-tr">${S().ticketDepts.filter((d) => d !== t.dept).map((d) => opt(d)).join("")}</select><button class="btn ghost sm">${I("swap")}حوّلها</button></form>` : ""}
       ${t.status === "Pending TL" && r === "tl" && myTeam(t.from) ? `<div class="row end"><button class="btn danger" data-act="tkTl" data-id="${t.id}" data-v="no">رفض</button><button class="btn" data-act="tkTl" data-id="${t.id}" data-v="ok">${I("check")}موافقة · ابعتها للـ HR</button></div>` : t.status === "Pending TL" ? note("مستنية موافقة الـ Team Leader الأول.") : ""}
       ${handler && t.status === "Resolved" ? `<button class="btn" data-act="tkClose" data-id="${t.id}">${I("check")}الطلب اتنفّذ · اقفلها</button>` : ""}`;
     return U.drawer(t.title, `${t.id} · ${t.dept}`, chip(ST[t.status], t.status) + (t.type === "excuse" ? chip("info", "Excuse") : ""), body);
@@ -50,7 +49,7 @@
   A.FORM.tkTransfer = (f) => { const t = S().tickets.find((x) => x.id === f.id); push(t, "transfer", `اتحوّلت من ${t.dept} لـ ${f.dept}`); t.dept = f.dept; A.notify([{ HR: "hr", Inventory: "inventory", Marketing: "marketing", Accounts: "accountant", Operations: "ops" }[f.dept]], `تذكرة اتحوّلت لقسمك: ${t.title}`); A.toast(`اتحوّلت لـ ${f.dept} · السجل محفوظ`); A.render(); };
   A.ACT.tkClose = (d) => { const t = S().tickets.find((x) => x.id === d.id); t.status = "Closed"; push(t, "close", `قسم ${t.dept} نفّذ الطلب وقفل التذكرة`); A.render(); };
   A.ACT.tkNew = () => A.openModal("تذكرة جديدة", `<form data-form="tkNew" class="grid">
-    ${field("للقسم", `<select name="dept" id="tk-dept">${DEPTS.map((d) => opt(d)).join("")}</select>`, 1)}
+    ${field("للقسم", `<select name="dept" id="tk-dept">${S().ticketDepts.map((d) => opt(d)).join("")}</select>`, 1)}
     ${field("النوع", `<select name="type" id="tk-type">${opt("", "طلب عادي")}${opt("excuse", "Excuse (الـ Team Leader الأول ثم الـ HR)")}${opt("hr_letter", "HR Letter (للـ HR على طول · 24 ساعة)")}${opt("dispute", "نزاع (للـ Office Manager · يتحسم في 48 ساعة)")}${opt("purchase", "شراء / صيانة (لمختار · 48 ساعة)")}${opt("finance", "فيه بيانات مالية أو صلاحيات")}</select>`)}
     ${field("الأولوية", `<select name="priority" id="tk-pr">${opt("عادية")}${opt("عالية")}</select>`)}
     ${field("الطلب", `<textarea name="title" id="tk-title" required></textarea>`, 1, 1)}
