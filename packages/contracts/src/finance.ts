@@ -49,3 +49,63 @@ export const OpeningBalances = z.object({
   lines: z.array(z.object({ accountId: Id, amount: Money })).min(1, "اكتب رصيد حساب واحد على الأقل").max(300),
 });
 export type OpeningBalances = z.infer<typeof OpeningBalances>;
+
+/* ---- 9.2 · 9.3 · 9.11 · treasury vouchers and the budget ---- */
+
+/** One form for every voucher kind (demo mvNew); the API checks which sides each kind needs. */
+export const NewMove = z.object({
+  kind: z.enum(["pay", "receive", "transfer", "advance", "custody", "settle"]),
+  date: CalendarDay.optional(),
+  fromId: Id.optional(),
+  toId: Id.optional(),
+  /** pay: the expense · receive: the revenue (42…) · settle: the custody account */
+  accountId: Id.optional(),
+  /** settle: the expense the custody was spent on */
+  expenseId: Id.optional(),
+  amount: Money.optional(),
+  spent: Money.optional(),
+  returned: Money.optional(),
+  /** advance / custody: the employee (user id) */
+  partyId: Id.optional(),
+  party: z.string().trim().max(120).optional(),
+  ref: z.string().trim().max(60).optional(),
+  memo: z.string().trim().min(2, "اكتب البيان").max(200),
+});
+export type NewMove = z.infer<typeof NewMove>;
+
+export interface MoveEffect { code: string; name: string; before: string; after: string }
+export interface MoveView {
+  id: string; no: string; kind: string; label: string; date: string; amount: string; spent: string | null; returned: string | null;
+  from: { id: string; code: string; name: string } | null; to: { id: string; code: string; name: string } | null;
+  account: { id: string; code: string; name: string } | null;
+  party: string; ref: string | null; memo: string; by: string; entry: { id: string; no: string };
+}
+/** After saving: the voucher, its entry and «الأثر على شجرة الحسابات» (before → after), plus a budget warning if one was crossed. */
+export interface MoveSaved { move: MoveView; effect: MoveEffect[]; budget: string | null }
+export const MoveFilters = Page.extend({ accountId: Id.optional(), kind: z.string().max(20).optional() });
+export type MoveFilters = z.infer<typeof MoveFilters>;
+export interface MovesView { items: MoveView[]; total: number; page: number; pageSize: number }
+
+export interface CashAccount { id: string; code: string; name: string; kind: string; balance: string }
+export interface Holder { accountId: string; code: string; userId: string | null; name: string; balance: string }
+/** «الخزن والحركات» + «العهد والسلف»: the safes and banks, open custody, advances, and what a form needs. */
+export interface CashView {
+  accounts: CashAccount[];
+  custody: Holder[];
+  advances: Holder[];
+  today: { count: number; paid: string; received: string };
+  /** expense leaves (5…) with what's left of their budget, for «نوع المصروف» */
+  expenses: { id: string; code: string; name: string; left: string | null }[];
+  revenues: { id: string; code: string; name: string }[];
+  people: { userId: string; name: string }[];
+}
+
+export const BudgetPatch = z.object({
+  budget: Money.optional(),
+  period: z.enum(["month", "quarter", "year"]).optional(),
+  alert: z.number().int().min(1).max(100).optional(),
+  active: z.boolean().optional(),
+});
+export type BudgetPatch = z.infer<typeof BudgetPatch>;
+export interface BudgetRow { accountId: string; code: string; name: string; group: string; budget: string | null; period: string; alert: number; active: boolean; spent: string; left: string | null; pct: number; level: "ok" | "warn" | "bad" | "" }
+export interface BudgetView { rows: BudgetRow[]; totals: { budget: string; spent: string; left: string; alerts: number } }

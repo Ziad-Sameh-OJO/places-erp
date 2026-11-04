@@ -34,8 +34,17 @@ export class LedgerRepository {
     return tx.journalLine.groupBy({ by: ["accountId"], _sum: { debit: true, credit: true } });
   }
 
-  createAccount(data: { code: string; name: string; parentId: string; nature: string; kind: string | null }, tx: Tx) {
+  createAccount(data: { code: string; name: string; parentId: string; nature: string; kind: string | null; holderId?: string }, tx: Tx) {
     return tx.account.create({ data, select: ACCOUNT });
+  }
+
+  /** A person's own sub-account under a parent (131 سلف · 134 عهد), if it was opened already. */
+  holderAccount(parentId: string, holderId: string, tx: Tx | PrismaClient = this.db) {
+    return tx.account.findFirst({ where: { parentId, holderId, archivedAt: null }, select: ACCOUNT });
+  }
+
+  setEntrySource(entryId: string, sourceId: string, tx: Tx) {
+    return tx.journalEntry.update({ where: { id: entryId }, data: { sourceId } });
   }
 
   /** An account that gets its first sub-account carries its movements down to «(عام)» (M-07, 4 Nov). */
