@@ -38,6 +38,14 @@ export class LeadsRepository {
     });
   }
 
+  /** The salespeople the routing table lists (the demo's «السيلز»): people with the sales role, still working here. */
+  routingPeople() {
+    return this.db.employee.findMany({
+      where: { user: { status: { not: "DISABLED" }, roles: { some: { role: { key: "sales" } } } } },
+      select: { id: true, name: true }, orderBy: { name: "asc" },
+    });
+  }
+
   campaigns() {
     return this.db.campaign.findMany({ select: { id: true, name: true, channel: true }, orderBy: { startsOn: "desc" } });
   }
