@@ -51,7 +51,7 @@
   A.ACT.taskNew = (d) => {
     const kind = d.kind, st = S(), to = { photo: "u12", retouch: "u12", toResale: "u8", marketing: "u11" }[kind];
     A.openModal({ photo: "مهمة تصوير للمصوّر", retouch: "مهمة Retouch للمصمم (من غير AI)", toResale: "ابعت الوحدة لرندا · ابديت للبيع", marketing: "مهمة تسويق" }[kind], `<form data-form="taskNew" class="grid"><input type="hidden" name="kind" value="${kind}">
-      ${kind === "marketing" ? field("المهمة", `<select name="title" id="tk-title">${["Website leasing", "Market survey", "تصميم بوست", "تصوير فيديو"].map((x) => opt(x)).join("")}</select>`, 1) : field("الوحدة", `<select name="unit" id="tk-unit">${st.units.filter((u) => u.status === "available").map((u) => opt(u.code, `${u.code} · ${u.project}`, d.code)).join("")}</select>`, 1)}
+      ${kind === "marketing" ? field("المهمة", `<select name="title" id="tk-title">${S().mkTaskTypes.map((x) => opt(x)).join("")}</select>`, 1) : field("الوحدة", `<select name="unit" id="tk-unit">${st.units.filter((u) => u.status === "available").map((u) => opt(u.code, `${u.code} · ${u.project}`, d.code)).join("")}</select>`, 1)}
       ${kind === "marketing" ? field("مسؤول", `<select name="to" id="tk-to">${["u11", "u12"].map((id) => opt(id, A.person(id))).join("")}</select>`) : `<input type="hidden" name="to" value="${to}">`}
       ${field("الميعاد", `<input name="due" id="tk-due" type="date" value="${A.today()}" required>`, 1)}
       ${kind === "retouch" ? field("صور الوحدة (ترفع على السيستم)", `<input name="link" id="tk-link" type="file" multiple accept="image/*" required>`, 1) : ""}

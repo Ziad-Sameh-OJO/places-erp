@@ -61,7 +61,7 @@
     const review = d.status === "Pending Review" && A.canDo("deals", "approve"), live = !["Pending Review", "Rejected", "Cancelled"].includes(d.status);
     const sellerWait = (d.sellers || []).length && !d.sellerApproved, manar = A.canDo("inventory", "approve");
     const sales = A.sales(), others = sales.filter((s) => !(d.sellers || []).includes(s.id));
-    const body = `${A.suspicious(d) ? note("<b>Alarm للـ Office Manager:</b> الصفقة اتسجّلت وقت القفل بس (اتعملت واتقفلت في خلال يوم)، يعني ممكن السيلز كان شغال عليها من غير ما يسجّلها. بتتحسب Done Deal عادي، بس متدخلش في تارجت السيلز.", "warn") : ""}
+    const body = `${A.suspicious(d) ? note("<b>Alarm للـ Office Manager:</b> الصفقة اتسجّلت وقت القفل بس (اتعملت واتقفلت في خلال ${A.dur(S().leadRules.close.alarmH * 60)})، يعني ممكن السيلز كان شغال عليها من غير ما يسجّلها. بتتحسب Done Deal عادي، بس متدخلش في تارجت السيلز.", "warn") : ""}
       ${d.status === "Cancelled" ? note(`<b>الصفقة اتلغت:</b> ${esc(d.cancelNote || "")} · الإيرادات والـ Achievements والعمولات اتخصمت أوتوماتيك.`, "warn") : ""}
       ${sellerWait ? note(`<b>الـ Seller:</b> ${esc(names(d.sellers))} (الـ Agent بتاع ${esc(d.unit)}) مستني موافقة منار قبل ما يتسجّل. ${manar ? `<button class="btn sm" data-act="sellerOk" data-id="${d.id}">${I("check")}وافقي على الـ Seller</button>` : ""}`, "warn") : ""}
       ${U.stepper(["Pending Review", "Approved", "Partially Collected", "Fully Collected"], A.dealStatus(d) === "Rejected" ? "Pending Review" : A.dealStatus(d))}
@@ -74,9 +74,10 @@
         <div class="row"><input name="note" id="dr-note" placeholder="سبب الرفض (لو هترفضي)"><button class="btn danger" name="v" value="reject">رفض</button><button class="btn" name="v" value="ok">موافقة وتسجيل في الشيت</button></div></form>` : d.status === "Pending Review" ? note("مستنية مراجعة الـ Office Manager.") : ""}
       ${live ? execPapers(d) : ""}
       ${live && canNote() ? `<form class="card flat" data-form="dealNote"><input type="hidden" name="id" value="${d.id}">${head("note (Office Manager / المالية)", "file", "", "بيغيّر اللي متحدد فيها بس")}<div class="grid">${field("الملاحظة", `<input name="note" value="${esc(d.note || "")}" placeholder="مثلاً: التارجت يتحسب بمبلغ تاني">`)}${field("التارجت يتحسب بمبلغ (اختياري)", `<input name="targetBase" type="number" min="0" value="${d.targetBase != null ? esc(String(d.targetBase)) : ""}">`)}</div><div class="row end"><button class="btn ghost sm">احفظ</button></div></form>` : ""}
+      ${A.claimsBlock ? A.claimsBlock(d) : ""}
       <section class="card flat">${head("التحصيل والـ TCR", "wallet", chip(rem <= 0 ? "ok" : "warn", rem <= 0 ? "اتحصّلت بالكامل" : `باقي ${A.money(rem)}`))}
         ${(d.tcrs || []).map((x, i) => { const ids = A.buyersOf(d).concat(A.sellersOf(d)), left = ids.filter((id) => !(x.signed || {})[id]); return `<div class="line-item"><span><b class="mono">${x.code}</b> · ${A.fmtDate(x.at)} · ${x.side === "owner" ? "من الـ Owner" : "من الـ Client"} · <b class="num">${A.money(x.amount)}</b></span>${left.length ? chip("warn", `مستني إمضاء ${left.length}`) : chip("ok", "اتمضت")}<button class="btn ghost sm" data-act="tcrView" data-id="${d.id}" data-i="${i}">${I("file")}TCR</button>${ids.includes(A.me()) && !(x.signed || {})[A.me()] ? `<button class="btn sm" data-act="tcrSign" data-id="${d.id}" data-i="${i}">امضي</button>` : ""}${A.canDo("finance", "edit") ? `<button class="btn ghost sm" data-act="payEdit" data-id="${d.id}" data-i="${i}" title="تعديل يدوي">تعديل</button>` : ""}${x.edited ? `<span class="sub">اتعدّل يدوي: ${esc(x.edited)}</span>` : ""}</div>`; }).join("") || `<p class="hint">مفيش تحصيل لسه · المالية (أحمد أشرف) هي اللي بتسجّل التحصيل</p>`}
-        ${live && rem > 0 && A.canDo("finance", "create") /* Finance records collections, from the Owner side or the Client side */ ? `<form class="row" data-form="dealPay"><input type="hidden" name="id" value="${d.id}"><select name="side" id="dp-side">${opt("client", "من الـ Client")}${opt("owner", "من الـ Owner")}</select><input name="amount" id="dp-amt" type="number" min="1" max="${rem}" placeholder="المبلغ" required><button class="btn ghost">${I("plus")}سجّل تحصيل</button></form>` : ""}</section>
+        ${live && rem > 0 && A.canDo("finance", "create") /* Finance records collections, from the Owner side or the Client side */ ? `<form class="row" data-form="dealPay"><input type="hidden" name="id" value="${d.id}"><select name="side" id="dp-side">${opt("client", "من الـ Client")}${opt("owner", "من الـ Owner")}</select><select name="to" aria-label="لخزنة / بنك">${S().accounts.map((a) => opt(a.name, a.name, "بنك CIB")).join("")}</select><input name="amount" id="dp-amt" type="number" min="1" max="${rem}" placeholder="المبلغ" required><button class="btn ghost">${I("plus")}سجّل تحصيل</button></form>` : ""}</section>
       ${live && A.canDo("deals", "approve") ? `<form class="card flat" data-form="dealCancel"><input type="hidden" name="id" value="${d.id}">${head("إلغاء الصفقة", "x")}<div class="row"><input name="note" id="dc-note" required placeholder="سبب الإلغاء"><button class="btn danger">إلغاء الصفقة</button></div></form>` : ""}`;
     return U.drawer(d.company || d.client, `${d.id} · Done Deal`, stChip(d) + (A.suspicious(d) ? chip("bad", "Alarm") : "") + (d.offTarget ? chip("warn", "خارج التارجت") : ""), body);
   }
@@ -91,6 +92,7 @@
     d.status = "Approved"; d.approvedAt = A.nowIso(); if (A.suspicious(d)) d.offTarget = true;
     A.audit("deals", `${d.id}: الـ Office Manager وافقت${ch.length ? " بعد تعديل: " + ch.join(" · ") : ""}`);
     if (u) { u.closeReq = d.id; A.notify([u.type === "Rent" ? "inventory" : "resale"], `Done Deal ${d.id} على ${u.code} اتوافق عليها · أكّد قفل الوحدة`); }
+    A.notify(["accountant"], `صفقة اتقفلت ${d.id} · ${d.client} · العمولة ${A.money(A.placesComm(d))} · اتفتحله حساب تحت «العملاء» · مستنية التحصيل`);
     A.notify(["marketing"], `Done Deal اتسجّلت في الشيت: ${d.type} · ${d.location} · ${A.num(d.space)} م · ${d.company || d.client}`);
     A.toast(d.offTarget ? "اتسجّلت في الشيت · بس خارج تارجت السيلز (Alarm)" : "اتسجّلت في شيت الـ Done Deals · والتسويق وصلها Alarm");
     A.render();
@@ -114,8 +116,9 @@
   A.FORM.dealPay = (f) => {
     const st = S(), d = st.deals.find((x) => x.id === f.id), at = A.nowIso(), code = "T" + (st.tcrSeq = (st.tcrSeq || 180) + 1);
     d.payments = d.payments || []; d.payments.push({ at, amount: +f.amount, side: f.side }); (d.tcrs = d.tcrs || []).push({ code, at, amount: +f.amount, side: f.side, signed: {} });
+    const m = A.finReceive({ to: f.to || "بنك CIB", amount: +f.amount, party: d.client, deal: d.id, side: f.side, ref: code, note: f.note || `تحصيل عمولة ${d.id} ${f.side === "owner" ? "من الـ Owner" : "من الـ Client"} · ${code}`, at });
     A.audit("deals", `${d.id}: تحصيل ${A.money(+f.amount)} ${f.side === "owner" ? "من الـ Owner" : "من الـ Client"} · ${code}`); A.notify(["sales"], `${code}: TCR جديدة على ${d.id} · امضي عليها`);
-    A.toast(`اتسجّل التحصيل · اتعملت ${code} للإمضاء`); A.render();
+    A.toast(`اتسجّل التحصيل · ${m.id} و ${code} للإمضاء`); A.render(); return m;
   };
   A.ACT.payEdit = (d) => { const deal = S().deals.find((y) => y.id === d.id), x = deal.tcrs[+d.i]; A.openModal(`تعديل يدوي · ${x.code}`, `<form data-form="payEdit" class="grid"><input type="hidden" name="id" value="${deal.id}"><input type="hidden" name="i" value="${d.i}">${note("التعديل اليدوي مسموح للـ user اللي معاه صلاحية تعديل في المالية بس، وبيتسجّل في الـ Audit Log بالقيمة القديمة والجديدة.")}${field("المبلغ الصح", `<input name="amount" type="number" min="0" required value="${x.amount}">`, 1)}${field("السبب", `<input name="why" required placeholder="مثلاً: المبلغ اتسجّل غلط">`, 1)}<div class="row end wide"><button class="btn">احفظ التعديل</button></div></form>`); };
   A.FORM.payEdit = (f) => { if (!A.canDo("finance", "edit")) { A.toast("مالكش صلاحية تعدّل في المالية"); return; } const deal = S().deals.find((y) => y.id === f.id), x = deal.tcrs[+f.i], p = deal.payments.find((y) => y.at === x.at && y.side === x.side && y.amount === x.amount) || deal.payments[+f.i]; const old = x.amount; x.amount = +f.amount; if (p) p.amount = +f.amount; x.edited = `${A.money(old)} ← ${A.money(+f.amount)} · ${f.why}`; A.audit("finance", `${deal.id} · ${x.code}: تعديل يدوي ${A.money(old)} ← ${A.money(+f.amount)} (${f.why})`); A.closeModal(); A.toast("التعديل اتسجّل في الـ Audit Log"); A.render(); };
@@ -129,11 +132,14 @@
   };
 
   A.ACT.dealNew = (d) => {
-    const st = S(), l = d && d.lead ? st.leads.find((x) => x.id === d.lead) : null, me = A.role === "sales" ? A.me() : l && l.sales;
-    const leadOpts = st.leads.filter((x) => (A.role !== "sales" || x.sales === A.me()) && x.everInterested).map((x) => opt(x.id, `${x.name} · ${x.id}`, l && l.id));
+    const st = S(), l = d && d.lead ? st.leads.find((x) => x.id === d.lead) : null, me = A.role === "sales" ? A.me() : l && (l.draft ? l.draft.from : l.sales);
+    const withCo = (x) => `${x.name} · ${x.company || "من غير شركة"}`; // the company always shows next to the lead's name
+    const leadOpts = st.leads.filter((x) => x.owner !== "draft" && (A.role !== "sales" || x.sales === A.me()) && x.everInterested).map((x) => opt(x.id, `${withCo(x)} · ${x.id}`, l && l.id));
+    // a salesperson can't see the Draft tab, but can still close a deal on their own lead that was pulled there
+    const draftOpts = st.leads.filter((x) => x.owner === "draft" && !x.archived && x.everInterested && (A.role !== "sales" || x.draft.from === A.me())).map((x) => opt(x.id, `${withCo(x)} · ${x.id}${A.role === "sales" ? "" : ` · كان عند ${A.person(x.draft.from)}`}`, l && l.id));
     const units = st.units.filter((u) => A.isAvailable(u) && u.pdf === "confirmed");
-    A.openModal(l ? `سجّل صفقة · ${l.name}` : "سجّل صفقة", `<form data-form="deal" class="grid">
-      ${field("العميل (من الليدز)", `<select name="lead" id="dl-lead" required>${leadOpts.join("")}</select>`, 1)}
+    A.openModal(l ? `سجّل صفقة · ${withCo(l)}` : "سجّل صفقة", `<form data-form="deal" class="grid">
+      ${field("العميل (من الليدز)", `<select name="lead" id="dl-lead" required>${draftOpts.length ? `<optgroup label="${A.role === "sales" ? "ليدزك" : "الليدز"}">${leadOpts.join("")}</optgroup><optgroup label="من الـ Draft (اتسحبت من غير أكشن)">${draftOpts.join("")}</optgroup>` : leadOpts.join("")}</select>`, 1)}
       ${field("الوحدة (من الانفنتوري)", `<select name="unit" id="dl-unit" required data-change="dlUnit">${units.map((u) => opt(u.code, `${u.code} · ${u.project}`)).join("")}</select><small class="hint" id="dl-seller">${units[0] ? `الـ Seller: ${esc(A.person(units[0].agent))} (الـ Agent بتاع الوحدة · بعد موافقة منار)` : ""}</small>`, 1)}
       ${field("المساحة اللي اتقفلت (م)", `<input name="space" id="dl-space" type="number" min="1" required value="${units[0] ? units[0].space : ""}">`, 1)}
       ${field("النوع", `<select name="type" id="dl-type">${TYPES.map((x) => opt(x, x, units[0] && units[0].type)).join("")}</select>`, 1)}
@@ -144,14 +150,18 @@
   };
   A.CHANGE.dlUnit = (v) => { const u = S().units.find((x) => x.code === v); if (!u) return; document.getElementById("dl-seller").textContent = `الـ Seller: ${A.person(u.agent)} (الـ Agent بتاع الوحدة · بعد موافقة منار)`; document.getElementById("dl-space").value = u.space; document.getElementById("dl-type").value = u.type; };
   A.FORM.deal = (f, form) => {
-    const st = S(), l = st.leads.find((x) => x.id === f.lead), u = st.units.find((x) => x.code === f.unit), me = A.role === "sales" ? A.me() : l.sales;
+    const st = S(), l = st.leads.find((x) => x.id === f.lead), u = st.units.find((x) => x.code === f.unit), me = A.role === "sales" ? A.me() : l.draft ? l.draft.from : l.sales;
     const buyers = [me, ...[...form.querySelector("#dl-b2").selectedOptions].map((o) => o.value)];
     if (!(+f.commOwner + +f.commClient)) { A.toast("اكتب العمولة المتوقعة من الـ Owner أو الـ Client"); return; }
     const d = { id: "D-" + (300 + st.deals.length + 1), lead: l.id, client: l.name, company: l.company || l.name, unit: u.code, space: +f.space, type: f.type, location: u.project, source: l.channel, sales: me, buyers, sellers: u.agent && !buyers.includes(u.agent) ? [u.agent] : [], sellerApproved: false,
       value: A.unitTotal(u), commOwner: +f.commOwner || 0, commClient: +f.commClient || 0, created: l.created, closed: A.nowIso(), channel: l.channel, campaign: l.campaign, area: l.area, kind: u.type === "Resale" ? "عمولات تسويق عقاري resale" : u.type === "Income" ? "عمولات تسويق عقاري تجاري" : "عمولات تسويق عقاري اداري", payments: [], tcrs: [], note: "", targetBase: null, status: "Pending Review", reviewNote: "" };
+    if (l.owner === "draft") { // a deal brings the lead back from the Draft to the salesperson who had it
+      const from = l.draft.from; Object.assign(l, { owner: "sales", sales: from, assignedAt: A.nowIso(), draft: null });
+      A.log(l, `رجع من الـ Draft لـ ${A.person(from)} بصفقة ${d.id}`); A.notify(A.ruleTo(st.leadRules.draft.notify, l), `${A.person(from)} فتح صفقة ${d.id} على ${l.name} من الـ Draft · الليد رجعله`);
+    }
     st.deals.unshift(d); // Q16: the unit closes only after the Office Manager approves and Manar / Randa confirm
     if (l.stage !== "Done Deal") A.setStage(l, "Done Deal"); A.log(l, `اتسجّلت صفقة ${d.id} على ${u.code}`);
-    A.notify(["officemgr", "admin"], `${A.suspicious(d) ? "Alarm: " : ""}Done Deal جديدة ${d.id} مستنية مراجعتك · ${d.company}`);
+    A.notify(A.ruleTo(st.leadRules.close.notify, l), `${A.suspicious(d) ? "Alarm: " : ""}Done Deal جديدة ${d.id} مستنية مراجعتك · ${d.company}`);
     if (d.sellers.length) A.notify(["inventory"], `الصفقة ${d.id}: ${A.person(d.sellers[0])} Seller (Agent ${u.code}) · محتاج موافقتك`);
     A.closeModal(); A.toast(A.suspicious(d) ? "اتسجّلت · Alarm للـ Office Manager: اتسجّلت وقت القفل، هتتحسب بس خارج التارجت" : "اتسجّلت ومستنية مراجعة الـ Office Manager"); A.render();
   };

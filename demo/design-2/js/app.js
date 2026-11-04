@@ -5,6 +5,22 @@
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
   if (!S || !S.leads || !S.perms) S = clone(window.SEED);
+  if (!S.leadRules) S.leadRules = clone(window.SEED.leadRules); // saved demos from before the rules page
+  ["draft", "draftAdmin"].forEach((k) => { if (!S.leadRules[k]) S.leadRules[k] = clone(window.SEED.leadRules[k]); });
+  if ((S.schedReports || []).some((r) => !r.freq)) S.schedReports = clone(window.SEED.schedReports); // reports from before they had real schedules
+  if (!S.kpiWatch) S.kpiWatch = clone(window.SEED.kpiWatch);
+  if (!S.moves) { S.moves = clone(window.SEED.moves); S.custody = clone(window.SEED.custody); } // saved demos from before the treasury vouchers
+  if (!S.activities) { S.activities = clone(window.SEED.activities); S.daily = {}; }
+  if (!(S.schedReports || []).some((r) => r.daily)) S.schedReports.push(clone(window.SEED.schedReports.find((r) => r.daily)));
+  const V0 = S.leadRules.visit; if (!V0.postponeInfo) { V0.postponeInfo = { to: ["u6"], ch: ["app"] }; if (V0.postpone.to.join() === "u6") V0.postpone.to = ["ownerTl"]; } // saved demos: the TL approves now, Heba is told
+  if (S.leadRules.noAnswer.hours == null) S.leadRules.noAnswer.hours = 24;
+  if (!S.stages.includes("Follow up to Meeting") && S.stages.includes("Meeting")) S.stages.splice(S.stages.indexOf("Meeting"), 0, "Follow up to Meeting"); // saved demos from before this stage
+  ["bills", "clientCodes", "receiveSources", "interactionTypes", "finishings", "unitPurposes", "paymentPlans", "mkTaskTypes", "ticketDepts"].forEach((k) => { if (!S[k]) S[k] = clone(window.SEED[k]); }); // saved demos from before these lists were editable
+  // every expense line has a budget to start from (about 10% over its usual month), so the budget page is never empty
+  [["admin", "مصروفات إدارية"], ["selling", "مصروفات بيعية"]].forEach(([k, kind]) => (S.expenses[k] || []).forEach(([line, v]) => { if (S.budgets.some((b) => b.line === line)) return;
+    const sal = { "مرتبات مبيعات": (e) => ["sales", "tl", "telesales"].includes(e.role), "مرتبات ادارية": (e) => !["sales", "tl", "telesales"].includes(e.role) }[line]; // salaries: the real payroll of the month
+    const base = sal ? (S.employees || []).filter(sal).reduce((s, e) => s + (e.salary || 0), 0) : v * 1.1;
+    S.budgets.push({ line, kind, budget: Math.max(500, Math.ceil(base / 500) * 500), spent: 0, period: "month", alert: sal ? 101 : 80 }); }));
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* demo still works without storage */ } };
 
   /* ---------- roles & navigation ---------- */
@@ -30,7 +46,7 @@
   };
   const NAV = {
     home: ["مهامي النهارده", "Today", "home", ""], leads: ["العملاء المحتملين", "M-01", "users", "المبيعات"], deals: ["الصفقات", "M-02", "handshake", "المبيعات"],
-    settings: ["إعدادات التوزيع", "Routing", "route", "المبيعات"], inventory: ["مخزون الوحدات", "M-03", "building", "العمليات"], notactive: ["Not Active Inventory", "M-03", "layers", "العمليات"],
+    settings: ["قواعد الليدز والتوزيع", "Routing", "route", "المبيعات"], inventory: ["مخزون الوحدات", "M-03", "building", "العمليات"], notactive: ["Not Active Inventory", "M-03", "layers", "العمليات"],
     tasks: ["المهام", "Tasks", "check", "العمليات"], marketing: ["التسويق", "M-04", "megaphone", "العمليات"],
     hr: ["الموارد البشرية", "M-05", "id", "الإدارة"], tickets: ["التذاكر", "M-06", "ticket", "الإدارة"],
     finance: ["المالية", "M-07", "wallet", "الإدارة"], procurement: ["المشتريات", "M-08", "cart", "الإدارة"],
@@ -110,7 +126,11 @@
   const can = (view) => view === "profile" || canDo(view, "view"); // everyone can open their own account page
   const navList = () => MODS.filter((m) => can(m));
   const scope = () => (S.perms[(userOf(me()) || {}).role] || S.perms[role] || {}).scope || "own";
-  function audit(mod, text) { (S.audit = S.audit || []).unshift({ at: nowIso(), by: me(), mod, text }); }
+  // KPI and report changes also reach whoever runs the KPIs (kpiWatch), except anything about money
+  function audit(mod, text, money) {
+    (S.audit = S.audit || []).unshift({ at: nowIso(), by: me(), mod, text, ...(money ? { money: true } : {}) });
+    if ((mod === "kpis" || mod === "reports") && !money && S.kpiWatch) { const to = S.kpiWatch.to.filter((x) => x !== me()); if (to.length) notify(to, `KPIs · ${text} (${person(me())})`); }
+  }
   const AV = ["#0037ff", "#08875c", "#b06a00", "#c22a37", "#6a3df0", "#0a7f9e", "#2c5cff", "#b4479a"];
   const avatar = (id, sm) => { const n = person(id).replace(/^(د\.|م\.|أ\.)\s*/, ""); let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return `<span class="avatar ${sm ? "sm" : ""}" style="background:${AV[h % AV.length]}" aria-hidden="true">${esc(n.charAt(0))}</span>`; };
   const who = (id) => `<span class="who">${avatar(id, 1)}<span>${esc(person(id))}</span></span>`;
@@ -118,7 +138,24 @@
   /* ---------- sales availability (HR → Leads) ---------- */
   const onLeave = (id, day) => S.leaves.some((l) => l.emp === id && ["Approved by TL", "Closed by HR"].includes(l.status) && (day || today()) >= l.from && (day || today()) <= l.to);
   const sales = () => S.people.filter((p) => p.role === "sales");
-  const activeSales = () => sales().filter((s) => !onLeave(s.id) && (!userOf(s.id) || (userOf(s.id).active && userOf(s.id).status === "active"))).map((s) => s.id);
+  // today's rotation order: earliest fingerprint check-in first (no check-in last); Operations can reorder it for the day
+  const hhmmMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m - 660; }; // "10:00" → minutes after 11:00
+  // the day's first Visit not marked «معملهاش»: it counts as the day's start instead of the fingerprint
+  const dayVisit = (id, day) => S.leads.filter((l) => l.sales === id).flatMap((l) => l.visits).filter((v) => v.at.slice(0, 10) === (day || today()) && !v.notDone).sort((x, y) => (x.at < y.at ? -1 : 1))[0];
+  // day start: the Visit time (even if he punches later), else the fingerprint; null = hasn't started yet
+  const checkIn = (id) => {
+    const a = S.attendance.find((x) => x.emp === id && x.day === today()), punch = a && a.inMin != null ? a.inMin : null, v = dayVisit(id);
+    if (!v) return punch;
+    const vm = hhmmMin(fmtHM(v.at));
+    return punch == null ? vm : Math.min(vm, punch);
+  };
+  const manualOrder = () => (S.dayOrder && S.dayOrder.day === today() ? S.dayOrder.ids : null);
+  const dayOrder = (ids) => {
+    const auto = ids.slice().sort((a, b) => (checkIn(a) ?? 1e9) - (checkIn(b) ?? 1e9)), o = manualOrder() || [];
+    const rank = (id) => (o.includes(id) ? o.indexOf(id) : o.length + auto.indexOf(id)); // someone new today joins the end
+    return auto.sort((a, b) => rank(a) - rank(b));
+  };
+  const activeSales = () => dayOrder(sales().filter((s) => !onLeave(s.id) && (!userOf(s.id) || (userOf(s.id).active && userOf(s.id).status === "active"))).map((s) => s.id));
 
   /* ---------- leads rules ---------- */
   const CLOSED_OUT = ["Fresh", "Not Interested", "No Answer"];
@@ -127,15 +164,21 @@
     lead.stage = stage;
     if (!CLOSED_OUT.includes(stage)) lead.everInterested = true; // sticks once reached
     lead.touched = true; lead.activity = (lead.activity || 0) + 1;
-    if (stage === "No Answer") { lead.noAnswer = (lead.noAnswer || 0) + 1; lead.noAnswerAt = nowIso(); }
+    if (stage === "No Answer") { lead.noAnswer = (lead.noAnswer || 0) + 1; lead.noAnswerAt = nowIso(); lead.naBy = lead.sales; }
+    const DA = S.leadRules && S.leadRules.draftAdmin;
+    if (DA && DA.on && ["Not Interested", "Cancellation"].includes(stage) && ["sales", "telesales"].includes(lead.owner)) {
+      const from = lead.sales;
+      notify(ruleTo(DA.notify, lead), `${lead.name} (${lead.id}) بقى ${stage} عند ${person(from)} · راح الـ Draft Admin`);
+      Object.assign(lead, { draftAdmin: { at: nowIso(), from, stage, by: me() }, owner: "draftAdmin", sales: keeperOf(DA.see) });
+    }
   }
   function nextSales(area, current) {
     const act = activeSales();
-    const pool = ((S.areaRouting[area] || []).filter((x) => act.includes(x)).length > 1 ? S.areaRouting[area].filter((x) => act.includes(x)) : act);
+    const inArea = act.filter((x) => (S.areaRouting[area] || []).includes(x)), pool = inArea.length > 1 ? inArea : act;
     return pool[(pool.indexOf(current) + 1) % pool.length] || pool[0];
   }
   function routeArea(area) {
-    const act = activeSales(), pool = (S.areaRouting[area] || []).filter((x) => act.includes(x));
+    const act = activeSales(), pool = act.filter((x) => (S.areaRouting[area] || []).includes(x)); // in today's order
     const list = pool.length ? pool : act;
     S.routeIdx = S.routeIdx || {}; S.skipTurn = S.skipTurn || {};
     for (let k = 0; k < list.length * 2; k++) {
@@ -148,23 +191,32 @@
   }
   // Q2: Operations can hand a lead to a specific salesperson; that counts as their next turn in the rotation
   const assignByHand = (id) => { S.skipTurn = S.skipTurn || {}; S.skipTurn[id] = (S.skipTurn[id] || 0) + 1; };
-  const isHolidayToday = () => S.holiday || (S.holidays || []).some((h) => h.day === today());
+  // official holidays are from–to ranges (Eid can run several days); old saved ones have a single day
+  const holOn = (day) => (S.holidays || []).some((h) => (h.from || h.day) <= day && day <= (h.to || h.day));
+  const isHolidayToday = () => holOn(today());
   // Q4: the 3 hours run in working hours only (11:00–19:00, Friday and official holidays off), from when the lead reached the salesperson.
   // shortcut: fixed work calendar, make hours and weekend a setting in M-13 later.
-  const WORK_FROM = 11 * 60, WORK_TO = 19 * 60;
-  const offDay = (d) => d.getDay() === 5 || (S.holidays || []).some((h) => h.day === d.toISOString().slice(0, 10));
+  const R = () => S.leadRules;
+  const offDay = (d) => R().work.off.includes(d.getDay()) || holOn(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`); // d is local midnight: its UTC date is the day before
   function workMins(fromIso) {
     const end = NOW(); let m = 0, d = new Date(fromIso); d.setHours(0, 0, 0, 0);
     for (let n = 0; n < 60 && d.getTime() <= end; n++, d.setDate(d.getDate() + 1)) {
       if (offDay(d)) continue;
-      const a = Math.max(new Date(fromIso).getTime(), d.getTime() + WORK_FROM * 60000), b = Math.min(end, d.getTime() + WORK_TO * 60000);
+      const a = Math.max(new Date(fromIso).getTime(), d.getTime() + R().work.from * 60000), b = Math.min(end, d.getTime() + R().work.to * 60000);
       if (b > a) m += (b - a) / 60000;
     }
     return Math.floor(m);
   }
-  const slaLimits = () => isHolidayToday() ? { warn: 22 * 60, pull: 24 * 60 } : { warn: 150, pull: 180 };
+  const slaLimits = () => isHolidayToday() ? { warn: R().sla.holWarnMin, pull: R().sla.holPullMin } : { warn: R().sla.warnMin, pull: R().sla.pullMin };
+  const hrs = (h) => (h === 1 ? "ساعة" : h === 2 ? "ساعتين" : h <= 10 ? `${h} ساعات` : `${h} ساعة`);
+  const dur = (m) => { const h = Math.floor(m / 60), r = m % 60; return !r ? hrs(h) : h ? `${hrs(h)} و${r} دقيقة` : `${r} دقيقة`; };
+  // a rule's people: roles, user ids, and "owner" = the lead's salesperson
+  const tlOf = (id) => ((S.people || []).find((p) => p.id === id) || {}).tl;
+  const ruleTo = (who, lead) => [...new Set(who.to.map((x) => (x === "owner" ? lead && lead.sales : x === "ownerTl" ? lead && tlOf(lead.sales) : x)).filter(Boolean))];
+  const ruleHas = (who, lead) => ruleTo(who, lead).some((x) => x === uid || rolesOf(uid).includes(x)); // is the signed-in person one of the rule's people for this lead
+  const isIn = (who) => who.to.some((x) => x === uid || rolesOf(uid).includes(x));
   function sla(lead) {
-    if (lead.stage !== "Fresh" || lead.touched || lead.owner === "telesales") return null;
+    if (!R().sla.on || lead.stage !== "Fresh" || lead.touched || lead.owner !== "sales") return null;
     const from = lead.assignedAt || lead.created, m = isHolidayToday() ? minsSince(from) : workMins(from), L = slaLimits(), left = L.pull - m;
     if (m >= L.pull) return { level: "bad", text: "اتسحب", m, pct: 100 };
     if (m >= L.warn) return { level: "warn", text: `تنبيه TL · باقي ${left} د`, m, pct: (m / L.pull) * 100 };
@@ -183,24 +235,47 @@
   }
   function tick() {
     ensureContracts();
+    toDraft();
+    rotateNoAnswer();
     if (APP.autoFollowups) APP.autoFollowups();
+    if (APP.reportTick) APP.reportTick();
     if (APP.accountRules) APP.accountRules();
     S.leads.forEach((l) => {
       const s = sla(l);
-      if (s && s.m >= slaLimits().warn && !l.alerted) { l.alerted = true; notify(["tl", "salesdir"], `تنبيه SLA: ${l.name} (${l.id}) من غير أكشن عند ${person(l.sales)}`); }
+      if (s && s.m >= slaLimits().warn && !l.alerted) { l.alerted = true; notify(ruleTo(R().sla.warn, l), `تنبيه SLA: ${l.name} (${l.id}) من غير أكشن عند ${person(l.sales)}`); }
       if (s && s.m >= slaLimits().pull) {
         const from = l.sales; l.sales = nextSales(l.area, from); l.assignedAt = nowIso(); l.alerted = false;
-        log(l, `اتسحب أوتوماتيك من ${person(from)} بعد ${S.holiday ? "24 ساعة" : "3 ساعات"} من غير أكشن، وراح لـ ${person(l.sales)}`, "system");
-        notify(["ops", "salesdir"], `الليد ${l.id} اتسحب من ${person(from)} وراح لـ ${person(l.sales)}`);
+        log(l, `اتسحب أوتوماتيك من ${person(from)} بعد ${dur(slaLimits().pull)} من غير أكشن، وراح لـ ${person(l.sales)}`, "system");
+        notify(ruleTo(R().sla.pull, l), `الليد ${l.id} اتسحب من ${person(from)} وراح لـ ${person(l.sales)}`);
       }
+    });
+  }
+  // Draft: a lead nobody acted on for a week (two on Hold) leaves its salesperson; only the people the rules name see it
+  const DRAFT_SKIP = ["Done Deal", "Cancellation", "Not Interested", "No Answer"]; // finished, or already on the No Answer rotation
+  const lastTouch = (l) => [l.assignedAt, l.created, ...l.comments.filter((c) => c.by !== "system").map((c) => c.at)].filter(Boolean).sort().pop();
+  // who holds a lead while it sits in a Draft: the first person the rule names, else someone with a role it names
+  function keeperOf(who) { const w = who.to; return w.find((x) => S.users.some((u) => u.id === x)) || (S.users.find((u) => w.some((r) => rolesOf(u.id).includes(r))) || {}).id || "u6"; }
+  const draftKeeper = () => keeperOf(R().draft.see);
+  function toDraft() {
+    const D = R().draft; if (!D.on) return;
+    S.leads.forEach((l) => {
+      if (l.archived || l.owner !== "sales" || DRAFT_SKIP.includes(l.stage)) return;
+      const days = l.stage === "Hold" ? D.holdDays : D.days;
+      if (minsSince(lastTouch(l)) < days * 1440) return;
+      const from = l.sales;
+      notify(ruleTo(D.notify, l), `${l.name} (${l.id}) اتسحب من ${person(from)} للـ Draft · ${days} يوم من غير أكشن`);
+      log(l, `اتسحب أوتوماتيك من ${person(from)} للـ Draft بعد ${days} يوم من غير أكشن${l.stage === "Hold" ? " (Hold)" : ""}`, "system");
+      Object.assign(l, { owner: "draft", sales: draftKeeper(), draft: { at: nowIso(), from, days } });
     });
   }
   function rotateNoAnswer() {
     let moved = 0;
-    S.leads.filter((l) => l.stage === "No Answer" && l.owner !== "telesales").forEach((l) => {
+    // only a No Answer the current salesperson marked themself counts; the next one has to try before it moves again
+    S.leads.filter((l) => l.stage === "No Answer" && l.owner === "sales" && (l.naBy || l.sales) === l.sales && minsSince(l.noAnswerAt || l.created) >= R().noAnswer.hours * 60).forEach((l) => {
       const from = l.sales; l.rotation = (l.rotation || 1) + 1;
-      if (l.rotation >= 3) { l.owner = "telesales"; l.sales = "u5"; log(l, "الروتيشن التالت: الليد راح لـ Telesales بعد No Answer مرتين", "system"); notify(["telesales"], `ليد ${l.name} رجعلك في الروتيشن التالت`); }
-      else { l.sales = nextSales(l.area, from); log(l, `No Answer: عدّى يوم عند ${person(from)} وراح لـ ${person(l.sales)}`, "system"); }
+      Object.assign(l, { stage: "Fresh", touched: false, alerted: false, assignedAt: nowIso(), naBy: null });
+      if (l.rotation >= R().noAnswer.toTelesalesAt) { l.owner = "telesales"; l.sales = R().noAnswer.telesales; log(l, `الروتيشن رقم ${l.rotation}: الليد راح لـ Telesales (${person(l.sales)})`, "system"); notify(ruleTo(R().noAnswer.notify, l), `ليد ${l.name} رجعلك في الروتيشن التالت`); }
+      else { l.sales = nextSales(l.area, from); log(l, `No Answer: عدّى ${dur(R().noAnswer.hours * 60)} عند ${person(from)} وراح لـ ${person(l.sales)} (رجع Fresh)`, "system"); notify([l.sales], `ليد ${l.name} جالك بعد No Answer عند ${person(from)}`); }
       moved++;
     });
     return moved;
@@ -254,12 +329,19 @@
     const ex = a.status === "excuse" && S.excuses.find((x) => x.emp === a.emp && x.day === a.day), n = ex ? ex.n : 1;
     if (a.status === "excuse" && n < 5) { const ded = n >= 3 ? 0.5 : 0; return { e, late, status: `Excuse #${n}`, level: "info", ded, dedText: ded ? "نص يوم" : "—" }; }
     // Q29: a Visit never gets a full-day deduction; Q28: it counts as Check-in without Done, but a Visit marked not done shows
-    if (a.status === "visit") return a.visitNotDone ? { e, late, status: `Visit ${a.visitAt} · معملهاش`, level: "bad", ded: 0, dedText: "تنبيه للـ HR" } : { e, late, status: `Visit ${a.visitAt}`, level: "info", ded: 0, dedText: "—" };
+    // on a Visit row inMin is the real fingerprint (null until he punches): Done or not marked yet → the Visit time is the start;
+    // marked «معملهاش» → the fingerprint counts with its normal deduction
+    const vk = a.kind || "Visit";
+    // a Visit Operations confirmed as postponed: no deduction that day (Heba records it)
+    if (a.status === "visit" && a.visitPostponed) return { e, late: 0, status: `${vk} ${a.visitAt} · اتأجل (الأوبريشن أكدت)`, level: "info", ded: 0, dedText: "—" };
+    if (a.status === "visit" && !a.visitNotDone) { const s = a.inMin == null ? hhmmMin(a.visitAt) : Math.min(hhmmMin(a.visitAt), a.inMin); return { e, late: Math.max(0, s - 16), status: `${vk} ${a.visitAt}`, level: "info", ded: 0, dedText: "—" }; }
+    if (a.status === "visit" && a.inMin == null) return { e, late: 0, status: `${vk} ${a.visitAt} · معملهاش · مابصمش لسه`, level: "bad", ded: 0, dedText: "تنبيه للـ HR" };
     let m = a.inMin, status = "في الميعاد", level = "ok", ded = 0; // Q31: from here a 5th Excuse is refused and counts as normal lateness
     if (m >= r.dayMin) { status = "متأخر"; level = "bad"; ded = 1; }
     else if (m >= r.halfMin) { status = "متأخر"; level = "warn"; ded = 0.5; }
     else if (m >= r.quarterMin) { status = "متأخر"; level = "warn"; ded = 0.25; }
     const dedText = ded === 1 ? "يوم" : ded === 0.5 ? "نص يوم" : ded === 0.25 ? "ربع يوم" : "—";
+    if (a.status === "visit") return { e, late, status: `${vk} ${a.visitAt} · معملهاش · بالبصمة ${ded ? "متأخر" : "في الميعاد"}`, level: ded ? "bad" : "warn", ded, dedText: `${dedText} · تنبيه للـ HR` };
     if (a.status === "excuse") return { e, late, status: `Excuse #${n} اترفض · ${ded ? "متأخر" : "في الميعاد"}`, level: "bad", ded, dedText: `${dedText} · تنبيه للإدارة والـ HR` };
     return { e, late, status, level, ded, dedText };
   }
@@ -271,7 +353,7 @@
       if (S.attendance.some((a) => a.emp === e.id && a.day === day)) return;
       const visit = S.leads.flatMap((l) => l.visits.map((v) => ({ v, l }))).find((x) => x.l.sales === e.id && x.v.at.slice(0, 10) === day);
       const outside = S.requests.find((q) => q.emp === e.id && q.day === day && q.status === "Approved");
-      S.attendance.push(outside ? { emp: e.id, day, inMin: null, status: "outside" } : visit ? { emp: e.id, day, inMin: 0, status: "visit", visitAt: fmtHM(visit.v.at) } : { emp: e.id, day, inMin: [3, 9, 14, 21, 33, 0, 6][i % 7], status: "auto" });
+      S.attendance.push(outside ? { emp: e.id, day, inMin: null, status: "outside" } : visit ? { emp: e.id, day, inMin: null, status: "visit", kind: visit.v.kind || "Visit", visitAt: fmtHM(visit.v.at), visitPostponed: visit.v.postpone === "approved" || undefined } : { emp: e.id, day, inMin: [3, 9, 14, 21, 33, 0, 6][i % 7], status: "auto" });
       n++;
     });
     return n;
@@ -315,11 +397,12 @@
     const base = S.deals.filter(countsRevenue).reduce((s, d) => s + salesShares(d).filter((x) => team.includes(x.sales)).reduce((a, x) => a + x.share, 0), 0);
     return { team, goal, got, pct, tier, comm: (base * tier.pct) / 100 };
   }
-  const suspicious = (d) => (new Date(d.closed) - new Date(d.created)) / 86400000 <= 1.01;
+  const suspicious = (d) => (new Date(d.closed) - new Date(d.created)) / 3600000 <= R().close.alarmH + 0.25; // closed too soon after it was opened
 
   /* ---------- notifications & overlays ---------- */
   function notify(roles, text) { S.notifications.unshift({ at: nowIso(), to: roles, text }); }
-  const myNotifs = () => S.notifications.filter((n) => role === "admin" || n.to.includes(role));
+  const forMe = (n) => role === "admin" || n.to.includes(role) || n.to.includes(uid); // rules can name a role or a person
+  const myNotifs = () => S.notifications.filter(forMe);
   const $ = (sel) => document.querySelector(sel);
   let undoFn = null;
   function toast(msg, undo) {
@@ -453,9 +536,9 @@
   }
 
   window.APP = {
-    get S() { return S; }, set S(v) { S = v; }, get role() { return role; }, get ui() { return ui; }, get uid() { return uid; }, signIn, signOut, userOf, rolesOf, roleLabel, save, ROLES, NAV, MODS, ACTS, canDo, permStr, navList, scope, audit, isHolidayToday, icon, avatar, who, esc, money, short, num, person, today, nowIso, NOW,
-    fmtDate, fmtTime, fmtHM, minsSince, ago, hm, sales, activeSales, onLeave, me, can, log, setStage, nextSales, routeArea, sla, slaLimits, rotateNoAnswer, findDupe, normPhone,
-    unitTotal, incomeCalc, availableAs, isAvailable, stale, unitTab, recommend, attRow, dayRate, syncFingerprint, collected, collectedFrom, dealStatus, countsRevenue, inTarget, placesComm, salesShares, salesComm, buyersOf, sellersOf, inDeal, transactions, targetOf, targetGoal, tlStats, assignByHand, workMins, suspicious, notify, toast,
+    get S() { return S; }, set S(v) { S = v; }, get role() { return role; }, get ui() { return ui; }, get uid() { return uid; }, signIn, signOut, userOf, rolesOf, roleLabel, save, ROLES, NAV, MODS, ACTS, canDo, permStr, navList, scope, audit, isHolidayToday, holOn, icon, avatar, who, esc, money, short, num, person, today, nowIso, NOW,
+    fmtDate, fmtTime, fmtHM, minsSince, ago, hm, sales, activeSales, checkIn, dayVisit, manualOrder, onLeave, me, can, log, setStage, nextSales, routeArea, sla, slaLimits, rotateNoAnswer, findDupe, normPhone,
+    unitTotal, incomeCalc, availableAs, isAvailable, stale, unitTab, recommend, attRow, dayRate, syncFingerprint, collected, collectedFrom, dealStatus, countsRevenue, inTarget, placesComm, salesShares, salesComm, buyersOf, sellersOf, inDeal, transactions, targetOf, targetGoal, tlStats, assignByHand, workMins, suspicious, notify, toast, forMe, lastTouch, ruleTo, ruleHas, isIn, dur,
     openModal, closeModal, openDrawer, closeDrawer, refreshDrawer, openCmd, render, ACT, FORM, CHANGE, DROP, DEFAULT_DED, CLOSED_OUT, deptOf, init
   };
 })();

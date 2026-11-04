@@ -51,7 +51,7 @@ window.SEED = (function () {
 
   const areas = ["التجمع الخامس", "الشيخ زايد", "أكتوبر", "العاصمة الإدارية", "المعادي", "مدينة نصر"];
   const areaRouting = { "التجمع الخامس": ["s1", "s4", "s7", "s10", "s14"], "الشيخ زايد": ["s3", "s15", "s11"], "أكتوبر": ["s2", "s8", "s16"], "العاصمة الإدارية": ["s5", "s6", "s12", "s17"], "المعادي": ["s1", "s9", "s18"], "مدينة نصر": ["s4", "s6", "s13"] };
-  const channels = ["Facebook", "Instagram", "LinkedIn", "Google Ads", "TikTok", "Website", "Referral"];
+  const channels = ["Facebook", "Instagram", "LinkedIn", "Google Ads", "TikTok", "Website", "Referral", "By Safwat"];
 
   const campaigns = [
     { id: "c1", name: "Admin Offices · New Cairo", channel: "Facebook", start: dayKey(58), end: dayKey(-20), budget: 60000, spent: 41000, target: "مكاتب إدارية التجمع", link: "fb.com/ads/1021", note: "" },
@@ -72,7 +72,7 @@ window.SEED = (function () {
     { id: "P-7", title: "ستوري وحدات بعائد 9%", channel: "Instagram", campaign: "c6", at: at(-9, 20, 0), status: "scheduled", approved: false }
   ];
 
-  const stages = ["Fresh", "Interested", "Not Interested", "No Answer", "Follow up to Visit", "Visit", "Follow up after Visit", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold"];
+  const stages = ["Fresh", "Interested", "Not Interested", "No Answer", "Follow up to Visit", "Visit", "Follow up after Visit", "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold"];
   const QUAL = (s) => s !== "Fresh" && s !== "Not Interested" && s !== "No Answer";
 
   const first = ["خالد", "منى", "شريف", "هبة", "طارق", "رنا", "ياسر", "نادر", "سلمى", "وليد", "عمر", "دعاء", "حسام", "مها", "إيهاب", "نهى", "أشرف", "دينا", "باسم", "ريهام", "تامر", "إنجي", "رامي", "سحر", "مروان", "ليلى", "حازم", "يارا"];
@@ -113,11 +113,23 @@ window.SEED = (function () {
   mkLead({ name: "أ. منى سليم", phones: ["01112345678"], area: "الشيخ زايد", type: "Resale", space: 80, condition: "نص تشطيب", budget: 2800000, channel: "Facebook", campaign: "c2", post: "P-5", sales: "s3", stage: "Fresh", created: ago(40) });
   mkLead({ name: "أ. هبة رضا", phones: ["01033221100"], area: "التجمع الخامس", type: "Rent", space: 100, budget: 120000, channel: "Google Ads", campaign: "c5", sales: "s4", stage: "No Answer", noAnswer: 1, rotation: 1, created: ago(60 * 26), touched: true });
   mkLead({ name: "أ. وليد عزت", phones: ["01177778888"], area: "الشيخ زايد", type: "Rent", space: 90, budget: 55000, channel: "Instagram", campaign: "c3", sales: "s3", stage: "No Answer", noAnswer: 2, rotation: 2, created: ago(60 * 50), touched: true });
-  mkLead({ name: "Orbit Tech", company: "Orbit Tech", phones: ["01288776655"], area: "العاصمة الإدارية", type: "Rent", space: 600, condition: "Core & Shell", budget: 350000, channel: "LinkedIn", campaign: "c4", post: "P-3", sales: "s5", stage: "Visit", created: ago(60 * 24 * 4), touched: true, visits: [{ at: at(-1, 11, 30), units: ["U-208"], extra: "", done: false }] });
+  mkLead({ name: "Orbit Tech", company: "Orbit Tech", phones: ["01288776655"], area: "العاصمة الإدارية", type: "Rent", space: 600, condition: "Core & Shell", budget: 350000, channel: "LinkedIn", campaign: "c4", post: "P-3", sales: "s5", stage: "Follow up to Visit", created: ago(60 * 24 * 4), touched: true, visits: [{ at: at(0, 10, 0), units: ["U-208"], extra: "", done: false }] });
   mkLead({ name: "أ. دعاء نبيل", phones: ["01188889999"], area: "أكتوبر", type: "Rent", space: 60, budget: 35000, channel: "Website", sales: "u5", owner: "telesales", stage: "Interested", created: ago(60 * 5), touched: true, note: "ليد عاملاه Telesales لنفسها" });
   mkLead({ name: "م. حسام الدين", company: "Arc Studio", phones: ["01244445555"], area: "المعادي", type: "Rent", space: 140, budget: 80000, channel: "Referral", sales: "s1", stage: "Fresh", created: ago(175) });
   mkLead({ name: "Vertex Bank", company: "Vertex Bank", phones: ["01299990000"], area: "العاصمة الإدارية", type: "Rent", space: 120, condition: "Core & Shell", budget: 60000, channel: "LinkedIn", campaign: "c4", sales: "s5", stage: "Interested", created: ago(60 * 24 * 2), touched: true, tlFlag: "محتاجين عرض بفرع كامل + parking 4" });
-  leads.forEach((l, i) => { if (l.touched && !l.comments.length) l.comments.push({ by: l.sales, at: l.created, text: `أول تواصل · ${l.stage}` }); });
+  leads.forEach((l, i) => {
+    if (l.touched && !l.comments.length) l.comments.push({ by: l.sales, at: l.created, text: `أول تواصل · ${l.stage}` });
+    // most leads were followed up this week; a few were left idle so the Draft rule has something to show
+    if (l.touched && i % 9 !== 4 && !["Done Deal", "Cancellation", "Not Interested", "No Answer"].includes(l.stage)) l.comments.push({ by: l.sales, at: ago(((i * 7) % 5) * 1440 + 90), text: "متابعة مع العميل" });
+    // No Answer is timed from when the salesperson marked it: these were marked within the last day
+    if (l.stage === "No Answer" && !l.noAnswerAt) Object.assign(l, { noAnswerAt: ago(60 * (2 + ((i * 5) % 21))), naBy: l.sales });
+    if (i % 8 === 5) l.kind = "broker"; // a few brokers for the Brokers tab
+  });
+  // Not Interested / Cancellation sit in Heba's Draft Admin; the two newest came in today and wait for her decision
+  leads.filter((l) => ["Not Interested", "Cancellation"].includes(l.stage)).forEach((l, i) => {
+    const today = i < 2, at = today ? ago(60 * (i + 1)) : (l.comments[l.comments.length - 1] || l).at || l.created;
+    Object.assign(l, { owner: "draftAdmin", sales: "u6", draftAdmin: { at, from: l.sales, stage: l.stage, by: l.sales, reviewed: !today, ...(today ? {} : { reviewedAt: new Date(new Date(at).getTime() + (i % 6 === 5 ? 30 : 3) * 3600e3).toISOString(), reviewedBy: "u6" }) } });
+  });
 
   const U = (o) => Object.assign({ status: "available", divisible: false, minSplit: 0, photos: "", pdf: "confirmed", tab: null, lastUpdate: dayKey(5), agent: "s1", commission: "", parking: 0, floor: "", building: "", maintenance: "", location: "", created: dayKey(30) }, o);
   const units = [
@@ -229,7 +241,7 @@ window.SEED = (function () {
   const today = dayKey(0);
   const setToday = (emp, patch) => { const a = attendance.find((x) => x.emp === emp && x.day === today); if (a) Object.assign(a, patch); };
   setToday("s2", { inMin: 27, status: "excuse" });
-  setToday("s5", { inMin: 30, status: "visit", visitAt: "11:30" });
+  setToday("s5", { inMin: 40, status: "visit", visitAt: "10:00" }); // Visit at 10, then came and punched at 11:40
   setToday("u9", { inMin: null, status: "forgot" });
   setToday("s6", { inMin: 75 });
   // a few days off without permission (they count in the ideal-employee score and as a day's deduction)
@@ -275,6 +287,17 @@ window.SEED = (function () {
     { name: "خزينة رئيسية", balance: 412000, kind: "خزينة" }, { name: "خزينة نانسي", balance: 38500, kind: "خزينة" }, { name: "خزينة مختار", balance: 21700, kind: "خزينة" },
     { name: "خزينة احمد اشرف", balance: 9800, kind: "خزينة" }, { name: "بنك CIB", balance: 2860000, kind: "بنك" }, { name: "بنك QNB", balance: 1145000, kind: "بنك" }, { name: "حساب Dopay", balance: 64300, kind: "محفظة" }
   ];
+  // treasury movements (vouchers): pay · receive · transfer · advance · custody · settle; the balances above already include them
+  const moves = [
+    { id: "MV-108", at: ago(60 * 26), kind: "transfer", from: "بنك CIB", to: "خزينة رئيسية", amount: 50000, note: "سحب نقدية للمصروفات الأسبوعية", by: "u18" },
+    { id: "MV-107", at: ago(60 * 30), kind: "pay", from: "بنك CIB", line: "ايجار", amount: 85000, party: "مالك المقر", note: "إيجار شهر نوفمبر", by: "u18" },
+    { id: "MV-106", at: ago(60 * 50), kind: "custody", from: "خزينة رئيسية", party: "u16", amount: 15000, note: "عهدة مشتريات الأسبوع", by: "u18" },
+    { id: "MV-105", at: ago(60 * 52), kind: "receive", to: "بنك QNB", amount: 120000, party: "Orbit Tech", source: "عمولة من عميل", note: "دفعة عمولة صفقة", by: "u18" },
+    { id: "MV-104", at: ago(60 * 75), kind: "pay", from: "خزينة رئيسية", line: "بوفيه", amount: 2300, party: "Office Plus", note: "قهوة وسكر وشاي", by: "u18" },
+    { id: "MV-103", at: ago(60 * 24 * 5), kind: "advance", from: "خزينة رئيسية", party: "s6", amount: 2000, note: "سلفة على المرتب", by: "u18" },
+    { id: "MV-102", at: ago(60 * 24 * 6), kind: "settle", party: "u16", to: "خزينة مختار", amount: 9800, spent: 8300, line: "صيانات", returned: 1500, note: "تسوية عهدة الأسبوع اللي فات · 6 فواتير", by: "u18" }
+  ];
+  const custody = [{ emp: "u16", amount: 15000, date: dayKey(2) }, { emp: "u21", amount: 4000, date: dayKey(9) }];
   const advances = [{ emp: "s2", amount: 6000, date: dayKey(20) }, { emp: "u12", amount: 3500, date: dayKey(12) }, { emp: "s6", amount: 2000, date: dayKey(5) }];
   const expenses = {
     admin: [["ايجار", 85000], ["مرتبات ادارية", 210000], ["كهرباء", 9400], ["مياه", 1200], ["انترنت", 3200], ["اتصالات", 4100], ["بوفيه", 6100], ["صيانات", 4800], ["ادوات مكتبية", 2300], ["تامين طبي", 12500], ["تامينات اجتماعية", 26000]],
@@ -290,6 +313,7 @@ window.SEED = (function () {
   const purchases = [
     { id: "PR-23", item: "شاشات عرض لقاعة الاجتماعات", amount: 72000, line: "اجهزة اخري", vendor: "Raya", attach: "quote-screens.pdf", status: "Pending", created: ago(60 * 5) },
     { id: "PR-21", item: "لابتوب Dell لسيلز جديد", amount: 30000, line: "اجهزة اخري", vendor: "Raya", attach: "quote-raya.pdf", status: "Pending", created: ago(60 * 3) },
+    { id: "PR-24", item: "طلبات بوفيه الأسبوع (قهوة وسكر وشاي)", amount: 1000, line: "بوفيه", vendor: "Office Plus", attach: "", status: "Settled", approver: "u21", suggestedAccount: "خزينة مختار", settledAt: ago(60 * 2), settledBy: "u16", created: ago(60 * 26) },
     { id: "PR-22", item: "ورق وحبر للمكتب", amount: 1800, line: "ادوات مكتبية", vendor: "Office Plus", attach: "", status: "Pending", created: ago(60 * 1) },
     { id: "PR-20", item: "تجديد اشتراك بروبيرتي فايندر", amount: 1500, line: "اشتراكات منصات و برامج", vendor: "Property Finder", attach: "invoice-pf.pdf", status: "Paid", approver: "u21", account: "بنك CIB", created: ago(60 * 48), paidAt: ago(60 * 40) },
     { id: "PR-19", item: "قهوة وسكر للبوفيه", amount: 1400, line: "بوفيه", vendor: "Office Plus", attach: "", status: "Rejected", approver: "u18", rejectReason: "البند قرّب يخلص · اطلبها الشهر الجاي", created: ago(60 * 70) }
@@ -336,7 +360,7 @@ window.SEED = (function () {
     { at: ago(120), by: "u1", mod: "access", text: "إدّى «تعديل» لسارة إبراهيم على الانفنتوري" },
     { at: ago(300), by: "u14", mod: "hr", text: "أكّدت خصم يوم لسارة إبراهيم (نسيان بصمة)" }
   ];
-  const holidays = [{ day: dayKey(-6), name: "إجازة رسمية · 6 أكتوبر (تعويضي)" }, { day: dayKey(-38), name: "عيد الشرطة (مثال)" }];
+  const holidays = [{ from: dayKey(-6), to: dayKey(-6), name: "إجازة رسمية · 6 أكتوبر (تعويضي)" }, { from: dayKey(-38), to: dayKey(-41), name: "عيد (مثال · 4 أيام)" }];
   const leaveTypes = [{ name: "سنوية", days: 21 }, { name: "عارضة", days: 6 }, { name: "مرضية", days: 15 }];
   // targets are in commission shares (what counts in a salesperson's target), not deal values
   const targets = Object.fromEntries(SALES.map((id, i) => [id, { value: [60000, 60000, 80000, 70000, 60000, 50000][i] || 50000, deals: [3, 3, 2, 3, 2, 3][i] || 2, visits: 12 }]));
@@ -345,15 +369,32 @@ window.SEED = (function () {
     rows: [["C-201", "أ. سامح", "01055501201", "التجمع الخامس", 120, "إداري"], ["C-202", "م. رشا", "01055501202", "الشيخ زايد", 85, ""], ["C-203", "أ. كمال", "01000000102", "التجمع الخامس", 110, "نفس رقم مالك عندنا"], ["C-204", "د. هالة", "01055501204", "أكتوبر", 200, "عيادة"], ["C-205", "أ. فريد", "01055501205", "المعادي", 75, ""], ["C-206", "م. سلوى", "01055501206", "مدينة نصر", 160, ""], ["C-207", "أ. ماهر", "01055501207", "العاصمة الإدارية", 300, "تنفع تتقسم"], ["C-208", "أ. نجلاء", "01055501208", "التجمع الخامس", 90, ""]]
       .map(([unit, owner, number, area, space, note], i) => ({ id: "NA-" + (i + 1), d: { unit, owner, number, area, space, note }, status: i === 5 ? "No Answer" : i === 6 ? "Not True" : "", feedback: i === 6 ? "مش صاحب الوحدة · الوحدة باسم أخوه" : "", to: i >= 4 ? "u10" : "", dup: number === "01000000102" ? "U-102" : "" })) }];
   const tlTiers = [{ upTo: 70, pct: 4 }, { upTo: 100000, pct: 6 }]; // team achievement below 70% → 4%, otherwise 6% (the client's example)
+  // every report: sent by the system (auto) or handed in by a person (handin) · freq daily|weekly|monthly|quarterly, day = weekday 0–6 or day of month
   const schedReports = [
-    { id: "SR-1", name: "أداء السيلز الأسبوعي", every: "كل أحد 9 الصبح", to: ["u4", "u19", "u23", "u24", "u1"], fmt: "PDF" },
-    { id: "SR-2", name: "قايمة الدخل الشهرية", every: "أول كل شهر", to: ["u1", "u2", "u18"], fmt: "Excel" },
-    { id: "SR-3", name: "Weekly Delay", every: "كل خميس 5 المسا", to: ["u14"], fmt: "Excel" }
+    { id: "SR-1", on: true, kind: "auto", name: "أداء السيلز الأسبوعي", freq: "weekly", day: 0, time: "09:00", fmt: "PDF", to: { to: ["tl", "u1"], ch: ["app", "email"] } },
+    { id: "SR-2", on: true, money: true, kind: "auto", name: "قايمة الدخل الشهرية", freq: "monthly", day: 1, time: "09:00", fmt: "Excel", to: { to: ["u1", "u2", "u18"], ch: ["email"] } },
+    { id: "SR-3", on: true, kind: "auto", name: "Weekly Delay", freq: "weekly", day: 4, time: "17:00", fmt: "Excel", to: { to: ["hr"], ch: ["app", "email"] } },
+    { id: "SR-4", on: true, kind: "handin", name: "التقرير اليومي للقادة", freq: "daily", day: 0, time: "11:30", fmt: "جوه السيستم", by: ["u6"], to: { to: ["u1", "salesdir", "tl"], ch: ["app"] }, remindMin: 60, late: { to: ["u21"], ch: ["app"] } },
+    { id: "SR-5", on: true, kind: "handin", name: "التقرير الأسبوعي للقادة", freq: "weekly", day: 4, time: "15:00", fmt: "PDF", by: ["u6"], to: { to: ["u1", "salesdir", "tl"], ch: ["app", "email"] }, remindMin: 120, late: { to: ["u21"], ch: ["app"] } },
+    { id: "SR-6", on: true, kind: "handin", name: "تقرير الانفنتوري اليومي (جديد / متحدّث / اتأجر / مش مؤكد)", freq: "daily", day: 0, time: "13:00", fmt: "جوه السيستم", by: ["u7"], to: { to: ["u2", "u21"], ch: ["app"] }, remindMin: 60, late: { to: ["u21"], ch: ["app"] } },
+    // every team member's daily report: the system fills what it knows, they type the rest; it adds up into their KPIs
+    { id: "SR-8", on: true, daily: true, kind: "handin", name: "التقرير اليومي", freq: "daily", day: 0, time: "18:00", fmt: "جوه السيستم", by: ["sales", "telesales", "ops", "inventory", "inventory_staff", "resale", "marketing", "photographer", "designer", "hr", "accountant", "procurement", "officemgr", "tl"], to: { to: ["u6", "follower"], ch: ["app"] }, remindMin: 60, late: { to: ["follower"], ch: ["app"] } },
+    { id: "SR-7", on: true, kind: "handin", name: "تقرير المنافسين الشهري", freq: "monthly", day: 30, time: "17:00", fmt: "PDF", by: ["u11"], to: { to: ["u1"], ch: ["app", "email"] }, remindMin: 1440, late: { to: ["u1"], ch: ["app"] } }
   ];
+  // every lead rule the system runs on, editable from «قواعد الليدز» · who: roles, people ids, or "owner" (the lead's salesperson)
+  const leadRules = {
+    work: { from: 660, to: 1140, off: [5] }, // SLA clock: minutes from midnight, Friday off
+    sla: { on: true, warnMin: 150, pullMin: 180, holWarnMin: 1320, holPullMin: 1440, warn: { to: ["tl", "salesdir"], ch: ["app", "push", "email"] }, pull: { to: ["ops", "salesdir"], ch: ["app", "push", "email"] } },
+    newLead: { to: ["owner", "tl"], ch: ["app", "push"] },
+    noAnswer: { hours: 24, remindH: 4, toTelesalesAt: 3, telesales: "u5", notify: { to: ["telesales"], ch: ["app", "push"] } },
+    visit: { postpone: { to: ["ownerTl"], ch: ["app", "push"] }, postponeInfo: { to: ["u6"], ch: ["app"] }, notDone: { to: ["hr"], ch: ["app", "email"] } },
+    close: { alarmH: 24, notify: { to: ["officemgr", "admin"], ch: ["app", "push", "email"] } },
+    draftAdmin: { on: true, see: { to: ["u6"], ch: [] }, notify: { to: ["u6"], ch: ["app"] } }, // every Not Interested / Cancellation lands here for Heba
+    draft: { on: true, days: 7, holdDays: 14, see: { to: ["u6"], ch: [] }, notify: { to: ["u6", "owner"], ch: ["app", "push"] } } // idle leads leave the salesperson
+  };
   const notifRules = [
-    { ev: "ليد جديد", to: "السيلز المسؤول", ch: ["app", "push"] }, { ev: "SLA ساعتين ونص", to: "Team Leader", ch: ["app", "push", "email"] },
-    { ev: "سحب ليد (3 ساعات)", to: "الأوبريشن · Sales Director", ch: ["app", "push", "email"] }, { ev: "No Answer كل 4 ساعات", to: "السيلز المسؤول", ch: ["app", "push"] },
-    { ev: "Done Deal جديدة / Alarm", to: "الـ Office Manager", ch: ["app", "push", "email"] }, { ev: "Excuse / الخامس", to: "الـ HR · الإدارة", ch: ["app", "push", "email"] },
+    // lead events (new lead, SLA, pull, No Answer, Visit, Done Deal Alarm) live in leadRules
+    { ev: "Excuse / الخامس", to: "الـ HR · الإدارة", ch: ["app", "push", "email"] },
     { ev: "طلب شراء", to: "المعتمدين", ch: ["app", "push", "email"] }, { ev: "Reminder بوست", to: "التسويق", ch: ["app", "push"] }, { ev: "تجديد عقد (90/60/30)", to: "السيلز · المالية", ch: ["app", "email"] }
   ];
   const interactions = [];
@@ -422,12 +463,12 @@ window.SEED = (function () {
       ["تنفيذ خطة التصوير الأسبوعية", 20, "100%", "مراجعة رحمة", "m", "", 100, "min", 90],
       ["جودة المواد (اتقبلت من أول مرة)", 10, "≥85%", "مراجعة رحمة", "m", "", 85, "min", 88], ATT]),
     u6: K("u21", [
-      ["توزيع الليد المؤهل خلال 30 دقيقة", 25, "≥95% من الليدز", "توقيتات الـ CRM", "a", "M-01", 95, "min", 97],
+      ["توزيع الليد المؤهل خلال 30 دقيقة", 25, "≥95% من الليدز", "توقيتات الـ CRM", "a", "M-01", 95, "min", 97, "newLeadRoute"],
       ["التقرير اليومي للقادة قبل 11:30 + الأسبوعي الخميس", 15, "≥95% من أيام الشغل", "جروب القادة", "d", "M-01", 40, "", 38],
-      ["سحب الليدز المخالفة أوتوماتيك حسب اللائحة", 15, "100% (مراجعة عينة)", "مراجعة نانسي الأسبوعية", "m", "", 100, "min", 100],
-      ["مكالمات التحقق (Second Calls)", 15, "10% من الليدز الجديدة أسبوعياً", "شيت التحقق", "a", "M-01", 10, "min", 8, "secondCalls"],
-      ["دقة الأرقام المنشورة", 10, "صفر تصحيحات بعد النشر", "مراجعة نانسي", "m", "", 0, "max", 0],
-      ["تسليم بيانات العرض الشهري", 10, "قبل الاجتماع بـ 48 ساعة", "تاريخ التسليم", "d", "", 2, "", 2], ATT]),
+      ["سحب الليدز المخالفة أوتوماتيك حسب اللائحة", 15, "قرار على كل ليد في الـ Draft والـ Draft Admin خلال يومه (100%)", "الـ Draft والـ Draft Admin", "a", "M-01", 100, "min", 0, "draftAction"],
+      ["مكالمات التحقق (Second Calls)", 15, "كل ليدز اليوم في نفس اليوم (100%)", "الليدز اللي دخلت النهارده", "a", "M-01", 100, "min", 0, "secondCalls"],
+      ["دقة الأرقام المنشورة", 10, "تقييم نانسي (100%)", "نانسي بتقيّم دقة الأرقام", "m", "", 100, "min", 100],
+      ["تسليم بيانات العرض الشهري", 10, "تقييم نانسي (100%)", "نانسي بتقيّم التسليم (قبل الاجتماع بـ 48 ساعة)", "m", "", 100, "min", 90], ATT]),
     u5: K("u21", [
       ["أول اتصال بالليد خلال 30 دقيقة", 25, "≥90%", "واتساب الحملة مقابل الـ CRM", "a", "M-01", 90, "min", 0, "call30"],
       ["عدد المكالمات اليومية", 15, "100 مكالمة في اليوم", "سجل المكالمات", "a", "M-01", 100, "min", 84],
@@ -479,11 +520,19 @@ window.SEED = (function () {
       ["Showings (معاينات)", 10, "30 في الربع", "الـ CRM (الزيارات اللي اتعملت)", "a", "M-01", 30, "min", v(18, 34)],
       ["Meetings", 10, "15 في الربع", "الـ CRM (مراحل الـ Meeting)", "a", "M-01", 15, "min", v(8, 17)],
       ["Inventory (وحدات جابها)", 10, "30 وحدة في الربع", "شيت الإنفنتوري (الـ Agent بتاع الوحدة)", "a", "M-03", 30, "min", v(14, 32)],
-      ["Farming", 10, "1 أسبوعياً", "تقرير الـ Farming الأسبوعي", "d", "", 8, "", v(5, 8)],
+      ["Farming", 10, "1 أسبوعياً", "نشاطات الـ Farming اللي سجّلها واتعملت", "a", "M-01", 1, "min", 0, "activitiesDone"],
       ["Calls & Broadcast", 10, "50 مكالمة أسبوعياً + Broadcast", "سجل المكالمات + الـ Broadcast", "a", "M-01", 50, "min", v(34, 58)],
       ["الحضور (5% غياب + 5% تأخير)", 10, "غياب لحد 5 أيام في الربع + تأخير لحد 6 ساعات في الشهر", "البصمة", "a", "M-05", 100, "min", 0, "attSales"]]);
     kpis.cards[id].pay = { base: "bonus", period: "quarter", amount: 6000 };
+    kpis.cards[id].items[4].p = { akind: "Farming", per: "quarter", avg: "week" };
   });
+  // Farming / Approach the salespeople logged: most went out every week or so; Ziad has one waiting to be reported and one later today
+  const activities = [];
+  SALES.forEach((id, i) => {
+    for (let w = 1; w <= 3 + (i % 5); w++) activities.push({ id: `AC-${id}-${w}`, by: id, kind: "Farming", place: pick(areas), at: at(w * 7 - 2 + (i % 3), 12, 0), status: "done", doneAt: at(w * 7 - 2 + (i % 3), 15, 0), result: { got: w % 2 === 0, note: w % 2 === 0 ? "مبنى جديد فيه 3 أدوار إداري · اتكلمت مع البواب" : "مفيش حاجة جديدة في المنطقة" } });
+    if (i % 2 === 0) activities.push({ id: `AC-${id}-a`, by: id, kind: "Approach", place: pick(areas), at: at(10 + i % 4, 13, 0), status: "done", doneAt: at(10 + i % 4, 16, 0), result: { companies: ["Nile Pharma", "Cairo Dental Hub"].slice(0, 1 + (i % 2)) } });
+  });
+  activities.push({ id: "AC-s5-y", by: "s5", kind: "Farming", place: "العاصمة الإدارية · R7", at: at(1, 12, 0), status: "planned" }, { id: "AC-s5-t", by: "s5", kind: "Approach", place: "التجمع الخامس · Point 90", at: at(0, 17, 0), status: "planned" });
   kpis.cards.u8.items[2].only = ["Resale", "Income"];
   // RECA TECH (until the client decides): the quarter bonus defaults to one month's salary for whoever has one
   Object.entries(kpis.cards).forEach(([id, c]) => { const e = employees.find((x) => x.id === id); if (c.pay && c.pay.base === "bonus" && e && e.salary) c.pay.amount = e.salary; });
@@ -496,5 +545,37 @@ window.SEED = (function () {
     ["Showings الفريق", 10, "متوسط 30 لكل بياع في الربع", "الـ CRM", "a", "M-01", 30, "min", 26],
     ["الحضور (5% غياب + 5% تأخير)", 10, "غياب لحد 5 أيام في الربع + تأخير لحد 6 ساعات في الشهر", "البصمة", "a", "M-05", 100, "min", 0, "attSales"]])])); // Randa: her resale & income units only
 
-  return { kpis, penalties, listReqs, invReports: {}, webAds, compReports, officeAssets, officeBoys, assetsReviewed: dayKey(12), pettyCap: 50000, pwHashSeed: DEMO_PASSWORD, mails, perms, users, audit, holidays, leaveTypes, targets, tlTiers, tcrSeq, naSheets, pdfFields: ["salary", "target", "achieved", "scheme", "commission", "bonus"], bonuses: [{ minPct: 100, amount: 5000 }, { minPct: 120, amount: 10000 }], statements: {}, schedReports, notifRules, notifEmail: "notifications@places.com", interactions, contracts: [], people, areas, areaRouting, channels, campaigns, posts, stages, leads, units, areaTabs, importSample, invAccess, tasks, broadcasts, deals, employees, attendance, excuses, requests, oneQuestions, oneOnOnes, leaves, tickets, companies, companyCats, pendingCompanies, accounts, advances, expenses, monthly, budgets, vendors, purchases, periods, notifications, bulk: [], imports: [], unitSeq: 304, leadSeq: seq, clock: 0, holiday: false, waSentToday: 140, waLimit: 250 };
+  // KPI items counted by hand-in reports: an on-time hand-in adds one to the item
+  const link = (id, re, reps) => { const it = kpis.cards[id] && kpis.cards[id].items.find((x) => re.test(x.t)); if (it) it.reps = reps; };
+  link("u6", /التقرير اليومي للقادة/, ["SR-4", "SR-5"]); link("u7", /التقرير اليومي \(جديد/, ["SR-6"]); link("u11", /تقرير المنافسين/, ["SR-7"]);
+  const kpiWatch = { to: ["u6"], ch: ["app"] }; // who runs the KPIs day to day (Heba): sees every card, report and change, but nothing about money
+  kpis.cards.u6.items[0].p = { min: 30, per: "quarter" };
+  Object.assign(kpis.cards.u6.items[2], { p: { hours: 24, per: "quarter" } }); Object.assign(kpis.cards.u6.items[3], { p: { per: "quarter", excl: "By Safwat" } });
+  kpis.cards.u6.items[4].by = ["u21"]; kpis.cards.u6.items[5].by = ["u21"]; // Nancy rates these two
+  // who a lead came from: some a salesperson entered himself, some came through Safwat · neither needs a Second Call
+  leads.forEach((l, i) => { if (i % 11 === 0) l.selfEntered = true; else if (i % 13 === 6) Object.assign(l, { channel: "By Safwat", campaign: "" }); });
+  // Second Calls done this quarter: most the same day; a few were missed
+  leads.filter((l) => l.created >= new Date(now - 35 * DAY).toISOString() && !l.selfEntered && l.channel !== "By Safwat" && l.owner !== "telesales" && l.created < new Date(now - DAY).toISOString()).forEach((l, i) => {
+    if (i % 7 !== 3) l.verify = { done: true, called: i % 9 !== 2, sent: true, note: i % 9 === 2 ? "السيلز لسه مكلّموش · اتبلّغ" : "العميل اتكلم واتبعتله العرض", by: "u6", at: new Date(new Date(l.created).getTime() + 3 * 3600e3).toISOString() };
+  });
+  // Draft decisions this quarter: how many hours each waited for Heba (two went past the day)
+  [4, 2, 30, 6, 1, 3, 40, 5].forEach((h, i) => { const l = leads.filter((x) => x.owner === "sales")[i * 3 + 1]; if (!l) return; const at0 = new Date(now - (4 + i * 4) * DAY); (l.draftHist = l.draftHist || []).push({ kind: i % 2 ? "draftAdmin" : "draft", at: at0.toISOString(), decidedAt: new Date(at0.getTime() + h * 3600e3).toISOString(), by: "u6", decision: l.sales }); });
+  // New Leads Hadeer sent Heba this quarter and how many minutes each took to reach a salesperson; one is waiting right now
+  [8, 12, 25, 41, 15, 5, 55, 20, 10, 28, 33, 18].forEach((m, i) => { const l = leads.filter((x) => x.owner === "sales" && x.everInterested)[i]; if (!l) return; const req = new Date(now - (3 + i * 5) * DAY); Object.assign(l, { newLeadReq: "done", newLeadReqAt: req.toISOString(), newLeadReqBy: "u5", newLeadRoutedAt: new Date(req.getTime() + m * MIN).toISOString(), newLeadRoutedBy: "u6" }); });
+  mkLead({ name: "م. شريف نبيل", company: "Delta Logistics", phones: ["01066554433"], area: "مدينة نصر", type: "Rent", space: 220, budget: 180000, channel: "LinkedIn", campaign: "c4", sales: "u5", owner: "telesales", stage: "Interested", everInterested: true, touched: true, rotation: 3, created: ago(60 * 24 * 3), newLeadReq: "pending", newLeadReqAt: ago(19), newLeadReqBy: "u5" });
+  // the last 10 days of daily reports: what each person wrote; a few came in late and a few days are missing
+  const daily = {};
+  const NOTE = { sales: (n) => `كلّمت ${8 + n} عميل · ${n % 3} Visit · بعت ${(n % 2) + 1} عرض سعر`, inventory_staff: (n) => `خلّصت ${20 + n} مهمة من منار · رديت على ${(n % 4) + 1} List للـ Team Leaders`, inventory: (n) => `دخّلت ${n + 2} وحدة جديدة · راجعت ${n + 5} وحدة`, telesales: (n) => `${60 + n * 3} مكالمة · ${(n % 3) + 1} New Lead`, ops: (n) => `وزّعت ${15 + n} ليد · ${(n % 4) + 2} مكالمة تحقق` };
+  Object.keys(kpis.cards).forEach((id, i) => {
+    const role = (users.find((u) => u.id === id) || {}).role;
+    for (let d = 1; d <= 10; d++) {
+      if (new Date(now - d * DAY).getDay() === 5 || (i + d) % 7 === 0) continue;
+      const k = dayKey(d), late = (i + d) % 5 === 0;
+      (daily[id] = daily[id] || {})[k] = { vals: {}, note: (NOTE[role] || ((n) => `خلّصت شغل اليوم · ${n + 1} مهام`))(d % 6), at: new Date(`${k}T${late ? "19:10" : "17:4" + (d % 10)}:00`).toISOString() };
+    }
+  });
+  return { moves, custody, activities, daily, leadRules, kpiWatch, kpis, penalties, listReqs, invReports: {}, webAds, compReports, officeAssets, officeBoys, assetsReviewed: dayKey(12), pettyCap: 50000, pwHashSeed: DEMO_PASSWORD, mails, perms, users, audit, holidays, leaveTypes, targets, tlTiers, tcrSeq, naSheets, pdfFields: ["salary", "target", "achieved", "scheme", "commission", "bonus"], bonuses: [{ minPct: 100, amount: 5000 }, { minPct: 120, amount: 10000 }], statements: {}, bills: [
+    { id: "BL-1", on: true, name: "اشتراك Property Finder الشهري", vendor: "Property Finder", line: "اشتراكات منصات و برامج", amount: 23000, day: 1, from: "بنك CIB", paid: {}, skipped: {} },
+    { id: "BL-2", on: true, name: "إيجار المقر", vendor: "مالك المقر", line: "ايجار", amount: 85000, day: 5, from: "بنك CIB", paid: {}, skipped: {} },
+    { id: "BL-3", on: true, name: "إنترنت المكتب", vendor: "Vodafone Business", line: "انترنت", amount: 3200, day: 15, from: "خزينة رئيسية", paid: {}, skipped: {} }], clientCodes: {}, receiveSources: ["عمولة من عميل", "إيراد آخر", "استرداد"], interactionTypes: ["مكالمة", "زيارة", "طلب", "شكوى", "ابديت مع المالك"], finishings: ["متشطب", "نص تشطيب", "Core & Shell"], unitPurposes: ["Rent", "Resale", "Income"], paymentPlans: ["كاش", "تقسيط 3 سنين", "تقسيط 5 سنين"], mkTaskTypes: ["Website leasing", "Market survey", "تصميم بوست", "تصوير فيديو"], ticketDepts: ["HR", "Inventory", "Marketing", "Accounts", "Operations", "الإدارة"], schedReports, notifRules, notifEmail: "notifications@places.com", interactions, contracts: [], people, areas, areaRouting, channels, campaigns, posts, stages, leads, units, areaTabs, importSample, invAccess, tasks, broadcasts, deals, employees, attendance, excuses, requests, oneQuestions, oneOnOnes, leaves, tickets, companies, companyCats, pendingCompanies, accounts, advances, expenses, monthly, budgets, vendors, purchases, periods, notifications, bulk: [], imports: [], unitSeq: 304, leadSeq: seq, clock: 0, holiday: false, waSentToday: 140, waLimit: 250 };
 })();
