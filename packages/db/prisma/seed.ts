@@ -14,7 +14,7 @@ interface SeedRole { key: string; label: string; tier: string; scope: "own" | "t
 interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; team?: string }
 
 /** The settings that are lists (contracts LIST_DEFAULTS · M-13 «القوايم»). */
-const LIST_KEYS = new Set(["areas", "channels", "companyCategories", "vendors", "paymentPlans", "finishings", "interactionTypes", "receiveSources", "mkTaskTypes", "ticketDepts"]);
+const LIST_KEYS = new Set(["areas", "channels", "companyCategories", "vendors", "paymentPlans", "finishings", "interactionTypes", "mkTaskTypes", "ticketDepts"]);
 
 const load = <T>(file: string): T => JSON.parse(readFileSync(new URL(`./seed-data/${file}`, import.meta.url), "utf8"));
 

@@ -264,9 +264,9 @@ test("the form's options come from the settings' lists (12.7): the defaults, and
   assert.ok(o.agents.some((a: { id: string }) => a.id === agentId));
 });
 
-test("lists (12.7): a switched-off finishing can't be picked for a new unit, an old unit keeps it; nothing is deleted; locked values stay", async () => {
+test("lists (12.7): a switched-off finishing can't be picked for a new unit, an old unit keeps it; nothing is deleted", async () => {
   const admin = await session("ahmed.islam@places.com");
-  const saved = await prisma.setting.findMany({ where: { key: { in: ["finishings", "receiveSources", "paymentPlans"] } } });
+  const saved = await prisma.setting.findMany({ where: { key: { in: ["finishings", "paymentPlans"] } } });
   const finishings = (await call("/settings", { cookie: manar })).body.finishings as { value: string; active: boolean }[];
   const u = await create(manar, rent({ project: `${P} Lists`, condition: "نص تشطيب", paymentMethod: undefined }));
   try {
@@ -284,14 +284,10 @@ test("lists (12.7): a switched-off finishing can't be picked for a new unit, an 
     // the old unit keeps it through an edit, and the filter still finds it
     assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: manar, body: rent({ project: `${P} Lists`, condition: "نص تشطيب", floor: "8" }) })).status, 200);
     assert.ok((await list(manar, "&condition=" + encodeURIComponent("نص تشطيب"))).items.some((x) => x.code === u.code));
-    // a value is never removed, and a locked one («عمولة من عميل») is never switched off
+    // a value is never removed (locked values are the domain's tests: no list has one today)
     const removed = await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: finishings.filter((i) => i.value !== "Core & Shell") } });
     assert.equal(removed.status, 400);
     assert.match(removed.body.error, /Core & Shell.*ماتتمسحش/);
-    const sources = (await call("/settings", { cookie: admin })).body.receiveSources as { value: string; active: boolean }[];
-    const locked = await call("/settings/receiveSources", { method: "PUT", cookie: admin, body: { value: sources.map((i) => ({ ...i, active: i.value !== "عمولة من عميل" })) } });
-    assert.equal(locked.status, 400);
-    assert.match(locked.body.error, /عمولة من عميل.*ماتتوقفش/);
     // a value twice, or an empty one
     assert.equal((await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: [...finishings, { value: "متشطب", active: true }] } })).status, 400);
     assert.equal((await call("/settings/finishings", { method: "PUT", cookie: admin, body: { value: [...finishings, { value: " ", active: true }] } })).status, 400);
@@ -302,7 +298,7 @@ test("lists (12.7): a switched-off finishing can't be picked for a new unit, an 
     assert.equal((await call("/inventory/units", { method: "POST", cookie: randa, body: resale({ paymentMethod: "بيتكوين" }) })).status, 400);
   } finally {
     for (const r of saved) await prisma.setting.update({ where: { key: r.key }, data: { value: r.value as never } });
-    await prisma.setting.deleteMany({ where: { key: { in: ["finishings", "receiveSources", "paymentPlans"].filter((k) => !saved.some((r) => r.key === k)) } } });
+    await prisma.setting.deleteMany({ where: { key: { in: ["finishings", "paymentPlans"].filter((k) => !saved.some((r) => r.key === k)) } } });
   }
 });
 

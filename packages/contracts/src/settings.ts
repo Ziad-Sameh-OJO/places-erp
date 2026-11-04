@@ -20,13 +20,17 @@ const List = z.array(ListItem).max(500, "القايمة كبيرة أوي")
 export const LIST_GROUPS = [
   { title: "المبيعات والليدز", lists: [["areas", "المناطق (Areas)"], ["channels", "الـ Channels"], ["paymentPlans", "طرق الدفع"], ["companyCategories", "كاتيجوريز الشركات"]] },
   { title: "الانفنتوري والعملاء", lists: [["finishings", "التشطيب"], ["interactionTypes", "أنواع التواصل مع العميل"]] },
-  { title: "المالية والمشتريات", lists: [["receiveSources", "مصادر التوريد للخزنة"], ["vendors", "الموردين"]] },
+  // «مصادر التوريد» aren't a list: they're «عمولة من عميل» + the «ايرادات اخري» (42) accounts of the chart (9.1)
+  { title: "المالية والمشتريات", lists: [["vendors", "الموردين"]] },
   { title: "التسويق والتذاكر", lists: [["mkTaskTypes", "أنواع تاسكات التسويق"], ["ticketDepts", "أقسام التذاكر"]] },
 ] as const;
 export type ListKey = (typeof LIST_GROUPS)[number]["lists"][number][0];
 
-/** Values the system posts or calculates on: they can't be switched off (e.g. «عمولة من عميل» posts to the client's account). */
-export const LOCKED_VALUES: Partial<Record<ListKey, readonly string[]>> = { receiveSources: ["عمولة من عميل"] };
+/**
+ * Values the system posts or calculates on can't be switched off. None of today's lists has one: «عمولة من عميل»
+ * moved to the chart of accounts with the receive sources (accountant's chart, 4 Nov · 9.1).
+ */
+export const LOCKED_VALUES: Partial<Record<ListKey, readonly string[]>> = {};
 
 /** The values in use today (the demo's), until someone changes them. */
 export const LIST_DEFAULTS: Record<ListKey, readonly string[]> = {
@@ -34,7 +38,6 @@ export const LIST_DEFAULTS: Record<ListKey, readonly string[]> = {
   paymentPlans: ["كاش", "تقسيط 3 سنين", "تقسيط 5 سنين"],
   finishings: ["متشطب", "نص تشطيب", "Core & Shell"],
   interactionTypes: ["مكالمة", "زيارة", "طلب", "شكوى", "ابديت مع المالك"],
-  receiveSources: ["عمولة من عميل", "إيراد آخر", "استرداد"],
   mkTaskTypes: ["Website leasing", "Market survey", "تصميم بوست", "تصوير فيديو"],
   ticketDepts: ["HR", "Inventory", "Marketing", "Accounts", "Operations", "الإدارة"],
 };
@@ -50,7 +53,6 @@ export const SETTINGS = {
   paymentPlans: List,
   finishings: List,
   interactionTypes: List,
-  receiveSources: List,
   mkTaskTypes: List,
   ticketDepts: List,
   leaveTypes: z.array(z.object({ name: z.string().trim().min(1).max(40), days: z.number().int().min(0).max(60) })).max(20),

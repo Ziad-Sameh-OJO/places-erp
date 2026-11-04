@@ -25,6 +25,12 @@ export function ListsTab({ settings, editable }: { settings: Settings; editable:
                 <div className="chips-edit">{UNIT_TYPES.map((t) => <span className="chip-e" key={t}>{t} <Icon name="lock" /></span>)}</div>
               </Card>
             )}
+            {/* the receive sources are accounts of the chart, not a list (accountant's chart, 4 Nov · 9.1) */}
+            {g.title === "المالية والمشتريات" && (
+              <Card title="مصادر التوريد للخزنة" icon="list" sub="عمولة من عميل + حسابات «ايرادات اخري» (42) في الشجرة">
+                <Note>المصادر هي حسابات الإيرادات الأخرى في شجرة الحسابات، فأي إيراد جديد يتضاف كحساب فرعي تحت 42.</Note>
+              </Card>
+            )}
             {g.lists.map(([key, label]) => <ListCard key={key} listKey={key} label={label} items={settings[key]} editable={editable} />)}
           </div>
         </section>
