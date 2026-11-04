@@ -72,6 +72,8 @@ export interface LeadActivityRow {
 export interface LeadDetail extends LeadRow {
   company: string | null; condition: string | null; note: string | null;
   post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
+  /** the first logged call, and whether it came within 30 minutes of arrival (KPI; null until someone calls) */
+  firstCallAt: string | null; firstCallOnTime: boolean | null;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
 
@@ -100,6 +102,9 @@ export interface LeadSummary {
   /** an official holiday today: the SLA runs on wall-clock hours (the note under the list says so) */
   holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number };
 }
+
+/** The person's own call count against their KPI (demo «مكالماتك النهارده: … من 100»); no goal for other roles. */
+export interface MyCalls { goal: { period: "day" | "week"; target: number } | null; count: number }
 
 /** The Kanban: every stage with its real count under the filters, and its newest cards (the demo shows 30 per lane). */
 export interface LeadBoard { lanes: { stage: string; total: number; items: LeadRow[] }[] }

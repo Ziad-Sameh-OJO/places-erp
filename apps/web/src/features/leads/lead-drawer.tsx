@@ -8,7 +8,7 @@ import { useMe } from "@/lib/me";
 import { ago, money, num } from "@/lib/format";
 import { api } from "@/lib/api";
 import { StageChip, Who, slaText, slaTone } from "./lead-bits";
-import { useAddComment, useLead, useRefreshLead } from "./use-lead";
+import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
 
 /** The pipeline the stepper shows (demo PIPE); the side stages (No Answer, Hold…) hide it. */
 const PIPE: readonly LeadStage[] = ["Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal"];
@@ -59,6 +59,7 @@ function Overview({ l }: { l: LeadDetail }) {
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {l.note && <div className="quote">{l.note}</div>}
       {can("leads", "edit") && <StageCard l={l} />}
+      {can("leads", "edit") && <CallButton id={l.id} />}
     </>
   );
 }
@@ -83,6 +84,17 @@ function StageCard({ l }: { l: LeadDetail }) {
       </div>
       <p className="hint">أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتعلّم Qualified أوتوماتيك، ويفضل محسوب في الكامبين والـ channel. Visit بتفتح تاب الزيارات عشان تحدد الميعاد والوحدات.</p>
     </section>
+  );
+}
+
+/** Demo «سجّل مكالمة» (1.10). */
+function CallButton({ id }: { id: string }) {
+  const run = useAction();
+  const logCall = useLogCall();
+  return (
+    <div className="row">
+      <button className="btn ghost" onClick={() => void run(() => logCall(id), "المكالمة اتسجّلت · الـ SLA وقف")}><Icon name="phone" />سجّل مكالمة</button>
+    </div>
   );
 }
 

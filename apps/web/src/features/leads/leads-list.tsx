@@ -11,7 +11,7 @@ import { LeadsBoard } from "./leads-board";
 import { LeadDrawer } from "./lead-drawer";
 import { NewLead } from "./new-lead";
 import { Fab } from "@/components/blocks";
-import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useSettings } from "./use-leads";
+import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings } from "./use-leads";
 
 const PAGE = 50;
 
@@ -24,6 +24,7 @@ export function LeadsList() {
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const summary = useLeadSummary();
+  const calls = useMyCalls().data;
   const options = useLeadOptions();
   const settings = useSettings();
   const saved = useSavedViews();
@@ -40,6 +41,11 @@ export function LeadsList() {
 
   return (
     <>
+      {calls?.goal && (
+        <Note>{calls.goal.period === "day"
+          ? <>مكالماتك النهارده: <b>{num(calls.count)}</b> من {calls.goal.target} (بند في الـ KPIs بتاعتك).</>
+          : <>مكالماتك آخر 7 أيام: <b>{num(calls.count)}</b> من {calls.goal.target} (بند Calls &amp; Broadcast في الـ KPIs بتاعتك).</>}</Note>
+      )}
       <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />

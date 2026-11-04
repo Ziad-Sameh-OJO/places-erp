@@ -1,6 +1,6 @@
 "use client";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LeadBoard, LeadOptions, LeadRow, LeadSummary, Paged, Settings } from "@places/contracts";
+import type { LeadBoard, LeadOptions, LeadRow, LeadSummary, MyCalls, Paged, Settings } from "@places/contracts";
 import { api } from "@/lib/api";
 import { type LeadQuery, toParams } from "./filters";
 
@@ -15,6 +15,8 @@ export function useLeadBoard(f: LeadQuery, enabled: boolean) {
   const qs = toParams(f, 1, 1).toString();
   return useQuery({ queryKey: ["leads", "board", qs], queryFn: () => api.get<LeadBoard>(`/leads/board?${qs}`), placeholderData: keepPreviousData, enabled });
 }
+
+export const useMyCalls = () => useQuery({ queryKey: ["my-calls"], queryFn: () => api.get<MyCalls>("/leads/calls/mine") });
 
 export const useLeadSummary = () => useQuery({ queryKey: ["leads-summary"], queryFn: () => api.get<LeadSummary>("/leads/summary") });
 export const useLeadOptions = () => useQuery({ queryKey: ["leads-options"], queryFn: () => api.get<LeadOptions>("/leads/options"), staleTime: 60_000 });

@@ -17,6 +17,16 @@ export function useRefreshLead() {
   ]);
 }
 
+/** «سجّل مكالمة»: counts for the person's KPI, stops the SLA clock; their call count refreshes too. */
+export function useLogCall() {
+  const refresh = useRefreshLead();
+  const qc = useQueryClient();
+  return async (id: string) => {
+    await api.post(`/leads/${id}/calls`);
+    await Promise.all([refresh(id), qc.invalidateQueries({ queryKey: ["my-calls"] })]);
+  };
+}
+
 export function useAddComment() {
   const refresh = useRefreshLead();
   return async (id: string, text: string) => {

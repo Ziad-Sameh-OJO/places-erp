@@ -409,3 +409,31 @@ test("duplicate-check: the code for anyone who may create; the lead's id only fo
   assert.deepEqual(await check(mohsen, "abc"), { hit: null });
   assert.equal((await call(`/leads/duplicate-check?phones=${phone}`, { cookie: nancy })).status, 403); // can't create leads
 });
+
+/* ---------------- 1.10 the call log: «سجّل مكالمة», the first call vs arrival, the person's count ---------------- */
+
+test("a call: on top of the Activity, stops the SLA clock, the first one is kept and measured against arrival (30 min)", async () => {
+  const id = await idOf(1);
+  const before = (await call("/leads/calls/mine", { cookie: mohsen })).body;
+  assert.deepEqual(before.goal, { period: "week", target: 50 });
+  const r = await call(`/leads/${id}/calls`, { method: "POST", cookie: mohsen });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.deepEqual([r.body.activities[0].kind, r.body.activities[0].text, r.body.activities[0].by.name], ["call", "مكالمة اتسجّلت", "محمد محسن"]);
+  assert.ok(r.body.firstActionAt);
+  const first = r.body.firstCallAt;
+  assert.ok(first);
+  assert.equal(r.body.firstCallOnTime, true); // the seeded lead arrived moments ago
+  const again = (await call(`/leads/${id}/calls`, { method: "POST", cookie: mohsen })).body;
+  assert.equal(again.firstCallAt, first); // only the first one counts for the KPI
+  assert.equal((await call("/leads/calls/mine", { cookie: mohsen })).body.count, before.count + 2);
+  assert.equal(await prisma.auditLog.count({ where: { action: "call", after: { path: ["leadId"], equals: id } } }), 2);
+});
+
+test("a call needs leads: edit and the lead in scope; goals by role (Telesales 100 a day, operations none)", async () => {
+  const id = await idOf(1);
+  assert.equal((await call(`/leads/${id}/calls`, { method: "POST", cookie: nancy })).status, 403);
+  assert.equal((await call(`/leads/${await idOf(3)}/calls`, { method: "POST", cookie: mohsen })).status, 404);
+  assert.deepEqual((await call("/leads/calls/mine", { cookie: hadeer })).body.goal, { period: "day", target: 100 });
+  assert.deepEqual((await call("/leads/calls/mine", { cookie: ops })).body, { goal: null, count: 0 });
+  assert.equal((await call("/leads/calls/mine", { cookie: hr })).status, 403);
+});

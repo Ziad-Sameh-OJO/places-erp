@@ -29,6 +29,12 @@ export class LeadsController {
     return this.leads.board(me, f);
   }
 
+  @Get("calls/mine")
+  @Requires("leads", "view")
+  myCalls(@Me() me: CurrentUser) {
+    return this.leads.myCalls(me);
+  }
+
   @Get("summary")
   @Requires("leads", "view")
   summary(@Me() me: CurrentUser) {
@@ -45,6 +51,12 @@ export class LeadsController {
   @Requires("leads", "view")
   get(@Me() me: CurrentUser, @Param("id") id: string) {
     return this.leads.get(me, id);
+  }
+
+  @Post(":id/calls")
+  @Requires("leads", "edit")
+  logCall(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.leads.logCall(me, id);
   }
 
   @Post(":id/comments")
