@@ -6,6 +6,9 @@ export const num = (n: number) => nf.format(Math.round(n));
 /** Money comes as a decimal string («120000.00»): group the whole pounds as text, no float maths. */
 export const money = (s: string | null) => (s == null ? "—" : `${s.split(".")[0]!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")} ج.م`);
 
+/** Money with its piasters when it has some («3151.50» → «3,151.50 ج.م», «104500.00» → «104,500 ج.م»): a unit's total. */
+export const moneyExact = (s: string | null) => (s == null ? "—" : `${amount(s)} ج.م`);
+
 /** «120K», «1.25M» for the Kanban cards. A rounded label only, never used in a calculation. */
 export function short(s: string | null) {
   if (s == null) return "—";
@@ -28,4 +31,24 @@ export function hoursText(minutes: number) {
   const hours = h === 1 ? "ساعة" : h === 2 ? "ساعتين" : h <= 10 ? `${h} ساعات` : `${h} ساعة`;
   if (!h) return `${minutes} دقيقة`;
   return rest === 0 ? hours : rest === 30 ? `${hours} ونص` : `${hours} و${rest} دقيقة`;
+}
+
+/** A decimal string as a grouped number without the currency («1100.50» → «1,100.50», «104500.00» → «104,500»): the sheet's price per m². */
+export function amount(s: string | null | undefined) {
+  if (s == null) return "—";
+  const [whole, frac] = s.split(".");
+  const grouped = whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return frac && Number(frac) ? `${grouped}.${frac}` : grouped;
+}
+
+/**
+ * The demo's short date («4 نوفمبر»), with the year when it isn't this year. An instant is shown as its Cairo day;
+ * a calendar day «YYYY-MM-DD» as itself.
+ */
+export function day(value: string | null | undefined, now = new Date()) {
+  if (!value) return "—";
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00Z`) : new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const year = (x: Date) => x.toLocaleDateString("en-US", { timeZone: "Africa/Cairo", year: "numeric" });
+  return d.toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", day: "numeric", month: "short", ...(year(d) !== year(now) ? { year: "numeric" } : {}) });
 }
