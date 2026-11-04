@@ -77,7 +77,7 @@
 65. [#185](https://github.com/Ziad-Sameh-OJO/places-erp/issues/185) **12.6** بحث المستخدمين بالموبايل والقسم
 66. [#186](https://github.com/Ziad-Sameh-OJO/places-erp/issues/186) **12.7** القوايم: نشط / موقوف بدل المسح
 67. [#187](https://github.com/Ziad-Sameh-OJO/places-erp/issues/187) **12.8** إعدادات كل قسم لمديره بس
-68. (issue جديد) **12.12** الختم والإمضا + الجهات (لوجو وبيانات بنك) + قوالب المستندات · بعد 0.9، 0.10
+68. [#250](https://github.com/Ziad-Sameh-OJO/places-erp/issues/250) **12.12** الختم والإمضا + الجهات (لوجو وبيانات بنك) + قوالب المستندات · بعد 0.9، 0.10
 
 ## Sprint 3
 
@@ -117,7 +117,7 @@
 102. [#157](https://github.com/Ziad-Sameh-OJO/places-erp/issues/157) **9.2** المصروفات على البنود + الـ Budget · بعد 9.1
 103. [#158](https://github.com/Ziad-Sameh-OJO/places-erp/issues/158) **9.3** السلف والعهد والـ Petty cash + `FinanceService.recordExpense()` · بعد 9.1
 104. [#159](https://github.com/Ziad-Sameh-OJO/places-erp/issues/159) **9.4** داشبورد المالية: الخزن، والبنوك، والسلف، والإيراد، وصافي الربح، والتوفير · بعد 9.2
-105. (issue جديد) **9.16** الفواتير الثابتة بموافقة المحاسب (زي اشتراك Property Finder) · بعد 9.2
+105. [#248](https://github.com/Ziad-Sameh-OJO/places-erp/issues/248) **9.16** الفواتير الثابتة بموافقة المحاسب (زي اشتراك Property Finder) · بعد 9.2
 106. [#188](https://github.com/Ziad-Sameh-OJO/places-erp/issues/188) **12.9** الإيميل من الـ worker + سجل الإرسال + تنبيه لما يفشل · بعد 0.2
 107. [#189](https://github.com/Ziad-Sameh-OJO/places-erp/issues/189) **12.10** الـ Push notifications (PWA + VAPID)
 108. [#190](https://github.com/Ziad-Sameh-OJO/places-erp/issues/190) **12.11** الجرس لحظي (WebSocket) + فلتر بالنوع
@@ -142,14 +142,14 @@
 124. [#160](https://github.com/Ziad-Sameh-OJO/places-erp/issues/160) **9.5** القيود والأرصدة الافتتاحية · بعد 9.1
 125. [#163](https://github.com/Ziad-Sameh-OJO/places-erp/issues/163) **9.8** تقفيل الشهر والربع + التعديل اليدوي لشخص واحد + تسوية العهدة الأسبوعية · بعد 9.5
 126. [#232](https://github.com/Ziad-Sameh-OJO/places-erp/issues/232) **9.11** إذن توريد خزنة + التحويل بين الخزن والبنوك + كشف حساب الخزنة / البنك · بعد 9.1، 9.5
-127. (issue جديد) **9.12** حسابات فرعية أوتوماتيك: عميل لكل صفقة (113) · سلفة لكل موظف (114) · عمولة لكل سيلز (211) · بعد 5.2، 9.1، 9.5
+127. [#244](https://github.com/Ziad-Sameh-OJO/places-erp/issues/244) **9.12** حسابات فرعية أوتوماتيك: عميل لكل صفقة (113) · سلفة لكل موظف (114) · عمولة لكل سيلز (211) · بعد 5.2، 9.1، 9.5
 128. [#161](https://github.com/Ziad-Sameh-OJO/places-erp/issues/161) **9.6** الترحيل الأوتوماتيك: التحصيل، وتكاليف الصفقة، والمرتبات، والمشتريات، والإلغاء · بعد 5.3، 7.9، 9.5، 9.12
 129. [#162](https://github.com/Ziad-Sameh-OJO/places-erp/issues/162) **9.7** قايمة الدخل والميزانية وصافي الربح + drill-down · بعد 9.6
 130. [#164](https://github.com/Ziad-Sameh-OJO/places-erp/issues/164) **9.9** المصروف مقابل الـ Budget + التصدير · بعد 0.11، 9.2، 9.6
-131. (issue جديد) **9.13** قيد يومية يدوي من شجرة الحسابات · بعد 9.5
-132. (issue جديد) **9.14** صرف المرتبات مرة واحدة (إذن «صرف مرتبات») + خصم السلف الشهري · بعد 7.9، 9.3، 9.5
-133. (issue جديد) **9.15** صرف عمولة السيلز لكل صفقة مع الـ TCR · بعد 5.4، 5.12، 9.12
-134. (issue جديد) **9.17** المطالبات + الفاتورة الإلكترونية + إيصال استلام النقدية (من القوالب) · بعد 0.10، 5.3، 12.12
+131. [#245](https://github.com/Ziad-Sameh-OJO/places-erp/issues/245) **9.13** قيد يومية يدوي من شجرة الحسابات · بعد 9.5
+132. [#246](https://github.com/Ziad-Sameh-OJO/places-erp/issues/246) **9.14** صرف المرتبات مرة واحدة (إذن «صرف مرتبات») + خصم السلف الشهري · بعد 7.9، 9.3، 9.5
+133. [#247](https://github.com/Ziad-Sameh-OJO/places-erp/issues/247) **9.15** صرف عمولة السيلز لكل صفقة مع الـ TCR · بعد 5.4، 5.12، 9.12
+134. [#249](https://github.com/Ziad-Sameh-OJO/places-erp/issues/249) **9.17** المطالبات + الفاتورة الإلكترونية + إيصال استلام النقدية (من القوالب) · بعد 0.10، 5.3، 12.12
 135. [#178](https://github.com/Ziad-Sameh-OJO/places-erp/issues/178) **11.9** بيانات البنود الناقصة: عينة Second Call، وعدّاد إعلانات الويبسايت، والـ Farming، والمنافسين، والـ 500م · بعد 1.10
 
 ## Sprint 5

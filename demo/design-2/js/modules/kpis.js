@@ -354,6 +354,7 @@
   A.CHANGE.kpiPay = (v, el) => { const c = cards()[el.dataset.id], p = (c.pay = c.pay || {}); p[el.dataset.k] = el.dataset.k === "amount" ? +v : v; A.audit("reports", `KPI ${A.person(el.dataset.id)}: الحسبة على ${PAYL[p.base]} · ${PAYL[p.period]}`, 1); A.render(); A.refreshDrawer(); };
   A.CHANGE.kpiPlan = (v, el) => { cards()[el.dataset.id].plan = v; A.audit("reports", `خطة تحسين لـ ${A.person(el.dataset.id)}`); A.toast("خطة التحسين اتحفظت"); };
   A.ACT.kpiOpen = (d) => A.openDrawer(() => drawer(d.id));
+  A.CHANGE.kpiW = (v, el) => { const it = cards()[el.dataset.id].items[+el.dataset.i], old = it.w; it.w = Math.max(0, Math.min(100, Math.round(+v || 0))); A.audit("kpis", `KPI ${A.person(el.dataset.id)} · ${it.t}: الوزن ${old}% ← ${it.w}%`); A.toast("اتحفظ الوزن"); A.render(); A.refreshDrawer(); };
   A.CHANGE.kpiVal = (v, el) => { const it = cards()[el.dataset.id].items[+el.dataset.i]; it.val = +v; A.audit("reports", `KPI ${A.person(el.dataset.id)} · ${it.t}: ${v}`); A.toast("اتحفظ · النتيجة اتحدّثت"); A.render(); A.refreshDrawer(); };
   // edit mode: every field of an item, plus add / remove
   const editBlock = (id, it, i) => {

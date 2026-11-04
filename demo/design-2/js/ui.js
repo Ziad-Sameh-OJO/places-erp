@@ -89,6 +89,10 @@
 
   /* demo controls */
   A.ACT.demoClock = (d) => { A.S.clock = (A.S.clock || 0) + +d.min; A.toast(`الوقت اتقدّم ${+d.min >= 60 ? (+d.min / 60) + " ساعة" : d.min + " دقيقة"}`); A.render(); };
+  // the meeting dropped the holiday switch: holidays are dated, so the demo just adds (or removes) today as an official holiday
+  A.ACT.demoHoliday = () => { const st = A.S, t = A.today(); st.holidays = st.holidays || []; const i = st.holidays.findIndex((h) => h.demo && h.from === t);
+    if (i >= 0) { st.holidays.splice(i, 1); A.toast("النهارده رجع يوم شغل"); } else { st.holidays.push({ from: t, to: t, name: "إجازة رسمية (ديمو)", demo: true }); A.toast("النهارده بقى إجازة رسمية · الـ SLA بيمشي بمواعيد الإجازة"); }
+    A.audit("master", i >= 0 ? "اتشالت إجازة النهارده (ديمو)" : "النهارده إجازة رسمية (ديمو)"); A.render(); };
   A.ACT.demoDay = () => { A.S.clock = (A.S.clock || 0) + 24 * 60; const n = A.rotateNoAnswer(); A.toast(`يوم جديد · ${n} ليد No Answer اتنقلوا بالروتيشن`); A.render(); };
   A.ACT.demoFinger = () => { const n = A.syncFingerprint(); A.toast(n ? `اتسحب ${n} بصمة من الجهاز` : "كل بصمات النهارده موجودة"); A.render(); };
   A.ACT.demoClockReset = () => { A.S.clock = 0; A.toast("الوقت رجع للحقيقي"); A.render(); };
