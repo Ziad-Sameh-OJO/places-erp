@@ -160,6 +160,7 @@ details.bs-acct > summary { list-style: none; cursor: pointer; } details.bs-acct
 .kids .add-sub { margin: 6px 0 4px; }
 .brand-box { min-height: 120px; display: grid; place-items: center; border: 1px dashed var(--line, #ccd); border-radius: 8px; margin: 8px 0; background: #fff; } .brand-box img { max-height: 140px; max-width: 100%; }
 .print-sign { display: flex; gap: 24px; align-items: flex-end; justify-content: flex-start; margin-top: 24px; } .print-sign img { max-height: 90px; max-width: 200px; } .print-sign small { color: #666; }
+.doc-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 2px solid #222; padding-bottom: 12px; margin-bottom: 12px; } .doc-logo { max-height: 70px; max-width: 260px; } .doc-title { display: block; font-size: 20px; } .doc-bank { border: 1px solid #ccd; border-radius: 8px; padding: 10px; margin: 12px 0; }
 .doc-body { line-height: 2; margin: 14px 0; font-size: 15px; }
 table.je { width: 100%; border-collapse: collapse; } table.je td, table.je th { padding: 4px 6px; text-align: right; } table.je select { width: 100%; } .ok-t { color: var(--ok, #16794c); font-weight: 600; } .bad-t { color: var(--bad, #b42318); font-weight: 600; }
 .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }

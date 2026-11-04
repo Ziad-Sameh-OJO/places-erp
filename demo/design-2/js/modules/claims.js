@@ -20,6 +20,10 @@
     receipt: { title: "إيصال استلام نقدية", body: "استلمنا من السادة / {الشركة} مبلغ {المبلغ} ({المبلغ_بالحروف})\nوذلك مقابل {نوع_العمولة} عن الوحدة {الوحدة} ({بيانات_الوحدة}).\nطريقة الدفع: {طريقة_الدفع} · بموجب المطالبة رقم {رقم_المطالبة}.", footer: "وهذا إيصال منا بذلك،\nPlaces · الإدارة المالية" }
   };
   const tpl = (k) => Object.assign({}, TPL[k], (S().docTpl || {})[k]);
+  const ENT = [{ id: "places", name: "Places", logo: "img/places-logo.jpg", bank: { bank: "", accName: "", accNo: "", iban: "" } }, { id: "zrain", name: "ذراين للدعاية والإعلان", logo: "img/zrain-logo.jpg", bank: { bank: "", accName: "", accNo: "", iban: "" } }];
+  const ents = () => { const st = S(); if (!st.entities) st.entities = JSON.parse(JSON.stringify(ENT)); return st.entities; };
+  const entOf = (c) => ents().find((e) => e.id === (c && c.entity)) || ents()[0];
+  const bankBlock = (e) => { const b = e.bank || {}; return b.bank || b.accNo || b.iban ? `<div class="doc-bank"><b>بيانات التحويل</b>${U.kv([["البنك", esc(b.bank || "—")], ["اسم الحساب", esc(b.accName || e.name)], ["رقم الحساب", `<span class="mono">${esc(b.accNo || "—")}</span>`], ["IBAN", `<span class="mono">${esc(b.iban || "—")}</span>`]])}</div>` : ""; };
   A.docTplDefault = TPL;
   const unitInfo = (d) => { const u = S().units.find((x) => x.code === d.unit) || {}; return [u.project, u.building && `مبنى ${u.building}`, u.floor && `الدور ${u.floor}`, (u.space || d.space) && `${A.num(u.space || d.space)} م²`, u.condition, u.area || d.location].filter(Boolean).join(" · "); };
   const kindOf = (d) => `عمولة ${d.type === "Rent" ? "تأجير" : d.type === "Resale" ? "إعادة بيع" : d.type === "Primary" ? "بيع" : "تسويق"}`;
@@ -32,11 +36,12 @@
 
   // ---- the documents ----
   const doc = (c, kind) => { const T = tpl(kind), no = kind === "claim" ? c.id : c.receiptNo, at = kind === "claim" ? c.issuedAt : c.paidAt;
-    return `<div class="pdf doc"><div class="pdf-head"><b>Places · ${esc(T.title)}</b><span class="mono">${esc(no)}</span></div>
+    const E = entOf(c);
+    return `<div class="pdf doc"><div class="doc-head"><img src="${E.logo}" alt="${esc(E.name)}" class="doc-logo"><div><b class="doc-title">${esc(T.title)}</b><span class="mono">${esc(no)}</span></div></div>
       ${U.kv([["التاريخ", A.fmtDate(at || A.nowIso())], ["الصفقة", `<span class="mono">${esc(c.deal)}</span>`], ...(kind === "receipt" && c.einv ? [["الفاتورة الإلكترونية", `<span class="mono">${esc(c.einv.no)}</span>`]] : [])])}
       <div class="doc-body">${fill(T.body, c, { التاريخ: A.fmtDate(at || A.nowIso()) })}</div>
       ${U.table(["البيان", "القيمة"], [["الشركة", esc(c.company)], ["الوحدة", `${esc(c.unit)} · ${esc(c.unitInfo)}`], ["المبلغ", `<b>${A.money(c.amount)}</b>`], ["المبلغ بالحروف", `فقط ${esc(A.amountWords(c.amount))} جنيه مصري لا غير`]].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`))}
-      <div class="doc-body">${fill(T.footer, c, {})}</div></div>
+      ${kind === "claim" ? bankBlock(E) : ""}<div class="doc-body">${fill(T.footer, c, {})}</div></div>
       <div class="row end no-print"><button class="btn ghost sm" data-act="printModal">${I("file")}اطبع / PDF (بالختم والإمضا)</button></div>`; };
   A.ACT.claimDoc = (d) => { const c = S().claims.find((x) => x.id === d.id); A.openModal(`${tpl(d.k || "claim").title} · ${d.k === "receipt" ? c.receiptNo : c.id}`, doc(c, d.k || "claim")); };
 
@@ -46,10 +51,11 @@
       ${U.field("اسم الشركة (زي ما هيتكتب في المطالبة)", `<input name="company" required value="${esc(dl.company || dl.client)}">`, 1, 1)}
       ${U.field("الوحدة", `<input name="unit" required value="${esc(dl.unit || "")}">`, 1)}${U.field("المطالبة على", `<select name="side">${opt("client", "الـ Client", "client")}${opt("owner", "الـ Owner")}</select>`, 1)}
       ${U.field("بيانات الوحدة", `<input name="unitInfo" required value="${esc(unitInfo(dl))}">`, 1, 1)}
+      ${U.field("المطالبة باسم", `<select name="entity">${ents().map((e) => opt(e.id, e.name, "places")).join("")}</select>`, 1)}
       ${U.field("المبلغ", `<input name="amount" type="number" min="1" step="any" required value="${Math.round(dl.commClient || rem)}">`, 1)}${U.field("نوع العمولة", `<input name="kind" required value="${esc(kindOf(dl))}">`, 1)}
       ${U.field("ملاحظة للمالية", `<input name="note" placeholder="اختياري">`, 0, 1)}
       <div class="row end wide"><button type="button" class="btn ghost" data-close="modal">إلغاء</button><button class="btn">${I("send")}ابعت للمالية</button></div></form>`); };
-  A.FORM.claimSave = (f) => { const st = S(), dl = st.deals.find((x) => x.id === f.deal), c = { id: "CL-" + String((st.claims = st.claims || []).length + 101), deal: dl.id, client: dl.client, company: f.company.trim(), unit: f.unit.trim(), unitInfo: f.unitInfo.trim(), amount: +f.amount, side: f.side, kind: f.kind.trim(), note: (f.note || "").trim(), status: "requested", by: A.me(), at: A.nowIso() };
+  A.FORM.claimSave = (f) => { const st = S(), dl = st.deals.find((x) => x.id === f.deal), c = { id: "CL-" + String((st.claims = st.claims || []).length + 101), deal: dl.id, client: dl.client, company: f.company.trim(), unit: f.unit.trim(), unitInfo: f.unitInfo.trim(), amount: +f.amount, side: f.side, kind: f.kind.trim(), entity: f.entity || "places", note: (f.note || "").trim(), status: "requested", by: A.me(), at: A.nowIso() };
     st.claims.unshift(c); A.notify(["accountant"], `${A.person(A.me())} طالب مطالبة ${c.id} · ${c.company} · ${A.money(c.amount)} (${dl.id})`); A.audit("finance", `طلب مطالبة ${c.id} · ${c.company} · ${A.money(c.amount)}`);
     A.closeModal(); A.toast(`اتبعتت للمالية · ${c.id}`); A.render(); A.refreshDrawer && A.refreshDrawer(); };
 
@@ -85,7 +91,7 @@
       : c.status === "paid" ? `<button class="btn ghost sm" data-act="claimDoc" data-id="${c.id}" data-k="receipt">${c.receiptNo}</button> <a class="mono click" data-act="mvView" data-id="${c.move}">${c.move}</a>` : esc(c.why || "");
     return `${note("السيلز بيطلب المطالبة من الصفقة (الشركة · بيانات الوحدة · المبلغ) ← «اعتمد واعمل المطالبة» بتطلع من القالب بالختم والإمضا ← السيلز يبعتها للعميل ويعلّم «العميل اعتمد» ← انت بترفع الفاتورة الإلكترونية وتكتب رقمها ← لما العميل يدفع «اتحصّلت · اعمل الإيصال» بيفتح إذن توريد بالمبلغ، وبعد الحفظ «إيصال استلام النقدية» بيتعمل من نفس البيانات.")}
       <div class="row">${U.seg("clF", [["open", "مفتوحة"], ["requested", "مستنية اعتمادك"], ["approved", "مستنية فاتورة"], ["paid", "اتحصّلت"], ["all", "الكل"]], f)}<span class="spacer"></span><a class="btn ghost sm" href="#master" data-act="goTpl">${I("file")}عدّل القوالب</a></div>
-      ${U.table(["المطالبة", "الشركة", "الوحدة", "المبلغ", "طلبها", "الحالة", ""], list.map((c) => `<tr><td class="mono click" data-act="claimDoc" data-id="${c.id}">${c.id}<span class="sub">${esc(c.deal)}</span></td><td>${esc(c.company)}</td><td>${esc(c.unit)}<span class="sub">${esc(c.unitInfo)}</span></td><td class="n"><b>${A.money(c.amount)}</b></td><td>${esc(A.person(c.by))}<span class="sub">${A.fmtDate(c.at)}</span></td><td>${chip(ST[c.status][0], ST[c.status][1], 1)}${c.einv ? `<span class="sub">فاتورة ${esc(c.einv.no)}</span>` : ""}${c.receiptReq && c.status !== "paid" ? `<span class="sub">العميل دفع وطالب إيصال</span>` : ""}</td><td>${act(c)}</td></tr>`))}`; };
+      ${U.table(["المطالبة", "الشركة", "الوحدة", "المبلغ", "طلبها", "الحالة", ""], list.map((c) => `<tr><td class="mono click" data-act="claimDoc" data-id="${c.id}">${c.id}<span class="sub">${esc(c.deal)}</span></td><td>${esc(c.company)}<span class="sub">باسم ${esc(entOf(c).name)}</span></td><td>${esc(c.unit)}<span class="sub">${esc(c.unitInfo)}</span></td><td class="n"><b>${A.money(c.amount)}</b></td><td>${esc(A.person(c.by))}<span class="sub">${A.fmtDate(c.at)}</span></td><td>${chip(ST[c.status][0], ST[c.status][1], 1)}${c.einv ? `<span class="sub">فاتورة ${esc(c.einv.no)}</span>` : ""}${c.receiptReq && c.status !== "paid" ? `<span class="sub">العميل دفع وطالب إيصال</span>` : ""}</td><td>${act(c)}</td></tr>`))}`; };
   A.ACT.clF = (d) => { A.ui.clF = d.v; A.render(); };
   A.ACT.goTpl = () => { A.ui.msTab = "tpl"; location.hash = "#master"; A.render(); };
   A.claimsInbox = (add) => { if (!fin()) return; (S().claims || []).forEach((c) => {
@@ -99,9 +105,16 @@
       ${U.field("النص", `<textarea rows="6" data-change="tplSet" data-k="${k}" data-f="body" ${ed ? "" : "disabled"}>${esc(T.body)}</textarea>`, 0, 1)}
       ${U.field("الختام", `<textarea rows="3" data-change="tplSet" data-k="${k}" data-f="footer" ${ed ? "" : "disabled"}>${esc(T.footer)}</textarea>`, 0, 1)}
       ${ed ? `<div class="row end"><button class="btn ghost sm" data-act="tplReset" data-k="${k}">رجّع الافتراضي</button><button class="btn ghost sm" data-act="tplPreview" data-k="${k}">${I("file")}شوف شكلها</button></div>` : ""}</section>`; };
-    return `${note("الكلمات اللي بين {} بتتملي لوحدها: {الشركة} {العميل} {الوحدة} {بيانات_الوحدة} {المبلغ} {المبلغ_بالحروف} {نوع_العمولة} {الصفقة} {رقم_المطالبة} {التاريخ} {طريقة_الدفع}. الختم والإمضا بيتحطوا لوحدهم وقت الطباعة.")}<div class="cols">${box("claim", "قالب المطالبة")}${box("receipt", "قالب إيصال استلام النقدية")}</div>`; };
+    const entBox = (e, i) => `<section class="card">${head(e.name, "layers")}<div class="brand-box"><img src="${e.logo}" alt="${esc(e.name)}"></div>
+      ${ed ? `<label class="btn ghost sm">${I("upload")}غيّر اللوجو<input type="file" accept="image/png,image/jpeg" data-change="entLogo" data-i="${i}" hidden></label>` : ""}
+      ${[["bank", "البنك"], ["accName", "اسم الحساب"], ["accNo", "رقم الحساب"], ["iban", "IBAN"]].map(([k, l]) => U.field(l, `<input value="${esc((e.bank || {})[k] || "")}" data-change="entSet" data-i="${i}" data-k="${k}" ${ed ? "" : "disabled"}>`)).join("")}</section>`;
+    return `<h3 class="mini-h">الجهات اللي بتطلع باسمها المطالبات</h3>${note("اللوجو بيظهر فوق المطالبة والإيصال، وبيانات البنك بتتكتب في المطالبة عشان العميل يحوّل عليها.")}<div class="cols">${ents().map(entBox).join("")}</div>
+      <h3 class="mini-h">القوالب</h3>${note("الكلمات اللي بين {} بتتملي لوحدها: {الشركة} {العميل} {الوحدة} {بيانات_الوحدة} {المبلغ} {المبلغ_بالحروف} {نوع_العمولة} {الصفقة} {رقم_المطالبة} {التاريخ} {طريقة_الدفع}. الختم والإمضا بيتحطوا لوحدهم وقت الطباعة.")}<div class="cols">${box("claim", "قالب المطالبة")}${box("receipt", "قالب إيصال استلام النقدية")}</div>`; };
+  A.CHANGE.entSet = (v, el) => { const e = ents()[+el.dataset.i]; (e.bank = e.bank || {})[el.dataset.k] = v.trim(); A.audit("master", `${e.name}: بيانات البنك (${el.dataset.k})`); A.toast("اتحفظ"); };
+  A.CHANGE.entLogo = (v, el) => { const file = el.files && el.files[0]; if (!file) return; const r = new FileReader(); r.onload = () => { const im = new Image(); im.onload = () => { const k = Math.min(1, 600 / im.width), c = document.createElement("canvas"); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+    ents()[+el.dataset.i].logo = c.toDataURL("image/jpeg", 0.9); A.audit("master", `اتغيّر لوجو ${ents()[+el.dataset.i].name}`); A.toast("اتغيّر اللوجو"); A.render(); }; im.src = r.result; }; r.readAsDataURL(file); };
   A.CHANGE.tplSet = (v, el) => { const st = S(); ((st.docTpl = st.docTpl || {})[el.dataset.k] = st.docTpl[el.dataset.k] || {})[el.dataset.f] = v; A.audit("master", `قالب ${el.dataset.k === "claim" ? "المطالبة" : "الإيصال"}: اتعدّل ${el.dataset.f}`); A.toast("اتحفظ القالب"); };
   A.ACT.tplReset = (d) => { const st = S(); if (st.docTpl) delete st.docTpl[d.k]; A.toast("رجع للقالب الافتراضي"); A.render(); };
-  A.ACT.tplPreview = (d) => { const sample = { id: "CL-000", deal: "D-000", client: "م. أحمد سامي", company: "شركة النيل للتكنولوجيا", unit: "U-101", unitInfo: "Mivida Business Park · مبنى B4 · الدور 2 · 95 م² · متشطب", amount: 100000, kind: "عمولة تأجير", issuedAt: A.nowIso(), paidAt: A.nowIso(), receiptNo: "RC-000", einv: { no: "EG-2026-000000" } };
+  A.ACT.tplPreview = (d) => { const sample = { entity: "places", id: "CL-000", deal: "D-000", client: "م. أحمد سامي", company: "شركة النيل للتكنولوجيا", unit: "U-101", unitInfo: "Mivida Business Park · مبنى B4 · الدور 2 · 95 م² · متشطب", amount: 100000, kind: "عمولة تأجير", issuedAt: A.nowIso(), paidAt: A.nowIso(), receiptNo: "RC-000", einv: { no: "EG-2026-000000" } };
     A.openModal(`${tpl(d.k).title} · معاينة`, doc(sample, d.k)); };
 })();
