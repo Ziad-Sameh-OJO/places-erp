@@ -7,7 +7,8 @@ import { useMe } from "@/lib/me";
 import { num, short } from "@/lib/format";
 import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
-import { type UnitQuery, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
+import { AreaTabsBar } from "./area-tabs";
+import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 
 const PAGE = 50;
 type TypeTab = "all" | "Rent" | "Resale" | "Income" | "Primary" | "closed";
@@ -30,6 +31,7 @@ export function InventoryList() {
   const s = useUnitSummary().data;
   const options = useUnitOptions().data;
   const unit = useUnit(open);
+  const areaTabs = useAreaTabs(query).data ?? [];
   const filter = (next: UnitQuery) => { setF(next); setPage(1); };
   const on = (k: keyof UnitQuery) => (e: { target: { value: string } }) => filter({ ...f, [k]: e.target.value });
   const toggle = (k: "stale" | "divisible") => (e: { target: { checked: boolean } }) => filter({ ...f, [k]: e.target.checked ? "true" : undefined });
@@ -92,6 +94,7 @@ export function InventoryList() {
           ))}</div>
           : <Empty text="مفيش وحدات في الفلتر ده" />)
         : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k)))} empty="مفيش وحدات في الفلتر ده" onRow={(i) => setOpen(list[i]!.id)} />}
+      <AreaTabsBar tabs={areaTabs} value={f.tabId} onChange={(tabId) => filter({ ...f, tabId })} editable={me.can("inventory", "edit")} />
       {!failed && pages > 1 && (
         <div className="row end">
           <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button>
@@ -99,7 +102,7 @@ export function InventoryList() {
           <button className="btn ghost sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>التالي</button>
         </div>
       )}
-      <p className="hint">الوحدة اللي الـ last update بتاعها عدّى عليه أكتر من شهر بتظهر متأخرة، وبتتحسب في الـ activity بتاعة منار ورندا.</p>
+      <p className="hint">التابات اللي تحت Customized: الفريق بيحدد الشرايح ويضيف أو يشيل. والوحدة اللي الـ last update بتاعها عدّى عليه أكتر من شهر بتظهر متأخرة، وبتتحسب في الـ activity بتاعة منار ورندا.</p>
       {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)} />}
     </>
   );

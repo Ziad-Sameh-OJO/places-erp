@@ -1,11 +1,11 @@
 "use client";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { Paged, UnitDetail, UnitOptions, UnitRow, UnitSummary, UnitTabCounts } from "@places/contracts";
+import type { AreaTabView, Paged, UnitDetail, UnitOptions, UnitRow, UnitSummary, UnitTabCounts } from "@places/contracts";
 import { api } from "@/lib/api";
 
 /** The toolbar's filters as the API's query names (UnitFilters in @places/contracts). Empty = not filtered. */
 export interface UnitQuery {
-  q?: string; area?: string; condition?: string; agentId?: string; stale?: "true"; divisible?: "true";
+  q?: string; area?: string; condition?: string; agentId?: string; stale?: "true"; divisible?: "true"; tabId?: string | undefined;
   type?: "Rent" | "Resale" | "Income" | "Primary" | undefined; view?: "available" | "closed" | undefined;
 }
 
@@ -23,7 +23,7 @@ export function useUnits(f: UnitQuery, page: number, pageSize: number) {
 
 /** The type tabs' counts under the same filters (the tab itself set aside). */
 export function useUnitTabs(f: UnitQuery) {
-  const qs = toParams({ ...f, type: undefined, view: undefined }, 1, 1).toString();
+  const qs = toParams({ ...f, type: undefined, view: undefined }, 1, 1).toString(); // the area tab stays: counts within it
   return useQuery({ queryKey: ["units", "tabs", qs], queryFn: () => api.get<UnitTabCounts>(`/inventory/units/tabs?${qs}`), placeholderData: keepPreviousData });
 }
 
@@ -31,3 +31,9 @@ export const useUnitSummary = () => useQuery({ queryKey: ["units", "summary"], q
 export const useUnitOptions = () => useQuery({ queryKey: ["units-options"], queryFn: () => api.get<UnitOptions>("/inventory/units/options"), staleTime: 60_000 });
 /** One unit, for its drawer (only while one is open). */
 export const useUnit = (id: string | null) => useQuery({ queryKey: ["unit", id], queryFn: () => api.get<UnitDetail>(`/inventory/units/${id}`), retry: false, enabled: !!id });
+
+/** The area tabs (2.5) with their counts under the list's filters, the area tab itself set aside. */
+export function useAreaTabs(f: UnitQuery) {
+  const qs = toParams({ ...f, tabId: undefined }, 1, 1).toString();
+  return useQuery({ queryKey: ["area-tabs", qs], queryFn: () => api.get<AreaTabView[]>(`/inventory/area-tabs?${qs}`), placeholderData: keepPreviousData });
+}

@@ -37,7 +37,7 @@ export class InventoryService {
 
   async list(me: CurrentUser, f: UnitFilters): Promise<Paged<UnitRow>> {
     const s = this.scope(me);
-    const [rows, total] = await this.repo.list(s, f);
+    const [rows, total] = await this.repo.list(s, f, f.tabId ? await this.repo.areaTabs() : []);
     const agents = await this.names(rows.map((r) => r.agentId));
     return { items: rows.map((r) => this.row(r, s, agents)), total, page: f.page, pageSize: f.pageSize };
   }
@@ -49,7 +49,7 @@ export class InventoryService {
   }
 
   async tabs(me: CurrentUser, f: UnitFilters): Promise<UnitTabCounts> {
-    const [all, ...rest] = await this.repo.tabCounts(this.scope(me), f, UNIT_TYPES);
+    const [all, ...rest] = await this.repo.tabCounts(this.scope(me), f, UNIT_TYPES, f.tabId ? await this.repo.areaTabs() : []);
     const closed = rest.pop()!;
     return { all, ...(Object.fromEntries(UNIT_TYPES.map((t, i) => [t, rest[i]!])) as Record<(typeof UNIT_TYPES)[number], number>), closed };
   }
@@ -126,6 +126,7 @@ export class InventoryService {
   private async check(input: UnitInput, before: UnitRecord | null) {
     if (before?.agentId !== input.agentId && !(await this.repo.agents([input.agentId])).length) throw new BadRequestException("الـ Agent ده مش موجود");
     if (input.lastOwnerUpdateAt && input.lastOwnerUpdateAt > localDate(new Date())) throw new BadRequestException("الـ Last update مايبقاش في المستقبل");
+    if (input.areaTabId && !(await this.repo.areaTabs()).some((t) => t.id === input.areaTabId)) throw new BadRequestException("تاب المساحة ده اتشال · اختار تاب تاني");
     if (before?.area !== input.area && !(await this.settings.all()).areas.includes(input.area)) throw new BadRequestException("اختار Area من القايمة");
   }
 
@@ -145,7 +146,7 @@ export class InventoryService {
       ownerName: s.insider ? u.ownerName : null, ownerPhone: s.insider ? u.ownerPhone : null,
       pricePerSqm: money(u.pricePerSqm), totalPrice: money(u.totalPrice), leasePerSqm: money(u.leasePerSqm),
       maintenance: u.maintenance, commission: u.commission, paymentMethod: u.paymentMethod,
-      divisible: u.divisible, minSplit: u.minSplit, location: u.location,
+      divisible: u.divisible, minSplit: u.minSplit, location: u.location, areaTabId: u.areaTabId,
       agent: u.agentId ? { id: u.agentId, name: agents.get(u.agentId) ?? "" } : null,
       lastOwnerUpdateAt: u.lastOwnerUpdateAt.toISOString(), stale: isStale(u.lastOwnerUpdateAt, new Date()),
       pdfStatus: u.pdfStatus === "confirmed" ? "confirmed" : "draft", createdAt: u.createdAt.toISOString(),
@@ -174,7 +175,7 @@ function toData(u: UnitInput) {
     leasePerSqm: u.type === "Income" ? toDecimal(fromDecimal(u.leasePerSqm)) : null,
     maintenance: u.maintenance ?? null, commission: u.commission ?? null,
     paymentMethod: u.type === "Rent" ? null : (u.paymentMethod ?? null),
-    details, location: u.location ?? null,
+    details, location: u.location ?? null, areaTabId: u.areaTabId ?? null,
     divisible: u.divisible, minSplit: u.divisible ? (u.minSplit ?? null) : null, splitNote: u.divisible ? (u.splitNote ?? null) : null,
     lastOwnerUpdateAt: dayStart(u.lastOwnerUpdateAt ?? localDate(new Date())),
   };
