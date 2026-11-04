@@ -13,7 +13,7 @@ export const TicketFilters = Page.extend({
 export type TicketFilters = z.infer<typeof TicketFilters>;
 
 export const CreateTicket = z.object({
-  type: z.string().refine((k) => !!ticketType(k), "نوع التذكرة مش موجود"),
+  type: z.string().refine((k) => !!ticketType(k) && !ticketType(k)!.system, "نوع التذكرة مش موجود"),
   department: z.string().trim().max(60).optional(), // only for a type that doesn't have its own department
   priority: z.enum(TICKET_PRIORITIES).default("normal"),
   title: z.string().trim().min(3, "اكتب الطلب").max(2000, "الطلب طويل · 2000 حرف بالكتير"),

@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, FingerprintDone, FingerprintRow, WeeklyDelayView } from "@places/contracts";
-import { dayStart, deductionAmount, fingerprintDay, fromDecimal, isWorkingDay, localDate, normName, normTime, toDecimal, type DeductionTiers } from "@places/domain";
+import { attendanceDay, dayStart, deductionAmount, fingerprintDay, minutesAfterStart, fromDecimal, isWorkingDay, localDate, normName, normTime, toDecimal, type DeductionTiers } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -9,6 +9,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import type { ParsedSheet } from "../../core/http/import";
 import type { Tx } from "./hr.repository";
 import { LeavesService } from "./leaves.service";
+import { ExcusesService } from "./excuses.service";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const EMP = { id: true, name: true, department: true, salary: true, partTime: true, partTimeDeductions: true, deductionTiers: true, fixedSchedule: true } as const;
@@ -25,7 +26,7 @@ const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Nu
  */
 @Injectable()
 export class AttendanceService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService, private readonly excuses: ExcusesService) {}
 
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
@@ -42,18 +43,22 @@ export class AttendanceService {
     return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
   }
 
-  private row(e: Emp, a: { day: Date; checkInAt: Date | null; checkOutAt: Date | null; lateMinutes: number; deduction: Prisma.Decimal; source: string }): AttendanceRowView {
+  private row(e: Emp, a: { day: Date; checkInAt: Date | null; checkOutAt: Date | null; lateMinutes: number; deduction: Prisma.Decimal; source: string; kind?: string }): AttendanceRowView {
     const day = isoDay(a.day), checkIn = this.hhmm(a.checkInAt, day);
     const r = fingerprintDay({ checkIn, partTime: e.partTime, partTimeDeductions: e.partTimeDeductions, tiers: (e.deductionTiers as DeductionTiers | null) ?? null, specialSchedule: !!e.fixedSchedule });
     const ded = Number(a.deduction);
     return { employeeId: e.id, name: e.name, department: e.department, day, checkIn, checkOut: this.hhmm(a.checkOutAt, day), lateMinutes: a.lateMinutes, deduction: ded,
-      deductionAmount: toDecimal(deductionAmount(fromDecimal(e.salary.toFixed(2)), ded)), label: r.label, source: a.source, customTiers: e.deductionTiers != null, fixedSchedule: e.fixedSchedule };
+      deductionAmount: toDecimal(deductionAmount(fromDecimal(e.salary.toFixed(2)), ded)), label: a.kind === "EXCUSE" ? "Excuse" : r.label, source: a.source, customTiers: e.deductionTiers != null, fixedSchedule: e.fixedSchedule };
   }
 
   /** Writes a day from a check-in (sheet, or HR filling a missing day); the same person and day is never duplicated. */
   private async write(e: Emp, day: string, checkIn: string, checkOut: string | null, source: string, tx: Tx, overwrite: boolean) {
-    const r = fingerprintDay({ checkIn, partTime: e.partTime, partTimeDeductions: e.partTimeDeductions, tiers: (e.deductionTiers as DeductionTiers | null) ?? null, specialSchedule: !!e.fixedSchedule });
-    const data = { checkInAt: at(day, checkIn), checkOutAt: checkOut ? at(day, checkOut) : null, kind: (e.fixedSchedule ? "SPECIAL_SCHEDULE" : "CHECKIN") as "CHECKIN", deduction: r.deduction, lateMinutes: r.lateMinutes, source };
+    // a confirmed Excuse (7.4) replaces «متأخر» with its own cost; Weekly Delay keeps every minute
+    const excuse = await this.excuses.confirmedFor(e.id, day, tx);
+    const r = excuse ? attendanceDay({ kind: "excuse", minutesAfterStart: minutesAfterStart(checkIn), excuseNumberThisMonth: excuse }, (e.deductionTiers as DeductionTiers | null) ?? undefined)
+      : fingerprintDay({ checkIn, partTime: e.partTime, partTimeDeductions: e.partTimeDeductions, tiers: (e.deductionTiers as DeductionTiers | null) ?? null, specialSchedule: !!e.fixedSchedule });
+    const kind = excuse ? "EXCUSE" : e.fixedSchedule ? "SPECIAL_SCHEDULE" : "CHECKIN";
+    const data = { checkInAt: at(day, checkIn), checkOutAt: checkOut ? at(day, checkOut) : null, kind: kind as "CHECKIN", deduction: r.deduction, lateMinutes: r.lateMinutes, source };
     const key = { employeeId_day: { employeeId: e.id, day: asDay(day) } };
     const had = await tx.attendanceDay.findUnique({ where: key });
     if (had && !overwrite) return { created: false, before: had };

@@ -2,12 +2,13 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Pu
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import type { PrismaClient } from "@places/db";
-import { NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
+import { ExcuseAsk, NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
 import { sendXlsx } from "../../core/http/excel";
 import { IMPORT_MAX_BYTES, parseSheet, preview, type UploadedSheet } from "../../core/http/import";
 import { AttendanceService } from "./attendance.service";
 import { LeavesService } from "./leaves.service";
 import { PeopleCareService } from "./people-care.service";
+import { ExcusesService } from "./excuses.service";
 import { PRISMA } from "../../core/database/database.module";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -21,7 +22,7 @@ const byPersonDay = (r: FingerprintRow) => `${r.name.trim()}|${r.day}`;
 /** HTTP only: validate input, check the permission, call the service. M-05 · the employee file (7.1) and attendance (7.2 · 7.10 · 7.12). */
 @Controller("hr")
 export class HrController {
-  constructor(private readonly hr: HrService, private readonly attendance: AttendanceService, private readonly leaves: LeavesService, private readonly care: PeopleCareService, @Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(private readonly hr: HrService, private readonly attendance: AttendanceService, private readonly leaves: LeavesService, private readonly care: PeopleCareService, private readonly excuses: ExcusesService, @Inject(PRISMA) private readonly db: PrismaClient) {}
 
   private readonly run = <T>(fn: (tx: Tx) => Promise<T>) => this.db.$transaction(fn);
 
@@ -213,5 +214,36 @@ export class HrController {
   @Requires("hr", "edit")
   addOneOnOne(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(NewOneOnOne)) body: NewOneOnOne) {
     return this.care.addOneOnOne(me, id, body, this.run);
+  }
+
+  /* ---- 7.4 · the Excuse ---- */
+  @Get("excuses/mine")
+  @SignedIn()
+  myExcuses(@Me() me: CurrentUser) {
+    return this.excuses.mine(me);
+  }
+
+  @Post("excuses")
+  @SignedIn()
+  askExcuse(@Me() me: CurrentUser, @Body(new ZodPipe(ExcuseAsk)) body: ExcuseAsk) {
+    return this.excuses.ask(me, body, this.run);
+  }
+
+  @Get("excuses")
+  @Requires("hr", "view")
+  excuseList(@Me() me: CurrentUser) {
+    return this.excuses.list(me);
+  }
+
+  @Post("excuses/:id/approve")
+  @Requires("hr", "approve")
+  approveExcuse(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.excuses.approve(me, id, this.run);
+  }
+
+  @Post("excuses/:id/reject")
+  @Requires("hr", "approve")
+  rejectExcuse(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(LeaveReject)) body: { reason: string }) {
+    return this.excuses.reject(me, id, body.reason, this.run);
   }
 }

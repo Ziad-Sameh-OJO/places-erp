@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { Card, Chip, Field, useAction } from "@/components/ui";
 import { MyLeavesCard } from "@/features/hr/leaves";
+import { MyExcusesCard } from "@/features/hr/excuses";
 
 /** حسابي: who I am, my password, whether notifications also reach my email, and my leaves (7.5). */
 export default function ProfilePage() {
@@ -36,6 +37,7 @@ export default function ProfilePage() {
         </form>
       </Card>
       <MyLeavesCard />
+      <MyExcusesCard />
     </div>
   );
 }

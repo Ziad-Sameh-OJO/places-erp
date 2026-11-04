@@ -129,3 +129,11 @@ export function oneOnOneDue(lastHeld: string | null, today: string): "due" | "do
 }
 /** «حل الـ HR» rings on its day, once, until it's done. */
 export const actionAlarm = (due: string | null, today: string, done: boolean, alarmed: boolean): boolean => !!due && !done && !alarmed && due <= today;
+
+/* ---- the Excuse (7.4) ---- */
+/** This request's number in the month: the ones not rejected before it + 1 (Q31). */
+export const excuseNumber = (earlierThisMonth: number): number => earlierThisMonth + 1;
+/** The 5th Excuse in a month is refused at once and management hears of it (Q31: «الخامس رفد»). */
+export const excuseRefused = (n: number): boolean => n >= 5;
+/** What the Excuse costs once confirmed: 1–2 nothing, 3–4 half a day. */
+export const excuseDeduction = (n: number): 0 | 0.5 => (n >= 3 ? 0.5 : 0);

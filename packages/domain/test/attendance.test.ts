@@ -43,3 +43,13 @@ test("penalties: a quarter-day step up to 3 days, counted only once HR approved;
   assert.equal(actionAlarm("2026-11-04", "2026-11-05", true, false), false);
   assert.equal(actionAlarm("2026-11-04", "2026-11-05", false, true), false);
 });
+
+test("the Excuse: 1–2 free, 3–4 half a day, the 5th refused; on the day it replaces «متأخر» (7.4, Q31)", async () => {
+  const { excuseNumber, excuseRefused, excuseDeduction, attendanceDay } = await import("../src/index.ts");
+  assert.equal(excuseNumber(0), 1);
+  assert.deepEqual([1, 2, 3, 4].map(excuseDeduction), [0, 0, 0.5, 0.5]);
+  assert.equal(excuseRefused(4), false);
+  assert.equal(excuseRefused(5), true);
+  const day = attendanceDay({ kind: "excuse", minutesAfterStart: 75, excuseNumberThisMonth: 2 });
+  assert.deepEqual([day.deduction, day.lateMinutes, day.label], [0, 59, "Excuse #2"]); // 12:15 would be a full day; Weekly Delay still counts
+});

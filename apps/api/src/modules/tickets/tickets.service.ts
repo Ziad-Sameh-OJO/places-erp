@@ -16,6 +16,8 @@ import { type TicketRecord, TicketsRepository } from "./tickets.repository";
 const NO_TICKET = "التذكرة دي مش موجودة أو مش من حقك تشوفها";
 const SETTLED = ["Resolved", "Closed"];
 const code = (n: number) => `TK-${n}`;
+/** A system type (the Excuse) is decided in its own flow, so its status never moves from the tickets screen. */
+const SYSTEM_TICKET = "الطلب ده بيتقرر من شاشته (الـ Excuse من الـ HR)";
 const link = (id: string) => `/tickets?id=${id}`;
 
 /** M-06 use cases. The rules (routes, SLAs, lateness, the report) live in @places/domain. */
@@ -41,7 +43,7 @@ export class TicketsService {
 
   async options(): Promise<TicketOptions> {
     return {
-      types: TICKET_TYPES.map((t) => ({ key: t.key, label: t.label, department: t.department, slaHours: t.slaHours, highSlaHours: t.highSlaHours })),
+      types: TICKET_TYPES.filter((t) => !t.system).map((t) => ({ key: t.key, label: t.label, department: t.department, slaHours: t.slaHours, highSlaHours: t.highSlaHours })),
       departments: await this.departments(),
     };
   }
@@ -102,12 +104,37 @@ export class TicketsService {
     return { id: created.id, code: code(created.number) };
   }
 
+  /**
+   * For a module whose flow lives elsewhere (the Excuse, 7.4): open a system ticket inside the caller's transaction,
+   * add a line to its history, and settle it — so it shows in tickets and the response report, with its history.
+   */
+  async openSystem(tx: Prisma.TransactionClient, t: { type: string; title: string; fromUserId: string; text: string }) {
+    const type = ticketType(t.type);
+    if (!type?.system || !type.department) throw new BadRequestException("نوع التذكرة مش موجود");
+    const created = await this.repo.create(tx, { type: type.key, department: type.department, title: t.title, priority: "normal", fromUserId: t.fromUserId });
+    await this.repo.addEvent(tx, created.id, "open", t.text, t.fromUserId);
+    return { id: created.id, code: code(created.number) };
+  }
+
+  async noteSystem(tx: Prisma.TransactionClient, id: string, text: string, byUserId: string, firstReply = false) {
+    await this.repo.addEvent(tx, id, "reply", text, byUserId);
+    if (firstReply) await tx.ticket.updateMany({ where: { id, firstReplyAt: null }, data: { firstReplyAt: new Date() } });
+  }
+
+  async settleSystem(tx: Prisma.TransactionClient, id: string, text: string, byUserId: string) {
+    const now = new Date();
+    await tx.ticket.update({ where: { id }, data: { status: "Closed", resolvedAt: now, closedAt: now } });
+    await tx.ticket.updateMany({ where: { id, firstReplyAt: null }, data: { firstReplyAt: now } });
+    await this.repo.addEvent(tx, id, "close", text, byUserId);
+  }
+
   /** A reply from the department or from whoever opened it; the department's reply can move the status (3.3). */
   async reply(me: CurrentUser, id: string, input: TicketReply) {
     const t = await this.openTicket(me, id);
     const handler = handles(me, t.department);
     if (!handler && t.fromUserId !== me.id) throw new ForbiddenException("الرد للقسم المسؤول ولصاحب التذكرة بس");
     if (input.status && !handler) throw new ForbiddenException("الحالة بيغيّرها القسم المسؤول");
+    if (input.status && ticketType(t.type)?.system) throw new BadRequestException(SYSTEM_TICKET);
     const now = new Date();
     const status = statusAfterReply(t.status, handler, input.status);
     const firstReply = handler && t.fromUserId !== me.id && !t.firstReplyAt; // M-06 3.2: the department's first reply
@@ -125,6 +152,7 @@ export class TicketsService {
   async transfer(me: CurrentUser, id: string, input: TransferTicket) {
     const t = await this.openTicket(me, id);
     if (!handles(me, t.department)) throw new ForbiddenException("التحويل للقسم المسؤول بس");
+    if (ticketType(t.type)?.system) throw new BadRequestException(SYSTEM_TICKET);
     if (input.department === t.department) throw new BadRequestException("التذكرة في القسم ده أصلاً");
     if (!(await this.departments()).includes(input.department)) throw new BadRequestException("القسم ده مش في قايمة أقسام التذاكر");
     await this.db.$transaction(async (tx) => {
@@ -141,6 +169,7 @@ export class TicketsService {
     const t = await this.repo.detail(this.scope(me), id);
     if (!t) throw new NotFoundException(NO_TICKET);
     if (!handles(me, t.department)) throw new ForbiddenException("القسم اللي نفّذ الطلب هو اللي يقفل التذكرة");
+    if (ticketType(t.type)?.system) throw new BadRequestException(SYSTEM_TICKET);
     if (t.status !== "Resolved") throw new BadRequestException("خلّص الطلب الأول (Resolved) وبعدين اقفلها");
     await this.db.$transaction(async (tx) => {
       if ((await this.repo.update(tx, t.id, t.status, { status: "Closed", closedAt: new Date() })).count === 0) throw new ConflictException("التذكرة اتغيّرت دلوقتي · افتحها تاني");

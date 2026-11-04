@@ -1022,3 +1022,23 @@ model FingerprintAlias {
 
   @@schema("hr")
 }
+
+/// M-05 7.4 · an Excuse: a ticket to the Team Leader, then HR; its number in the month decides what it costs.
+model ExcuseRequest {
+  id          String    @id @default(cuid())
+  employeeId  String
+  day         DateTime  @db.Date
+  reason      String
+  number      Int       // its number in the month (1, 2, 3 …)
+  status      String    @default("pending_tl") // pending_tl · approved_tl · confirmed · rejected · refused
+  ticketId    String?   @unique
+  tlUserId    String?
+  hrUserId    String?
+  rejectReason String?
+  createdById String
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([employeeId, day])
+  @@schema("hr")
+}

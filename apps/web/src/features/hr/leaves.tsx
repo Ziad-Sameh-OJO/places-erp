@@ -5,6 +5,7 @@ import type { LeaveBalancesView, LeaveCalendarView, LeaveView, MyLeaves } from "
 import { Card, Chip, Empty, ExportButton, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { FileUpload } from "@/components/file-upload";
 import { api } from "@/lib/api";
+import { ExcusesCard } from "./excuses";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const TONE: Record<LeaveView["status"], "warn" | "info" | "bad" | "ok"> = { PENDING_TL: "warn", APPROVED_BY_TL: "info", REJECTED: "bad", CLOSED_BY_HR: "ok" };
@@ -66,6 +67,7 @@ export function Leaves() {
     <>
       {mine.length > 0 && <Card title="مستنية ردك" icon="calendar" className="attn" extra={<Chip tone="warn">{mine.length}</Chip>} sub="رفض الـ Team Leader نهائي، وبيرجع للموظف بالسبب">
         <Table head={head} rows={mine.map(row)} /></Card>}
+      <ExcusesCard />
       <div className="cols wide">
         <Card title="طلبات الإجازة" icon="list"><Table head={head} empty="مفيش طلبات" rows={rest.map(row)} /></Card>
         <Card title="مين في إجازة النهارده" icon="users">

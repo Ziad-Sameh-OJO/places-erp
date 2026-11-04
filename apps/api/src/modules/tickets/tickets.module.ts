@@ -9,5 +9,6 @@ import { TicketsService } from "./tickets.service";
   imports: [SettingsModule], // «أقسام التذاكر» (M-13)
   controllers: [TicketsController],
   providers: [TicketsService, TicketsRepository],
+  exports: [TicketsService], // the Excuse (7.4) opens and settles its ticket through it
 })
 export class TicketsModule {}
