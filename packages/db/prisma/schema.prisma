@@ -158,6 +158,8 @@ model Employee {
   target          Decimal         @default(0) @db.Decimal(14, 2)
   commissionPct   Decimal         @default(0) @db.Decimal(5, 2) // the scheme, e.g. 30
   partTime        Boolean         @default(false)
+  partTimeDeductions Boolean      @default(false) // M-05 3.1: HR decides if a part-timer has deductions
+  joinedAt        DateTime?
   deductionTiers  Json?           // per-person tiers (Q33); null = company default
   fixedSchedule   String?         // e.g. CFO: Mon & Thu 17:00–19:00
   leaveBalance    Int             @default(21)
@@ -220,9 +222,19 @@ model LeaveRequest {
   reason       String?
   status       LeaveStatus @default(PENDING_TL)
   rejectReason String?
+  /// M-05 7.5: days counted, the document (sick / emergency), who decides at each step, the 24 / 48-hour chase
+  days         Int         @default(0)
+  documentId   String?
+  tlUserId     String?     // the Team Leader (or manager) who decides first; null = straight to HR
+  tlDecidedAt  DateTime?
+  hrUserId     String?
+  closedAt     DateTime?
+  remindedAt   DateTime?
+  escalatedAt  DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@index([status])
   @@schema("hr")
 }
 
@@ -233,8 +245,14 @@ model Penalty {
   day        DateTime @db.Date
   text       String
   byUserId   String
+  /// M-05 7.7: the deduction in days, and HR's approval (a TL's proposal waits for it)
+  deductionDays Decimal @default(0) @db.Decimal(4, 2)
+  status     String   @default("approved") // pending · approved · rejected
+  approvedById String?
+  decidedAt  DateTime?
   createdAt  DateTime @default(now())
 
+  @@index([day])
   @@schema("hr")
 }
 
@@ -247,6 +265,9 @@ model OneOnOne {
   hrAction    String?
   hrActionDue DateTime? @db.Date
   hrActionDone Boolean  @default(false)
+  /// M-05 7.8: who held it, and when «حل الـ HR» rang (once)
+  byUserId    String?
+  alarmedAt   DateTime?
   createdAt   DateTime  @default(now())
 
   @@schema("hr")
@@ -734,18 +755,23 @@ model Task {
 
 model Ticket {
   id           String        @id @default(cuid())
-  code         String        @unique
-  type         String        // request · excuse · hr_letter · dispute · purchase
-  department   String
+  number       Int           @unique @default(autoincrement()) // shown as TK-<number>
+  type         String        // a key of TICKET_TYPES in @places/domain: request · hr_letter · dispute · list · purchase
+  department   String        // a value of «أقسام التذاكر» (M-13); a transfer changes it, the events keep the history
   title        String
-  priority     String        @default("normal")
-  status       String        @default("Open")
+  priority     String        @default("normal") // normal · high
+  status       String        @default("Open")   // Open · In Progress · Resolved · Closed
   fromUserId   String
-  firstReplyAt DateTime?
-  resolvedAt   DateTime?
+  firstReplyAt DateTime?     // the department's first reply (M-06 3.2: response time)
+  resolvedAt   DateTime?     // settled (Resolved, or Closed straight away): «اتقفلت في الـ SLA»
+  closedAt     DateTime?
+  escalatedAt  DateTime?     // M-06 2.4: the late ticket was escalated (once)
   events       TicketEvent[]
   createdAt    DateTime      @default(now())
 
+  @@index([department, status])
+  @@index([fromUserId])
+  @@index([createdAt])
   @@schema("ops")
 }
 
@@ -753,11 +779,12 @@ model TicketEvent {
   id       String   @id @default(cuid())
   ticketId String
   ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  kind     String
+  kind     String   // open · reply · status · transfer · close · escalate
   text     String
-  byUserId String
+  byUserId String?  // null = the system (an escalation)
   at       DateTime @default(now())
 
+  @@index([ticketId, at])
   @@schema("ops")
 }
 
@@ -888,10 +915,14 @@ model KpiBands {
 
 // ───────────────────────────── M-13 / M-14 · settings, notifications, audit ─────────────────────────────
 
+/// Official holidays as ranges «من … لحد …» (an Eid is several days · 1.29); every day in between is off for the SLA.
 model Holiday {
-  day   DateTime @id @db.Date
+  id    String   @id @default(cuid())
+  from  DateTime @db.Date
+  to    DateTime @db.Date
   label String
 
+  @@index([from])
   @@schema("system")
 }
 
@@ -969,8 +1000,48 @@ model AuditLog {
   @@schema("system")
 }
 
-// 10.4 · office assets & office boys
-// ───────────────────────────── M-08 · office assets register & office boys' rota ─────────────────────────────
+/// M-05 7.12 · a name in a fingerprint sheet that matched nobody: waits for HR to link it.
+model FingerprintUnmatched {
+  id           String   @id @default(cuid())
+  name         String
+  day          DateTime @db.Date
+  checkIn      String?  // HH:MM, Cairo
+  checkOut     String?
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@unique([name, day])
+  @@schema("hr")
+}
+
+/// A sheet / device name HR linked to an employee once; the next sheets match it by itself.
+model FingerprintAlias {
+  name       String   @id // normalised (normName)
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  @@schema("hr")
+}
+
+/// M-05 7.4 · an Excuse: a ticket to the Team Leader, then HR; its number in the month decides what it costs.
+model ExcuseRequest {
+  id          String    @id @default(cuid())
+  employeeId  String
+  day         DateTime  @db.Date
+  reason      String
+  number      Int       // its number in the month (1, 2, 3 …)
+  status      String    @default("pending_tl") // pending_tl · approved_tl · confirmed · rejected · refused
+  ticketId    String?   @unique
+  tlUserId    String?
+  hrUserId    String?
+  rejectReason String?
+  createdById String
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([employeeId, day])
+  @@schema("hr")
+}
 
 /// M-08 3.1 · the office assets register Mokhtar keeps (KPI M-12: updated and reviewed every month).
 model OfficeAsset {

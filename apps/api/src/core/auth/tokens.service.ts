@@ -25,6 +25,12 @@ export class TokensService {
     return secret;
   }
 
+  /** When the live (unused, unexpired) token of this kind was sent, or null if there is none. */
+  async liveSince(userId: string, kind: TokenKind): Promise<Date | null> {
+    const t = await this.db.authToken.findFirst({ where: { userId, kind, usedAt: null, expiresAt: { gt: new Date() } }, select: { createdAt: true } });
+    return t?.createdAt ?? null;
+  }
+
   /** Returns the userId and burns the token, or null if it is unknown, expired or already used. */
   async consume(secret: string, kind: TokenKind, userId?: string): Promise<string | null> {
     const id = sha256(kind === "OTP" ? `${userId}:${secret}` : secret);
