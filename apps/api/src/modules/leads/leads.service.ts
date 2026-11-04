@@ -1,13 +1,14 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
+import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
 import { LeadDuplicatesService } from "./duplicates.service";
+import { LeadRulesService } from "./lead-rules.service";
 import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 
@@ -30,6 +31,7 @@ export class LeadsService {
     private readonly duplicates: LeadDuplicatesService,
     private readonly settings: SettingsService,
     private readonly time: BusinessTimeService,
+    private readonly rules: LeadRulesService,
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
@@ -50,11 +52,11 @@ export class LeadsService {
   /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */
   async summary(me: CurrentUser, q: SummaryQuery): Promise<LeadSummary> {
     const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
-    const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], { slaRules }, holidayMode] = await Promise.all([
+    const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], rules, holidayMode] = await Promise.all([
       this.repo.summary(ownedBy(me) as never, q.kind === "broker" ? "BROKER" : "CLIENT", new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
-      this.settings.all(), this.time.isHolidayToday(),
+      this.rules.get(), this.time.isHolidayToday(),
     ]);
-    return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules };
+    return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on };
   }
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
@@ -71,11 +73,12 @@ export class LeadsService {
     return { campaigns, salespeople };
   }
 
-  /** The SLA as the list shows it, with the admin's rules (M-13), the official holidays and today's holiday mode. */
+  /** The SLA as the list shows it, with «قواعد الليدز» (1.29: its times, its working hours) and the official holidays. */
   private async slaClock(now = new Date()): Promise<SlaClock> {
-    const [{ slaRules }, calendar, holidayMode] = await Promise.all([this.settings.all(), this.time.calendar(), this.time.isHolidayToday(now)]);
+    const [rules, calendar, holidayMode] = await Promise.all([this.rules.get(), this.time.calendar(), this.time.isHolidayToday(now)]);
+    const slaRules = slaRulesOf(rules);
     return (r) => {
-      if (!r.assignedAt) return null; // not with a salesperson yet: no clock
+      if (!r.assignedAt || !rules.sla.on) return null; // not with a salesperson yet, or the SLA rule is switched off: no clock
       const stage = (STAGE_LABEL.get(r.stage) ?? r.stage) as LeadStage;
       const v = slaView({ stage, touched: r.touched, ownedByTelesales: r.ownedByTelesales, assignedAt: r.assignedAt }, now, { holidayMode, rules: slaRules, calendar });
       return v && { level: v.level, minutesLeft: v.minutesLeft, pct: v.pct };

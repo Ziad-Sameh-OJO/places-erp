@@ -165,15 +165,23 @@ test("settings: everyone reads the lists, only master:edit changes them, bad val
     // a value is never removed through the API (12.7): the test puts the list back directly
     if (saved) await prisma.setting.update({ where: { key: "areas" }, data: { value: saved.value as never } });
   }
-  const bad = { warnAfter: 200, pullAfter: 180, holidayWarnAfter: 1320, holidayPullAfter: 1440 };
-  assert.equal((await call("/settings/slaRules", { method: "PUT", cookie: admin, body: { value: bad } })).status, 400);
+  // the SLA times moved to «قواعد الليدز» (1.29): «slaRules» isn't a setting any more
+  assert.equal((await call("/settings/slaRules", { method: "PUT", cookie: admin, body: { value: { warnAfter: 100, pullAfter: 200 } } })).status, 400);
   assert.equal((await call("/settings/nonsense", { method: "PUT", cookie: admin, body: { value: 1 } })).status, 400);
 });
 
-test("holidays: add and remove, both audited", async () => {
-  assert.equal((await call("/settings/holidays", { method: "POST", cookie: admin, body: { day: "2027-01-07", label: "E2E holiday" } })).status, 204);
-  assert.ok((await call("/settings/holidays", { cookie: sales })).body.some((h: { label: string }) => h.label === "E2E holiday"));
-  assert.equal((await call("/settings/holidays/2027-01-07", { method: "DELETE", cookie: admin })).status, 204);
+test("holidays «من … لحد …» (1.29): add and remove, both audited; a backwards range is refused", async () => {
+  const made = await call("/settings/holidays", { method: "POST", cookie: admin, body: { from: "2027-03-09", to: "2027-03-12", label: "E2E عيد" } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  assert.deepEqual({ ...made.body, id: undefined }, { id: undefined, from: "2027-03-09", to: "2027-03-12", label: "E2E عيد" });
+  assert.ok((await call("/settings/holidays", { cookie: sales })).body.some((h: { id: string }) => h.id === made.body.id));
+  assert.equal((await call("/settings/holidays", { method: "POST", cookie: sales, body: { from: "2027-03-09", to: "2027-03-09", label: "E2E x" } })).status, 403);
+  const back = await call("/settings/holidays", { method: "POST", cookie: admin, body: { from: "2027-03-12", to: "2027-03-09", label: "E2E غلط" } });
+  assert.equal(back.status, 400);
+  assert.match(JSON.stringify(back.body), /لحد/);
+  assert.equal((await call(`/settings/holidays/${made.body.id}`, { method: "DELETE", cookie: admin })).status, 204);
+  assert.equal((await call(`/settings/holidays/${made.body.id}`, { method: "DELETE", cookie: admin })).status, 404);
+  assert.deepEqual((await prisma.auditLog.findMany({ where: { entity: "Holiday", entityId: made.body.id }, orderBy: { at: "asc" } })).map((a) => a.action), ["create", "delete"]);
 });
 
 test("notification rules: the admin turns email off for an event; my own email preference", async () => {
@@ -214,7 +222,7 @@ test("Excel export: the filtered users as .xlsx for whoever has «export»; othe
 async function holidaySheet(rows: unknown[][]) {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Sheet1");
-  sheet.addRow(["الإجازة", "ملاحظة", "التاريخ"]); // any column order, extra columns ignored
+  sheet.addRow(["الإجازة", "ملاحظة", "من", "لحد"]); // any column order, extra columns ignored
   for (const r of rows) sheet.addRow(r);
   return new Blob([await book.xlsx.writeBuffer()]);
 }
@@ -228,27 +236,31 @@ test("Excel import: preview shows errors by line and saves nothing; a clean shee
   const tpl = await fetch(`${API}/settings/holidays/import/template`, { headers: { cookie: admin } });
   assert.equal(tpl.status, 200);
   const bad = await holidaySheet([
-    ["E2E عيد", "", new Date(Date.UTC(2091, 3, 10))],   // a real Excel date cell
-    ["E2E غلط", "", "2091-02-30"],
-    ["", "", ""],                                       // blank line: skipped
-    ["E2E مكرر", "", "2091-04-10"],
-    ["x", "", "2091-05-01"],
+    ["E2E عيد", "", new Date(Date.UTC(2091, 3, 10)), ""], // a real Excel date cell · «لحد» empty = one day
+    ["E2E غلط", "", "2091-02-30", ""],
+    ["", "", "", ""],                                       // blank line: skipped
+    ["E2E مكرر", "", "2091-04-10", "2091-04-10"],
+    ["x", "", "2091-05-01", "2091-04-01"],                  // short name, and «لحد» before «من»
   ]);
   const p = await (await upload("/settings/holidays/import/preview", bad, admin)).json();
   assert.equal(p.total, 4);
   assert.equal(p.valid, 1);
   assert.deepEqual(p.errors.map((e: { line: number }) => e.line), [3, 5, 6]);
-  assert.equal(p.errors[0].column, "التاريخ");
-  assert.equal(p.sample[0].day, "2091-04-10");
+  assert.equal(p.errors[0].column, "من");
+  assert.deepEqual([p.sample[0].from, p.sample[0].to], ["2091-04-10", "2091-04-10"]);
   assert.equal((await upload("/settings/holidays/import", bad, admin)).status, 400);
   assert.equal(await prisma.holiday.count({ where: { label: { startsWith: "E2E" } } }), 0);
 
-  const csv = new Blob(["التاريخ,الإجازة\n2091-04-10,E2E عيد\n2091-07-23,E2E ثورة\n"]);
+  const csv = new Blob(["من,لحد,الإجازة\n2091-04-10,,E2E عيد\n2091-07-23,2091-07-24,E2E ثورة\n"]);
   assert.equal((await upload("/settings/holidays/import", csv, sales, "h.csv")).status, 403);
   const done = await upload("/settings/holidays/import", csv, admin, "h.csv");
   assert.deepEqual(await done.json(), { imported: 2 });
-  const saved = await prisma.holiday.findMany({ where: { label: { startsWith: "E2E" } }, orderBy: { day: "asc" } });
-  assert.deepEqual(saved.map((h) => h.day.toISOString().slice(0, 10)), ["2091-04-10", "2091-07-23"]); // no timezone shift
+  const saved = await prisma.holiday.findMany({ where: { label: { startsWith: "E2E" } }, orderBy: { from: "asc" } });
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  assert.deepEqual(saved.map((h) => [day(h.from), day(h.to)]), [["2091-04-10", "2091-04-10"], ["2091-07-23", "2091-07-24"]]); // no timezone shift
+  // the same sheet again: the same ranges, no second copy
+  assert.deepEqual(await (await upload("/settings/holidays/import", csv, admin, "h.csv")).json(), { imported: 2 });
+  assert.equal(await prisma.holiday.count({ where: { label: { startsWith: "E2E" } } }), 2);
   const log = await call("/access/audit?entityId=import", { cookie: nancy });
   assert.equal(log.body.items[0].action, "import");
   assert.deepEqual(log.body.items[0].after, { rows: 2 });

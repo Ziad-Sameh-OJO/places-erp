@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Settings } from "@places/contracts";
+import type { HolidayView, Settings } from "@places/contracts";
+import { durationText, type LeadRules } from "@places/domain";
+import { Holidays } from "@/components/holidays";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { Card, Chip, Field, Icon, ImportDialog, Note, Table, Tabs, useAction } from "@/components/ui";
+import { Card, Chip, Icon, ImportDialog, Note, Table, Tabs, useAction } from "@/components/ui";
 
 import { ListsTab } from "./lists";
 
@@ -17,7 +19,7 @@ export function SettingsPage() {
   const [tab, setTab] = useState<"lists" | "stages" | "time" | "holidays">("lists");
   const [importing, setImporting] = useState(false);
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
-  const holidays = useQuery({ queryKey: ["holidays"], queryFn: () => api.get<{ day: string; label: string }[]>("/settings/holidays") });
+  const holidays = useQuery({ queryKey: ["holidays"], queryFn: () => api.get<HolidayView[]>("/settings/holidays") });
   const stages = useQuery({ queryKey: ["stages"], queryFn: () => api.get<{ stage: string; qualified: boolean }[]>("/settings/stages"), enabled: tab === "stages" });
   const set = <K extends keyof Settings>(key: K, value: Settings[K], ok = "اتحفظ · ظاهر في كل الشاشات") =>
     run(async () => { await api.put(`/settings/${key}`, { value }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, ok);
@@ -36,15 +38,7 @@ export function SettingsPage() {
       </Card>}
 
       {tab === "time" && <div className="cols">
-        <Card title="قواعد الـ SLA" icon="clock" sub="بالدقايق · أيام الشغل 11:00–19:00، والإجازات بالساعة العادية">
-          <form className="grid" action={(f) => set("slaRules", { warnAfter: +f.get("w")!, pullAfter: +f.get("p")!, holidayWarnAfter: +f.get("hw")!, holidayPullAfter: +f.get("hp")! })}>
-            <Field label="تنبيه الـ TL (دقايق شغل)"><input name="w" type="number" min={10} defaultValue={d.slaRules.warnAfter} disabled={!ed} /></Field>
-            <Field label="سحب الليد (دقايق شغل)"><input name="p" type="number" min={10} defaultValue={d.slaRules.pullAfter} disabled={!ed} /></Field>
-            <Field label="تنبيه في الإجازة (دقايق)"><input name="hw" type="number" min={10} defaultValue={d.slaRules.holidayWarnAfter} disabled={!ed} /></Field>
-            <Field label="سحب في الإجازة (دقايق)"><input name="hp" type="number" min={10} defaultValue={d.slaRules.holidayPullAfter} disabled={!ed} /></Field>
-            {ed && <div className="row end wide"><button className="btn sm">احفظ القواعد</button></div>}
-          </form>
-        </Card>
+        <SlaSummary />
         <Card title="أنواع الإجازات" icon="calendar">
           <form action={(f) => set("leaveTypes", d.leaveTypes.map((x, i) => ({ ...x, days: +f.get(`d${i}`)! })))}>
             <Table head={["النوع", "الرصيد السنوي"]} rows={d.leaveTypes.map((x, i) => [x.name, <input key="d" name={`d${i}`} type="number" min={0} max={60} defaultValue={x.days} disabled={!ed} style={{ maxWidth: 90 }} aria-label={`رصيد ${x.name}`} />])} />
@@ -59,20 +53,32 @@ export function SettingsPage() {
         </Card>
       </div>}
 
-      {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="في يوم الإجازة الـ SLA بيمشي بالساعة العادية، والبصمة متحسبش غياب"
+      {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="من يوم لـ يوم (زي العيد) · في أيامها الـ SLA بيمشي بمواعيد يوم الإجازة ومابتتحسبش في ساعات الشغل"
         extra={ed && <button className="btn ghost sm" onClick={() => setImporting(true)}><Icon name="upload" />استيراد Excel</button>}>
-        <Table head={["اليوم", "الإجازة", ""]} empty="مفيش إجازات متسجلة" rows={(holidays.data ?? []).map((h) => {
-          const day = h.day.slice(0, 10);
-          return [new Date(`${day}T12:00:00`).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long", year: "numeric" }), h.label,
-            ed ? <button key="x" className="btn ghost sm" aria-label={`شيل ${h.label}`} onClick={() => run(async () => { await api.del(`/settings/holidays/${day}`); await qc.invalidateQueries({ queryKey: ["holidays"] }); }, "اتشالت")}><Icon name="x" /></button> : ""];
-        })} />
-        {ed && <form className="row" action={(f) => run(async () => { await api.post("/settings/holidays", { day: f.get("day"), label: f.get("label") }); await qc.invalidateQueries({ queryKey: ["holidays"] }); }, "اتضافت")}>
-          <input type="date" name="day" required aria-label="اليوم" /><input name="label" placeholder="اسم الإجازة" required minLength={2} aria-label="اسم الإجازة" /><button className="btn ghost">+ إضافة</button>
-        </form>}
+        <Holidays path="/settings/holidays" editable={ed} />
       </Card>}
-      {importing && <ImportDialog<{ day: string; label: string }> title="استيراد الإجازات الرسمية" path="/settings/holidays/import" template="قالب الإجازات الرسمية.xlsx"
-        columns={[["day", "التاريخ"], ["label", "الإجازة"]]} onClose={() => setImporting(false)}
+      {importing && <ImportDialog<{ from: string; to: string; label: string }> title="استيراد الإجازات الرسمية" path="/settings/holidays/import" template="قالب الإجازات الرسمية.xlsx"
+        columns={[["from", "من"], ["to", "لحد"], ["label", "الإجازة"]]} onClose={() => setImporting(false)}
         onDone={() => { setImporting(false); void qc.invalidateQueries({ queryKey: ["holidays"] }); }} />}
     </>
+  );
+}
+
+/** The demo's «قواعد الـ SLA» card: the numbers live in «قواعد الليدز» now (1.29), this shows them and links there. */
+function SlaSummary() {
+  const { can } = useMe();
+  const rules = useQuery({ queryKey: ["lead-rules"], queryFn: () => api.get<LeadRules>("/leads/rules"), enabled: can("settings", "view") });
+  const r = rules.data;
+  return (
+    <Card title="قواعد الـ SLA" icon="clock">
+      {r ? (
+        <ul className="rules">
+          <li><b>تنبيه</b><span>{durationText(r.sla.warnMin)} (أيام الشغل) · {durationText(r.sla.holWarnMin)} (الإجازات)</span></li>
+          <li><b>سحب الليد</b><span>{durationText(r.sla.pullMin)} · {durationText(r.sla.holPullMin)} في الإجازات</span></li>
+          <li><b>No Answer</b><span>{durationText(r.noAnswer.hours * 60)} عند كل سيلز · Telesales في الروتيشن رقم {r.noAnswer.toTelesalesAt}</span></li>
+        </ul>
+      ) : <p className="hint">المواعيد والمسؤولين في «قواعد الليدز والتوزيع».</p>}
+      {can("settings", "view") && <a className="btn ghost sm" href="/settings">عدّل من قواعد الليدز</a>}
+    </Card>
   );
 }

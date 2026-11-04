@@ -386,9 +386,9 @@ test("hard cases: huge amounts refused (no 500), every refusal in Arabic, no fut
   assert.equal((await call(`/inventory/units/${big.id}`, { cookie: manar })).body.totalPrice, "999999999000.00");
   assert.equal((await call("/inventory/units?minPrice=-5", { cookie: manar })).status, 400);
 
-  // the agent who brought a unit stays on it after leaving; a new unit can't take them. Sara is no other test's
-  // account, so switching her off for a moment doesn't disturb the files running alongside this one.
-  const user = await prisma.user.findUniqueOrThrow({ where: { email: "sara.abdelhalim@places.com" }, include: { employee: true } });
+  // the agent who brought a unit stays on it after leaving; a new unit can't take them. A person made for this test
+  // (invited, never active): switching a real account off would change the counts other test files compare meanwhile.
+  const user = await prisma.user.create({ data: { email: `e2e-agent-${stamp}@places.test`, employee: { create: { name: `E2E وكيل ${stamp}`, jobTitle: "Sales", department: "Sales", salary: 0 } } }, include: { employee: true } });
   const departed = { project: `${P} Departed`, agentId: user.employee!.id };
   const u = await create(manar, rent(departed));
   await prisma.user.update({ where: { id: user.id }, data: { status: "DISABLED" } });
@@ -396,6 +396,8 @@ test("hard cases: huge amounts refused (no 500), every refusal in Arabic, no fut
     assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: manar, body: rent({ ...departed, floor: "7" }) })).status, 200);
     assert.equal((await post(rent(departed))).status, 400);
   } finally {
-    await prisma.user.update({ where: { id: user.id }, data: { status: "ACTIVE" } });
+    await prisma.unit.deleteMany({ where: { agentId: user.employee!.id } });
+    await prisma.employee.delete({ where: { id: user.employee!.id } });
+    await prisma.user.delete({ where: { id: user.id } });
   }
 });

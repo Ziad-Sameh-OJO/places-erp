@@ -38,6 +38,18 @@ export class LeadsRepository {
     });
   }
 
+  /** People still working here, by user id (the rules name people: «مين يتبلّغ», 1.29). */
+  activePeople() {
+    return this.db.employee.findMany({ where: { user: { status: { not: "DISABLED" } } }, select: { userId: true, name: true }, orderBy: { name: "asc" } })
+      .then((rows) => rows.map((r) => ({ id: r.userId, name: r.name })));
+  }
+
+  /** People with a role, still working here, by user id (the Telesales who receive No Answer leads). */
+  activeWithRole(role: string) {
+    return this.db.employee.findMany({ where: { user: { status: { not: "DISABLED" }, roles: { some: { role: { key: role } } } } }, select: { userId: true, name: true }, orderBy: { name: "asc" } })
+      .then((rows) => rows.map((r) => ({ id: r.userId, name: r.name })));
+  }
+
   /** The salespeople the routing table lists (the demo's «السيلز»): people with the sales role, still working here. */
   routingPeople() {
     return this.db.employee.findMany({
