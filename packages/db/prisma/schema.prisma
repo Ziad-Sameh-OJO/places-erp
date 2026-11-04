@@ -158,6 +158,8 @@ model Employee {
   target          Decimal         @default(0) @db.Decimal(14, 2)
   commissionPct   Decimal         @default(0) @db.Decimal(5, 2) // the scheme, e.g. 30
   partTime        Boolean         @default(false)
+  partTimeDeductions Boolean      @default(false) // M-05 3.1: HR decides if a part-timer has deductions
+  joinedAt        DateTime?
   deductionTiers  Json?           // per-person tiers (Q33); null = company default
   fixedSchedule   String?         // e.g. CFO: Mon & Thu 17:00–19:00
   leaveBalance    Int             @default(21)
