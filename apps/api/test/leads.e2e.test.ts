@@ -486,3 +486,40 @@ test("Logs: the admin opens it to a role → that role sees it; still only insid
   assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: tlOnly })).status, 403);
   assert.equal((await call(`/leads/${logLeadId}`, { cookie: tl })).body.canSeeLogs, true); // Abdallah: his sales role counts
 });
+
+/* ---------------- 1.28 Client / Broker: two tabs, the same filters in both ---------------- */
+
+const kindLeads: string[] = [];
+after(async () => { await prisma.lead.deleteMany({ where: { id: { in: kindLeads } } }); });
+
+test("a broker isn't in «الليدز»; the filters apply to both tabs and their counts; selfEntered marks a salesperson's own lead", async () => {
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const mk = async (cookie: string, n: number, extra: object) => {
+    const r = await call("/leads", { method: "POST", cookie, body: { name: `E2E-K ${stamp} ${n}`, phones: [`0129${stamp.slice(-6)}${n}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook", ...extra } });
+    assert.equal(r.status, 201, JSON.stringify(r.body)); kindLeads.push(r.body.id); return r.body.id as string;
+  };
+  const broker = await mk(ops, 1, { kind: "broker", assignToId: mohsenId });
+  const client = await mk(ops, 2, { assignToId: mohsenId }); // no kind: a client
+  const own = await mk(mohsen, 3, {});
+
+  const names = async (cookie: string, q: string) => (await call(`/leads?q=${encodeURIComponent(`E2E-K ${stamp}`)}&pageSize=50${q}`, { cookie })).body.items.map((l: { id: string; kind: string }) => [l.id, l.kind]);
+  assert.deepEqual((await names(ops, "&kind=client")).map((x: string[]) => x[0]).sort(), [client, own].sort());
+  assert.deepEqual(await names(ops, "&kind=broker"), [[broker, "broker"]]);
+
+  const tabs = async (cookie: string, q: string) => (await call(`/leads/tabs?q=${encodeURIComponent(`E2E-K ${stamp}`)}${q}`, { cookie })).body;
+  assert.deepEqual(await tabs(ops, ""), { client: 2, broker: 1 });
+  assert.deepEqual(await tabs(ops, `&assignedToId=${mohsenId}&kind=broker`), { client: 2, broker: 1 }); // the tab itself doesn't narrow the counts
+  const eidId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.eid@places.com" } } })).id;
+  assert.deepEqual(await tabs(ops, `&assignedToId=${eidId}`), { client: 0, broker: 0 }); // the salesperson filter applies to both
+  assert.deepEqual(await tabs(mohsen, ""), { client: 2, broker: 1 }); // all three are his
+  assert.equal((await call("/leads/tabs", { cookie: hr })).status, 403);
+
+  const board = (await call(`/leads/board?q=${encodeURIComponent(`E2E-K ${stamp}`)}&kind=broker`, { cookie: ops })).body;
+  assert.equal(board.lanes.reduce((n: number, l: { total: number }) => n + l.total, 0), 1);
+  const sumBroker = (await call("/leads/summary?kind=broker", { cookie: ops })).body.total;
+  assert.ok(sumBroker >= 1);
+
+  const flags = await prisma.lead.findMany({ where: { id: { in: kindLeads } }, select: { id: true, selfEntered: true } });
+  assert.deepEqual(Object.fromEntries(flags.map((f) => [f.id, f.selfEntered])), { [broker]: false, [client]: false, [own]: true });
+  assert.equal((await call("/leads", { method: "POST", cookie: ops, body: { name: "x x", phones: ["01099990001"], area: "x", type: "Rent", channel: "Facebook", kind: "agent" } })).status, 400);
+});

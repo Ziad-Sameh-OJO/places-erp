@@ -254,6 +254,14 @@ model OneOnOne {
 
 // ───────────────────────────── M-01 · leads & companies ─────────────────────────────
 
+/// A lead is a client or a broker (client meeting 4 Nov · 1.28).
+enum LeadKind {
+  CLIENT
+  BROKER
+
+  @@schema("sales")
+}
+
 enum LeadStage {
   FRESH
   INTERESTED
@@ -288,6 +296,8 @@ model Lead {
   campaignId     String?
   campaign       Campaign?     @relation(fields: [campaignId], references: [id])
   stage          LeadStage     @default(FRESH)
+  kind           LeadKind      @default(CLIENT) // client meeting 4 Nov (1.28): brokers have their own tab, same stages
+  selfEntered    Boolean       @default(false)  // the salesperson entered it himself (KPI 11.15)
   qualified      Boolean       @default(false) // sticky, see isQualifiedAfter
   assignedToId   String?
   assignedAt     DateTime?
@@ -316,6 +326,7 @@ model Lead {
   archivedAt     DateTime?
 
   @@index([assignedToId, stage])
+  @@index([kind])
   @@index([area])
   @@index([createdAt])
   @@index([phones], type: Gin) // the duplicate check on every new lead

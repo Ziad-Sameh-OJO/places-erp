@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, MyCalls, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
 import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -48,13 +48,19 @@ export class LeadsService {
   }
 
   /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */
-  async summary(me: CurrentUser): Promise<LeadSummary> {
+  async summary(me: CurrentUser, q: SummaryQuery): Promise<LeadSummary> {
     const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
     const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], { slaRules }, holidayMode] = await Promise.all([
-      this.repo.summary(ownedBy(me) as never, new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
+      this.repo.summary(ownedBy(me) as never, q.kind === "broker" ? "BROKER" : "CLIENT", new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
       this.settings.all(), this.time.isHolidayToday(),
     ]);
     return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules };
+  }
+
+  /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
+  async tabs(me: CurrentUser, f: LeadFilters): Promise<LeadTabCounts> {
+    const counts = new Map((await this.repo.tabCounts(ownedBy(me) as never, f)).map((c) => [c.kind, c._count._all]));
+    return { client: counts.get("CLIENT") ?? 0, broker: counts.get("BROKER") ?? 0 };
   }
 
   /** The filters' choices: campaigns, and the salespeople a person may filter by (a TL their team; sales nobody). */
@@ -181,6 +187,7 @@ export class LeadsService {
           condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, campaignId: input.campaignId ?? null,
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
           ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
+          kind: input.kind === "broker" ? "BROKER" : "CLIENT", selfEntered: placement.kind === "own", // 1.28 · KPI 11.15
           companyId: company?.id ?? null, note: input.note ?? null,
         },
       });
@@ -241,9 +248,9 @@ const iso = (d: Date | null) => d?.toISOString() ?? null;
 
 type SlaClock = (r: Pick<LeadRecord, "stage" | "touched" | "ownedByTelesales" | "assignedAt">) => LeadRow["sla"];
 
-function toRow({ assignedToId, budget, ...r }: LeadRecord, names: Map<string, string>, sla: SlaClock): LeadRow {
+function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<string, string>, sla: SlaClock): LeadRow {
   return {
-    ...r, budget: budget?.toFixed(2) ?? null, // money on the wire is a decimal string
+    ...r, kind: kind === "BROKER" ? "broker" : "client", budget: budget?.toFixed(2) ?? null, // money on the wire is a decimal string
     stage: STAGE_LABEL.get(r.stage) ?? r.stage, sla: sla(r),
     assignedTo: assignedToId ? { id: assignedToId, name: names.get(assignedToId) ?? "" } : null,
     assignedAt: iso(r.assignedAt), arrivedAt: r.arrivedAt.toISOString(), createdAt: r.createdAt.toISOString(),
