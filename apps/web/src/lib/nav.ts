@@ -7,7 +7,7 @@ export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon:
   leads: { label: "العملاء المحتملين", code: "M-01", icon: "users", section: "المبيعات", short: "الليدز", sub: "Create lead · توزيع بالـ area · SLA · المراحل · Qualified · روتيشن No Answer" },
   settings: { label: "قواعد الليدز والتوزيع", code: "Routing", icon: "route", section: "المبيعات", short: "قواعد الليدز", sub: "التوزيع والمواعيد والـ SLA والـ No Answer والإقفال · كل رقم وكل شخص مسؤول بيتعدّل من هنا" },
   inventory: { label: "مخزون الوحدات", code: "M-03", icon: "building", section: "العمليات", short: "الوحدات", sub: "Rent · Resale · Income في قايمة واحدة بفلتر، وتابات المساحات تحت زي الشيت" },
-  hr: { label: "الموارد البشرية", code: "M-05", icon: "id", section: "الإدارة", short: "الـ HR", sub: "فايل كل موظف: المرتب والتارجت والعمولة والدوام وشرايح الخصم والمواعيد الخاصة" },
+  hr: { label: "الموارد البشرية", code: "M-05", icon: "id", section: "الإدارة", short: "الـ HR", sub: "الحضور بالبصمة والشرايح · التاريخ · الـ Weekly Delay · فايل كل موظف" },
   access: { label: "الأدوار والصلاحيات", code: "M-09", icon: "lock", section: "النظام", short: "الصلاحيات", sub: "الأدوار ومصفوفة الصلاحيات · المستخدمين · Audit Log" },
   master: { label: "الإعدادات", code: "M-13", icon: "filter", section: "النظام", sub: "القوايم والقواعد اللي بيتبني عليها السيستم · بتتعدّل من غير برمجة" },
   integrations: { label: "الإشعارات والإيميل", code: "M-14", icon: "bolt", section: "النظام", short: "الإشعارات", sub: "الإشعارات بتوصل جوه السيستم وعلى الإيميل · قواعد كل حدث" },

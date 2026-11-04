@@ -32,6 +32,9 @@ test("HR lists everyone, a TL only his team, sales 403 (M-09 2.7 scope)", async 
   const team = (await call("/hr/employees", { cookie: tl })).body;
   assert.ok(team.items.length >= 1 && team.items.length < all.items.length);
   assert.equal((await call("/hr/employees", { cookie: sales })).status, 403);
+  // a TL asking for someone outside his team gets nothing (not his own first team member), and a filter can't widen the scope
+  assert.equal((await call(`/hr/employees/${target.id}`, { cookie: tl })).status, 404);
+  assert.ok((await call("/hr/employees?department=HR", { cookie: tl })).body.items.every((e: { id: string }) => team.items.some((t: { id: string }) => t.id === e.id)));
   assert.ok((await call("/hr/employees?q=مختار", { cookie: basant })).body.items.some((e: { id: string }) => e.id === target.id));
 });
 

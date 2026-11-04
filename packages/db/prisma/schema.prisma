@@ -974,3 +974,26 @@ model AuditLog {
   @@index([entity, entityId])
   @@schema("system")
 }
+
+/// M-05 7.12 · a name in a fingerprint sheet that matched nobody: waits for HR to link it.
+model FingerprintUnmatched {
+  id           String   @id @default(cuid())
+  name         String
+  day          DateTime @db.Date
+  checkIn      String?  // HH:MM, Cairo
+  checkOut     String?
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@unique([name, day])
+  @@schema("hr")
+}
+
+/// A sheet / device name HR linked to an employee once; the next sheets match it by itself.
+model FingerprintAlias {
+  name       String   @id // normalised (normName)
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  @@schema("hr")
+}
