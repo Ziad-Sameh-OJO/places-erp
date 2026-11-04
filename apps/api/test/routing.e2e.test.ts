@@ -1,7 +1,7 @@
 /**
  * 1.12 · «إعدادات توزيع المناطق»: who covers each area (M-01 Q1). The settings module: Operations Head / Sales
  * Director / admin edit, Operations reads, sales can't see it. A change routes the next lead differently.
- * The routing setting and the rotation state are put back as they were.
+ * Only this file's area is put back as it was: other test files change other areas at the same time.
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import { call, session } from "./helpers.ts";
 const stamp = String(Date.now());
 const AREA = "مدينة نصر";
 let admin: string, salesdir: string, ops: string, sales: string, a: string, b: string, hrEmployee: string;
-let saved: { routing: unknown; areaRouting: unknown };
+let savedPool: string[] | undefined;
 const leads: string[] = [];
 
 before(async () => {
@@ -21,15 +21,12 @@ before(async () => {
   const people = (await call("/leads/routing", { cookie: admin })).body.salespeople as { id: string }[];
   [a, b] = [people[0]!.id, people[1]!.id];
   hrEmployee = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "basant.elsawy@places.com" } } })).id;
-  const get = async (key: string) => (await prisma.setting.findUnique({ where: { key } }))?.value;
-  saved = { routing: await get("routing"), areaRouting: await get("areaRouting") };
+  savedPool = ((await prisma.setting.findUnique({ where: { key: "areaRouting" } }))?.value as Record<string, string[]> | undefined)?.[AREA];
 });
 after(async () => {
   await prisma.lead.deleteMany({ where: { id: { in: leads } } });
-  for (const [key, value] of Object.entries(saved)) {
-    if (value === undefined) await prisma.setting.deleteMany({ where: { key } });
-    else await prisma.setting.update({ where: { key }, data: { value: value as never } });
-  }
+  // this area only, in one statement, so a change another file made to another area meanwhile stays
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = CASE WHEN ${savedPool === undefined} THEN "value" - ${AREA} ELSE jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify(savedPool ?? [])}::jsonb) END WHERE "key" = 'areaRouting'`;
   await prisma.auditLog.deleteMany({ where: { entity: "AreaRouting", at: { gte: new Date(Number(stamp)) } } });
   await prisma.$disconnect();
 });

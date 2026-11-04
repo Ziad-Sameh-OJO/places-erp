@@ -118,7 +118,8 @@ export interface LeadSummary {
   /** leads that came in the last 7 days and the 7 before, for «مقارنة بالأسبوع اللي فات» */
   thisWeek: number; lastWeek: number;
   /** an official holiday today: the SLA runs on wall-clock hours (the note under the list says so) */
-  holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number };
+  /** today is an official holiday; the SLA times (minutes) from «قواعد الليدز» (1.29), and whether that rule is on */
+  holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number }; slaOn: boolean;
 }
 
 /** One line of a lead's «Logs» tab: recorded automatically, a person's comment, or an audit entry (1.25). */

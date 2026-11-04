@@ -189,21 +189,19 @@ test("a stage change is an action too: it stops the SLA clock and goes on top of
 /* ---------------- 1.4 Telesales: «يفضل عندي» or «التوزيع» ---------------- */
 
 const AREA = `E2E منطقة ${stamp}`;
-let hadeer: string, savedRouting: unknown;
+let hadeer: string;
 const teleLeads: string[] = [];
 before(async () => {
   hadeer = await session("hadeer.tarek@places.com");
   const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
-  // a test area covered by Mohsen only, so «التوزيع» has someone to go to (1.12 will manage these from a screen)
-  const row = await prisma.setting.findUnique({ where: { key: "areaRouting" } });
-  savedRouting = row?.value;
-  const pools = { ...((row?.value ?? {}) as Record<string, string[]>), [AREA]: [mohsenId] };
-  await prisma.setting.upsert({ where: { key: "areaRouting" }, update: { value: pools }, create: { key: "areaRouting", value: pools } });
+  // a test area covered by Mohsen only, so «التوزيع» has someone to go to. Only that area is touched, in one
+  // statement: the routing tests (1.12) change other areas at the same time.
+  await prisma.setting.upsert({ where: { key: "areaRouting" }, update: {}, create: { key: "areaRouting", value: {} } });
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([mohsenId])}::jsonb) WHERE "key" = 'areaRouting'`;
 });
 after(async () => {
   await prisma.lead.deleteMany({ where: { id: { in: teleLeads } } });
-  if (savedRouting === undefined) await prisma.setting.deleteMany({ where: { key: "areaRouting" } });
-  else await prisma.setting.update({ where: { key: "areaRouting" }, data: { value: savedRouting as never } });
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = "value" - ${AREA} WHERE "key" = 'areaRouting'`;
 });
 
 const teleLead = async (cookie: string, n: number, extra: object) => {
