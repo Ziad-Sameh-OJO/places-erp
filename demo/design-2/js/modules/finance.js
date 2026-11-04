@@ -57,7 +57,7 @@
   const advPlan = (id, mk) => { const st = S(), m = mk || A.today().slice(0, 7); if (advPosted(m)) return (st.advDeds || []).filter((x) => x.emp === id && x.month === m).reduce((s, x) => s + x.amount, 0);
     const v = ((st.advPlan || {})[m] || {})[id] ?? (st.advMonthly || {})[id]; return Math.min(advLeft(id), v == null ? advLeft(id) : +v); };
   function advKids(st) { const ec = st.advCodes = st.advCodes || {}; advEmps().forEach((id) => { if (!ec[id]) ec[id] = Object.keys(ec).length + 1; });
-    return Object.keys(ec).sort((a, b) => ec[a] - ec[b]).map((id) => ({ code: "114" + String(ec[id]).padStart(2, "0"), name: A.person(id), key: "سلفة:" + id, emp: id, bal: advLeft(id) })); }
+    return Object.keys(ec).sort((a, b) => ec[a] - ec[b]).map((id) => ({ code: "131" + String(ec[id]).padStart(2, "0"), name: A.person(id), key: "سلفة:" + id, emp: id, bal: advLeft(id) })); }
   const isTl = (id) => (S().people.find((p) => p.id === id) || {}).role === "tl";
   const earnedOf = (id) => (isTl(id) ? Math.round(A.tlStats(id).comm) : S().deals.filter((d) => A.dealStatus(d) === "Fully Collected").reduce((s, d) => s + A.salesComm(d, id), 0));
   const paidOf = (id) => (S().commPaid || []).filter((x) => x.emp === id).reduce((s, x) => s + x.amount, 0);
@@ -70,33 +70,58 @@
   const tcrsFor = (d, id) => (d.tcrs || []).filter(() => A.buyersOf(d).concat(A.sellersOf(d)).includes(id));
   const salesIds = () => [...new Set([...S().deals.filter(LIVE).flatMap((d) => A.salesShares(d).map((x) => x.sales)), ...S().people.filter((p) => p.role === "tl").map((p) => p.id)])];
   function commKids(st) { const sc = st.salesCodes = st.salesCodes || {}; salesIds().filter((id) => earnedOf(id) || paidOf(id)).forEach((id) => { if (!sc[id]) sc[id] = Object.keys(sc).length + 1; });
-    return Object.keys(sc).sort((a, b) => sc[a] - sc[b]).map((id) => ({ code: "211" + String(sc[id]).padStart(2, "0"), name: A.person(id), key: "عمولة:" + id, emp: id, bal: commDue(id) })); }
+    return Object.keys(sc).sort((a, b) => sc[a] - sc[b]).map((id) => ({ code: "21103" + String(sc[id]).padStart(2, "0"), name: A.person(id), key: "عمولة:" + id, emp: id, bal: commDue(id) })); }
   function coa() {
     const st = S(), p = figures(), cash = st.accounts, kids = (code, list) => list.map((x, i) => Object.assign({ code: code + String(i + 1).padStart(2, "0") }, x));
     const ar = st.deals.filter(A.countsRevenue).reduce((s, d) => s + Math.max(0, A.placesComm(d) - A.collected(d)), 0), adv = st.advances.reduce((s, a) => s + a.amount, 0) - (st.advDeds || []).reduce((s, x) => s + x.amount, 0), cust = st.custody.reduce((s, c) => s + c.amount, 0);
-    const comPay = st.deals.filter((d) => A.dealStatus(d) === "Fully Collected").reduce((s, d) => s + A.salesComm(d), 0) + st.people.filter((x) => x.role === "tl").reduce((s, x) => s + Math.round(A.tlStats(x.id).comm), 0) - (st.commPaid || []).reduce((s, x) => s + x.amount, 0), other = st.moves.filter((m) => m.kind === "receive" && m.source !== "عمولة من عميل").reduce((s, m) => s + m.amount, 0);
+    const comPay = st.deals.filter((d) => A.dealStatus(d) === "Fully Collected").reduce((s, d) => s + A.salesComm(d), 0) + st.people.filter((x) => x.role === "tl").reduce((s, x) => s + Math.round(A.tlStats(x.id).comm), 0) - (st.commPaid || []).reduce((s, x) => s + x.amount, 0), other = st.moves.filter((m) => m.kind === "receive" && m.source !== "عمولة من عميل").reduce((s, m) => s + m.amount, 0), direct = 0;
     const assets = cash.reduce((s, a) => s + a.balance, 0) + ar + adv + cust + 420000, liab = comPay + 86000;
+    // expense lines: the accountant's order; "@" = commission computed from the deals; [name, [kids]] = a parent with sub-lines; lines added later go last
+    const CH = window.SEED.chart, lineVal = (k, nm) => ((k === "admin" ? p.admin : p.selling).find((x) => x[0] === nm) || [nm, 0])[1], DIRECT = { "عمولة مبيعات": p.direct[0][1], "عمولة اوبريشن": p.direct[1][1], "عمولة تيم ليدر": p.direct[2][1], "عمولات خارجية": 0 };
+    const lineKids = (k, code) => { const known = new Set(), out = CH[k].map((it, i) => { const c = code + String(i + 1).padStart(2, "0");
+        if (Array.isArray(it)) { it[1].forEach((x) => known.add(x)); return { code: c, name: it[0], kids: it[1].map((x, j) => ({ code: c + String(j + 1).padStart(2, "0"), name: x, bal: lineVal(k, x), key: x })) }; }
+        if (it[0] === "@") return { code: c, name: it.slice(1), bal: DIRECT[it.slice(1)] || 0, direct: 1 };
+        known.add(it); return { code: c, name: it, bal: lineVal(k, it), key: it }; });
+      st.expenses[k].filter(([nm]) => !known.has(nm)).forEach(([nm, v], j) => out.push({ code: code + String(CH[k].length + j + 1).padStart(2, "0"), name: nm, bal: v, key: nm })); return out; };
+    const kinds41 = ["عمولات تسويق عقاري اداري", "عمولات تسويق عقاري تجاري", "عمولات تسويق عقاري resale", "عمولات تسويق عقاري سكني", "عمولات ادارة عقارات"];
+    const rev41 = [...kinds41, ...Object.keys(p.byKind).filter((k) => !kinds41.includes(k))].map((k) => ({ name: k, bal: p.byKind[k] || 0 }));
+    const other42 = ["ايرادات بيع اجهزة", "ايرادات بيع اثاث", "مكاسب ضرائب", "ايرادات استشارات عقارية"].map((k) => ({ name: k, key: k, bal: st.moves.filter((m) => m.kind === "receive" && m.source === k).reduce((s, m) => s + m.amount, 0) }));
+    const FIXED = [["اثاث", 180000], ["موبيلات", 40000], ["لابتوبات", 150000], ["اجهزة اخري", 70000], ["اصول غير ملموسة", 30000], ["مجمع اهلاك الاصول", -50000]];
     const T = [
       { code: "1", name: "الأصول", nat: "dr", kids: [
-        { code: "11", name: "الأصول المتداولة", kids: [
-          { code: "111", name: "النقدية بالخزن", kids: kids("111", cash.filter((a) => a.kind === "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
-          { code: "112", name: "النقدية بالبنوك والمحافظ", kids: kids("112", cash.filter((a) => a.kind !== "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
-          { code: "113", name: "العملاء (عمولات مستحقة)", key: "عملاء", kids: clientKids(st) }, { code: "114", name: "سلف الموظفين", key: "سلف موظفين", kids: advKids(st) }, { code: "115", name: "العهد", bal: cust, key: "عهد" }] },
-        { code: "12", name: "الأصول الثابتة (صافي)", bal: 420000 }] },
-      { code: "2", name: "الخصوم", nat: "cr", kids: [{ code: "21", name: "الخصوم المتداولة", kids: [{ code: "211", name: "عمولة مبيعات مستحقة", kids: commKids(st) }, { code: "212", name: "ضرائب قيمة مضافة", bal: 86000 }] }] },
-      { code: "3", name: "حقوق الملكية", nat: "cr", kids: [{ code: "31", name: "رأس المال", bal: 1500000 }, { code: "32", name: "الأرباح المحتجزة", bal: assets - liab - 1500000 - p.net - other + (st.glPlug || 0) }, { code: "33", name: "أرباح وخسائر العام", bal: p.net + other }] },
-      { code: "4", name: "الإيرادات", nat: "cr", kids: [{ code: "41", name: "عمولات تسويق عقاري", kids: kids("41", Object.entries(p.byKind).map(([k, v]) => ({ name: k, bal: v }))) }, { code: "42", name: "إيرادات أخرى", bal: other, key: "إيرادات أخرى" }] },
+        { code: "11", name: "الاصول المتداولة", kids: [
+          { code: "111", name: "الخزينة", kids: kids("111", cash.filter((a) => a.kind === "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
+          { code: "112", name: "ارصدة البنوك", kids: kids("112", cash.filter((a) => a.kind !== "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
+          { code: "113", name: "عملاء", key: "عملاء", kids: clientKids(st) },
+          { code: "114", name: "مصروفات مقدمة", bal: 0 }, { code: "115", name: "تامينات لدي الغير", bal: 0 }] },
+        { code: "12", name: "الاصول الثابتة", kids: FIXED.map(([n, v], i) => ({ code: "12" + (i + 1), name: n, bal: v, opening: 1 })) },
+        { code: "13", name: "مدينون", kids: [
+          { code: "131", name: "سلف موظفين", key: "سلف موظفين", kids: advKids(st) },
+          { code: "132", name: "مسحوبات جاري شركاء", kids: [{ code: "13201", name: "احمد اسلام", bal: 0 }, { code: "13202", name: "محمد صفوت", bal: 0 }] },
+          { code: "133", name: "عهد شركة سيتس", bal: 0 }, { code: "134", name: "عهد", bal: cust, key: "عهد" }, { code: "135", name: "ضرائب قيمة مضافة", bal: 0 }] }] },
+      { code: "2", name: "الخصوم", nat: "cr", kids: [
+        { code: "21", name: "الالتزامات المتداولة", kids: [
+          { code: "211", name: "مصروفات مستحقة", kids: [{ code: "21101", name: "مرتبات مستحقة", bal: 0 }, { code: "21102", name: "ايجار مستحق", bal: 0 }, { code: "21103", name: "عمولة مبيعات مستحقة", kids: commKids(st) },
+            { code: "21104", name: "عمولة اوبريشن مستحقة", bal: 0 }, { code: "21105", name: "تامينات اجتماعية مستحقة", bal: 0 }, { code: "21106", name: "تامين طبي مستحق", bal: 0 }] },
+          { code: "212", name: "ايراد مقدم", bal: 0 }, { code: "213", name: "موردين", bal: 0 }] },
+        { code: "22", name: "الالتزامات طويلة الاجل", kids: [{ code: "221", name: "قروض طويلة الاجل", bal: 0 }, { code: "222", name: "اقساط طويلة الاجل", bal: 0 }] },
+        { code: "23", name: "دائنون", kids: [{ code: "231", name: "ضرائب قيمة مضافة", bal: 86000, opening: 1 }, { code: "232", name: "ضرائب خصم و اضافة", bal: 0 }, { code: "233", name: "تامينات محصلة من العملاء", bal: 0 },
+          { code: "234", name: "دفعات مقدمة من العملاء", bal: 0 }, { code: "235", name: "ضريبة دخل مستحقة", bal: 0 }] }] },
+      { code: "3", name: "حقوق الملكية", nat: "cr", kids: [{ code: "31", name: "رأس المال", bal: 1500000, opening: 1 }, { code: "32", name: "جاري الشركاء", bal: 0 },
+        { code: "33", name: "الأرباح المحتجزة", bal: assets - liab - 1500000 - p.net - other + (st.glPlug || 0) }, { code: "34", name: "أرباح وخسائر العام", bal: p.net + other }] },
+      { code: "4", name: "الإيرادات", nat: "cr", kids: [{ code: "41", name: "ايرادات النشاط الرئيسي", kids: kids("41", rev41) }, { code: "42", name: "ايرادات اخري", kids: kids("42", other42) }] },
       { code: "5", name: "المصروفات", nat: "dr", kids: [
-        { code: "51", name: "مصروفات مباشرة (العمولات)", kids: kids("51", p.direct.map(([k, v]) => ({ name: k, bal: v }))) },
-        { code: "52", name: "مصروفات إدارية", kids: kids("52", p.admin.map(([k, v]) => ({ name: k, bal: v, key: k }))) },
-        { code: "53", name: "مصروفات بيعية", kids: kids("53", p.selling.map(([k, v]) => ({ name: k, bal: v, key: k }))) }] }];
+        { code: "52", name: "مصروفات ادارية", kids: lineKids("admin", "52") },
+        { code: "53", name: "مصروفات بيعية", kids: lineKids("selling", "53") },
+        { code: "54", name: "مصروفات اخري", kids: [{ code: "5401", name: "رسوم حكومية", bal: 0, key: "رسوم حكومية" }] },
+        { code: "55", name: "اهلاك الاصول الثابتة", bal: 0, key: "اهلاك الاصول الثابتة" }, { code: "56", name: "خسائر بيع اصول", bal: 0, key: "خسائر بيع اصول" }, { code: "57", name: "ضريبة الدخل", bal: 0, key: "ضريبة الدخل" }, { code: "58", name: "المساهمة التكافلية", bal: 0, key: "المساهمة التكافلية" }] }];
     const adj = st.glAdj || {}, netAdj = Object.entries(adj).reduce((s, [c, v]) => s + (c[0] === "4" ? v : c[0] === "5" ? -v : 0), 0);
     const extra = st.coaCustom || [], graft = (n) => { const mine = extra.filter((a) => a.parent === n.code);
       if (mine.length && !n.kids) { n.kids = n.custom ? [] : [{ code: n.code + "00", name: n.name + " (عام)", bal: n.bal, key: n.key, adjCode: n.code }]; delete n.key; delete n.bal; }
       if (mine.length) n.kids.push(...mine.map((a) => ({ code: a.code, name: a.name, bal: 0, custom: 1 }))); (n.kids || []).forEach(graft); };
     T.forEach(graft);
     const idx = {}, byCode = {}, walk = (n, path, nat) => { n.nat = n.nat || nat; n.path = [...path, n.name]; byCode[n.code] = n;
-      if (n.kids) n.bal = n.kids.reduce((s, k) => s + walk(k, n.path, n.nat), 0); else n.bal += (adj[n.adjCode || n.code] || 0) + ((n.adjCode || n.code) === "33" ? netAdj : 0);
+      if (n.kids) n.bal = n.kids.reduce((s, k) => s + walk(k, n.path, n.nat), 0); else n.bal += (adj[n.adjCode || n.code] || 0) + ((n.adjCode || n.code) === "34" ? netAdj : 0);
       if (n.key) idx[n.key] = n; return n.bal; };
     T.forEach((n) => walk(n, [], n.nat));
     const leaves = Object.values(byCode).filter((n) => !n.kids);
@@ -108,7 +133,7 @@
   const effect = (m, name) => (m.to === name ? (m.kind === "settle" ? m.returned : m.amount) : 0) - (m.from === name ? m.amount : 0);
   // the journal entry of a movement: debit / credit lines
   const entry = (m) => ({
-    pay: [[m.line, m.amount, 0], [m.from, 0, m.amount]], receive: [[m.to, m.amount, 0], [m.source === "عمولة من عميل" ? (m.party ? "عميل:" + m.party : "عملاء") : "إيرادات أخرى", 0, m.amount]],
+    pay: [[m.line, m.amount, 0], [m.from, 0, m.amount]], receive: [[m.to, m.amount, 0], [m.source === "عمولة من عميل" ? (m.party ? "عميل:" + m.party : "عملاء") : m.source, 0, m.amount]],
     transfer: [[m.to, m.amount, 0], [m.from, 0, m.amount]], advance: [["سلفة:" + m.party, m.amount, 0], [m.from, 0, m.amount]], advded: [[m.to, m.amount, 0], ["سلفة:" + m.party, 0, m.amount]],
     custody: [["عهد", m.amount, 0], [m.from, 0, m.amount]],
     commission: [["عمولة:" + m.party, m.amount, 0], [m.from, 0, m.amount]], payroll: m.lines,
@@ -180,10 +205,10 @@
   A.ACT.mvNew = (d) => {
     let ccd, cemp; const k = d.k, F = U.field, bill = d.bill && S().bills.find((x) => x.id === d.bill), dl = d.deal && S().deals.find((x) => x.id === d.deal), cl = d.claim && (S().claims || []).find((x) => x.id === d.claim);
     const pr = (d.pr && S().purchases.find((x) => x.id === d.pr)) || (bill && { id: "", item: `${bill.name} · ${monthName()}`, amount: bill.amount, line: bill.line, vendor: bill.vendor, suggestedAccount: bill.from, bill: bill.id });
-    const C = coa(), expOpts = ["52", "53"].map((pc) => { const g = C.T[4].kids.find((x) => x.code === pc); return `<optgroup label="${g.code} · ${g.name}">${g.kids.map((n) => { const b = S().budgets.find((x) => x.line === n.key && x.on !== false && x.budget); return opt(n.key, `${n.code} · ${n.name}${b ? ` · فاضل من البادجت ${A.money(b.budget - budSpent(b))}` : ""}`, pr && pr.line); }).join("")}</optgroup>`; }).join("");
+    const C = coa(), expOpts = [["52", C.byCode["52"].name, (n) => n.code.startsWith("52")], ["53", C.byCode["53"].name, (n) => n.code.startsWith("53")], ["54–58", "مصروفات اخري", (n) => /^5[4-9]/.test(n.code)]].map(([gc, gn, inG]) => { return `<optgroup label="${gc} · ${gn}">${C.leaves.filter((n) => n.code[0] === "5" && inG(n) && n.key && !n.direct).map((n) => { const b = S().budgets.find((x) => x.line === n.key && x.on !== false && x.budget); return opt(n.key, `${n.code} · ${n.name}${b ? ` · فاضل من البادجت ${A.money(b.budget - budSpent(b))}` : ""}`, pr && pr.line); }).join("")}</optgroup>`; }).join("");
     const body = { pay: (bill ? `<input type="hidden" name="bill" value="${bill.id}">${note(`فاتورة ثابتة <b>${esc(bill.name)}</b> · ميعادها يوم ${bill.day} · المبلغ المعتاد ${A.money(bill.amount)} (عدّله لو الفاتورة مختلفة)`)}` : pr ? `<input type="hidden" name="pr" value="${pr.id}">${note(`من طلب الشراء <b>${pr.id}</b> · ${esc(pr.item)} · المبلغ المعتمد ${A.money(pr.amount)}`)}` : "") + F("التاريخ", `<input name="date" type="date" value="${A.today()}" max="${A.today()}" required>`, 1) + F("من خزنة / بنك", `<select name="from" required>${accOpts(pr && pr.suggestedAccount)}</select>`, 1) + F("نوع المصروف (من شجرة الحسابات)", `<select name="line" required>${expOpts}</select>`, 1)
         + F("المستلم", `<input name="party" list="pp-list" required placeholder="اسم اللي هيستلم الفلوس" value="${esc(pr ? pr.vendor || "" : "")}"><datalist id="pp-list">${S().employees.map((e) => `<option value="${esc(A.person(e.id))}">`).join("")}${S().vendors.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>`, 1) + F("رقم الفاتورة / المرجع", `<input name="ref" placeholder="اختياري" value="${pr ? pr.id : ""}">`),
-      receive: (cl ? `<input type="hidden" name="claim" value="${cl.id}">${note(`تحصيل المطالبة <b>${cl.id}</b> · ${esc(cl.company)} · ${A.money(cl.amount)}${cl.einv ? ` · فاتورة ${esc(cl.einv.no)}` : ""} · بعد الحفظ هيتعمل «إيصال استلام نقدية»`)}` : "") + F("لخزنة / بنك", `<select name="to" required>${accOpts(dl && "بنك CIB")}</select>`, 1) + F("المصدر", `<select name="source">${S().receiveSources.map((x) => opt(x)).join("")}</select>`)
+      receive: (cl ? `<input type="hidden" name="claim" value="${cl.id}">${note(`تحصيل المطالبة <b>${cl.id}</b> · ${esc(cl.company)} · ${A.money(cl.amount)}${cl.einv ? ` · فاتورة ${esc(cl.einv.no)}` : ""} · بعد الحفظ هيتعمل «إيصال استلام نقدية»`)}` : "") + F("لخزنة / بنك", `<select name="to" required>${accOpts(dl && "بنك CIB")}</select>`, 1) + F("المصدر", `<select name="source">${["عمولة من عميل", ...C.leaves.filter((n) => n.code.startsWith("42") && n.key).map((n) => n.key)].map((x) => opt(x)).join("")}</select>`)
         + F("الصفقة (لو عمولة من عميل)", `<select name="deal"><option value="">—</option>${S().deals.filter((x) => LIVE(x) && A.placesComm(x) - A.collected(x) > 0).map((x) => opt(x.id, `${x.id} · ${x.client} · باقي ${A.money(A.placesComm(x) - A.collected(x))}`, dl && dl.id)).join("")}</select>`, 1) + F("التحصيل من", `<select name="side">${opt("client", "الـ Client", cl && cl.side)}${opt("owner", "الـ Owner", cl && cl.side)}</select>`)
         + F("من مين (لو مش من صفقة)", `<input name="party" placeholder="اسم الجهة">`),
       transfer: F("من", `<select name="from" required>${accOpts()}</select>`, 1) + F("لـ", `<select name="to" required>${accOpts("خزينة رئيسية")}</select>`, 1),
@@ -230,7 +255,8 @@
     if (bill) { bill.paid[monthKey()] = m.id; m.bill = bill.id; }
     if (f.pr) { const pr = st.purchases.find((x) => x.id === f.pr); Object.assign(pr, { status: "Posted", account: f.from, postedAt: A.nowIso(), move: m.id, paidAt: pr.settledAt }); A.notify(["procurement"], `المالية رحّلت ${pr.id} من ${f.from}`); }
     const bud0 = k === "pay" && st.budgets.find((x) => x.line === f.line), budBefore = bud0 ? budSpent(bud0) : 0;
-    if (k === "pay") { const L = [...st.expenses.admin, ...st.expenses.selling].find((x) => x[0] === f.line); L[1] += amt; const b = st.budgets.find((x) => x.line === f.line); if (b) b.spent += amt; } // lands in the income statement and the budget
+    if (k === "pay" && ![...st.expenses.admin, ...st.expenses.selling].some((x) => x[0] === f.line)) { const n = coa().idx[f.line]; (st.glAdj = st.glAdj || {})[n.code] = (st.glAdj[n.code] || 0) + amt; st.glPlug = (st.glPlug || 0) + amt; }
+    else if (k === "pay") { const L = [...st.expenses.admin, ...st.expenses.selling].find((x) => x[0] === f.line); L[1] += amt; const b = st.budgets.find((x) => x.line === f.line); if (b) b.spent += amt; } // lands in the income statement and the budget
     if (k === "advance") st.advances.push({ emp: f.party, amount: amt, date: A.today() });
     if (k === "commission" && tlPay) { (st.commPaid = st.commPaid || []).push({ emp: f.party, amount: amt, at: m.at, move: m.id, deal: "", tl: true }); A.notify([f.party], `اتصرفتلك عمولة Team Leader ${A.money(amt)} · ${m.id}`); }
     if (k === "commission" && !tlPay) { m.deal = cdl.id; if (f.tcr) m.tcr = f.tcr; (st.commPaid = st.commPaid || []).push({ emp: f.party, amount: amt, at: m.at, move: m.id, deal: cdl.id, tcr: f.tcr || "" });
@@ -308,14 +334,15 @@
     pnl() {
       const st = S(), mon = (ui("pnlM") || "month") === "month", P = pnlNums(mon), close = A.canDo("finance", "approve"), C = P.C;
       const r = (l, v, cls, c) => `<tr class="${cls || ""} ${v < 0 ? "neg" : ""} click" data-act="pnlWhy" data-c="${c}" data-m="${mon ? "month" : ""}"><td>${esc(l)} <span class="hint">${I("search")}</span></td><td class="n">${A.money(v)}</td></tr>`;
-      const leaves = (code, sign) => C.leaves.filter((n) => n.code.startsWith(code) && n.code !== code).map((n) => [n, P.N(n.code)]).filter(([, v]) => !mon || v).map(([n, v]) => r(`${n.code} · ${n.name}`, sign * v, "sub", n.code)).join("");
+      const dirLeaves = () => C.leaves.filter((n) => n.direct).map((n) => [n, P.N(n.code)]).filter(([, v]) => !mon || v).map(([n, v]) => r(`${n.code} · ${n.name}`, -v, "sub", n.code)).join("");
+      const leaves = (code, sign, noDirect) => C.leaves.filter((n) => n.code.startsWith(code) && n.code !== code && !(noDirect && n.direct)).map((n) => [n, P.N(n.code)]).filter(([, v]) => !mon || v).map(([n, v]) => r(`${n.code} · ${n.name}`, sign * v, "sub", n.code)).join("");
       return `<div class="row">${U.seg("pnlM", [["month", `الشهر ده · ${esc(st.periods[st.periods.length - 1].name)}`], ["year", "من أول السنة"]], mon ? "month" : "year")}<span class="hint spacer">${mon ? "اللي حصل الشهر ده بس (الأذونات والتحصيلات والقيود بتاريخها)" : "أرصدة شجرة الحسابات"} · دوس على أي رقم تشوف وصل لكده إزاي وعدّى على إيه</span>${close ? `<button class="btn ghost" data-act="closeMonth">${I("lock")}اقفل الشهر</button>` : ""}</div>
         <div class="tbl-wrap pnl"><table><thead><tr><th>البند</th><th>المبلغ</th></tr></thead><tbody>
         ${r("4 · الإيرادات", P.rev, "", "4")}${leaves("4", 1)}
-        ${r("ناقص: 51 · المصاريف المباشرة (العمولات)", -P.d, "", "51")}${leaves("51", -1)}${r("ربح الصفقات", P.gross, "total", "gross")}
-        ${r("ناقص: 53 · مصروفات بيعية", -P.se, "", "53")}${leaves("53", -1)}${r("ربح النشاط", P.contrib, "total", "contrib")}
+        ${r("ناقص: المصاريف المباشرة (العمولات)", -P.d, "", "dir")}${dirLeaves()}${r("ربح الصفقات", P.gross, "total", "gross")}
+        ${r("ناقص: 53 · مصروفات بيعية (من غير العمولات)", -P.se, "", "53")}${leaves("53", -1, 1)}${r("ربح النشاط", P.contrib, "total", "contrib")}
         ${r("ناقص: 52 · مصروفات إدارية", -P.ad, "", "52")}${leaves("52", -1)}
-        ${C.byCode["5"].kids.filter((k) => !["51", "52", "53"].includes(k.code)).map((k) => r(`ناقص: ${k.code} · ${k.name}`, -P.N(k.code), "", k.code) + (k.kids ? leaves(k.code, -1) : "")).join("")}
+        ${C.byCode["5"].kids.filter((k) => !["52", "53"].includes(k.code)).map((k) => r(`ناقص: ${k.code} · ${k.name}`, -P.N(k.code), "", k.code) + (k.kids ? leaves(k.code, -1) : "")).join("")}
         ${r("زائد: خصومات التأخير والغياب", P.saved, "", "saved")}${r("صافي الربح", P.net, "total grand", "net")}</tbody></table></div>
         ${note("قايمة الدخل كل شهر، والميزانية العمومية كل 3 شهور، وصافي الربح في أي وقت. الأرقام هنا هي نفس أرصدة شجرة الحسابات، فأي إذن أو قيد بيظهر هنا على طول.")}`;
     },
@@ -325,12 +352,12 @@
         : `<div class="acct click" data-act="pnlWhy" data-c="${r.code}"><span class="spacer"><span class="mono hint">${r.code}</span> ${esc(r.name)} <span class="hint">${I("search")}</span></span><b class="num">${A.money(r.bal)}</b></div>`; };
       const blk = (n, rows) => `<section class="card">${head(`${n.code} · ${n.name}`, "layers", chip("acc", A.money(n.bal)))}${rows.map(line).join("")}</section>`;
       return `<div class="row"><span class="hint spacer">الميزانية العمومية · من شجرة الحسابات · افتح أي بند تشوف حساباته الفرعية، ودوس على أي حساب تشوف رصيده جه منين</span>${A.canDo("finance", "approve") ? `<button class="btn ghost" data-act="closeQuarter">${I("lock")}اقفل الربع</button>` : ""}</div>
-        <div class="cols">${["1", "2", "3"].map((c) => blk(N(c), N(c).kids.flatMap((k) => (["11", "21"].includes(k.code) && k.kids ? k.kids : [k])))).join("")}</div>
+        <div class="cols">${["1", "2", "3"].map((c) => blk(N(c), N(c).kids.flatMap((k) => (k.code.length === 2 && k.kids ? k.kids : [k])))).join("")}</div>
         ${note(`الأصول (${A.short(N("1").bal)}) = الخصوم (${A.short(N("2").bal)}) + حقوق الملكية (${A.short(N("3").bal)}). الأرقام تجريبية، وأرصدة البداية الحقيقية هتتدخل وقت الإطلاق.`)}`;
     },
     budget() {
       const st = S(), C = coa(), ed = canPost() || A.canDo("finance", "approve"), f = ui("budF") || "", P = { month: "شهري", quarter: "ربع سنوي", year: "سنوي" };
-      const lines = C.leaves.filter((n) => /^5[23]\d/.test(n.code)), extra = st.budgets.filter((b) => !C.idx[b.line] || !/^5[23]/.test(C.idx[b.line].code));
+      const lines = C.leaves.filter((n) => /^5[234]\d/.test(n.code) && n.key && !n.direct), extra = st.budgets.filter((b) => !C.idx[b.line] || !/^5[23]/.test(C.idx[b.line].code));
       const row = (n, b) => { const sp = b ? budSpent(b) : 0, pct = b && b.budget ? (sp / b.budget) * 100 : 0, al = b ? b.alert ?? 80 : 80, lv = !b || !b.budget ? "" : pct > 100 ? "bad" : pct >= al ? "warn" : "ok";
         const name = n ? `<span class="mono hint">${n.code}</span> ${esc(n.name)}` : `${esc(b.line)} <span class="hint">· ${esc(b.kind)}</span>`, key = esc(b ? b.line : n.key);
         const inp = (k, v, w, extraAttr) => `<input type="number" min="0" step="any" value="${v}" data-change="budEdit" data-line="${key}" data-k="${k}" style="max-width:${w}px" ${extraAttr || ""}>`;
@@ -378,7 +405,7 @@
             <div class="row">${canPost() ? `<button class="btn" data-act="payRunNew">${I("wallet")}اصرف المرتبات كلها · ${A.money(t("net"))}</button>` : ""}<span class="spacer"></span><label class="row hint">ميعاد صرف المرتبات يوم <input type="number" min="1" max="28" value="${st.payDay || 1}" data-change="payDay" style="max-width:70px"> في الشهر</label></div></section>`}
         <div class="kpis">${U.kpi("المرتبات", A.money(t("salary")), "الأساسي", "id")}${U.kpi("الخصومات", A.money(t("ded")), "من الـ HR", "clock", "bad")}${U.kpi("العمولات المستحقة", A.money(t("com")), "صفقات اتحصّلت بالكامل − اللي اتصرف", "trend", "ok")}${U.kpi("صافي المرتبات", A.money(t("net")), "بعد خصم الحضور والسلف", "wallet")}</div>
         ${table(["الموظف", "المرتب", "خصم الحضور", "عمولة مستحقة (بتتصرف لوحدها)", "خصم السلفة", "صافي المرتب"], rows.map((x) => `<tr><td>${A.who(x.e.id)}</td><td class="n">${A.money(x.e.salary)}</td><td class="n">${x.ded ? "−" + A.money(x.ded) : "—"}</td><td class="n">${false ? "" : `<a class="click" data-act="commStatement" data-emp="${x.e.id}">${x.com ? "+" + A.money(x.com) : "—"}</a>${x.com > 0 && canPost() ? ` <button class="btn sm" data-act="mvNew" data-k="commission" data-emp="${x.e.id}">اصرف</button>` : ""}`}</td><td class="n">${x.adv ? `−${A.money(x.adv)}<span class="sub">عليه ${A.money(advLeft(x.e.id) + (advPosted(A.today().slice(0, 7)) ? x.adv : 0))}</span>` : "—"}</td><td class="n"><b>${A.money(x.net)}</b></td></tr>`))}
-        ${note("العمولة بتبقى مستحقة لما الصفقة تتحصّل بالكامل، وبتظهر في حساب السيلز تحت «عمولة مبيعات مستحقة» (211). دوس على العمولة تشوف كشفها صفقة صفقة، و«اصرف» بيعمل إذن «صرف عمولة سيلز» بقيده: من ح/ عمولة السيلز إلى ح/ الخزنة.")}
+        ${note("العمولة بتبقى مستحقة لما الصفقة تتحصّل بالكامل، وبتظهر في حساب السيلز تحت «عمولة مبيعات مستحقة» (21103). دوس على العمولة تشوف كشفها صفقة صفقة، و«اصرف» بيعمل إذن «صرف عمولة سيلز» بقيده: من ح/ عمولة السيلز إلى ح/ الخزنة.")}
         ${note((S().dedApproved || {})[month] ? "الخصومات اتعتمدت من الـ HR واترحّلت. والمرتبات بعد الخصم بتتحمّل على المصروفات أوتوماتيك." : "خصومات الشهر لسه مستنية اعتماد الـ HR، فمش محسوبة هنا.", (S().dedApproved || {})[month] ? "" : "warn")}`;
     },
     claims() { return A.claimsTab(); },
@@ -392,7 +419,7 @@
       const C = coa(), node = (n, depth) => n.kids ? `<details ${depth < 2 ? "open" : ""}><summary><b class="mono">${n.code}</b> <b>${esc(n.name)}</b><span class="spacer"></span><span class="hint">${n.nat === "dr" ? "مدين" : "دائن"}</span><b class="num">${A.money(n.bal)}</b></summary><div class="kids">${n.kids.map((k) => node(k, depth + 1)).join("")}${canPost() && canAddUnder(n) ? `<button class="btn ghost sm add-sub" data-act="acctNew" data-p="${n.code}">${I("plus")}حساب فرعي تحت ${esc(n.name)}</button>` : ""}</div></details>`
         : `<div class="kid click" data-act="acctLedger" data-k="${esc(n.key || n.code)}"><span class="mono">${n.code}</span><span class="spacer">${esc(n.name)}${n.custom ? ` <span class="hint">· حساب جديد</span>` : ""}</span><b class="num">${A.money(n.bal)}</b>${n.custom && canPost() && !n.bal ? `<button class="icon-btn sm" data-act="acctDel" data-c="${n.code}" aria-label="امسح الحساب">${I("x")}</button>` : ""}</div>`;
       const tot = (c) => C.T.find((n) => n.code === c).bal;
-      return `${canPost() ? `<div class="row"><button class="btn" data-act="acctNew">${I("plus")}حساب جديد في الشجرة</button><span class="spacer"></span><button class="btn ghost" data-act="jeNew">${I("plus")}قيد يومية جديد</button></div>` : ""}${note(`الحسابات الرئيسية الخمسة (الأصول، والخصوم، وحقوق الملكية، والإيرادات، والمصروفات) ثابتة، وتحت أي حساب فيهم تقدر تضيف حساب فرعي بإيدك («+ حساب فرعي» جوه كل حساب)، ولو ليه رصيد افتتاحي بيتعمله قيد لوحده. حساب «العملاء» (113) رصيده = مجموع حسابات العملاء اللي تحته: كل عميل في صفقة بيتفتحله حساب لوحده، وكل تحصيل بيتقيد على حسابه. كل حساب بكوده وطبيعته ورصيده دلوقتي. أي إذن صرف أو توريد أو تحويل بيعمل قيد يومية بيتسمّع هنا لوحده. الأصول ${A.short(tot("1"))} = الخصوم ${A.short(tot("2"))} + حقوق الملكية ${A.short(tot("3"))}.`)}<div class="tree coa">${C.T.map((n) => node(n, 0)).join("")}</div>
+      return `${canPost() ? `<div class="row"><button class="btn" data-act="acctNew">${I("plus")}حساب جديد في الشجرة</button><span class="spacer"></span><button class="btn ghost" data-act="jeNew">${I("plus")}قيد يومية جديد</button></div>` : ""}${note(`الحسابات الرئيسية الخمسة (الأصول، والخصوم، وحقوق الملكية، والإيرادات، والمصروفات) ثابتة، وتحت أي حساب فيهم تقدر تضيف حساب فرعي بإيدك («+ حساب فرعي» جوه كل حساب)، ولو ليه رصيد افتتاحي بيتعمله قيد لوحده. حساب «عملاء» (113) رصيده = مجموع حسابات العملاء اللي تحته: كل عميل في صفقة بيتفتحله حساب لوحده، وكل تحصيل بيتقيد على حسابه. كل حساب بكوده وطبيعته ورصيده دلوقتي. أي إذن صرف أو توريد أو تحويل بيعمل قيد يومية بيتسمّع هنا لوحده. الأصول ${A.short(tot("1"))} = الخصوم ${A.short(tot("2"))} + حقوق الملكية ${A.short(tot("3"))}.`)}<div class="tree coa">${C.T.map((n) => node(n, 0)).join("")}</div>
         ${note("الأكواد والحسابات ملخص من «شجرة الحسابات.xlsx». أرصدة البداية الحقيقية هتتدخل وقت الإطلاق.")}`;
     }
   };
@@ -438,12 +465,12 @@
   A.ACT.advStatement = (d) => { const st = S(), id = d.emp, rows = st.advances.filter((a) => a.emp === id).map((a) => [a.date, "سلفة", a.amount, 0]).concat((st.advDeds || []).filter((x) => x.emp === id).map((x) => [x.at, `خصم من مرتب ${x.month} · <span class="mono">${x.move}</span>`, 0, x.amount])).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
     let bal = 0; A.openModal(`كشف سلفة · ${A.person(id)}`, `<div class="pdf">${note(`<b>عليه دلوقتي ${A.money(advLeft(id))}</b> = اتسلّف ${A.money(advGiven(id))} − اتخصم ${A.money(advTaken(id))}`)}${U.table(["التاريخ", "البيان", "سلفة", "خصم", "الرصيد"], rows.map((r) => { bal += r[2] - r[3]; return `<tr><td>${A.fmtDate(r[0])}</td><td>${r[1]}</td><td class="n">${r[2] ? A.money(r[2]) : ""}</td><td class="n">${r[3] ? A.money(r[3]) : ""}</td><td class="n"><b>${A.money(bal)}</b></td></tr>`; }))}</div>`); };
   // where a new account can go: any parent, or a leaf that the system doesn't compute by itself
-  const NO_SUB = ["32", "33"], canAddUnder = (n) => !NO_SUB.includes(n.code) && !/^(111|112|113|114|211|52|53)./.test(n.code) && !(n.custom && n.bal);
+  const NO_SUB = ["33", "34"], canAddUnder = (n) => !NO_SUB.includes(n.code) && !n.direct && !/^(111|112|113|131|21103)./.test(n.code) && !(/^5[23]./.test(n.code) && n.key) && !(n.custom && n.bal);
   A.ACT.acctNew = (d) => { const C = coa(), opts = Object.values(C.byCode).filter(canAddUnder).sort((a, b) => a.code.localeCompare(b.code));
     A.openModal("حساب جديد في شجرة الحسابات", `<form data-form="acctAdd" class="grid">
       ${U.field("تحت حساب", `<select name="parent" required>${opts.map((n) => opt(n.code, `${n.code} · ${n.path.join(" ← ")}`, d.p)).join("")}</select>`, 1, 1)}
       ${U.field("اسم الحساب", `<input name="name" required placeholder="مثلاً: بنك مصر">`, 1)}${U.field("لو بنك: النوع", `<select name="kind"><option>بنك</option><option>محفظة</option></select>`)}
-      ${U.field("رصيد افتتاحي", `<input name="opening" type="number" min="0" step="any" value="0">`)}${U.field("الرصيد الافتتاحي جه من", `<select name="counter">${opt("32", "32 · رصيد افتتاحي (الأرباح المحتجزة)", "32")}${C.leaves.filter((n) => n.code !== "32").map((n) => opt(n.code, `${n.code} · ${n.name}`)).join("")}</select>`)}
+      ${U.field("رصيد افتتاحي", `<input name="opening" type="number" min="0" step="any" value="0">`)}${U.field("الرصيد الافتتاحي جه من", `<select name="counter">${opt("33", "33 · رصيد افتتاحي (الأرباح المحتجزة)", "33")}${C.leaves.filter((n) => n.code !== "33").map((n) => opt(n.code, `${n.code} · ${n.name}`)).join("")}</select>`)}
       ${note("الكود بيتعمل لوحده تحت الحساب اللي اخترته. الخزن والبنوك والعملاء وبنود المصروفات بتظهر على طول في الأذونات. لو فيه رصيد افتتاحي بيتعمله قيد: من ح/ الحساب الجديد إلى ح/ الطرف التاني (أو العكس لو الحساب دائن).")}
       <div class="row end wide"><button type="button" class="btn ghost" data-close="modal">إلغاء</button><button class="btn">${I("check")}افتح الحساب</button></div></form>`); };
   A.FORM.acctAdd = (f) => {
@@ -539,9 +566,9 @@
   /* ---- income statement drill-down: where every number comes from and what it passed through ---- */
   const inMon = (at) => !!at && at.slice(0, 7) === A.today().slice(0, 7);
   const monVal = (c, C) => { const n = C.byCode[c]; return n.kids ? C.leaves.filter((x) => x.code.startsWith(c) && x.code !== c).reduce((s, x) => s + monVal(x.code, C), 0) : leafRows(c).rows.filter((x) => inMon(x.at)).reduce((s, x) => s + x.v, 0); };
-  const pnlNums = (mon) => { const C = coa(), p = figures(), N = (c) => (mon ? monVal(c, C) : C.byCode[c].bal), rev = N("4"), d = N("51"), se = N("53"), ad = N("52");
+  const pnlNums = (mon) => { const C = coa(), p = figures(), N = (c) => (mon ? monVal(c, C) : C.byCode[c].bal), rev = N("4"), d = C.leaves.filter((x) => x.direct).reduce((s, x) => s + N(x.code), 0), se = N("53") - d, ad = N("52");
     const oth = N("5") - d - se - ad; return { C, p, N, rev, d, se, ad, oth, saved: p.saved, gross: rev - d, contrib: rev - d - se, net: rev - d - se - ad - oth + p.saved }; };
-  const upOf = (code, n) => (["1", "2", "3"].includes(code[0]) ? n.path.slice(0, -1).reverse().join(" ← ") : code[0] === "4" ? "الإيرادات ← ربح الصفقات ← ربح النشاط ← صافي الربح" : code.startsWith("51") ? "المصاريف المباشرة ← ربح الصفقات ← ربح النشاط ← صافي الربح" : code.startsWith("53") ? "المصروفات البيعية ← ربح النشاط ← صافي الربح" : code.startsWith("52") ? "المصروفات الإدارية ← صافي الربح" : "المصروفات ← صافي الربح");
+  const upOf = (code, n) => (["1", "2", "3"].includes(code[0]) ? n.path.slice(0, -1).reverse().join(" ← ") : code[0] === "4" ? "الإيرادات ← ربح الصفقات ← ربح النشاط ← صافي الربح" : n && n.direct ? "المصاريف المباشرة ← ربح الصفقات ← ربح النشاط ← صافي الربح" : code.startsWith("53") ? "المصروفات البيعية ← ربح النشاط ← صافي الربح" : code.startsWith("52") ? "المصروفات الإدارية ← صافي الربح" : "المصروفات ← صافي الربح");
   const whyTable = (rows, total, totLabel) => U.table(["المصدر", "عدّى على", "المبلغ"], rows.map((x) => `<tr class="${x.act ? "click" : ""}" ${x.act ? `data-act="${x.act}" data-id="${esc(x.id)}"` : ""}><td>${x.src}</td><td class="hint">${x.path}</td><td class="n">${A.money(x.v)}</td></tr>`).concat(`<tr class="total"><td><b>${totLabel || "الإجمالي"}</b></td><td></td><td class="n"><b>${A.money(total)}</b></td></tr>`));
   const manualRows = (n) => (S().journal || []).flatMap((je) => je.lines.filter((l) => l.code === n.code).map((l) => ({ src: `قيد يدوي <span class="mono">${je.id}</span> · ${A.fmtDate(je.at)} · ${esc(je.note)}`, path: `${je.id} ← ح/ ${n.code}`, v: n.nat === "dr" ? l.dr - l.cr : l.cr - l.dr, act: "jeView", id: je.id })));
   // the sources behind one account, each with its date when it has one
@@ -549,8 +576,8 @@
     const deals = st.deals.filter(A.countsRevenue), firstPay = (x) => (x.payments || []).slice().sort((a, b) => a.at.localeCompare(b.at))[0], firstTcr = (x) => ((x.tcrs || [])[0] || {}).code;
     if (c.startsWith("41")) { how = "عمولة Places (من الـ Owner + من الـ Client) لكل صفقة من النوع ده، وبتتسجّل كاملة من أول تحصيل. الباقي اللي لسه ماتحصّلش بيفضل على حساب العميل تحت «العملاء» (113).";
       rows = deals.filter((x) => x.kind === n.name).map((x) => ({ src: `صفقة <span class="mono">${x.id}</span> · ${esc(x.client)} · ${fm(x.commOwner || 0)} + ${fm(x.commClient || 0)}`, path: `اتوافق عليها ← أول تحصيل ${firstPay(x) ? A.fmtDate(firstPay(x).at) : ""} ${firstTcr(x) ? `(${firstTcr(x)})` : ""} ← ح/ ${c}`, v: A.placesComm(x), act: "dealOpen", id: x.id, at: (firstPay(x) || {}).at })); }
-    else if (c === "42") { how = "كل إذن توريد خزنة مصدره مش «عمولة من عميل» (إيراد آخر، استرداد…).";
-      rows = st.moves.filter((m) => m.kind === "receive" && m.source !== "عمولة من عميل").map((m) => ({ src: `${KIND.receive[0]} <span class="mono">${m.id}</span> · ${A.fmtDate(m.at)} · ${esc(m.source)} · ${esc(m.note || "")}`, path: `${m.id} ← ${jvOf(m)} ← ح/ 42`, v: m.amount, act: "mvView", id: m.id, at: m.at })); }
+    else if (c.startsWith("42")) { how = "كل إذن توريد خزنة مصدره الحساب ده.";
+      rows = st.moves.filter((m) => m.kind === "receive" && m.source === n.key).map((m) => ({ src: `${KIND.receive[0]} <span class="mono">${m.id}</span> · ${A.fmtDate(m.at)} · ${esc(m.source)} · ${esc(m.note || "")}`, path: `${m.id} ← ${jvOf(m)} ← ح/ ${c}`, v: m.amount, act: "mvView", id: m.id, at: m.at })); }
     else if (n.name === "عمولة مبيعات") { how = "نصيب كل سيلز من عمولة كل صفقة اتحصّل منها (نسبته × نصيبه في الصفقة).";
       rows = deals.flatMap((x) => A.salesShares(x).map((sh) => ({ src: `صفقة <span class="mono">${x.id}</span> · ${esc(A.person(sh.sales))}`, path: `${sh.rate}% × ${sh.pct}% ← ح/ ${c}`, v: sh.amount, act: "dealOpen", id: x.id, at: (firstPay(x) || {}).at }))); }
     else if (n.name === "عمولة اوبريشن") { how = "5% من عمولة Places في الصفقات اللي اتحصّل منها (نسبة الديمو).";
@@ -562,20 +589,20 @@
     else if (n.key && n.key.startsWith("سلفة:")) { const id = n.emp; how = "كل سلفة اتصرفتله − كل خصم من مرتبه (إذن خصم سلفة).";
       rows = st.advances.filter((x) => x.emp === id).map((x) => ({ src: `سلفة · ${A.fmtDate(x.date)}`, path: `إذن سلفة ← ح/ ${c}`, v: x.amount, at: x.date }))
         .concat((st.advDeds || []).filter((x) => x.emp === id).map((x) => ({ src: `خصم من مرتب ${x.month} · <span class="mono">${x.move}</span>`, path: `ح/ ${c} ← ${x.move} ← المرتب`, v: -x.amount, act: "mvView", id: x.move, at: x.at }))); }
-    else if (c === "114") { how = "كل سلفة اتصرفت لموظف (إذن سلفة) ولسه ماتخصمتش.";
-      rows = st.advances.map((x) => ({ src: `${esc(A.person(x.emp))} · ${A.fmtDate(x.date)}`, path: `إذن سلفة ← ح/ 114`, v: x.amount })); }
-    else if (c === "115") { how = "كل عهدة مع موظف ولسه ماتسوّتش (صرف عهدة − التسويات).";
-      rows = st.custody.map((x) => ({ src: `${esc(A.person(x.emp))} · من ${A.fmtDate(x.date)}`, path: `إذن صرف عهدة ← تسوية ← ح/ 115`, v: x.amount })); }
-    else if (c === "211") { how = "نصيب السيلز من عمولة كل صفقة اتحصّلت بالكامل، ولسه ماتصرفش مع المرتب.";
-      rows = st.deals.filter((x) => A.dealStatus(x) === "Fully Collected").map((x) => ({ src: `صفقة <span class="mono">${x.id}</span> · ${esc(x.client)}`, path: `اتحصّلت بالكامل ← عمولة السيلز ← ح/ 211`, v: A.salesComm(x), act: "dealOpen", id: x.id })); }
+    else if (c === "131") { how = "كل سلفة اتصرفت لموظف (إذن سلفة) ولسه ماتخصمتش.";
+      rows = st.advances.map((x) => ({ src: `${esc(A.person(x.emp))} · ${A.fmtDate(x.date)}`, path: `إذن سلفة ← ح/ 131`, v: x.amount })); }
+    else if (c === "134") { how = "كل عهدة مع موظف ولسه ماتسوّتش (صرف عهدة − التسويات).";
+      rows = st.custody.map((x) => ({ src: `${esc(A.person(x.emp))} · من ${A.fmtDate(x.date)}`, path: `إذن صرف عهدة ← تسوية ← ح/ 134`, v: x.amount })); }
+    else if (c === "21103") { how = "نصيب السيلز من عمولة كل صفقة اتحصّلت بالكامل، ولسه ماتصرفش مع المرتب.";
+      rows = st.deals.filter((x) => A.dealStatus(x) === "Fully Collected").map((x) => ({ src: `صفقة <span class="mono">${x.id}</span> · ${esc(x.client)}`, path: `اتحصّلت بالكامل ← عمولة السيلز ← ح/ 21103`, v: A.salesComm(x), act: "dealOpen", id: x.id })); }
     else if (n.key && n.key.startsWith("عمولة:") && isTl(n.emp)) { const id = n.emp, T = A.tlStats(id); how = "عمولة Team Leader: شريحة تحقيق فريقه × نصيب الفريق من الصفقات اللي اتحصّل منها − اللي اتصرفله.";
       rows = [{ src: `تحقيق الفريق ${Math.round(T.pct)}% ← شريحة ${T.tier.pct || 0}%`, path: `الصفقات ← الشريحة ← ح/ ${c}`, v: earnedOf(id) }].concat((st.commPaid || []).filter((x) => x.emp === id).map((x) => ({ src: `صرف عمولة <span class="mono">${x.move}</span> · ${A.fmtDate(x.at)}`, path: `ح/ ${c} ← ${x.move} ← الخزنة`, v: -x.amount, act: "mvView", id: x.move }))); }
     else if (n.key && n.key.startsWith("عمولة:")) { const id = n.emp; how = "نصيبه من عمولة كل صفقة اتحصّلت بالكامل − اللي اتصرفله (إذن صرف عمولة سيلز).";
       rows = st.deals.filter((x) => A.dealStatus(x) === "Fully Collected" && A.salesComm(x, id)).map((x) => ({ src: `صفقة <span class="mono">${x.id}</span> · ${esc(x.client)}`, path: `اتحصّلت بالكامل ← ${A.salesShares(x).filter((y) => y.sales === id).map((y) => `${y.rate}% × ${y.pct}%`).join(" + ")} ← ح/ ${c}`, v: A.salesComm(x, id), act: "dealOpen", id: x.id }))
         .concat((st.commPaid || []).filter((x) => x.emp === id).map((x) => ({ src: `صرف عمولة <span class="mono">${x.move}</span> · ${A.fmtDate(x.at)}${x.deal ? ` · ${x.deal}` : ""}${x.tcr ? ` · ${x.tcr}` : ""}`, path: `ح/ ${c} ← ${x.move} ← الخزنة`, v: -x.amount, act: "mvView", id: x.move }))); }
-    else if (c === "32") { how = "أرباح السنين اللي فاتت (من الميزانية الافتتاحية): الأصول − الخصوم − رأس المال − نتيجة السنة دي.";
-      rows = [{ src: "الأصول", path: "1", v: C.byCode["1"].bal }, { src: "ناقص الخصوم", path: "2", v: -C.byCode["2"].bal }, { src: "ناقص رأس المال", path: "31", v: -C.byCode["31"].bal }, { src: "ناقص أرباح وخسائر العام", path: "33", v: -C.byCode["33"].bal }]; }
-    else if (["12", "212", "31"].includes(c)) how = "رصيد افتتاحي ثابت في الديمو، وأرصدة البداية الحقيقية هتتدخل وقت الإطلاق.";
+    else if (c === "33") { how = "أرباح السنين اللي فاتت (من الميزانية الافتتاحية): الأصول − الخصوم − رأس المال − نتيجة السنة دي.";
+      rows = [{ src: "الأصول", path: "1", v: C.byCode["1"].bal }, { src: "ناقص الخصوم", path: "2", v: -C.byCode["2"].bal }, { src: "ناقص رأس المال", path: "31", v: -C.byCode["31"].bal }, { src: "ناقص أرباح وخسائر العام", path: "34", v: -C.byCode["34"].bal }]; }
+    else if (n.opening) how = "رصيد افتتاحي ثابت في الديمو، وأرصدة البداية الحقيقية هتتدخل وقت الإطلاق.";
     else if (n.key) { const mv = st.moves.filter((m) => entry(m).some((e) => e[0] === n.key)), paid = st.purchases.filter((x) => x.line === n.key && x.status === "Paid");
       rows = mv.map((m) => { const e = entry(m).filter((x) => x[0] === n.key).reduce((s, x) => s + x[1] - x[2], 0); return { at: m.at, src: `${KIND[m.kind][0]} <span class="mono">${m.id}</span> · ${A.fmtDate(m.at)} · ${esc(m.note || "")}`, path: `${m.from ? `${esc(m.from)} ← ` : ""}${m.id} ← ${jvOf(m)} ← ح/ ${c}`, v: e, act: "mvView", id: m.id }; })
         .concat(paid.map((x) => ({ src: `طلب شراء <span class="mono">${x.id}</span> · ${esc(x.item)}`, path: `المشتريات ← اتدفع ← ح/ ${c}`, v: x.amount, at: x.paidAt || x.date })));
@@ -584,17 +611,18 @@
   A.ACT.pnlWhy = (d) => {
     const st = S(), mon = d.m === "month", P = pnlNums(mon), C = P.C, c = d.c, n = C.byCode[c], fm = (x) => A.money(x), V_ = (k) => (mon ? P.N(k) : C.byCode[k].bal);
     const formula = (title, f, parts) => A.openModal(title, `<div class="pdf">${note(`<b>${f}</b>`)}${U.table(["البند", "المبلغ"], parts.map(([l, v, k]) => `<tr class="${k ? "click" : ""}" ${k ? `data-act="pnlWhy" data-c="${k}" data-m="${mon ? "month" : ""}"` : ""}><td>${l}</td><td class="n">${fm(v)}</td></tr>`))}</div>`);
-    if (c === "gross") return formula("ربح الصفقات", `الإيرادات − المصاريف المباشرة = ${fm(P.rev)} − ${fm(P.d)} = ${fm(P.gross)}`, [["4 · الإيرادات", P.rev, "4"], ["ناقص 51 · المصاريف المباشرة", -P.d, "51"]]);
-    if (c === "contrib") return formula("ربح النشاط", `ربح الصفقات − المصروفات البيعية = ${fm(P.gross)} − ${fm(P.se)} = ${fm(P.contrib)}`, [["ربح الصفقات", P.gross, "gross"], ["ناقص 53 · مصروفات بيعية", -P.se, "53"]]);
-    if (c === "net") return formula("صافي الربح", `ربح النشاط − المصروفات الإدارية${P.oth ? " − المصروفات الأخرى" : ""} + خصومات التأخير والغياب = ${fm(P.contrib)} − ${fm(P.ad)}${P.oth ? ` − ${fm(P.oth)}` : ""} + ${fm(P.saved)} = ${fm(P.net)}${mon ? "" : ` · ونفس الرقم في الشجرة ح/ 33 أرباح وخسائر العام (${fm(C.byCode["33"].bal)})`}`, [["ربح النشاط", P.contrib, "contrib"], ["ناقص 52 · مصروفات إدارية", -P.ad, "52"], ...C.byCode["5"].kids.filter((k) => !["51", "52", "53"].includes(k.code)).map((k) => [`ناقص ${k.code} · ${k.name}`, -P.N(k.code), k.code]), ["زائد خصومات التأخير والغياب", P.saved, "saved"]]);
+    if (c === "gross") return formula("ربح الصفقات", `الإيرادات − المصاريف المباشرة = ${fm(P.rev)} − ${fm(P.d)} = ${fm(P.gross)}`, [["4 · الإيرادات", P.rev, "4"], ["ناقص المصاريف المباشرة (العمولات)", -P.d, "dir"]]);
+    if (c === "contrib") return formula("ربح النشاط", `ربح الصفقات − المصروفات البيعية = ${fm(P.gross)} − ${fm(P.se)} = ${fm(P.contrib)}`, [["ربح الصفقات", P.gross, "gross"], ["ناقص 53 · مصروفات بيعية (من غير العمولات)", -P.se, "53"]]);
+    if (c === "net") return formula("صافي الربح", `ربح النشاط − المصروفات الإدارية${P.oth ? " − المصروفات الأخرى" : ""} + خصومات التأخير والغياب = ${fm(P.contrib)} − ${fm(P.ad)}${P.oth ? ` − ${fm(P.oth)}` : ""} + ${fm(P.saved)} = ${fm(P.net)}${mon ? "" : ` · ونفس الرقم في الشجرة ح/ 34 أرباح وخسائر العام (${fm(C.byCode["34"].bal)})`}`, [["ربح النشاط", P.contrib, "contrib"], ["ناقص 52 · مصروفات إدارية", -P.ad, "52"], ...C.byCode["5"].kids.filter((k) => !["52", "53"].includes(k.code)).map((k) => [`ناقص ${k.code} · ${k.name}`, -P.N(k.code), k.code]), ["زائد خصومات التأخير والغياب", P.saved, "saved"]]);
     if (c === "saved") { const mk = A.today().slice(0, 7), on = (st.dedApproved || {})[mk], rows = on ? st.attendance.filter((a) => a.day.startsWith(mk)).map((a) => [a, A.attRow(a)]).filter(([, x]) => x.ded > 0).map(([a, x]) => ({ src: `${esc(A.person(x.e.id))} · ${A.fmtDate(a.day)}`, path: `البصمة ← خصم ${x.ded} يوم × ${fm(A.dayRate(x.e))} يومية ← الـ HR وافق`, v: x.ded * A.dayRate(x.e) })) : [];
       return A.openModal("خصومات التأخير والغياب", `<div class="pdf">${note(on ? "خصومات الشهر بعد موافقة الـ HR: أيام الخصم × اليومية (المرتب ÷ 26)." : "لسه الـ HR ماوافقش على خصومات الشهر ده، فمابتدخلش قايمة الدخل غير بعد الموافقة.")}${rows.length ? whyTable(rows, P.saved) : ""}</div>`); }
-    if (c === "33") return A.ACT.pnlWhy({ c: "net" });
+    if (c === "34") return A.ACT.pnlWhy({ c: "net" });
+    if (c === "dir") return A.openModal(`المصاريف المباشرة (العمولات)${mon ? " · الشهر ده" : ""}`, `<div class="pdf">${note(`<b>المصاريف المباشرة = حسابات العمولات تحت المصروفات البيعية = ${fm(P.d)}</b><br>بتتطرح من الإيرادات عشان يطلع ربح الصفقات.`)}${U.table(["الحساب", "المبلغ"], C.leaves.filter((x) => x.direct).map((x) => `<tr class="click" data-act="pnlWhy" data-c="${x.code}" data-m="${mon ? "month" : ""}"><td>${x.code} · ${esc(x.name)}</td><td class="n">${fm(V_(x.code))}</td></tr>`))}</div>`);
     if (n.kids) return A.openModal(`${n.code} · ${n.name}${mon ? " · الشهر ده" : ""}`, `<div class="pdf">${note(`<b>${esc(n.name)} = مجموع الحسابات اللي تحته = ${fm(V_(c))}</b><br>بيدخل في: ${upOf(c, n)}`)}${U.table(["الحساب", "المبلغ"], C.leaves.filter((x) => x.code.startsWith(c) && x.code !== c).map((x) => `<tr class="click" data-act="pnlWhy" data-c="${x.code}" data-m="${mon ? "month" : ""}"><td>${x.code} · ${esc(x.path.slice(1).join(" ← "))}</td><td class="n">${fm(V_(x.code))}</td></tr>`))}</div>`);
     let { rows, how } = leafRows(c);
     if (mon) rows = rows.filter((x) => inMon(x.at));
     const known = rows.reduce((s, x) => s + x.v, 0);
-    if (!mon && c !== "32" && Math.round(n.bal - known)) rows.unshift({ src: c[0] === "5" ? "رصيد البند من شيت المصروفات (قبل الحركات اللي اتسجّلت على السيستم)" : "رصيد أول المدة (من البيانات الافتتاحية)", path: `أول المدة ← ح/ ${c}`, v: n.bal - known });
+    if (!mon && c !== "33" && Math.round(n.bal - known)) rows.unshift({ src: c[0] === "5" ? "رصيد البند من شيت المصروفات (قبل الحركات اللي اتسجّلت على السيستم)" : "رصيد أول المدة (من البيانات الافتتاحية)", path: `أول المدة ← ح/ ${c}`, v: n.bal - known });
     const tot = mon ? rows.reduce((s, x) => s + x.v, 0) : n.bal;
     A.openModal(`${n.code} · ${n.name}${mon ? " · الشهر ده" : ""}`, `<div class="pdf">${note(`<b>${esc(n.path.join(" ← "))} = ${fm(tot)}${mon ? " (الحركات اللي حصلت الشهر ده بس)" : ""}</b><br>بيتحسب من: ${how || "القيود اليدوية على الحساب ده."}<br>وبيدخل في: ${upOf(c, n)}`)}${whyTable(rows, tot)}${Math.round(rows.reduce((s, x) => s + x.v, 0) - tot) ? note("فيه فرق بين التفاصيل والرصيد", "warn") : ""}</div>`);
   };

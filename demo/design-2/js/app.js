@@ -16,6 +16,12 @@
   if (S.leadRules.noAnswer.hours == null) S.leadRules.noAnswer.hours = 24;
   if (!S.stages.includes("Follow up to Meeting") && S.stages.includes("Meeting")) S.stages.splice(S.stages.indexOf("Meeting"), 0, "Follow up to Meeting"); // saved demos from before this stage
   ["bills", "clientCodes", "receiveSources", "interactionTypes", "finishings", "unitPurposes", "paymentPlans", "mkTaskTypes", "ticketDepts"].forEach((k) => { if (!S[k]) S[k] = clone(window.SEED[k]); }); // saved demos from before these lists were editable
+  // saved demos from before the accountant's chart: Property Finder is its own line, and every line of the chart exists
+  if ((S.expenses.selling || []).some((x) => x[0] === "اشتراكات منصات و برامج")) {
+    const ren = (o) => { if (o && o.line === "اشتراكات منصات و برامج") o.line = "بروبيرتي فايندر"; };
+    S.expenses.selling.forEach((x) => { if (x[0] === "اشتراكات منصات و برامج") x[0] = "بروبيرتي فايندر"; }); [...(S.budgets || []), ...(S.bills || []), ...(S.purchases || []), ...(S.moves || [])].forEach(ren);
+  }
+  ["admin", "selling"].forEach((k) => window.SEED.chart[k].flatMap((x) => (Array.isArray(x) ? x[1] : x[0] === "@" ? [] : [x])).forEach((nm) => { if (!S.expenses[k].some((x) => x[0] === nm)) S.expenses[k].push([nm, 0]); }));
   // every expense line has a budget to start from (about 10% over its usual month), so the budget page is never empty
   [["admin", "مصروفات إدارية"], ["selling", "مصروفات بيعية"]].forEach(([k, kind]) => (S.expenses[k] || []).forEach(([line, v]) => { if (S.budgets.some((b) => b.line === line)) return;
     const sal = { "مرتبات مبيعات": (e) => ["sales", "tl", "telesales"].includes(e.role), "مرتبات ادارية": (e) => !["sales", "tl", "telesales"].includes(e.role) }[line]; // salaries: the real payroll of the month
