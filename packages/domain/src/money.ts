@@ -4,6 +4,23 @@
  */
 export type Piasters = number;
 
+/**
+ * The wire's decimal string (`Money`, "1100.5") to piasters (110050) without going through a float, and back.
+ * Decimal(14,2) values from the database arrive the same way (`.toFixed(2)`).
+ */
+export function fromDecimal(s: string): Piasters {
+  const m = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(s.trim());
+  if (!m) throw new RangeError(`not a decimal amount: ${s}`);
+  const p = Number(m[2]) * 100 + Number((m[3] ?? "").padEnd(2, "0"));
+  return m[1] && p ? -p : p;
+}
+
+export function toDecimal(p: Piasters): string {
+  if (!Number.isInteger(p)) throw new RangeError("toDecimal: whole piasters only");
+  const a = Math.abs(p);
+  return `${p < 0 ? "-" : ""}${Math.trunc(a / 100)}.${String(a % 100).padStart(2, "0")}`;
+}
+
 export const egp = (pounds: number): Piasters => Math.round(pounds * 100);
 export const toPounds = (p: Piasters): number => p / 100;
 

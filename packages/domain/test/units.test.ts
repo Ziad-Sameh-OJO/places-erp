@@ -1,0 +1,88 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { egp, fromDecimal, toDecimal } from "../src/money.ts";
+import { incomeFigures, isStale, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+
+// The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
+
+test("total price = price per m² × gross area (M-03 3.2) · U-101: 95 m × 1,100 = 104,500 a month", () => {
+  assert.equal(unitTotal(egp(1_100), 95), egp(104_500));
+  // Resale U-201: 85 m × 36,000 = 3,060,000
+  assert.equal(unitTotal(egp(36_000), 85), egp(3_060_000));
+  // piasters stay exact: 1,050.50 × 3 = 3,151.50 (a float would give 3151.4999…)
+  assert.equal(unitTotal(fromDecimal("1050.50"), 3), egp(3_151.5));
+});
+
+test("unitTotal refuses areas and prices the sheet can't hold", () => {
+  assert.throws(() => unitTotal(egp(100), 0));
+  assert.throws(() => unitTotal(egp(100), 12.5));
+  assert.throws(() => unitTotal(-1, 10));
+  assert.throws(() => unitTotal(10.5, 10));
+});
+
+test("Income (M-03 7.2): U-301 · 250 m, sale 36,000/m, lease 270/m → monthly 67,500 · annual 810,000 · yield 9%", () => {
+  const f = incomeFigures({ salePerSqm: egp(36_000), leasePerSqm: egp(270), area: 250 });
+  assert.equal(f.saleTotal, egp(9_000_000));
+  assert.equal(f.monthlyRent, egp(67_500));
+  assert.equal(f.annualRent, egp(810_000)); // monthly × 12
+  assert.equal(f.yieldPct, 9); // annual ÷ sale total × 100
+});
+
+test("Income: U-302 · 180 m, sale 48,000/m, lease 360/m → yield 9% · U-303 → 9% · odd figures round to 2 decimals", () => {
+  assert.equal(incomeFigures({ salePerSqm: egp(48_000), leasePerSqm: egp(360), area: 180 }).yieldPct, 9);
+  assert.equal(incomeFigures({ salePerSqm: egp(40_000), leasePerSqm: egp(300), area: 220 }).yieldPct, 9);
+  // 12 × 100 ÷ 7,000 × 100 = 17.142857… → 17.14
+  assert.equal(incomeFigures({ salePerSqm: egp(7_000), leasePerSqm: egp(100), area: 1 }).yieldPct, 17.14);
+});
+
+test("Income without a sale price has no yield (nothing to divide by)", () => {
+  const f = incomeFigures({ salePerSqm: 0, leasePerSqm: egp(270), area: 250 });
+  assert.equal(f.yieldPct, null);
+  assert.equal(f.annualRent, egp(810_000));
+});
+
+test("divisible unit (Q20): priced for the area the client needs · U-108 1,800 m at 850/m, from 90 m → 100 m = 85,000", () => {
+  const u108 = { divisible: true, minSplit: 90, space: 1_800, pricePerSqm: egp(850) };
+  assert.deepEqual(splitPrice(u108, 100), { ok: true, area: 100, price: egp(85_000) });
+  assert.deepEqual(splitPrice(u108, 90), { ok: true, area: 90, price: egp(76_500) }); // exactly the minimum is fine
+  assert.deepEqual(splitPrice(u108, 89), { ok: false, reason: "below-minimum" });
+  assert.deepEqual(splitPrice(u108, 1_800), { ok: true, area: 1_800, price: unitTotal(egp(850), 1_800) });
+  assert.deepEqual(splitPrice(u108, 1_801), { ok: false, reason: "above-space" });
+});
+
+test("divisible (M-03 7.1): the 5,000 m unit offered to a client who needs 100 m · no minimum set = any part", () => {
+  assert.deepEqual(splitPrice({ divisible: true, minSplit: null, space: 5_000, pricePerSqm: egp(380) }, 100), { ok: true, area: 100, price: egp(38_000) });
+  assert.deepEqual(splitPrice({ divisible: true, minSplit: 0, space: 5_000, pricePerSqm: egp(380) }, 1), { ok: true, area: 1, price: egp(380) });
+});
+
+test("a unit that isn't divisible is never priced in part", () => {
+  assert.deepEqual(splitPrice({ divisible: false, minSplit: null, space: 150, pricePerSqm: egp(900) }, 100), { ok: false, reason: "not-divisible" });
+  assert.throws(() => splitPrice({ divisible: true, minSplit: null, space: 150, pricePerSqm: egp(900) }, 0));
+});
+
+test("last update older than a month = late (M-03 2.4) · U-103 41 days late, U-101 3 days on time", () => {
+  const now = new Date("2026-11-04T10:00:00Z");
+  const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000);
+  assert.equal(isStale(daysAgo(41), now), true);
+  assert.equal(isStale(daysAgo(3), now), false);
+  assert.equal(isStale(daysAgo(30), now), false); // exactly 30 days is still on time
+  assert.equal(isStale(new Date(daysAgo(30).getTime() - 1), now), true);
+  assert.deepEqual(staleBefore(now), daysAgo(30));
+});
+
+test("decimal strings ↔ piasters without floats", () => {
+  assert.equal(fromDecimal("1100"), 110_000);
+  assert.equal(fromDecimal("1100.5"), 110_050);
+  assert.equal(fromDecimal("1100.50"), 110_050);
+  assert.equal(fromDecimal("0.07"), 7);
+  assert.equal(fromDecimal("-12.30"), -1_230);
+  assert.equal(fromDecimal("-0"), 0);
+  assert.equal(fromDecimal("999999999999.99"), 99_999_999_999_999); // Decimal(14,2)'s largest
+  for (const bad of ["", "1.234", "1,000", "abc", "1e3", ".5"]) assert.throws(() => fromDecimal(bad), RangeError, bad);
+  assert.equal(toDecimal(110_050), "1100.50");
+  assert.equal(toDecimal(7), "0.07");
+  assert.equal(toDecimal(-1_230), "-12.30");
+  assert.equal(toDecimal(0), "0.00");
+  assert.throws(() => toDecimal(1.5));
+  for (const s of ["0.01", "104500.00", "9000000.00", "36000.99"]) assert.equal(toDecimal(fromDecimal(s)), s);
+});
