@@ -301,12 +301,19 @@ window.SEED = (function () {
   const advances = [{ emp: "s2", amount: 6000, date: dayKey(20) }, { emp: "u12", amount: 3500, date: dayKey(12) }, { emp: "s6", amount: 2000, date: dayKey(5) }];
   const expenses = {
     admin: [["ايجار", 85000], ["مرتبات ادارية", 210000], ["كهرباء", 9400], ["مياه", 1200], ["انترنت", 3200], ["اتصالات", 4100], ["بوفيه", 6100], ["صيانات", 4800], ["ادوات مكتبية", 2300], ["تامين طبي", 12500], ["تامينات اجتماعية", 26000]],
-    selling: [["مرتبات مبيعات", 144000], ["سبونسر فيسوك", 71500], ["سبونسر لينكدان", 52000], ["google ads", 33000], ["اشتراكات منصات و برامج", 18500], ["CRM", 4200], ["Capcut", 600], ["business development", 9000]]
+    selling: [["مرتبات مبيعات", 144000], ["سبونسر فيسوك", 71500], ["سبونسر لينكدان", 52000], ["google ads", 33000], ["بروبيرتي فايندر", 18500], ["CRM", 4200], ["Capcut", 600], ["business development", 9000]]
   };
+  // the accountant's chart of accounts (4 Nov): expense lines in his order · "@" = commission computed from the deals · [parent, [sub-lines]]
+  const chart = {
+    admin: ["ايجار", "مرتبات ادارية", "بوفيه", "انتقالات", "انترنت", "اتصالات", "صيانات", "عمولات بنكية", "تبرعات", "هدايا", "ترفيه", "ايناس محاسب قانوني", "خالد محاسب قانوني", "محاماة", "شراء فواتير", "تامين طبي", "تامينات اجتماعية", "كهرباء", "مياه", "ادوات مكتبية", "مستلزمات المكتب", "نثريات"],
+    selling: ["مرتبات مبيعات", "@عمولة مبيعات", "@عمولة اوبريشن", "@عمولات خارجية", "@عمولة تيم ليدر", "business development", "سبونسر فيسوك", "سبونسر لينكدان", "google ads", "lusha", "مصطفي لينكدان wolf egy", "CRM", "Sara website", "Zash", "ماركتينج", "Capcut", ["اشتراكات منصات و برامج", ["دوبيزل", "عقار ماب", "بروبيرتي فايندر"]]]
+  };
+  const flatLines = (k) => chart[k].flatMap((x) => (Array.isArray(x) ? x[1] : x[0] === "@" ? [] : [x]));
+  ["admin", "selling"].forEach((k) => flatLines(k).forEach((nm) => { if (!expenses[k].some((x) => x[0] === nm)) expenses[k].push([nm, 0]); }));
   const monthly = [{ m: "أغسطس", rev: 7200000, exp: 690000 }, { m: "سبتمبر", rev: 9800000, exp: 742000 }, { m: "أكتوبر", rev: 0, exp: 0 }];
   const budgets = [
     { line: "ماركتينج", kind: "مصروفات بيعية", budget: 250000, spent: 181300 }, { line: "ادوات مكتبية", kind: "مصروفات إدارية", budget: 8000, spent: 2300 },
-    { line: "صيانات", kind: "مصروفات إدارية", budget: 15000, spent: 4800 }, { line: "اشتراكات منصات و برامج", kind: "مصروفات بيعية", budget: 20000, spent: 18500 },
+    { line: "صيانات", kind: "مصروفات إدارية", budget: 15000, spent: 4800 }, { line: "بروبيرتي فايندر", kind: "مصروفات بيعية", budget: 20000, spent: 18500 },
     { line: "اجهزة اخري", kind: "أصول ثابتة", budget: 60000, spent: 0 }, { line: "بوفيه", kind: "مصروفات إدارية", budget: 7000, spent: 6100 }
   ];
   const vendors = ["Raya", "Property Finder", "B.TECH", "Office Plus", "Vodafone Business", "Dubizzle"];
@@ -315,7 +322,7 @@ window.SEED = (function () {
     { id: "PR-21", item: "لابتوب Dell لسيلز جديد", amount: 30000, line: "اجهزة اخري", vendor: "Raya", attach: "quote-raya.pdf", status: "Pending", created: ago(60 * 3) },
     { id: "PR-24", item: "طلبات بوفيه الأسبوع (قهوة وسكر وشاي)", amount: 1000, line: "بوفيه", vendor: "Office Plus", attach: "", status: "Settled", approver: "u21", suggestedAccount: "خزينة مختار", settledAt: ago(60 * 2), settledBy: "u16", created: ago(60 * 26) },
     { id: "PR-22", item: "ورق وحبر للمكتب", amount: 1800, line: "ادوات مكتبية", vendor: "Office Plus", attach: "", status: "Pending", created: ago(60 * 1) },
-    { id: "PR-20", item: "تجديد اشتراك بروبيرتي فايندر", amount: 1500, line: "اشتراكات منصات و برامج", vendor: "Property Finder", attach: "invoice-pf.pdf", status: "Paid", approver: "u21", account: "بنك CIB", created: ago(60 * 48), paidAt: ago(60 * 40) },
+    { id: "PR-20", item: "تجديد اشتراك بروبيرتي فايندر", amount: 1500, line: "بروبيرتي فايندر", vendor: "Property Finder", attach: "invoice-pf.pdf", status: "Paid", approver: "u21", account: "بنك CIB", created: ago(60 * 48), paidAt: ago(60 * 40) },
     { id: "PR-19", item: "قهوة وسكر للبوفيه", amount: 1400, line: "بوفيه", vendor: "Office Plus", attach: "", status: "Rejected", approver: "u18", rejectReason: "البند قرّب يخلص · اطلبها الشهر الجاي", created: ago(60 * 70) }
   ];
   const periods = [{ name: "أغسطس 2026", status: "مقفول شهرياً" }, { name: "سبتمبر 2026", status: "مقفول ربع سنوي" }, { name: "أكتوبر 2026", status: "مفتوح" }];
@@ -574,8 +581,8 @@ window.SEED = (function () {
       (daily[id] = daily[id] || {})[k] = { vals: {}, note: (NOTE[role] || ((n) => `خلّصت شغل اليوم · ${n + 1} مهام`))(d % 6), at: new Date(`${k}T${late ? "19:10" : "17:4" + (d % 10)}:00`).toISOString() };
     }
   });
-  return { moves, custody, activities, daily, leadRules, kpiWatch, kpis, penalties, listReqs, invReports: {}, webAds, compReports, officeAssets, officeBoys, assetsReviewed: dayKey(12), pettyCap: 50000, pwHashSeed: DEMO_PASSWORD, mails, perms, users, audit, holidays, leaveTypes, targets, tlTiers, tcrSeq, naSheets, pdfFields: ["salary", "target", "achieved", "scheme", "commission", "bonus"], bonuses: [{ minPct: 100, amount: 5000 }, { minPct: 120, amount: 10000 }], statements: {}, bills: [
-    { id: "BL-1", on: true, name: "اشتراك Property Finder الشهري", vendor: "Property Finder", line: "اشتراكات منصات و برامج", amount: 23000, day: 1, from: "بنك CIB", paid: {}, skipped: {} },
+  return { moves, custody, activities, daily, leadRules, kpiWatch, kpis, penalties, listReqs, invReports: {}, webAds, compReports, officeAssets, officeBoys, assetsReviewed: dayKey(12), pettyCap: 50000, pwHashSeed: DEMO_PASSWORD, mails, perms, users, audit, holidays, leaveTypes, targets, tlTiers, tcrSeq, naSheets, pdfFields: ["salary", "target", "achieved", "scheme", "commission", "bonus"], bonuses: [{ minPct: 100, amount: 5000 }, { minPct: 120, amount: 10000 }], statements: {}, chart, bills: [
+    { id: "BL-1", on: true, name: "اشتراك Property Finder الشهري", vendor: "Property Finder", line: "بروبيرتي فايندر", amount: 23000, day: 1, from: "بنك CIB", paid: {}, skipped: {} },
     { id: "BL-2", on: true, name: "إيجار المقر", vendor: "مالك المقر", line: "ايجار", amount: 85000, day: 5, from: "بنك CIB", paid: {}, skipped: {} },
     { id: "BL-3", on: true, name: "إنترنت المكتب", vendor: "Vodafone Business", line: "انترنت", amount: 3200, day: 15, from: "خزينة رئيسية", paid: {}, skipped: {} }], clientCodes: {}, receiveSources: ["عمولة من عميل", "إيراد آخر", "استرداد"], interactionTypes: ["مكالمة", "زيارة", "طلب", "شكوى", "ابديت مع المالك"], finishings: ["متشطب", "نص تشطيب", "Core & Shell"], unitPurposes: ["Rent", "Resale", "Income"], paymentPlans: ["كاش", "تقسيط 3 سنين", "تقسيط 5 سنين"], mkTaskTypes: ["Website leasing", "Market survey", "تصميم بوست", "تصوير فيديو"], ticketDepts: ["HR", "Inventory", "Marketing", "Accounts", "Operations", "الإدارة"], schedReports, notifRules, notifEmail: "notifications@places.com", interactions, contracts: [], people, areas, areaRouting, channels, campaigns, posts, stages, leads, units, areaTabs, importSample, invAccess, tasks, broadcasts, deals, employees, attendance, excuses, requests, oneQuestions, oneOnOnes, leaves, tickets, companies, companyCats, pendingCompanies, accounts, advances, expenses, monthly, budgets, vendors, purchases, periods, notifications, bulk: [], imports: [], unitSeq: 304, leadSeq: seq, clock: 0, holiday: false, waSentToday: 140, waLimit: 250 };
 })();
