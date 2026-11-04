@@ -8,6 +8,17 @@
   U.head = (title, ic, extra, sub) => `<div class="card-head"><h3>${ic ? `<span class="ico">${I(ic)}</span>` : ""}<span>${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ""}</span></h3>${extra || ""}</div>`;
   U.note = (html, kind) => `<div class="note ${kind || ""}">${I(kind === "warn" ? "alert" : kind === "ok" ? "check" : "info")}<span class="spacer">${html}</span></div>`;
   U.empty = (t, ic) => `<div class="empty">${I(ic || "sparkle")}<p>${esc(t)}</p></div>`;
+  // roles or people for a setting: chips with ✕ and an «add» select · act = handler prefix (…Add / …Del), attrs = what to change
+  U.whoName = (x) => ({ follower: "المتابع بتاع الكارت", owner: "السيلز المسؤول عن الليد", ownerTl: "الـ Team Leader بتاع السيلز" }[x] || (A.S.perms[x] ? A.roleLabel(x) : A.person(x)));
+  U.whoEdit = (list, act, attrs, ed, extra) => `<div class="row">${list.map((x) => (ed ? `<button class="btn ghost sm" data-act="${act}Del" ${attrs} data-v="${esc(x)}" aria-label="شيل ${esc(U.whoName(x))}">${esc(U.whoName(x))} ${I("x")}</button>` : U.chip("info", U.whoName(x)))).join("") || `<span class="hint">محدش</span>`}
+    ${ed ? `<select data-change="${act}Add" ${attrs} aria-label="ضيف دور أو شخص" style="max-width:200px"><option value="">+ ضيف دور أو شخص</option>${(extra || []).filter(([v]) => !list.includes(v)).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}<optgroup label="أدوار">${Object.keys(A.S.perms).filter((k) => !list.includes(k)).map((k) => `<option value="${k}">${esc(A.roleLabel(k))}</option>`).join("")}</optgroup><optgroup label="أشخاص">${A.S.users.filter((u) => u.status === "active" && !list.includes(u.id)).map((u) => `<option value="${u.id}">${esc(A.person(u.id))}</option>`).join("")}</optgroup></select>` : ""}</div>`;
+  // the official holidays calendar (from–to ranges), shared by the settings page and the lead rules page; i = index in S.holidays
+  U.holidays = (ed, upcoming) => {
+    const fmt = (d) => new Date(d).toLocaleDateString("ar-EG", { weekday: "short", day: "numeric", month: "long" });
+    const rows = A.S.holidays.map((h, i) => ({ h, i, from: h.from || h.day, to: h.to || h.day })).filter((x) => !upcoming || x.to >= A.today()).sort((a, b) => a.from.localeCompare(b.from));
+    return `${U.table(["الإجازة", "من", "لحد", "الأيام", ""], rows.map((x) => `<tr><td><b>${esc(x.h.name)}</b>${x.from <= A.today() && A.today() <= x.to ? " " + U.chip("warn", "النهارده") : ""}</td><td>${fmt(x.from)}</td><td>${fmt(x.to)}</td><td class="n">${Math.round((new Date(x.to) - new Date(x.from)) / 864e5) + 1}</td><td>${ed ? `<button class="btn ghost sm" data-act="holDel" data-i="${x.i}" aria-label="امسح ${esc(x.h.name)}">${I("x")}</button>` : ""}</td></tr>`))}
+      ${ed ? `<form class="row" data-form="holAdd"><input name="name" placeholder="اسم الإجازة (مثلاً عيد الأضحى)" aria-label="اسم الإجازة" required><label class="field inline"><span>من</span><input type="date" name="from" required></label><label class="field inline"><span>لحد</span><input type="date" name="to" aria-label="لحد (لو يوم واحد سيبها فاضية)"></label><button class="btn ghost">${I("plus")}إضافة</button></form>` : ""}`;
+  };
   U.table = (headRow, rows, cls) => `<div class="tbl-wrap ${cls || ""}"><table><thead><tr>${headRow.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.join("") : `<tr><td colspan="${headRow.length}">${U.empty("مفيش بيانات تطابق الفلتر")}</td></tr>`}</tbody></table></div>`;
   U.tabs = (act, items, cur) => `<div class="tabs" role="tablist">${items.map(([k, l, n]) => `<button role="tab" aria-selected="${cur === k}" data-act="${act}" data-v="${esc(k)}">${esc(l)}${n != null ? ` <span class="tab-n">${n}</span>` : ""}</button>`).join("")}</div>`;
   U.seg = (act, items, cur) => `<div class="seg" role="group">${items.map(([k, l, ic]) => `<button aria-pressed="${cur === k}" data-act="${act}" data-v="${esc(k)}" title="${esc(l)}">${ic ? I(ic) : ""}<span>${esc(l)}</span></button>`).join("")}</div>`;
@@ -78,7 +89,6 @@
   /* demo controls */
   A.ACT.demoClock = (d) => { A.S.clock = (A.S.clock || 0) + +d.min; A.toast(`الوقت اتقدّم ${+d.min >= 60 ? (+d.min / 60) + " ساعة" : d.min + " دقيقة"}`); A.render(); };
   A.ACT.demoDay = () => { A.S.clock = (A.S.clock || 0) + 24 * 60; const n = A.rotateNoAnswer(); A.toast(`يوم جديد · ${n} ليد No Answer اتنقلوا بالروتيشن`); A.render(); };
-  A.ACT.demoHoliday = () => { A.S.holiday = !A.S.holiday; A.toast(A.S.holiday ? "وضع الإجازة: الـ SLA بقى 24 ساعة، والتنبيه قبلها بساعتين" : "رجعنا لأيام الشغل: تنبيه بعد ساعتين ونص وسحب بعد 3 ساعات"); A.render(); };
   A.ACT.demoFinger = () => { const n = A.syncFingerprint(); A.toast(n ? `اتسحب ${n} بصمة من الجهاز` : "كل بصمات النهارده موجودة"); A.render(); };
   A.ACT.demoClockReset = () => { A.S.clock = 0; A.toast("الوقت رجع للحقيقي"); A.render(); };
 

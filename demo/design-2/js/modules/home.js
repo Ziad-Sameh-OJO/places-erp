@@ -11,18 +11,23 @@
       st.leads.filter((l) => { const s = A.sla(l); return s && s.level !== "ok" && (r !== "sales" || l.sales === m); }).forEach((l) => add("bad", "clock", `${l.name} من غير أكشن`, `${A.sla(l).text} · ${A.person(l.sales)}`, "leadOpen", { id: l.id }, "افتح الليد"));
       if (["ops", "admin"].includes(r)) {
         st.bulk.filter((b) => b.status === "pending").forEach((b) => add("warn", "upload", `إدخال جماعي: ${b.numbers.length} رقم`, "مستني موافقتك على التوزيع", "bulkReview", { id: b.id }, "راجع"));
-        st.leads.filter((l) => l.newLeadReq === "pending").forEach((l) => add("warn", "send", `New Lead من Telesales: ${l.name}`, "تختار الروتيشن ولا سيلز معيّن", "newLeadDecide", { id: l.id }, "قرّر"));
+        st.leads.filter((l) => l.newLeadReq === "pending").forEach((l) => { const left = A.newLeadMins() - (l.newLeadReqAt ? A.minsSince(l.newLeadReqAt) : 0); add(left < 0 ? "bad" : "warn", "send", `New Lead من Telesales: ${l.name}`, left < 0 ? `اتأخرت ${-left} دقيقة · بيتحسب عليكي في الـ KPIs` : `باقي ${left} دقيقة عشان يتحسب في الميعاد`, "newLeadDecide", { id: l.id }, "قرّر"); });
       }
       if (r === "telesales") {
         st.pendingCompanies.forEach((p, i) => add("warn", "building", `شركة جديدة: ${p.name}`, "محتاجة تتضاف لشيت الشركات بكاتيجوري", "companies", {}, "شيت الشركات"));
-        st.leads.filter((l) => l.owner === "telesales" && l.rotation >= 3 && l.newLeadReq !== "pending").forEach((l) => add("", "phone", `رجعلك في الروتيشن التالت: ${l.name}`, "كلّميه تاني", "leadOpen", { id: l.id }, "افتح"));
+        st.leads.filter((l) => l.owner === "telesales" && l.rotation >= st.leadRules.noAnswer.toTelesalesAt && l.newLeadReq !== "pending").forEach((l) => add("", "phone", `رجعلك في الروتيشن التالت: ${l.name}`, "كلّميه تاني", "leadOpen", { id: l.id }, "افتح"));
       }
+      // the day's Not Interested / Cancellation for whoever runs the Draft Admin (Heba): decide each one
+      if (A.isIn(st.leadRules.draftAdmin.see) || r === "admin") { const w = st.leads.filter((l) => l.owner === "draftAdmin" && l.draftAdmin && !l.draftAdmin.reviewed), t = w.filter((l) => l.draftAdmin.at.slice(0, 10) === A.today());
+        if (w.length) add("bad", "alert", `Alarm: ${w.length} Not Interested / Cancellation مستنيين قرارك${t.length ? ` · ${t.length} النهارده` : ""}`, w.slice(0, 4).map((l) => `${l.name} (${l.stage} · ${A.person(l.draftAdmin.from)})`).join("، ") + (w.length > 4 ? "…" : ""), "goDraftAdmin", {}, "راجعي"); }
+      // postponements wait for whoever the rules name for that lead (the salesperson's Team Leader by default)
+      st.leads.forEach((l) => l.visits.forEach((v) => { if (v.postpone === "pending" && (r === "admin" || A.ruleHas(st.leadRules.visit.postpone, l))) add("warn", "pin", `تأجيل ${v.kind || "Visit"}: ${l.name}`, `${A.person(l.sales)} · ${A.fmtDate(v.at)} ${A.fmtTime(v.at)} · السبب: ${v.postponeReason || "—"}`, "leadOpen", { id: l.id }, "قرّر"); }));
       const mine = st.leads.filter((l) => (r === "sales" ? l.sales === m : true));
-      mine.forEach((l) => l.visits.forEach((v, i) => { if (!v.done && v.at.slice(0, 10) <= A.today() && (r === "sales" || r === "admin" || r === "tl")) add(v.at.slice(0, 10) < A.today() ? "bad" : "", "pin", `Visit: ${l.name}`, `${A.fmtDate(v.at)} ${A.fmtTime(v.at)} · لازم تدوس Done`, "leadOpen", { id: l.id }, "افتح"); }));
+      mine.forEach((l) => l.visits.forEach((v, i) => { if (!v.done && !v.postpone && v.at.slice(0, 10) <= A.today() && (r === "sales" || r === "admin" || r === "tl")) add(v.at.slice(0, 10) < A.today() ? "bad" : "", "pin", `${v.kind || "Visit"}: ${l.name}`, `${A.fmtDate(v.at)} ${A.fmtTime(v.at)} · لازم تدوس Done`, "leadOpen", { id: l.id }, "افتح"); }));
       if (r === "tl") st.leads.filter((l) => l.tlFlag).forEach((l) => add("", "star", `ملاحظة TL على ${l.name}`, l.tlFlag, "leadOpen", { id: l.id }, "افتح"));
     }
     // Q5: every 4 hours the salesperson is reminded to call the leads they marked No Answer
-    if (r === "sales") st.leads.filter((l) => l.sales === m && l.stage === "No Answer" && A.minsSince(l.naCallAt || l.noAnswerAt || l.created) >= 240).slice(0, 5).forEach((l) => add("warn", "phone", `كلّم ${l.name} (No Answer)`, "تنبيه كل 4 ساعات · سجّل المكالمة عشان يتقفل", "leadOpen", { id: l.id }, "افتح"));
+    if (r === "sales") st.leads.filter((l) => l.sales === m && l.stage === "No Answer" && A.minsSince(l.naCallAt || l.noAnswerAt || l.created) >= st.leadRules.noAnswer.remindH * 60).slice(0, 5).forEach((l) => add("warn", "phone", `كلّم ${l.name} (No Answer)`, "تنبيه كل 4 ساعات · سجّل المكالمة عشان يتقفل", "leadOpen", { id: l.id }, "افتح"));
     // Q16: a closed deal's unit is marked Rented/Sold only after Manar (rent) or Randa (resale & income) confirms
     if (["inventory", "resale", "admin"].includes(r)) st.units.filter((u) => u.closeReq && (r === "admin" || (u.type === "Rent") === (r === "inventory"))).forEach((u) => add("warn", "building", `اقفل ${u.code}؟`, `Done Deal ${u.closeReq} اتوافق عليها · محتاجة تأكيدك`, "unitOpen", { code: u.code }, "راجع"));
     // the unit's agent becomes the deal's Seller only after Manar approves
@@ -63,6 +68,7 @@
     if (["approver", "admin"].includes(r)) st.purchases.filter((p) => p.status === "Pending").forEach((p) => add("warn", "cart", `طلب شراء: ${p.item}`, `${A.money(p.amount)} · ${p.line}`, "goProc", {}, "قرّر"));
     if (r === "procurement") st.purchases.filter((p) => p.status === "Approved").forEach((p) => add("", "wallet", `اتوافق: ${p.item}`, "جاهز للصرف", "goProc", {}, "صرف"));
     if (A.kpiInbox) A.kpiInbox(add);
+    if (A.reportInbox) A.reportInbox(add); // reports due today that this person hands in
     if (A.invInbox) A.invInbox(add); // inventory team: Manar's tasks, list requests, the daily report // KPI cards: what I hand in, and what my team waits on me for
     return out;
   }
@@ -96,16 +102,17 @@
           <div class="hero-stats">
             <div><b class="num">${items.length}</b><span>مهام النهارده</span></div>
             <div><b class="num">${urgent}</b><span>متأخر</span></div>
-            <div><b class="num">${st.notifications.filter((n) => (r === "admin" || n.to.includes(r)) && !n.read).length}</b><span>إشعار جديد</span></div>
+            <div><b class="num">${st.notifications.filter((n) => A.forMe(n) && !n.read).length}</b><span>إشعار جديد</span></div>
           </div>
         </section>
         ${A.kpiMine ? A.kpiMine() : ""}
+        ${A.actCard ? A.actCard() : ""}
         <div class="cols wide">
           <section class="card">${U.head("مهامي النهارده", "check", U.chip(urgent ? "bad" : "ok", urgent ? `${urgent} متأخر` : "كله في الميعاد"), "مترتبة: المتأخر الأول")}
             ${items.length ? `<ul class="inbox">${items.sort((a, b) => (b.tone === "bad") - (a.tone === "bad")).map((x) => `<li class="${x.tone}"><span class="ib-ico">${I(x.ic)}</span><div class="ib-txt"><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></div><button class="btn sm ${x.tone === "bad" ? "" : "ghost"}" data-act="${x.act}" ${Object.entries(x.data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ")}>${esc(x.btn)}</button></li>`).join("")}</ul>` : U.empty("مفيش حاجة مستنياك. يوم هادي!", "check")}
           </section>
           <section class="card">${U.head("آخر الإشعارات", "bell")}
-            <div class="timeline">${st.notifications.filter((n) => r === "admin" || n.to.includes(r)).slice(0, 7).map((n) => `<div>${esc(n.text)}<small>${A.ago(n.at)}</small></div>`).join("") || U.empty("مفيش إشعارات", "bell")}</div>
+            <div class="timeline">${st.notifications.filter(A.forMe).slice(0, 7).map((n) => `<div>${esc(n.text)}<small>${A.ago(n.at)}</small></div>`).join("") || U.empty("مفيش إشعارات", "bell")}</div>
           </section>
         </div>
         ${showCharts ? `<div class="kpis">${U.kpi("ليدز آخر 30 يوم", A.num(days.reduce((s, d) => s + d.value, 0)), "من كل الـ channels", "users", "", "", U.trend(allLeads, "created", 30))}${U.kpi("Qualified", A.num(q), `${Math.round((q / allLeads.length) * 100)}% نسبة التأهيل`, "star", "ok")}${U.kpi("صفقات مقفولة", A.num(st.deals.filter(A.countsRevenue).length), A.money(st.deals.filter(A.countsRevenue).reduce((s, d) => s + d.value, 0)), "handshake")}${U.kpi("وحدات متاحة", A.num(st.units.filter((u) => u.status === "available").length), `${st.units.filter(A.stale).length} محتاجة ابديت`, "building", "warn")}</div>

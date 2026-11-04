@@ -150,12 +150,11 @@
       let body = "";
       if (t === "lists") body = `<div class="cols">${list("areas", "المناطق (Areas)", st.areas)}${list("channels", "الـ Channels", st.channels)}${list("companyCats", "كاتيجوريز الشركات", st.companyCats)}${list("vendors", "الموردين", st.vendors)}</div>`;
       if (t === "stages") body = `<section class="card">${head("مراحل الليد", "layers", "", "الترتيب، وأنهي مرحلة بتحسب Qualified")}${table(["#", "المرحلة", "Qualified؟", "عدد الليدز"], st.stages.map((s, i) => `<tr><td class="n">${i + 1}</td><td><b>${esc(s)}</b></td><td>${["Fresh", "Not Interested", "No Answer"].includes(s) ? chip("", "لأ", 1) : chip("ok", "اه · أوتوماتيك")}</td><td class="n">${st.leads.filter((l) => l.stage === s).length}</td></tr>`))}</section>`;
-      if (t === "time") body = `<div class="cols"><section class="card">${head("قواعد الـ SLA", "clock")}<ul class="rules"><li><b>تنبيه الـ TL</b><span>ساعتين ونص (أيام الشغل) · 22 ساعة (الإجازات)</span></li><li><b>سحب الليد</b><span>3 ساعات · 24 ساعة في الإجازات</span></li><li><b>No Answer</b><span>يوم عند كل سيلز</span></li></ul></section>
+      if (t === "time") body = `<div class="cols"><section class="card">${head("قواعد الـ SLA", "clock")}<ul class="rules"><li><b>تنبيه</b><span>${A.dur(st.leadRules.sla.warnMin)} (أيام الشغل) · ${A.dur(st.leadRules.sla.holWarnMin)} (الإجازات)</span></li><li><b>سحب الليد</b><span>${A.dur(st.leadRules.sla.pullMin)} · ${A.dur(st.leadRules.sla.holPullMin)} في الإجازات</span></li><li><b>No Answer</b><span>يوم عند كل سيلز · Telesales في الروتيشن رقم ${st.leadRules.noAnswer.toTelesalesAt}</span></li></ul><a class="btn ghost sm" href="#settings">عدّل من قواعد الليدز</a></section>
           <section class="card">${head("ميعاد الشغل والخصم", "fingerprint")}<ul class="rules"><li><b>ميعاد الشغل</b><span>11:00 لكل الناس</span></li><li><b>الشرايح</b><span>لحد 11:16 · ربع · نص · يوم</span></li><li><b>Excuse</b><span>2 مجاناً في الشهر · 3 و4 نص يوم · 5 رفد</span></li></ul><a class="btn ghost sm" href="#hr" data-act="goHr" data-tab="rules">عدّل من الـ HR</a></section>
           <section class="card">${head("أنواع الإجازات", "calendar")}${table(["النوع", "الرصيد السنوي"], st.leaveTypes.map((x, i) => `<tr><td>${esc(x.name)}</td><td>${ed ? `<input type="number" value="${x.days}" data-change="ltDays" data-i="${i}" style="max-width:90px">` : x.days}</td></tr>`))}</section>
           <section class="card">${head("حد الواتساب اليومي", "megaphone")}<div class="row"><input type="number" id="wa-lim" value="${st.waLimit}" ${ed ? "" : "disabled"} data-change="waLimit" style="max-width:120px"><span class="hint">رسالة في اليوم</span></div></section></div>`;
-      if (t === "holidays") body = `<section class="card">${head("كالندر الإجازات الرسمية", "calendar", "", "في يوم الإجازة الـ SLA بيمشي 24 ساعة أوتوماتيك، والبصمة متحسبش غياب")}${table(["اليوم", "الإجازة", ""], st.holidays.slice().sort((a, b) => a.day.localeCompare(b.day)).map((h, i) => `<tr><td>${new Date(h.day).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}${h.day === A.today() ? " " + chip("warn", "النهارده") : ""}</td><td>${esc(h.name)}</td><td>${ed ? `<button class="btn ghost sm" data-act="holDel" data-i="${i}">${I("x")}</button>` : ""}</td></tr>`))}
-        ${ed ? `<form class="row" data-form="holAdd"><input type="date" name="day" id="hol-d" required><input name="name" id="hol-n" placeholder="اسم الإجازة" required><button class="btn ghost">${I("plus")}إضافة</button><button type="button" class="btn ghost sm" data-act="holToday">النهارده إجازة (للتجربة)</button></form>` : ""}</section>`;
+      if (t === "holidays") body = `<section class="card">${head("كالندر الإجازات الرسمية", "calendar", "", "من يوم لـ يوم (زي العيد) · في أيامها الـ SLA بيمشي بمواعيد يوم الإجازة ومابتتحسبش في ساعات الشغل")}${U.holidays(ed)}</section>`;
       if (t === "budget") body = `<section class="card">${head("بنود المصروفات والـ Budget", "wallet", "", "من شجرة الحسابات · د. علي")}${table(["البند", "النوع", "الـ Budget"], st.budgets.map((b, i) => `<tr><td>${esc(b.line)}</td><td>${esc(b.kind)}</td><td>${ed ? `<input type="number" value="${b.budget}" data-change="budSet" data-i="${i}" style="max-width:140px">` : A.money(b.budget)}</td></tr>`))}</section>`;
       return `<div class="row">${U.tabs("msTab", [["lists", "القوايم"], ["stages", "مراحل الليد"], ["time", "المواعيد والقواعد"], ["holidays", "الإجازات الرسمية", st.holidays.length], ["budget", "بنود المصروفات"]], t)}</div>${!ed ? note("عرض بس · التعديل لـ Super Admin أو مدير القسم.") : ""}${body}`;
     }
@@ -166,9 +165,11 @@
   A.CHANGE.ltDays = (v, el) => { S().leaveTypes[+el.dataset.i].days = +v; A.audit("master", "رصيد إجازة اتغير"); };
   A.CHANGE.waLimit = (v) => { S().waLimit = +v; A.audit("master", `حد الواتساب بقى ${v}`); A.toast("اتحفظ"); };
   A.CHANGE.budSet = (v, el) => { const b = S().budgets[+el.dataset.i]; A.audit("master", `Budget ${b.line}: ${b.budget} ← ${v}`); b.budget = +v; A.toast("اتحفظ"); };
-  A.FORM.holAdd = (f) => { S().holidays.push({ day: f.day, name: f.name }); A.audit("master", `إجازة رسمية: ${f.name}`); A.render(); };
-  A.ACT.holDel = (d) => { S().holidays.splice(+d.i, 1); A.render(); };
-  A.ACT.holToday = () => { S().holidays.push({ day: A.today(), name: "إجازة (تجربة)" }); A.toast("النهارده بقى إجازة · الـ SLA بقى 24 ساعة"); A.render(); };
+  A.FORM.holAdd = (f) => {
+    const to = f.to || f.from; if (to < f.from) { A.toast("«لحد» لازم يبقى بعد «من» أو نفس اليوم"); return; }
+    S().holidays.push({ from: f.from, to, name: f.name }); A.audit("master", `إجازة رسمية: ${f.name} من ${f.from} لـ ${to}`); A.toast(`اتضافت · ${f.name}`); A.render();
+  };
+  A.ACT.holDel = (d) => { const h = S().holidays.splice(+d.i, 1)[0]; if (h) A.audit("master", `اتشالت الإجازة الرسمية: ${h.name}`); A.toast("اتشالت"); A.render(); };
 
   /* ---------- M-14 notifications & email (no external integrations) ---------- */
   V.integrations = {
@@ -180,6 +181,7 @@
           <section class="card">${head("تفضيلاتي", "bell", "", "الإشعارات المهمة بتوصلك دايماً جوه السيستم")}<label class="tog"><input type="checkbox" ${mine ? "" : "checked"} data-change="nfMine">ابعتلي الإشعارات كمان على الإيميل</label>${note("الإشعارات المهمة (Alarm / سحب ليد / رفد) ماتتقفلش غير لما تتقري، حتى لو قافل الإيميل.")}</section>
         </div>
         <section class="card">${head("قواعد الإشعارات", "bell", "", "كل حدث بيروح لمين، جوه السيستم و/أو Push و/أو إيميل")}${table(["الحدث", "لمين", "جوه السيستم", "Push", "إيميل"], st.notifRules.map((n, i) => `<tr><td><b>${esc(n.ev)}</b></td><td>${esc(n.to)}</td>${["app", "push", "email"].map((c) => `<td class="c"><label class="tick"><input type="checkbox" ${n.ch.includes(c) ? "checked" : ""} ${ed ? "" : "disabled"} data-change="nrSet" data-i="${i}" data-c="${c}"><span></span></label></td>`).join("")}</tr>`))}</section>
+        ${note(`إشعارات الليدز (ليد جديد، الـ SLA، السحب، No Answer، الـ Visit، الإقفال) بتتعدّل مع قواعدها من <a href="#settings">قواعد الليدز والتوزيع</a>.`)}
         ${note("مفيش ربط مع أنظمة بره في المرحلة دي غير جهاز البصمة: الإشعارات جوه السيستم وPush notifications وعلى الإيميل.")}`;
     }
   };
