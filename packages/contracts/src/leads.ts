@@ -76,6 +76,8 @@ export interface LeadDetail extends LeadRow {
   post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
   /** the first logged call, and whether it came within 30 minutes of arrival (KPI; null until someone calls) */
   firstCallAt: string | null; firstCallOnTime: boolean | null;
+  /** the «Logs» tab is shown only when this is true (the admin, or a role the admin picked · 1.25) */
+  canSeeLogs: boolean;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
 
@@ -103,6 +105,11 @@ export interface LeadSummary {
   thisWeek: number; lastWeek: number;
   /** an official holiday today: the SLA runs on wall-clock hours (the note under the list says so) */
   holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number };
+}
+
+/** One line of a lead's «Logs» tab: recorded automatically, a person's comment, or an audit entry (1.25). */
+export interface LeadLogRow {
+  id: string; source: "auto" | "comment" | "audit"; text: string; by: { id: string; name: string } | null; at: string;
 }
 
 /** The person's own call count against their KPI (demo «مكالماتك النهارده: … من 100»); no goal for other roles. */

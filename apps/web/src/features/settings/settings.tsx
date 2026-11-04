@@ -71,6 +71,7 @@ export function SettingsPage() {
             {ed && <button className="btn ghost sm">احفظ</button>}
           </form>
         </Card>
+        <LeadLogRoles chosen={d.leadLogRoles} editable={ed} onSave={(roles) => set("leadLogRoles", roles, "اتحفظ · الأدوار دي هتشوف تاب Logs في الليد")} />
       </div>}
 
       {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="في يوم الإجازة الـ SLA بيمشي بالساعة العادية، والبصمة متحسبش غياب"
@@ -88,5 +89,27 @@ export function SettingsPage() {
         columns={[["day", "التاريخ"], ["label", "الإجازة"]]} onClose={() => setImporting(false)}
         onDone={() => { setImporting(false); void qc.invalidateQueries({ queryKey: ["holidays"] }); }} />}
     </>
+  );
+}
+
+/**
+ * Who sees a lead's «Logs» tab besides the admin (client meeting, 4 Nov · 1.25). The role list comes from
+ * الأدوار والصلاحيات; the admin is always included and isn't offered.
+ */
+function LeadLogRoles({ chosen, editable, onSave }: { chosen: string[]; editable: boolean; onSave: (roles: string[]) => void }) {
+  const { can } = useMe();
+  const roles = useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ key: string; label: string }[]>("/access/roles"), enabled: can("access", "view") });
+  const label = new Map((roles.data ?? []).map((r) => [r.key, r.label]));
+  const toggle = (key: string, on: boolean) => onSave(on ? [...chosen, key] : chosen.filter((k) => k !== key));
+  return (
+    <Card title="مين يشوف Logs الليد" icon="lock" sub="الأدمن دايماً · واختار الأدوار التانية">
+      {roles.data ? (
+        <div className="chips-edit">
+          {roles.data.filter((r) => r.key !== "admin").map((r) => (
+            <label key={r.key} className="tog"><input type="checkbox" checked={chosen.includes(r.key)} disabled={!editable} onChange={(e) => toggle(r.key, e.target.checked)} /> {r.label}</label>
+          ))}
+        </div>
+      ) : <p className="hint">{chosen.length ? chosen.map((k) => label.get(k) ?? k).join("، ") : "الأدمن بس"}</p>}
+    </Card>
   );
 }

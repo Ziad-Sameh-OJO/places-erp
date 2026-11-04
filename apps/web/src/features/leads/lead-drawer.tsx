@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import type { LeadDetail } from "@places/contracts";
+import { useQuery } from "@tanstack/react-query";
+import type { LeadDetail, LeadLogRow } from "@places/contracts";
 import { LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { Chip, Empty, Icon, Tabs, useAction, useToast } from "@/components/ui";
@@ -20,7 +21,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleString("ar-EG", { dateStyle: 
  */
 export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: string; onGo: (id: string) => void; onClose: () => void }) {
   const lead = useLead(id);
-  const [tab, setTab] = useState<"overview" | "activity">("overview");
+  const [tab, setTab] = useState<"overview" | "activity" | "logs">("overview");
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   const l = lead.data;
@@ -37,8 +38,11 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
         {l.ownedByTelesales && <Chip tone="info">مع Telesales</Chip>}
         {l.noAnswerCount > 0 && <Chip tone="warn">No Answer ×{l.noAnswerCount} · روتيشن {l.rotation}</Chip>}
       </>}>
-      <Tabs value={tab} onChange={setTab} items={[["overview", "نظرة عامة"], ["activity", "Activity", l.activities.length]]} />
-      {tab === "overview" ? <Overview l={l} /> : <Activity l={l} />}
+      <Tabs value={tab} onChange={setTab} items={[
+        ["overview", "نظرة عامة"], ["activity", "Activity", comments(l).length],
+        ...(l.canSeeLogs ? [["logs", "Logs"] as ["logs", string]] : []),
+      ]} />
+      {tab === "overview" ? <Overview l={l} /> : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} />}
     </Drawer>
   );
 }
@@ -58,7 +62,6 @@ function Overview({ l }: { l: LeadDetail }) {
       {onPipe && <Stepper stages={PIPE} current={l.stage} />}
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {l.note && <div className="quote">{l.note}</div>}
-      {can("leads", "edit") && <StageCard l={l} />}
       {can("leads", "edit") && <CallButton id={l.id} />}
     </>
   );
@@ -100,22 +103,47 @@ function CallButton({ id }: { id: string }) {
 }
 
 /** Demo «Activity»: a comment (or a call's result) on top, then the timeline, newest first. */
+/** People's comments only; what the system records goes to «Logs» (client meeting, 4 Nov · 1.25). */
+const comments = (l: LeadDetail) => l.activities.filter((a) => a.kind === "comment");
+
 function Activity({ l }: { l: LeadDetail }) {
   const { can } = useMe();
   const run = useAction();
   const add = useAddComment();
   const [text, setText] = useState("");
+  const mine = comments(l);
   return (
     <>
+      {can("leads", "edit") && <StageCard l={l} />}
       {can("leads", "edit") && (
         <form className="row" onSubmit={(e) => { e.preventDefault(); const t = text.trim(); if (t) void run(async () => { await add(l.id, t); setText(""); }); }}>
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب كومنت أو نتيجة مكالمة" required maxLength={2000} aria-label="كومنت" />
           <button className="btn ghost">إضافة</button>
         </form>
       )}
-      {l.activities.length
-        ? <div className="timeline">{l.activities.map((a) => <div key={a.id}>{a.text}<small>{a.by?.name ?? "السيستم"} · {fmt(a.at)}</small></div>)}</div>
+      {mine.length
+        ? <div className="timeline">{mine.map((a) => <div key={a.id}>{a.text}<small>{a.by?.name ?? "السيستم"} · {fmt(a.at)}</small></div>)}</div>
         : <Empty text="مفيش Activity لسه" />}
     </>
+  );
+}
+
+const SOURCE: Record<LeadLogRow["source"], [string, "" | "acc" | "warn"]> = { auto: ["تلقائي", ""], comment: ["كومنت", "acc"], audit: ["Audit", "warn"] };
+
+/** «Logs» (1.25): everything recorded on the lead, newest first, each line tagged تلقائي / كومنت / Audit. */
+function Logs({ id }: { id: string }) {
+  const logs = useQuery({ queryKey: ["lead", id, "logs"], queryFn: () => api.get<LeadLogRow[]>(`/leads/${id}/logs`) });
+  if (logs.error) return <Empty text={logs.error.message} />;
+  if (!logs.data) return <p className="hint">بيحمّل…</p>;
+  if (!logs.data.length) return <Empty text="مفيش حاجة اتسجلت لسه" />;
+  return (
+    <div className="timeline">
+      {logs.data.map((x) => (
+        <div key={x.id}>
+          <Chip tone={SOURCE[x.source][1]}>{SOURCE[x.source][0]}</Chip> {x.text}
+          <small>{x.by?.name ?? "السيستم"} · {fmt(x.at)}</small>
+        </div>
+      ))}
+    </div>
   );
 }
