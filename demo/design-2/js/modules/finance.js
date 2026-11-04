@@ -30,7 +30,7 @@
   A.ACT.fnTab = (d) => { ui("fnTab", d.v); A.render(); };
   const row = (l, v, cls, drill) => `<tr class="${cls || ""} ${v < 0 ? "neg" : ""} ${drill ? "click" : ""}" ${drill ? `data-act="drill" data-k="${esc(drill)}"` : ""}><td>${esc(l)}${drill ? ` <span class="hint">${I("search")}</span>` : ""}</td><td class="n">${A.money(v)}</td></tr>`;
   /* ---------- treasury: every movement is a voucher; balances, statements and journal entries all come from it ---------- */
-  const KIND = { pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""], commission: ["صرف عمولة سيلز", "bad"] };
+  const KIND = { pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""], advded: ["خصم سلفة من المرتب", "info"], commission: ["صرف عمولة سيلز", "bad"] };
   const acc = (name) => S().accounts.find((a) => a.name === name);
   const lines = () => [...S().expenses.admin.map(([k]) => [k, "مصروفات إدارية"]), ...S().expenses.selling.map(([k]) => [k, "مصروفات بيعية"])];
   const lineOpts = (v) => `<optgroup label="مصروفات إدارية">${S().expenses.admin.map(([k]) => opt(k, k, v)).join("")}</optgroup><optgroup label="مصروفات بيعية">${S().expenses.selling.map(([k]) => opt(k, k, v)).join("")}</optgroup>`;
@@ -39,7 +39,7 @@
   const partyName = (m) => (m.party && S().people.some((p) => p.id === m.party) ? A.person(m.party) : m.party || "—");
   const canPost = () => A.canDo("finance", "create");
   const openPeriod = () => S().periods[S().periods.length - 1].status === "مفتوح";
-  const NATURE = { pay: "صرف نقدية", receive: "توريد نقدية", transfer: "تحويل نقدية بين الخزن", advance: "سلفة موظف", custody: "صرف عهدة", settle: "تسوية عهدة", commission: "صرف عمولة سيلز" };
+  const NATURE = { pay: "صرف نقدية", receive: "توريد نقدية", transfer: "تحويل نقدية بين الخزن", advance: "سلفة موظف", custody: "صرف عهدة", settle: "تسوية عهدة", advded: "خصم سلفة من المرتب", commission: "صرف عمولة سيلز" };
   const LIVE = (d) => !["Pending Review", "Rejected", "Cancelled"].includes(d.status);
   const dueOf = (d) => (A.countsRevenue(d) ? Math.max(0, A.placesComm(d) - A.collected(d)) : 0);
   // every client of a deal (or one the accountant adds) gets its own account under 113; the code is given once and kept
@@ -48,6 +48,16 @@
     names.forEach((n) => { if (!cc[n]) cc[n] = Object.keys(cc).length + 1; });
     return Object.keys(cc).sort((a, b) => cc[a] - cc[b]).map((n) => ({ code: "113" + String(cc[n]).padStart(3, "0"), name: n, key: "عميل:" + n, bal: st.deals.filter((d) => d.client === n).reduce((s, d) => s + dueOf(d), 0) }));
   }
+  const advGiven = (id) => S().advances.filter((a) => a.emp === id).reduce((s, a) => s + a.amount, 0);
+  const advTaken = (id) => (S().advDeds || []).filter((x) => x.emp === id).reduce((s, x) => s + x.amount, 0);
+  const advLeft = (id) => advGiven(id) - advTaken(id);
+  const advEmps = () => [...new Set(S().advances.map((a) => a.emp))];
+  const advPosted = (mk) => (S().advDeds || []).some((x) => x.month === mk);
+  // planned deduction this month: what Ahmed typed, else last month's choice, else all of it · never more than what's left
+  const advPlan = (id, mk) => { const st = S(), m = mk || A.today().slice(0, 7); if (advPosted(m)) return (st.advDeds || []).filter((x) => x.emp === id && x.month === m).reduce((s, x) => s + x.amount, 0);
+    const v = ((st.advPlan || {})[m] || {})[id] ?? (st.advMonthly || {})[id]; return Math.min(advLeft(id), v == null ? advLeft(id) : +v); };
+  function advKids(st) { const ec = st.advCodes = st.advCodes || {}; advEmps().forEach((id) => { if (!ec[id]) ec[id] = Object.keys(ec).length + 1; });
+    return Object.keys(ec).sort((a, b) => ec[a] - ec[b]).map((id) => ({ code: "114" + String(ec[id]).padStart(2, "0"), name: A.person(id), key: "سلفة:" + id, emp: id, bal: advLeft(id) })); }
   const earnedOf = (id) => S().deals.filter((d) => A.dealStatus(d) === "Fully Collected").reduce((s, d) => s + A.salesComm(d, id), 0);
   const paidOf = (id) => (S().commPaid || []).filter((x) => x.emp === id).reduce((s, x) => s + x.amount, 0);
   const commDue = (id) => earnedOf(id) - paidOf(id);
@@ -62,7 +72,7 @@
     return Object.keys(sc).sort((a, b) => sc[a] - sc[b]).map((id) => ({ code: "211" + String(sc[id]).padStart(2, "0"), name: A.person(id), key: "عمولة:" + id, emp: id, bal: commDue(id) })); }
   function coa() {
     const st = S(), p = figures(), cash = st.accounts, kids = (code, list) => list.map((x, i) => Object.assign({ code: code + String(i + 1).padStart(2, "0") }, x));
-    const ar = st.deals.filter(A.countsRevenue).reduce((s, d) => s + Math.max(0, A.placesComm(d) - A.collected(d)), 0), adv = st.advances.reduce((s, a) => s + a.amount, 0), cust = st.custody.reduce((s, c) => s + c.amount, 0);
+    const ar = st.deals.filter(A.countsRevenue).reduce((s, d) => s + Math.max(0, A.placesComm(d) - A.collected(d)), 0), adv = st.advances.reduce((s, a) => s + a.amount, 0) - (st.advDeds || []).reduce((s, x) => s + x.amount, 0), cust = st.custody.reduce((s, c) => s + c.amount, 0);
     const comPay = st.deals.filter((d) => A.dealStatus(d) === "Fully Collected").reduce((s, d) => s + A.salesComm(d), 0) - (st.commPaid || []).reduce((s, x) => s + x.amount, 0), other = st.moves.filter((m) => m.kind === "receive" && m.source !== "عمولة من عميل").reduce((s, m) => s + m.amount, 0);
     const assets = cash.reduce((s, a) => s + a.balance, 0) + ar + adv + cust + 420000, liab = comPay + 86000;
     const T = [
@@ -70,7 +80,7 @@
         { code: "11", name: "الأصول المتداولة", kids: [
           { code: "111", name: "النقدية بالخزن", kids: kids("111", cash.filter((a) => a.kind === "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
           { code: "112", name: "النقدية بالبنوك والمحافظ", kids: kids("112", cash.filter((a) => a.kind !== "خزينة").map((a) => ({ name: a.name, bal: a.balance, key: a.name }))) },
-          { code: "113", name: "العملاء (عمولات مستحقة)", key: "عملاء", kids: clientKids(st) }, { code: "114", name: "سلف الموظفين", bal: adv, key: "سلف موظفين" }, { code: "115", name: "العهد", bal: cust, key: "عهد" }] },
+          { code: "113", name: "العملاء (عمولات مستحقة)", key: "عملاء", kids: clientKids(st) }, { code: "114", name: "سلف الموظفين", key: "سلف موظفين", kids: advKids(st) }, { code: "115", name: "العهد", bal: cust, key: "عهد" }] },
         { code: "12", name: "الأصول الثابتة (صافي)", bal: 420000 }] },
       { code: "2", name: "الخصوم", nat: "cr", kids: [{ code: "21", name: "الخصوم المتداولة", kids: [{ code: "211", name: "عمولة مبيعات مستحقة", kids: commKids(st) }, { code: "212", name: "ضرائب قيمة مضافة", bal: 86000 }] }] },
       { code: "3", name: "حقوق الملكية", nat: "cr", kids: [{ code: "31", name: "رأس المال", bal: 1500000 }, { code: "32", name: "الأرباح المحتجزة", bal: assets - liab - 1500000 - p.net - other + (st.glPlug || 0) }, { code: "33", name: "أرباح وخسائر العام", bal: p.net + other }] },
@@ -98,7 +108,7 @@
   // the journal entry of a movement: debit / credit lines
   const entry = (m) => ({
     pay: [[m.line, m.amount, 0], [m.from, 0, m.amount]], receive: [[m.to, m.amount, 0], [m.source === "عمولة من عميل" ? (m.party ? "عميل:" + m.party : "عملاء") : "إيرادات أخرى", 0, m.amount]],
-    transfer: [[m.to, m.amount, 0], [m.from, 0, m.amount]], advance: [["سلف موظفين", m.amount, 0], [m.from, 0, m.amount]],
+    transfer: [[m.to, m.amount, 0], [m.from, 0, m.amount]], advance: [["سلفة:" + m.party, m.amount, 0], [m.from, 0, m.amount]], advded: [[m.to, m.amount, 0], ["سلفة:" + m.party, 0, m.amount]],
     custody: [["عهد", m.amount, 0], [m.from, 0, m.amount]],
     commission: [["عمولة:" + m.party, m.amount, 0], [m.from, 0, m.amount]],
     settle: [[m.line, m.spent, 0], ...(m.returned ? [[m.to, m.returned, 0]] : []), ["عهد", 0, m.spent + m.returned]]
@@ -234,9 +244,7 @@
       return `<div class="cols"><section class="card">${head("العهد المفتوحة", "wallet", chip("warn", A.money(st.custody.reduce((s, c) => s + c.amount, 0))), "الفلوس اللي مع الناس ومستنية تسوية")}
           ${table(["مع", "المبلغ", "من", ""], st.custody.filter((c) => c.amount).map((c) => `<tr><td>${A.who(c.emp)}</td><td class="n"><b>${A.money(c.amount)}</b></td><td>${A.fmtDate(c.date)}</td><td>${canPost() ? `<button class="btn sm" data-act="custSettle" data-emp="${c.emp}">سوّي</button>` : ""}</td></tr>`))}
           ${canPost() ? `<div class="row end"><button class="btn ghost sm" data-act="mvNew" data-k="custody">${I("plus")}عهدة جديدة</button></div>` : ""}</section>
-        <section class="card">${head("سلف الموظفين", "users", chip("", A.money(st.advances.reduce((s, a) => s + a.amount, 0))), "بتتخصم من المرتب في شيت المرتبات")}
-          ${table(["الموظف", "التاريخ", "المبلغ"], st.advances.map((a) => `<tr><td>${A.who(a.emp)}</td><td>${A.fmtDate(a.date)}</td><td class="n">${A.money(a.amount)}</td></tr>`))}
-          ${canPost() ? `<div class="row end"><button class="btn ghost sm" data-act="mvNew" data-k="advance">${I("plus")}سلفة جديدة</button></div>` : ""}</section></div>`;
+        </div>${advCard()}`;
     },
     journal() {
       const st = S(), C = coa(), rows = st.moves.flatMap((m) => entry(m).map(([a, dr, cr], i) => `<tr class="${i ? "" : "jr-top"} click" data-act="mvView" data-id="${m.id}"><td>${i ? "" : `<span class="mono">${jvOf(m)}</span><span class="sub">${NATURE[m.kind]}</span>`}</td><td>${i ? "" : A.fmtDate(m.at)}</td><td>${esc(acctLabel(a, C))}</td><td class="n">${dr ? A.money(dr) : ""}</td><td class="n">${cr ? A.money(cr) : ""}</td><td>${i ? "" : esc(m.note || "")}</td></tr>`));
@@ -253,7 +261,7 @@
       return `<div class="kpis">${U.kpi("صافي الربح لحد النهارده", A.money(p.net), "إيرادات − مباشرة − بيعية − إدارية", "trend", "ok")}${U.kpi("الإيرادات", A.money(p.rev), "صفقات معتمدة", "handshake")}${U.kpi("المصاريف البيعية والإدارية", A.money(p.se + p.ad), `بيعية ${A.short(p.se)} · إدارية ${A.short(p.ad)}`, "wallet", "warn")}${U.kpi("وفّرنا من الخصومات", A.money(p.saved), "تأخير وغياب الشهر ده", "id", "ok")}</div>
         <div class="cols wide"><section class="card">${head("من الإيرادات لصافي الربح", "chart", "", "على مراحل زي ما د. علي بيحسبه")}<div class="waterfall">${wf.map(([l, v, tone]) => `<div class="wf"><span>${esc(l)}</span><div class="wf-bar ${tone}" style="width:${(Math.abs(v) / max) * 100}%"></div><b class="num">${A.short(v)}</b></div>`).join("")}</div></section>
           <section class="card">${head("رصيد الخزن والبنوك", "bank", chip("acc", A.money(bal)))}${st.accounts.map((a) => `<div class="acct"><span class="a-ico">${I(a.kind === "بنك" ? "bank" : "wallet")}</span><span class="spacer">${esc(a.name)}<small>${esc(a.kind)}</small></span><b class="num">${A.money(a.balance)}</b></div>`).join("")}
-            <button class="btn ghost" data-act="advances">${I("users")}سلف الموظفين · ${A.money(st.advances.reduce((s, a) => s + a.amount, 0))}</button></section></div>
+            <button class="btn ghost" data-act="advances">${I("users")}سلف الموظفين · ${A.money(advEmps().reduce((s, id) => s + advLeft(id), 0))}</button></section></div>
         <div class="kpis">${U.kpi("موازنة المرتبات / شهر", A.money(payroll), `${st.employees.length} موظف × المرتب`, "id")}${st.periods.map((pr) => U.kpi(pr.name, pr.status, pr.status === "مفتوح" ? "الحركات بتتسجّل" : "اتقفل", pr.status === "مفتوح" ? "clock" : "lock", pr.status === "مفتوح" ? "warn" : "ok")).join("")}</div>`;
     },
     pnl() {
@@ -295,10 +303,10 @@
     // Q41: a salesperson's commission is due once the deal is fully collected; Q32: deductions count only after HR approves them
     payroll() {
       const st = S(), month = A.today().slice(0, 7);
-      const rows = st.employees.map((e) => { const att = st.attendance.filter((a) => a.emp === e.id && a.day.startsWith(month)).map(A.attRow), dd = att.reduce((s, x) => s + x.ded, 0), ded = (S().dedApproved || {})[month] ? dd * A.dayRate(e) : 0, com = e.role === "tl" ? A.tlStats(e.id).comm : commDue(e.id), adv = (st.advances.find((a) => a.emp === e.id) || {}).amount || 0; return { e, ded, com, adv, net: e.salary - ded + com - adv }; });
+      const rows = st.employees.map((e) => { const att = st.attendance.filter((a) => a.emp === e.id && a.day.startsWith(month)).map(A.attRow), dd = att.reduce((s, x) => s + x.ded, 0), ded = (S().dedApproved || {})[month] ? dd * A.dayRate(e) : 0, com = e.role === "tl" ? A.tlStats(e.id).comm : commDue(e.id), adv = advPlan(e.id); return { e, ded, com, adv, net: e.salary - ded + com - adv }; });
       const t = (k) => rows.reduce((s, x) => s + (k === "salary" ? x.e.salary : x[k]), 0);
-      return `<div class="kpis">${U.kpi("المرتبات", A.money(t("salary")), "الأساسي", "id")}${U.kpi("الخصومات", A.money(t("ded")), "من الـ HR", "clock", "bad")}${U.kpi("العمولات المستحقة", A.money(t("com")), "صفقات اتحصّلت بالكامل − اللي اتصرف", "trend", "ok")}${U.kpi("صافي المستحق", A.money(t("net")), "بعد السلف", "wallet")}</div>
-        ${table(["الموظف", "المرتب", "الخصم", "العمولة", "سلفة", "الصافي"], rows.map((x) => `<tr><td>${A.who(x.e.id)}</td><td class="n">${A.money(x.e.salary)}</td><td class="n">${x.ded ? "−" + A.money(x.ded) : "—"}</td><td class="n">${x.e.role === "tl" ? (x.com ? "+" + A.money(x.com) : "—") : `<a class="click" data-act="commStatement" data-emp="${x.e.id}">${x.com ? "+" + A.money(x.com) : "—"}</a>${x.com > 0 && canPost() ? ` <button class="btn sm" data-act="mvNew" data-k="commission" data-emp="${x.e.id}">اصرف</button>` : ""}`}</td><td class="n">${x.adv ? "−" + A.money(x.adv) : "—"}</td><td class="n"><b>${A.money(x.net)}</b></td></tr>`))}
+      return `<div class="kpis">${U.kpi("المرتبات", A.money(t("salary")), "الأساسي", "id")}${U.kpi("الخصومات", A.money(t("ded")), "من الـ HR", "clock", "bad")}${U.kpi("العمولات المستحقة", A.money(t("com")), "صفقات اتحصّلت بالكامل − اللي اتصرف", "trend", "ok")}${U.kpi("صافي المستحق", A.money(t("net")), "بعد خصم السلف اللي اخترتها", "wallet")}</div>
+        ${table(["الموظف", "المرتب", "الخصم", "العمولة", "سلفة", "الصافي"], rows.map((x) => `<tr><td>${A.who(x.e.id)}</td><td class="n">${A.money(x.e.salary)}</td><td class="n">${x.ded ? "−" + A.money(x.ded) : "—"}</td><td class="n">${x.e.role === "tl" ? (x.com ? "+" + A.money(x.com) : "—") : `<a class="click" data-act="commStatement" data-emp="${x.e.id}">${x.com ? "+" + A.money(x.com) : "—"}</a>${x.com > 0 && canPost() ? ` <button class="btn sm" data-act="mvNew" data-k="commission" data-emp="${x.e.id}">اصرف</button>` : ""}`}</td><td class="n">${x.adv ? `−${A.money(x.adv)}<span class="sub">عليه ${A.money(advLeft(x.e.id) + (advPosted(A.today().slice(0, 7)) ? x.adv : 0))}</span>` : "—"}</td><td class="n"><b>${A.money(x.net)}</b></td></tr>`))}
         ${note("العمولة بتبقى مستحقة لما الصفقة تتحصّل بالكامل، وبتظهر في حساب السيلز تحت «عمولة مبيعات مستحقة» (211). دوس على العمولة تشوف كشفها صفقة صفقة، و«اصرف» بيعمل إذن «صرف عمولة سيلز» بقيده: من ح/ عمولة السيلز إلى ح/ الخزنة.")}
         ${note((S().dedApproved || {})[month] ? "الخصومات اتعتمدت من الـ HR واترحّلت. والمرتبات بعد الخصم بتتحمّل على المصروفات أوتوماتيك." : "خصومات الشهر لسه مستنية اعتماد الـ HR، فمش محسوبة هنا.", (S().dedApproved || {})[month] ? "" : "warn")}`;
     },
@@ -317,8 +325,27 @@
     }
   };
   A.CHANGE.mvF = (v) => { ui("mvF", v); A.render(); };
+  const advCard = () => { const st = S(), mk = A.today().slice(0, 7), done = advPosted(mk), ids = advEmps().filter((id) => advLeft(id) > 0 || advPlan(id, mk) > 0), tot = ids.reduce((s, id) => s + advPlan(id, mk), 0);
+    return `<section class="card">${head("سلف الموظفين", "users", chip("", A.money(advEmps().reduce((s, id) => s + advLeft(id), 0))), "كل واحد عليه كام · وانت بتختار يتخصم منه كام الشهر ده")}
+      ${table(["الموظف", "اتسلّف", "اتخصم قبل كده", "عليه دلوقتي", `يتخصم ${esc(st.periods[st.periods.length - 1].name)}`, ""], ids.map((id) => { const plan = advPlan(id, mk), left = advLeft(id) + (done ? plan : 0);
+        return `<tr><td>${A.who(id)}</td><td class="n">${A.money(advGiven(id))}</td><td class="n">${A.money(advTaken(id) - (done ? plan : 0))}</td><td class="n"><b>${A.money(left)}</b></td>
+          <td class="n">${done || !canPost() ? `<b>${A.money(plan)}</b>` : `<input type="number" min="0" max="${advLeft(id)}" step="any" value="${plan}" data-change="advPlanSet" data-emp="${id}" aria-label="الخصم الشهر ده" style="max-width:110px">`}<span class="sub">باقي بعده ${A.money(left - plan)}</span></td>
+          <td><button class="btn ghost sm" data-act="advStatement" data-emp="${id}">كشف</button></td></tr>`; }))}
+      ${note(done ? `خصومات السلف للشهر ده اتعتمدت (${A.money(tot)}) واتعملها أذونات «خصم سلفة من المرتب».` : `المبلغ اللي بتكتبه هو اللي هيتخصم من مرتب الشهر ده (مش شرط كله)، وبيظهر في «المرتبات». لما تعتمد، كل خصم بيتعمله إذن بقيده: من ح/ الخزنة اللي بتصرف منها المرتبات إلى ح/ سلفة الموظف. الإجمالي ${A.money(tot)}.`)}
+      ${canPost() ? `<div class="row end">${!done && tot > 0 ? `<select id="adv-from" aria-label="خزنة المرتبات">${accOpts("خزينة رئيسية")}</select><button class="btn" data-act="advPost">${I("check")}اعتمد خصومات الشهر</button>` : ""}<button class="btn ghost sm" data-act="mvNew" data-k="advance">${I("plus")}سلفة جديدة</button></div>` : ""}</section>`; };
+  A.CHANGE.advPlanSet = (v, el) => { const st = S(), mk = A.today().slice(0, 7), id = el.dataset.emp, n = Math.max(0, Math.min(advLeft(id), +v || 0));
+    ((st.advPlan = st.advPlan || {})[mk] = st.advPlan[mk] || {})[id] = n; (st.advMonthly = st.advMonthly || {})[id] = n;
+    A.audit("finance", `خصم سلفة ${A.person(id)} الشهر ده: ${A.money(n)}`); A.toast(`${A.person(id)}: هيتخصم ${A.money(n)} الشهر ده`); A.render(); };
+  A.ACT.advPost = () => { const st = S(), mk = A.today().slice(0, 7), to = (document.getElementById("adv-from") || {}).value || "خزينة رئيسية";
+    if (!canPost()) return A.toast("مالكش صلاحية"); if (!openPeriod()) return A.toast("الشهر مقفول"); if (advPosted(mk)) return A.toast("خصومات الشهر ده اتعتمدت قبل كده");
+    const list = advEmps().map((id) => [id, advPlan(id, mk)]).filter(([, v]) => v > 0); if (!list.length) return A.toast("مفيش خصومات الشهر ده");
+    list.forEach(([id, v]) => { const m = { id: "MV-" + (109 + st.moves.length), at: A.nowIso(), kind: "advded", to, party: id, amount: v, note: `خصم سلفة من مرتب ${A.person(id)}`, by: A.me() };
+      acc(to).balance += v; st.moves.unshift(m); (st.advDeds = st.advDeds || []).push({ emp: id, amount: v, month: mk, at: m.at, move: m.id }); A.notify([id], `اتخصم ${A.money(v)} من سلفتك الشهر ده · باقي عليك ${A.money(advLeft(id))}`); });
+    A.audit("finance", `خصومات السلف ${mk}: ${list.map(([id, v]) => `${A.person(id)} ${A.money(v)}`).join(" · ")}`); A.toast(`اتعتمدت ${list.length} خصومات · اتعملها أذونات وقيود`); A.render(); };
+  A.ACT.advStatement = (d) => { const st = S(), id = d.emp, rows = st.advances.filter((a) => a.emp === id).map((a) => [a.date, "سلفة", a.amount, 0]).concat((st.advDeds || []).filter((x) => x.emp === id).map((x) => [x.at, `خصم من مرتب ${x.month} · <span class="mono">${x.move}</span>`, 0, x.amount])).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    let bal = 0; A.openModal(`كشف سلفة · ${A.person(id)}`, `<div class="pdf">${note(`<b>عليه دلوقتي ${A.money(advLeft(id))}</b> = اتسلّف ${A.money(advGiven(id))} − اتخصم ${A.money(advTaken(id))}`)}${U.table(["التاريخ", "البيان", "سلفة", "خصم", "الرصيد"], rows.map((r) => { bal += r[2] - r[3]; return `<tr><td>${A.fmtDate(r[0])}</td><td>${r[1]}</td><td class="n">${r[2] ? A.money(r[2]) : ""}</td><td class="n">${r[3] ? A.money(r[3]) : ""}</td><td class="n"><b>${A.money(bal)}</b></td></tr>`; }))}</div>`); };
   // where a new account can go: any parent, or a leaf that the system doesn't compute by itself
-  const NO_SUB = ["32", "33"], canAddUnder = (n) => !NO_SUB.includes(n.code) && !/^(111|112|113|211|52|53)./.test(n.code) && !(n.custom && n.bal);
+  const NO_SUB = ["32", "33"], canAddUnder = (n) => !NO_SUB.includes(n.code) && !/^(111|112|113|114|211|52|53)./.test(n.code) && !(n.custom && n.bal);
   A.ACT.acctNew = (d) => { const C = coa(), opts = Object.values(C.byCode).filter(canAddUnder).sort((a, b) => a.code.localeCompare(b.code));
     A.openModal("حساب جديد في شجرة الحسابات", `<form data-form="acctAdd" class="grid">
       ${U.field("تحت حساب", `<select name="parent" required>${opts.map((n) => opt(n.code, `${n.code} · ${n.path.join(" ← ")}`, d.p)).join("")}</select>`, 1, 1)}
@@ -407,7 +434,8 @@
   A.ACT.acctLedger = (d) => { const C = coa(), n = C.idx[d.k] || C.byCode[d.k], ms = S().moves.filter((m) => entry(m).some((e) => e[0] === n.key)), mj = (S().journal || []).filter((je) => je.lines.some((l) => l.code === n.code));
     A.openModal(`حركات الحساب · ${n.code} ${n.name}`, `<div class="pdf">${note(`${esc(n.path.join(" ← "))} · الرصيد ${A.money(n.bal)} (${n.nat === "dr" ? "مدين" : "دائن"})`)}${U.table(["قيد اليومية", "التاريخ", "البيان", "مدين", "دائن"], ms.map((m) => { const e = entry(m).filter((x) => x[0] === d.k).reduce((s, x) => [s[0] + x[1], s[1] + x[2]], [0, 0]); return `<tr class="click" data-act="mvView" data-id="${m.id}"><td class="mono">${jvOf(m)}</td><td>${A.fmtDate(m.at)}</td><td>${esc(m.note || "")}</td><td class="n">${e[0] ? A.money(e[0]) : ""}</td><td class="n">${e[1] ? A.money(e[1]) : ""}</td></tr>`; }).concat(mj.map((je) => { const e = je.lines.filter((l) => l.code === n.code).reduce((s, l) => [s[0] + l.dr, s[1] + l.cr], [0, 0]); return `<tr class="click" data-act="jeView" data-id="${je.id}"><td class="mono">${je.id}</td><td>${A.fmtDate(je.at)}</td><td>${esc(je.note)}</td><td class="n">${e[0] ? A.money(e[0]) : ""}</td><td class="n">${e[1] ? A.money(e[1]) : ""}</td></tr>`; })))}</div><div class="row end no-print"><button class="btn ghost sm" data-act="printModal">${I("file")}اطبع</button></div>`); };
   A.CHANGE.ccf = (v, el) => { ui("ccf", Object.assign({}, ui("ccf"), { [el.dataset.k]: v })); A.render(); };
-  A.ACT.advances = () => A.openModal("سلف الموظفين", U.table(["الموظف", "التاريخ", "رصيد السلفة"], S().advances.map((a) => `<tr><td>${A.who(a.emp)}</td><td>${A.fmtDate(a.date)}</td><td class="n">${A.money(a.amount)}</td></tr>`)));
+  A.ACT.advances = () => { ui("fnTab", "custody"); A.render(); };
+  A.ACT.advancesOld = () => A.openModal("سلف الموظفين", U.table(["الموظف", "التاريخ", "رصيد السلفة"], S().advances.map((a) => `<tr><td>${A.who(a.emp)}</td><td>${A.fmtDate(a.date)}</td><td class="n">${A.money(a.amount)}</td></tr>`)));
   A.ACT.drill = (d) => {
     const st = S(), p = figures();
     const html = d.k === "rev" ? U.table(["الصفقة", "العميل", "النوع", "عمولة Places"], st.deals.filter(A.countsRevenue).map((x) => `<tr><td class="mono">${x.id}</td><td>${esc(x.client)}</td><td>${esc(x.kind)}</td><td class="n">${A.money(A.placesComm(x))}</td></tr>`))
@@ -438,6 +466,9 @@
       rows = st.people.filter((x) => x.role === "tl").map((x) => ({ src: esc(x.name), path: `تحقيق الفريق ← الشريحة ← ح/ ${c}`, v: A.tlStats(x.id).comm })).filter((x) => x.v); }
     else if (n.key && n.key.startsWith("عميل:")) { const nm = n.name; how = "كل صفقة للعميل ده اتحصّل منها: عمولة Places − اللي اتحصّل = الباقي عليه. كل تحصيل (إذن توريد) بينزّل حسابه.";
       rows = st.deals.filter((x) => x.client === nm && LIVE(x)).map((x) => ({ src: `صفقة <span class="mono">${x.id}</span> · العمولة ${fm(A.placesComm(x))} − اتحصّل ${fm(A.collected(x))}${A.countsRevenue(x) ? "" : " · لسه مااتحصّلش منها حاجة فمادخلتش الحساب"}`, path: `${(x.tcrs || []).map((t) => t.code).join("، ") || "—"} ← ح/ ${c}`, v: dueOf(x), act: "dealOpen", id: x.id })); }
+    else if (n.key && n.key.startsWith("سلفة:")) { const id = n.emp; how = "كل سلفة اتصرفتله − كل خصم من مرتبه (إذن خصم سلفة).";
+      rows = st.advances.filter((x) => x.emp === id).map((x) => ({ src: `سلفة · ${A.fmtDate(x.date)}`, path: `إذن سلفة ← ح/ ${c}`, v: x.amount, at: x.date }))
+        .concat((st.advDeds || []).filter((x) => x.emp === id).map((x) => ({ src: `خصم من مرتب ${x.month} · <span class="mono">${x.move}</span>`, path: `ح/ ${c} ← ${x.move} ← المرتب`, v: -x.amount, act: "mvView", id: x.move, at: x.at }))); }
     else if (c === "114") { how = "كل سلفة اتصرفت لموظف (إذن سلفة) ولسه ماتخصمتش.";
       rows = st.advances.map((x) => ({ src: `${esc(A.person(x.emp))} · ${A.fmtDate(x.date)}`, path: `إذن سلفة ← ح/ 114`, v: x.amount })); }
     else if (c === "115") { how = "كل عهدة مع موظف ولسه ماتسوّتش (صرف عهدة − التسويات).";
