@@ -3,8 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { Card, Chip, Field, useAction } from "@/components/ui";
+import { MyLeavesCard } from "@/features/hr/leaves";
 
-/** حسابي: who I am, my password, and whether notifications also reach my email. */
+/** حسابي: who I am, my password, whether notifications also reach my email, and my leaves (7.5). */
 export default function ProfilePage() {
   const qc = useQueryClient();
   const run = useAction();
@@ -34,6 +35,7 @@ export default function ProfilePage() {
           <div className="row end"><button className="btn">غيّر الباسورد</button></div>
         </form>
       </Card>
+      <MyLeavesCard />
     </div>
   );
 }

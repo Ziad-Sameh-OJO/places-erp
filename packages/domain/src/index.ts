@@ -13,6 +13,7 @@ export * from "./lead-rules.ts";
 export * from "./commission.ts";
 export * from "./team-leader.ts";
 export * from "./attendance.ts";
+export * from "./leaves.ts";
 export * from "./kpi.ts";
 export * from "./ideal-employee.ts";
 export * from "./permissions.ts";

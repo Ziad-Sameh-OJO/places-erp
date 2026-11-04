@@ -8,6 +8,7 @@ import { BusinessTimeService } from "../../core/business-time/business-time.serv
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import type { ParsedSheet } from "../../core/http/import";
 import type { Tx } from "./hr.repository";
+import { LeavesService } from "./leaves.service";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const EMP = { id: true, name: true, department: true, salary: true, partTime: true, partTimeDeductions: true, deductionTiers: true, fixedSchedule: true } as const;
@@ -24,7 +25,7 @@ const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Nu
  */
 @Injectable()
 export class AttendanceService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService) {}
 
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
@@ -62,18 +63,19 @@ export class AttendanceService {
 
   async day(me: CurrentUser, day = localDate(new Date())): Promise<AttendanceDayView> {
     const cal = await this.time.calendar();
-    const [emps, rows, unmatched, holiday] = await Promise.all([
+    const [emps, rows, unmatched, holiday, onLeave] = await Promise.all([
       this.db.employee.findMany({ where: { AND: [this.scope(me), { user: { status: "ACTIVE" } }] }, select: EMP, orderBy: { name: "asc" } }),
       this.db.attendanceDay.findMany({ where: { day: asDay(day), employee: this.scope(me) } }),
       me.grants.scope === "all" ? this.db.fingerprintUnmatched.findMany({ orderBy: [{ day: "desc" }, { name: "asc" }], take: 200 }) : Promise.resolve([]),
       this.db.holiday.findFirst({ where: { from: { lte: asDay(day) }, to: { gte: asDay(day) } } }),
+      this.leaves.employeesOnLeave(day),
     ]);
     const byId = new Map(emps.map((e) => [e.id, e]));
     const view = rows.filter((a) => byId.has(a.employeeId)).map((a) => this.row(byId.get(a.employeeId)!, a)).sort((x, y) => x.name.localeCompare(y.name, "ar"));
     const working = isWorkingDay(day, cal);
     const seen = new Set(rows.map((r) => r.employeeId));
-    // a holiday or a day off is never «غياب»; part-timers don't fingerprint
-    const missing = working ? emps.filter((e) => !seen.has(e.id) && !e.partTime).map((e) => ({ employeeId: e.id, name: e.name, department: e.department })) : [];
+    // a holiday or a day off is never «غياب»; part-timers don't fingerprint; approved leave isn't missing (7.5)
+    const missing = working ? emps.filter((e) => !seen.has(e.id) && !e.partTime && !onLeave.has(e.id)).map((e) => ({ employeeId: e.id, name: e.name, department: e.department })) : [];
     return {
       day, working, holiday: holiday?.label ?? null, rows: view, missing,
       unmatched: unmatched.map((u) => ({ id: u.id, name: u.name, day: isoDay(u.day), checkIn: u.checkIn })),

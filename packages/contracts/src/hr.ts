@@ -64,3 +64,25 @@ export interface FingerprintDone { imported: number; skipped: number; unmatched:
 export const AttendanceEntry = z.object({ employeeId: z.string().min(1), day: CalendarDay, checkIn: Hhmm, checkOut: Hhmm.optional() });
 export type AttendanceEntry = z.infer<typeof AttendanceEntry>;
 export const LinkUnmatched = z.object({ employeeId: z.string().min(1) });
+
+/* ---- 7.5 · 7.6 · leaves ---- */
+export const LeaveAsk = z.object({
+  type: z.string().trim().min(1).max(40),
+  from: CalendarDay, to: CalendarDay,
+  reason: z.string().trim().max(300).optional(),
+  documentId: z.string().min(1).optional(),
+});
+export type LeaveAsk = z.infer<typeof LeaveAsk>;
+export const LeaveReject = z.object({ reason: z.string().trim().min(2, "اكتب سبب الرفض").max(300) });
+export type LeaveStatusKey = "PENDING_TL" | "APPROVED_BY_TL" | "REJECTED" | "CLOSED_BY_HR";
+export interface LeaveView {
+  id: string; employeeId: string; name: string; type: string; from: string; to: string; days: number; reason: string | null;
+  status: LeaveStatusKey; statusLabel: string; rejectReason: string | null; hasDocument: boolean; createdAt: string;
+  /** what the person looking can do now */
+  canDecide: "tl" | "hr" | null;
+}
+export interface LeaveBalance { type: string; total: number; used: number; left: number }
+export interface MyLeaves { items: LeaveView[]; balances: LeaveBalance[]; types: { name: string; afterReturn: boolean }[] }
+export interface LeaveCalendarView { month: string; byDay: Record<string, { name: string; type: string }[]>; today: { employeeId: string; name: string; type: string; to: string }[] }
+export interface LeaveBalancesView { month: string; types: string[]; rows: { employeeId: string; name: string; department: string; byType: Record<string, { total: number; used: number; month: number; left: number }> }[] }
+export const MonthQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/, "الشهر بالشكل 2026-11").optional() });
