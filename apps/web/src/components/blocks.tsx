@@ -39,9 +39,10 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
           <div className="dr-tools">
             {(onPrev || onNext) && (
               <span className="dr-nav">
-                <button className="round" onClick={onPrev} disabled={!onPrev} aria-label="السابق">›</button>
-                {position}
-                <button className="round" onClick={onNext} disabled={!onNext} aria-label="التالي">‹</button>
+                {/* small, like the demo's «round sm»: full-size ones squeezed the lead's name onto 3 lines on a phone */}
+                <button className="round sm" onClick={onPrev} disabled={!onPrev} aria-label="السابق">›</button>
+                {position && <span>{position}</span>}
+                <button className="round sm" onClick={onNext} disabled={!onNext} aria-label="التالي">‹</button>
               </span>
             )}
             <button className="round" onClick={onClose} aria-label="قفل"><Icon name="x" /></button>
@@ -79,11 +80,13 @@ export interface Lane<T> { key: string; title: string; tone?: string | undefined
  * Lanes of cards. Dragging a card onto another lane calls onMove(item, laneKey); the caller decides (and the API
  * checks) whether that move is allowed. Without onMove the board is read-only.
  */
-export function Kanban<T>({ lanes, card, itemKey, cardClass, className = "", onMove, empty = "—" }: {
+export function Kanban<T>({ lanes, card, itemKey, cardClass, className = "", onMove, onOpen, empty = "—" }: {
   lanes: Lane<T>[]; card: (item: T) => ReactNode; itemKey: (item: T) => string; onMove?: (item: T, lane: string) => void; empty?: string;
   /** extra classes on a card, e.g. «lead-card sla-warn» (the demo colours a lead by its SLA) */
   cardClass?: (item: T) => string;
   className?: string;
+  /** opens the card's record (a click; dragging still moves it) */
+  onOpen?: (item: T) => void;
 }) {
   const [over, setOver] = useState<string | null>(null);
   const dragged = useRef<T | null>(null);
@@ -97,7 +100,7 @@ export function Kanban<T>({ lanes, card, itemKey, cardClass, className = "", onM
           <h4><i style={lane.tone ? { background: `var(--${lane.tone})` } : undefined} />{lane.title}<span className="num">{lane.count ?? lane.items.length}</span></h4>
           {lane.items.length ? lane.items.map((item) => (
             <div key={itemKey(item)} className={`tcard ${cardClass?.(item) ?? ""}`} draggable={!!onMove}
-              onDragStart={() => { dragged.current = item; }}>{card(item)}</div>
+              onDragStart={() => { dragged.current = item; }} onClick={onOpen ? () => onOpen(item) : undefined}>{card(item)}</div>
           )) : <p className="lane-empty">{empty}</p>}
         </div>
       ))}

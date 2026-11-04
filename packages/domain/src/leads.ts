@@ -168,3 +168,12 @@ export function mergeDuplicate(existing: LeadFacts, incoming: LeadFacts, choice:
   if (phones.length !== existing.phones.length) changes.phones = phones;
   return { changes, took };
 }
+
+/**
+ * The lead's «Logs» tab (client meeting, 4 Nov · task 1.25): the admin always sees it, plus the roles the admin
+ * picks in the settings (`leadLogRoles`). Anyone else doesn't get the tab at all.
+ */
+export const LOG_ADMIN_ROLE = "admin";
+export function canSeeLeadLogs(roles: readonly string[], allowedRoles: readonly string[]): boolean {
+  return roles.includes(LOG_ADMIN_ROLE) || roles.some((r) => allowedRoles.includes(r));
+}

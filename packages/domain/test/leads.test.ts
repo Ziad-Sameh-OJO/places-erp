@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead, slaView } from "../src/leads.ts";
+import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead, slaView, canSeeLeadLogs } from "../src/leads.ts";
 
 const cairo = (iso: string) => new Date(`${iso}+03:00`);
 const fresh = (assignedAt: Date) => ({ stage: "Fresh" as const, touched: false, ownedByTelesales: false, assignedAt });
@@ -95,4 +95,12 @@ test("SLA view for the list and the Kanban: 1h30 of a 3h clock is 50%, pulled is
   const rules = { warnAfter: 60, pullAfter: 120, holidayWarnAfter: 600, holidayPullAfter: 720 };
   assert.deepEqual(slaView(fresh(at), cairo("2026-10-25T12:00:00"), { holidayMode: false, rules }), { level: "warn", elapsed: 60, minutesLeft: 60, pct: 50 });
   assert.equal(slaView({ ...fresh(at), touched: true }, cairo("2026-10-25T12:00:00")), null);
+});
+
+test("Logs tab (1.25): the admin always; other roles only when the admin picked them", () => {
+  assert.equal(canSeeLeadLogs(["admin"], []), true);
+  assert.equal(canSeeLeadLogs(["ops"], []), false);
+  assert.equal(canSeeLeadLogs(["ops"], ["ops", "salesdir"]), true);
+  assert.equal(canSeeLeadLogs(["tl", "sales"], ["ops"]), false);
+  assert.equal(canSeeLeadLogs(["tl", "sales"], ["sales"]), true); // any of the person's roles
 });

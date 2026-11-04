@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 export interface LeadQuery {
   q?: string; stage?: string; channel?: string; campaignId?: string; assignedToId?: string; area?: string;
   qualified?: "true" | "false"; from?: string; to?: string;
+  kind?: "client" | "broker" | undefined; // the tab, not a filter: saved views don't keep it
 }
 
 export function toParams(f: LeadQuery, page: number, pageSize: number) {

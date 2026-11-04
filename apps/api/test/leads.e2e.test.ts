@@ -107,6 +107,7 @@ test("details: in scope 200 with the drawer's fields; out of scope 404 (not 403)
   assert.equal(r.body.assignedTo.name, "محمد محسن");
   assert.ok(Array.isArray(r.body.activities));
   assert.equal(r.body.createdById, undefined);
+  assert.equal(r.body.post, null); // the drawer's «البوست اللي جابه»
 
   assert.equal((await call(`/leads/${await idOf(2)}`, { cookie: tl })).status, 200);   // a teammate's lead
   assert.equal((await call(`/leads/${await idOf(3)}`, { cookie: mohsen })).status, 404); // another team's
@@ -388,4 +389,137 @@ test("board: every stage once, each lane's total is the list's count for that st
   const filtered = (await call(`/leads/board?q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: ops })).body;
   assert.equal(filtered.lanes.reduce((n: number, l: { total: number }) => n + l.total, 0), (await call(`/leads?pageSize=1&q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: ops })).body.total);
   assert.equal((await call("/leads/board", { cookie: hr })).status, 403);
+});
+
+/* ---------------- 1.8 the new-lead form: mobiles checked while typed; the answer says who it went to ---------------- */
+
+test("duplicate-check: the code for anyone who may create; the lead's id only for someone who may open it (M-01 Q7)", async () => {
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const phone = `0128${stamp.slice(-7)}`;
+  const made = await call("/leads", { method: "POST", cookie: ops, body: { name: `E2E-N ${stamp}`, phones: [phone], area: "التجمع الخامس", type: "Primary", channel: "Facebook", assignToId: mohsenId, note: "دور أرضي" } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  assert.deepEqual([made.body.assignedTo.name, made.body.ownedByTelesales, typeof made.body.code], ["محمد محسن", false, "string"]);
+  dupLeads.push(made.body.id);
+  assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: made.body.id } })).note, "دور أرضي"); // the drawer's quote
+
+  const check = async (cookie: string, q: string) => (await call(`/leads/duplicate-check?phones=${q}`, { cookie })).body;
+  assert.deepEqual(await check(mohsen, `0100,${phone.slice(0, 4)}-${phone.slice(4)}`), { hit: { code: made.body.code, leadId: made.body.id } }); // his lead: link
+  assert.deepEqual(await check(hadeer, phone), { hit: { code: made.body.code, leadId: null } }); // not hers: the code only
+  assert.deepEqual(await check(mohsen, "01099999999"), { hit: null });
+  assert.deepEqual(await check(mohsen, "abc"), { hit: null });
+  assert.equal((await call(`/leads/duplicate-check?phones=${phone}`, { cookie: nancy })).status, 403); // can't create leads
+});
+
+/* ---------------- 1.10 the call log: «سجّل مكالمة», the first call vs arrival, the person's count ---------------- */
+
+test("a call: on top of the Activity, stops the SLA clock, the first one is kept and measured against arrival (30 min)", async () => {
+  const id = await idOf(1);
+  const before = (await call("/leads/calls/mine", { cookie: mohsen })).body;
+  assert.deepEqual(before.goal, { period: "week", target: 50 });
+  const r = await call(`/leads/${id}/calls`, { method: "POST", cookie: mohsen });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.deepEqual([r.body.activities[0].kind, r.body.activities[0].text, r.body.activities[0].by.name], ["call", "مكالمة اتسجّلت", "محمد محسن"]);
+  assert.ok(r.body.firstActionAt);
+  const first = r.body.firstCallAt;
+  assert.ok(first);
+  assert.equal(r.body.firstCallOnTime, true); // the seeded lead arrived moments ago
+  const again = (await call(`/leads/${id}/calls`, { method: "POST", cookie: mohsen })).body;
+  assert.equal(again.firstCallAt, first); // only the first one counts for the KPI
+  assert.equal((await call("/leads/calls/mine", { cookie: mohsen })).body.count, before.count + 2);
+  assert.equal(await prisma.auditLog.count({ where: { action: "call", after: { path: ["leadId"], equals: id } } }), 2);
+});
+
+test("a call needs leads: edit and the lead in scope; goals by role (Telesales 100 a day, operations none)", async () => {
+  const id = await idOf(1);
+  assert.equal((await call(`/leads/${id}/calls`, { method: "POST", cookie: nancy })).status, 403);
+  assert.equal((await call(`/leads/${await idOf(3)}/calls`, { method: "POST", cookie: mohsen })).status, 404);
+  assert.deepEqual((await call("/leads/calls/mine", { cookie: hadeer })).body.goal, { period: "day", target: 100 });
+  assert.deepEqual((await call("/leads/calls/mine", { cookie: ops })).body, { goal: null, count: 0 });
+  assert.equal((await call("/leads/calls/mine", { cookie: hr })).status, 403);
+});
+
+/* ---------------- 1.25 the Logs tab: the admin, and the roles the admin picks ---------------- */
+
+let admin: string, savedLogRoles: unknown, logLeadId: string;
+before(async () => {
+  admin = await session("ahmed.islam@places.com");
+  savedLogRoles = (await prisma.setting.findUnique({ where: { key: "leadLogRoles" } }))?.value;
+});
+after(async () => {
+  if (savedLogRoles === undefined) await prisma.setting.deleteMany({ where: { key: "leadLogRoles" } });
+  else await prisma.setting.update({ where: { key: "leadLogRoles" }, data: { value: savedLogRoles as never } });
+  if (logLeadId) await prisma.lead.deleteMany({ where: { id: logLeadId } });
+});
+
+test("Logs: only the admin by default — others don't get the tab and the endpoint refuses them", async () => {
+  await call("/settings/leadLogRoles", { method: "PUT", cookie: admin, body: { value: [] } });
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const made = await call("/leads", { method: "POST", cookie: admin, body: { name: `E2E-L ${stamp}`, phones: [`0127${stamp.slice(-7)}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook", assignToId: mohsenId } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  logLeadId = made.body.id;
+  await call(`/leads/${logLeadId}/comments`, { method: "POST", cookie: mohsen, body: { text: "كومنت للـ Logs" } });
+  await call(`/leads/${logLeadId}/stage`, { method: "PATCH", cookie: mohsen, body: { stage: "Interested" } });
+
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: mohsen })).body.canSeeLogs, false);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: mohsen })).status, 403);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: ops })).status, 403);
+
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: admin })).body.canSeeLogs, true);
+  const logs = (await call(`/leads/${logLeadId}/logs`, { cookie: admin })).body as { source: string; text: string; at: string }[];
+  const sources = new Set(logs.map((x) => x.source));
+  assert.deepEqual([...sources].sort(), ["audit", "auto", "comment"]);
+  assert.ok(logs.some((x) => x.source === "comment" && x.text === "كومنت للـ Logs"));
+  assert.ok(logs.some((x) => x.source === "audit" && x.text === "المرحلة اتغيرت من Fresh لـ Interested"));
+  assert.ok(logs.some((x) => x.source === "audit" && x.text === "اتعمل الليد"));
+  assert.ok(logs.some((x) => x.source === "auto" && x.text.startsWith("اتعمل بواسطة")));
+  assert.deepEqual(logs.map((x) => x.at), [...logs.map((x) => x.at)].sort().reverse()); // newest first
+});
+
+test("Logs: the admin opens it to a role → that role sees it; still only inside its scope; only master:edit sets it", async () => {
+  assert.equal((await call("/settings/leadLogRoles", { method: "PUT", cookie: ops, body: { value: ["ops"] } })).status, 403);
+  assert.equal((await call("/settings/leadLogRoles", { method: "PUT", cookie: admin, body: { value: ["ops", "sales"] } })).status, 200);
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: ops })).body.canSeeLogs, true);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: ops })).status, 200);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: mohsen })).status, 200); // his lead
+  assert.equal((await call(`/leads/${await idOf(3)}/logs`, { cookie: mohsen })).status, 404); // another team's: out of scope
+  const tlOnly = await session("mahmoud.ali@places.com"); // TL only (Abdallah is TL + sales, and sales was picked)
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: tlOnly })).status, 403);
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: tl })).body.canSeeLogs, true); // Abdallah: his sales role counts
+});
+
+/* ---------------- 1.28 Client / Broker: two tabs, the same filters in both ---------------- */
+
+const kindLeads: string[] = [];
+after(async () => { await prisma.lead.deleteMany({ where: { id: { in: kindLeads } } }); });
+
+test("a broker isn't in «الليدز»; the filters apply to both tabs and their counts; selfEntered marks a salesperson's own lead", async () => {
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const mk = async (cookie: string, n: number, extra: object) => {
+    const r = await call("/leads", { method: "POST", cookie, body: { name: `E2E-K ${stamp} ${n}`, phones: [`0129${stamp.slice(-6)}${n}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook", ...extra } });
+    assert.equal(r.status, 201, JSON.stringify(r.body)); kindLeads.push(r.body.id); return r.body.id as string;
+  };
+  const broker = await mk(ops, 1, { kind: "broker", assignToId: mohsenId });
+  const client = await mk(ops, 2, { assignToId: mohsenId }); // no kind: a client
+  const own = await mk(mohsen, 3, {});
+
+  const names = async (cookie: string, q: string) => (await call(`/leads?q=${encodeURIComponent(`E2E-K ${stamp}`)}&pageSize=50${q}`, { cookie })).body.items.map((l: { id: string; kind: string }) => [l.id, l.kind]);
+  assert.deepEqual((await names(ops, "&kind=client")).map((x: string[]) => x[0]).sort(), [client, own].sort());
+  assert.deepEqual(await names(ops, "&kind=broker"), [[broker, "broker"]]);
+
+  const tabs = async (cookie: string, q: string) => (await call(`/leads/tabs?q=${encodeURIComponent(`E2E-K ${stamp}`)}${q}`, { cookie })).body;
+  assert.deepEqual(await tabs(ops, ""), { client: 2, broker: 1 });
+  assert.deepEqual(await tabs(ops, `&assignedToId=${mohsenId}&kind=broker`), { client: 2, broker: 1 }); // the tab itself doesn't narrow the counts
+  const eidId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.eid@places.com" } } })).id;
+  assert.deepEqual(await tabs(ops, `&assignedToId=${eidId}`), { client: 0, broker: 0 }); // the salesperson filter applies to both
+  assert.deepEqual(await tabs(mohsen, ""), { client: 2, broker: 1 }); // all three are his
+  assert.equal((await call("/leads/tabs", { cookie: hr })).status, 403);
+
+  const board = (await call(`/leads/board?q=${encodeURIComponent(`E2E-K ${stamp}`)}&kind=broker`, { cookie: ops })).body;
+  assert.equal(board.lanes.reduce((n: number, l: { total: number }) => n + l.total, 0), 1);
+  const sumBroker = (await call("/leads/summary?kind=broker", { cookie: ops })).body.total;
+  assert.ok(sumBroker >= 1);
+
+  const flags = await prisma.lead.findMany({ where: { id: { in: kindLeads } }, select: { id: true, selfEntered: true } });
+  assert.deepEqual(Object.fromEntries(flags.map((f) => [f.id, f.selfEntered])), { [broker]: false, [client]: false, [own]: true });
+  assert.equal((await call("/leads", { method: "POST", cookie: ops, body: { name: "x x", phones: ["01099990001"], area: "x", type: "Rent", channel: "Facebook", kind: "agent" } })).status, 400);
 });

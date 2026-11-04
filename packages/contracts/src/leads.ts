@@ -2,20 +2,27 @@ import { z } from "zod";
 import { LEAD_STAGES } from "@places/domain";
 import { CalendarDay, EgyptianMobile, Id, Money, Page } from "./common.ts";
 
+/** A lead is a client or a broker (client meeting 4 Nov · 1.28): brokers have their own tab, same stages. */
+export const LeadKind = z.enum(["client", "broker"]);
+export type LeadKind = z.infer<typeof LeadKind>;
+
+/** Messages are shown to the person as they are: Arabic, like the demo. */
 export const CreateLead = z.object({
-  name: z.string().trim().min(2).max(120),
-  company: z.string().trim().max(160).optional(),
-  phones: z.array(EgyptianMobile).min(1).max(5),
-  area: z.string().min(1),
+  name: z.string().trim().min(2, "الاسم قصير").max(120, "الاسم طويل"),
+  kind: LeadKind.default("client"), // the form's «ده: Client / Broker»
+  company: z.string().trim().max(160, "اسم الشركة طويل").optional(),
+  // the same mobile written twice is kept once
+  phones: z.array(EgyptianMobile).min(1, "اكتب رقم موبايل").max(5, "5 أرقام بالكتير").transform((ps) => [...new Set(ps)]),
+  area: z.string().min(1, "اختار الـ Area"),
   type: z.enum(["Rent", "Resale", "Primary", "Income"]),
-  space: z.number().int().positive().optional(),
+  space: z.number().int("المساحة رقم صحيح").positive("المساحة لازم تبقى أكبر من صفر").optional(),
   condition: z.string().optional(),
   budget: Money.optional(),
-  channel: z.string().min(1),
+  channel: z.string().min(1, "اختار الـ Channel"),
   campaignId: Id.optional(),
   assignToId: Id.optional(), // Operations choosing a salesperson by hand (uses up their turn)
   keep: z.boolean().optional(), // Telesales: «يفضل عندي (بكلّمه أنا)» instead of «التوزيع (حسب الـ area)»
-  note: z.string().max(2000).optional(),
+  note: z.string().max(2000, "الملاحظة طويلة · 2000 حرف بالكتير").optional(),
 });
 export type CreateLead = z.infer<typeof CreateLead>;
 
@@ -34,19 +41,30 @@ export const LeadFilters = Page.extend({
   campaignId: Id.optional(),
   assignedToId: Id.optional(),
   qualified: QueryBool.optional(),
+  kind: LeadKind.optional(), // the page's tab: «الليدز» (client) or «البروكرز»
   from: CalendarDay.optional(), // Cairo days, both ends included
   to: CalendarDay.optional(),
 }).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" });
 export type LeadFilters = z.infer<typeof LeadFilters>;
 
+/** The new-lead form checks the mobiles while they're typed (demo «الرقم ده موجود قبل كده»). */
+export const DuplicateCheck = z.object({ phones: z.string().max(200).transform((s) => s.split(",").map((p) => p.replace(/\D/g, "")).filter((p) => /^01[0-25]\d{8}$/.test(p))) });
+export type DuplicateCheck = z.infer<typeof DuplicateCheck>;
+/** The existing lead's code; its id only when the person may open it (M-01 Q7: only Operations sees both clients). */
+export interface DuplicateHit { code: string; leadId: string | null }
+export interface DuplicateCheckResult { hit: DuplicateHit | null }
+
+/** What a new lead answers: its code and who it went to («الليد راح لـ …»). */
+export interface CreatedLead { id: string; code: string; ownedByTelesales: boolean; assignedTo: { id: string; name: string } | null }
+
 /** A comment or a call result written on the lead's Activity tab (demo: «اكتب كومنت أو نتيجة مكالمة»). */
-export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000) });
+export const AddComment = z.object({ text: z.string().trim().min(1, "اكتب الكومنت").max(2000, "الكومنت طويل · 2000 حرف بالكتير") });
 export type AddComment = z.infer<typeof AddComment>;
 
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
 export interface LeadRow {
   id: string; code: string; name: string; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
-  campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean;
+  campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean; kind: LeadKind;
   ownedByTelesales: boolean; // demo: «مع Telesales» — she keeps it to call herself, no SLA
   /** the SLA clock while the lead is Fresh and untouched (null otherwise): level, minutes left, % of the way to the pull */
   sla: { level: "ok" | "warn" | "pull"; minutesLeft: number; pct: number } | null;
@@ -61,6 +79,11 @@ export interface LeadActivityRow {
 /** The lead drawer (M-01): the list row plus the details and the Activity, newest first. */
 export interface LeadDetail extends LeadRow {
   company: string | null; condition: string | null; note: string | null;
+  post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
+  /** the first logged call, and whether it came within 30 minutes of arrival (KPI; null until someone calls) */
+  firstCallAt: string | null; firstCallOnTime: boolean | null;
+  /** the «Logs» tab is shown only when this is true (the admin, or a role the admin picked · 1.25) */
+  canSeeLogs: boolean;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
 
@@ -81,6 +104,12 @@ export interface DuplicateRow {
   entry: LeadSide;
 }
 
+/** The tiles follow the tab: clients or brokers. */
+export const SummaryQuery = z.object({ kind: LeadKind.default("client") });
+export type SummaryQuery = z.infer<typeof SummaryQuery>;
+/** Each tab's count under the current filters (they stay when moving between tabs · 1.28). */
+export interface LeadTabCounts { client: number; broker: number }
+
 /** The KPI tiles and the saved views' counts, over the caller's whole scope (not the current filters). */
 export interface LeadSummary {
   total: number; fresh: number; qualified: number; noAnswer: number; interested: number;
@@ -89,6 +118,14 @@ export interface LeadSummary {
   /** an official holiday today: the SLA runs on wall-clock hours (the note under the list says so) */
   holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number };
 }
+
+/** One line of a lead's «Logs» tab: recorded automatically, a person's comment, or an audit entry (1.25). */
+export interface LeadLogRow {
+  id: string; source: "auto" | "comment" | "audit"; text: string; by: { id: string; name: string } | null; at: string;
+}
+
+/** The person's own call count against their KPI (demo «مكالماتك النهارده: … من 100»); no goal for other roles. */
+export interface MyCalls { goal: { period: "day" | "week"; target: number } | null; count: number }
 
 /** The Kanban: every stage with its real count under the filters, and its newest cards (the demo shows 30 per lane). */
 export interface LeadBoard { lanes: { stage: string; total: number; items: LeadRow[] }[] }

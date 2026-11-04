@@ -4,7 +4,7 @@
  * them as-is: Icon, Chip, Card, Tabs, Table (cards on phones), Field, Note, Empty, Modal (bottom sheet on phones),
  * Tick, Avatar, and a toast.
  */
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Action, ModuleKey } from "@places/domain";
 import type { ImportDone, ImportPreview } from "@places/contracts";
@@ -48,13 +48,14 @@ export function Tabs<K extends string>({ items, value, onChange }: { items: [K, 
 }
 
 /** On phones every row becomes a card; each cell is labelled with its column (data-label, styled by mobile.css). */
-export function Table({ head, rows, empty = "مفيش بيانات" }: { head: string[]; rows: ReactNode[][]; empty?: string }) {
+/** `onRow` makes rows clickable (the demo opens a record's drawer from its row). */
+export function Table({ head, rows, empty = "مفيش بيانات", onRow }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void }) {
   return (
     <div className="tbl-wrap">
       <table className="cardable">
         <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
-          {rows.length ? rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}</tr>)
+          {rows.length ? rows.map((r, i) => <tr key={i} className={onRow ? "click" : undefined} onClick={onRow ? () => onRow(i) : undefined}>{r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}</tr>)
             : <tr><td colSpan={head.length}><Empty text={empty} /></td></tr>}
         </tbody>
       </table>
@@ -86,10 +87,14 @@ export function Avatar({ id, name, sm }: { id: string; name: string; sm?: boolea
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  // once, when it opens: the first field (not the ✕ in the header, which comes first in the markup)
+  useEffect(() => {
+    const first = ref.current?.querySelector<HTMLElement>(".modal-body input, .modal-body select, .modal-body textarea") ?? ref.current?.querySelector<HTMLElement>("button");
+    first?.focus();
+  }, []);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", esc);
-    ref.current?.querySelector<HTMLElement>("input, select, textarea, button")?.focus();
     return () => window.removeEventListener("keydown", esc);
   }, [onClose]);
   // Rendered on <body>: the design-2 entrance animation (transform, fill «both») turns the page's top-level cards into
@@ -117,6 +122,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
   return <ToastCtx.Provider value={show}>{children}<div className="toast" role="status" hidden={!text}>{text}</div></ToastCtx.Provider>;
 }
+
+/**
+ * For <form onSubmit>. React 19's <form action> clears every uncontrolled field once the action returns —
+ * even when we caught an error and showed it — so a refused form came back empty. This keeps what was typed.
+ */
+export const onFormSubmit = (fn: (data: FormData) => unknown) => (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  void fn(new FormData(e.currentTarget));
+};
 
 /** Runs a change: the API's error (or anything thrown) shows as a toast, `ok` shows when it worked. */
 export function useAction() {

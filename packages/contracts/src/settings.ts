@@ -13,6 +13,8 @@ export const SETTINGS = {
   leaveTypes: z.array(z.object({ name: z.string().trim().min(1).max(40), days: z.number().int().min(0).max(60) })).max(20),
   whatsappDailyLimit: z.number().int().min(0).max(10_000),
   notificationsFrom: z.string().trim().email(),
+  // the roles that see a lead's «Logs» tab besides the admin (1.25); role keys from الأدوار والصلاحيات
+  leadLogRoles: z.array(z.string().trim().min(1).max(40)).max(30),
   slaRules: z.object({
     warnAfter: z.number().int().min(10).max(24 * 60), pullAfter: z.number().int().min(10).max(24 * 60),
     holidayWarnAfter: z.number().int().min(10).max(72 * 60), holidayPullAfter: z.number().int().min(10).max(72 * 60),

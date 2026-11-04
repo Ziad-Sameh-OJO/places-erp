@@ -5,9 +5,9 @@ import { ago, money, num } from "@/lib/format";
 import { SlaBar, StageChip, Who } from "./lead-bits";
 
 /** The demo's list: one row per lead, on phones a card per lead (Table does that). */
-export function LeadsTable({ leads }: { leads: LeadRow[] }) {
+export function LeadsTable({ leads, onOpen }: { leads: LeadRow[]; onOpen: (id: string) => void }) {
   return (
-    <Table head={["الليد", "Area · Type", "Budget", "Channel · Campaign", "Sales", "Stage", "SLA"]} empty="مفيش بيانات تطابق الفلتر"
+    <Table onRow={(i) => onOpen(leads[i]!.id)} head={["الليد", "Area · Type", "Budget", "Channel · Campaign", "Sales", "Stage", "SLA"]} empty="مفيش بيانات تطابق الفلتر"
       rows={leads.map((l) => [
         <span key="l"><b>{l.name}</b><span className="sub"><span className="mono">{l.code}</span></span><span className="sub mono">{l.phones.join(" · ")}</span></span>,
         <span key="a">{l.area || "—"}<span className="sub">{l.type}{l.space != null && <> · <span className="num">{num(l.space)}</span> م</>}</span></span>,

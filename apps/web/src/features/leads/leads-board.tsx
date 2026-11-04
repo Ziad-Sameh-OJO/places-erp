@@ -14,7 +14,7 @@ const LANE_COLOR: Record<string, string> = { ok: "ok", warn: "warn", bad: "bad",
  * The demo's Kanban: a lane per stage, each card coloured by its SLA. Dropping a card on another lane changes its
  * stage (the API checks the permission and the scope). Visit needs a date and units, so it isn't a drop (1.9).
  */
-export function LeadsBoard({ board, canMove }: { board: LeadBoard | undefined; canMove: boolean }) {
+export function LeadsBoard({ board, canMove, onOpen }: { board: LeadBoard | undefined; canMove: boolean; onOpen: (id: string) => void }) {
   const run = useAction();
   const toast = useToast();
   const changeStage = useChangeStage();
@@ -26,7 +26,7 @@ export function LeadsBoard({ board, canMove }: { board: LeadBoard | undefined; c
   };
   const lanes = (board?.lanes ?? []).map((l) => ({ key: l.stage, title: l.stage, tone: LANE_COLOR[stageTone(l.stage)], items: l.items, count: l.total }));
   return (
-    <Kanban className="leads-board" lanes={lanes} itemKey={(l) => l.id} empty="اسحب ليد هنا"
+    <Kanban className="leads-board" lanes={lanes} itemKey={(l) => l.id} empty="اسحب ليد هنا" onOpen={(l) => onOpen(l.id)}
       cardClass={(l) => `lead-card ${l.sla ? `sla-${slaTone(l.sla)}` : ""}`}
       {...(canMove ? { onMove: (l: LeadRow, lane: string) => move(l, lane) } : {})}
       card={(l) => (

@@ -22,8 +22,8 @@ export class LeadsRepository {
   }
 
   /** The KPI tiles and saved views' counts over the whole scope (one round trip). */
-  summary(scope: Prisma.LeadWhereInput, weekAgo: Date, twoWeeksAgo: Date) {
-    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null }, w] } });
+  summary(scope: Prisma.LeadWhereInput, kind: "CLIENT" | "BROKER", weekAgo: Date, twoWeeksAgo: Date) {
+    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null, kind }, w] } });
     return this.db.$transaction([
       count({}), count({ stage: "FRESH" }), count({ qualified: true }), count({ stage: "NO_ANSWER" }), count({ stage: "INTERESTED" }),
       count({ createdAt: { gte: weekAgo } }), count({ createdAt: { gte: twoWeeksAgo, lt: weekAgo } }),
@@ -53,6 +53,11 @@ export class LeadsRepository {
     ]);
   }
 
+  /** How many leads each tab has under the current filters (the tab itself set aside). */
+  tabCounts(scope: Prisma.LeadWhereInput, f: LeadFilters) {
+    return this.db.lead.groupBy({ by: ["kind"], where: leadWhere(scope, { ...f, kind: undefined }), _count: { _all: true } });
+  }
+
   /** One lead with its Activity (newest first). Out of the caller's scope it simply isn't found. */
   detail(scope: Prisma.LeadWhereInput, id: string) {
     return this.db.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: LEAD_DETAIL });
@@ -75,6 +80,27 @@ export class LeadsRepository {
 
   addActivity(tx: Prisma.TransactionClient, leadId: string, kind: ActivityKind, text: string, byUserId: string | null) {
     return tx.leadActivity.create({ data: { leadId, kind, text, byUserId } });
+  }
+
+  /** The lead's audit trail: entries on the lead itself and on what belongs to it (comments, calls, duplicates). */
+  auditFor(leadId: string) {
+    return this.db.auditLog.findMany({
+      where: { module: "leads", OR: [{ entityId: leadId }, { after: { path: ["leadId"], equals: leadId } }] },
+      select: { id: true, entity: true, action: true, userId: true, before: true, after: true, at: true }, orderBy: { at: "desc" },
+    });
+  }
+
+  addCall(tx: Prisma.TransactionClient, leadId: string, byUserId: string) {
+    return tx.leadCall.create({ data: { leadId, byUserId } });
+  }
+
+  /** Only the first call is the one the 30-minute KPI looks at. */
+  markFirstCall(tx: Prisma.TransactionClient, id: string, at: Date) {
+    return tx.lead.updateMany({ where: { id, firstCallAt: null }, data: { firstCallAt: at } });
+  }
+
+  countCalls(byUserId: string, since: Date) {
+    return this.db.leadCall.count({ where: { byUserId, at: { gte: since } } });
   }
 
   /** Any action by the salesperson stops the SLA clock (M-01 «3 ساعات من غير أي أكشن»); only the first one is kept. */
@@ -117,6 +143,11 @@ export class LeadsRepository {
     return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
+  /** A company from the companies sheet, by name in any case (the form's «الشركة»; adding new ones is 1.20). */
+  companyByName(tx: Prisma.TransactionClient, name: string) {
+    return tx.company.findFirst({ where: { name: { equals: name.trim(), mode: "insensitive" } }, select: { id: true } });
+  }
+
   salesForArea(area: string) {
     return this.db.setting.findUnique({ where: { key: `routing:${area}` } });
   }
@@ -130,13 +161,13 @@ export class LeadsRepository {
 const LEAD_HOLDERS = ["sales", "tl", "telesales"] as const;
 
 const LEAD_ROW = {
-  id: true, code: true, name: true, phones: true, area: true, type: true, space: true, budget: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true,
+  id: true, code: true, name: true, phones: true, area: true, type: true, space: true, budget: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true, kind: true,
   assignedToId: true, assignedAt: true, arrivedAt: true, createdAt: true, campaign: { select: { id: true, name: true } },
 } satisfies Prisma.LeadSelect;
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
-  ...LEAD_ROW, condition: true, note: true, noAnswerCount: true, rotation: true, firstActionAt: true,
+  ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;
@@ -159,6 +190,7 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadFilters): Prisma.LeadWhe
   return {
     AND: [scope, { archivedAt: null },
       f.stage ? { stage: f.stage.toUpperCase().replace(/ /g, "_") as Prisma.LeadWhereInput["stage"] } : {},
+      f.kind ? { kind: f.kind === "broker" ? "BROKER" : "CLIENT" } : {},
       f.area ? { area: f.area } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
       f.assignedToId ? { assignedToId: f.assignedToId } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
       // the whole mobile (the GIN index), any part of the name, or the code typed in any case («l-1001»)
