@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla } from "../src/leads.ts";
+import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, placeNewLead } from "../src/leads.ts";
 
 const cairo = (iso: string) => new Date(`${iso}+03:00`);
 const fresh = (assignedAt: Date) => ({ stage: "Fresh" as const, touched: false, ownedByTelesales: false, assignedAt });
@@ -51,4 +51,22 @@ test("bulk upload: 50 numbers over 17 salespeople → 16 get 3, one gets 2", () 
   const counts = [...distributeEvenly(50, people).values()];
   assert.equal(counts.filter((c) => c === 3).length, 16);
   assert.equal(counts.filter((c) => c === 2).length, 1);
+});
+
+test("new lead placement: Telesales keeps it («يفضل عندي») or sends it to routing; a salesperson keeps his own (Q3); Operations by hand (Q2)", () => {
+  const tele = { employeeId: "hadeer", isTelesales: true, ownScope: true };
+  const sales = { employeeId: "mohsen", isTelesales: false, ownScope: true };
+  const ops = { employeeId: "heba", isTelesales: false, ownScope: false };
+  assert.deepEqual(placeNewLead(tele, { keep: true }), { kind: "telesales", to: "hadeer" });
+  assert.deepEqual(placeNewLead(tele, { keep: false }), { kind: "route" });
+  assert.deepEqual(placeNewLead(tele, {}), { kind: "route" }); // the form's first choice is «التوزيع»
+  assert.deepEqual(placeNewLead(sales, {}), { kind: "own", to: "mohsen" });
+  assert.deepEqual(placeNewLead(sales, { keep: true }), { kind: "own", to: "mohsen" }); // keep is Telesales' choice only
+  assert.deepEqual(placeNewLead(ops, {}), { kind: "route" });
+  assert.deepEqual(placeNewLead(ops, { assignToId: "mohsen" }), { kind: "hand", to: "mohsen" });
+  assert.deepEqual(placeNewLead({ employeeId: null, isTelesales: true, ownScope: true }, { keep: true }), { kind: "route" }); // no HR file: can't hold a lead
+});
+
+test("SLA doesn't run while the lead is with Telesales", () => {
+  assert.equal(leadSla({ stage: "Fresh", touched: false, ownedByTelesales: true, assignedAt: new Date("2026-11-03T09:00:00Z") }, new Date("2026-11-03T15:00:00Z")), null);
 });

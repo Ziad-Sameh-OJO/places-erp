@@ -14,6 +14,7 @@ export const CreateLead = z.object({
   channel: z.string().min(1),
   campaignId: Id.optional(),
   assignToId: Id.optional(), // Operations choosing a salesperson by hand (uses up their turn)
+  keep: z.boolean().optional(), // Telesales: «يفضل عندي (بكلّمه أنا)» instead of «التوزيع (حسب الـ area)»
   note: z.string().max(2000).optional(),
 });
 export type CreateLead = z.infer<typeof CreateLead>;
@@ -46,6 +47,7 @@ export type AddComment = z.infer<typeof AddComment>;
 export interface LeadRow {
   id: string; code: string; name: string; phones: string[]; area: string; type: string; channel: string;
   campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean;
+  ownedByTelesales: boolean; // demo: «مع Telesales» — she keeps it to call herself, no SLA
   assignedTo: { id: string; name: string } | null; assignedAt: string | null; arrivedAt: string; createdAt: string;
 }
 
