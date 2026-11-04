@@ -110,6 +110,25 @@ export class LedgerService {
     });
   }
 
+  /**
+   * A person's own account under 131 (سلف موظفين) or 134 (عهد), opened with their first advance / custody
+   * (docs/requirements/sources/chart-of-accounts.md: «حساب لكل موظف بيتفتح لوحده مع أول سلفة»).
+   */
+  async holderAccount(me: CurrentUser, parentCode: string, holder: { userId: string; name: string }, tx: Tx): Promise<AccountRow> {
+    const parent = await this.repo.accountByCode(parentCode, tx);
+    if (!parent) throw new BadRequestException(NO_ACCOUNT);
+    const found = await this.repo.holderAccount(parent.id, holder.userId, tx);
+    if (found) return found;
+    const account = await this.repo.createAccount({ code: nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx)), name: holder.name, parentId: parent.id, nature: parent.nature, kind: null, holderId: holder.userId }, tx);
+    await this.audit.record({ module: "finance", entity: "Account", entityId: account.id, action: "create", userId: me.id, after: { code: account.code, name: account.name, parent: parent.code } }, tx);
+    return account;
+  }
+
+  /** Marks an entry with the voucher that made it (so the journal links back to its voucher). */
+  linkEntry(entryId: string, sourceId: string, tx: Tx) {
+    return this.repo.setEntrySource(entryId, sourceId, tx);
+  }
+
   /** A new account can be removed while it has no movements and no sub-accounts (M-07, 4 Nov). */
   async removeAccount(me: CurrentUser, id: string, run: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>) {
     return run(async (tx) => {

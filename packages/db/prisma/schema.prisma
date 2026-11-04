@@ -776,6 +776,12 @@ model Account {
   kind       String?       // treasury · bank · wallet: the cash accounts vouchers pay from and into
   fixed      Boolean       @default(false) // the seeded chart: can't be removed
   cap        Decimal?      @db.Decimal(14, 2) // petty-cash ceiling
+  /// the person a 131 (سلف) / 134 (عهد) sub-account belongs to (M-07 9.3)
+  holderId   String?
+  budget     BudgetLine?
+  movesFrom  TreasuryMove[] @relation("MoveFrom")
+  movesTo    TreasuryMove[] @relation("MoveTo")
+  movesOn    TreasuryMove[] @relation("MoveAccount")
   archivedAt DateTime?
   createdAt  DateTime      @default(now())
   payments   Payment[]
@@ -822,6 +828,12 @@ model BudgetLine {
   kind      String     // admin · selling
   budget    Decimal    @db.Decimal(14, 2)
   spent     Decimal    @default(0) @db.Decimal(14, 2)
+  /// the expense account it budgets (M-07 9.2): spent = that account's movements inside the period
+  accountId String?    @unique
+  account   Account?   @relation(fields: [accountId], references: [id])
+  period    String     @default("month") // month · quarter · year
+  alert     Int        @default(80) // «نبّهني عند %»
+  active    Boolean    @default(true)
   purchases Purchase[]
 
   @@schema("finance")
@@ -1009,4 +1021,36 @@ model AuditLog {
   @@index([module, at])
   @@index([entity, entityId])
   @@schema("system")
+}
+
+/// M-07 · one treasury voucher (9.2, 9.3, 9.11): pay · receive · transfer · advance · custody · settle, with its journal entry.
+model TreasuryMove {
+  id          String   @id @default(cuid())
+  no          Int      @unique @default(autoincrement())
+  kind        String
+  date        DateTime
+  fromId      String?
+  from        Account? @relation("MoveFrom", fields: [fromId], references: [id])
+  toId        String?
+  to          Account? @relation("MoveTo", fields: [toId], references: [id])
+  /// the expense / revenue / the person's 131 or 134 account
+  accountId   String?
+  account     Account? @relation("MoveAccount", fields: [accountId], references: [id])
+  /// settle: the expense the custody was spent on
+  expenseId   String?
+  amount      Decimal  @db.Decimal(14, 2)
+  spent       Decimal? @db.Decimal(14, 2)
+  returned    Decimal? @db.Decimal(14, 2)
+  party       String   // who received / paid (an employee's name, a vendor, a company)
+  partyId     String?  // the employee (user id) for advances and custody
+  ref         String?
+  memo        String
+  entryId     String   @unique
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([fromId])
+  @@index([toId])
+  @@index([date])
+  @@schema("finance")
 }

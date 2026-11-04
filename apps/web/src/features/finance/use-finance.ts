@@ -1,6 +1,6 @@
 "use client";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AccountLedger, AccountNode, ChartView, EntryView, JournalView } from "@places/contracts";
+import type { AccountLedger, AccountNode, BudgetView, CashView, ChartView, EntryView, JournalView, MoveView, MovesView } from "@places/contracts";
 import { api } from "@/lib/api";
 
 /** M-07 · the chart with live balances (9.1). */
@@ -30,3 +30,18 @@ export function flatten(nodes: AccountNode[], path: string[] = []): { node: Acco
 
 /** Codes the system keeps (retained earnings, the year's result): no sub-accounts, no manual lines. */
 export const SYSTEM_CODES = new Set(["33", "34"]);
+
+/* ---- 9.2 · 9.3 · 9.11 ---- */
+export const useCash = () => useQuery({ queryKey: ["finance", "cash"], queryFn: () => api.get<CashView>("/finance/cash") });
+export function useMoves(accountId: string, page: number, pageSize = 20) {
+  const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize), ...(accountId ? { accountId } : {}) }).toString();
+  return useQuery({ queryKey: ["finance", "moves", qs], queryFn: () => api.get<MovesView>(`/finance/moves?${qs}`), placeholderData: keepPreviousData });
+}
+export const useMove = (id: string | null) => useQuery({ queryKey: ["finance", "move", id], queryFn: () => api.get<MoveView>(`/finance/moves/${id}`), enabled: !!id });
+export const useBudget = () => useQuery({ queryKey: ["finance", "budget"], queryFn: () => api.get<BudgetView>("/finance/budget") });
+
+export type MoveKind = "pay" | "receive" | "transfer" | "advance" | "custody" | "settle";
+/** The demo's KIND: label and chip tone. */
+export const KIND: Record<MoveKind, [string, "bad" | "ok" | "info" | "warn" | ""]> = {
+  pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""],
+};
