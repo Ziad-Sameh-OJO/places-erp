@@ -349,7 +349,8 @@ test("list rows carry the SLA: a Fresh untouched lead assigned a month ago is pu
 test("summary: the tiles agree with the list for the same person; HR 403", async () => {
   for (const cookie of [mohsen, tl, ops]) {
     const s = (await call("/leads/summary", { cookie })).body;
-    const total = async (q: string) => (await call(`/leads?pageSize=1${q}`, { cookie })).body.total;
+    // the tiles are the «الليدز» tab's (clients); brokers have their own tab (1.28)
+    const total = async (q: string) => (await call(`/leads?pageSize=1&kind=client${q}`, { cookie })).body.total;
     assert.equal(s.total, await total(""));
     assert.equal(s.fresh, await total("&stage=Fresh"));
     assert.equal(s.qualified, await total("&qualified=true"));
