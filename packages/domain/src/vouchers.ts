@@ -87,3 +87,17 @@ export function budgetCrossed(before: Piasters, after: Piasters, budget: Piaster
   if (now === "warn" && was === "ok") return "alert";
   return null;
 }
+
+/* ---- recurring bills (9.16; the accountant's meeting, 4 Nov): nothing pays by itself ---- */
+export type BillState = "paid" | "skipped" | "off" | "due" | "soon" | "later";
+export const BILL_STATE_LABEL: Record<BillState, string> = {
+  paid: "اتصرفت الشهر ده", skipped: "اتأجلت الشهر ده", off: "متوقفة", due: "ميعادها جه · مستنية موافقتك", soon: "قرّبت", later: "لسه",
+};
+/** A bill's state this month (demo billState): paid / skipped win, then off, then due from its day on, «قرّبت» 3 days before. */
+export function billState(bill: { day: number; active: boolean }, thisMonth: "paid" | "skipped" | null, today: string): BillState {
+  if (thisMonth) return thisMonth;
+  if (!bill.active) return "off";
+  const day = Number(today.slice(8, 10));
+  if (day >= bill.day) return "due";
+  return bill.day - day <= 3 ? "soon" : "later";
+}

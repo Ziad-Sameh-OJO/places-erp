@@ -9,6 +9,7 @@ import { KIND, useCash, useMoves, type MoveKind } from "./use-finance";
 import { MoveForm } from "./move-form";
 import { Voucher, VoucherById } from "./voucher";
 import { LedgerModal } from "./ledger-modal";
+import { DueBillsCard } from "./bills";
 
 const KIND_LABEL: Record<string, string> = { treasury: "خزنة", bank: "بنك", wallet: "محفظة" };
 
@@ -30,6 +31,7 @@ export function Cash() {
   const m = moves.data;
   return (
     <>
+      <DueBillsCard cash={c} />
       <div className="kpis">
         <KpiTile label="الخزن والبنوك" value={money(total.toFixed(2))} sub={`${c.accounts.length} حساب`} icon="bank" />
         <KpiTile label="حركات النهارده" value={c.today.count} sub={`صرف ${short(c.today.paid)} · قبض ${short(c.today.received)}`} icon="list" />
