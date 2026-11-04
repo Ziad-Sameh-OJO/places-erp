@@ -1,12 +1,15 @@
 "use client";
 import { useState } from "react";
 import { keepsInventory } from "@places/domain";
-import { KpiTile } from "@/components/blocks";
-import { Chip, Empty, Icon, Note, Table, Tabs } from "@/components/ui";
+import { Fab, KpiTile } from "@/components/blocks";
+import { Chip, Empty, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
+import { api } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/lib/me";
 import { num, short } from "@/lib/format";
 import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
+import { UnitForm } from "./unit-form";
 import { AreaTabsBar } from "./area-tabs";
 import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 
@@ -25,6 +28,9 @@ export function InventoryList() {
   const [mode, setMode] = useState<"table" | "drive">("table");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
+  const [form, setForm] = useState<"new" | "edit" | null>(null);
+  const qc = useQueryClient();
+  const run = useAction();
   const query: UnitQuery = { ...f, ...(tab === "closed" ? { view: "closed" } : tab !== "all" ? { type: tab } : {}) };
   const units = useUnits(query, page, PAGE);
   const tabs = useUnitTabs(f).data;
@@ -32,6 +38,14 @@ export function InventoryList() {
   const options = useUnitOptions().data;
   const unit = useUnit(open);
   const areaTabs = useAreaTabs(query).data ?? [];
+  const archive = (id: string, code: string) => {
+    if (!window.confirm(`أرشفة ${code}؟ هتختفي من الانفنتوري.`)) return;
+    void run(async () => {
+      await api.del(`/inventory/units/${id}`);
+      setOpen(null);
+      await Promise.all([qc.invalidateQueries({ queryKey: ["units"] }), qc.invalidateQueries({ queryKey: ["area-tabs"] })]);
+    }, `${code} اتأرشفت`);
+  };
   const filter = (next: UnitQuery) => { setF(next); setPage(1); };
   const on = (k: keyof UnitQuery) => (e: { target: { value: string } }) => filter({ ...f, [k]: e.target.value });
   const toggle = (k: "stale" | "divisible") => (e: { target: { checked: boolean } }) => filter({ ...f, [k]: e.target.checked ? "true" : undefined });
@@ -58,6 +72,7 @@ export function InventoryList() {
       <div className="row">
         <Tabs value={tab} onChange={(t) => { setTab(t); setPage(1); }} items={types} />
         <span className="spacer" />
+        {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />وحدة جديدة</button>}
       </div>
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={insider ? "دوّر بأي حاجة: مشروع، كود، مالك، رقم" : "دوّر بأي حاجة: مشروع، كود، مبنى"} value={f.q ?? ""} onChange={on("q")} aria-label="بحث في الوحدات" /></label>
@@ -103,7 +118,16 @@ export function InventoryList() {
         </div>
       )}
       <p className="hint">التابات اللي تحت Customized: الفريق بيحدد الشرايح ويضيف أو يشيل. والوحدة اللي الـ last update بتاعها عدّى عليه أكتر من شهر بتظهر متأخرة، وبتتحسب في الـ activity بتاعة منار ورندا.</p>
-      {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)} />}
+      {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)}
+        actions={unit.data && (me.can("inventory", "edit") || me.can("inventory", "delete")) && (
+          <div className="row">
+            {me.can("inventory", "edit") && <button className="btn ghost" onClick={() => setForm("edit")}>تعديل البيانات</button>}
+            {me.can("inventory", "delete") && <button className="btn ghost" onClick={() => archive(unit.data!.id, unit.data!.code)}><Icon name="x" />أرشفة</button>}
+          </div>
+        )} />}
+      {form && <UnitForm unit={form === "edit" ? unit.data : undefined} options={options} tabs={areaTabs} onClose={() => setForm(null)}
+        onSaved={(id) => { setForm(null); setOpen(id); }} />}
+      {me.can("inventory", "create") && <Fab onClick={() => setForm("new")} label="وحدة جديدة" />}
     </>
   );
 }
