@@ -5,12 +5,13 @@
  * shortcut: in-app only (the worker has no mail sender yet); move it to the mail queue when that processor exists.
  */
 import { prisma } from "@places/db";
-import { PLACES_CALENDAR, approvalOverdue, eventByKey } from "@places/domain";
+import { PLACES_CALENDAR, approvalOverdue, eventByKey, holidayDays } from "@places/domain";
 
 const EVENT = "procurement.reminder";
 
 export async function procurementReminderTick(now = new Date()): Promise<number> {
-  const holidays = new Set((await prisma.holiday.findMany()).map((h) => h.day.toISOString().slice(0, 10)));
+  // official holidays are ranges «من … لحد …» (1.29)
+  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: h.from.toISOString().slice(0, 10), to: h.to.toISOString().slice(0, 10) })));
   const calendar = { ...PLACES_CALENDAR, holidays };
   const pending = await prisma.purchase.findMany({ where: { status: "Pending", remindedAt: null }, select: { id: true, no: true, item: true, createdAt: true } });
   const event = eventByKey(EVENT)!;
