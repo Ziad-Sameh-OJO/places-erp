@@ -2,13 +2,14 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Put, Query
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import type { PrismaClient } from "@places/db";
-import { AttendanceDayQuery, AttendanceEntry, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
+import { LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
 import { sendXlsx } from "../../core/http/excel";
 import { IMPORT_MAX_BYTES, parseSheet, preview, type UploadedSheet } from "../../core/http/import";
 import { AttendanceService } from "./attendance.service";
+import { LeavesService } from "./leaves.service";
 import { PRISMA } from "../../core/database/database.module";
 import { ZodPipe } from "../../core/http/zod.pipe";
-import { Requires } from "../../core/authz/requires.decorator";
+import { Requires, SignedIn } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { HrService } from "./hr.service";
 import type { Tx } from "./hr.repository";
@@ -19,7 +20,7 @@ const byPersonDay = (r: FingerprintRow) => `${r.name.trim()}|${r.day}`;
 /** HTTP only: validate input, check the permission, call the service. M-05 · the employee file (7.1) and attendance (7.2 · 7.10 · 7.12). */
 @Controller("hr")
 export class HrController {
-  constructor(private readonly hr: HrService, private readonly attendance: AttendanceService, @Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(private readonly hr: HrService, private readonly attendance: AttendanceService, private readonly leaves: LeavesService, @Inject(PRISMA) private readonly db: PrismaClient) {}
 
   private readonly run = <T>(fn: (tx: Tx) => Promise<T>) => this.db.$transaction(fn);
 
@@ -88,5 +89,59 @@ export class HrController {
   @Requires("hr", "import") @UseInterceptors(sheet) @HttpCode(200)
   async importSheet(@Me() me: CurrentUser, @UploadedFile() file?: UploadedSheet) {
     return this.attendance.importSheet(me, await parseSheet(file, FINGERPRINT_COLUMNS, FingerprintRow, byPersonDay), this.run);
+  }
+
+  /* ---- 7.5 · 7.6 · leaves ---- */
+  @Get("leaves/mine")
+  @SignedIn()
+  myLeaves(@Me() me: CurrentUser) {
+    return this.leaves.mine(me);
+  }
+
+  /** Anyone with a file asks for leave (personal: @SignedIn). */
+  @Post("leaves")
+  @SignedIn()
+  ask(@Me() me: CurrentUser, @Body(new ZodPipe(LeaveAsk)) body: LeaveAsk) {
+    return this.leaves.ask(me, body, this.run);
+  }
+
+  @Get("leaves")
+  @Requires("hr", "view")
+  leaveList(@Me() me: CurrentUser) {
+    return this.leaves.list(me);
+  }
+
+  @Post("leaves/:id/approve")
+  @Requires("hr", "approve")
+  approve(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.leaves.approve(me, id, this.run);
+  }
+
+  @Post("leaves/:id/reject")
+  @Requires("hr", "approve")
+  reject(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(LeaveReject)) body: { reason: string }) {
+    return this.leaves.reject(me, id, body.reason, this.run);
+  }
+
+  @Get("leaves/calendar")
+  @Requires("hr", "view")
+  calendar(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
+    return this.leaves.calendar(me, q.month);
+  }
+
+  @Get("leaves/balances/export")
+  @Requires("hr", "export")
+  async exportBalances(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }, @Res() res: Response) {
+    const r = await this.leaves.balancesReport(me, q.month);
+    await sendXlsx(res, `أرصدة الإجازات ${r.month}.xlsx`, [
+      { header: "الموظف", value: (x: (typeof r.rows)[number]) => x.name, width: 24 }, { header: "القسم", value: (x) => x.department },
+      ...r.types.flatMap((t) => [{ header: `${t} · الرصيد`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.total }, { header: `${t} · الشهر ده`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.month }, { header: `${t} · الباقي`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.left }]),
+    ], r.rows, "الأرصدة");
+  }
+
+  @Get("leaves/balances")
+  @Requires("hr", "view")
+  balances(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
+    return this.leaves.balancesReport(me, q.month);
   }
 }

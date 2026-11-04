@@ -222,9 +222,19 @@ model LeaveRequest {
   reason       String?
   status       LeaveStatus @default(PENDING_TL)
   rejectReason String?
+  /// M-05 7.5: days counted, the document (sick / emergency), who decides at each step, the 24 / 48-hour chase
+  days         Int         @default(0)
+  documentId   String?
+  tlUserId     String?     // the Team Leader (or manager) who decides first; null = straight to HR
+  tlDecidedAt  DateTime?
+  hrUserId     String?
+  closedAt     DateTime?
+  remindedAt   DateTime?
+  escalatedAt  DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@index([status])
   @@schema("hr")
 }
 

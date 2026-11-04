@@ -20,6 +20,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.duplicate", label: "عميل مكرر", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 Q7
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
+  { key: "hr.leave_request", label: "طلب إجازة", to: "الـ Team Leader ثم الـ HR", toRoles: [], channels: ["app", "push"], important: false }, // M-05 7.5
+  { key: "hr.leave_decided", label: "رد على طلب إجازتك", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "hr.leave_escalated", label: "طلب إجازة متأخر الرد عليه (48 ساعة)", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "email"], important: true },
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },
   { key: "unit.new", label: "وحدة جديدة (Live Alert)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-03 7.1
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
