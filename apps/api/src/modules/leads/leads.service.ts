@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { PrismaClient } from "@places/db";
+import type { Prisma, PrismaClient } from "@places/db";
 import type { AddComment, ChangeStage, CreateLead, LeadDetail, LeadFilters, LeadRow, Paged } from "@places/contracts";
 import { LEAD_STAGES, type LeadStage, LeadRouter, isQualifiedAfter } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -75,7 +75,7 @@ export class LeadsService {
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
         },
       });
-      await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(me, assignedToId), me.id);
+      await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, assignedToId), me.id);
       if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);
       return lead;
@@ -100,11 +100,11 @@ export class LeadsService {
   }
 
   /** The first line of the Activity, in the demo's words: who entered the lead and where it went. */
-  private async createdText(me: CurrentUser, assignedToId: string | null) {
+  private async createdText(tx: Prisma.TransactionClient, me: CurrentUser, assignedToId: string | null) {
     const by = `اتعمل بواسطة ${me.name}`;
     if (!assignedToId) return by;
     if (assignedToId === me.employeeId) return `${by} · فضل عنده (هو اللي دخّله)`;
-    const [salesperson] = await this.repo.employeeNames([assignedToId]);
+    const [salesperson] = await this.repo.employeeNames([assignedToId], tx);
     return `${by} · اتوزع لـ ${salesperson?.name ?? ""}`;
   }
 }

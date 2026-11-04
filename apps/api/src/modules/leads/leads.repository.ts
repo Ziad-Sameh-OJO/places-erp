@@ -31,8 +31,9 @@ export class LeadsRepository {
     return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { id: true, firstActionAt: true } });
   }
 
-  employeeNames(ids: string[]) {
-    return this.db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+  /** Pass `tx` when called inside a transaction: a second connection there can starve the pool under load. */
+  employeeNames(ids: string[], tx: Prisma.TransactionClient = this.db) {
+    return tx.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
   /** Activity is written by users; their display name lives on their HR file. */
