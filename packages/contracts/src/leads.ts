@@ -84,6 +84,8 @@ export interface LeadDetail extends LeadRow {
   firstCallAt: string | null; firstCallOnTime: boolean | null;
   /** the «Logs» tab is shown only when this is true (the admin, or a role the admin picked · 1.25) */
   canSeeLogs: boolean;
+  /** how many lines the Logs tab has (its label shows it, like the demo); null when the person can't see it */
+  logCount: number | null;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
 }
 
@@ -135,3 +137,7 @@ export interface LeadOptions {
   campaigns: { id: string; name: string; channel: string }[];
   salespeople: { id: string; name: string }[];
 }
+
+/** «مين يشوف الـ Logs» (demo: a card in the lead's Logs tab, for whoever manages access): the roles besides the admin. */
+export const LogRoles = z.object({ roles: z.array(z.string().trim().min(1).max(40)).max(30).transform((r) => [...new Set(r)]) });
+export type LogRoles = z.infer<typeof LogRoles>;

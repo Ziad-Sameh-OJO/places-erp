@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreatedLead, DuplicateCheckResult } from "@places/contracts";
-import { Field, Icon, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
+import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { useLeadOptions, useSettings } from "./use-leads";
@@ -24,7 +24,8 @@ function useSettled(value: string, ms = 400) {
  * «التوزيع», Operations may pick a salesperson by hand (uses up their turn), everyone else goes by area.
  * A mobile we already have is flagged while typing; only someone who may open that lead gets a link to it (M-01 Q7).
  */
-export function NewLead({ onClose, onOpenLead }: { onClose: () => void; onOpenLead: (id: string) => void }) {
+/** `kind`: the tab the list is on — the brokers tab opens the form on «Broker» (demo). */
+export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () => void; onOpenLead: (id: string) => void; kind?: "client" | "broker" }) {
   const { me, can } = useMe();
   const toast = useToast();
   const qc = useQueryClient();
@@ -71,8 +72,8 @@ export function NewLead({ onClose, onOpenLead }: { onClose: () => void; onOpenLe
   return (
     <Modal title="ليد جديد" onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit(save)}>
+        <Field label="ده" req><select name="kind" defaultValue={kind}><option value="client">Client (عميل)</option><option value="broker">Broker</option></select></Field>
         <Field label="الاسم" req><input name="name" required minLength={2} maxLength={120} /></Field>
-        <Field label="ده"><select name="kind"><option value="client">Client</option><option value="broker">Broker</option></select></Field>
         <Field label="الشركة"><input name="company" maxLength={160} placeholder="اكتب أو اختار من شيت الشركات" /></Field>
         <Field label="الموبايل (رقم في كل سطر)" req>
           <textarea name="phones" required placeholder="01xxxxxxxxx" value={phones} onChange={(e) => setPhones(e.target.value)} />
@@ -117,7 +118,7 @@ export function NewLead({ onClose, onOpenLead }: { onClose: () => void; onOpenLe
         <Field label="Note" wide><textarea name="note" maxLength={2000} /></Field>
         <div className="row end wide">
           <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
-          <button className="btn" disabled={busy}><Icon name="plus" />{dup ? "ابعته للأوبريشن تقرر" : "حفظ الليد"}</button>
+          <button className="btn" disabled={busy}>{dup ? "ابعته للأوبريشن تقرر" : "حفظ الليد"}</button>
         </div>
       </form>
     </Modal>

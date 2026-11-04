@@ -28,12 +28,13 @@ export class SettingsService {
     return { ...DEFAULTS, ...Object.fromEntries(rows.map((r) => [r.key, r.value])) } as Settings;
   }
 
-  async set(me: CurrentUser, key: SettingKey, value: unknown) {
+  /** `module`: where the change was made, for the audit log (the Logs roles are set from a lead, under «access»). */
+  async set(me: CurrentUser, key: SettingKey, value: unknown, module = "master") {
     const parsed = SETTINGS[key].parse(value);
     const before = (await this.db.setting.findUnique({ where: { key } }))?.value ?? DEFAULTS[key];
     await this.db.$transaction(async (tx) => {
       await tx.setting.upsert({ where: { key }, create: { key, value: parsed }, update: { value: parsed } });
-      await this.audit.record({ module: "master", entity: "Setting", entityId: key, action: "update", userId: me.id, before, after: parsed }, tx);
+      await this.audit.record({ module, entity: "Setting", entityId: key, action: "update", userId: me.id, before, after: parsed }, tx);
     });
     return parsed;
   }

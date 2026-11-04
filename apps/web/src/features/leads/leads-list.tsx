@@ -11,12 +11,13 @@ import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
 import { LeadDrawer } from "./lead-drawer";
 import { NewLead } from "./new-lead";
+import { OperationsQueue } from "./duplicates";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
 
 const PAGE = 50;
 
-/** M-01 · the leads list (demo «العملاء المحتملين»): tiles, saved views, filters, list or Kanban, the SLA note. */
+/** M-01 · the leads list (demo «العملاء المحتملين»): the tabs, Operations' queue, tiles, saved views, filters, list or Kanban, the SLA note. */
 export function LeadsList() {
   const { can } = useMe();
   const [f, setF] = useState<LeadQuery>({});
@@ -44,12 +45,13 @@ export function LeadsList() {
 
   return (
     <>
+      <div className="row"><Tabs value={kind} onChange={(k) => { setKind(k); setPage(1); }} items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker]]} /></div>
+      <OperationsQueue />
       {calls?.goal && (
         <Note>{calls.goal.period === "day"
           ? <>مكالماتك النهارده: <b>{num(calls.count)}</b> من {calls.goal.target} (بند في الـ KPIs بتاعتك).</>
           : <>مكالماتك آخر 7 أيام: <b>{num(calls.count)}</b> من {calls.goal.target} (بند Calls &amp; Broadcast في الـ KPIs بتاعتك).</>}</Note>
       )}
-      <div className="row"><Tabs value={kind} onChange={(k) => { setKind(k); setPage(1); }} items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker]]} /></div>
       <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />
@@ -65,7 +67,7 @@ export function LeadsList() {
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
         ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
         : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} />}
-      {creating && <NewLead onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
+      {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
       {can("leads", "create") && <Fab onClick={() => setCreating(true)} label="ليد جديد" />}
       {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
       {!failed && mode === "list" && pages > 1 && (
@@ -77,9 +79,8 @@ export function LeadsList() {
       )}
       {s && (
         <Note>
-          {s.holidayMode
-            ? <>الـ SLA <b>(وضع الإجازة)</b>: تنبيه للـ Team Leader بعد {hoursText(s.slaRules.holidayWarnAfter)}، وسحب بعد {hoursText(s.slaRules.holidayPullAfter)}</>
-            : <>الـ SLA: تنبيه للـ Team Leader بعد {hoursText(s.slaRules.warnAfter)} من غير أكشن، والليد بيتسحب أوتوماتيك بعد {hoursText(s.slaRules.pullAfter)} للسيلز اللي عليه الدور</>}.
+          الـ SLA{s.holidayMode && <> <b>(النهارده إجازة رسمية)</b></>}: تنبيه بعد {hoursText(s.holidayMode ? s.slaRules.holidayWarnAfter : s.slaRules.warnAfter)} من غير أكشن،
+          والليد بيتسحب أوتوماتيك بعد {hoursText(s.holidayMode ? s.slaRules.holidayPullAfter : s.slaRules.pullAfter)} للسيلز اللي عليه الدور.
         </Note>
       )}
     </>

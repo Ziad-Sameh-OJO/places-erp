@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
-import { AddComment, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, SummaryQuery } from "@places/contracts";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query } from "@nestjs/common";
+import { AddComment, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -51,6 +51,13 @@ export class LeadsController {
   @Requires("leads", "view")
   options(@Me() me: CurrentUser) {
     return this.leads.options(me);
+  }
+
+  /** «مين يشوف الـ Logs» (1.25): set from the lead's Logs tab by whoever manages access, like the demo. */
+  @Put("log-roles")
+  @Requires("access", "edit")
+  setLogRoles(@Me() me: CurrentUser, @Body(new ZodPipe(LogRoles)) body: LogRoles) {
+    return this.leads.setLogRoles(me, body);
   }
 
   @Get(":id")

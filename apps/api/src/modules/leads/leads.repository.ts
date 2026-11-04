@@ -83,6 +83,10 @@ export class LeadsRepository {
   }
 
   /** The lead's audit trail: entries on the lead itself and on what belongs to it (comments, calls, duplicates). */
+  auditCount(leadId: string) {
+    return this.db.auditLog.count({ where: { module: "leads", OR: [{ entityId: leadId }, { after: { path: ["leadId"], equals: leadId } }] } });
+  }
+
   auditFor(leadId: string) {
     return this.db.auditLog.findMany({
       where: { module: "leads", OR: [{ entityId: leadId }, { after: { path: ["leadId"], equals: leadId } }] },
