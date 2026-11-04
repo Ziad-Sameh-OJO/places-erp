@@ -87,10 +87,14 @@ export function Avatar({ id, name, sm }: { id: string; name: string; sm?: boolea
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  // once, when it opens: the first field (not the ✕ in the header, which comes first in the markup)
+  useEffect(() => {
+    const first = ref.current?.querySelector<HTMLElement>(".modal-body input, .modal-body select, .modal-body textarea") ?? ref.current?.querySelector<HTMLElement>("button");
+    first?.focus();
+  }, []);
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", esc);
-    ref.current?.querySelector<HTMLElement>("input, select, textarea, button")?.focus();
     return () => window.removeEventListener("keydown", esc);
   }, [onClose]);
   // Rendered on <body>: the design-2 entrance animation (transform, fill «both») turns the page's top-level cards into
