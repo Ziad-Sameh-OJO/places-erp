@@ -157,6 +157,7 @@ textarea { min-height: 78px; resize: vertical; }
 .rule-says svg.i { flex: none; margin-top: 4px; color: var(--accent); }
 .tree.coa summary { display: flex; align-items: center; gap: 8px; } .tree.coa .kid { display: flex; gap: 10px; align-items: center; } .tree.coa .kid.click { cursor: pointer; } .tree.coa .kid.click:hover { background: var(--sunken); }
 details.bs-acct > summary { list-style: none; cursor: pointer; } details.bs-acct > summary::-webkit-details-marker { display: none; } details.bs-acct > summary::before { content: "▸"; margin-inline-end: 6px; color: var(--muted, #888); } details.bs-acct[open] > summary::before { content: "▾"; } .acct.sub { padding-inline-start: 22px; font-size: .95em; }
+.kids .add-sub { margin: 6px 0 4px; }
 table.je { width: 100%; border-collapse: collapse; } table.je td, table.je th { padding: 4px 6px; text-align: right; } table.je select { width: 100%; } .ok-t { color: var(--ok, #16794c); font-weight: 600; } .bad-t { color: var(--bad, #b42318); font-weight: 600; }
 .stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .kpis { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
