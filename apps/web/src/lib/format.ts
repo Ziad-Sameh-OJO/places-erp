@@ -6,6 +6,9 @@ export const num = (n: number) => nf.format(Math.round(n));
 /** Money comes as a decimal string («120000.00»): group the whole pounds as text, no float maths. */
 export const money = (s: string | null) => (s == null ? "—" : `${s.split(".")[0]!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")} ج.م`);
 
+/** Money with its piasters when it has some («3151.50» → «3,151.50 ج.م», «104500.00» → «104,500 ج.م»): a unit's total. */
+export const moneyExact = (s: string | null) => (s == null ? "—" : `${amount(s)} ج.م`);
+
 /** «120K», «1.25M» for the Kanban cards. A rounded label only, never used in a calculation. */
 export function short(s: string | null) {
   if (s == null) return "—";
