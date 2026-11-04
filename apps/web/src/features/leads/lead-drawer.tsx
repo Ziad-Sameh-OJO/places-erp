@@ -72,7 +72,8 @@ function StageCard({ l }: { l: LeadDetail }) {
     if (stage === l.stage) return;
     if (stage === "Visit") { toast("حدد ميعاد الـ Visit والوحدات"); return; }
     const qualifies = !l.qualified && isQualifiedAfter(false, stage);
-    void run(async () => { await api.patch(`/leads/${l.id}/stage`, { stage }); await refresh(l.id); },
+    // refreshed even when refused (e.g. the lead was taken away meanwhile): the drawer then shows why
+    void run(async () => { try { await api.patch(`/leads/${l.id}/stage`, { stage }); } finally { await refresh(l.id); } },
       qualifies ? `${stage} · واتعلّم Qualified في الكامبين والـ channel` : `المرحلة بقت ${stage}`);
   };
   return (
@@ -96,7 +97,7 @@ function Activity({ l }: { l: LeadDetail }) {
     <>
       {can("leads", "edit") && (
         <form className="row" onSubmit={(e) => { e.preventDefault(); const t = text.trim(); if (t) void run(async () => { await add(l.id, t); setText(""); }); }}>
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب كومنت أو نتيجة مكالمة" required aria-label="كومنت" />
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب كومنت أو نتيجة مكالمة" required maxLength={2000} aria-label="كومنت" />
           <button className="btn ghost">إضافة</button>
         </form>
       )}
