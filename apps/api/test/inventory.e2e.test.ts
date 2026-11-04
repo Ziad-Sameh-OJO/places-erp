@@ -327,3 +327,35 @@ test("a unit is under the tab Manar picked, otherwise under its area's first tab
     await prisma.auditLog.deleteMany({ where: { entity: "AreaTab", entityId: { in: [narrow, wide] } } });
   }
 });
+
+test("hard cases: huge amounts refused (no 500), every refusal in Arabic, no future «last update», a departed agent stays", async () => {
+  const arabic = (r: { body: { issues?: { message: string }[]; error?: string } }) => /[\u0600-\u06FF]/.test(r.body?.issues?.[0]?.message ?? r.body?.error ?? "");
+  const post = (body: unknown) => call("/inventory/units", { method: "POST", cookie: manar, body });
+  for (const body of [
+    rent({ pricePerSqm: "1234567890123" }), rent({ space: 1_000_000, pricePerSqm: "99999999" }), rent({ pricePerSqm: "12345678901234567890" }),
+    income({ space: 900_000, leasePerSqm: "99999999" }), rent({ parking: 1e9 }),
+    {}, { ...rent(), type: undefined }, rent({ type: "Office" }), rent({ project: 5 }), rent({ floor: 3 }), rent({ agentId: 5 }), rent({ pricePerSqm: 1100 }),
+    rent({ lastOwnerUpdateAt: "2099-01-01" }),
+  ]) {
+    const r = await post(body);
+    assert.equal(r.status, 400, JSON.stringify(body).slice(0, 80));
+    assert.ok(arabic(r), JSON.stringify(r.body));
+  }
+  // the biggest total that fits is stored exactly
+  const big = await create(manar, rent({ project: `${P} Big`, space: 100_000, pricePerSqm: "9999999.99" }));
+  assert.equal((await call(`/inventory/units/${big.id}`, { cookie: manar })).body.totalPrice, "999999999000.00");
+  assert.equal((await call("/inventory/units?minPrice=-5", { cookie: manar })).status, 400);
+
+  // the agent who brought a unit stays on it after leaving; a new unit can't take them. Sara is no other test's
+  // account, so switching her off for a moment doesn't disturb the files running alongside this one.
+  const user = await prisma.user.findUniqueOrThrow({ where: { email: "sara.abdelhalim@places.com" }, include: { employee: true } });
+  const departed = { project: `${P} Departed`, agentId: user.employee!.id };
+  const u = await create(manar, rent(departed));
+  await prisma.user.update({ where: { id: user.id }, data: { status: "DISABLED" } });
+  try {
+    assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: manar, body: rent({ ...departed, floor: "7" }) })).status, 200);
+    assert.equal((await post(rent(departed))).status, 400);
+  } finally {
+    await prisma.user.update({ where: { id: user.id }, data: { status: "ACTIVE" } });
+  }
+});

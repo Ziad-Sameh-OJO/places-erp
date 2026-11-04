@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { UnitDetail } from "@places/contracts";
 import { Drawer } from "@/components/blocks";
 import { Empty, Note } from "@/components/ui";
-import { amount, money, num } from "@/lib/format";
+import { amount, moneyExact, num } from "@/lib/format";
 import { COLS, UnitChips, cell, columnsFor } from "./unit-bits";
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -33,8 +33,8 @@ export function UnitDrawer({ ids, id, insider, unit, error, onGo, onClose, actio
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}>
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {u.type === "Income" && u.income
-        ? <Note>Monthly = Lease/m × Area = {money(u.income.monthlyRent)} · Annual = ×12 = {money(u.income.annualRent)} · Yield = Annual ÷ Sale total = <b>{u.income.yieldPct != null ? `${u.income.yieldPct.toFixed(2)}%` : "—"}</b></Note>
-        : u.pricePerSqm && <Note>Total price = السعر للمتر × المساحة = {amount(u.pricePerSqm)} × {num(u.space)} = <b>{money(u.totalPrice)}</b></Note>}
+        ? <Note>Monthly = Lease/m × Area = {moneyExact(u.income.monthlyRent)} · Annual = ×12 = {moneyExact(u.income.annualRent)} · Yield = Annual ÷ Sale total = <b>{u.income.yieldPct != null ? `${u.income.yieldPct.toFixed(2)}%` : "—"}</b></Note>
+        : u.pricePerSqm && <Note>Total price = السعر للمتر × المساحة = {amount(u.pricePerSqm)} × {num(u.space)} = <b>{moneyExact(u.totalPrice)}</b></Note>}
       {u.divisible && <Note>تنفع تتقسم{u.minSplit ? ` · أقل مساحة ${num(u.minSplit)} م` : ""}{u.splitNote ? ` · ${u.splitNote}` : ""}</Note>}
       <section className="card flat">
         <div className="row"><span className="hint">اتستلمت:</span><b>{when(u.receivedAt)}</b><span className="hint">اتدخلت:</span><b>{when(u.enteredAt)}</b></div>

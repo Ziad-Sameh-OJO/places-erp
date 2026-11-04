@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import type { UnitRow } from "@places/contracts";
 import { Avatar, Chip, Icon } from "@/components/ui";
-import { amount, day, money, num } from "@/lib/format";
+import { amount, day, moneyExact, num } from "@/lib/format";
 
 export type UnitTypeName = UnitRow["type"];
 export const TYPE_TONE: Record<UnitTypeName, "info" | "acc" | "ok" | "warn"> = { Rent: "info", Resale: "acc", Income: "ok", Primary: "warn" };
@@ -36,9 +36,9 @@ export function cell(u: UnitRow, key: string): ReactNode {
     case "type": return <TypeChip type={u.type} />;
     case "space": return <span className="num">{num(u.space)}</span>;
     case "pricePerSqm": case "leasePerSqm": return <span className="num">{amount(u[key])}</span>;
-    case "total": return <span className="num">{money(u.totalPrice)}</span>;
-    case "monthly": return <span className="num">{money(u.income?.monthlyRent ?? null)}</span>;
-    case "annual": return <span className="num">{money(u.income?.annualRent ?? null)}</span>;
+    case "total": return <span className="num">{moneyExact(u.totalPrice)}</span>;
+    case "monthly": return <span className="num">{moneyExact(u.income?.monthlyRent ?? null)}</span>;
+    case "annual": return <span className="num">{moneyExact(u.income?.annualRent ?? null)}</span>;
     case "yield": return u.income?.yieldPct != null ? <b className="num">{u.income.yieldPct.toFixed(1)}%</b> : "—";
     case "parking": return <span className="num">{num(u.parking)}</span>;
     case "agent": return u.agent ? <span className="who"><Avatar id={u.agent.id} name={u.agent.name} sm /><span>{u.agent.name}</span></span> : "—";
