@@ -31,7 +31,8 @@
   U.kpi = (label, val, sub, ic, tone, act, delta) => `<${act ? `button data-act="${act}"` : "div"} class="kpi ${act ? "kpi-btn" : ""}"><div class="k-top"><span>${esc(label)}</span>${ic ? `<span class="ico ${tone || ""}">${I(ic)}</span>` : ""}</div><div class="k-val"><strong>${val}</strong>${delta != null && isFinite(delta) ? `<span class="delta ${delta >= 0 ? "up" : "down"}" title="مقارنة بالفترة اللي قبلها">${delta >= 0 ? "▲" : "▼"} ${Math.abs(Math.round(delta))}%</span>` : ""}</div>${sub ? `<small>${esc(sub)}</small>` : ""}${U.spark(label, tone)}</${act ? "button" : "div"}>`;
   U.print = (title, html) => {
     let el = document.getElementById("printArea"); if (!el) { document.body.insertAdjacentHTML("beforeend", `<div id="printArea" dir="rtl" lang="ar"></div>`); el = document.getElementById("printArea"); }
-    el.innerHTML = `<h1 class="print-title">${A.esc(title)}</h1>${html}<p class="print-foot">Places ERP · ${new Date(A.NOW()).toLocaleString("ar-EG")}</p>`;
+    const B = A.S.brand || {}, sign = B.signature || B.stamp ? `<div class="print-sign">${B.stamp ? `<img src="${B.stamp}" alt="الختم">` : ""}${B.signature ? `<img src="${B.signature}" alt="الإمضا">` : ""}<small>اعتماد Places</small></div>` : "";
+    el.innerHTML = `<h1 class="print-title">${A.esc(title)}</h1>${html}${sign}<p class="print-foot">Places ERP · ${new Date(A.NOW()).toLocaleString("ar-EG")}</p>`;
     document.body.classList.add("printing"); const done = () => { document.body.classList.remove("printing"); window.removeEventListener("afterprint", done); };
     window.addEventListener("afterprint", done); setTimeout(() => { window.print(); setTimeout(done, 500); }, 50);
   };
