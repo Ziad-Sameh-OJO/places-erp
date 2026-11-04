@@ -154,3 +154,66 @@ test("nine leads created at the same moment in one area: each of its three sales
   const count = (id: string) => got.filter((x) => x === id).length;
   assert.deepEqual(people.map(count), [3, 3, 3], JSON.stringify(got));
 });
+
+/* ---------------- 1.14 · «اسحب الليد وحوّله» ---------------- */
+
+test("only Operations, the Sales Director and the admin hand a lead over; sales and Team Leaders can't (M-01 4.1)", async () => {
+  for (const id of await pool()) await tick(admin, AREA, id, false);
+  await tick(admin, AREA, a, true);
+  await newLead(61);
+  const lead = leads.at(-1)!;
+  const tl = await session("abdallah.sleem@places.com");
+  assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: sales, body: { to: b } })).status, 403);
+  assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: tl, body: { to: b } })).status, 403);
+  assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: ops, body: { to: b } })).status, 200);
+  assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: salesdir, body: { to: a } })).status, 200);
+});
+
+test("handing over: a fresh SLA with the new salesperson, Activity and audit «من … لـ …», and they're told", async () => {
+  for (const id of await pool()) await tick(admin, AREA, id, false);
+  await tick(admin, AREA, a, true);
+  await newLead(62);
+  const lead = leads.at(-1)!;
+  const [fromName, toName] = await Promise.all([a, b].map(async (id) => (await prisma.employee.findUniqueOrThrow({ where: { id } })).name));
+  await prisma.lead.update({ where: { id: lead }, data: { touched: true, firstActionAt: new Date(Date.now() - 3_600_000), assignedAt: new Date(Date.now() - 7_200_000) } });
+  const since = new Date();
+  const r = await call(`/leads/${lead}/assign`, { method: "POST", cookie: ops, body: { to: b } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.assignedTo.id, b);
+  const row = await prisma.lead.findUniqueOrThrow({ where: { id: lead } });
+  assert.equal(row.touched, false);
+  assert.equal(row.firstActionAt, null);
+  assert.ok(row.assignedAt! >= since); // the SLA counts from now
+  assert.ok(r.body.activities.some((x: { text: string }) => x.text === `اتسحب يدوي من ${fromName} واتحوّل لـ ${toName}`));
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: lead, action: "reassign" } });
+  assert.deepEqual([audit.before, audit.after], [{ assignedToId: a, name: fromName }, { assignedToId: b, name: toName }]);
+  const logs = (await call(`/leads/${lead}/logs`, { cookie: admin })).body as { text: string }[];
+  assert.ok(logs.some((x) => x.text === `اتسحب يدوي من ${fromName} لـ ${toName}`));
+  const toUser = (await prisma.employee.findUniqueOrThrow({ where: { id: b } })).userId;
+  const told = await prisma.notification.findFirst({ where: { userId: toUser, createdAt: { gte: since }, text: { contains: `اتحوّلك من ${fromName}` } } });
+  assert.ok(told, "the new salesperson was told");
+  // the same person again, someone who isn't a salesperson, nobody, a lead that isn't there
+  const same = await call(`/leads/${lead}/assign`, { method: "POST", cookie: ops, body: { to: b } });
+  assert.equal(same.status, 400);
+  assert.match(same.body.error, /بالفعل/);
+  assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: ops, body: { to: hrEmployee } })).status, 400);
+  assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: ops, body: {} })).status, 400);
+  assert.equal((await call(`/leads/nope/assign`, { method: "POST", cookie: ops, body: { to: a } })).status, 404);
+  await prisma.notification.deleteMany({ where: { createdAt: { gte: since }, text: { contains: `E2E-R ${stamp}` } } });
+});
+
+test("whoever gets a lead by hand skips their next turn in the rotation (Q2, 1.14 «يخلص لما»)", async () => {
+  for (const id of await pool()) await tick(admin, AREA, id, false);
+  await tick(admin, AREA, a, true);
+  await tick(admin, AREA, b, true);
+  // a known start: this area's rotation at its beginning, nobody of the two skipping a turn
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set(jsonb_set(jsonb_set("value", ARRAY['cursor', ${AREA}], '0'::jsonb), ARRAY['skipTurns', ${a}], '0'::jsonb), ARRAY['skipTurns', ${b}], '0'::jsonb) WHERE "key" = 'routing'`;
+  assert.equal(await newLead(71), a); // a, and b's turn is next
+  await newLead(72); // b
+  const handed = leads.at(-1)!;
+  // hand that lead to a: a's next turn is used up. The rotation is back at a, so without it the next three would be
+  // a, b, a — with it a is skipped once: b, a, b
+  assert.equal((await call(`/leads/${handed}/assign`, { method: "POST", cookie: ops, body: { to: a } })).status, 200);
+  const next = [await newLead(73), await newLead(74), await newLead(75)];
+  assert.deepEqual(next, [b, a, b]);
+});

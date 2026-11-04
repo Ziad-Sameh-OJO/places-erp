@@ -1,6 +1,6 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import type { AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
 import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -71,8 +71,10 @@ export class LeadsService {
   async options(me: CurrentUser): Promise<LeadOptions> {
     const scope = me.grants.scope;
     const people = scope === "own" ? Promise.resolve([]) : this.repo.salespeople(scope === "team" ? { id: { in: me.teamIds } } : {});
-    const [campaigns, salespeople] = await Promise.all([this.repo.campaigns(), people]);
-    return { campaigns, salespeople };
+    const [campaigns, salespeople, assignable] = await Promise.all([
+      this.repo.campaigns(), people, me.grants.can("leads", "approve") ? this.repo.routingPeople() : Promise.resolve([]),
+    ]);
+    return { campaigns, salespeople, assignable };
   }
 
   /** The SLA as the list shows it, with «قواعد الليدز» (1.29: its times, its working hours) and the official holidays. */
@@ -225,6 +227,41 @@ export class LeadsService {
     await this.notifications.notify({ event: "lead.assigned", text: `ليد جديد ${name} راح لـ ${owner.name} (${area})`, link: `/leads?open=${leadId}`, to, channels: [...rules.newLead.ch] });
   }
 
+  /**
+   * «اسحب الليد وحوّله» (1.14, M-01 Q2 · 4.1): the lead goes to the chosen salesperson with a fresh SLA clock, and
+   * that salesperson skips their next turn in the rotation («يتحسبله كأنه أخد دوره»). Audited from whom to whom;
+   * the new salesperson is told on the channels of the lead rules' «ليد جديد اتوزع».
+   */
+  async assign(me: CurrentUser, id: string, input: AssignLead) {
+    const to = (await this.repo.routingPeople()).find((p) => p.id === input.to);
+    if (!to) throw new BadRequestException("اختار سيلز من القايمة");
+    const moved = await this.db.$transaction(async (tx) => {
+      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true } });
+      if (!lead) throw new NotFoundException(NO_LEAD);
+      if (lead.assignedToId === to.id) throw new BadRequestException(`الليد مع ${to.name} بالفعل`);
+      const [from] = lead.assignedToId ? await this.repo.employeeNames([lead.assignedToId], tx) : [];
+      const router = new LeadRouter(await this.repo.lockRouting(tx));
+      router.assignedByHand(to.id);
+      await this.repo.saveRouting(tx, router.snapshot());
+      await tx.lead.update({
+        where: { id },
+        // a fresh start with the new salesperson: the SLA counts from now (demo: assignedAt, touched, alerted)
+        data: { assignedToId: to.id, assignedAt: new Date(), ownedByTelesales: false, touched: false, firstActionAt: null, slaWarnedAt: null },
+      });
+      const text = from ? `اتسحب يدوي من ${from.name} واتحوّل لـ ${to.name}` : `اتحوّل يدوي لـ ${to.name}`;
+      await this.repo.addActivity(tx, id, "assign", text, me.id);
+      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "reassign", userId: me.id,
+        before: { assignedToId: lead.assignedToId, name: from?.name ?? null }, after: { assignedToId: to.id, name: to.name } }, tx);
+      return { name: lead.name, from: from?.name ?? null };
+    });
+    const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(to.id)]);
+    if (owner) {
+      await this.notifications.notify({ event: "lead.assigned", text: moved.from ? `ليد ${moved.name} اتحوّلك من ${moved.from}` : `ليد ${moved.name} اتحوّلك`,
+        link: `/leads?open=${id}`, to: [owner.userId], channels: [...rules.newLead.ch] });
+    }
+    return this.get(me, id);
+  }
+
   /** Stage change: Qualified is sticky (isQualifiedAfter), the SLA clock stops on the first action. */
   async changeStage(me: CurrentUser, id: string, input: ChangeStage) {
     return this.db.$transaction(async (tx) => {
@@ -263,6 +300,7 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
     case "Lead:create": return "اتعمل الليد";
     case "Lead:stage": return `المرحلة اتغيرت من ${stage(a.before)} لـ ${stage(a.after)}`; // words, not an arrow: RTL flips «←» between two English names
     case "Lead:duplicate-decision": return "قرار الأوبريشن في التكرار";
+    case "Lead:reassign": return field(a.before, "name") && field(a.before, "name") !== "null" ? `اتسحب يدوي من ${field(a.before, "name")} لـ ${field(a.after, "name")}` : `اتحوّل يدوي لـ ${field(a.after, "name")}`;
     case "LeadActivity:comment": return `كومنت: ${field(a.after, "text")}`;
     case "LeadCall:call": return "مكالمة اتسجّلت";
     case "LeadDuplicate:create": return "حد دخّل العميل ده تاني · طلب تكرار للأوبريشن";

@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query } from "@nestjs/common";
-import { AddComment, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery } from "@places/contracts";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
+import { AddComment, AssignLead, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -88,6 +88,14 @@ export class LeadsController {
   @Requires("leads", "create")
   create(@Me() me: CurrentUser, @Body(new ZodPipe(CreateLead)) body: CreateLead) {
     return this.leads.create(me, body);
+  }
+
+  /** «اسحب الليد وحوّله» (1.14): Operations, the Sales Director and the admin («leads: approve», M-01 4.1). */
+  @Post(":id/assign")
+  @HttpCode(200)
+  @Requires("leads", "approve")
+  assign(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(AssignLead)) body: AssignLead) {
+    return this.leads.assign(me, id, body);
   }
 
   @Patch(":id/stage")

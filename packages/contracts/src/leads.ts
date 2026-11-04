@@ -137,6 +137,8 @@ export interface LeadBoard { lanes: { stage: string; total: number; items: LeadR
 export interface LeadOptions {
   campaigns: { id: string; name: string; channel: string }[];
   salespeople: { id: string; name: string }[];
+  /** «اسحب الليد وحوّله» (1.14): the salespeople a lead can be handed to; empty for whoever may not */
+  assignable: { id: string; name: string }[];
 }
 
 /** «مين يشوف الـ Logs» (demo: a card in the lead's Logs tab, for whoever manages access): the roles besides the admin. */
@@ -152,3 +154,7 @@ export const RoutingCell = z.object({
 export type RoutingCell = z.infer<typeof RoutingCell>;
 /** The routing table: the active areas (M-13 lists), the salespeople, and who covers each area in rotation order. */
 export interface RoutingView { areas: string[]; salespeople: { id: string; name: string }[]; routing: Record<string, string[]> }
+
+/** «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand a lead to a salesperson. */
+export const AssignLead = z.object({ to: z.string({ required_error: "اختار السيلز", invalid_type_error: "اختار السيلز" }).min(1, "اختار السيلز").max(40) });
+export type AssignLead = z.infer<typeof AssignLead>;
