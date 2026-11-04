@@ -15,6 +15,7 @@ const DEFAULTS: Settings = {
   whatsappDailyLimit: 250,
   notificationsFrom: "notifications@places.com",
   slaRules: { ...DEFAULT_SLA },
+  leadLogRoles: [], // only the admin until the admin picks more (1.25)
 };
 
 /** M-13: the lists and rules the system is built on, editable without a developer. Every change is audited. */

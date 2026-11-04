@@ -53,6 +53,12 @@ export class LeadsController {
     return this.leads.get(me, id);
   }
 
+  @Get(":id/logs")
+  @Requires("leads", "view") // plus the Logs rule in the service: the admin and the roles the admin picked
+  logs(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.leads.logs(me, id);
+  }
+
   @Post(":id/calls")
   @Requires("leads", "edit")
   logCall(@Me() me: CurrentUser, @Param("id") id: string) {

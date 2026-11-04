@@ -1,7 +1,7 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, MyCalls, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, callGoal, callPeriodStart, firstCallOnTime } from "@places/domain";
+import type { AddComment, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, MyCalls, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -80,12 +80,31 @@ export class LeadsService {
   async get(me: CurrentUser, id: string): Promise<LeadDetail> {
     const lead = await this.repo.detail(ownedBy(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
-    const [salespeople, people, sla] = await Promise.all([
+    const [salespeople, people, sla, { leadLogRoles }] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
       this.repo.userNames([...new Set(lead.activities.map((a) => a.byUserId).filter(isId))]),
       this.slaClock(),
+      this.settings.all(),
     ]);
-    return toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla);
+    return { ...toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla), canSeeLogs: canSeeLeadLogs(me.roles, leadLogRoles) };
+  }
+
+  /**
+   * The «Logs» tab (1.25): everything recorded on the lead — automatic lines, people's comments and the audit
+   * trail — newest first, each tagged. Only the admin and the roles the admin picked; the lead must be in scope.
+   */
+  async logs(me: CurrentUser, id: string): Promise<LeadLogRow[]> {
+    if (!canSeeLeadLogs(me.roles, (await this.settings.all()).leadLogRoles)) throw new ForbiddenException("الـ Logs للأدمن والأدوار اللي اختارها بس");
+    const lead = await this.repo.detail(ownedBy(me) as never, id);
+    if (!lead) throw new NotFoundException(NO_LEAD);
+    const audits = await this.repo.auditFor(id);
+    const names = new Map((await this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), ...audits.map((a) => a.userId)].filter(isId))])).map((p) => [p.userId, p.name]));
+    const by = (userId: string | null) => (userId ? { id: userId, name: names.get(userId) ?? "" } : null);
+    const rows: LeadLogRow[] = [
+      ...lead.activities.map((a) => ({ id: a.id, source: a.kind === "comment" ? "comment" as const : "auto" as const, text: a.text, by: by(a.byUserId), at: a.at.toISOString() })),
+      ...audits.map((a) => ({ id: `audit-${a.id}`, source: "audit" as const, text: auditText(a), by: by(a.userId), at: a.at.toISOString() })),
+    ];
+    return rows.sort((x, y) => y.at.localeCompare(x.at));
   }
 
   /** A comment (or a call result) on the Activity tab. It is an action, so it stops the SLA clock (M-01: «من غير أي أكشن»). */
@@ -203,6 +222,21 @@ export class LeadsService {
 }
 
 const isId = (x: string | null): x is string => !!x;
+
+/** An audit entry as one readable line of the Logs tab. */
+function auditText(a: { entity: string; action: string; before: unknown; after: unknown }): string {
+  const field = (v: unknown, k: string) => (v && typeof v === "object" && k in v ? String((v as Record<string, unknown>)[k]) : "");
+  const stage = (v: unknown) => STAGE_LABEL.get(field(v, "stage")) ?? field(v, "stage");
+  switch (`${a.entity}:${a.action}`) {
+    case "Lead:create": return "اتعمل الليد";
+    case "Lead:stage": return `المرحلة اتغيرت من ${stage(a.before)} لـ ${stage(a.after)}`; // words, not an arrow: RTL flips «←» between two English names
+    case "Lead:duplicate-decision": return "قرار الأوبريشن في التكرار";
+    case "LeadActivity:comment": return `كومنت: ${field(a.after, "text")}`;
+    case "LeadCall:call": return "مكالمة اتسجّلت";
+    case "LeadDuplicate:create": return "حد دخّل العميل ده تاني · طلب تكرار للأوبريشن";
+    default: return `${a.entity} · ${a.action}`;
+  }
+}
 const iso = (d: Date | null) => d?.toISOString() ?? null;
 
 type SlaClock = (r: Pick<LeadRecord, "stage" | "touched" | "ownedByTelesales" | "assignedAt">) => LeadRow["sla"];
@@ -216,7 +250,7 @@ function toRow({ assignedToId, budget, ...r }: LeadRecord, names: Map<string, st
   };
 }
 
-function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): LeadDetail {
+function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs"> {
   const { activities, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation,

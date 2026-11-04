@@ -437,3 +437,52 @@ test("a call needs leads: edit and the lead in scope; goals by role (Telesales 1
   assert.deepEqual((await call("/leads/calls/mine", { cookie: ops })).body, { goal: null, count: 0 });
   assert.equal((await call("/leads/calls/mine", { cookie: hr })).status, 403);
 });
+
+/* ---------------- 1.25 the Logs tab: the admin, and the roles the admin picks ---------------- */
+
+let admin: string, savedLogRoles: unknown, logLeadId: string;
+before(async () => {
+  admin = await session("ahmed.islam@places.com");
+  savedLogRoles = (await prisma.setting.findUnique({ where: { key: "leadLogRoles" } }))?.value;
+});
+after(async () => {
+  if (savedLogRoles === undefined) await prisma.setting.deleteMany({ where: { key: "leadLogRoles" } });
+  else await prisma.setting.update({ where: { key: "leadLogRoles" }, data: { value: savedLogRoles as never } });
+  if (logLeadId) await prisma.lead.deleteMany({ where: { id: logLeadId } });
+});
+
+test("Logs: only the admin by default — others don't get the tab and the endpoint refuses them", async () => {
+  await call("/settings/leadLogRoles", { method: "PUT", cookie: admin, body: { value: [] } });
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const made = await call("/leads", { method: "POST", cookie: admin, body: { name: `E2E-L ${stamp}`, phones: [`0127${stamp.slice(-7)}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook", assignToId: mohsenId } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  logLeadId = made.body.id;
+  await call(`/leads/${logLeadId}/comments`, { method: "POST", cookie: mohsen, body: { text: "كومنت للـ Logs" } });
+  await call(`/leads/${logLeadId}/stage`, { method: "PATCH", cookie: mohsen, body: { stage: "Interested" } });
+
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: mohsen })).body.canSeeLogs, false);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: mohsen })).status, 403);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: ops })).status, 403);
+
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: admin })).body.canSeeLogs, true);
+  const logs = (await call(`/leads/${logLeadId}/logs`, { cookie: admin })).body as { source: string; text: string; at: string }[];
+  const sources = new Set(logs.map((x) => x.source));
+  assert.deepEqual([...sources].sort(), ["audit", "auto", "comment"]);
+  assert.ok(logs.some((x) => x.source === "comment" && x.text === "كومنت للـ Logs"));
+  assert.ok(logs.some((x) => x.source === "audit" && x.text === "المرحلة اتغيرت من Fresh لـ Interested"));
+  assert.ok(logs.some((x) => x.source === "audit" && x.text === "اتعمل الليد"));
+  assert.ok(logs.some((x) => x.source === "auto" && x.text.startsWith("اتعمل بواسطة")));
+  assert.deepEqual(logs.map((x) => x.at), [...logs.map((x) => x.at)].sort().reverse()); // newest first
+});
+
+test("Logs: the admin opens it to a role → that role sees it; still only inside its scope; only master:edit sets it", async () => {
+  assert.equal((await call("/settings/leadLogRoles", { method: "PUT", cookie: ops, body: { value: ["ops"] } })).status, 403);
+  assert.equal((await call("/settings/leadLogRoles", { method: "PUT", cookie: admin, body: { value: ["ops", "sales"] } })).status, 200);
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: ops })).body.canSeeLogs, true);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: ops })).status, 200);
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: mohsen })).status, 200); // his lead
+  assert.equal((await call(`/leads/${await idOf(3)}/logs`, { cookie: mohsen })).status, 404); // another team's: out of scope
+  const tlOnly = await session("mahmoud.ali@places.com"); // TL only (Abdallah is TL + sales, and sales was picked)
+  assert.equal((await call(`/leads/${logLeadId}/logs`, { cookie: tlOnly })).status, 403);
+  assert.equal((await call(`/leads/${logLeadId}`, { cookie: tl })).body.canSeeLogs, true); // Abdallah: his sales role counts
+});

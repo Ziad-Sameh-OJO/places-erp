@@ -77,6 +77,14 @@ export class LeadsRepository {
     return tx.leadActivity.create({ data: { leadId, kind, text, byUserId } });
   }
 
+  /** The lead's audit trail: entries on the lead itself and on what belongs to it (comments, calls, duplicates). */
+  auditFor(leadId: string) {
+    return this.db.auditLog.findMany({
+      where: { module: "leads", OR: [{ entityId: leadId }, { after: { path: ["leadId"], equals: leadId } }] },
+      select: { id: true, entity: true, action: true, userId: true, before: true, after: true, at: true }, orderBy: { at: "desc" },
+    });
+  }
+
   addCall(tx: Prisma.TransactionClient, leadId: string, byUserId: string) {
     return tx.leadCall.create({ data: { leadId, byUserId } });
   }
