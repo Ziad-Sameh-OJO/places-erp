@@ -1,6 +1,6 @@
 "use client";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AccountLedger, AccountNode, BillsView, BudgetView, CashView, ChartView, EntryView, JournalView, MoveView, MovesView } from "@places/contracts";
+import type { AccountLedger, AccountNode, BillsView, BudgetView, CashView, IncomeView, ChartView, EntryView, JournalView, MoveView, MovesView } from "@places/contracts";
 import { api } from "@/lib/api";
 
 /** M-07 · the chart with live balances (9.1). */
@@ -46,3 +46,4 @@ export const KIND: Record<MoveKind, [string, "bad" | "ok" | "info" | "warn" | ""
   pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""],
 };
 export const useBills = () => useQuery({ queryKey: ["finance", "bills"], queryFn: () => api.get<BillsView>("/finance/bills") });
+export const useIncome = (range: "month" | "year") => useQuery({ queryKey: ["finance", "income", range], queryFn: () => api.get<IncomeView>(`/finance/statements/income?range=${range}`) });

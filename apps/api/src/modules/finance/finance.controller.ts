@@ -4,7 +4,7 @@ import { z } from "zod";
 import { sendXlsx } from "../../core/http/excel";
 import { BillsService } from "./bills.service";
 import type { PrismaClient } from "@places/db";
-import { BudgetPatch, ClosePeriod, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
+import { BudgetPatch, ClosePeriod, IncomeQuery, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -165,5 +165,11 @@ export class FinanceController {
   @Requires("finance", "create")
   skipBill(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(SkipBill)) body: SkipBill) {
     return this.bills.skip(me, id, body, this.run);
+  }
+
+  @Get("statements/income")
+  @Requires("finance", "view")
+  income(@Query(new ZodPipe(IncomeQuery)) q: IncomeQuery) {
+    return this.ledger.income(q.range);
   }
 }

@@ -29,6 +29,11 @@ export class LedgerRepository {
     return tx.account.findMany({ where: { parentId }, select: { code: true } }).then((r) => r.map((x) => x.code));
   }
 
+  /** Debit and credit per account from a day on (the income statement's month / year). */
+  sumsSince(from: Date, tx: Tx | PrismaClient = this.db) {
+    return tx.journalLine.groupBy({ by: ["accountId"], where: { entry: { date: { gte: from } } }, _sum: { debit: true, credit: true } });
+  }
+
   /** Total debit and credit per account (each account's own lines). */
   sums(tx: Tx | PrismaClient = this.db) {
     return tx.journalLine.groupBy({ by: ["accountId"], _sum: { debit: true, credit: true } });

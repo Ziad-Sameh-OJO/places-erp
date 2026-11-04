@@ -155,3 +155,13 @@ export interface EntrySaved { entry: EntryView; effect: MoveEffect[] }
 export interface PeriodView { month: string; label: string; status: "open" | "month" | "quarter"; statusLabel: string }
 export const ClosePeriod = z.object({ kind: z.enum(["month", "quarter"]) });
 export type ClosePeriod = z.infer<typeof ClosePeriod>;
+
+/* ---- 9.7 · the income statement ---- */
+export const IncomeQuery = z.object({ range: z.enum(["month", "year"]).default("month") });
+export type IncomeQuery = z.infer<typeof IncomeQuery>;
+export interface StatementLineView { id: string; code: string; name: string; value: string }
+export interface IncomeView {
+  range: "month" | "year"; label: string; from: string;
+  revenue: string; direct: string; gross: string; selling: string; contribution: string; admin: string; other: string; net: string;
+  lines: { revenue: StatementLineView[]; direct: StatementLineView[]; selling: StatementLineView[]; admin: StatementLineView[]; other: { head: StatementLineView; lines: StatementLineView[] }[] };
+}
