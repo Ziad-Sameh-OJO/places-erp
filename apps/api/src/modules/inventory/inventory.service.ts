@@ -16,6 +16,7 @@ import { SettingsService } from "../settings/settings.service";
 import { ClientsService } from "../clients/clients.service";
 import { InventoryRepository, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
 import { UnitsService } from "./units.service";
+import { IMPORT_TX, type ImportReport, type ParsedSheet } from "../../core/http/import";
 
 const NO_UNIT = "الوحدة مش موجودة";
 /** How many open units a recommendation reads at most, and how many it shows (best first). */
@@ -149,17 +150,49 @@ export class InventoryService {
   /** M-03 2.1 · 3.2: the serial code and the total are the system's; marketing gets the Live Alert (M-03 7.1). */
   async create(me: CurrentUser, input: UnitInput): Promise<CreatedUnit> {
     await this.check(input, null);
-    const unit = await this.db.$transaction(async (tx) => {
-      const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
-      // the owner comes with their first unit, or the unit joins the file their number is on (M-10 2.1, 2.11)
-      const ownerId = input.ownerPhone ? await this.clients.joinAsOwner(tx, me.id, { name: input.ownerName ?? null, phone: input.ownerPhone }) : null;
-      const u = await tx.unit.create({ data: { code: `U-${n}`, ...toData(input), alsoStatus: input.alsoType ? "available" : null, ownerId, createdById: me.id, ...(input.receivedAt ? { receivedAt: new Date(input.receivedAt) } : {}) } });
-      await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "create", userId: me.id, after: u }, tx);
-      return u;
-    });
+    const unit = await this.db.$transaction((tx) => this.insert(tx, me, input));
     // no link: the unit isn't published to everyone until Manar confirms its PDF (Q15, 2.8)
     await this.notifications.notify({ event: "unit.new", text: `Live Alert: وحدة جديدة ${unit.code} (${unit.project}) اتضافت للانفنتوري` });
     return { id: unit.id, code: unit.code };
+  }
+
+  /**
+   * 13.1 · old units from the template, in one transaction. A row is a duplicate when a unit (or an earlier row) has the
+   * same project, space, floor, building and owner number (the demo's key for «البيانات كاملة», M-03 7.1): it's skipped.
+   * Rows the form would refuse are skipped and reported. `save` false = the preview's counts, nothing written.
+   * No Live Alert per unit: an old sheet isn't news for marketing.
+   */
+  async importUnits(me: CurrentUser, sheet: ParsedSheet<UnitInput>, save: boolean): Promise<ImportReport> {
+    const errors = [...sheet.errors];
+    const agents = new Map((await this.repo.agents()).map((a) => [a.name.trim().toLowerCase(), a.id]));
+    const seen = new Set<string>();
+    let added = 0, duplicates = 0;
+    const run = async (tx: Prisma.TransactionClient) => {
+      for (const { line, data } of sheet.rows) {
+        const input = { ...data, agentId: agents.get(data.agentId.trim().toLowerCase()) ?? "" }; // the sheet has the agent's name
+        if (!input.agentId) { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
+        try { await this.check(input, null); } catch (e) { errors.push({ line, column: "", message: (e as Error).message }); continue; }
+        const key = { project: input.project, space: input.space, floor: input.floor ?? null, building: input.building, ownerPhone: input.ownerPhone ?? null };
+        const id = JSON.stringify({ ...key, project: key.project.toLowerCase() });
+        if (seen.has(id) || (await tx.unit.findFirst({ where: { ...key, project: { equals: key.project, mode: "insensitive" }, archivedAt: null }, select: { id: true } }))) { duplicates++; continue; }
+        seen.add(id);
+        if (save) await this.insert(tx, me, input);
+        added++;
+      }
+    };
+    if (save) await this.db.$transaction(run, IMPORT_TX);
+    else await run(this.db);
+    return { added, duplicates, errors };
+  }
+
+  /** The serial code, the owner's file and the audit, in the caller's transaction. */
+  private async insert(tx: Prisma.TransactionClient, me: CurrentUser, input: UnitInput) {
+    const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
+    // the owner comes with their first unit, or the unit joins the file their number is on (M-10 2.1, 2.11)
+    const ownerId = input.ownerPhone ? await this.clients.joinAsOwner(tx, me.id, { name: input.ownerName ?? null, phone: input.ownerPhone }) : null;
+    const u = await tx.unit.create({ data: { code: `U-${n}`, ...toData(input), alsoStatus: input.alsoType ? "available" : null, ownerId, createdById: me.id, ...(input.receivedAt ? { receivedAt: new Date(input.receivedAt) } : {}) } });
+    await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "create", userId: me.id, after: u }, tx);
+    return u;
   }
 
   /** The whole sheet is sent back; only what changed is audited (prices too, 2.2), and the PDF waits for Manar again (Q19). */
