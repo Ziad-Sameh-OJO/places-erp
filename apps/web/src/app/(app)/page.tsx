@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { inboxOrder, type ModuleKey } from "@places/domain";
+import { inboxOrder, keepsCompaniesSheet, type ModuleKey } from "@places/domain";
 import { useMe } from "@/lib/me";
 import { NAV } from "@/lib/nav";
 import { Card, Chip, Icon } from "@/components/ui";
@@ -8,7 +8,7 @@ import { MyHandIns } from "@/features/reports/daily";
 import { ActivitiesCard } from "@/features/kpis/activities-card";
 import { HandoversCard } from "@/features/access/handovers";
 import { Inbox, type InboxLine } from "@/components/inbox";
-import { useBulkLines, useLeadToday } from "@/features/leads/today";
+import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads/today";
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
 
 /**
@@ -19,9 +19,10 @@ export default function HomePage() {
   const { me, can } = useMe();
   const leads = useLeadToday(!!me && can("leads"));
   const bulks = useBulkLines(!!me && can("leads", "approve"));
+  const companies = useNewCompanyLines(keepsCompaniesSheet(me?.roles ?? []));
   const unread = useMyNotifications().data?.unread ?? 0;
   if (!me) return <p className="hint">بيحمّل…</p>;
-  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks]); // each module's lines, the late first
+  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
   const pages = (Object.keys(NAV) as ModuleKey[]).filter((k) => k !== "home" && can(k));
 

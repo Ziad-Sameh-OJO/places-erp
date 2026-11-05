@@ -17,6 +17,7 @@ import { InventoryService } from "../inventory/inventory.service";
 import { DocumentsService } from "../../core/documents/documents.service";
 import { unitListHtml, unitListLine } from "./unit-list";
 import { LeavesService } from "../hr/leaves.service";
+import { CompaniesService } from "./companies.service";
 import { AttendanceService } from "../hr/attendance.service";
 import { RotationService } from "./rotation.service";
 import { ClientsService } from "../clients/clients.service";
@@ -46,6 +47,7 @@ export class LeadsService {
     private readonly inventory: InventoryService,
     private readonly documents: DocumentsService,
     private readonly leaves: LeavesService,
+    private readonly companies: CompaniesService,
     private readonly attendance: AttendanceService, // 7.3: a marked Visit re-reads that day
     private readonly rotation: RotationService, // 1.23: today's order
     private readonly clients: ClientsService, // M-10: Done Deal makes the client's file; an old client's number joins it
@@ -295,12 +297,16 @@ export class LeadsService {
       await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, placement, assignedToId), me.id);
       if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);
+      // a company that isn't in the sheet (1.20, M-01 2.1 · 6.1): Telesales adds it right here, anyone else's goes to her
+      const newCompany = input.company && !company ? await this.companies.fromLead(tx, me, { id: lead.id, code: lead.code }, input.company, input.companyCategory) : null;
+      if (newCompany?.companyId) await tx.lead.update({ where: { id: lead.id }, data: { companyId: newCompany.companyId } });
       const [to] = assignedToId ? await this.repo.employeeNames([assignedToId], tx) : [];
-      return { id: lead.id, code: lead.code, ownedByTelesales: lead.ownedByTelesales, assignedTo: to ?? null, placement: placement.kind, name: lead.name, area: lead.area };
+      return { id: lead.id, code: lead.code, ownedByTelesales: lead.ownedByTelesales, assignedTo: to ?? null, placement: placement.kind, name: lead.name, area: lead.area, newCompany: newCompany?.notify ? input.company ?? null : null };
     });
     // «ليد جديد اتوزع» (1.29 rules, default: the salesperson and the Team Leaders): a lead that went to someone by
     // the rotation or by Operations' hand — not one Telesales keeps or a salesperson entered for themselves (demo)
     if (created.assignedTo && (created.placement === "route" || created.placement === "hand")) await this.notifyAssigned(created.id, created.name, created.area, created.assignedTo.id);
+    if (created.newCompany) await this.companies.notifyNew(created.newCompany, created.code);
     return { id: created.id, code: created.code, ownedByTelesales: created.ownedByTelesales, assignedTo: created.assignedTo };
   }
 
