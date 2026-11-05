@@ -11,5 +11,46 @@ export const qualificationRate = (qualified: number, total: number): number | nu
 /** What one lead cost: spent ÷ leads, to the piaster (rounded half up); null with no leads. */
 export const costPerLead = (spent: Piasters, leads: number): Piasters | null => (leads ? Math.round(spent / leads) : null);
 
+/** One time a lead reached us (every arrival counts, the duplicates too — Q22), with its lead's sticky Qualified mark. */
+export interface Arrival { readonly channel: string; readonly campaignId: string | null; readonly qualified: boolean; readonly post: string | null }
+
+export interface SourceCount { leads: number; qualified: number; rate: number | null }
+export interface ChannelNode extends SourceCount {
+  channel: string;
+  campaigns: Array<SourceCount & { campaignId: string }>;
+  /** arrivals of this channel with no campaign */
+  noCampaign: number;
+}
+
+const count = (list: readonly Arrival[]): SourceCount => {
+  const qualified = list.filter((a) => a.qualified).length;
+  return { leads: list.length, qualified, rate: qualificationRate(qualified, list.length) };
+};
+const byDesc = <T extends { leads: number }>(a: T, b: T) => b.leads - a.leads;
+
+/**
+ * M-04 3.2 · 6.1: the dashboard's two levels — each channel's total (Facebook = 320), and under it each campaign's
+ * («X» = 120, «Y» = 200), with Qualified and the rate — most leads first.
+ */
+export function channelTree(arrivals: readonly Arrival[]): ChannelNode[] {
+  const channels = [...new Set(arrivals.map((a) => a.channel))];
+  return channels.map((channel) => {
+    const mine = arrivals.filter((a) => a.channel === channel);
+    const ids = [...new Set(mine.flatMap((a) => (a.campaignId ? [a.campaignId] : [])))];
+    return {
+      channel, ...count(mine),
+      campaigns: ids.map((campaignId) => ({ campaignId, ...count(mine.filter((a) => a.campaignId === campaignId)) })).sort(byDesc),
+      noCampaign: mine.filter((a) => !a.campaignId).length,
+    };
+  }).sort(byDesc);
+}
+
+/** M-04 3.1 «البوست اللي جاب الليد»: leads per post, most first (arrivals without a post aren't listed). */
+export function leadsByPost(arrivals: readonly Arrival[]): Array<{ post: string; leads: number }> {
+  const n = new Map<string, number>();
+  for (const a of arrivals) if (a.post) n.set(a.post, (n.get(a.post) ?? 0) + 1);
+  return [...n].map(([post, leads]) => ({ post, leads })).sort(byDesc);
+}
+
 /** Running on `today` (a Cairo calendar day «YYYY-MM-DD»): the demo's «شغالة» / «خلصت». */
 export const isCampaignLive = (c: { startsOn: string; endsOn: string }, today: string): boolean => c.startsOn <= today && today <= c.endsOn;

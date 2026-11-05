@@ -68,6 +68,22 @@ test("Rahma adds a campaign → leads and Qualified per campaign, every arrival 
   assert.equal((audit!.before as { spent: string }).spent, "0.00");
   assert.equal((audit!.after as { spent: string }).spent, "1500");
 
+  // 4.6 · the dashboard, filtered to this campaign and today: the numbers match the arrivals; the post that brought them
+  await prisma.lead.updateMany({ where: { code: `L-C${stamp}1` }, data: { post: `E2E بوست ${stamp}` } });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  const dash = await call(`/marketing/campaigns/dashboard?campaignId=${id}&from=${today}&to=${today}`, { cookie: rahma });
+  assert.equal(dash.status, 200, JSON.stringify(dash.body));
+  assert.deepEqual(dash.body.total, { leads: 3, qualified: 1, rate: 33.3 });
+  assert.equal(dash.body.spent, "1500.00");
+  assert.equal(dash.body.costPerQualified, "1500.00");
+  const node = dash.body.channels.find((x: { channel: string }) => x.channel === channel);
+  assert.deepEqual(node.campaigns.map((x: { id: string; leads: number; qualified: number }) => [x.id, x.leads, x.qualified]), [[id, 3, 1]]);
+  assert.deepEqual(dash.body.posts, [{ post: `E2E بوست ${stamp}`, leads: 1 }]);
+  const yesterday = new Date(Date.now() - 2 * 86_400_000).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  assert.equal((await call(`/marketing/campaigns/dashboard?campaignId=${id}&from=${yesterday}&to=${yesterday}`, { cookie: rahma })).body.total.leads, 0);
+  assert.equal((await call(`/marketing/campaigns/dashboard?from=${today}&to=${yesterday}`, { cookie: rahma })).status, 400);
+  assert.equal((await call("/marketing/campaigns/dashboard", { cookie: sales })).status, 403);
+
   assert.equal((await call(`/marketing/campaigns/${id}`, { method: "DELETE", cookie: sales })).status, 403);
   assert.equal((await call(`/marketing/campaigns/${id}`, { method: "DELETE", cookie: rahma })).status, 204);
   assert.equal(await row(), undefined);
