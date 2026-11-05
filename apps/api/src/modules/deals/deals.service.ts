@@ -177,6 +177,10 @@ export class DealsService {
     }
     const commission = fromDecimal(input.commissionOwner ?? d.commissionOwner.toFixed(2)) + fromDecimal(input.commissionClient ?? d.commissionClient.toFixed(2));
     await this.notifications.notify({ event: "deal.approved", userIds, link: link(d.id), text: `صفقة اتقفلت ${d.code} · ${d.company} · العمولة ${formatEGP(commission)} · مستنية التحصيل` });
+    // M-02 2.1 step 7 · Q26 (4.9): marketing hears of it with the allowed fields only — location, space, company, type, the Buyer
+    const space = input.space ?? d.space, type = input.type ?? d.type, location = input.location ?? d.location;
+    await this.notifications.notify({ event: "deal.marketing", link: "/marketing?tab=deals",
+      text: `Done Deal اتسجّلت في الشيت: ${type} · ${location} · ${space} م · ${d.company} · ${d.lead?.name ?? d.company}` });
   }
 
   private async names(ids: string[]) {

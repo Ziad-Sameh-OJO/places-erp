@@ -11,15 +11,15 @@ import { call, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E ${stamp}`;
-let mohsen: string, nancy: string, ashraf: string, omar: string, sleem: string, hr: string;
+let rahma: string, mohsen: string, nancy: string, ashraf: string, omar: string, sleem: string, hr: string;
 const emp: Record<string, { id: string; userId: string }> = {};
 let leadId: string, freshLeadId: string, unit4Id: string, unitId: string, unit2Id: string, draftUnitId: string, companyId: string;
 
 before(async () => {
-  [mohsen, nancy, ashraf, omar, sleem, hr] = await Promise.all([
-    "m.mohsen@places.com", "nancy.islam@places.com", "ahmed.ashraf@places.com", "omar.gamal@places.com", "abdallah.sleem@places.com", "basant.elsawy@places.com",
+  [rahma, mohsen, nancy, ashraf, omar, sleem, hr] = await Promise.all([
+    "rahma.hassan@places.com", "m.mohsen@places.com", "nancy.islam@places.com", "ahmed.ashraf@places.com", "omar.gamal@places.com", "abdallah.sleem@places.com", "basant.elsawy@places.com",
   ].map((e) => session(e)));
-  for (const [k, email] of [["mohsen", "m.mohsen"], ["eid", "m.eid"], ["ali", "ahmed.ali"], ["nancy", "nancy.islam"], ["ashraf", "ahmed.ashraf"], ["basant", "basant.elsawy"]] as const) {
+  for (const [k, email] of [["mohsen", "m.mohsen"], ["eid", "m.eid"], ["ali", "ahmed.ali"], ["nancy", "nancy.islam"], ["ashraf", "ahmed.ashraf"], ["basant", "basant.elsawy"], ["rahma", "rahma.hassan"]] as const) {
     const e = await prisma.employee.findFirstOrThrow({ where: { user: { email: `${email}@places.com` } } });
     emp[k] = { id: e.id, userId: e.userId };
   }
@@ -43,6 +43,7 @@ before(async () => {
 });
 
 after(async () => {
+  await prisma.file.deleteMany({ where: { name: { startsWith: C } } });
   await prisma.deal.deleteMany({ where: { company: { startsWith: C } } });
   await prisma.notification.deleteMany({ where: { text: { contains: C } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-D${stamp}` } } });
@@ -167,4 +168,31 @@ test("the note (Office Manager / Finance) on an approved deal: target only, audi
   assert.equal(cleared.body.targetBase, null);
   const pending = (await call(`/deals?q=${encodeURIComponent(C)}&status=Pending%20Review`, { cookie: nancy })).body.items[0];
   assert.equal((await call(`/deals/${pending.id}/note`, { method: "PUT", cookie: nancy, body })).status, 400);
+});
+
+test("4.9 · Q26: marketing is told of the approved deal and sees only location, space, company, type and the Buyer; attaches a logo", async () => {
+  const told = (await unread(emp.rahma!.userId)).find((n) => n.text.startsWith("Done Deal اتسجّلت في الشيت"));
+  assert.equal(told!.text, `Done Deal اتسجّلت في الشيت: Rent · ${C} مشروع 1 · 401 م · ${C} شركة · ${C} عميل`);
+
+  const list = await call("/deals/marketing?pageSize=100", { cookie: rahma });
+  assert.equal(list.status, 200);
+  const row = list.body.items.find((d: { id: string }) => d.id === dealId);
+  assert.deepEqual(Object.keys(row).sort(), ["buyer", "code", "company", "id", "location", "logo", "space", "type"]); // no money, no salespeople
+  assert.deepEqual([row.buyer, row.company, row.type, row.space, row.logo], [`${C} عميل`, `${C} شركة`, "Rent", 401, null]);
+  assert.equal(list.body.items.some((d: { company: string }) => d.company === `${C} عميل جديد`), false); // still waiting for review
+  assert.equal((await call("/deals/marketing", { cookie: mohsen })).status, 403);
+  assert.equal((await call(`/deals/${dealId}`, { cookie: rahma })).status, 403); // never the deal itself
+
+  // an upload rahma finished (0.9); the bytes aren't needed to attach it
+  const file = await prisma.file.create({ data: { key: `e2e/${stamp}.png`, name: `${C} logo.png`, mime: "image/png", size: 10, status: "READY", uploadedById: emp.rahma!.userId } });
+  assert.equal((await call(`/deals/marketing/${dealId}/logo`, { method: "PUT", cookie: mohsen, body: { fileId: file.id } })).status, 403);
+  const set = await call(`/deals/marketing/${dealId}/logo`, { method: "PUT", cookie: rahma, body: { fileId: file.id } });
+  assert.equal(set.status, 200, JSON.stringify(set.body));
+  assert.deepEqual(set.body, { id: file.id, name: `${C} logo.png` });
+  const after = (await call("/deals/marketing?pageSize=100", { cookie: rahma })).body.items.find((d: { id: string }) => d.id === dealId);
+  assert.equal(after.logo.id, file.id);
+  const url = await call(`/deals/marketing/${dealId}/logo`, { cookie: rahma });
+  assert.equal(url.status, 200);
+  assert.match(url.body.url, /^https?:\/\//);
+  assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "logo" } }));
 });
