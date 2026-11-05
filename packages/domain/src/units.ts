@@ -121,3 +121,35 @@ export function unitAreaTab<T extends AreaRange & { readonly id: string }>(u: { 
   const picked = u.areaTabId ? tabs.find((t) => t.id === u.areaTabId) : undefined;
   return picked ?? sortAreaTabs(tabs).find((t) => inAreaRange(u.space, t)) ?? null;
 }
+
+/** M-03 Q16: a Done Deal closes a unit as rented (Rent) or sold (Resale, Income and Primary: «البيع بكل مشتقاته»). */
+export const closedStatus = (type: UnitType): Exclude<UnitStatus, "available"> => (type === "Rent" ? "rented" : "sold");
+
+/** The two sheets a unit can be on at once (Q17): its own type, and the second one Manar or Randa added. */
+export type UnitSide = "type" | "also";
+export interface UnitSides { readonly type: UnitType; readonly status: UnitStatus; readonly alsoType: UnitType | null; readonly alsoStatus: UnitStatus | null }
+
+/** The side of the unit a deal of this type is on, or null when the unit isn't on that sheet at all (Q17). */
+export function sideFor(u: UnitSides, dealType: UnitType): UnitSide | null {
+  if (u.type === dealType) return "type";
+  if (u.alsoType === dealType) return "also";
+  return null;
+}
+
+/** Whether that side is still open: a deal can't close a side that is already rented or sold. */
+export const sideOpen = (u: UnitSides, side: UnitSide): boolean => (side === "type" ? u.status : u.alsoStatus) === "available";
+
+/** The role that confirms closing a unit of this type (Q16): Manar (Inventory Manager) the rent, Randa the rest. */
+export const closeConfirmer = (type: UnitType): "inventory" | "resale" => (type === "Rent" ? "inventory" : "resale");
+
+/** Q16: Manar confirms a rent close, Randa a resale / income one; the Super Admin can stand in for either. */
+export const confirmsClose = (roles: readonly string[], type: UnitType): boolean => roles.includes("admin") || roles.includes(closeConfirmer(type));
+
+/**
+ * Q17: an edit can add, drop or swap the second type. Each type keeps the state it had (a rented Rent side stays
+ * rented when Rent becomes the second type); a type new to the unit starts available.
+ */
+export function carrySides(before: UnitSides, after: { type: UnitType; alsoType: UnitType | null }): { status: UnitStatus; alsoStatus: UnitStatus | null } {
+  const stateOf = (t: UnitType): UnitStatus => (t === before.type ? before.status : t === before.alsoType ? (before.alsoStatus ?? "available") : "available");
+  return { status: stateOf(after.type), alsoStatus: after.alsoType ? stateOf(after.alsoType) : null };
+}

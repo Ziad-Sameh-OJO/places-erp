@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keepsInventory } from "@places/domain";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
@@ -28,6 +28,8 @@ export function InventoryList() {
   const [mode, setMode] = useState<"table" | "drive">("table");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
+  // a notification links to one unit (the close to confirm, Q16)
+  useEffect(() => { const unit = new URLSearchParams(window.location.search).get("unit"); if (unit) setOpen(unit); }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   const qc = useQueryClient();
   const run = useAction();

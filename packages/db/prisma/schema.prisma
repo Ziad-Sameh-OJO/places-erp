@@ -589,6 +589,7 @@ model Deal {
   payments         Payment[]
   tcrs             Tcr[]
   contract         Contract?
+  unitLocks        UnitLock[]
   createdById      String
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -819,6 +820,7 @@ model Unit {
   lastOwnerUpdateAt DateTime    @default(now()) // «last update»: older than a month = late (M-03 2.4)
   createdById       String?     // the user who entered it (Manar / Randa activity)
   deals             Deal[]
+  locks             UnitLock[]
   suggestedFor      LeadUnit[]
   shownInVisits     VisitUnit[]
   tasks             Task[]
@@ -833,6 +835,28 @@ model Unit {
   @@index([ownerPhone])
   @@index([ownerId])
   @@index([areaTabId])
+  @@schema("inventory")
+}
+
+/// M-03 Q16 · Q17 · a Done Deal on one side of a unit (Rent, or Resale / Income): pending until Manar (Rent) or Randa
+/// (the rest) confirms, then that side is rented / sold. Released (deleted, the audit keeps it) when the deal is
+/// cancelled or its contract ends (6.4).
+model UnitLock {
+  id            String    @id @default(cuid())
+  unitId        String
+  unit          Unit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  dealId        String
+  deal          Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  type          UnitType  // the deal's type = the side it closes
+  status        String    @default("pending") // pending · locked
+  requestedAt   DateTime  @default(now())
+  requestedById String?
+  lockedAt      DateTime? // when Manar / Randa confirmed: the unit's «rented / sold» date (2.10)
+  lockedById    String?
+
+  @@unique([unitId, dealId])
+  @@unique([unitId, type]) // one Done Deal per side at a time: a second one waits until the first is released
+  @@index([status, lockedAt])
   @@schema("inventory")
 }
 

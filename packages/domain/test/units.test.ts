@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, fromDecimal, toDecimal } from "../src/money.ts";
-import { incomeFigures, isStale, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+import { carrySides, closedStatus, confirmsClose, incomeFigures, isStale, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
 
 // The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
 
@@ -128,4 +128,51 @@ test("a unit's amounts must fit the sheet's money columns (999,999,999,999.99)",
   assert.equal(unitFiguresFit({ pricePerSqm: egp(36_000), leasePerSqm: egp(99_999_999_999), area: 900_000 }), false);
   assert.equal(unitFiguresFit({ pricePerSqm: null, leasePerSqm: null, area: 10 }), true);
   assert.equal(MAX_MONEY, fromDecimal("999999999999.99"));
+});
+
+// 2.9 · closing a unit after a Done Deal (M-03 Q16, Q17). The units are the demo's: U-103 is Rent and Resale at once.
+const u103 = { type: "Rent", status: "available", alsoType: "Resale", alsoStatus: "available" } as const;
+
+test("Q16: a rent deal leaves the unit Rented; a resale or income one Sold", () => {
+  assert.equal(closedStatus("Rent"), "rented");
+  assert.equal(closedStatus("Resale"), "sold");
+  assert.equal(closedStatus("Income"), "sold");
+  assert.equal(closedStatus("Primary"), "sold");
+});
+
+test("Q17: U-103 (Rent + Resale) — each deal closes its own side, a type the unit isn't on closes nothing", () => {
+  assert.equal(sideFor(u103, "Rent"), "type");
+  assert.equal(sideFor(u103, "Resale"), "also");
+  assert.equal(sideFor(u103, "Income"), null);
+  assert.equal(sideFor({ ...u103, alsoType: null, alsoStatus: null }, "Resale"), null);
+});
+
+test("Q17: once the rent side of U-103 is rented, its resale side is still open (and the other way round)", () => {
+  const rented = { ...u103, status: "rented" } as const;
+  assert.equal(sideOpen(rented, "type"), false);
+  assert.equal(sideOpen(rented, "also"), true);
+  const sold = { ...u103, alsoStatus: "sold" } as const;
+  assert.equal(sideOpen(sold, "type"), true);
+  assert.equal(sideOpen(sold, "also"), false);
+});
+
+test("Q16: Manar confirms closing a rent unit, Randa a resale / income one, the Super Admin either", () => {
+  assert.equal(confirmsClose(["inventory"], "Rent"), true);
+  assert.equal(confirmsClose(["inventory"], "Resale"), false);
+  assert.equal(confirmsClose(["resale"], "Resale"), true);
+  assert.equal(confirmsClose(["resale"], "Income"), true);
+  assert.equal(confirmsClose(["resale"], "Rent"), false);
+  assert.equal(confirmsClose(["admin"], "Income"), true);
+  assert.equal(confirmsClose(["inventory_staff", "sales"], "Rent"), false);
+});
+
+test("Q17: editing U-103's second type keeps each side's state, a new side starts open", () => {
+  const rented = { ...u103, status: "rented" } as const;
+  assert.deepEqual(carrySides(rented, { type: "Rent", alsoType: "Resale" }), { status: "rented", alsoStatus: "available" });
+  // Manar takes Resale off: only the rented Rent side is left
+  assert.deepEqual(carrySides(rented, { type: "Rent", alsoType: null }), { status: "rented", alsoStatus: null });
+  // swapped: Resale first, the rented Rent side second
+  assert.deepEqual(carrySides(rented, { type: "Resale", alsoType: "Rent" }), { status: "available", alsoStatus: "rented" });
+  // a one-type unit gets a second type
+  assert.deepEqual(carrySides({ type: "Rent", status: "available", alsoType: null, alsoStatus: null }, { type: "Rent", alsoType: "Resale" }), { status: "available", alsoStatus: "available" });
 });
