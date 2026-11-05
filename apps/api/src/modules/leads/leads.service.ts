@@ -75,7 +75,8 @@ export class LeadsService {
       this.repo.summary(ownedBy(me) as never, q.kind === "broker" ? "BROKER" : "CLIENT", new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
       this.rules.get(), this.time.isHolidayToday(),
     ]);
-    return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on };
+    return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
+      noAnswerRules: { hours: rules.noAnswer.hours, remindH: rules.noAnswer.remindH } };
   }
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
@@ -383,7 +384,7 @@ export class LeadsService {
       const next = await tx.lead.update({
         where: { id },
         data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), touched: true,
-          ...(noAnswer ? { noAnswerCount: { increment: 1 }, naMarkedAt: new Date(), naMarkedById: me.employeeId } : {}) },
+          ...(noAnswer ? { noAnswerCount: { increment: 1 }, naMarkedAt: new Date(), naMarkedById: me.employeeId, naRemindedAt: null } : {}) },
       });
       const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
       await this.repo.markActed(tx, id, activity.at);

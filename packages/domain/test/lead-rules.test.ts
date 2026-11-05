@@ -156,3 +156,27 @@ test("1.17 the New Lead clock: 30 minutes by default (Heba's KPI item), negative
   assert.equal(newLeadMinutesLeft(at, winter("2026-11-05T12:21:00")), 9);
   assert.equal(newLeadMinutesLeft(at, winter("2026-11-05T12:45:00")), -15);
 });
+
+test("1.18 the No Answer Alarm (M-01 Q5): every 4 working hours from the mark, a logged call or the last Alarm", async () => {
+  const { noAnswerReminderDue } = await import("../src/lead-rules.ts");
+  const none = new Set<string>();
+  const marked = winter("2026-11-08T11:00:00"); // a Sunday
+  const due = (now: string, more: { lastCallAt?: Date; remindedAt?: Date } = {}) =>
+    noAnswerReminderDue({ naMarkedAt: marked, lastCallAt: more.lastCallAt ?? null, remindedAt: more.remindedAt ?? null }, winter(now), R, none);
+  assert.equal(due("2026-11-08T14:59:00"), false);
+  assert.equal(due("2026-11-08T15:00:00"), true);
+  // the Alarm went at 15:00: the next one 4 working hours later, 19:00
+  assert.equal(due("2026-11-08T18:59:00", { remindedAt: winter("2026-11-08T15:00:00") }), false);
+  assert.equal(due("2026-11-08T19:00:00", { remindedAt: winter("2026-11-08T15:00:00") }), true);
+  // a call at 13:00 restarts the clock: 17:00
+  assert.equal(due("2026-11-08T16:59:00", { lastCallAt: winter("2026-11-08T13:00:00") }), false);
+  assert.equal(due("2026-11-08T17:00:00", { lastCallAt: winter("2026-11-08T13:00:00") }), true);
+  // marked Thursday 17:00: 2 hours that day, Friday off, Saturday 13:00 makes 4
+  const thu = { naMarkedAt: winter("2026-11-05T17:00:00"), lastCallAt: null, remindedAt: null };
+  assert.equal(noAnswerReminderDue(thu, winter("2026-11-07T12:59:00"), R, none), false);
+  assert.equal(noAnswerReminderDue(thu, winter("2026-11-07T13:00:00"), R, none), true);
+  // an official holiday doesn't count, and the hours come from the rules
+  assert.equal(noAnswerReminderDue(thu, winter("2026-11-07T13:00:00"), R, holidayDays([{ from: "2026-11-07", to: "2026-11-07" }])), false);
+  assert.equal(noAnswerReminderDue(thu, winter("2026-11-07T12:00:00"), { ...R, noAnswer: { ...R.noAnswer, remindH: 3 } }, none), true);
+  assert.equal(noAnswerReminderDue({ naMarkedAt: null, lastCallAt: null, remindedAt: null }, winter("2026-11-20T12:00:00"), R, none), false);
+});

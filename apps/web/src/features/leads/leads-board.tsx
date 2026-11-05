@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import type { LeadBoard, LeadRow } from "@places/contracts";
 import { type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Kanban } from "@/components/blocks";
@@ -6,6 +7,7 @@ import { Avatar, Chip, Icon, useAction, useToast } from "@/components/ui";
 import { ago, num, short } from "@/lib/format";
 import { slaText, slaTone, stageTone } from "./lead-bits";
 import { useChangeStage } from "./use-leads";
+import { WhatsAppQuestion } from "./whatsapp-question";
 
 /** The lane dot's colour as a CSS variable (the chips' tones). */
 const LANE_COLOR: Record<string, string> = { ok: "ok", warn: "warn", bad: "bad", info: "info", acc: "accent", "": "ink-3" };
@@ -18,14 +20,18 @@ export function LeadsBoard({ board, canMove, onOpen }: { board: LeadBoard | unde
   const run = useAction();
   const toast = useToast();
   const changeStage = useChangeStage();
+  const [ask, setAsk] = useState<LeadRow | null>(null); // «بعتله واتساب؟» right after No Answer (1.18)
   const move = (l: LeadRow, stage: string) => {
     if (stage === l.stage) return;
     if (stage === "Visit") { toast("حدد ميعاد الـ Visit والوحدات"); return; }
     const willQualify = !l.qualified && isQualifiedAfter(false, stage as LeadStage); // the toast says so, like the demo
-    void run(() => changeStage(l.id, stage), willQualify ? `${l.name} بقى ${stage} واتعلّم Qualified` : `${l.name} بقى ${stage}`);
+    void run(async () => { await changeStage(l.id, stage); if (stage === "No Answer") setAsk(l); },
+      willQualify ? `${l.name} بقى ${stage} واتعلّم Qualified` : `${l.name} بقى ${stage}`);
   };
   const lanes = (board?.lanes ?? []).map((l) => ({ key: l.stage, title: l.stage, tone: LANE_COLOR[stageTone(l.stage)], items: l.items, count: l.total }));
   return (
+    <>
+    {ask && <WhatsAppQuestion lead={ask} onClose={() => setAsk(null)} />}
     <Kanban className="leads-board" lanes={lanes} itemKey={(l) => l.id} empty="اسحب ليد هنا" onOpen={(l) => onOpen(l.id)}
       cardClass={(l) => `lead-card ${l.sla ? `sla-${slaTone(l.sla)}` : ""}`}
       {...(canMove ? { onMove: (l: LeadRow, lane: string) => move(l, lane) } : {})}
@@ -40,5 +46,6 @@ export function LeadsBoard({ board, canMove, onOpen }: { board: LeadBoard | unde
           </div>
         </>
       )} />
+    </>
   );
 }

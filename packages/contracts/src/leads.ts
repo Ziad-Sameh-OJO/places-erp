@@ -163,6 +163,8 @@ export interface LeadSummary {
   /** an official holiday today: the SLA runs on wall-clock hours (the note under the list says so) */
   /** today is an official holiday; the SLA times (minutes) from «قواعد الليدز» (1.29), and whether that rule is on */
   holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number }; slaOn: boolean;
+  /** «قواعد الليدز ← No Answer»: how long it stays, how often the Alarm comes (the «بعتله واتساب؟» note, 1.18) */
+  noAnswerRules: { hours: number; remindH: number };
 }
 
 /** One line of a lead's «Logs» tab: recorded automatically, a person's comment, or an audit entry (1.25). */

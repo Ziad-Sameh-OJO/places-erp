@@ -4,7 +4,7 @@
  * never numbers in the code. Defaults are the demo's (data.js leadRules) and the requirements' (M-01 Q4, Q5).
  */
 import { type SlaRules, leadSla } from "./leads.ts";
-import { type WorkCalendar, PLACES_CALENDAR, localDate, wallClockMinutesBetween } from "./business-time.ts";
+import { type WorkCalendar, PLACES_CALENDAR, localDate, wallClockMinutesBetween, workingMinutesBetween } from "./business-time.ts";
 import type { Channel } from "./notifications.ts";
 
 /**
@@ -150,6 +150,22 @@ export function noAnswerStep(
   if (!lead.naMarkedAt || !lead.assignedToId || lead.naMarkedById !== lead.assignedToId) return null;
   if (wallClockMinutesBetween(lead.naMarkedAt, now) < rules.noAnswer.hours * 60) return null;
   return lead.rotation + 1 >= rules.noAnswer.toTelesalesAt ? "telesales" : "next";
+}
+
+/**
+ * 1.18 · M-01 Q5: while a lead sits in No Answer, its salesperson gets an Alarm every noAnswer.remindH (4) working
+ * hours to call it again. The clock starts at the mark and restarts at every logged call and every Alarm sent (demo:
+ * «سجّل المكالمة عشان يتقفل»); it counts the rules' working hours minus the official holidays, so nobody is woken at night.
+ */
+export function noAnswerReminderDue(
+  lead: { readonly naMarkedAt: Date | null; readonly lastCallAt: Date | null; readonly remindedAt: Date | null },
+  now: Date,
+  rules: LeadRules,
+  holidays: ReadonlySet<string>,
+): boolean {
+  if (!lead.naMarkedAt) return false;
+  const since = [lead.naMarkedAt, lead.lastCallAt, lead.remindedAt].reduce<Date>((a, b) => (b && b > a ? b : a), lead.naMarkedAt);
+  return workingMinutesBetween(since, now, { ...calendarOf(rules, PLACES_CALENDAR), holidays }) >= rules.noAnswer.remindH * 60;
 }
 
 /**
