@@ -11,6 +11,7 @@ import { ago, day, dayTime, money, num } from "@/lib/format";
 import { api } from "@/lib/api";
 import { StageChip, Who, slaText, slaTone } from "./lead-bits";
 import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
+import { useSendNewLead } from "./use-new-leads";
 import { useLeadOptions } from "./use-leads";
 import { Visits } from "./visits";
 import { RecommendedUnits, useRecommendations } from "./recommendations";
@@ -70,6 +71,7 @@ function Overview({ l }: { l: LeadDetail }) {
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {l.note && <div className="quote">{l.note}</div>}
       {can("leads", "edit") && <CallButton id={l.id} />}
+      <NewLeadAction l={l} />
       {can("leads", "approve") && <Reassign key={l.id} l={l} />}
     </>
   );
@@ -130,6 +132,23 @@ function CallButton({ id }: { id: string }) {
   return (
     <div className="row">
       <button className="btn ghost" onClick={() => void run(() => logCall(id), "المكالمة اتسجّلت · الـ SLA وقف")}><Icon name="phone" />سجّل مكالمة</button>
+    </div>
+  );
+}
+
+/**
+ * Demo «ابعته كـ New Lead» (1.17, M-01 2.3): a lead Telesales holds after the third No Answer rotation that became
+ * Interested goes to Operations; until they decide, «مستني قرار الأوبريشن».
+ */
+function NewLeadAction({ l }: { l: LeadDetail }) {
+  const { can } = useMe();
+  const run = useAction();
+  const send = useSendNewLead();
+  if (l.newLeadPending) return <div className="row"><Chip tone="warn">مستني قرار الأوبريشن</Chip></div>;
+  if (!l.ownedByTelesales || l.stage !== "Interested" || !can("leads", "edit")) return null;
+  return (
+    <div className="row">
+      <button className="btn" onClick={() => void run(() => send(l.id), "اتبعت للأوبريشن")}><Icon name="send" />ابعته كـ New Lead</button>
     </div>
   );
 }

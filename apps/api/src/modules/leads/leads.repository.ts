@@ -224,6 +224,14 @@ export class LeadsRepository {
     return this.db.leadDuplicate.findMany({ where: { decidedAt: null, lead: { archivedAt: null } }, select: DUPLICATE_ROW, orderBy: { at: "asc" } });
   }
 
+  /** New Leads from Telesales that Operations hasn't routed yet (1.17), oldest first. */
+  pendingNewLeads() {
+    return this.db.lead.findMany({
+      where: { newLeadRequestedAt: { not: null }, newLeadRoutedAt: null, archivedAt: null },
+      select: { id: true, code: true, name: true, area: true, newLeadRequestedAt: true, newLeadRequestedById: true }, orderBy: { newLeadRequestedAt: "asc" },
+    });
+  }
+
   duplicate(tx: Prisma.TransactionClient, id: string) {
     return tx.leadDuplicate.findFirst({ where: { id, lead: { archivedAt: null } }, select: DUPLICATE_ROW });
   }
@@ -266,6 +274,7 @@ export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
+  newLeadRequestedAt: true, newLeadRoutedAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
   visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, postponeReason: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },

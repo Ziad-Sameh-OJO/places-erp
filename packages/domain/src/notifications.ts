@@ -21,6 +21,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.visit_not_done", label: "Visit / Meeting معملهاش", to: "الـ HR (من قواعد الليدز)", toRoles: [], channels: ["app", "email"], important: false }, // 1.9 · the lead rules' visit.notDone
   { key: "lead.visit_postpone", label: "طلب تأجيل Visit / Meeting", to: "الـ Team Leader (من قواعد الليدز)", toRoles: [], channels: ["app", "push"], important: false }, // 1.24 · visit.postpone
   { key: "lead.visit_postponed", label: "قرار تأجيل Visit / Meeting", to: "السيلز · الأوبريشن · الـ HR", toRoles: [], channels: ["app"], important: false }, // 1.24 · visit.postponeInfo
+  { key: "lead.new_lead", label: "New Lead من Telesales", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 2.3 · 1.17
   { key: "lead.duplicate", label: "عميل مكرر", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 Q7
   { key: "client.merge", label: "اقتراح دمج ملفين بنفس الموبايل", to: "الأوبريشن", toRoles: ["ops", "opshead"], channels: ["app", "push"], important: false }, // M-10 2.2
   { key: "client.deletion", label: "عميل طالب يمسح بياناته", to: "الإدارة", toRoles: ["admin"], channels: ["app", "email"], important: true }, // M-10 2.3

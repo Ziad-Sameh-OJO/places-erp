@@ -7,6 +7,7 @@ import { Queue, Worker, type Processor } from "bullmq";
 import { prisma } from "@places/db";
 import { env } from "./env.ts";
 import { leadSlaTick } from "./processors/lead-sla.ts";
+import { noAnswerTick } from "./processors/no-answer.ts";
 import { visitAlarmTick } from "./processors/visit-alarm.ts";
 import { recurringBillsTick } from "./processors/recurring-bills.ts";
 import { payrollDueTick } from "./processors/payroll-due.ts";
@@ -33,12 +34,12 @@ const sendMail = mailSender(env);
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: () => leadSlaTick() }, // every minute (M-01 2.4)
   { name: "mail-outbox", pattern: "* * * * *", processor: () => mailOutboxTick(sendMail) }, // every minute: «الإيميل يتبعت خلال دقيقة» (M-14 2.4)
+  { name: "no-answer", pattern: "*/5 * * * *", processor: () => noAnswerTick() }, // every 5 minutes: 24 hours after the mark (M-01 Q5 · 1.17)
   { name: "visit-alarm", pattern: "* * * * *", processor: () => visitAlarmTick() }, // every minute (M-01 3.3 · 1.9)
   { name: "recurring-bills", pattern: "0 11 * * *", processor: recurringBillsTick }, // daily at the start of work (M-07 9.16)
   { name: "payroll-due", pattern: "5 11 * * *", processor: payrollDueTick }, // daily: pay day reached and not paid (M-07 9.14)
   { name: "ticket-sla", pattern: "*/5 * * * *", processor: () => ticketSlaTick() }, // every 5 minutes: SLAs are hours long (M-06 2.4)
   { name: "procurement-reminder", pattern: "*/15 * * * *", processor: () => procurementReminderTick() }, // M-08 2.4
-  // next: no-answer-rotation (T-07)… one processor file each, same shape as lead-sla.ts
   { name: "leave-chase", pattern: "15 * * * *", processor: leaveChaseTick }, // hourly: remind at 24h, escalate at 48h (M-05 7.5)
   { name: "hr-action-alarm", pattern: "0 11 * * *", processor: hrActionAlarmTick }, // daily: «حل الـ HR» due today (M-05 7.8)
   { name: "scheduled-reports", pattern: "*/5 * * * *", processor: () => scheduledReportsTick() }, // 11.10: auto reports at their time, reminders, late notices

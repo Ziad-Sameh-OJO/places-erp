@@ -366,6 +366,12 @@ model Lead {
   firstCallAt    DateTime?     // KPI: the first call within 30 minutes of arrivedAt (domain firstCallOnTime)
   firstActionAt  DateTime?     // the salesperson's first action (comment, call, stage change…): stops the SLA clock (M-01 «من غير أي أكشن»)
   slaWarnedAt    DateTime?     // the TL got the 2h30 warning for this assignment (cleared on reassign)
+  naMarkedById   String?       // the employee who marked it No Answer: only the salesperson's own mark moves it (1.17)
+  naMarkedAt     DateTime?     // the No Answer 24 hours count from here (4 Nov meeting)
+  newLeadRequestedAt   DateTime? // Telesales sent it as a New Lead (1.17): Operations' queue · KPI 11.15 «توزيع الـ New Lead في ميعاده»
+  newLeadRequestedById String?
+  newLeadRoutedAt      DateTime? // Operations sent it on; null while the request waits
+  newLeadRoutedById    String?
   note           String?
   post           String?       // the campaign post it came from (M-04: channel → campaign → post)
   answers        Json?         // answers to the recommendation questions, they narrow the suggested units
