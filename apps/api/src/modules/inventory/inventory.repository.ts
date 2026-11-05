@@ -29,12 +29,16 @@ export class InventoryRepository {
    * already picked stay on the form itself, so a search never drops them.
    */
   forVisit(q: string | undefined, take: number) {
-    const space = q && /^\d+$/.test(q) ? [{ space: Number(q) }] : [];
-    const search: Prisma.UnitWhereInput = q ? { OR: [{ code: { contains: q, mode: "insensitive" } }, { project: { contains: q, mode: "insensitive" } }, ...space] } : {};
-    return this.db.unit.findMany({
-      where: { AND: [visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE, search] },
-      select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take,
-    });
+    return this.db.unit.findMany({ where: openSearch(q), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
+  }
+
+  /** «سجّل صفقة» (M-02): the same open, confirmed units, with what the deal takes from them (type, agent = Seller). */
+  forDeal(q: string | undefined, take: number) {
+    return this.db.unit.findMany({ where: openSearch(q), select: DEAL_UNIT, orderBy: { code: "asc" }, take });
+  }
+
+  openForDeal(id: string) {
+    return this.db.unit.findFirst({ where: { AND: [{ id }, openSearch(undefined)] }, select: DEAL_UNIT });
   }
 
   /**
@@ -143,6 +147,14 @@ const CLOSED: Prisma.UnitWhereInput = { OR: [{ status: { not: "available" } }, {
 
 /** Archived units are gone for everyone; drafts only for the people who keep the inventory (Q15). */
 const visible = (s: UnitScope): Prisma.UnitWhereInput => ({ archivedAt: null, ...(s.insider ? {} : { pdfStatus: "confirmed" }) });
+
+/** Open units a salesperson may see, searched by code, project or space (a Visit or a deal can't name any other). */
+function openSearch(q: string | undefined): Prisma.UnitWhereInput {
+  const space = q && /^\d+$/.test(q) ? [{ space: Number(q) }] : [];
+  const search: Prisma.UnitWhereInput = q ? { OR: [{ code: { contains: q, mode: "insensitive" } }, { project: { contains: q, mode: "insensitive" } }, ...space] } : {};
+  return { AND: [visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE, search] };
+}
+const DEAL_UNIT = { id: true, code: true, project: true, space: true, type: true, agentId: true } satisfies Prisma.UnitSelect;
 
 const range = (t: AreaRange): Prisma.UnitWhereInput => ({ space: { gte: t.min, ...(t.max != null ? { lte: t.max } : {}) } });
 

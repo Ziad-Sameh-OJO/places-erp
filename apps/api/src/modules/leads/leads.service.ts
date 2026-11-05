@@ -360,6 +360,17 @@ export class LeadsService {
     });
   }
 
+  /** «سجّل صفقة» (M-02 2.1 step 1): the caller's leads that were ever Interested; one of them when `id` is given. */
+  dealLeads(me: CurrentUser, id?: string) {
+    return this.repo.dealLeads(ownedBy(me) as never, id);
+  }
+
+  /** A deal was registered on the lead (M-02): it moves to Done Deal in the deal's own transaction, with a line in its Activity. */
+  async markDoneDeal(tx: Prisma.TransactionClient, me: CurrentUser, lead: { id: string; stage: string; qualified: boolean }, text: string) {
+    await this.repo.addActivity(tx, lead.id, "stage", text, me.id);
+    if (lead.stage !== toDb("Done Deal")) await this.moveStage(tx, me, lead.id, lead, "Done Deal");
+  }
+
   /** The Visit form's unit search (1.9): through the inventory's own rule of what a salesperson may see. */
   visitUnits(q?: string) {
     return this.inventory.forVisit(q);

@@ -23,6 +23,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.visit_postponed", label: "قرار تأجيل Visit / Meeting", to: "السيلز · الأوبريشن · الـ HR", toRoles: [], channels: ["app"], important: false }, // 1.24 · visit.postponeInfo
   { key: "lead.duplicate", label: "عميل مكرر", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 Q7
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
+  // M-02 Q9 · 4 Nov meeting: on approval the accountant is told to collect the commission; a rejection goes back to the salesperson
+  { key: "deal.approved", label: "صفقة اتوافق عليها · حصّل عمولة", to: "المحاسب · سيلز الصفقة", toRoles: ["accountant"], channels: ["app", "push"], important: false },
+  { key: "deal.rejected", label: "صفقة اترفضت", to: "سيلز الصفقة", toRoles: [], channels: ["app", "push"], important: false },
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
   { key: "hr.forgot_fingerprint", label: "نسي البصمة", to: "الـ HR", toRoles: ["hr"], channels: ["app"], important: false }, // M-05 · 7.3
   { key: "hr.leave_request", label: "طلب إجازة", to: "الـ Team Leader ثم الـ HR", toRoles: [], channels: ["app", "push"], important: false }, // M-05 7.5
