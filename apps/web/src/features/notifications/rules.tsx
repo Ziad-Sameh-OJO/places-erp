@@ -40,7 +40,7 @@ export function NotificationRules() {
           <b key="l">{r.label}{r.important && " ·  مهم"}</b>, r.to,
           ...CH.map(([c, l]) => <Tick key={c} checked={r.channels.includes(c)} disabled={!ed} label={`${r.label} ${l}`} onChange={(v) => toggle(r, c, v)} />),
         ])} />
-        <Note>الـ Push بيشتغل لما نفعّل التطبيق على الموبايل (PWA)؛ لحد دلوقتي الإشعارات بتوصل جوه السيستم وعلى الإيميل.</Note>
+        <Note>الـ Push بيوصل لكل موبايل أو كمبيوتر صاحبه فعّل الإشعارات عليه من «حسابي».</Note>
       </Card>
       {ed && <MailLog />}
     </>

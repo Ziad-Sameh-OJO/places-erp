@@ -15,6 +15,10 @@ const Env = z.object({
   WEB_ORIGIN: z.string().url(), // also the base of links in emails (activation, password reset)
   SMTP_URL: z.string().url().optional(),
   MAIL_FROM: z.string().default("Places ERP <notifications@places.com>"),
+  // M-14 (51) push notifications: the VAPID key pair (secrets). Empty = push is off and the rest works as before.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:notifications@places.com"),
   // file storage: MinIO locally (`pnpm files:local`), any S3-compatible store later. The browser talks to it directly.
   S3_ENDPOINT: z.string().url(),
   S3_BUCKET: z.string().min(3),

@@ -1327,6 +1327,19 @@ model NotificationRule {
   @@schema("system")
 }
 
+/// M-14 (51): a browser or phone that turned push notifications on from «حسابي» (Web Push, VAPID). One row per device.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique // the browser's push service address for this device
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@schema("system")
+}
+
 /// M-14 2.3 · 2.4 · 3.3: every email the system sends. The worker sends the queued ones (within a minute), and it is
 /// the send log: «اتبعت» · «اتقرا» (its in-app copy was read) · «الإيميل فشل».
 model MailLog {

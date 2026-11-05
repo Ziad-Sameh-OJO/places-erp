@@ -1,17 +1,18 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
 import { z } from "zod";
-import { MailLogQuery, Page, Preferences, RuleInput } from "@places/contracts";
+import { MailLogQuery, Page, Preferences, PushEndpointInput, PushSubscriptionInput, RuleInput } from "@places/contracts";
 import { ZodPipe } from "../http/zod.pipe";
 import { Requires, SignedIn } from "../authz/requires.decorator";
 import { Me, type CurrentUser } from "../auth/current-user.decorator";
 import { AuditService } from "../audit/audit.service";
 import { NotificationsService } from "./notifications.service";
+import { PushService } from "./push.service";
 
 const MineQuery = Page.extend({ unread: z.coerce.boolean().default(false) });
 
 @Controller("notifications")
 export class NotificationsController {
-  constructor(private readonly n: NotificationsService, private readonly audit: AuditService) {}
+  constructor(private readonly n: NotificationsService, private readonly push: PushService, private readonly audit: AuditService) {}
 
   @SignedIn() @Get()
   mine(@Me() me: CurrentUser, @Query(new ZodPipe(MineQuery)) q: z.infer<typeof MineQuery>) {
@@ -26,6 +27,28 @@ export class NotificationsController {
   @SignedIn() @Put("preferences") @HttpCode(204)
   preferences(@Me() me: CurrentUser, @Body(new ZodPipe(Preferences)) b: z.infer<typeof Preferences>) {
     return this.n.setPreferences(me.id, b.emailNotifications);
+  }
+
+  /** M-14 (51) push, from «حسابي»: the server's public key (null = push is off), then this device on / off. */
+  @SignedIn() @Get("push/key")
+  pushKey() {
+    return { publicKey: this.push.publicKey() };
+  }
+
+  @SignedIn() @Post("push/subscriptions") @HttpCode(204)
+  subscribe(@Me() me: CurrentUser, @Body(new ZodPipe(PushSubscriptionInput)) b: PushSubscriptionInput) {
+    return this.push.subscribe(me.id, b);
+  }
+
+  @SignedIn() @Delete("push/subscriptions") @HttpCode(204)
+  unsubscribe(@Me() me: CurrentUser, @Body(new ZodPipe(PushEndpointInput)) b: z.infer<typeof PushEndpointInput>) {
+    return this.push.unsubscribe(me.id, b.endpoint);
+  }
+
+  /** «ابعت إشعار تجربة»: to my own devices only. */
+  @SignedIn() @Post("push/test") @HttpCode(200)
+  async pushTest(@Me() me: CurrentUser) {
+    return { devices: await this.push.devices(me.id), sent: await this.push.send([me.id], { title: "إشعار تجربة", body: "الإشعارات شغالة على الجهاز ده", link: "/profile" }) };
   }
 
   /** The send log is the Super Admin's (M-14 2.3 · 6.1: «تقرير بالإيميلات اللي فشلت»): whoever sets the rules. */

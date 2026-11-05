@@ -103,6 +103,18 @@ export interface HolidayView { id: string; from: string; to: string; label: stri
 export const RuleInput = z.object({ channels: z.array(z.enum(["app", "push", "email"])).max(3) });
 export const Preferences = z.object({ emailNotifications: z.boolean() });
 
+/**
+ * M-14 (51): a device's push subscription, as the browser's PushSubscription.toJSON() gives it. Only https push
+ * services: the API posts to this address, so it may never point inside the network.
+ */
+const PushEndpoint = z.string().url("عنوان الجهاز غلط").max(1000).refine((u) => u.startsWith("https://"), "عنوان الجهاز لازم يبقى https");
+export const PushSubscriptionInput = z.object({
+  endpoint: PushEndpoint,
+  keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
+});
+export type PushSubscriptionInput = z.infer<typeof PushSubscriptionInput>;
+export const PushEndpointInput = z.object({ endpoint: PushEndpoint });
+
 /** M-14 3.3 · 6.1: the send log, filtered by state: مستني · اتبعت · اتقرا · الإيميل فشل. */
 export const MailLogQuery = Page.extend({ status: z.enum(["queued", "sent", "read", "failed"]).optional() });
 export type MailLogQuery = z.infer<typeof MailLogQuery>;
