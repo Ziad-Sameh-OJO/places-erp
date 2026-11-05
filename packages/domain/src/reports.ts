@@ -85,6 +85,15 @@ export function dailySumValue(days: ReadonlyArray<{ day: string; value: number }
   return Math.round((total / Math.max(1, Math.ceil(elapsed / 7))) * 100) / 100;
 }
 
+/**
+ * 11.9 «إعلانات الموقع» (metric webAds, 25 a day for Rahma): what she types in her daily report, as the average a day over
+ * the last 7 days, of the days that have a number (demo kpis.js webAds). No website hook yet, so the count is typed.
+ */
+export function dailyAverage(days: ReadonlyArray<{ day: string; value: number }>, today: string): number {
+  const from = shift(today, -6), v = days.filter((d) => d.day >= from && d.day <= today).map((d) => d.value);
+  return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100 : 0;
+}
+
 /** How a day's report stands (11.12 «تقرير يوم»). */
 export type DayStatus = "onTime" | "late" | "missing" | "off" | "open";
 export function dayStatus(handedAt: Date | null, due: Date, now: Date, off: boolean): DayStatus {
