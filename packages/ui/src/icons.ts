@@ -43,6 +43,8 @@ export const ICONS = {
   "lock": "<rect x=\"5\" y=\"10\" width=\"14\" height=\"10\" rx=\"2\"/><path d=\"M8 10V7a4 4 0 0 1 8 0v3\"/>",
   "gift": "<path d=\"M4 11h16v9H4zM3 7h18v4H3zM12 7v13\"/><path d=\"M12 7S10.5 3 8.5 3 6 5.5 8 7M12 7s1.5-4 3.5-4S18 5.5 16 7\"/>",
   "chart": "<path d=\"M4 20V10M10 20V4M16 20v-7M22 20H2\"/>",
-  "fingerprint": "<path d=\"M12 11v3a8 8 0 0 0 1.5 4.5M8.5 10.5a3.5 3.5 0 0 1 7 0V13M5.5 9a7 7 0 0 1 13 1v3a12 12 0 0 0 .8 4M4 13.5a14 14 0 0 0 1.2 4M9 14.5a11 11 0 0 0 1.7 5.5\"/>"
+  "fingerprint": "<path d=\"M12 11v3a8 8 0 0 0 1.5 4.5M8.5 10.5a3.5 3.5 0 0 1 7 0V13M5.5 9a7 7 0 0 1 13 1v3a12 12 0 0 0 .8 4M4 13.5a14 14 0 0 0 1.2 4M9 14.5a11 11 0 0 0 1.7 5.5\"/>",
+  "folder": "<path d=\"M3 6.5A1.5 1.5 0 0 1 4.5 5H10l2 2.5h7.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z\"/>",
+  "download": "<path d=\"M12 4v12M7 11l5 5 5-5\"/><path d=\"M5 20h14\"/>"
 } as const;
 export type IconName = keyof typeof ICONS;

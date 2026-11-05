@@ -145,7 +145,7 @@ export function InventoryList() {
         </div>
       )}
       <p className="hint">التابات اللي تحت Customized: الفريق بيحدد الشرايح ويضيف أو يشيل. والوحدة اللي الـ last update بتاعها عدّى عليه أكتر من شهر بتظهر متأخرة، وبتتحسب في الـ activity بتاعة منار ورندا.</p>
-      {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} editable={me.can("inventory", "edit")} canConfirm={me.can("inventory", "approve")} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)}
+      {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} canConfirm={me.can("inventory", "approve")} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)}
         {...(me.can("inventory", "edit") ? { onComplete: () => setForm("edit") } : {})}
         actions={unit.data && (me.can("inventory", "edit") || me.can("inventory", "delete")) && (
           <div className="row">

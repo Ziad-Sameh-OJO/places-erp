@@ -1,23 +1,41 @@
 "use client";
+import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { StoredFile, UnitPhotoView } from "@places/contracts";
+import type { StoredFile, UnitDetail, UnitPhotoView } from "@places/contracts";
+import { fillsUnitFolder } from "@places/domain";
 import { FileUpload } from "@/components/file-upload";
-import { Chip, Icon, useAction } from "@/components/ui";
+import { Chip, Icon, Modal, Note, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useMe } from "@/lib/me";
 
 const usePhotos = (unitId: string) => useQuery({ queryKey: ["unit-photos", unitId], queryFn: () => api.get<UnitPhotoView[]>(`/inventory/units/${unitId}/photos`) });
+const when = (iso: string) => new Date(iso).toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" });
 
 /**
- * 2.4 · «Pic or info»: the unit's photos on its page instead of the Drive (M-03 1.2). The first one is the main photo
- * (the card). Manar and Randa add, order and remove; everyone who sees the unit sees them (the API decides).
+ * 2.4 · 2.22 · «Pic & Info»: the unit's folder on its page instead of the Drive (M-03 1.2). Everyone who sees the unit
+ * opens it, a file full size or downloaded, or the whole folder as one ZIP; Manar, Randa and the inventory team add,
+ * order and remove. The first photo is the main one (the card, the PDF's cover). The API decides; the buttons follow.
  */
-export function UnitPhotos({ unitId, editable }: { unitId: string; editable: boolean }) {
+export function UnitFolder({ u, label }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">; label?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  // inside a sheet row: opening (and using) the folder isn't a click on the row
+  return <span onClick={(e) => e.stopPropagation()}>
+    {label ? <button className="lnk" title="فولدر صور الوحدة" onClick={() => setOpen(true)}>{label}</button>
+      : <button className="btn ghost" onClick={() => setOpen(true)}><Icon name="folder" />فولدر الصور (Pic & Info)</button>}
+    {open && <Modal title={`فولدر ${u.code} · Pic & Info`} onClose={() => setOpen(false)}><Folder u={u} /></Modal>}
+  </span>;
+}
+
+function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area"> }) {
   const qc = useQueryClient();
   const run = useAction();
-  const photos = usePhotos(unitId).data ?? [];
-  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["unit-photos", unitId] }), qc.invalidateQueries({ queryKey: ["units"] }), qc.invalidateQueries({ queryKey: ["unit"] })]);
-  const add = (f: StoredFile) => void run(async () => { await api.post(`/inventory/units/${unitId}/photos`, { fileIds: [f.id] }); await refresh(); }, "الصورة اتضافت للوحدة");
-  const order = (ids: string[], ok: string) => void run(async () => { await api.put(`/inventory/units/${unitId}/photos/order`, { fileIds: ids }); await refresh(); }, ok);
+  const { me, can } = useMe();
+  const up = !!me && fillsUnitFolder(me.roles, { can });
+  const photos = usePhotos(u.id).data ?? [];
+  const base = `/inventory/units/${u.id}/photos`;
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["unit-photos", u.id] }), qc.invalidateQueries({ queryKey: ["units"] }), qc.invalidateQueries({ queryKey: ["unit"] })]);
+  const add = (f: StoredFile) => void run(async () => { await api.post(base, { fileIds: [f.id] }); await refresh(); }, `اترفع ملف في فولدر ${u.code} · الـ PDF مستني Confirm`);
+  const order = (ids: string[], ok: string) => void run(async () => { await api.put(`${base}/order`, { fileIds: ids }); await refresh(); }, ok);
   const move = (i: number, by: number) => {
     const ids = photos.map((p) => p.id);
     [ids[i], ids[i + by]] = [ids[i + by]!, ids[i]!];
@@ -25,33 +43,42 @@ export function UnitPhotos({ unitId, editable }: { unitId: string; editable: boo
   };
   const main = (i: number) => order([photos[i]!.id, ...photos.filter((_, j) => j !== i).map((p) => p.id)], "بقت الصورة الرئيسية");
   const remove = (p: UnitPhotoView) => {
-    if (!window.confirm(`تشيل «${p.name}» من صور الوحدة؟`)) return;
-    void run(async () => { await api.del(`/inventory/units/${unitId}/photos/${p.id}`); await refresh(); }, "الصورة اتشالت");
+    if (!window.confirm("تمسح الملف ده من فولدر الوحدة؟")) return;
+    void run(async () => { await api.del(`${base}/${p.id}`); await refresh(); }, "الملف اتمسح");
   };
 
-  if (!photos.length && !editable) return null;
-  return (
-    <section className="card flat">
-      <div className="row"><b>الصور</b><span className="hint">{photos.length ? "الأولى هي الصورة الرئيسية" : "مفيش صور لسه"}</span></div>
-      {!!photos.length && (
-        <div className="photo-grid">
-          {photos.map((p, i) => (
-            <figure key={p.id}>
-              <a href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={p.name} loading="lazy" /></a>
-              {p.main && <Chip tone="ok">الرئيسية</Chip>}
-              {editable && (
-                <figcaption className="row">
+  return <>
+    <div className="row">
+      <span className="hint">{u.project} · {u.area} · {photos.length} ملف</span><span className="spacer" />
+      {/* the API streams it with its name (<code> - Pic & Info.zip) and audits the download */}
+      {!!photos.length && <a className="btn ghost" href={`/api/v1${base}/zip`} download><Icon name="download" />نزّل الفولدر كله (ZIP)</a>}
+    </div>
+    {photos.length ? (
+      <div className="ufolder">
+        {photos.map((p, i) => (
+          <figure className="uf" key={p.id}>
+            <a href={p.url} target="_blank" rel="noopener noreferrer" title="افتح">{p.pdf ? <span className="uf-doc"><Icon name="file" />PDF</span> : <img src={p.url} alt={p.name} loading="lazy" />}</a>
+            {p.main && <Chip tone="ok">الرئيسية</Chip>}
+            <figcaption>
+              <span>{p.name}</span>
+              <small>{when(p.at)}{p.by ? ` · ${p.by}` : ""}</small>
+              <a className="uf-dl" href={p.download} download={p.name}><Icon name="download" />تحميل</a>
+              {up && (
+                <div className="row">
                   <button className="btn ghost sm" disabled={i === 0} onClick={() => move(i, -1)}>قدّم</button>
                   <button className="btn ghost sm" disabled={i === photos.length - 1} onClick={() => move(i, 1)}>أخّر</button>
-                  {!p.main && <button className="btn ghost sm" onClick={() => main(i)}>خليها الرئيسية</button>}
-                  <button className="btn ghost sm" title="امسح" aria-label="امسح الصورة" onClick={() => remove(p)}><Icon name="x" /></button>
-                </figcaption>
+                  {!p.main && !p.pdf && <button className="btn ghost sm" onClick={() => main(i)}>خليها الرئيسية</button>}
+                </div>
               )}
-            </figure>
-          ))}
-        </div>
-      )}
-      {editable && <FileUpload kind="image" label="ضيف صور (ترفع على السيستم)" onUploaded={add} />}
-    </section>
-  );
+            </figcaption>
+            {up && <button className="uf-del" aria-label={`امسح ${p.name}`} onClick={() => remove(p)}><Icon name="x" /></button>}
+          </figure>
+        ))}
+      </div>
+    ) : (
+      <div className="ufolder empty"><Icon name="folder" /><b>الفولدر فاضي</b><span className="hint">{up ? "ارفع كل صور الوحدة هنا." : "لسه محدش رفع صور للوحدة دي."}</span></div>
+    )}
+    {up && <div className="row"><FileUpload kind="image" label="ارفع صور" onUploaded={add} /><FileUpload kind="pdf" label="ارفع PDF" onUploaded={add} /></div>}
+    <Note>الصور دي بتتشاف من خانة Pic & Info في الشيت ومن صفحة الوحدة، ومنها بيتعمل الـ PDF والـ slide (أول صورة هي الغلاف). أول رفع بيتسجّل وقته وبيتحسب في «رفع الصور خلال 24 ساعة».</Note>
+  </>;
 }

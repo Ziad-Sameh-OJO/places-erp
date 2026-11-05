@@ -2,25 +2,27 @@
  * 2.4 · a unit's photos (M-03 1.2 · 3.1 «pic or info») against the real API, database and file storage: Manar and Randa
  * add, order and remove; whoever sees the unit sees them; the first is the main photo (the card). The upload tests need
  * storage (pnpm files:local locally; always in CI) — the permission ones don't.
- * Manar = inventory, Randa = resale, Mohamed Mohsen = sales, Basant = HR (no inventory).
+ * 2.22 · the «Pic & Info» folder: Sara (inventory team) uploads too; anyone who sees it downloads the whole folder as a ZIP.
+ * Manar = inventory, Randa = resale, Sara = inventory_staff, Mohamed Mohsen = sales, Basant = HR (no inventory).
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { crc32 } from "node:zlib";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { API, call, session } from "./helpers.ts";
 
 const up = await fetch(process.env.S3_ENDPOINT ?? "http://localhost:9000").then(() => true, () => false);
 const skip = !up && !process.env.CI ? "file storage isn't running (pnpm files:local or pnpm infra:up)" : false;
 
 const stamp = String(Date.now());
-let manar: string, randa: string, sales: string, hr: string, unitId: string;
+let manar: string, randa: string, sara: string, sales: string, hr: string, unitId: string;
 const files: string[] = [];
 // the smallest valid PNG (1×1) and a PDF header
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 const PDF = Buffer.from("%PDF-1.4\n%\n");
 
 before(async () => {
-  [manar, randa, sales, hr] = await Promise.all(["manar.ahmed@places.com", "randa.mohamed@places.com", "m.mohsen@places.com", "basant.elsawy@places.com"].map((e) => session(e)));
+  [manar, randa, sara, sales, hr] = await Promise.all(["manar.ahmed@places.com", "randa.mohamed@places.com", "sara.abdelhalim@places.com", "m.mohsen@places.com", "basant.elsawy@places.com"].map((e) => session(e)));
   const agentId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
   unitId = (await prisma.unit.create({ data: {
     code: `U-P${stamp}`, type: "Rent", project: `E2E ${stamp} صور`, area: "التجمع الخامس", space: 95, condition: "متشطب", agentId, pdfStatus: "confirmed",
@@ -45,6 +47,20 @@ async function upload(cookie: string, name: string, mime: string, body: Buffer) 
 const photos = (cookie: string) => call(`/inventory/units/${unitId}/photos`, { cookie });
 const add = (cookie: string, fileIds: string[]) => call(`/inventory/units/${unitId}/photos`, { method: "POST", cookie, body: { fileIds } });
 const order = (cookie: string, fileIds: string[]) => call(`/inventory/units/${unitId}/photos/order`, { method: "PUT", cookie, body: { fileIds } });
+const zip = (cookie: string) => fetch(`${API}/inventory/units/${unitId}/photos/zip`, { headers: { cookie } });
+/** The ZIP's entries, read back from its central directory (and each one's CRC checked). */
+function unzip(b: Buffer) {
+  const end = b.length - 22;
+  assert.equal(b.readUInt32LE(end), 0x06054b50);
+  let at = b.readUInt32LE(end + 16);
+  return Array.from({ length: b.readUInt16LE(end + 10) }, () => {
+    const len = b.readUInt16LE(at + 28), size = b.readUInt32LE(at + 20), local = b.readUInt32LE(at + 42);
+    const name = b.toString("utf8", at + 46, at + 46 + len), data = b.subarray(local + 30 + len, local + 30 + len + size);
+    assert.equal(crc32(data), b.readUInt32LE(at + 16), name);
+    at += 46 + len;
+    return { name, data };
+  });
+}
 const names = (r: { body: unknown }) => (r.body as Array<{ name: string; main: boolean }>).map((p) => `${p.name}${p.main ? "*" : ""}`);
 
 test("who may: sales and marketing see, only the editors add / order / remove, HR has no inventory", async () => {
@@ -58,6 +74,12 @@ test("who may: sales and marketing see, only the editors add / order / remove, H
   assert.equal((await add(manar, ["nope"])).status, 400);
   assert.equal((await add(manar, [])).status, 400);
   assert.equal((await call("/inventory/units/nope/photos", { cookie: manar })).status, 404);
+  // 2.22: everyone who sees the inventory downloads the folder; HR doesn't
+  assert.equal((await zip(hr)).status, 403);
+  const empty = await zip(sales);
+  assert.equal(empty.status, 200);
+  assert.equal(empty.headers.get("content-disposition"), `attachment; filename*=UTF-8''${encodeURIComponent(`U-P${stamp} - Pic & Info.zip`)}`);
+  assert.deepEqual(unzip(Buffer.from(await empty.arrayBuffer())), []);
 });
 
 test("Manar adds three photos: in order, the first is the main one, sales see them and the card shows it", { skip }, async () => {
@@ -77,10 +99,9 @@ test("Manar adds three photos: in order, the first is the main one, sales see th
   assert.match(row.photo ?? "", /X-Amz-Signature=/);
   assert.equal(row.photoCount, 3);
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Unit", entityId: unitId, action: "photos-add" } }));
-  // the same file can't be added twice, nor someone else's upload, nor a PDF
+  // the same file can't be added twice, nor someone else's upload
   assert.equal((await add(manar, [ids[0]!])).status, 400);
   assert.equal((await add(randa, [await upload(manar, "تاني.png", "image/png", PNG)])).status, 400);
-  assert.equal((await add(manar, [await upload(manar, "عقد.pdf", "application/pdf", PDF)])).status, 400);
 });
 
 test("ordering: the new first is the main one; a stale order is refused; Randa removes one and the rest move up", { skip }, async () => {
@@ -94,4 +115,38 @@ test("ordering: the new first is the main one; a stale order is refused; Randa r
   assert.equal((await call(`/inventory/units/${unitId}/photos/${ids[2]}`, { method: "DELETE", cookie: manar })).status, 404);
   const audit = await prisma.auditLog.findMany({ where: { entity: "Unit", entityId: unitId, action: { in: ["photos-order", "photos-remove"] } } });
   assert.equal(audit.length, 2);
+});
+
+test("2.22 · Sara uploads to the folder (the PDF waits for a confirm again); the sales download it all as a ZIP, audited", { skip }, async () => {
+  // a PDF goes in the folder too, first even — but the cover stays the first image (the card, the brochure)
+  const pdf = await upload(sara, "بروشور.pdf", "application/pdf", PDF);
+  assert.equal((await add(sara, [pdf])).status, 201);
+  const ids = ((await photos(manar)).body as Array<{ id: string }>).map((p) => p.id);
+  const o = await order(sara, [ids.at(-1)!, ...ids.slice(0, -1)]);
+  assert.equal(o.status, 200, JSON.stringify(o.body));
+  assert.deepEqual(names(o), ["بروشور.pdf", "واجهة.png*", "ريسبشن.png"]);
+  assert.equal((o.body as Array<{ pdf: boolean }>)[0]!.pdf, true);
+  const id = await upload(sara, "واجهة.png", "image/png", PNG);
+  const r = await add(sara, [id]);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.deepEqual(names(r), ["بروشور.pdf", "واجهة.png*", "ريسبشن.png", "واجهة.png"]);
+  const mine = (r.body as Array<{ id: string; by: string | null; at: string }>).at(-1)!;
+  assert.ok(mine.by);
+  assert.ok(!Number.isNaN(Date.parse(mine.at)));
+  assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).pdfStatus, "draft");
+  assert.equal((await call(`/inventory/units/${unitId}/pdf/confirm`, { method: "POST", cookie: manar })).status, 204);
+  const z = await zip(sales);
+  assert.equal(z.status, 200);
+  const got = unzip(Buffer.from(await z.arrayBuffer()));
+  assert.deepEqual(got.map((e) => e.name), [`U-P${stamp}/بروشور.pdf`, `U-P${stamp}/واجهة.png`, `U-P${stamp}/ريسبشن.png`, `U-P${stamp}/واجهة-1.png`], "every file by its name, a repeated name numbered");
+  assert.deepEqual(Buffer.from(got[0]!.data), PDF);
+  assert.deepEqual(Buffer.from(got[1]!.data), PNG);
+  const card = ((await call(`/inventory/units?q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: sales })).body as { items: Array<{ photo: string | null; photoCount: number }> }).items[0]!;
+  assert.equal(card.photoCount, 4);
+  assert.ok(await fetch(card.photo!).then((x) => x.arrayBuffer()).then((b) => Buffer.from(b).equals(PNG)), "the card's photo is the first image, not the PDF");
+  assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Unit", entityId: unitId, action: "photos-zip", after: { equals: { files: 4 } } } }));
+  // the sales still can't take one out; Sara can, and the PDF waits again
+  assert.equal((await call(`/inventory/units/${unitId}/photos/${id}`, { method: "DELETE", cookie: sales })).status, 403);
+  assert.equal((await call(`/inventory/units/${unitId}/photos/${id}`, { method: "DELETE", cookie: sara })).status, 204);
+  assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).pdfStatus, "draft");
 });

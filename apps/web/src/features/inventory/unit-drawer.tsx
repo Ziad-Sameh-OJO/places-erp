@@ -4,7 +4,7 @@ import type { UnitDetail } from "@places/contracts";
 import { Drawer } from "@/components/blocks";
 import { Chip, Empty, Note, Tabs } from "@/components/ui";
 import { CloseRequests } from "./close-requests";
-import { UnitPhotos } from "./unit-photos";
+import { UnitFolder } from "./unit-photos";
 import { UnitPdfTab } from "./unit-pdf-tab";
 import { amount, moneyExact, num } from "@/lib/format";
 import { COLS, UnitChips, cell, columnsFor } from "./unit-bits";
@@ -17,8 +17,8 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ar-EG"
  * and when it came in. «PDF & slide» (2.8): the documents and Manar's confirm. The tasks and map tabs come with their
  * tasks. Prev / next walk the list.
  */
-export function UnitDrawer({ ids, id, insider, editable, canConfirm, unit, error, onGo, onClose, onComplete, actions }: {
-  ids: string[]; id: string; insider: boolean; editable: boolean; canConfirm: boolean; unit: UnitDetail | undefined; error: Error | null;
+export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, onClose, onComplete, actions }: {
+  ids: string[]; id: string; insider: boolean; canConfirm: boolean; unit: UnitDetail | undefined; error: Error | null;
   onGo: (id: string) => void; onClose: () => void; onComplete?: () => void; actions?: ReactNode;
 }) {
   const [tab, setTab] = useState<"data" | "pdf">("data");
@@ -47,7 +47,7 @@ export function UnitDrawer({ ids, id, insider, editable, canConfirm, unit, error
       {u.type === "Income" && u.income
         ? <Note>Monthly = Lease/m × Area = {moneyExact(u.income.monthlyRent)} · Annual = ×12 = {moneyExact(u.income.annualRent)} · Yield = Annual ÷ Sale total = <b>{u.income.yieldPct != null ? `${u.income.yieldPct.toFixed(2)}%` : "—"}</b></Note>
         : u.pricePerSqm && <Note>Total price = السعر للمتر × المساحة = {amount(u.pricePerSqm)} × {num(u.space)} = <b>{moneyExact(u.totalPrice)}</b></Note>}
-      <UnitPhotos unitId={u.id} editable={editable} />
+      <div className="row"><UnitFolder u={u} /></div>
       {u.divisible && <Note>تنفع تتقسم{u.minSplit ? ` · أقل مساحة ${num(u.minSplit)} م` : ""}{u.splitNote ? ` · ${u.splitNote}` : ""}</Note>}
       <section className="card flat">
         <div className="row"><span className="hint">اتستلمت:</span><b>{when(u.receivedAt)}</b><span className="hint">اتدخلت:</span><b>{when(u.enteredAt)}</b>{entered != null && <Chip tone={entered <= 24 ? "ok" : "bad"}>{entered <= 24 ? "خلال 24 ساعة" : `بعد ${Math.round(entered)} ساعة`}</Chip>}</div>

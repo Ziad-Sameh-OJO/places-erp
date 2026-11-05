@@ -181,6 +181,12 @@ export const mediaOnTime = (enteredAt: Date, uploadedAt: Date): boolean => uploa
 export const MAX_UNIT_PHOTOS = 40;
 
 /**
+ * 2.22 · the unit's «Pic & Info» folder: the inventory's editors (Manar, Randa, whoever Manar gives edit) and the
+ * inventory team (Sara, Marwa) upload, order and remove; everyone who sees the inventory opens and downloads.
+ */
+export const fillsUnitFolder = (roles: readonly string[], g: Pick<Grants, "can">): boolean => keepsInventory(g) || roles.includes("inventory_staff");
+
+/**
  * The photos in the order Manar / Randa asked for (the first is the main one), or null when the order doesn't name
  * exactly the unit's photos, each once (a stale screen, or a photo removed meanwhile).
  */

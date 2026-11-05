@@ -206,8 +206,8 @@ export type UnitPhotosInput = z.infer<typeof UnitPhotosInput>;
 /** The unit's photos in the new order: the first one is the main photo. */
 export const UnitPhotoOrder = z.object({ fileIds: z.array(Id).max(MAX_UNIT_PHOTOS) });
 export type UnitPhotoOrder = z.infer<typeof UnitPhotoOrder>;
-/** One photo with a short link (5 minutes); `main` = the first one. */
-export interface UnitPhotoView { id: string; name: string; url: string; main: boolean }
+/** One file of the folder with a short link (5 minutes); `main` = the first image (the PDF's cover), never a `pdf`. 2.22: `download` saves it instead of opening it; `by`/`at` = who uploaded it, when. */
+export interface UnitPhotoView { id: string; name: string; url: string; download: string; pdf: boolean; main: boolean; by: string | null; at: string }
 
 /** 2.16 · a task Manar gives Randa, Sara or Marwa for today (at most 30 each, M-03 3.1). */
 export const TeamTaskInput = z.object({

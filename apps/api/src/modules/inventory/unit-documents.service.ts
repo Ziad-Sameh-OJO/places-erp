@@ -34,7 +34,7 @@ export class UnitDocumentsService {
   /** The PDF (A4) or the slide, for whoever may see the unit (a draft only for the inventory team, Q15). */
   async render(me: CurrentUser, unitId: string, kind: "pdf" | "slide"): Promise<{ name: string; body: Buffer }> {
     const u = await this.units.get(me, unitId);
-    const ids = (await this.repo.photos(unitId)).map((p) => p.fileId).slice(0, kind === "slide" ? 1 : SHEET_PHOTOS);
+    const ids = (await this.repo.photos(unitId)).filter((p) => !p.pdf).map((p) => p.fileId).slice(0, kind === "slide" ? 1 : SHEET_PHOTOS);
     // a photo storage can't give back is left out: the document still comes out
     const photos = (await Promise.all(ids.map((id) => this.files.dataUrl(id)))).filter((p): p is Photo => !!p && p.startsWith("data:image/"));
     const html = kind === "slide" ? unitSlide(u, photos[0] ?? null) : unitSheet(u, photos);
