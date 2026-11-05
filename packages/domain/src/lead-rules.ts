@@ -3,8 +3,8 @@
  * leads, editable without a developer. The jobs (SLA 1.16, No Answer 1.17, Draft 1.26, deal Alarm 5.6) read these,
  * never numbers in the code. Defaults are the demo's (data.js leadRules) and the requirements' (M-01 Q4, Q5).
  */
-import type { SlaRules } from "./leads.ts";
-import type { WorkCalendar } from "./business-time.ts";
+import { type SlaRules, leadSla } from "./leads.ts";
+import { type WorkCalendar, PLACES_CALENDAR, localDate } from "./business-time.ts";
 import type { Channel } from "./notifications.ts";
 
 /**
@@ -94,4 +94,44 @@ export function ruleHas(who: RuleWho, lead: { readonly ownerUserId: string | nul
 export function ruleRecipients(who: RuleWho, lead: { readonly ownerUserId: string | null; readonly ownerTlUserId: string | null }): string[] {
   const out = who.to.flatMap((x) => (x === OWNER ? (lead.ownerUserId ? [lead.ownerUserId] : []) : x === OWNER_TL ? (lead.ownerTlUserId ? [lead.ownerTlUserId] : []) : [x]));
   return [...new Set(out)];
+}
+
+/**
+ * The saved rules over the defaults, deep (a rule added later gets its default until someone changes it). Objects
+ * are merged; arrays and values are taken as saved. The API and the worker's jobs read the rules through this.
+ */
+export function withRuleDefaults(saved: unknown): LeadRules {
+  return merge(DEFAULT_LEAD_RULES, saved);
+}
+
+function merge<T>(base: T, over: unknown): T {
+  if (!over || typeof over !== "object" || Array.isArray(over) || !base || typeof base !== "object" || Array.isArray(base)) return (over ?? base) as T;
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(over as Record<string, unknown>)) out[k] = k in out ? merge(out[k], v) : v;
+  return out as T;
+}
+
+/** Is `now` on an official holiday (a day of one of the ranges), in the rules' calendar? Then the SLA runs on holiday times. */
+export function isHolidayNow(rules: LeadRules, now: Date, holidays: ReadonlySet<string>): boolean {
+  return holidays.has(localDate(now, calendarOf(rules, PLACES_CALENDAR)));
+}
+
+/**
+ * 1.16 · what the SLA job does now to one untouched Fresh lead (M-01 Q4, 2.4): «warn» the people of sla.warn once
+ * per assignment, «pull» it to the next salesperson, or nothing. The clock is the rules' working hours minus the
+ * official holidays; on a holiday it is wall-clock with the holiday times (22 / 24 hours by default). A lead past
+ * the pull time is pulled straight away: a warning then would come too late to help.
+ */
+export function slaStep(
+  lead: { readonly assignedAt: Date; readonly warned: boolean },
+  now: Date,
+  rules: LeadRules,
+  holidays: ReadonlySet<string>,
+): "warn" | "pull" | null {
+  if (!rules.sla.on) return null;
+  const calendar = { ...calendarOf(rules, PLACES_CALENDAR), holidays };
+  const sla = leadSla({ stage: "Fresh", touched: false, ownedByTelesales: false, assignedAt: lead.assignedAt }, now,
+    { holidayMode: isHolidayNow(rules, now, holidays), calendar, rules: slaRulesOf(rules) });
+  if (sla?.level === "pull") return "pull";
+  return sla?.level === "warn" && !lead.warned ? "warn" : null;
 }

@@ -68,3 +68,58 @@ test("a rule's people for one lead: «owner» is its salesperson, «ownerTl» th
   // the salesperson also named as a person: once
   assert.deepEqual(ruleRecipients({ to: ["owner", "u-mohsen"], ch: ["app"] }, { ownerUserId: "u-mohsen", ownerTlUserId: null }), ["u-mohsen"]);
 });
+
+/** Cairo winter time (+02:00): daylight saving ended on 30 Oct 2026. */
+const winter = (iso: string) => new Date(`${iso}+02:00`);
+
+test("1.16 the SLA job's step (M-01 Q4): 2h30 working → warn once, 3h → pull; after hours it waits for the morning", async () => {
+  const { slaStep } = await import("../src/lead-rules.ts");
+  const none = new Set<string>();
+  const at = cairo("2026-10-25T11:00:00"); // a Sunday
+  const step = (now: string, warned = false) => slaStep({ assignedAt: at, warned }, cairo(now), R, none);
+  assert.equal(step("2026-10-25T13:29:00"), null);
+  assert.equal(step("2026-10-25T13:30:00"), "warn");
+  assert.equal(step("2026-10-25T13:45:00", true), null); // warned already: never twice
+  assert.equal(step("2026-10-25T14:00:00"), "pull");
+  assert.equal(step("2026-10-25T14:00:00", true), "pull");
+  // landed Thursday 18:00: one hour that day, Friday off, the rest from 11:00 on Saturday
+  const thu = cairo("2026-10-29T18:00:00");
+  assert.equal(slaStep({ assignedAt: thu, warned: false }, winter("2026-10-31T12:29:00"), R, none), null);
+  assert.equal(slaStep({ assignedAt: thu, warned: false }, winter("2026-10-31T12:30:00"), R, none), "warn");
+  assert.equal(slaStep({ assignedAt: thu, warned: false }, winter("2026-10-31T13:00:00"), R, none), "pull");
+});
+
+test("1.16 on an official holiday (a range, like Eid) the clock is wall-clock: warn at 22h, pull at 24h", async () => {
+  const { slaStep } = await import("../src/lead-rules.ts");
+  const eid = holidayDays([{ from: "2026-11-01", to: "2026-11-03" }]);
+  const at = winter("2026-11-01T10:00:00");
+  assert.equal(slaStep({ assignedAt: at, warned: false }, winter("2026-11-01T13:00:00"), R, eid), null); // a working day would pull at 3h
+  assert.equal(slaStep({ assignedAt: at, warned: false }, winter("2026-11-02T07:59:00"), R, eid), null);
+  assert.equal(slaStep({ assignedAt: at, warned: false }, winter("2026-11-02T08:00:00"), R, eid), "warn");
+  assert.equal(slaStep({ assignedAt: at, warned: false }, winter("2026-11-02T10:00:00"), R, eid), "pull");
+});
+
+test("1.16 the times, hours and the switch come from «قواعد الليدز», not the code", async () => {
+  const { slaStep } = await import("../src/lead-rules.ts");
+  const at = cairo("2026-10-25T11:00:00"), none = new Set<string>();
+  const quick = { ...R, sla: { ...R.sla, warnMin: 30, pullMin: 60 } };
+  assert.equal(slaStep({ assignedAt: at, warned: false }, cairo("2026-10-25T11:30:00"), quick, none), "warn");
+  assert.equal(slaStep({ assignedAt: at, warned: false }, cairo("2026-10-25T12:00:00"), quick, none), "pull");
+  assert.equal(slaStep({ assignedAt: at, warned: false }, cairo("2026-10-25T18:00:00"), { ...R, sla: { ...R.sla, on: false } }, none), null);
+  // 09:00–17:00 with Friday and Saturday off: Thursday 16:00 → 1 hour, then Sunday 09:00 → 11:00 makes 3
+  const early = { ...R, work: { from: 9 * 60, to: 17 * 60, off: [5, 6] } };
+  const thu = cairo("2026-10-29T16:00:00");
+  assert.equal(slaStep({ assignedAt: thu, warned: false }, winter("2026-11-01T10:29:00"), early, none), null);
+  assert.equal(slaStep({ assignedAt: thu, warned: false }, winter("2026-11-01T10:30:00"), early, none), "warn");
+  assert.equal(slaStep({ assignedAt: thu, warned: false }, winter("2026-11-01T11:00:00"), early, none), "pull");
+});
+
+test("saved rules over the defaults: a rule saved before a new one existed gets the new one's default", async () => {
+  const { withRuleDefaults } = await import("../src/lead-rules.ts");
+  const r = withRuleDefaults({ sla: { warnMin: 60 }, work: { off: [5, 6] } });
+  assert.equal(r.sla.warnMin, 60);
+  assert.equal(r.sla.pullMin, 180);
+  assert.deepEqual(r.work.off, [5, 6]);
+  assert.deepEqual(r.sla.warn, R.sla.warn);
+  assert.deepEqual(withRuleDefaults(null), R);
+});
