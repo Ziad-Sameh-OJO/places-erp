@@ -566,9 +566,16 @@ const stageTo = (id: string, cookie: string, stage: string) => call(`/leads/${id
 
 test("Qualified through the API (M-01 2.7, Q8): Cancellation / Hold before Interested don't qualify; once Interested it never goes back", async () => {
   const id = await gapLead(1, "m.mohsen@places.com");
-  const qualified = async () => (await call(`/leads/${id}`, { cookie: mohsen })).body.qualified as boolean;
+  const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
+  const qualified = async () => (await call(`/leads/${id}`, { cookie: ops })).body.qualified as boolean;
+  // Not Interested / Cancellation go to the Draft Admin (1.27): Operations sends the lead back to him, as Fresh
+  const backFromDraftAdmin = async () => {
+    const stay = await prisma.leadDraft.findFirstOrThrow({ where: { leadId: id, kind: "admin", decidedAt: null } });
+    assert.equal((await call(`/leads/drafts/${stay.id}/decide`, { method: "POST", cookie: ops, body: { to: mohsenId } })).status, 201);
+  };
   assert.equal((await stageTo(id, mohsen, "Cancellation")).status, 200);
   assert.equal(await qualified(), false); // Q8: Cancellation counts only after Interested
+  await backFromDraftAdmin();
   assert.equal((await stageTo(id, mohsen, "Hold")).status, 200);
   assert.equal(await qualified(), false);
   assert.equal((await stageTo(id, mohsen, "Interested")).status, 200);
@@ -576,6 +583,7 @@ test("Qualified through the API (M-01 2.7, Q8): Cancellation / Hold before Inter
   for (const back of ["Not Interested", "No Answer", "Cancellation", "Fresh"]) {
     assert.equal((await stageTo(id, mohsen, back)).status, 200);
     assert.equal(await qualified(), true, `still Qualified after ${back}`);
+    if (back === "Not Interested" || back === "Cancellation") await backFromDraftAdmin();
   }
   // the list's Qualified filter follows the stored flag, not the current stage
   const listed = (await call(`/leads?q=${gapCode(1)}&qualified=true`, { cookie: mohsen })).body;

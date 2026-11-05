@@ -89,12 +89,14 @@ test("Operations decides: Telesales · a salesperson (Fresh again) · keep; the 
   const tele = await decide(cHeba, (await stayOf(L.toTelesales)).id, "telesales");
   assert.equal(tele.status, 201, JSON.stringify(tele.body));
   let l = await get(L.toTelesales);
-  assert.equal(l.assignedToId, hadeer.id);
+  // the rules' Telesales, or the first one by name when none is chosen (other files may add Telesales accounts)
+  const teleEmp = await prisma.employee.findUniqueOrThrow({ where: { id: l.assignedToId! }, select: { userId: true, user: { select: { roles: { select: { role: { select: { key: true } } } } } } } });
+  assert.ok(teleEmp.user.roles.some((r) => r.role.key === "telesales"));
   assert.equal(l.ownedByTelesales, true);
   assert.equal(l.stage, "FRESH");
   assert.equal(l.draft, null);
   assert.equal((await stayOf(L.toTelesales)).decision, "telesales");
-  assert.equal(await prisma.notification.count({ where: { userId: hadeer.userId, text: `ليد E2E ${stamp} DA 1 اتبعتلك من الـ Draft Admin` } }), 1);
+  assert.equal(await prisma.notification.count({ where: { userId: teleEmp.userId, text: `ليد E2E ${stamp} DA 1 اتبعتلك من الـ Draft Admin` } }), 1);
 
   assert.equal((await decide(c1, (await stayOf(L.toSales)).id, s2.id)).status, 403);
   assert.equal((await decide(cHeba, (await stayOf(L.toSales)).id, s2.id)).status, 201);

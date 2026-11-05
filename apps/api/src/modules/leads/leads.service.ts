@@ -415,7 +415,8 @@ export class LeadsService {
       const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id,
-        before: { stage: lead.stage, assignedToId: lead.assignedToId }, after: { stage: next.stage, assignedToId: next.assignedToId, draft: next.draft } }, tx);
+        before: { stage: lead.stage, ...(toAdmin ? { assignedToId: lead.assignedToId } : {}) },
+        after: { stage: next.stage, ...(toAdmin ? { assignedToId: null, draft: "admin" } : {}) } }, tx);
       if (input.stage === "Done Deal") await this.clientFile(tx, me, id);
       if (toAdmin) await tx.leadDraft.create({ data: { leadId: id, kind: "admin", fromId: lead.assignedToId, stage: toDb(input.stage) } });
       return { next, toAdmin, from: lead.assignedToId };
