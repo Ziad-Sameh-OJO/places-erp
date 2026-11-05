@@ -35,6 +35,12 @@ export const DealNote = z.object({
 });
 export type DealNote = z.infer<typeof DealNote>;
 
+/** 4.9: marketing attaches the client's logo (a finished upload, 0.9). */
+export const DealLogo = z.object({ fileId: Id });
+export type DealLogo = z.infer<typeof DealLogo>;
+/** Q26: what marketing may see of a Done Deal — location, space, company, type and the Buyer, nothing else. */
+export interface MarketingDeal { id: string; code: string; buyer: string; company: string; type: DealType; space: number; location: string; logo: { id: string; name: string } | null }
+
 export const DealFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
   status: z.enum(DEAL_STATUSES as [DealStatus, ...DealStatus[]]).optional(),
