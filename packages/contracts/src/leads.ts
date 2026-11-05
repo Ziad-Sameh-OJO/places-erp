@@ -248,3 +248,31 @@ export interface LeadTodayItem {
   lead: { id: string; name: string }; salesperson: string | null;
   sla: LeadRow["sla"]; visit: { id: string; kind: "Visit" | "Meeting"; at: string } | null;
 }
+
+/**
+ * «إدخال جماعي (شيت أرقام)» (1.19, M-01 · answers-leads-telesales): the mobiles as typed or read from a sheet, with
+ * the channel and the campaign they came from. The server finds the mobiles in the text (bulkMobiles).
+ */
+export const BulkRequest = z.object({
+  numbers: z.string({ required_error: "اكتب الأرقام" }).trim().min(1, "اكتب الأرقام").max(200_000, "الأرقام كتير · قسّمها"),
+  channel: z.string({ required_error: "اختار الـ channel" }).trim().min(1, "اختار الـ channel").max(80),
+  campaignId: Id.optional(),
+});
+export type BulkRequest = z.infer<typeof BulkRequest>;
+
+/** «وافق ووزّع» or «ارفض الطلب» (the reason is required to reject). */
+export const BulkDecision = z.object({ approve: z.boolean(), reason: z.string().trim().max(500).optional() })
+  .refine((d) => d.approve || !!d.reason, { message: "اكتب سبب الرفض", path: ["reason"] });
+export type BulkDecision = z.infer<typeof BulkDecision>;
+
+/** «شيله» / «رجّعه» a salesperson from this request's distribution. */
+export const BulkExclude = z.object({ excluded: z.boolean() });
+export type BulkExclude = z.infer<typeof BulkExclude>;
+
+export interface BulkSent { id: string; count: number; duplicates: number }
+export interface BulkPerson { id: string; name: string; onLeave: boolean; excluded: boolean; count: number }
+/** Operations' «مراجعة التوزيع»: how many are new, how many we already have, and each salesperson's share today. */
+export interface BulkReview {
+  id: string; at: string; by: { id: string; name: string }; channel: string; campaign: { id: string; name: string } | null;
+  total: number; duplicates: number; fresh: number; people: BulkPerson[];
+}

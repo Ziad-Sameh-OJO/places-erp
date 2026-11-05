@@ -5,16 +5,27 @@ import { DUPLICATE_FIELDS } from "@places/domain";
 import { useMe } from "@/lib/me";
 import { Card, Chip, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { useDecideDuplicate, useDuplicates } from "./use-duplicates";
+import { BulkReviewModal, useBulkPending } from "./bulk";
 
-/** Demo «طلبات مستنية الأوبريشن»: each duplicate with «قرّري». Shown only to people who may decide (M-01 Q7). */
+/** Demo «طلبات مستنية الأوبريشن»: each bulk entry with «راجع التوزيع» (1.19) and each duplicate with «قرّري» (M-01 Q7). Only for people who may decide. */
 export function OperationsQueue() {
   const { can } = useMe();
   const dupes = useDuplicates(can("leads", "approve"));
+  const bulks = useBulkPending(can("leads", "approve"));
   const [open, setOpen] = useState<DuplicateRow | null>(null);
+  const [review, setReview] = useState<string | null>(null);
   const items = dupes.data ?? [];
-  if (!items.length) return null;
+  const pendBulk = bulks.data ?? [];
+  const reviewing = pendBulk.find((b) => b.id === review);
+  if (!items.length && !pendBulk.length) return null;
   return (
-    <Card className="attn" title="طلبات مستنية الأوبريشن" icon="alert" extra={<Chip tone="warn">{items.length}</Chip>}>
+    <Card className="attn" title="طلبات مستنية الأوبريشن" icon="alert" extra={<Chip tone="warn">{items.length + pendBulk.length}</Chip>}>
+      {pendBulk.map((b) => (
+        <div className="line-item" key={b.id}>
+          <span><Icon name="upload" /><span>إدخال جماعي من {b.by.name}: <b className="num">{b.total}</b> رقم · {b.channel} / {b.campaign?.name ?? "—"}</span></span>
+          <button className="btn sm" onClick={() => setReview(b.id)}>راجع التوزيع</button>
+        </div>
+      ))}
       {items.map((x) => (
         <div className="line-item" key={x.id}>
           {/* the text in one inner span: .line-item > span is a flex row, and on phones each piece became its own column */}
@@ -23,6 +34,7 @@ export function OperationsQueue() {
         </div>
       ))}
       {open && <DuplicateReview row={open} onClose={() => setOpen(null)} />}
+      {reviewing && <BulkReviewModal bulk={reviewing} onClose={() => setReview(null)} />}
     </Card>
   );
 }

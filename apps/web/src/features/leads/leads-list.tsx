@@ -13,6 +13,7 @@ import { LeadsBoard } from "./leads-board";
 import { LeadDrawer } from "./lead-drawer";
 import { NewLead } from "./new-lead";
 import { OperationsQueue } from "./duplicates";
+import { BulkNew } from "./bulk";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
 
@@ -27,6 +28,7 @@ export function LeadsList() {
   const [kind, setKind] = useState<LeadKind>("client"); // the tab; the filters stay when it changes (1.28)
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [bulk, setBulk] = useState(false);
   // links from the home board and the notifications: «/leads?open=<id>» opens the lead, «/leads?new=1» the form
   const canCreate = can("leads", "create");
   useEffect(() => { setOpen(new URLSearchParams(window.location.search).get("open")); }, []);
@@ -67,12 +69,14 @@ export function LeadsList() {
         </div>
         <span className="hint num">{num(total)} ليد</span>
         <span className="spacer" />
+        {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />إدخال جماعي (Import)</button>}
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />ليد جديد</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
         ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
         : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
+      {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}
       {can("leads", "create") && <Fab onClick={() => setCreating(true)} label="ليد جديد" />}
       {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
       {!failed && mode === "list" && pages > 1 && (

@@ -464,6 +464,27 @@ model LeadArrival {
   @@schema("sales")
 }
 
+/// 1.19 «إدخال جماعي»: a sheet of mobiles Telesales sends; Operations takes salespeople out, then approves (the new
+/// numbers become leads given in turn over today's order, M-01 3.2) or rejects with a reason.
+model LeadBulk {
+  id          String    @id @default(cuid())
+  numbers     String[]  // the mobiles, each once, as the leads keep them
+  channel     String
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id])
+  status      String    @default("pending") // pending · approved · rejected
+  excluded    String[]  // employee ids Operations took out of this distribution («شيله»)
+  reason      String?   // why it was rejected
+  byUserId    String
+  decidedById String?
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@schema("sales")
+}
+
+
 /// A lead entered again with a mobile we already have. Operations compares both and chooses what stays and which
 /// channel gets the credit (M-01 Q7). `data` is what was entered; `decision` what Operations chose.
 model LeadDuplicate {
@@ -949,6 +970,7 @@ model Campaign {
   adUrl     String?
   leads     Lead[]
   arrivals  LeadArrival[]
+  bulks     LeadBulk[]
   createdAt DateTime @default(now())
 
   @@schema("marketing")
