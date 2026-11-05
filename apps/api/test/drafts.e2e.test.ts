@@ -109,7 +109,8 @@ test("only Operations sees the Draft; the salesperson and the lists don't", asyn
   assert.equal(row.days, 7);
   assert.equal(row.kept, false);
   // not in Operations' list, nor counted in the tiles; the Draft tab's count is there for her only
-  assert.equal((await call(`/leads?q=${encodeURIComponent(`E2E ${stamp} DR`)}`, { cookie: cHeba })).body.total, 0);
+  const found = (await call(`/leads?q=${encodeURIComponent(`E2E ${stamp} DR`)}`, { cookie: cHeba })).body.items.map((x: { id: string }) => x.id);
+  assert.deepEqual(found, [L.noAnswer]); // the three in the Draft are gone from the list
   const summary = (await call("/leads/summary?kind=client", { cookie: cHeba })).body;
   assert.ok(summary.drafts >= 3);
   assert.deepEqual(summary.draftRules, { days: 7, holdDays: 14 });
