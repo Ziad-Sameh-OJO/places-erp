@@ -55,6 +55,24 @@ model User {
   @@schema("access")
 }
 
+/// M-09 2.2 · 7.1: a leaver's open leads and tasks move to someone else once their direct manager approves.
+model Handover {
+  id         String    @id @default(cuid())
+  fromUserId String    // the person leaving
+  toUserId   String    // who gets the work
+  byUserId   String    // who asked (HR / Super Admin)
+  approverId String    // the leaver's direct manager's account when it was asked
+  status     String    @default("pending") // pending · approved · rejected
+  leads      Int?      // how many moved, once approved
+  tasks      Int?
+  decidedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([approverId, status])
+  @@index([fromUserId, status])
+  @@schema("access")
+}
+
 model Session {
   id        String   @id // random 256-bit token hash
   userId    String

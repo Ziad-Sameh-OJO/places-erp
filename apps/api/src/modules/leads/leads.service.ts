@@ -23,6 +23,7 @@ import { ClientsService } from "../clients/clients.service";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
 const NO_LEAD = "الليد ده مش موجود أو مبقاش معاك";
+const openOf = (employeeId: string): Prisma.LeadWhereInput => ({ assignedToId: employeeId, archivedAt: null, stage: { notIn: ["DONE_DEAL", "NOT_INTERESTED", "CANCELLATION"] } });
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
 /** The demo's Kanban shows the newest 30 cards of a lane; its header shows the real count. */
 const CARDS_PER_LANE = 30;
@@ -309,6 +310,24 @@ export class LeadsService {
     if (!owner) return;
     const to = ruleRecipients(rules.newLead, { ownerUserId: owner.userId, ownerTlUserId: owner.teamLeader?.userId ?? null });
     await this.notifications.notify({ event: "lead.assigned", text: `ليد جديد ${name} راح لـ ${owner.name} (${area})`, link: `/leads?open=${leadId}`, to, channels: [...rules.newLead.ch] });
+  }
+
+  /** M-09 2.2 · 7.1: how many open leads (not Done Deal / Not Interested / Cancellation) a leaver still holds. */
+  openCount(employeeId: string) {
+    return this.db.lead.count({ where: openOf(employeeId) });
+  }
+
+  /**
+   * M-09 2.2 · 7.1: a leaver's open leads go to `toId` (Employee ids) inside the caller's transaction (the manager's
+   * approval), with a fresh SLA clock as in «حوّله» (1.14); each lead's log says from whom (demo admin.js).
+   */
+  async handOver(tx: Prisma.TransactionClient, fromId: string, toId: string, byUserId: string): Promise<string[]> {
+    const ids = (await tx.lead.findMany({ where: openOf(fromId), select: { id: true } })).map((l) => l.id);
+    if (!ids.length) return ids;
+    const [from] = await this.repo.employeeNames([fromId], tx);
+    await tx.lead.updateMany({ where: { id: { in: ids } }, data: { assignedToId: toId, assignedAt: new Date(), touched: false, firstActionAt: null, slaWarnedAt: null } });
+    for (const id of ids) await this.repo.addActivity(tx, id, "assign", `اتنقل من ${from?.name ?? ""} (الحساب اتوقف)`, byUserId);
+    return ids;
   }
 
   /**
