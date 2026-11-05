@@ -700,6 +700,7 @@ model Unit {
   deals             Deal[]
   suggestedFor      LeadUnit[]
   shownInVisits     VisitUnit[]
+  tasks             Task[]
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   archivedAt        DateTime?
@@ -783,18 +784,21 @@ model Campaign {
 
 model Task {
   id        String    @id @default(cuid())
-  kind      String    // photo · retouch · followup · toResale · marketing · team
-  title     String?
+  kind      String    // a key of TASK_KINDS in @places/domain: photo · retouch · followup · toResale · marketing
+  title     String?   // a marketing task's type («أنواع تاسكات التسويق»: Website leasing, Market survey…)
   unitId    String?
-  byUserId  String
+  unit      Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  byUserId  String?   // null = the system (the month job's follow-up, M-03 2.4)
   toUserId  String
   dueOn     DateTime  @db.Date
   status    String    @default("todo") // todo · progress · uploaded · done
   returned  Int       @default(0)      // sent back for changes (KPI: accepted first time)
+  note      String?
   doneAt    DateTime?
   createdAt DateTime  @default(now())
 
   @@index([toUserId, status])
+  @@index([unitId])
   @@schema("marketing")
 }
 

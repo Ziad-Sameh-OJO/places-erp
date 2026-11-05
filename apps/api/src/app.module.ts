@@ -22,6 +22,7 @@ import { ProcurementModule } from "./modules/procurement/procurement.module";
 import { HrModule } from "./modules/hr/hr.module";
 import { TicketsModule } from "./modules/tickets/tickets.module";
 import { KpisModule } from "./modules/kpis/kpis.module";
+import { MarketingModule } from "./modules/marketing/marketing.module";
 
 /**
  * Guards run in this order on every request: rate limit → signed in (unless @Public) → allowed (@Requires).
@@ -32,7 +33,7 @@ import { KpisModule } from "./modules/kpis/kpis.module";
     // rate limits protect production; locally they'd only get in the way of the e2e tests
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 120 }], skipIf: () => process.env.NODE_ENV !== "production" }),
     DatabaseModule, MailModule, AuthModule, AuthzModule, AuditModule, BusinessTimeModule, NotificationsModule, FilesModule, DocumentsModule,
-    AccessModule, SettingsModule, LeadsModule, InventoryModule, FinanceModule, ProcurementModule, HrModule, TicketsModule, KpisModule,
+    AccessModule, SettingsModule, LeadsModule, InventoryModule, FinanceModule, ProcurementModule, HrModule, TicketsModule, KpisModule, MarketingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
