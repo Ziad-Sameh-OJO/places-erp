@@ -33,7 +33,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
     const req = { name: file.name, mime: file.type, size: file.size };
     const check = UploadRequest.safeParse(req);
     if (!check.success || !(FILE_KINDS[kind].mimes as readonly string[]).includes(file.type)) {
-      return toast(check.success ? `لازم ${FILE_KINDS[kind].label === "الصورة" ? "صورة" : "PDF"}` : check.error.issues[0]!.message);
+      return toast(check.success ? `لازم ${FILE_KINDS[kind].label === "الصورة" ? "صورة" : "PDF"}` : check.error.issues[0]!.message, "bad");
     }
     setDone(null);
     setPreview(kind === "image" ? URL.createObjectURL(file) : null);
@@ -45,7 +45,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
       setDone(f);
       onUploaded?.(f);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "الرفع فشل");
+      toast(e instanceof Error ? e.message : "الرفع فشل", "bad");
     } finally {
       setPct(null);
     }
