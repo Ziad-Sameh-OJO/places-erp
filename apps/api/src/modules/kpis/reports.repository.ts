@@ -114,9 +114,12 @@ export class ReportsRepository {
     return tx.salesTarget.findMany({ where: { month, employeeId: { in: employeeIds } } });
   }
 
-  /** Deals of these people with a collection in [from, to), with all their payments (the first collection decides the Transaction). */
+  /**
+   * Deals of these people with a collection in [from, to), with all their payments (the first collection decides the Transaction).
+   * A cancelled deal is left out: it drops out of the achievements and «الـ Transactions» list (M-02 2.3 (12) · 5.7).
+   */
   deals(employeeIds: string[], from: Date, to: Date, tx: Tx = this.db): Promise<DealRecord[]> {
-    return tx.deal.findMany({ where: { participants: { some: { employeeId: { in: employeeIds } } }, payments: { some: { receivedAt: { gte: from, lt: to } } } }, ...DEAL, orderBy: { closedAt: "asc" } });
+    return tx.deal.findMany({ where: { status: { not: "CANCELLED" }, participants: { some: { employeeId: { in: employeeIds } } }, payments: { some: { receivedAt: { gte: from, lt: to } } } }, ...DEAL, orderBy: { closedAt: "asc" } });
   }
 
   visits(userIds: string[], from: Date, to: Date) {

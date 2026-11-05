@@ -210,6 +210,7 @@ export class LedgerService {
       if (!parent) throw new NotFoundException(NO_ACCOUNT);
       if (SYSTEM_CODES.has(parent.code)) throw new BadRequestException("مينفعش حسابات فرعية تحت الحساب ده · السيستم بيحسبه");
       const nature = natureOf(parent.code);
+      await this.repo.lockChildren(parent.code, tx); // two accounts added at once under one parent would take the same code
       const codes = await this.repo.childCodes(parent.id, tx);
       // the leaf's own movements go to «<name> (عام)» so the parent stays the sum of its children
       if (!parent._count.children && parent._count.lines) {
@@ -247,6 +248,7 @@ export class LedgerService {
   async subAccount(me: CurrentUser, parentCode: string, name: string, tx: Tx, holderId?: string): Promise<AccountRow> {
     const parent = await this.repo.accountByCode(parentCode, tx);
     if (!parent) throw new BadRequestException(NO_ACCOUNT);
+    await this.repo.lockChildren(parent.code, tx);
     const account = await this.repo.createAccount({ code: nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx)), name, parentId: parent.id, nature: parent.nature, kind: null, ...(holderId ? { holderId } : {}) }, tx);
     await this.audit.record({ module: "finance", entity: "Account", entityId: account.id, action: "create", userId: me.id, after: { code: account.code, name: account.name, parent: parent.code } }, tx);
     return account;
@@ -269,6 +271,12 @@ export class LedgerService {
     const account = await this.repo.createAccount({ code, name: party.name, parentId: parent.id, nature: parent.nature, kind: null, partyType: party.type, partyId: party.id }, tx);
     await this.audit.record({ module: "finance", entity: "Account", entityId: account.id, action: "create", userId: me.id, after: { code, name: account.name, parent: parent.code, party: party.type } }, tx);
     return account;
+  }
+
+  /** 9.15: a salesperson's own 21103 account, if it was opened, with its balance (what's owed to them). */
+  async partyBalance(type: "client" | "sales", id: string, tx?: Tx): Promise<{ account: AccountRow | null; balance: Piasters }> {
+    const account = await this.repo.partyAccount(type, id, tx);
+    return { account, balance: account ? (await this.balances(tx)).balance.get(account.id) ?? 0 : 0 };
   }
 
   /** What entries from one source already put on an account, credit − debit (5.8: the TL's commission posted for a month). */

@@ -101,3 +101,28 @@ export function transactionsOf(salesId: string, deals: readonly DealMoney[]): nu
 export function targetAchieved(salesId: string, deals: readonly DealMoney[], schemeOf: (id: string) => number): Piasters {
   return deals.filter(countsInTarget).reduce((sum, d) => sum + splitDeal(d, schemeOf).filter((s) => s.salesId === salesId).reduce((a, s) => a + s.targetShare, 0), 0);
 }
+
+/** 9.15 (4 Nov): a salesperson's commission on one deal is payable once it's fully collected, minus what was paid on it. */
+export function payoutDue(d: DealMoney, salesId: string, schemeOf: (id: string) => number, paid: Piasters): Piasters {
+  if (d.status !== "Fully Collected") return 0;
+  const earned = splitDeal(d, schemeOf).filter((s) => s.salesId === salesId).reduce((a, s) => a + s.commission, 0);
+  return Math.max(0, earned - paid);
+}
+
+/** The deal's line in «كشف عمولة» (demo finance.js): due · paid · waiting for the rest · not collected yet. */
+export function payoutState(d: DealMoney, due: Piasters): string {
+  if (d.status === "Fully Collected") return due > 0 ? "مستحقة · اتحصّلت بالكامل" : "اتصرفت";
+  return collected(d) > 0 ? `مستنية باقي التحصيل ${formatEGP(remaining(d))}` : "لسه مااتحصّلتش";
+}
+
+/**
+ * Why a «صرف عمولة سيلز» can't go out, or null: never above what's due on the deal (or the TL's own figure), and never
+ * above their 21103 balance — a cancelled deal already paid out leaves it lower, so the next payout takes it back (Q12).
+ */
+export function payoutProblem(due: Piasters, balance: Piasters, amount: Piasters): string | null {
+  if (!(amount > 0)) return "المبلغ لازم يبقى أكبر من صفر";
+  if (due <= 0) return "مفيش عمولة مستحقة هنا";
+  if (amount > due) return `المستحق ${formatEGP(due)} بس`;
+  if (amount > balance) return `رصيد حسابه في العمولات المستحقة ${formatEGP(Math.max(0, balance))} بس`;
+  return null;
+}

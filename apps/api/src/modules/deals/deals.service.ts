@@ -224,6 +224,8 @@ export class DealsService {
     const { code, ...out } = result;
     const userIds = (await this.repo.employeeNames(signers)).map((e) => e.userId);
     await this.notifications.notify({ event: "deal.tcr", userIds, link: link(id), text: `${out.tcr}: TCR جديدة على ${code} · امضي عليها` });
+    // 9.15: fully collected → the accountant pays each salesperson's commission («صرف عمولة سيلز»)
+    if (out.status === "Fully Collected") await this.notifications.notify({ event: "finance.commission_due", link: "/finance", text: `${code} اتحصّلت بالكامل · عمولات السيلز عليها بقت مستحقة` });
     return out;
   }
 
@@ -401,7 +403,7 @@ export class DealsService {
 }
 
 /** The deal as commission.ts reads it; the Seller counts once Manar approved them (5.4). */
-function toMoney(d: DealRecord, payments: Array<{ side: string; amount: { toFixed(n: number): string } }>): DealMoney {
+export function toMoney(d: DealRecord, payments: Array<{ side: string; amount: { toFixed(n: number): string } }>): DealMoney {
   const sellers = d.participants.filter((p) => p.side === "SELLER" && p.approved).map((p) => p.employee.id);
   return {
     status: label(d.status), commissionOwner: fromDecimal(d.commissionOwner.toFixed(2)), commissionClient: fromDecimal(d.commissionClient.toFixed(2)),
