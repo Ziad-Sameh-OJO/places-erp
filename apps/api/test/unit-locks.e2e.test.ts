@@ -120,6 +120,29 @@ test("only Manar confirms the Rent close (Q16): Randa 403, sales 403; then the R
   await assert.rejects(units.lock(unitId, deals.rent2, { type: "Rent", userId: manarId }), status(400));
 });
 
+test("2.10 · the rented / sold sheet (M-03 5.2): filtered by the day it closed, the closed type, area and the agent", async () => {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  const closed = (q: string) => codesIn(`&view=closed${q}`);
+  assert.ok((await closed(`&closedFrom=${today}&closedTo=${today}`)).includes(code));
+  assert.ok(!(await closed(`&closedFrom=${tomorrow}`)).includes(code), "closed today, not tomorrow");
+  assert.ok(!(await closed(`&closedTo=2020-01-01`)).includes(code));
+  assert.ok((await closed("&type=Rent")).includes(code));
+  assert.ok(!(await closed("&type=Resale")).includes(code), "its Resale side is still open");
+  assert.ok(!(await closed(`&type=Resale&closedFrom=${today}`)).includes(code));
+  assert.ok((await closed(`&area=${encodeURIComponent("التجمع الخامس")}&agentId=${agentId}`)).includes(code));
+  assert.ok(!(await closed(`&area=${encodeURIComponent("الشيخ زايد")}`)).includes(code));
+  assert.equal((await call(`/inventory/units?view=closed&closedFrom=${tomorrow}&closedTo=${today}`, { cookie: manar })).status, 400, "«لحد» before «من»");
+  const row = async (cookie: string) => ((await call(`/inventory/units?view=closed&q=${encodeURIComponent(P)}`, { cookie })).body as { items: Array<{ code: string; closings: Array<{ type: string; status: string; at: string; dealCode: string | null }> }> }).items.find((u) => u.code === code)!;
+  const mine = (await row(manar)).closings;
+  assert.deepEqual(mine.map((c) => [c.type, c.status, c.dealCode]), [["Rent", "rented", `D-L${stamp}1`]]);
+  assert.equal((await row(sales)).closings[0]!.dealCode, null, "the deal's code is the inventory team's");
+  // the tab's count follows the dates too
+  const tabs = async (q: string) => ((await call(`/inventory/units/tabs?q=${encodeURIComponent(P)}${q}`, { cookie: manar })).body as { closed: number }).closed;
+  assert.equal(await tabs(`&closedFrom=${today}`), 1);
+  assert.equal(await tabs(`&closedFrom=${tomorrow}`), 0);
+});
+
 test("the Resale side: Randa confirms (Manar can't), and it's Sold", async () => {
   assert.deepEqual(await units.lock(unitId, deals.resale, { type: "Resale", userId: manarId }), { status: "pending" });
   assert.ok((await prisma.notification.findMany({ where: { userId: randaId, text: { contains: code } } })).length, "Randa is told");

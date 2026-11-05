@@ -120,9 +120,13 @@ export const UnitFilters = Page.extend({
   stale: QueryBool.optional(), // «محتاجة ابديت»: last update older than a month
   divisible: QueryBool.optional(), // «تنفع تتقسم»
   tabId: Id.optional(), // an area tab (2.5)
+  /** the rented / sold sheet (M-03 5.2): closed between these Cairo days, both included */
+  closedFrom: CalendarDay.optional(),
+  closedTo: CalendarDay.optional(),
 })
   .refine((f) => f.minSpace == null || f.maxSpace == null || f.minSpace <= f.maxSpace, { path: ["maxSpace"], message: "أقصى مساحة أصغر من أقل مساحة" })
-  .refine((f) => f.minPrice == null || f.maxPrice == null || Number(f.minPrice) <= Number(f.maxPrice), { path: ["maxPrice"], message: "أقصى سعر أصغر من أقل سعر" });
+  .refine((f) => f.minPrice == null || f.maxPrice == null || Number(f.minPrice) <= Number(f.maxPrice), { path: ["maxPrice"], message: "أقصى سعر أصغر من أقل سعر" })
+  .refine((f) => !f.closedFrom || !f.closedTo || f.closedFrom <= f.closedTo, { path: ["closedTo"], message: "«لحد» قبل «من»" });
 export type UnitFilters = z.infer<typeof UnitFilters>;
 
 export interface Person { id: string; name: string }
@@ -140,7 +144,10 @@ export interface UnitRow {
   details: Record<string, string | number | null>;
   /** Income: monthly / annual rent and yield (2.3) */
   income: { monthlyRent: string; annualRent: string; yieldPct: number | null } | null;
+  /** its closed sides (Q16 · 2.9): which type, Rented / Sold, when; the deal's code for the inventory team only */
+  closings: UnitClosing[];
 }
+export interface UnitClosing { type: UnitType; status: "rented" | "sold"; at: string; dealCode: string | null }
 export interface UnitDetail extends UnitRow {
   splitNote: string | null; receivedAt: string | null; enteredAt: string; createdBy: Person | null; updatedAt: string;
   /** the Done Deals on it (Q16): waiting for Manar / Randa to confirm, or closed by them */
