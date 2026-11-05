@@ -9,7 +9,7 @@ import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
-const P = `E2E ${stamp}`;
+const P = `E2E merge ${stamp}`; // own prefix: the clients files start in the same millisecond
 const phone = (n: number) => `0158${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
 let manar: string, heba: string, mohsen: string;
 const files: Record<string, string> = {};
