@@ -8,6 +8,8 @@ import { UnitsService } from "./units.service";
 import { UnitLocksController } from "./unit-locks.controller";
 import { UnitPhotosController } from "./unit-photos.controller";
 import { UnitPhotosService } from "./unit-photos.service";
+import { UnitDocumentsController } from "./unit-documents.controller";
+import { UnitDocumentsService } from "./unit-documents.service";
 import { AreaTabsController } from "./area-tabs.controller";
 import { AreaTabsService } from "./area-tabs.service";
 import { NotActiveController } from "./not-active.controller";
@@ -17,8 +19,8 @@ import { NotActiveRepository } from "./not-active.repository";
 /** M-03 · مخزون الوحدات: the units (2.1–2.7), Not Active sheets (2.14), closing them after a Done Deal (2.9). PDF and the team's work come with their tasks. */
 @Module({
   imports: [SettingsModule, ClientsModule], // the areas list (M-13) · the owner's file (M-10 2.1, 2.11)
-  controllers: [AreaTabsController, UnitLocksController, UnitPhotosController, InventoryController, NotActiveController],
-  providers: [InventoryService, UnitsService, UnitPhotosService, AreaTabsService, InventoryRepository, NotActiveService, NotActiveRepository],
+  controllers: [AreaTabsController, UnitLocksController, UnitPhotosController, UnitDocumentsController, InventoryController, NotActiveController],
+  providers: [InventoryService, UnitsService, UnitPhotosService, UnitDocumentsService, AreaTabsService, InventoryRepository, NotActiveService, NotActiveRepository],
   exports: [InventoryService, UnitsService], // UnitsService.lock / release: the deals (5.5) and contracts (6.4)
 })
 export class InventoryModule {}

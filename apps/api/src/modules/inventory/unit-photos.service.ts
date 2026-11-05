@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { PrismaClient } from "@places/db";
+import type { Prisma, PrismaClient } from "@places/db";
 import { FILE_KINDS, type UnitPhotoView } from "@places/contracts";
 import { MAX_UNIT_PHOTOS, keepsInventory, photoOrder } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -52,6 +52,7 @@ export class UnitPhotosService {
       if (have.length + ids.length > MAX_UNIT_PHOTOS) throw new BadRequestException(`الوحدة ليها لحد ${MAX_UNIT_PHOTOS} صورة`);
       await this.files.attach(me, ids, "Unit", unitId, tx);
       await tx.unitPhoto.createMany({ data: ids.map((fileId, i) => ({ unitId, fileId, position: have.length + i })) });
+      await this.toDraft(unitId, tx);
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-add", userId: me.id, after: { photos: ids } }, tx);
     });
     return this.list(me, unitId);
@@ -65,6 +66,7 @@ export class UnitPhotosService {
       const order = photoOrder(have.map((p) => p.fileId), fileIds);
       if (!order) throw new BadRequestException("الصور اتغيرت · حدّث الصفحة وجرّب تاني");
       for (const [position, fileId] of order.entries()) await tx.unitPhoto.update({ where: { fileId }, data: { position } });
+      await this.toDraft(unitId, tx);
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-order", userId: me.id, before: { photos: have.map((p) => p.fileId) }, after: { photos: order } }, tx);
     });
     return this.list(me, unitId);
@@ -78,8 +80,14 @@ export class UnitPhotosService {
       if (!have.some((p) => p.fileId === fileId)) throw new NotFoundException("الصورة مش موجودة");
       await tx.unitPhoto.delete({ where: { fileId } });
       for (const [position, p] of have.filter((x) => x.fileId !== fileId).entries()) await tx.unitPhoto.update({ where: { fileId: p.fileId }, data: { position } });
+      await this.toDraft(unitId, tx);
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-remove", userId: me.id, before: { photo: fileId } }, tx);
     });
+  }
+
+  /** M-03 Q19: the PDF and slide are made from the photos, so new photos (or a new order) wait for Manar's confirm again. */
+  private toDraft(unitId: string, tx: Prisma.TransactionClient) {
+    return tx.unit.update({ where: { id: unitId }, data: { pdfStatus: "draft" } });
   }
 
   /** The same rule as the unit itself: archived units are gone, drafts are for the inventory team (Q15). */

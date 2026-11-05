@@ -52,6 +52,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "notactive.in_inventory", label: "رقم في شيت Not Active موجود في الانفنتوري", to: "مدير الانفنتوري", toRoles: ["inventory"], channels: ["app", "push"], important: true }, // M-03 1.1 · 2.3
   { key: "notactive.task", label: "أرقام Not Active اتبعتتلك", to: "اللي اتبعتله", toRoles: [], channels: ["app", "push"], important: false }, // M-03 1.1
   { key: "notactive.done", label: "وحدة جديدة من شيت Not Active", to: "مدير الانفنتوري", toRoles: ["inventory"], channels: ["app", "push"], important: true }, // M-03 1.1 · 7.1
+  { key: "unit.published", label: "وحدة اتنشرت للسيلز", to: "التسويق · السيلز", toRoles: ["marketing", "sales"], channels: ["app"], important: false }, // M-03 2.2 (15)
   { key: "unit.close", label: "Done Deal على وحدة · أكّد القفل", to: "منار (Rent) · رندا (Resale / Income)", toRoles: ["inventory", "resale"], channels: ["app", "push"], important: true }, // M-03 Q16
   { key: "task.review", label: "Retouch اترفع · مستني موافقتك", to: "الانفنتوري (منار)", toRoles: ["inventory"], channels: ["app", "push"], important: false }, // M-04 2.2 · 4.3
   { key: "task.delivered", label: "تصوير خلص / Retouch اتوافق عليه", to: "الانفنتوري · التسويق", toRoles: ["inventory", "marketing"], channels: ["app"], important: false }, // 4.3

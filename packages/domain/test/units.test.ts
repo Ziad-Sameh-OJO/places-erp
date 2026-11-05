@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, fromDecimal, toDecimal } from "../src/money.ts";
-import { carrySides, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+import { UNIT_SHEET_FIELDS, carrySides, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
 
 // The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
 
@@ -175,6 +175,15 @@ test("Q17: editing U-103's second type keeps each side's state, a new side start
   assert.deepEqual(carrySides(rented, { type: "Resale", alsoType: "Rent" }), { status: "available", alsoStatus: "rented" });
   // a one-type unit gets a second type
   assert.deepEqual(carrySides({ type: "Rent", status: "available", alsoType: null, alsoStatus: null }, { type: "Rent", alsoType: "Resale" }), { status: "available", alsoStatus: "available" });
+});
+
+test("2.8 · the PDF / slide show the unit, never its owner, agent or commission (M-03 1.2); each type its own names", () => {
+  for (const type of ["Rent", "Resale", "Income", "Primary"] as const) {
+    const keys = UNIT_SHEET_FIELDS[type].map(([k]) => k);
+    for (const hidden of ["ownerName", "ownerPhone", "agent", "commission", "link", "tenant"]) assert.ok(!keys.includes(hidden), `${type} shows ${hidden}`);
+    assert.ok(keys.includes("total") && keys.includes("space"));
+  }
+  assert.equal(UNIT_SHEET_FIELDS.Resale.find(([k]) => k === "total")![1], "إجمالي السعر");
 });
 
 test("2.4 · photo order: the same photos, each once, in the new order; the first is the main one", () => {

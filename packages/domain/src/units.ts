@@ -145,6 +145,18 @@ export const closeConfirmer = (type: UnitType): "inventory" | "resale" => (type 
 /** Q16: Manar confirms a rent close, Randa a resale / income one; the Super Admin can stand in for either. */
 export const confirmsClose = (roles: readonly string[], type: UnitType): boolean => roles.includes("admin") || roles.includes(closeConfirmer(type));
 
+/**
+ * M-03 2.2 · 3.2: the unit's PDF and slide are made by the system from its sheet and photos, and go to the sales and
+ * their clients — so they carry the unit, never the owner (name, number), the agent or the commission (M-03 1.2: the
+ * sales' sheet has no owners' numbers). Each type keeps its own sheet's names (3.1).
+ */
+export const UNIT_SHEET_FIELDS: Record<UnitType, readonly (readonly [key: string, label: string])[]> = {
+  Rent: [["space", "Gross area"], ["floor", "Floor"], ["condition", "Conditions"], ["building", "Build num"], ["parking", "Parking slots"], ["pricePerSqm", "Price per sqm"], ["total", "Total price / شهر"], ["maintenance", "Maintenance"]],
+  Resale: [["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["building", "رقم المبنى"], ["parking", "Parking"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["paymentMethod", "طريقة الدفع"], ["delivery", "Delivery date"], ["maintenance", "الصيانة"]],
+  Income: [["space", "Area"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Building number"], ["parking", "Parking"], ["pricePerSqm", "Sale price per meter"], ["total", "Sale price total"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contractDuration", "Contract duration"], ["endsOn", "End date"], ["escalationPct", "Escalation rate"], ["paymentMethod", "Payment method"]],
+  Primary: [["space", "Space"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Build num"], ["parking", "Parking"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["paymentMethod", "طريقة الدفع"]],
+};
+
 /** M-03 3.1 «pic or info»: how many photos one unit keeps (a Drive folder's worth; more is a mistake). */
 export const MAX_UNIT_PHOTOS = 40;
 
