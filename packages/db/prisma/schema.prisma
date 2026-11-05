@@ -984,6 +984,9 @@ model Account {
   cap        Decimal?      @db.Decimal(14, 2) // petty-cash ceiling
   /// the person a 131 (سلف) / 134 (عهد) sub-account belongs to (M-07 9.3)
   holderId   String?
+  /// 9.12: whose own account it is — «client» (a client file under 113) or «sales» (an employee under 21103); one each
+  partyType  String?
+  partyId    String?
   budget     BudgetLine?
   movesFrom  TreasuryMove[] @relation("MoveFrom")
   movesTo    TreasuryMove[] @relation("MoveTo")
@@ -996,6 +999,7 @@ model Account {
   paidFor    Purchase[]    @relation("PurchasePaidFrom")
 
   @@index([parentId])
+  @@unique([partyType, partyId])
   @@schema("finance")
 }
 
@@ -1124,9 +1128,26 @@ model Installment {
   dueOn      DateTime  @db.Date
   amount     Decimal   @db.Decimal(14, 2)
   paid       Decimal   @default(0) @db.Decimal(14, 2)
+  alerts     String[]  @default([]) // which of reminder / late / escalated went out (M-11 2.4)
+  payments   InstallmentPayment[]
 
   @@index([contractId, dueOn])
   @@index([dueOn])
+  @@schema("finance")
+}
+
+/// M-11 2.1 step 4: a payment Finance records on an installment (part of it = Partially Paid, 2.3); each prints a receipt.
+model InstallmentPayment {
+  id            String      @id @default(cuid())
+  installmentId String
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  amount        Decimal     @db.Decimal(14, 2)
+  paidOn        DateTime    @db.Date
+  createdById   String
+  createdAt     DateTime    @default(now())
+
+  @@index([installmentId])
+  @@index([paidOn])
   @@schema("finance")
 }
 

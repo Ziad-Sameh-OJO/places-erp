@@ -14,10 +14,11 @@ const num = (amount: string) => (fromDecimal(amount) / 100).toLocaleString("en-U
 const money = (amount: string) => `${num(amount)} ج.م`;
 const lines = (s: string) => esc(s).replace(/\n/g, "<br>");
 
-/** What a claim or a receipt prints (9.17); the preview uses a made-up one. */
+/** What a claim or a receipt prints (9.17), or an installment's receipt (M-11 · 6.7); the preview uses a made-up one. */
 export interface DocData {
   no: string; date: string; entityId: string; company: string; unit: string; unitInfo: string; amount: string; kind: string;
   claimNo: string; payMethod?: string | undefined; einvoiceNo?: string | null | undefined;
+  contractNo?: string; installment?: string;
 }
 
 /**
@@ -101,8 +102,9 @@ export class DocumentsSetupService {
     const t = row ?? DOC_DEFAULTS[kind];
     const logo = e?.logoFileId ? await this.files.dataUrl(e.logoFileId) : null;
     const words = amountInWords(fromDecimal(d.amount));
-    const fill = (s: string) => lines(fillTemplate(s, { الشركة: d.company, الوحدة: d.unit, بيانات_الوحدة: d.unitInfo, المبلغ: money(d.amount), المبلغ_بالحروف: words, نوع_العمولة: d.kind, رقم_المطالبة: d.claimNo, التاريخ: d.date, طريقة_الدفع: d.payMethod ?? "تحويل بنكي" }));
-    const kv: [string, string][] = [["التاريخ", d.date], ...(kind === "receipt" && d.einvoiceNo ? [["الفاتورة الإلكترونية", d.einvoiceNo] as [string, string]] : []), ...(kind === "receipt" ? [["رقم المطالبة", d.claimNo] as [string, string]] : [])];
+    const fill = (s: string) => lines(fillTemplate(s, { الشركة: d.company, الوحدة: d.unit, بيانات_الوحدة: d.unitInfo, المبلغ: money(d.amount), المبلغ_بالحروف: words, نوع_العمولة: d.kind, رقم_المطالبة: d.claimNo, التاريخ: d.date, طريقة_الدفع: d.payMethod ?? "تحويل بنكي", رقم_العقد: d.contractNo ?? "", القسط: d.installment ?? "" }));
+    const kv: [string, string][] = [["التاريخ", d.date], ...(kind === "receipt" && d.einvoiceNo ? [["الفاتورة الإلكترونية", d.einvoiceNo] as [string, string]] : []), ...(kind === "receipt" ? [["رقم المطالبة", d.claimNo] as [string, string]] : []),
+      ...(kind === "installment" ? [["رقم العقد", d.contractNo ?? ""] as [string, string]] : [])];
     const bank = kind === "claim" && e && (e.bank || e.accountNo || e.iban)
       ? `<h2>بيانات التحويل</h2><table><tbody>${[["البنك", e.bank || "—"], ["اسم الحساب", e.accountName || e.name], ["رقم الحساب", e.accountNo || "—"], ["IBAN", e.iban || "—"]].map(([k, v]) => `<tr><th>${esc(k)}</th><td><span class="num">${esc(v)}</span></td></tr>`).join("")}</tbody></table>` : "";
     const html = layout(`${t.title} ${d.no}`, `

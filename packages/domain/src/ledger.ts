@@ -33,12 +33,13 @@ export const balanceOf = (nature: Nature, debit: Piasters, credit: Piasters): Pi
 /**
  * The code of a new sub-account (M-07, 4 Nov: «الكود بيتعمل لوحده من كود الأب»): the parent's code plus the next
  * two-digit number after its children's (2203 after 2201 and 2202), as the accountant's own sheet numbers sub-lines.
+ * Clients under 113 take three digits (113001…, 9.12).
  */
-export function nextChildCode(parentCode: string, childCodes: readonly string[]): string {
-  const used = childCodes.filter((c) => c.startsWith(parentCode) && c.length === parentCode.length + 2).map((c) => Number(c.slice(parentCode.length)));
+export function nextChildCode(parentCode: string, childCodes: readonly string[], digits = 2): string {
+  const used = childCodes.filter((c) => c.startsWith(parentCode) && c.length === parentCode.length + digits).map((c) => Number(c.slice(parentCode.length)));
   const next = used.length ? Math.max(...used) + 1 : 1;
-  if (next > 99) throw new RangeError(`account ${parentCode} already has 99 sub-accounts`);
-  return parentCode + String(next).padStart(2, "0");
+  if (next >= 10 ** digits) throw new RangeError(`account ${parentCode} has no free ${digits}-digit sub-account code`);
+  return parentCode + String(next).padStart(digits, "0");
 }
 
 export interface EntryLine {

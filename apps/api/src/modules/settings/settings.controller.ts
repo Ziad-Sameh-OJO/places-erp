@@ -83,7 +83,8 @@ export class SettingsController {
   async preview(@Param("kind", new ZodPipe(DocKindParam)) kind: DocKind, @Res() res: Response) {
     const today = new Date().toISOString().slice(0, 10);
     const { title, html } = await this.docs.render(kind, { no: kind === "claim" ? "CL-000" : "RC-000", claimNo: "CL-000", date: today, entityId: "places", company: "شركة النيل للتكنولوجيا",
-      unit: "U-101", unitInfo: "Mivida Business Park · مبنى B4 · الدور 2 · 95 م² · متشطب", amount: "100000.00", kind: "عمولة تأجير", einvoiceNo: "EG-2026-000000" });
+      unit: "U-101", unitInfo: "Mivida Business Park · مبنى B4 · الدور 2 · 95 م² · متشطب", amount: "100000.00", kind: "عمولة تأجير", einvoiceNo: "EG-2026-000000",
+      contractNo: "C-000", installment: "القسط 1 من 12" });
     sendPdf(res, `${title} · معاينة.pdf`, await this.pdf.pdf(html));
   }
 

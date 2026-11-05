@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
-import { type DealMoney, collectionStatus, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
+import { type DealMoney, collectionProblem, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult } from "../src/team-leader.ts";
 import { changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, takesNote } from "../src/deals.ts";
 
@@ -98,4 +98,16 @@ test("the note goes on a deal that is on the sheet only", () => {
   assert.equal(takesNote("Fully Collected"), true);
   assert.equal(takesNote("Pending Review"), false);
   assert.equal(takesNote("Cancelled"), false);
+});
+
+test("5.3 · a collection: approved deals only, above zero, never above what's left; revenue is the whole commission at the first one", () => {
+  const none = deal({ payments: [] }), part = deal({ status: "Partially Collected", payments: [{ side: "client", amount: egp(30_000) }] });
+  assert.equal(collectionProblem(none, egp(30_000)), null);
+  assert.equal(collectionProblem(part, egp(70_000)), null);
+  assert.match(collectionProblem(part, egp(70_001))!, /أكبر من الباقي/);
+  assert.match(collectionProblem(none, 0)!, /أكبر من صفر/);
+  assert.match(collectionProblem(deal({ status: "Fully Collected" }), egp(1))!, /اتوافق عليها/);
+  assert.match(collectionProblem(deal({ status: "Pending Review", payments: [] }), egp(1))!, /اتوافق عليها/);
+  assert.equal(revenueOnCollection(none), egp(100_000));
+  assert.equal(revenueOnCollection(part), 0);
 });

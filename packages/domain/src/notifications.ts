@@ -55,6 +55,10 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "finance.claim", label: "مطالبة / فاتورة إلكترونية / إيصال مطلوب", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.17
   { key: "finance.claim_ready", label: "مطالبتك اتعملت / اترفضت / إيصالها جاهز", to: "اللي طلب المطالبة", toRoles: [], channels: ["app", "push"], important: false }, // M-07 9.17
   { key: "contract.renewal", label: "تجديد عقد (90/60/30)", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app", "email"], important: false },
+  // M-11 2.1 step 3 · 2.4 · 7.1 and M-02 2.4 (the sales manager hears when collected < due after the day)
+  { key: "contract.installment_due", label: "قسط ميعاده بعد 3 أيام", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app"], important: false },
+  { key: "contract.installment_late", label: "قسط اتأخر", to: "السيلز · المالية · مدير المبيعات", toRoles: ["accountant", "salesdir"], channels: ["app", "email"], important: true },
+  { key: "contract.installment_escalated", label: "قسط متأخر 7 أيام · تصعيد", to: "الإدارة", toRoles: ["admin"], channels: ["app", "email"], important: true },
   { key: "ticket.new", label: "تذكرة جديدة / اتحوّلت لقسمك", to: "القسم المسؤول", toRoles: [], channels: ["app", "push"], important: false }, // M-06 2.1
   { key: "ticket.late", label: "تذكرة اتأخرت · تصعيد", to: "مدير القسم · نانسي للنزاعات", toRoles: [], channels: ["app", "push", "email"], important: true }, // M-06 2.4
   { key: "kpi.changed", label: "تغيير في الـ KPIs", to: "مسؤول الـ KPIs", toRoles: [], channels: ["app"], important: false }, // 11.14: never about money
