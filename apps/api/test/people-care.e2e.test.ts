@@ -6,7 +6,8 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { hash } from "@node-rs/argon2";
+import { PW, call, session } from "./helpers.ts";
 
 const START = new Date();
 const P = `E2E ${START.getTime()}`;
@@ -62,4 +63,19 @@ test("the 1-to-1: HR's questions, the last session first, «حل الـ HR» wit
   assert.equal((await call(`/hr/one-on-one/${r.body.id}/done`, { method: "POST", cookie: basant })).status, 201);
   assert.ok(!(await call("/hr/one-on-one/actions", { cookie: basant })).body.items.some((x: { id: string }) => x.id === r.body.id));
   assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie: tl, body: { heldOn: today(), answers } })).status, 403);
+});
+
+test("an «hr: edit» exception on a team-scope account doesn't reach people outside the team (13.3)", async () => {
+  // its own account, so the shared Team Leader's permissions don't change under the other test files
+  const email = `scope-${START.getTime()}@places.test`;
+  const tlRole = await prisma.role.findUniqueOrThrow({ where: { key: "tl" } });
+  const u = await prisma.user.create({ data: { email, status: "ACTIVE", passwordHash: await hash(PW), roles: { create: { roleId: tlRole.id, primary: true } }, overrides: { create: { module: "hr", actions: ["view", "edit"] } } } });
+  try {
+    const cookie = await session(email);
+    assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie, body: { heldOn: today(), answers: {} } })).status, 404);
+    assert.equal(await prisma.oneOnOne.count({ where: { byUserId: u.id } }), 0);
+  } finally {
+    await prisma.auditLog.deleteMany({ where: { OR: [{ userId: u.id }, { entityId: u.id }] } });
+    await prisma.user.delete({ where: { id: u.id } });
+  }
 });

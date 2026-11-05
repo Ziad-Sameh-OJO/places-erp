@@ -5,7 +5,9 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
+import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { call, session } from "./helpers.ts";
+import { staleUploadsTick } from "../../worker/src/processors/stale-uploads.ts";
 
 // locally the tests wait for storage to be started; in CI (where MinIO always runs) a missing store is a failure
 const up = await fetch(process.env.S3_ENDPOINT ?? "http://localhost:9000").then(() => true, () => false);
@@ -87,4 +89,18 @@ test("someone else's file can't be completed or downloaded; signed out gets 401"
   await call(`/files/${t.body.id}/complete`, { method: "POST", cookie: admin });
   assert.equal((await call(`/files/${t.body.id}/url`, { cookie: sales })).status, 404);
   assert.equal((await call("/files/uploads", { method: "POST", body: { name: "x.png", mime: "image/png", size: 10 } })).status, 401);
+});
+
+test("an upload never completed is removed from storage and rejected after 24 hours, once (#209)", { skip }, async () => {
+  const t = await ask({ name: "half.png", mime: "image/png", size: PNG.length });
+  await fetch(t.body.url, { method: "PUT", headers: t.body.headers, body: PNG });
+  const { key } = await prisma.file.findUniqueOrThrow({ where: { id: t.body.id } });
+  // controlled time: only this row is made 25 hours old, so other tests' fresh uploads stay untouched
+  await prisma.file.update({ where: { id: t.body.id }, data: { createdAt: new Date(Date.now() - 25 * 3_600_000) } });
+  assert.ok((await staleUploadsTick()) >= 1);
+  assert.equal(await staleUploadsTick(), 0);
+  assert.equal((await prisma.file.findUnique({ where: { id: t.body.id } }))?.status, "REJECTED");
+  const s3 = new S3Client({ endpoint: process.env.S3_ENDPOINT, region: "us-east-1", forcePathStyle: true, credentials: { accessKeyId: process.env.S3_ACCESS_KEY!, secretAccessKey: process.env.S3_SECRET_KEY! } });
+  assert.equal(await s3.send(new HeadObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key })).then(() => "there", () => "gone"), "gone");
+  assert.equal((await prisma.auditLog.count({ where: { entity: "File", entityId: t.body.id, action: "expire" } })), 1);
 });

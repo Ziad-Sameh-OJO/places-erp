@@ -234,6 +234,7 @@ model LeaveRequest {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@index([employeeId, createdAt]) // 13.3: an employee's leaves, newest first
   @@index([status])
   @@schema("hr")
 }
@@ -281,6 +282,7 @@ model OneOnOne {
   alarmedAt   DateTime?
   createdAt   DateTime  @default(now())
 
+  @@index([employeeId, heldOn]) // 13.3: an employee's 1:1 history
   @@schema("hr")
 }
 
@@ -860,6 +862,7 @@ model JournalLine {
   debit     Decimal      @default(0) @db.Decimal(14, 2)
   credit    Decimal      @default(0) @db.Decimal(14, 2)
 
+  @@index([entryId]) // 13.3: an entry's lines (journal, ledger, every voucher) - Postgres doesn't index FKs itself
   @@index([accountId])
   @@schema("finance")
 }
@@ -1065,6 +1068,7 @@ model File {
   updatedAt    DateTime   @updatedAt
 
   @@index([entity, entityId])
+  @@index([status, createdAt]) // #209: the nightly sweep of PENDING uploads
   @@index([uploadedById])
   @@schema("system")
 }
@@ -1270,6 +1274,7 @@ model PayrollLine {
   advance    Decimal    @db.Decimal(14, 2)
   net        Decimal    @db.Decimal(14, 2)
 
+  @@index([runId])
   @@index([userId])
   @@schema("finance")
 }

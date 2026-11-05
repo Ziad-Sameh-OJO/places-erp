@@ -6,7 +6,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hash } from "@node-rs/argon2";
 import { prisma } from "@places/db";
-import { PW, call, login } from "./helpers.ts";
+import { API, PW, call, login } from "./helpers.ts";
+
+test("behind the web app's /api proxy the client's IP is used (rate limit, audit), not the proxy's (13.3)", async () => {
+  const ip = `198.51.100.${1 + Math.floor(Math.random() * 254)}`;
+  const res = await fetch(`${API}/auth/login`, {
+    method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify({ email: "m.mohsen@places.com", password: PW }),
+  });
+  assert.equal(res.status, 200);
+  const s = await prisma.session.findFirst({ where: { ip, createdAt: { gte: new Date(Date.now() - 60_000) } } });
+  assert.ok(s, "the session keeps the forwarded IP");
+  await prisma.session.delete({ where: { id: s.id } });
+});
 
 test("closed by default: no session → 401", async () => {
   assert.equal((await call("/leads")).status, 401);

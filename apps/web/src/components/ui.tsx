@@ -111,17 +111,19 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   );
 }
 
-const ToastCtx = createContext<(text: string) => void>(() => {});
+type ToastTone = "ok" | "bad";
+const ToastCtx = createContext<(text: string, tone?: ToastTone) => void>(() => {});
 export const useToast = () => useContext(ToastCtx);
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [text, setText] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; tone: ToastTone } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const show = useCallback((t: string) => {
-    setText(t);
+  const show = useCallback((text: string, tone: ToastTone = "ok") => {
+    setMsg({ text, tone });
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setText(null), 3200);
+    timer.current = setTimeout(() => setMsg(null), 3200);
   }, []);
-  return <ToastCtx.Provider value={show}>{children}<div className="toast" role="status" hidden={!text}>{text}</div></ToastCtx.Provider>;
+  // alert for errors so a screen reader reads them at once (#210)
+  return <ToastCtx.Provider value={show}>{children}<div className={`toast ${msg?.tone ?? ""}`} role={msg?.tone === "bad" ? "alert" : "status"} hidden={!msg}>{msg?.text}</div></ToastCtx.Provider>;
 }
 
 /**
@@ -138,7 +140,7 @@ export function useAction() {
   const toast = useToast();
   return useCallback(async (fn: () => Promise<unknown>, ok?: string): Promise<void> => {
     try { await fn(); if (ok) toast(ok); }
-    catch (e) { toast(e instanceof Error ? e.message : "حصل خطأ"); }
+    catch (e) { toast(e instanceof Error ? e.message : "حصل خطأ", "bad"); }
   }, [toast]);
 }
 

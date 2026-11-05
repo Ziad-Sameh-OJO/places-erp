@@ -53,7 +53,7 @@ export function UsersTab() {
         rows={(users.data?.items ?? []).map((u) => {
           const [label, tone] = STATUS[u.status];
           return [
-            <span className="who" key="w"><Avatar id={u.id} name={u.employee?.name ?? u.email} sm /><span><b>{u.employee?.name ?? "—"}</b><small className="mono">{u.email}</small></span></span>,
+            <span className="who" key="w"><Avatar id={u.id} name={u.employee?.name ?? u.email} sm /><span><b>{u.employee?.name ?? "—"}</b><small className="mono" dir="ltr">{u.email}</small></span></span>,
             <span key="r">{u.roles.map((r) => <Chip key={r.role.key} tone={r.primary ? "info" : ""}>{r.role.label}</Chip>)}{u._count.overrides > 0 && <Chip tone="warn">استثناءات {u._count.overrides}</Chip>}</span>,
             u.employee?.department ?? "—",
             <span key="s"><Chip tone={tone}>{label}</Chip>{u.otpRequired && <Chip plain>OTP</Chip>}</span>,

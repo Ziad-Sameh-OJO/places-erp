@@ -27,10 +27,10 @@ export function PurchaseForm({ lines, onClose }: { lines: BudgetLineRow[]; onClo
   const [files, setFiles] = useState<StoredFile[]>([]);
   const send = (d: FormData) => {
     const amount = String(d.get("amount") ?? "").trim();
-    if (!/^\d+(\.\d{1,2})?$/.test(amount)) return toast("المبلغ بالجنيه، ولحد قرشين بعد العلامة");
+    if (!/^\d+(\.\d{1,2})?$/.test(amount)) return toast("المبلغ بالجنيه، ولحد قرشين بعد العلامة", "bad");
     // 0.9: the same rule the API checks, so Mokhtar hears it before anything is sent
     const missing = attachmentProblem(fromDecimal(amount), files.length);
-    if (missing) return toast(missing);
+    if (missing) return toast(missing, "bad");
     return run(async () => {
       await api.post("/procurement/purchases", {
         item: String(d.get("item") ?? ""), amount, accountId: String(d.get("accountId") ?? ""),
