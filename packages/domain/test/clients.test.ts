@@ -1,6 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergedKind, normalizePhone, withRole } from "../src/clients.ts";
+import { mergedKind, normalizePhone, partyBalance, withRole } from "../src/clients.ts";
+import { egp } from "../src/money.ts";
+
+test("paid and remaining (M-10 3.2): each deal's due against what was paid on it; rejected / cancelled owe nothing", () => {
+  // a client on two deals: 12,000 due, 5,000 paid · 8,000 due, 9,000 paid (overpaid: doesn't lower the other one)
+  const b = partyBalance([
+    { status: "Partially Collected", due: egp(12_000), paid: egp(5_000) },
+    { status: "Fully Collected", due: egp(8_000), paid: egp(9_000) },
+    { status: "Cancelled", due: egp(20_000), paid: 0 },
+    { status: "Rejected", due: egp(1_000), paid: 0 },
+  ]);
+  assert.equal(b.paid, egp(14_000));
+  assert.equal(b.remaining, egp(7_000));
+  assert.deepEqual(partyBalance([]), { paid: 0, remaining: 0 });
+});
 
 // M-10 3.1: «الأرقام · أكتر من رقم، وبتمنع التكرار» · the card: «الموبايل unique بعد ما يتنضّف».
 

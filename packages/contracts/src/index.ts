@@ -10,6 +10,7 @@ export * from "./hr.ts";
 export * from "./lead-rules.ts";
 export * from "./tickets.ts";
 export * from "./procurement.ts";
+export * from "./clients.ts";
 export * from "./kpis.ts";
 export * from "./claims.ts";
 export * from "./reports.ts";

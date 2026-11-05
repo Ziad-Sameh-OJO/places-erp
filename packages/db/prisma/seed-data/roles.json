@@ -413,7 +413,8 @@
         "edit"
       ],
       "clients": [
-        "view"
+        "view",
+        "create"
       ],
       "contracts": [
         "view",

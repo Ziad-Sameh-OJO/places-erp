@@ -19,6 +19,7 @@ import { unitListHtml, unitListLine } from "./unit-list";
 import { LeavesService } from "../hr/leaves.service";
 import { AttendanceService } from "../hr/attendance.service";
 import { RotationService } from "./rotation.service";
+import { ClientsService } from "../clients/clients.service";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
 const NO_LEAD = "الليد ده مش موجود أو مبقاش معاك";
@@ -46,6 +47,7 @@ export class LeadsService {
     private readonly leaves: LeavesService,
     private readonly attendance: AttendanceService, // 7.3: a marked Visit re-reads that day
     private readonly rotation: RotationService, // 1.23: today's order
+    private readonly clients: ClientsService, // M-10: Done Deal makes the client's file; an old client's number joins it
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
@@ -285,6 +287,7 @@ export class LeadsService {
           ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
           kind: input.kind === "broker" ? "BROKER" : "CLIENT", selfEntered: placement.kind === "own", // 1.28 · KPI 11.15
           companyId: company?.id ?? null, note: input.note ?? null,
+          clientId: await this.clients.fileOf(tx, input.phones), // M-10 2.3: a returning client's lead joins their file
         },
       });
       await this.repo.addArrival(tx, { leadId: lead.id, channel: lead.channel, campaignId: lead.campaignId, duplicate: false, byUserId: me.id });
@@ -356,6 +359,7 @@ export class LeadsService {
       const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id, before: { stage: lead.stage }, after: { stage: next.stage } }, tx);
+      if (input.stage === "Done Deal") await this.clientFile(tx, me, id);
       return next;
     });
   }
@@ -369,6 +373,13 @@ export class LeadsService {
   async markDoneDeal(tx: Prisma.TransactionClient, me: CurrentUser, lead: { id: string; stage: string; qualified: boolean }, text: string) {
     await this.repo.addActivity(tx, lead.id, "stage", text, me.id);
     if (lead.stage !== toDb("Done Deal")) await this.moveStage(tx, me, lead.id, lead, "Done Deal");
+    await this.clientFile(tx, me, lead.id);
+  }
+
+  /** M-10 2.1: the client's file is made (or found by number) with the Done Deal, in the same transaction. */
+  private async clientFile(tx: Prisma.TransactionClient, me: CurrentUser, id: string) {
+    const lead = await tx.lead.findUniqueOrThrow({ where: { id }, select: { name: true, phones: true, company: { select: { name: true } } } });
+    await this.clients.joinAsClient(tx, me.id, { id, name: lead.name, phones: lead.phones, company: lead.company?.name ?? null });
   }
 
   /** The Visit form's unit search (1.9): through the inventory's own rule of what a salesperson may see. */
