@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { LeadRulesInput, LeadRulesOptions } from "@places/contracts";
-import { DEFAULT_LEAD_RULES, OWNER, OWNER_TL, leadRulesProblem, type LeadRules } from "@places/domain";
+import { OWNER, OWNER_TL, leadRulesProblem, withRuleDefaults, type LeadRules } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -29,7 +29,7 @@ export class LeadRulesService {
   /** The saved rules over the defaults (a rule added later gets its default until someone changes it). */
   async get(): Promise<LeadRules> {
     const row = await this.db.setting.findUnique({ where: { key: KEY } });
-    return merge(DEFAULT_LEAD_RULES, (row?.value ?? {}) as Partial<LeadRules>);
+    return withRuleDefaults(row?.value);
   }
 
   async options(): Promise<LeadRulesOptions> {
@@ -59,12 +59,4 @@ export class LeadRulesService {
     if (unknown) throw new BadRequestException("فيه دور أو شخص مش موجود في المسؤولين");
     if (r.noAnswer.telesales && !telesales.some((t) => t.id === r.noAnswer.telesales)) throw new BadRequestException("اختار Telesales من القايمة");
   }
-}
-
-/** Deep merge of saved values over the defaults (objects only; arrays and values are taken as saved). */
-function merge<T>(base: T, over: unknown): T {
-  if (!over || typeof over !== "object" || Array.isArray(over) || !base || typeof base !== "object" || Array.isArray(base)) return (over ?? base) as T;
-  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
-  for (const [k, v] of Object.entries(over as Record<string, unknown>)) out[k] = k in out ? merge(out[k], v) : v;
-  return out as T;
 }

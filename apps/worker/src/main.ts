@@ -30,7 +30,7 @@ const connection = { url: env.REDIS_URL };
 const sendMail = mailSender(env);
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
-  { name: "lead-sla", pattern: "* * * * *", processor: leadSlaTick }, // every minute (M-01 2.4)
+  { name: "lead-sla", pattern: "* * * * *", processor: () => leadSlaTick() }, // every minute (M-01 2.4)
   { name: "mail-outbox", pattern: "* * * * *", processor: () => mailOutboxTick(sendMail) }, // every minute: «الإيميل يتبعت خلال دقيقة» (M-14 2.4)
   { name: "visit-alarm", pattern: "* * * * *", processor: () => visitAlarmTick() }, // every minute (M-01 3.3 · 1.9)
   { name: "recurring-bills", pattern: "0 11 * * *", processor: recurringBillsTick }, // daily at the start of work (M-07 9.16)
