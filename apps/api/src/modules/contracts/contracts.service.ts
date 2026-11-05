@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { ContractDetail, ContractFilters, ContractRow, CreateContract, Paged } from "@places/contracts";
+import type { CalendarItem, ContractCalendar, ContractDetail, ContractFilters, ContractForm, ContractRow, ContractSummary, CreateContract, Paged } from "@places/contracts";
 import {
-  type ContractStatus, type InstallmentLine, RENEWAL_WINDOW_DAYS, contractProblem, daysBetween, endingSoon, fromDecimal,
+  type ContractStatus, type InstallmentLine, RENEWAL_WINDOW_DAYS, agingBuckets, contractProblem, daysBetween, endingSoon, fromDecimal,
   installmentPlan, installmentState, localDate, nextYearValue, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -60,6 +60,41 @@ export class ContractsService {
         return { id: i.id, dueOn: day(i.dueOn), amount: toDecimal(amount), paid: toDecimal(paid), state: installmentState({ dueOn: day(i.dueOn), amount, paid }, today) };
       }),
     };
+  }
+
+  /** The demo's tiles (active · ending · late installments · collected), the renewals card and the Aging (M-11 5.1 · 6.1). */
+  async summary(me: CurrentUser, now = new Date()): Promise<ContractSummary> {
+    const today = localDate(now);
+    const all = await this.repo.forSummary(this.scope(me));
+    const lines = all.filter((c) => c.status === "ACTIVE").flatMap((c) => c.installments.map((i) => ({ dueOn: day(i.dueOn), amount: fromDecimal(i.amount.toFixed(2)), paid: fromDecimal(i.paid.toFixed(2)) })));
+    const late = lines.filter((l) => l.paid < l.amount && l.dueOn < today);
+    const rows = all.map((c) => toRow(c, today));
+    const renewals = rows.filter((r) => r.endingSoon).sort((a, b) => a.daysLeft - b.daysLeft);
+    return {
+      active: rows.filter((r) => r.status === "Active").length, endingSoon: renewals.length,
+      late: { count: late.length, amount: toDecimal(late.reduce((s, l) => s + l.amount - l.paid, 0)) },
+      paid: toDecimal(rows.reduce((s, r) => s + fromDecimal(r.paid), 0)),
+      aging: agingBuckets(lines, today).map(toDecimal) as ContractSummary["aging"], renewals: renewals.slice(0, 10),
+    };
+  }
+
+  /** M-11 5.3: the month's installments (with their state) and contract ends, by day. */
+  async calendar(me: CurrentUser, month: string, now = new Date()): Promise<ContractCalendar> {
+    const today = localDate(now);
+    const from = new Date(`${month}-01T00:00:00Z`), to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 0));
+    const [installments, ends] = await this.repo.month(this.scope(me), from, to);
+    const byDay: Record<string, CalendarItem[]> = {};
+    const add = (d: Date, item: CalendarItem) => (byDay[day(d)] ??= []).push(item);
+    for (const i of installments) {
+      const amount = fromDecimal(i.amount.toFixed(2)), paid = fromDecimal(i.paid.toFixed(2));
+      add(i.dueOn, { contractId: i.contract.id, code: i.contract.code, client: i.contract.deal.company, kind: "installment", amount: toDecimal(amount), state: installmentState({ dueOn: day(i.dueOn), amount, paid }, today) });
+    }
+    for (const c of ends) add(c.endsOn, { contractId: c.id, code: c.code, client: c.deal.company, kind: "end", amount: null, state: null });
+    return { month, byDay };
+  }
+
+  async form(me: CurrentUser): Promise<ContractForm> {
+    return { deals: await this.deals.contractable(me) };
   }
 
   /** The signed PDF: whoever may see the contract. */

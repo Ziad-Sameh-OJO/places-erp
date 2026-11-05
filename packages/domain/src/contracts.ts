@@ -71,6 +71,20 @@ export function renewalAlert(endsOn: string, today: string, alerted: readonly nu
 }
 
 export type InstallmentState ="paid" | "partial" | "late" | "due";
+/**
+ * M-11 6.1 «Aging 30 / 60 / 90»: what is still owed on installments past their day, by how late they are —
+ * 0–30 · 31–60 · 61–90 · over 90 days (demo). Arrears = installments due − collected (3.2).
+ */
+export function agingBuckets(lines: ReadonlyArray<{ dueOn: string; amount: Piasters; paid: Piasters }>, today: string): [Piasters, Piasters, Piasters, Piasters] {
+  const out: [Piasters, Piasters, Piasters, Piasters] = [0, 0, 0, 0];
+  for (const l of lines) {
+    const owed = l.amount - l.paid, late = daysBetween(l.dueOn, today);
+    if (owed <= 0 || late <= 0) continue;
+    out[late <= 30 ? 0 : late <= 60 ? 1 : late <= 90 ? 2 : 3] += owed;
+  }
+  return out;
+}
+
 /** The demo's chips: paid in full · part of it (M-11 2.3 «Partially Paid») · past its day and unpaid · not due yet. */
 export function installmentState(i: { dueOn: string; amount: Piasters; paid: Piasters }, today: string): InstallmentState {
   if (i.paid >= i.amount) return "paid";

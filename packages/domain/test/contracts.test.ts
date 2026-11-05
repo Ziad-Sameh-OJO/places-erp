@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
-import { addMonths, contractProblem, endingSoon, installmentPlan, installmentState, nextYearValue, renewalAlert } from "../src/contracts.ts";
+import { agingBuckets, addMonths, contractProblem, endingSoon, installmentPlan, installmentState, nextYearValue, renewalAlert } from "../src/contracts.ts";
 
 test("M-11 2.4 · 7.1: renewal alerts at 90, 60 and 30 days, each once; a late look sends only the nearest", () => {
   assert.equal(renewalAlert("2027-02-04", "2026-11-05", []), null); // 91 days left
@@ -51,4 +51,16 @@ test("installment states: paid, partial (Partially Paid), late, not due yet", ()
   assert.equal(installmentState({ ...i, paid: egp(4_000) }, "2026-11-05"), "partial");
   assert.equal(installmentState({ ...i, paid: 0 }, "2026-11-05"), "late");
   assert.equal(installmentState({ ...i, paid: 0 }, "2026-10-30"), "due");
+});
+
+test("M-11 6.1 Aging: what is owed on late installments, by 0–30 / 31–60 / 61–90 / +90 days late", () => {
+  const today = "2026-11-05";
+  const lines = [
+    { dueOn: "2026-10-20", amount: egp(10_000), paid: egp(4_000) }, // 16 days, 6,000 left
+    { dueOn: "2026-09-01", amount: egp(10_000), paid: 0 }, // 65 days
+    { dueOn: "2026-06-01", amount: egp(10_000), paid: egp(10_000) }, // paid: nothing owed
+    { dueOn: "2026-05-01", amount: egp(5_000), paid: 0 }, // 188 days
+    { dueOn: "2026-11-05", amount: egp(10_000), paid: 0 }, // due today: not late yet
+  ];
+  assert.deepEqual(agingBuckets(lines, today), [egp(6_000), 0, egp(10_000), egp(5_000)]);
 });

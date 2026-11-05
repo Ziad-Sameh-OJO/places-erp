@@ -37,3 +37,16 @@ export interface InstallmentRow { id: string; dueOn: string; amount: string; pai
 export interface ContractDetail extends ContractRow {
   nextYearValue: string; file: { id: string; name: string } | null; installments: InstallmentRow[]; createdAt: string;
 }
+
+/** The calendar (M-11 5.3): one month "YYYY-MM". */
+export const ContractMonth = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "الشهر لازم يبقى YYYY-MM") });
+export type ContractMonth = z.infer<typeof ContractMonth>;
+export interface CalendarItem { contractId: string; code: string; client: string; kind: "installment" | "end"; amount: string | null; state: InstallmentState | null }
+export interface ContractCalendar { month: string; byDay: Record<string, CalendarItem[]> }
+/** The demo's tiles, the renewals card and the Aging card (M-11 5.1 · 6.1), in the caller's scope. */
+export interface ContractSummary {
+  active: number; endingSoon: number; late: { count: number; amount: string }; paid: string;
+  aging: [string, string, string, string]; renewals: ContractRow[];
+}
+/** «عقد جديد»: the caller's approved deals that have no contract yet. */
+export interface ContractForm { deals: Array<{ id: string; code: string; company: string; unitCode: string }> }
