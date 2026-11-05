@@ -119,6 +119,7 @@ export const UnitFilters = Page.extend({
   maxPrice: Money.refine((m) => !m.startsWith("-"), "السعر مايبقاش بالسالب").optional(),
   stale: QueryBool.optional(), // «محتاجة ابديت»: last update older than a month
   divisible: QueryBool.optional(), // «تنفع تتقسم»
+  missing: QueryBool.optional(), // «ناقصها بيانات» (2.20)
   tabId: Id.optional(), // an area tab (2.5)
   /** the rented / sold sheet (M-03 5.2): closed between these Cairo days, both included */
   closedFrom: CalendarDay.optional(),
@@ -149,6 +150,8 @@ export interface UnitRow {
   photoCount: number;
   /** its closed sides (Q16 · 2.9): which type, Rented / Sold, when; the deal's code for the inventory team only */
   closings: UnitClosing[];
+  /** 2.20 · the names of its empty columns (domain missingFields): «ناقص N» until they are filled */
+  missing: string[];
 }
 export interface UnitClosing { type: UnitType; status: "rented" | "sold"; at: string; dealCode: string | null }
 export interface UnitDetail extends UnitRow {
@@ -165,7 +168,9 @@ export interface UnitLockView {
 }
 
 /** The demo's KPI tiles over the inventory the person can see. */
-export interface UnitSummary { available: number; pdfDraft: number; stale: number; divisible: number }
+export interface UnitSummary { available: number; pdfDraft: number; stale: number; divisible: number; missing: number }
+/** 2.20 · «مهامي النهارده»: the first units missing data for this person (Manar Rent, Randa the rest), and how many in all. */
+export interface MissingUnitsToday { units: { id: string; code: string; missing: string[] }[]; total: number }
 /** The type tabs' counts (الكل · Rent · Resale · Income · Primary · Rented / Sold) under the current filters. */
 export interface UnitTabCounts { all: number; Rent: number; Resale: number; Income: number; Primary: number; closed: number }
 /** The lists from the settings (12.7): a form offers the active values, a filter all of them (old records keep switched-off ones). */

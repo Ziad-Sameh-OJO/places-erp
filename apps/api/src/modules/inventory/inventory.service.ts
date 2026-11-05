@@ -2,10 +2,10 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import type { Prisma, PrismaClient } from "@places/db";
 import {
   type CreatedUnit, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
-  type UnitRow, type UnitSummary, type UnitTabCounts,
+  type MissingUnitsToday, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, recommendUnits, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -14,7 +14,7 @@ import { NotificationsService } from "../../core/notifications/notifications.ser
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
 import { ClientsService } from "../clients/clients.service";
-import { InventoryRepository, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
+import { InventoryRepository, type ListFilters, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
 import { UnitsService } from "./units.service";
 import { IMPORT_TX, type ImportReport, type ParsedSheet } from "../../core/http/import";
 import { UnitPhotosService } from "./unit-photos.service";
@@ -132,19 +132,29 @@ export class InventoryService {
 
   async list(me: CurrentUser, f: UnitFilters): Promise<Paged<UnitRow>> {
     const s = this.scope(me);
-    const [rows, total] = await this.repo.list(s, f, f.tabId ? await this.repo.areaTabs() : []);
+    const [rows, total] = await this.repo.list(s, await withMissing(this.repo, s, f), f.tabId ? await this.repo.areaTabs() : []);
     const [agents, links] = await Promise.all([this.names(rows.map((r) => r.agentId)), this.photos.links(rows.flatMap((r) => r.photos.map((p) => p.fileId)))]);
     return { items: rows.map((r) => this.row(r, s, agents, links)), total, page: f.page, pageSize: f.pageSize };
   }
 
   async summary(me: CurrentUser): Promise<UnitSummary> {
     const s = this.scope(me);
-    const [available, pdfDraft, stale, divisible] = await this.repo.summary(s);
-    return { available, pdfDraft, stale, divisible };
+    const [[available, pdfDraft, stale, divisible], missing] = await Promise.all([this.repo.summary(s), missingUnits(this.repo, s)]);
+    return { available, pdfDraft, stale, divisible, missing: missing.length };
+  }
+
+  /**
+   * 2.20 · «مهامي النهارده»: the units missing data, Manar's the Rent ones, Randa's the rest, the admin's all (demo
+   * home.js). The first 5 get a line each; the rest one line that opens the sheet filtered.
+   */
+  async missingToday(me: CurrentUser): Promise<MissingUnitsToday> {
+    const mine = (await missingUnits(this.repo, this.scope(me))).filter((u) => seesMissingOf(me.roles, u.type));
+    return { units: mine.slice(0, 5).map(({ id, code, missing }) => ({ id, code, missing })), total: mine.length };
   }
 
   async tabs(me: CurrentUser, f: UnitFilters): Promise<UnitTabCounts> {
-    const [all, ...rest] = await this.repo.tabCounts(this.scope(me), f, UNIT_TYPES, f.tabId ? await this.repo.areaTabs() : []);
+    const s = this.scope(me);
+    const [all, ...rest] = await this.repo.tabCounts(s, await withMissing(this.repo, s, f), UNIT_TYPES, f.tabId ? await this.repo.areaTabs() : []);
     const closed = rest.pop()!;
     return { all, ...(Object.fromEntries(UNIT_TYPES.map((t, i) => [t, rest[i]!])) as Record<(typeof UNIT_TYPES)[number], number>), closed };
   }
@@ -296,8 +306,24 @@ export class InventoryService {
       income: income ? { monthlyRent: toDecimal(income.monthlyRent), annualRent: toDecimal(income.annualRent), yieldPct: income.yieldPct } : null,
       photo: u.photos[0] ? links.get(u.photos[0].fileId) ?? null : null, photoCount: u._count.photos,
       closings: u.locks.map((l) => ({ type: l.type, status: closedStatus(l.type), at: (l.lockedAt ?? u.createdAt).toISOString(), dealCode: s.insider ? l.deal.code : null })),
+      missing: missingFields({ ...u, photoCount: u._count.photos }),
     };
   }
+}
+
+/**
+ * 2.20 · the units the person can see (archived aside) that miss data (domain missingFields), newest first.
+ * shortcut: checks every unit in memory (one light query), move to SQL if the inventory passes ~20k units.
+ */
+async function missingUnits(repo: InventoryRepository, s: UnitScope) {
+  return (await repo.forMissingCheck(s))
+    .map((u) => ({ id: u.id, code: u.code, type: u.type, missing: missingFields({ ...u, photoCount: u._count.photos }) }))
+    .filter((u) => u.missing.length);
+}
+
+/** The list's «ناقصها بيانات» filter (2.20) as the units it names. */
+export async function withMissing(repo: InventoryRepository, s: UnitScope, f: UnitFilters): Promise<ListFilters> {
+  return f.missing == null ? f : { ...f, missingIds: (await missingUnits(repo, s)).map((u) => u.id) };
 }
 
 /** A unit as the client's PDF list shows it (no owner details). */

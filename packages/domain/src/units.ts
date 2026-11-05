@@ -196,3 +196,39 @@ export function carrySides(before: UnitSides, after: { type: UnitType; alsoType:
   const stateOf = (t: UnitType): UnitStatus => (t === before.type ? before.status : t === before.alsoType ? (before.alsoStatus ?? "available") : "available");
   return { status: stateOf(after.type), alsoStatus: after.alsoType ? stateOf(after.alsoType) : null };
 }
+
+/**
+ * 2.20 · the columns a unit of each type counts as missing while empty (demo inventory.js `A.missingOf`): every column
+ * of its sheet except the computed ones (Total · rent · Yield · PIC · Resale), the optional ones (Comment · Layout ·
+ * Floor · Parking · Escalation · Note) and the system's (Code · Agent · Last update). Labels are the sheet's own.
+ * Primary has no sheet of its own yet, so it is checked as Rent (the demo's fallback; needs-client).
+ */
+const RENT_MISSING: readonly (readonly [key: string, label: string])[] = [
+  ["project", "Project"], ["photos", "Pic / info"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["space", "Gross area"], ["condition", "Conditions"],
+  ["pricePerSqm", "Price / sqm"], ["maintenance", "Maintenance"], ["commission", "Commission"], ["building", "Build num"], ["location", "Location"],
+];
+export const MISSING_COLUMNS: Record<UnitType, readonly (readonly [key: string, label: string])[]> = {
+  Rent: RENT_MISSING,
+  Resale: [["project", "اسم المبنى"], ["ownerName", "اسم الأونر"], ["ownerPhone", "الرقم"], ["space", "المساحة"], ["condition", "التشطيب"], ["pricePerSqm", "السعر للمتر"],
+    ["paymentMethod", "طريقة الدفع"], ["maintenance", "صيانة"], ["building", "رقم المبنى"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"]],
+  Income: [["project", "اسم المبنى"], ["ownerName", "الاسم"], ["ownerPhone", "الرقم"], ["link", "اللينك"], ["space", "Area"], ["pricePerSqm", "Sale / m"], ["leasePerSqm", "Lease / m"],
+    ["contractDuration", "Contract"], ["startsOn", "Start"], ["endsOn", "End"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceChargeUsd", "Service $/m"],
+    ["tenant", "Tenant"], ["commission", "Commission"]],
+  Primary: RENT_MISSING,
+};
+
+/** A unit as the check reads it: its columns, the one-type columns in `details`, and how many photos its folder has. */
+export interface MissingInput { readonly type: UnitType; readonly photoCount: number; readonly details?: unknown; readonly [column: string]: unknown }
+
+/**
+ * 2.20: the names of the unit's empty columns (empty text, nothing, or 0); the photos are missing while the folder is
+ * empty. The unit is saved anyway; the alert stays on «مهامي النهارده» until this is empty.
+ */
+export function missingFields(u: MissingInput): string[] {
+  const details = (u.details ?? {}) as Record<string, unknown>;
+  const value = (k: string) => (k === "photos" ? u.photoCount : (u[k] ?? details[k]));
+  return MISSING_COLUMNS[u.type].filter(([k]) => { const v = value(k); return v == null || v === "" || v === 0; }).map(([, label]) => label);
+}
+
+/** Whose «مهامي النهارده» shows a unit's missing data: Manar the Rent units, Randa the rest, the admin all (demo home.js). */
+export const seesMissingOf = confirmsClose;

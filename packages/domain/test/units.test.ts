@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, fromDecimal, toDecimal } from "../src/money.ts";
-import { TEAM_TASKS_PER_DAY, UNIT_SHEET_FIELDS, carrySides, inventoryReportText, mediaOnTime, teamTaskRoom, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+import { TEAM_TASKS_PER_DAY, UNIT_SHEET_FIELDS, carrySides, missingFields, seesMissingOf, inventoryReportText, mediaOnTime, teamTaskRoom, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
 
 // The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
 
@@ -211,4 +211,29 @@ test("2.4 · photo order: the same photos, each once, in the new order; the firs
   assert.equal(photoOrder(["a", "b"], ["a", "b", "x"]), null, "one that isn't the unit's");
   assert.equal(photoOrder(["a", "b"], ["a", "a"]), null, "twice");
   assert.deepEqual(photoOrder([], []), []);
+});
+
+test("2.20 · a Rent unit with the project only (the finishing list's first value picked) misses 9 columns", () => {
+  const miss = missingFields({ type: "Rent", photoCount: 0, project: "Mivida", condition: "Fully finished", parking: 0, floor: null });
+  assert.equal(miss.length, 9);
+  assert.deepEqual(miss, ["Pic / info", "Contact", "Number", "Gross area", "Price / sqm", "Maintenance", "Commission", "Build num", "Location"]);
+});
+
+test("2.20 · optional and computed columns never count; a filled column drops off; the photos count by the folder", () => {
+  const full = {
+    type: "Rent" as const, photoCount: 3, project: "Mivida", ownerName: "Owner", ownerPhone: "01000000000", space: 95, condition: "Core & shell",
+    pricePerSqm: "1100.00", maintenance: "10%", commission: "1 month", building: "B12", location: "30.02, 31.48", floor: null, parking: 0, totalPrice: null,
+  };
+  assert.deepEqual(missingFields(full), []);
+  assert.deepEqual(missingFields({ ...full, photoCount: 0, maintenance: "" }), ["Pic / info", "Maintenance"]);
+  // Resale's delivery and Income's contract live in `details`
+  assert.deepEqual(missingFields({ ...full, type: "Resale", paymentMethod: "Cash", details: {} }), ["Delivery date"]);
+  const income = missingFields({ ...full, type: "Income", leasePerSqm: "270.00", details: { link: "x" } });
+  assert.ok(income.includes("Tenant") && !income.includes("اللينك"));
+});
+
+test("2.20 · Manar gets the Rent units' alerts, Randa Resale and Income, the admin all", () => {
+  assert.ok(seesMissingOf(["inventory"], "Rent") && !seesMissingOf(["inventory"], "Resale"));
+  assert.ok(seesMissingOf(["resale"], "Income") && seesMissingOf(["resale"], "Resale") && !seesMissingOf(["resale"], "Rent"));
+  assert.ok(seesMissingOf(["admin"], "Rent") && !seesMissingOf(["sales"], "Rent"));
 });

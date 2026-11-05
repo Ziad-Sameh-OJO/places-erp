@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 
 /** The toolbar's filters as the API's query names (UnitFilters in @places/contracts). Empty = not filtered. */
 export interface UnitQuery {
-  q?: string; area?: string; condition?: string; agentId?: string; stale?: "true"; divisible?: "true"; tabId?: string | undefined;
+  q?: string; area?: string; condition?: string; agentId?: string; stale?: "true"; divisible?: "true"; missing?: "true"; tabId?: string | undefined;
   type?: "Rent" | "Resale" | "Income" | "Primary" | undefined; view?: "available" | "closed" | undefined;
   closedFrom?: string; closedTo?: string; // the rented / sold sheet (M-03 5.2)
 }
