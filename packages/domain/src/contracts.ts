@@ -54,7 +54,23 @@ export const nextYearValue = (value: Piasters, escalationPercent: number): Piast
 export const endingSoon = (status: ContractStatus, endsOn: string, today: string): boolean =>
   status === "Active" && daysBetween(today, endsOn) >= 0 && daysBetween(today, endsOn) <= RENEWAL_WINDOW_DAYS;
 
-export type InstallmentState = "paid" | "partial" | "late" | "due";
+/** M-11 2.1 step 5 · 2.4: renewal alerts 90, 60 and 30 days before the end. */
+export const RENEWAL_ALERT_DAYS = [90, 60, 30] as const;
+
+/**
+ * Which renewal alert is due today, if any: the nearest threshold the contract has reached and not been alerted for.
+ * Thresholds passed while nobody looked (the worker was down, the contract was uploaded late) are marked too, so the
+ * salesperson gets one alert, not three at once. The first alert of a contract also opens the renewal lead (7.1).
+ */
+export function renewalAlert(endsOn: string, today: string, alerted: readonly number[]): { days: number; mark: number[] } | null {
+  const left = daysBetween(today, endsOn);
+  if (left < 0) return null;
+  const reached = RENEWAL_ALERT_DAYS.filter((d) => left <= d);
+  if (!reached.length || reached.every((d) => alerted.includes(d))) return null;
+  return { days: Math.min(...reached), mark: [...reached] };
+}
+
+export type InstallmentState ="paid" | "partial" | "late" | "due";
 /** The demo's chips: paid in full · part of it (M-11 2.3 «Partially Paid») · past its day and unpaid · not due yet. */
 export function installmentState(i: { dueOn: string; amount: Piasters; paid: Piasters }, today: string): InstallmentState {
   if (i.paid >= i.amount) return "paid";

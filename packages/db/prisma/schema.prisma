@@ -1055,6 +1055,8 @@ model Contract {
   escalation   Decimal        @default(0) @db.Decimal(5, 2) // yearly increase %
   status       ContractStatus @default(ACTIVE)
   fileId       String?        // the signed contract PDF (system.File «Contract»)
+  renewalAlerts Int[]         @default([]) // which of the 90 / 60 / 30-day alerts went out (M-11 2.4)
+  renewalLeadId String?        // the renewal lead the first alert opened (M-11 7.1)
   installments Installment[]
   createdById  String
   createdAt    DateTime       @default(now())
