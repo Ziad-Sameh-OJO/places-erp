@@ -2,11 +2,11 @@
 import { type FormEvent, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AddedCompany, CompanyRow, CompanySheet, PendingCompany } from "@places/contracts";
-import { OUTBOUND_WEEKLY_TARGET, keepsCompaniesSheet } from "@places/domain";
+import { CONTRACT_ENDING_DAYS, OUTBOUND_WEEKLY_TARGET, keepsCompaniesSheet } from "@places/domain";
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
 import { useMe } from "@/lib/me";
-import { Card, Icon, Modal, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { Card, ExportButton, Icon, Modal, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
 
 const KEY = ["companies"];
 const PAGE = 100;
@@ -33,9 +33,11 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
   const { me } = useMe();
   const keeper = keepsCompaniesSheet(me?.roles ?? []); // comfort only: the API decides
   const [category, setCategory] = useState("");
+  const [soon, setSoon] = useState(false); // 1.21 «عقدهم بيخلص خلال 90 يوم»
+  const filters = new URLSearchParams({ ...(category ? { category } : {}), ...(soon ? { endingWithin: String(CONTRACT_ENDING_DAYS) } : {}) });
   const sheet = useQuery({
-    queryKey: [...KEY, category], placeholderData: keepPreviousData,
-    queryFn: () => api.get<CompanySheet>(`/companies?pageSize=${PAGE}${category ? `&category=${encodeURIComponent(category)}` : ""}`),
+    queryKey: [...KEY, filters.toString()], placeholderData: keepPreviousData,
+    queryFn: () => api.get<CompanySheet>(`/companies?pageSize=${PAGE}&${filters}`),
   });
   const s = sheet.data;
   return (
@@ -47,10 +49,12 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
           <option value="">كل الكاتيجوريز ({s?.categories.length ?? 0})</option>
           {(s?.categories ?? []).map((c) => <option key={c.name} value={c.name}>{c.name} · {c.count}</option>)}
         </select>
+        <label className="tog"><input type="checkbox" checked={soon} onChange={(e) => setSoon(e.target.checked)} /><span>عقدهم بيخلص خلال {CONTRACT_ENDING_DAYS} يوم</span></label>
         <span className="hint spacer">{s?.total ?? 0} شركة</span>
+        <ExportButton module="leads" path="/companies/export" query={filters} filename={soon ? "شركات عقدها قرّب يخلص.xlsx" : "شيت الشركات.xlsx"} />
       </div>
       <Table className="wide" head={[...COLS.map(([, h]) => h), ...(category ? [] : ["category"])]}
-        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => cell(c, k)), ...(category ? [] : [c.category])])} empty="مفيش شركات" />
+        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [c.category])])} empty="مفيش شركات" />
       {s && s.total > s.items.length && <p className="hint">ظاهر أول {s.items.length} من {s.total} · اختار كاتيجوري.</p>}
     </Modal>
   );

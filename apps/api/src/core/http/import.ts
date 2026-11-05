@@ -80,6 +80,49 @@ export async function readTable(file: UploadedSheet | undefined): Promise<SheetT
   return { headers: cols.map(([, h]) => h), rows };
 }
 
+/**
+ * Like parseSheet, over every tab of the workbook: a sheet kept as one tab per group (the companies archive: one tab per
+ * category, 1.21). `fromTab` is the column whose value is the tab's name when the tab has no such column. Errors name
+ * the tab with the column.
+ */
+export async function parseBook<K extends string, T>(file: UploadedSheet | undefined, columns: ImportColumns<K>, fromTab: K, schema: ZodType<T, ZodTypeDef, unknown>, uniqueBy?: (row: T) => string): Promise<ParsedSheet<T>> {
+  if (!file) throw new BadRequestException("ارفع ملف Excel أو CSV");
+  const book = new ExcelJS.Workbook();
+  try {
+    if (/\.csv$/i.test(file.originalname)) await book.csv.read(Readable.from(file.buffer), { map: (v: unknown) => v });
+    else await book.xlsx.load(file.buffer as unknown as ExcelJS.Buffer);
+  } catch {
+    throw new BadRequestException("الملف مش Excel (.xlsx) ولا CSV");
+  }
+  const out: ParsedSheet<T> = { rows: [], errors: [], total: 0 };
+  const seen = new Map<string, string>();
+  for (const sheet of book.worksheets) {
+    const headers = new Map<string, number>();
+    sheet.getRow(1).eachCell((cell, col) => headers.set(text(cell.value) ?? "", col));
+    if (sheet.rowCount < 2) continue; // an empty tab
+    const missing = (Object.entries(columns) as [K, string][]).filter(([k, h]) => k !== fromTab && !headers.has(h)).map(([, h]) => h);
+    if (missing.length) { out.errors.push({ line: 1, column: `${sheet.name} · ${missing.join("، ")}`, message: "أعمدة ناقصة في الشيت · نزّل القالب" }); continue; }
+    for (let line = 2; line <= sheet.rowCount; line++) {
+      const row = sheet.getRow(line);
+      const cell = (h: string) => (headers.has(h) ? text(row.getCell(headers.get(h)!).value) : undefined);
+      const raw = Object.fromEntries((Object.entries(columns) as [K, string][]).map(([key, h]) => [key, cell(h)]));
+      if (Object.values(raw).every((v) => v === undefined)) continue;
+      if (!headers.has(columns[fromTab])) raw[fromTab] = sheet.name.trim(); // a tab without the column: its name is the value
+      if (++out.total > IMPORT_LIMIT) throw new BadRequestException(`الشيت أكبر من ${IMPORT_LIMIT} صف · قسّمه`);
+      const r = schema.safeParse(raw);
+      if (!r.success) {
+        for (const i of r.error.issues) out.errors.push({ line, column: `${sheet.name} · ${columns[i.path[0] as K] ?? ""}`, message: i.message });
+        continue;
+      }
+      const key = uniqueBy?.(r.data);
+      if (key !== undefined && seen.has(key)) { out.errors.push({ line, column: sheet.name, message: `مكرر مع ${seen.get(key)}` }); continue; }
+      if (key !== undefined) seen.set(key, `${sheet.name} · السطر ${line}`);
+      out.rows.push({ line, data: r.data });
+    }
+  }
+  return out;
+}
+
 /** What the screen shows before «تأكيد»: the first 50 valid rows and every error. */
 export function preview<T>(p: ParsedSheet<T>): ImportPreview<T> {
   return { total: p.total, valid: p.rows.length, errors: p.errors, sample: p.rows.slice(0, 50).map((r) => r.data) };

@@ -17,7 +17,7 @@ before(async () => {
   [hadeer, heba, mohsen, hr] = await Promise.all(["hadeer.tarek@places.com", "heba.salah@places.com", "m.mohsen@places.com", "basant.elsawy@places.com"].map((e) => session(e)));
   hadeerUser = (await prisma.user.findUniqueOrThrow({ where: { email: "hadeer.tarek@places.com" } })).id;
   const cats = (await call("/companies?pageSize=1", { cookie: hadeer })).body.categories as { name: string }[];
-  category = cats[0]!.name;
+  category = cats.at(-1)!.name; // the report test (1.21) adds to the first ones at the same time
 });
 after(async () => {
   await prisma.lead.deleteMany({ where: { id: { in: leadIds } } }); // their company requests go with them
