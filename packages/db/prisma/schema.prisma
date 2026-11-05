@@ -834,6 +834,7 @@ model NotActiveSheet {
   name      String         @unique // e.g. CFC
   dedupeBy  String         // column used to merge without duplicates
   columns   String[]       @default([]) // the sheet's own headers, in order (its columns aren't fixed yet, M-03 3.1)
+  numberBy  String?        // the «Number» column compared with the owners' numbers in the inventory (M-03 1.1)
   rows      NotActiveRow[]
   createdAt DateTime       @default(now())
 
@@ -848,11 +849,14 @@ model NotActiveRow {
   dedupeKey  String
   status     String?        // No Answer · Not True · Done
   feedback   String?        // required for Not True
-  assignedTo String?
+  assignedTo String?        // the user Manar sent the row to as a task (Marwa, M-03 1.1)
   unitId     String?        // the unit created when Done
+  matchedUnitId String?     // its number is an owner's number of this unit in the main inventory (M-03 1.1)
+  matchSeen  Boolean        @default(false) // Manar set the matched row's status
   createdAt  DateTime       @default(now()) // rows are listed in the order they came in
 
   @@unique([sheetId, dedupeKey])
+  @@index([sheetId, status])
   @@schema("inventory")
 }
 

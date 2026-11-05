@@ -75,6 +75,11 @@ export class InventoryRepository {
     });
   }
 
+  /** Every unit's owner number (Not Active rows are compared with them, M-03 1.1), archived ones aside. */
+  ownerPhones() {
+    return this.db.unit.findMany({ where: { archivedAt: null, ownerPhone: { not: null } }, select: { id: true, code: true, ownerPhone: true } });
+  }
+
   codes(ids: string[]) {
     return this.db.unit.findMany({ where: { id: { in: ids } }, select: { id: true, code: true } });
   }

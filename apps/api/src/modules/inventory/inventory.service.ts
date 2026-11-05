@@ -88,6 +88,11 @@ export class InventoryService {
     return this.repo.forTasks(q, 30);
   }
 
+  /** The owners' numbers in the main inventory, for the Not Active comparison (M-03 1.1). */
+  ownerPhones() {
+    return this.repo.ownerPhones();
+  }
+
   /** Codes for the units a Visit names (1.9), whatever their state now. */
   codes(ids: string[]) {
     return ids.length ? this.repo.codes(ids) : Promise.resolve([]);
