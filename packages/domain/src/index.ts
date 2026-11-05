@@ -14,6 +14,7 @@ export * from "./vouchers.ts";
 export * from "./lead-rules.ts";
 export * from "./commission.ts";
 export * from "./deals.ts";
+export * from "./deal-sheet.ts";
 export * from "./contracts.ts";
 export * from "./team-leader.ts";
 export * from "./attendance.ts";

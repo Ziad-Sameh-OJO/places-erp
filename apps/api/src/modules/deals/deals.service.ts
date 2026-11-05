@@ -295,7 +295,7 @@ function toMoney(d: DealRecord, payments: Array<{ side: string; amount: { toFixe
 
 const buyersOf = (d: DealRowRecord) => d.participants.filter((p) => p.side === "BUYER").map((p) => p.employee);
 
-function toRow(d: DealRowRecord): DealRow {
+export function toRow(d: DealRowRecord): DealRow {
   return {
     id: d.id, code: d.code, company: d.company, unitCode: d.unit.code, location: d.location, space: d.space, type: d.type as DealType,
     status: label(d.status), commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2),

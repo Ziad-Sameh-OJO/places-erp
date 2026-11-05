@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@places/db";
-import type { TargetInput, TargetsView, TeamRow, TransactionRow } from "@places/contracts";
+import type { Achievements, TargetInput, TargetsView, TeamRow, TransactionRow } from "@places/contracts";
 import {
   behindPace, dayStart, dealRowOf, fromDecimal, localDate, monthBounds, monthLabel, periodFigures, ranked, targetPercent, teamResult, tlTiersOf, toDecimal,
 } from "@places/domain";
@@ -50,8 +50,18 @@ export class TargetsService {
   }
 
   async view(me: CurrentUser, month?: string): Promise<TargetsView> {
+    return { ...(await this.board(this.scope(me), month)), can: { edit: me.grants.can("reports", "edit"), approve: me.grants.can("reports", "approve") } };
+  }
+
+  /** M-02 5.10 «Achievements»: every salesperson's month and rank, which each of them sees (demo deals.js Leaderboard). */
+  async leaderboard(me: CurrentUser, month?: string): Promise<Achievements> {
+    const v = await this.board({}, month);
+    return { month: v.month, label: v.label, mine: me.employeeId, rows: v.rows.map((r) => ({ ...r, pending: undefined })) };
+  }
+
+  private async board(where: Prisma.EmployeeWhereInput, month?: string): Promise<Omit<TargetsView, "can">> {
     const cal = await this.time.calendar(), today = localDate(new Date(), cal), cur = today.slice(0, 7), m = month ?? cur, b = monthBounds(m, cal);
-    const people = await this.repo.salespeople(this.scope(me));
+    const people = await this.repo.salespeople(where);
     const ids = people.map((p) => p.id);
     const [targets, deals, visits, tiers] = await Promise.all([
       this.repo.targets(m, ids), this.repo.deals(ids, b.from, b.to), this.repo.visits(people.map((p) => p.userId), b.from, b.to), this.repo.setting("tlTiers"),
@@ -88,7 +98,6 @@ export class TargetsService {
     return {
       month: m, label: monthLabel(m), dayPercent: Math.round((gone / b.days) * 100),
       rows: ranked(figures.map((f) => f.row)), teams: teams.sort((a, b2) => b2.percent - a.percent),
-      can: { edit: me.grants.can("reports", "edit"), approve: me.grants.can("reports", "approve") },
     };
   }
 
