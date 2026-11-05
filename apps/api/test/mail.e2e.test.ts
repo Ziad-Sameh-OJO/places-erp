@@ -55,14 +55,17 @@ test("«اتقرا»: a sent email whose in-app copy was opened (M-14 3.1 · 3.3
 });
 
 test("the worker sends the queue; a failing address is retried, then «الإيميل فشل» and the Super Admin is told once (12.9)", async () => {
+  // the good one carries a file the way MailService queues it (the quarterly PDF, 11.7)
   await prisma.mailLog.createMany({ data: [
-    { to: good, subject: `E2E ${stamp} ok`, text: "hello" },
+    { to: good, subject: `E2E ${stamp} ok`, text: "hello", attachments: [{ filename: "ورقة.pdf", base64: Buffer.from("%PDF-1.4 e2e").toString("base64") }] },
     { to: bad, subject: `E2E ${stamp} bad`, text: "hello" },
   ] });
   const sent: string[] = [];
+  const files: string[] = [];
   const send = async (m: OutgoingMail) => {
     if (m.to === bad) throw new Error("550 mailbox unavailable");
     sent.push(m.to);
+    files.push(...(m.attachments ?? []).map((a) => `${a.filename}:${a.content.toString()}`));
   };
   const t0 = new Date(Date.now() + 2_000);
   const at = (min: number) => new Date(t0.getTime() + min * 60_000);
@@ -71,7 +74,10 @@ test("the worker sends the queue; a failing address is retried, then «الإي�
   await mailOutboxTick(send, t0);
   await mailOutboxTick(send, t0); // the same minute again: nothing twice
   assert.deepEqual(sent, [good]);
-  assert.equal((await row(good)).status, "sent");
+  assert.deepEqual(files, ["ورقة.pdf:%PDF-1.4 e2e"]);
+  const g = await row(good);
+  assert.equal(g.status, "sent");
+  assert.equal(g.attachments, null); // the file isn't kept once sent
   let b = await row(bad);
   assert.equal(b.status, "queued");
   assert.equal(b.attempts, 1);
