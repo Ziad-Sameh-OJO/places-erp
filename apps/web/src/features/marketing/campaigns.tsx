@@ -23,7 +23,7 @@ export function Campaigns() {
         rows={items.map((c) => [
           <span key="n"><b>{c.name}</b>{c.target && <span className="sub">{c.target}</span>}</span>,
           c.channel,
-          <span key="p">{day(c.startsOn)} → {day(c.endsOn)}<span className="sub">{c.live ? <Chip tone="ok">شغالة</Chip> : <Chip>خلصت</Chip>}</span></span>,
+          <span key="p">{day(c.startsOn)} → {day(c.endsOn)}<span className="sub"><LiveChip c={c} /></span></span>,
           <span key="b" className="n">{money(c.budget)}</span>,
           <SpentBar key="s" c={c} />,
           <span key="l" className="n">{c.leads}</span>,
@@ -37,6 +37,13 @@ export function Campaigns() {
       {editing && <CampaignForm campaign={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
     </>
   );
+}
+
+/** The demo's «شغالة» / «خلصت», plus one that hasn't started yet. */
+function LiveChip({ c }: { c: CampaignRow }) {
+  if (c.live) return <Chip tone="ok">شغالة</Chip>;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  return c.startsOn > today ? <Chip tone="info">لسه هتبدأ</Chip> : <Chip>خلصت</Chip>;
 }
 
 function SpentBar({ c }: { c: CampaignRow }) {
