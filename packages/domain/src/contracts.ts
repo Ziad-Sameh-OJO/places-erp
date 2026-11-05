@@ -85,6 +85,35 @@ export function agingBuckets(lines: ReadonlyArray<{ dueOn: string; amount: Piast
   return out;
 }
 
+/** M-11 2.3: early termination of an active contract records its reason and penalty (0 when there is none). */
+export function terminationProblem(status: ContractStatus, reason: string, penalty: Piasters): string | null {
+  if (status !== "Active") return "العقد ده مش شغال";
+  if (!reason.trim()) return "اكتب سبب الفسخ";
+  if (penalty < 0) return "الغرامة مايبقاش بالسالب";
+  return null;
+}
+
+/** 6.4: an active contract whose last day has passed ends by itself (and its unit is open again, M-11 6.2). */
+export const expired = (status: ContractStatus, endsOn: string, today: string): boolean => status === "Active" && endsOn < today;
+
+/**
+ * M-11 2.2 · 3.2: a new contract value (approved by management) changes what is still to pay. Paid installments stay
+ * as they are; what is left (new value − everything paid) is split again over the installments not fully paid, the
+ * same «value ÷ count» rule, each keeping what was already paid on it. Returns the new amounts in order, or a problem.
+ */
+export function respread(lines: ReadonlyArray<{ amount: Piasters; paid: Piasters }>, newValue: Piasters): { amounts: Piasters[] } | { problem: string } {
+  if (newValue <= 0) return { problem: "قيمة العقد لازم تبقى أكبر من صفر" };
+  const paid = lines.reduce((s, l) => s + l.paid, 0);
+  if (newValue < paid) return { problem: "القيمة الجديدة أقل من اللي اتدفع بالفعل" };
+  const open = lines.map((l, i) => (l.paid < l.amount ? i : -1)).filter((i) => i >= 0);
+  if (!open.length) return { problem: "مفيش أقساط لسه ماتدفعتش تشيل الفرق" };
+  const shares = allocate(newValue - paid, open.length);
+  const amounts = lines.map((l) => l.amount);
+  open.forEach((i, k) => { amounts[i] = lines[i]!.paid + shares[k]!; });
+  if (amounts.some((a, i) => a <= 0 && open.includes(i))) return { problem: "القيمة الجديدة بتخلّي قسط بصفر" };
+  return { amounts };
+}
+
 /** The demo's chips: paid in full · part of it (M-11 2.3 «Partially Paid») · past its day and unpaid · not due yet. */
 export function installmentState(i: { dueOn: string; amount: Piasters; paid: Piasters }, today: string): InstallmentState {
   if (i.paid >= i.amount) return "paid";

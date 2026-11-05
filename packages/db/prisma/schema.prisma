@@ -1283,6 +1283,13 @@ model Contract {
   fileId       String?        // the signed contract PDF (system.File «Contract»)
   renewalAlerts Int[]         @default([]) // which of the 90 / 60 / 30-day alerts went out (M-11 2.4)
   renewalLeadId String?        // the renewal lead the first alert opened (M-11 7.1)
+  endedOn       DateTime?      @db.Date // terminated early or ran out (M-11 2.3 · 6.4)
+  endReason     String?        // why it was terminated early
+  penalty       Decimal?       @db.Decimal(14, 2) // the early-termination penalty (M-11 2.3)
+  pendingValue  Decimal?       @db.Decimal(14, 2) // a value change waiting for management (M-11 2.2)
+  pendingReason String?
+  pendingById   String?
+  pendingAt     DateTime?
   installments Installment[]
   createdById  String
   createdAt    DateTime       @default(now())

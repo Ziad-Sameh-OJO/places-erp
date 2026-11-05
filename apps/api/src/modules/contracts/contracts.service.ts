@@ -1,9 +1,9 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CalendarItem, CollectionReport, ContractCalendar, ContractDetail, ContractFilters, ContractForm, ContractRow, ContractSummary, CreateContract, Paged, RecordPayment } from "@places/contracts";
+import type { CalendarItem, CollectionReport, ContractCalendar, ContractDetail, ContractFilters, ContractForm, ContractRow, ContractSummary, CreateContract, DecideValue, Paged, ProposeValue, RecordPayment, TerminateContract } from "@places/contracts";
 import {
   type ContractStatus, type InstallmentLine, RENEWAL_WINDOW_DAYS, agingBuckets, contractProblem, daysBetween, endingSoon, fromDecimal,
-  installmentPlan, installmentState, localDate, nextYearValue, paymentProblem, toDecimal,
+  formatEGP, installmentPlan, installmentState, localDate, nextYearValue, paymentProblem, respread, terminationProblem, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -12,6 +12,8 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { DealsService } from "../deals/deals.service";
 import { DocumentsSetupService } from "../settings/documents-setup.service";
+import { UnitsService } from "../inventory/units.service";
+import { NotificationsService } from "../../core/notifications/notifications.service";
 import { type ContractRecord, ContractsRepository, type PaymentRecord } from "./contracts.repository";
 
 const NO_CONTRACT = "العقد ده مش موجود";
@@ -34,6 +36,8 @@ export class ContractsService {
     private readonly files: FilesService,
     private readonly deals: DealsService,
     private readonly docs: DocumentsSetupService,
+    private readonly units: UnitsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** M-11 4.1: a salesperson sees the contracts of their own deals («عقود عملاءه»), Finance and management all. */
@@ -53,8 +57,11 @@ export class ContractsService {
     const c = await this.repo.detail(this.scope(me), id);
     if (!c) throw new NotFoundException(NO_CONTRACT);
     const today = localDate(now);
+    const pendingBy = c.pendingById ? await this.repo.userName(c.pendingById) : null;
     return {
       ...toRow(c, today), createdAt: c.createdAt.toISOString(),
+      endedOn: c.endedOn ? day(c.endedOn) : null, endReason: c.endReason, penalty: c.penalty?.toFixed(2) ?? null,
+      pending: c.pendingValue && c.pendingAt ? { value: c.pendingValue.toFixed(2), reason: c.pendingReason ?? "", by: pendingBy, at: c.pendingAt.toISOString(), mine: c.pendingById === me.id } : null,
       nextYearValue: toDecimal(nextYearValue(fromDecimal(c.value.toFixed(2)), Number(c.escalation))),
       file: c.fileId ? await this.repo.file(c.fileId).then((f) => f && { id: f.id, name: f.name }) : null,
       installments: c.installments.map((i, k) => {
@@ -151,6 +158,73 @@ export class ContractsService {
 
   async form(me: CurrentUser): Promise<ContractForm> {
     return { deals: await this.deals.contractable(me) };
+  }
+
+  /**
+   * M-11 2.3 · 6.2: early termination — the reason and the penalty are recorded and the unit is open again in the
+   * inventory (UnitsService.release, 2.9), in the same transaction.
+   */
+  async terminate(me: CurrentUser, id: string, input: TerminateContract): Promise<ContractDetail> {
+    const c = await this.load(me, id);
+    const penalty = fromDecimal(input.penalty);
+    const problem = terminationProblem(label(c.status), input.reason, penalty);
+    if (problem) throw new BadRequestException(problem);
+    await this.db.$transaction(async (tx) => {
+      const data = { status: "TERMINATED" as const, endedOn: new Date(localDate(new Date())), endReason: input.reason, penalty: toDecimal(penalty) };
+      await this.repo.update(tx, id, data);
+      await this.units.release(c.deal.unit.id, c.deal.id, { userId: me.id }, tx);
+      await this.audit.record({ module: "contracts", entity: "Contract", entityId: id, action: "terminate", userId: me.id,
+        before: { status: c.status }, after: { status: data.status, reason: input.reason, penalty: data.penalty } }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  /** M-11 2.2: a change of value after signing waits for management; the contract keeps its value meanwhile. */
+  async proposeValue(me: CurrentUser, id: string, input: ProposeValue): Promise<ContractDetail> {
+    const c = await this.load(me, id);
+    if (c.status !== "ACTIVE") throw new BadRequestException("العقد ده مش شغال");
+    const value = toDecimal(fromDecimal(input.value));
+    if (value === c.value.toFixed(2)) throw new BadRequestException("دي نفس قيمة العقد");
+    await this.db.$transaction(async (tx) => {
+      await this.repo.update(tx, id, { pendingValue: value, pendingReason: input.reason, pendingById: me.id, pendingAt: new Date() });
+      await this.audit.record({ module: "contracts", entity: "Contract", entityId: id, action: "value-request", userId: me.id, after: { value, reason: input.reason } }, tx);
+    });
+    await this.notifications.notify({ event: "contract.value", link: `/contracts?open=${id}`,
+      text: `طلب تغيير قيمة العقد ${c.code} (${c.deal.company}) من ${formatEGP(fromDecimal(c.value.toFixed(2)))} لـ ${formatEGP(fromDecimal(value))} · ${input.reason}` });
+    return this.get(me, id);
+  }
+
+  /**
+   * Management decides (M-11 2.2), never the one who asked. Approved: the value changes and what is still to pay is
+   * spread again over the installments not paid yet (domain respread); old and new values are audited.
+   */
+  async decideValue(me: CurrentUser, id: string, input: DecideValue): Promise<ContractDetail> {
+    const c = await this.load(me, id);
+    if (!c.pendingValue) throw new BadRequestException("مفيش طلب تغيير قيمة على العقد ده");
+    if (c.pendingById === me.id) throw new ForbiddenException("الموافقة لحد غير اللي طلب التغيير");
+    const clear = { pendingValue: null, pendingReason: null, pendingById: null, pendingAt: null };
+    const lines = c.installments.map((i) => ({ amount: fromDecimal(i.amount.toFixed(2)), paid: fromDecimal(i.paid.toFixed(2)) }));
+    const spread = input.decision === "approve" ? respread(lines, fromDecimal(c.pendingValue.toFixed(2))) : null;
+    if (spread && "problem" in spread) throw new BadRequestException(spread.problem);
+    await this.db.$transaction(async (tx) => {
+      if (spread && "amounts" in spread) {
+        await this.repo.update(tx, id, { value: c.pendingValue!.toFixed(2), ...clear });
+        for (const [k, i] of c.installments.entries()) {
+          const amount = toDecimal(spread.amounts[k]!);
+          if (amount !== i.amount.toFixed(2)) await this.repo.setInstallmentAmount(tx, i.id, amount);
+        }
+      } else await this.repo.update(tx, id, clear);
+      await this.audit.record({ module: "contracts", entity: "Contract", entityId: id, action: input.decision === "approve" ? "value" : "value-refused", userId: me.id,
+        before: { value: c.value.toFixed(2), installments: c.installments.map((i) => i.amount.toFixed(2)) },
+        after: spread && "amounts" in spread ? { value: c.pendingValue!.toFixed(2), installments: spread.amounts.map(toDecimal) } : { refused: c.pendingValue!.toFixed(2) } }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  private async load(me: CurrentUser, id: string) {
+    const c = await this.repo.detail(this.scope(me), id);
+    if (!c) throw new NotFoundException(NO_CONTRACT);
+    return c;
   }
 
   /** The signed PDF: whoever may see the contract. */

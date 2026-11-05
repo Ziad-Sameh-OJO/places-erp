@@ -5,7 +5,8 @@ import { PRISMA } from "../../core/database/database.module";
 
 export const CONTRACT_ROW = {
   id: true, code: true, startsOn: true, endsOn: true, value: true, escalation: true, status: true, fileId: true, createdAt: true,
-  deal: { select: { id: true, code: true, company: true, unit: { select: { code: true } } } },
+  endedOn: true, endReason: true, penalty: true, pendingValue: true, pendingReason: true, pendingById: true, pendingAt: true,
+  deal: { select: { id: true, code: true, company: true, unit: { select: { id: true, code: true } } } },
   installments: {
     select: { id: true, dueOn: true, amount: true, paid: true, payments: { select: { id: true, amount: true, paidOn: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
     orderBy: [{ dueOn: "asc" }, { id: "asc" }],
@@ -54,6 +55,18 @@ export class ContractsRepository {
       }),
       this.db.contract.findMany({ where: { AND: [scope, { endsOn: { gte: from, lte: to } }] }, select: { id: true, code: true, endsOn: true, deal: { select: { company: true } } } }),
     ]);
+  }
+
+  update(tx: Prisma.TransactionClient, id: string, data: Prisma.ContractUncheckedUpdateInput) {
+    return tx.contract.update({ where: { id }, data, select: { id: true } });
+  }
+
+  setInstallmentAmount(tx: Prisma.TransactionClient, id: string, amount: string) {
+    return tx.installment.update({ where: { id }, data: { amount } });
+  }
+
+  async userName(userId: string) {
+    return (await this.db.employee.findUnique({ where: { userId }, select: { name: true } }))?.name ?? null;
   }
 
   existsForDeal(dealId: string) {

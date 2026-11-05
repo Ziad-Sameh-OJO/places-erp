@@ -68,6 +68,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "finance.commission_paid", label: "اتصرفتلك عمولة", to: "السيلز", toRoles: [], channels: ["app", "push"], important: false }, // M-07 9.15
   { key: "finance.claim", label: "مطالبة / فاتورة إلكترونية / إيصال مطلوب", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.17
   { key: "finance.claim_ready", label: "مطالبتك اتعملت / اترفضت / إيصالها جاهز", to: "اللي طلب المطالبة", toRoles: [], channels: ["app", "push"], important: false }, // M-07 9.17
+  { key: "contract.value", label: "تغيير قيمة عقد مستني موافقة", to: "الإدارة", toRoles: ["admin"], channels: ["app", "email"], important: false }, // M-11 2.2
   { key: "contract.renewal", label: "تجديد عقد (90/60/30)", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app", "email"], important: false },
   // M-11 2.1 step 3 · 2.4 · 7.1 and M-02 2.4 (the sales manager hears when collected < due after the day)
   { key: "contract.installment_due", label: "قسط ميعاده بعد 3 أيام", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app"], important: false },

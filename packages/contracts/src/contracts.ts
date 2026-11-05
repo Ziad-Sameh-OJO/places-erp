@@ -48,6 +48,9 @@ export interface CollectionReport {
 }
 export interface ContractDetail extends ContractRow {
   nextYearValue: string; file: { id: string; name: string } | null; installments: InstallmentRow[]; createdAt: string;
+  endedOn: string | null; endReason: string | null; penalty: string | null;
+  /** a value change waiting for management (M-11 2.2) */
+  pending: { value: string; reason: string; by: string | null; at: string; mine: boolean } | null;
 }
 
 /** The calendar (M-11 5.3): one month "YYYY-MM". */
@@ -62,3 +65,16 @@ export interface ContractSummary {
 }
 /** «عقد جديد»: the caller's approved deals that have no contract yet. */
 export interface ContractForm { deals: Array<{ id: string; code: string; company: string; unitCode: string }> }
+
+/** M-11 2.3 «فسخ العقد»: the reason and the penalty (0 when there's none). */
+export const TerminateContract = z.object({
+  reason: z.string().trim().min(2, "اكتب سبب الفسخ").max(500, "السبب طويل"),
+  penalty: Money.refine((m) => !m.startsWith("-"), "الغرامة مايبقاش بالسالب").default("0"),
+});
+export type TerminateContract = z.infer<typeof TerminateContract>;
+
+/** M-11 2.2: a new value after signing, waiting for management's approval. */
+export const ProposeValue = z.object({ value: Money, reason: z.string().trim().min(2, "اكتب سبب التغيير").max(500, "السبب طويل") });
+export type ProposeValue = z.infer<typeof ProposeValue>;
+export const DecideValue = z.object({ decision: z.enum(["approve", "reject"]) });
+export type DecideValue = z.infer<typeof DecideValue>;

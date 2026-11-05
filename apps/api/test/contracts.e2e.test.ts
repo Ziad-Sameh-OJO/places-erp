@@ -8,13 +8,14 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { localDate } from "@places/domain";
 import { contractRenewalTick } from "../../worker/src/processors/contract-renewal.ts";
+import { contractExpiryTick } from "../../worker/src/processors/contract-expiry.ts";
 import { call, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E ${stamp} عقد`;
 let mohsen: string, ashraf: string, omar: string, nancy: string, hr: string;
 let mohsenEmp: string, mohsenUser: string;
-let approved: string, approved2: string, pending: string, pdf: string, pdf2: string, image: string;
+let approved: string, approved2: string, approved3: string, pending: string, pdf: string, pdf2: string, pdf3: string, image: string;
 
 before(async () => {
   [mohsen, ashraf, omar, nancy, hr] = await Promise.all(["m.mohsen", "ahmed.ashraf", "omar.gamal", "nancy.islam", "basant.elsawy"].map((e) => session(`${e}@places.com`)));
@@ -32,8 +33,9 @@ before(async () => {
   approved = await deal(1, "APPROVED");
   approved2 = await deal(2, "PARTIALLY_COLLECTED");
   pending = await deal(3, "PENDING_REVIEW");
+  approved3 = await deal(4, "APPROVED");
   const file = (n: string, mime: string) => prisma.file.create({ data: { key: `e2e/${stamp}-${n}`, name: `${C} ${n}`, mime, size: 100, status: "READY", uploadedById: mohsenUser } });
-  [pdf, pdf2, image] = (await Promise.all([file("1.pdf", "application/pdf"), file("2.pdf", "application/pdf"), file("logo.png", "image/png")])).map((f) => f.id);
+  [pdf, pdf2, pdf3, image] = (await Promise.all([file("1.pdf", "application/pdf"), file("2.pdf", "application/pdf"), file("3.pdf", "application/pdf"), file("logo.png", "image/png")])).map((f) => f.id);
 });
 
 after(async () => {
@@ -60,7 +62,7 @@ test("«عقد جديد» offers the salesperson's approved deals with no contra
   const form = await call("/contracts/form", { cookie: mohsen });
   assert.equal(form.status, 200);
   const mine = form.body.deals.filter((d: { code: string }) => d.code.startsWith(`D-K${stamp}`)).map((d: { id: string }) => d.id).sort();
-  assert.deepEqual(mine, [approved, approved2].sort()); // not the pending one
+  assert.deepEqual(mine, [approved, approved2, approved3].sort()); // not the pending one
   assert.equal((await call("/contracts/form", { cookie: nancy })).status, 403);
 });
 
@@ -156,5 +158,64 @@ test("6.2: the tiles, the renewals card, the Aging and the calendar, in the call
   const first = await call("/contracts/calendar?month=2026-11", { cookie: mohsen });
   assert.ok(first.body.byDay["2026-11-01"].some((x: { contractId: string; amount: string }) => x.contractId === contractId && x.amount === "10000.00"));
   assert.equal((await call("/contracts/calendar?month=2026-13", { cookie: mohsen })).status, 400);
-  assert.equal((await call("/contracts/form", { cookie: mohsen })).body.deals.some((d: { code: string }) => d.code.startsWith(`D-K${stamp}`)), false); // both have contracts now
+  assert.deepEqual((await call("/contracts/form", { cookie: mohsen })).body.deals.filter((d: { code: string }) => d.code.startsWith(`D-K${stamp}`)).map((d: { id: string }) => d.id), [approved3]);
+});
+
+const unitOf = async (dealId: string) => (await prisma.deal.findUniqueOrThrow({ where: { id: dealId }, select: { unitId: true } })).unitId;
+/** The deal's unit as 2.9 leaves it once Manar confirmed the close. */
+const closeUnit = async (dealId: string) => {
+  const unitId = await unitOf(dealId);
+  await prisma.unitLock.create({ data: { unitId, dealId, type: "Rent", status: "locked", lockedAt: new Date() } });
+  await prisma.unit.update({ where: { id: unitId }, data: { status: "rented" } });
+  return unitId;
+};
+
+test("6.4 · M-11 2.2: a new value waits for management, never the one who asked; approved, it is spread over what isn't paid", async () => {
+  const admin = await session("ahmed.islam@places.com");
+  const ask = await call(`/contracts/${contractId}/value`, { method: "POST", cookie: mohsen, body: { value: "132000", reason: `${C} زيادة متفق عليها` } });
+  assert.equal(ask.status, 200, JSON.stringify(ask.body));
+  assert.equal(ask.body.value, "120000.00"); // unchanged until approved
+  assert.equal(ask.body.pending.value, "132000.00");
+  assert.equal((await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: mohsen, body: { decision: "approve" } })).status, 403);
+
+  const ok = await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: admin, body: { decision: "approve" } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(ok.body.value, "132000.00");
+  assert.equal(ok.body.pending, null);
+  assert.deepEqual([...new Set(ok.body.installments.map((i: { amount: string }) => i.amount))], ["11000.00"]); // nothing paid yet: 132,000 ÷ 12
+  const audit = await prisma.auditLog.findFirst({ where: { module: "contracts", entityId: contractId, action: "value" } });
+  assert.equal((audit!.before as { value: string }).value, "120000.00");
+
+  await call(`/contracts/${contractId}/value`, { method: "POST", cookie: admin, body: { value: "100000", reason: `${C} خصم` } });
+  assert.equal((await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: admin, body: { decision: "approve" } })).status, 403); // asked it himself
+  const no = await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: ashraf, body: { decision: "reject" } });
+  assert.equal(no.body.value, "132000.00");
+  assert.equal(no.body.pending, null);
+});
+
+test("6.4 · M-11 2.3 · 6.2: early termination records the reason and penalty and opens the unit again", async () => {
+  const admin = await session("ahmed.islam@places.com");
+  const unitId = await closeUnit(approved);
+  assert.equal((await call(`/contracts/${contractId}/terminate`, { method: "POST", cookie: mohsen, body: { reason: "x" } })).status, 403);
+  const r = await call(`/contracts/${contractId}/terminate`, { method: "POST", cookie: admin, body: { reason: `${C} العميل نقل`, penalty: "20000" } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.status, "Terminated");
+  assert.equal(r.body.penalty, "20000.00");
+  assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).status, "available");
+  assert.equal(await prisma.unitLock.count({ where: { unitId } }), 0);
+  assert.equal((await call(`/contracts/${contractId}/terminate`, { method: "POST", cookie: admin, body: { reason: "تاني" } })).status, 400);
+});
+
+test("6.4: a contract past its last day ends by itself (job) and its unit is open again", async () => {
+  const today = localDate(new Date());
+  const plus = (d: number) => new Date(Date.parse(`${today}T00:00:00Z`) + d * 86_400_000).toISOString().slice(0, 10);
+  const r = await create(mohsen, body({ dealId: approved3, fileId: pdf3, startsOn: plus(-365), endsOn: plus(-1), value: "12000", escalation: 0, schedule: { count: 12, everyMonths: 1 } }));
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const unitId = await closeUnit(approved3);
+  await contractExpiryTick();
+  const c = await prisma.contract.findUniqueOrThrow({ where: { id: r.body.id } });
+  assert.equal(c.status, "ENDED");
+  assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).status, "available");
+  await contractExpiryTick(); // again: nothing changes
+  assert.equal(await prisma.auditLog.count({ where: { entityId: r.body.id, action: "ended" } }), 1);
 });
