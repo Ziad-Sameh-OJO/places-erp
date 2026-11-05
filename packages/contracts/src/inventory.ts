@@ -153,6 +153,8 @@ export interface UnitRow {
 export interface UnitClosing { type: UnitType; status: "rented" | "sold"; at: string; dealCode: string | null }
 export interface UnitDetail extends UnitRow {
   splitNote: string | null; receivedAt: string | null; enteredAt: string; createdBy: Person | null; updatedAt: string;
+  /** when the photos first went up on the unit (Sara's KPI: within 24h of entering it, 2.16), and whether that was on time */
+  mediaUploadedAt: string | null; mediaOnTime: boolean | null;
   /** the Done Deals on it (Q16): waiting for Manar / Randa to confirm, or closed by them */
   locks: UnitLockView[];
 }
@@ -189,3 +191,17 @@ export const UnitPhotoOrder = z.object({ fileIds: z.array(Id).max(MAX_UNIT_PHOTO
 export type UnitPhotoOrder = z.infer<typeof UnitPhotoOrder>;
 /** One photo with a short link (5 minutes); `main` = the first one. */
 export interface UnitPhotoView { id: string; name: string; url: string; main: boolean }
+
+/** 2.16 · a task Manar gives Randa, Sara or Marwa for today (at most 30 each, M-03 3.1). */
+export const TeamTaskInput = z.object({
+  toUserId: Id.refine(Boolean, "اختار لمين"),
+  title: z.string({ required_error: "اكتب المهمة" }).trim().min(1, "اكتب المهمة").max(300, "المهمة طويلة"),
+  unitId: optional(Id),
+});
+export type TeamTaskInput = z.infer<typeof TeamTaskInput>;
+/** Someone on Manar's team with how many tasks she gave them today, and how many more she can. */
+export interface TeamMember { id: string; name: string; today: number; room: number }
+export interface TeamTaskView {
+  id: string; title: string; unit: { id: string; code: string } | null; to: Person; by: Person;
+  dueOn: string; status: "todo" | "done"; doneAt: string | null; createdAt: string;
+}

@@ -5,7 +5,7 @@ import {
   type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, recommendUnits, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, recommendUnits, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -164,6 +164,7 @@ export class InventoryService {
     return {
       ...this.row(u, s, agents, links), splitNote: u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
       createdBy: u.createdById && by ? { id: u.createdById, name: by.name } : null, updatedAt: u.updatedAt.toISOString(), locks,
+      mediaUploadedAt: u.mediaUploadedAt?.toISOString() ?? null, mediaOnTime: u.mediaUploadedAt ? mediaOnTime(u.enteredAt, u.mediaUploadedAt) : null,
     };
   }
 

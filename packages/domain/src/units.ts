@@ -157,6 +157,14 @@ export const UNIT_SHEET_FIELDS: Record<UnitType, readonly (readonly [key: string
   Primary: [["space", "Space"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Build num"], ["parking", "Parking"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["paymentMethod", "طريقة الدفع"]],
 };
 
+/** M-03 3.1 KPI «مهام منار اليومية للفريق»: at most 30 tasks a day for each person (Sara, Marwa, Randa). */
+export const TEAM_TASKS_PER_DAY = 30;
+export const teamTaskRoom = (givenToday: number): number => Math.max(0, TEAM_TASKS_PER_DAY - givenToday);
+
+/** M-03 3.1 KPI (Sara): the photos and PDF are up within 24 hours of the unit being entered. */
+export const MEDIA_WITHIN_HOURS = 24;
+export const mediaOnTime = (enteredAt: Date, uploadedAt: Date): boolean => uploadedAt.getTime() - enteredAt.getTime() <= MEDIA_WITHIN_HOURS * 3_600_000;
+
 /** M-03 3.1 «pic or info»: how many photos one unit keeps (a Drive folder's worth; more is a mistake). */
 export const MAX_UNIT_PHOTOS = 40;
 

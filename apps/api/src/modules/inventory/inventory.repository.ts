@@ -16,7 +16,7 @@ export const UNIT_ROW = {
   photos: { select: { fileId: true }, orderBy: { position: "asc" }, take: 1 },
   _count: { select: { photos: true } },
 } satisfies Prisma.UnitSelect;
-export const UNIT_DETAIL = { ...UNIT_ROW, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true } satisfies Prisma.UnitSelect;
+export const UNIT_DETAIL = { ...UNIT_ROW, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true, mediaUploadedAt: true } satisfies Prisma.UnitSelect;
 export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
 export type UnitRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_DETAIL }>;
 
