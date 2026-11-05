@@ -1313,6 +1313,7 @@ model Notification {
   important Boolean   @default(false) // stays until read
   readAt    DateTime?
   createdAt DateTime  @default(now())
+  mails     MailLog[]
 
   @@index([userId, readAt])
   @@schema("system")
@@ -1323,6 +1324,28 @@ model NotificationRule {
   toRoles  String[]
   channels String[] // app · push · email
 
+  @@schema("system")
+}
+
+/// M-14 2.3 · 2.4 · 3.3: every email the system sends. The worker sends the queued ones (within a minute), and it is
+/// the send log: «اتبعت» · «اتقرا» (its in-app copy was read) · «الإيميل فشل».
+model MailLog {
+  id             String        @id @default(cuid())
+  to             String
+  subject        String
+  text           String
+  attachments    Json? // [{ filename, base64 }]: the quarterly PDF and the like, kept until the worker sends them
+  status         String        @default("queued") // queued · sent · failed
+  attempts       Int           @default(0)
+  error          String?
+  notificationId String? // the in-app copy of the same notification: its readAt is «اتقرا»
+  notification   Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  nextAttemptAt  DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  sentAt         DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([createdAt])
   @@schema("system")
 }
 

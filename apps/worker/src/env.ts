@@ -9,6 +9,9 @@ const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
+  // M-14 2.4: the worker sends the queued emails; without SMTP (development) it writes them to .local/outbox/
+  SMTP_URL: z.string().url().optional(),
+  MAIL_FROM: z.string().default("Places ERP <notifications@places.com>"),
   S3_ENDPOINT: z.string().url(),
   S3_BUCKET: z.string().min(3),
   S3_ACCESS_KEY: z.string().min(1),

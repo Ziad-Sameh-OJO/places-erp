@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { PrismaClient } from "@places/db";
-import { type Channel, NOTIFICATION_EVENTS, channelsFor, eventByKey } from "@places/domain";
+import type { Prisma, PrismaClient } from "@places/db";
+import type { MailLogQuery, MailLogRow, Paged } from "@places/contracts";
+import { type Channel, NOTIFICATION_EVENTS, channelsFor, eventByKey, mailStatus } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
 import { env } from "../../config/env";
@@ -18,6 +19,15 @@ export interface Notify {
   to?: string[];
   channels?: Channel[];
 }
+
+/** The send log's filters (M-14 3.3): «اتقرا» = sent and its in-app copy read; «اتبعت» = sent, not read yet. */
+const MAIL_FILTER: Record<NonNullable<MailLogQuery["status"]> | "all", Prisma.MailLogWhereInput> = {
+  all: {},
+  queued: { status: "queued" },
+  failed: { status: "failed" },
+  read: { status: "sent", notification: { is: { readAt: { not: null } } } },
+  sent: { status: "sent", NOT: { notification: { is: { readAt: { not: null } } } } },
+};
 
 /**
  * M-14. Services say what happened; this decides who hears about it and how, from the rule (admin-editable,
@@ -52,8 +62,8 @@ export class NotificationsService {
     });
     for (const p of people) {
       const ch = channelsFor(n.channels ?? rule.channels, p, e.important);
-      if (ch.includes("app")) await this.db.notification.create({ data: { userId: p.id, text: n.text, link: n.link ?? null, important: e.important } });
-      if (ch.includes("email")) await this.mail.send({ to: p.email, subject: `${e.label} · Places ERP`, text: `${n.text}${n.link ? `\n${env.WEB_ORIGIN}${n.link}` : ""}` });
+      const inApp = ch.includes("app") ? await this.db.notification.create({ data: { userId: p.id, text: n.text, link: n.link ?? null, important: e.important } }) : null;
+      if (ch.includes("email")) await this.mail.send({ to: p.email, subject: `${e.label} · Places ERP`, text: `${n.text}${n.link ? `\n${env.WEB_ORIGIN}${n.link}` : ""}`, notificationId: inApp?.id });
     }
     return people.length;
   }
@@ -71,6 +81,20 @@ export class NotificationsService {
   /** Only the owner can mark their own notifications. */
   async read(userId: string, id: string | "all") {
     await this.db.notification.updateMany({ where: { userId, readAt: null, ...(id === "all" ? {} : { id }) }, data: { readAt: new Date() } });
+  }
+
+  /** M-14 3.1 · 3.3 · 6.1: the send log, newest first: اتبعت · اتقرا · الإيميل فشل · مستني. */
+  async mailLog(q: MailLogQuery): Promise<Paged<MailLogRow>> {
+    const where = MAIL_FILTER[q.status ?? "all"];
+    const [rows, total] = await this.db.$transaction([
+      this.db.mailLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (q.page - 1) * q.pageSize, take: q.pageSize, include: { notification: { select: { readAt: true } } } }),
+      this.db.mailLog.count({ where }),
+    ]);
+    const items = rows.map((r) => {
+      const readAt = r.notification?.readAt ?? null;
+      return { id: r.id, to: r.to, subject: r.subject, status: mailStatus(r.status, readAt), attempts: r.attempts, error: r.error, createdAt: r.createdAt.toISOString(), sentAt: r.sentAt?.toISOString() ?? null, readAt: readAt?.toISOString() ?? null };
+    });
+    return { items, total, page: q.page, pageSize: q.pageSize };
   }
 
   async setPreferences(userId: string, emailNotifications: boolean) {

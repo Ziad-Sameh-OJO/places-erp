@@ -5,6 +5,7 @@ import type { Channel } from "@places/domain";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { Card, Field, Note, Table, Tick, useAction } from "@/components/ui";
+import { MailLog } from "./mail-log";
 
 interface Rule { key: string; label: string; to: string; channels: Channel[]; important: boolean }
 const CH: [Channel, string][] = [["app", "جوه السيستم"], ["push", "Push"], ["email", "إيميل"]];
@@ -41,6 +42,7 @@ export function NotificationRules() {
         ])} />
         <Note>الـ Push بيشتغل لما نفعّل التطبيق على الموبايل (PWA)؛ لحد دلوقتي الإشعارات بتوصل جوه السيستم وعلى الإيميل.</Note>
       </Card>
+      {ed && <MailLog />}
     </>
   );
 }
