@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, itemAchievement, levelLabel, metricProblem, nextQuarter, quarterLabel } from "../src/kpi.ts";
+import {
+  bandLabel, calcText, canEnterManual, endOfLocalDay, itemAchievement, levelLabel, metricProblem, nextQuarter, onTimeShare, pct, perWeek, kpiPeriodStart,
+  quarterLabel, salesAttendance, timeliness,
+} from "../src/kpi.ts";
 
 test("11.11 · a new quarter follows the last one, across the year", () => {
   assert.equal(nextQuarter("2026-Q4"), "2027-Q1");
@@ -47,4 +50,47 @@ test("11.14 · the watcher reads the tier without money", () => {
   assert.equal(levelLabel(80), "محتاج متابعة");
   assert.equal(levelLabel(60), "ضعيف · خطة تحسين");
   assert.equal(levelLabel(40), "تحت الحد");
+});
+
+const at = (s: string) => new Date(s);
+
+test("11.5 · the daily job's numbers match the client's examples (M-12 7.1)", () => {
+  // Hadeer called 90 leads of 100 within 30 minutes: 90%, her goal → the item is met
+  const hadeer = pct(90, 100)!;
+  assert.equal(hadeer, 90);
+  assert.equal(itemAchievement({ method: "system", direction: "at-least", goal: 90, value: hadeer, required: null, delivered: 0 }), 1);
+  // Bayoumi shot 8 of 10 new units within 72 hours: 80% of a 90% goal → 89%
+  assert.equal(Math.round(itemAchievement({ method: "system", direction: "at-least", goal: 90, value: pct(8, 10), required: null, delivered: 0 }) * 100), 89);
+  assert.equal(pct(0, 0), null);
+  assert.equal(pct(0, 0, 100), 100);
+});
+
+test("11.5 · an item's period: last 7 days, the Cairo month, the quarter", () => {
+  const now = at("2026-11-05T10:00:00Z");
+  assert.equal(kpiPeriodStart("week", now, "2026-Q4").toISOString(), "2026-10-29T10:00:00.000Z");
+  assert.equal(kpiPeriodStart("month", now, "2026-Q4").toISOString(), "2026-10-31T22:00:00.000Z"); // 1 Nov, Cairo (+2)
+  assert.equal(kpiPeriodStart(undefined, now, "2026-Q4").toISOString(), "2026-09-30T21:00:00.000Z"); // 1 Oct, Cairo summer time (+3)
+  assert.equal(perWeek(14, at("2026-10-22T10:00:00Z"), now), 7); // 14 in two weeks
+  assert.equal(perWeek(3, at("2026-11-04T10:00:00Z"), now), 3); // less than a week counts as one
+});
+
+test("11.15 · on time / late / still waiting (not counted)", () => {
+  const now = at("2026-11-05T12:00:00Z");
+  const due = at("2026-11-05T11:00:00Z");
+  assert.equal(timeliness(at("2026-11-05T10:59:00Z"), due, now), "ok");
+  assert.equal(timeliness(at("2026-11-05T11:30:00Z"), due, now), "late");
+  assert.equal(timeliness(null, due, now), "late"); // waiting past the time
+  assert.equal(timeliness(null, at("2026-11-05T13:00:00Z"), now), "waiting");
+  // «5 في الميعاد من 8»: the waiting ones aren't counted
+  assert.equal(onTimeShare(["ok", "ok", "ok", "ok", "ok", "late", "late", "late", "waiting"]), 62.5);
+  assert.equal(onTimeShare(["waiting"]), 100);
+  // a lead of 5 Nov 23:30 Cairo is due by Cairo midnight
+  assert.equal(endOfLocalDay(at("2026-11-05T21:30:00Z")).toISOString(), "2026-11-05T22:00:00.000Z");
+});
+
+test("«الحضور (السيلز)»: half for absence up to 5 days, half for lateness up to 6 hours", () => {
+  assert.equal(salesAttendance(0, 0), 100);
+  assert.equal(salesAttendance(5, 6), 100);
+  assert.equal(salesAttendance(10, 3), 75);
+  assert.equal(salesAttendance(5, 12), 75);
 });

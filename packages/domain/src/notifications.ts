@@ -44,6 +44,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "ticket.new", label: "تذكرة جديدة / اتحوّلت لقسمك", to: "القسم المسؤول", toRoles: [], channels: ["app", "push"], important: false }, // M-06 2.1
   { key: "ticket.late", label: "تذكرة اتأخرت · تصعيد", to: "مدير القسم · نانسي للنزاعات", toRoles: [], channels: ["app", "push", "email"], important: true }, // M-06 2.4
   { key: "kpi.changed", label: "تغيير في الـ KPIs", to: "مسؤول الـ KPIs", toRoles: [], channels: ["app"], important: false }, // 11.14: never about money
+  { key: "kpi.activity", label: "نتيجة Farming / Approach", to: "المتابع · الأوبريشن", toRoles: ["ops"], channels: ["app"], important: false }, // 11.13
   { key: "access.changed", label: "تغيير في حسابك أو صلاحياتك", to: "صاحب الحساب", toRoles: [], channels: ["app", "email"], important: true },
   // M-09 6.1: the Super Admin hears of any permission change and of any strange sign-in
   { key: "access.permissions", label: "تغيير في الصلاحيات", to: "Super Admin", toRoles: ["admin"], channels: ["app", "email"], important: true },

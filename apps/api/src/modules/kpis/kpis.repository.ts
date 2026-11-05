@@ -75,6 +75,23 @@ export class KpisRepository {
     return this.db.auditLog.findMany({ where: { module: "kpis" }, orderBy: { at: "desc" }, take });
   }
 
+  /** 11.13: the person's latest Farming / Approach. */
+  activities(employeeId: string) {
+    return this.db.salesActivity.findMany({ where: { employeeId }, orderBy: { at: "desc" }, take: 6 });
+  }
+
+  activity(id: string) {
+    return this.db.salesActivity.findUnique({ where: { id } });
+  }
+
+  /** Does the person's card this quarter count Farming / Approach, and who follows it. */
+  activityCard(quarter: string, employeeId: string) {
+    return this.db.kpiCard.findUnique({
+      where: { quarter_employeeId: { quarter, employeeId } },
+      select: { follower: { select: { userId: true } }, items: { where: { metric: "activitiesDone" }, select: { id: true } } },
+    });
+  }
+
   names(userIds: string[]) {
     return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
   }

@@ -173,6 +173,7 @@ model Employee {
 
   kpiCards        KpiCard[]       @relation("KpiOwner")
   kpiFollowing    KpiCard[]       @relation("KpiFollower")
+  salesActivities SalesActivity[]
   @@schema("hr")
 }
 
@@ -1399,6 +1400,27 @@ model KpiQuarter {
   closedAt   DateTime?
   closedById String?
 
+  @@schema("kpi")
+}
+
+/// 11.13 · a Farming / Approach a salesperson plans (where, when); after its time he says whether he did it and what
+/// came of it (Farming: brought something new + a note · Approach: the companies). The Farming item counts the done
+/// ones on the day they happened (`at`).
+model SalesActivity {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  kind       String    // Farming · Approach
+  place      String
+  at         DateTime
+  status     String    @default("planned") // planned · done · notDone
+  got        Boolean?
+  note       String?
+  companies  String[]  @default([])
+  doneAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, at])
   @@schema("kpi")
 }
 
