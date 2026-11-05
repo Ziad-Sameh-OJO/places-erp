@@ -148,3 +148,43 @@ export const excuseNumber = (earlierThisMonth: number): number => earlierThisMon
 export const excuseRefused = (n: number): boolean => n >= 5;
 /** What the Excuse costs once confirmed: 1–2 nothing, 3–4 half a day. */
 export const excuseDeduction = (n: number): 0 | 0.5 => (n >= 3 ? 0.5 : 0);
+
+/* ---- a salesperson's day with a Visit (7.3) ---- */
+/** A Visit up to 12:00 is a check-in without lateness; after 12 the day is late up to the Visit (M-05 2.1 · 7.1). */
+export const VISIT_ON_TIME_UNTIL = "12:00";
+/** One Visit of the day: its Cairo time, Done / «معملتهاش» / not marked, and whether the TL approved postponing it (1.24). */
+export interface DayVisit { readonly at: string; readonly outcome: "done" | "not_done" | null; readonly postponed: boolean }
+
+/** The Visit that decides the day: an approved postponement first, then the earliest not marked «معملتهاش», else the earliest. */
+export function pickDayVisit(visits: readonly DayVisit[]): DayVisit | null {
+  const byTime = [...visits].sort((a, b) => a.at.localeCompare(b.at));
+  return byTime.find((v) => v.postponed) ?? byTime.find((v) => v.outcome !== "not_done") ?? byTime[0] ?? null;
+}
+
+/** When the day started: the Visit time (Done or not marked yet) even if the fingerprint came after it, else the fingerprint. */
+export function dayStartTime(checkIn: string | null, visit: DayVisit | null): string | null {
+  if (!visit || visit.outcome === "not_done" || visit.postponed) return checkIn;
+  return checkIn && checkIn < visit.at ? checkIn : visit.at;
+}
+
+/**
+ * A salesperson's day with a Visit (4 Nov demo meeting): Done or not marked → the day starts at the Visit (no lateness up
+ * to 12:00, after it the tiers up to the Visit); «معملتهاش» → back to the fingerprint with its deduction (HR is told by
+ * the lead rules), no fingerprint = no start (null); a postponement the TL approved (1.24) → no deduction that day.
+ */
+export function visitDay(i: FingerprintDayInput, v: DayVisit): DayResult | null {
+  if (v.postponed) return { deduction: 0, lateMinutes: 0, label: "Visit اتأجلت (معتمد)", alertManagement: false };
+  const start = dayStartTime(i.checkIn, v);
+  if (!start) return null;
+  const r = fingerprintDay({ ...i, checkIn: start });
+  if (v.outcome === "not_done") return { ...r, label: "Visit · معملهاش" };
+  return { ...r, deduction: v.at <= VISIT_ON_TIME_UNTIL ? 0 : r.deduction, label: "Visit" };
+}
+
+/** 1.23 · today's rotation: the earliest start first, nobody started yet last; a manual order for the day wins and someone not in it joins the end. */
+export function dayRotation(ids: readonly string[], starts: ReadonlyMap<string, string>, manual: readonly string[] | null): string[] {
+  const auto = [...ids].sort((a, b) => (starts.get(a) ?? "99").localeCompare(starts.get(b) ?? "99"));
+  if (!manual) return auto;
+  const rank = (id: string) => (manual.includes(id) ? manual.indexOf(id) : manual.length + auto.indexOf(id));
+  return auto.sort((a, b) => rank(a) - rank(b));
+}

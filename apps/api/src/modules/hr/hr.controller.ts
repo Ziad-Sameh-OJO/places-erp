@@ -69,6 +69,14 @@ export class HrController {
     return this.attendance.entry(me, body, this.run);
   }
 
+  /** «Confirm خصم يوم» on «نسي البصمة» (7.3). */
+  @Post("attendance/:id/confirm-forgot")
+  @HttpCode(200)
+  @Requires("hr", "approve")
+  confirmForgot(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.attendance.confirmForgot(me, id, this.run);
+  }
+
   @Post("attendance/unmatched/:id/link")
   @Requires("hr", "edit")
   link(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(LinkUnmatched)) body: { employeeId: string }) {

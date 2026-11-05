@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { LeadDetail, VisitRow, VisitUnit } from "@places/contracts";
-import { Chip, Empty, Field, Icon, useAction } from "@/components/ui";
+import { Chip, Empty, Field, Icon, Modal, onFormSubmit, useAction } from "@/components/ui";
 import { useMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import { useRefreshLead } from "./use-lead";
@@ -12,17 +12,22 @@ type Kind = VisitRow["kind"];
 /**
  * Demo «الزيارات» (1.9, M-01 3.3): every Visit / Meeting with its Alarm when the time came, Done / معملتهاش / تعديل,
  * and the form under it. Booking moves the lead to «Follow up to …», Done to Visit / Meeting (the API decides, forward
- * only). Postponing is 1.24.
+ * only). «اتأجلت» (1.24): a reason, then whom the lead rules name (the TL) approves or rejects.
  */
 export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
   const { can } = useMe();
   const run = useAction();
   const refresh = useRefreshLead();
   const [editing, setEditing] = useState<VisitRow | null>(null);
+  const [postponing, setPostponing] = useState<VisitRow | null>(null);
   const edit = can("leads", "edit");
   const mark = (v: VisitRow, outcome: "done" | "not_done") => void run(async () => {
     try { await api.post(`/leads/${l.id}/visits/${v.id}/outcome`, { outcome }); } finally { await refresh(l.id); }
   }, outcome === "done" ? `الـ ${v.kind} خلصت · اتحسبت في الـ activity` : "اتسجّلت إنها محصلتش · ظاهرة للـ HR في الحضور");
+  const decide = (v: VisitRow, approve: boolean) => void run(async () => {
+    try { await api.post(`/leads/${l.id}/visits/${v.id}/postpone/decision`, { approve }); } finally { await refresh(l.id); }
+  }, approve ? "اتوافق على التأجيل · من غير خصم" : "اترفض التأجيل");
+  const p = (v: VisitRow) => v.postpone?.status;
   return (
     <>
       {l.visits.length ? l.visits.map((v) => {
@@ -33,19 +38,35 @@ export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
             <div className="v-main">
               <b>{v.kind} · {d.toLocaleTimeString("ar-EG", { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" })} · {v.units.map((u) => u.code).join("، ") || "وحدات هتتحدد"}</b>
               {v.extra && <small>مساحات مش في الشيت: {v.extra}</small>}
+              {v.postpone && <small>سبب التأجيل: {v.postpone.reason}</small>}
               {v.due && <small className="bad-t"><Icon name="bell" />Alarm: ميعاد الـ {v.kind} جه · دوس Done</small>}
             </div>
             {v.outcome === "done" ? <Chip tone="ok">Done · اتحسبت في الـ activity</Chip>
               : v.outcome === "not_done" ? <Chip tone="bad">معملهاش · ظاهرة للـ HR</Chip>
+              : p(v) === "approved" ? <Chip tone="info">اتأجلت · الـ Team Leader وافق · من غير خصم</Chip>
+              : p(v) === "pending" ? <>
+                <Chip tone="warn">اتأجلت · مستنية موافقة الـ Team Leader</Chip>
+                {v.postpone?.canDecide && <><button className="btn sm" onClick={() => decide(v, true)}>وافق على التأجيل</button><button className="btn ghost sm" onClick={() => decide(v, false)}>ارفض</button></>}
+              </>
               : edit && <>
                 <button className="btn sm" onClick={() => mark(v, "done")}>Done</button>
                 <button className="btn ghost sm" onClick={() => mark(v, "not_done")}>معملتهاش</button>
+                {!p(v) && <button className="btn ghost sm" onClick={() => setPostponing(v)}>اتأجلت</button>}
                 <button className="btn ghost sm" onClick={() => setEditing(v)}>تعديل</button>
               </>}
           </div>
         );
       }) : <Empty text="مفيش زيارات لسه" icon="pin" />}
       {edit && <VisitForm key={editing?.id ?? `new-${kind}`} l={l} kind={kind} editing={editing} onDone={() => setEditing(null)} />}
+      {postponing && <Modal title={`تأجيل الـ ${postponing.kind} · ${l.name}`} onClose={() => setPostponing(null)}>
+        <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
+          try { await api.post(`/leads/${l.id}/visits/${postponing.id}/postpone`, { reason: f.get("reason") }); setPostponing(null); } finally { await refresh(l.id); }
+        }, "اتبعت للـ Team Leader يوافق"))}>
+          <Field label="سبب التأجيل" req wide><textarea name="reason" required minLength={3} maxLength={300} placeholder="مثلاً: العميل طلب يأجّل لبكره عشان مسافر" /></Field>
+          <p className="hint wide">الطلب هيروح لـ الـ Team Leader يوافق أو يرفض.</p>
+          <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setPostponing(null)}>إلغاء</button><button className="btn">ابعت الطلب</button></div>
+        </form>
+      </Modal>}
     </>
   );
 }

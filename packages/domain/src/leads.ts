@@ -110,7 +110,10 @@ export function slaView(
  * When Operations hands a lead to someone by hand, that person's next turn is skipped (Q2).
  * State is plain data so it can be persisted between requests; the class only holds the rules.
  */
-export interface RoutingState { cursor: Record<string, number>; skipTurns: Record<string, number> }
+export interface RoutingState { cursor: Record<string, number>; skipTurns: Record<string, number>; day?: string }
+
+/** 1.23: each day's rotation starts from the top of that day's order («أول واحد بصم بياخد أول ليد»); skipped turns carry over. */
+export const routingForDay = (s: RoutingState, day: string): RoutingState => (s.day === day ? s : { ...s, cursor: {}, day });
 
 export class LeadRouter {
   readonly #state: RoutingState;
