@@ -37,3 +37,4 @@ export * from "./clients.ts";
 export * from "./bulk.ts";
 export * from "./task-sla.ts";
 export * from "./companies.ts";
+export * from "./campaigns.ts";

@@ -984,14 +984,17 @@ model Campaign {
   startsOn  DateTime @db.Date
   endsOn    DateTime @db.Date
   budget    Decimal  @db.Decimal(14, 2)
-  spent     Decimal  @default(0) @db.Decimal(14, 2)
-  target    String?
+  spent     Decimal  @default(0) @db.Decimal(14, 2) // what it actually cost (Finance / the cost center read it, 4.5)
+  target    String?  // «المشروع / الوحدات المستهدفة»
   adUrl     String?
+  note      String?
   leads     Lead[]
   arrivals  LeadArrival[]
   bulks     LeadBulk[]
   createdAt DateTime @default(now())
+  archivedAt DateTime? // archived, never deleted: leads point at it
 
+  @@index([archivedAt])
   @@schema("marketing")
 }
 
