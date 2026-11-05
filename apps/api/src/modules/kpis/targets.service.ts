@@ -130,6 +130,29 @@ export class TargetsService {
     });
   }
 
+  /**
+   * 5.8 · M-12 3.2: each of these TLs' commission for a month, the TL report's figure (the tier the team reached × the
+   * team's share of what was collected). Read inside the caller's transaction, so a collection being recorded counts.
+   */
+  async tlCommissions(tlIds: string[], month: string, tx: Prisma.TransactionClient) {
+    const tiers = tlTiersOf(await this.repo.setting("tlTiers"));
+    if (!tiers.length || !tlIds.length) return [];
+    const b = monthBounds(month, await this.time.calendar());
+    const people = await this.repo.salespeople({ teamLeaderId: { in: tlIds } }, tx);
+    const ids = people.map((p) => p.id);
+    const targets = await this.repo.targets(month, ids, tx);
+    const rows = (await this.repo.deals(ids, b.from, b.to, tx)).map(dealRow);
+    return tlIds.flatMap((tlId) => {
+      const members = people.filter((p) => p.teamLeaderId === tlId);
+      if (!members.length) return [];
+      const res = teamResult(members.map((p) => {
+        const t = targets.find((x) => x.employeeId === p.id), f = periodFigures(p.id, rows, b.from, b.to);
+        return { goal: t ? piasters(t.value) : piasters(p.target), achieved: f.achieved, shareOfCollections: f.share };
+      }), tiers);
+      return [{ tlId, name: members[0]!.teamLeader!.name, commission: res.commission }];
+    });
+  }
+
   /** «الـ Transactions» of a period: deals of my people whose first collection falls in it. */
   async transactions(me: CurrentUser, from: string, to: string): Promise<TransactionRow[]> {
     const cal = await this.time.calendar(), start = dayStart(from, cal), end = new Date(dayStart(to, cal).getTime() + 86_400_000);

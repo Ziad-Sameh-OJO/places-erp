@@ -102,8 +102,8 @@ export class ReportsRepository {
   // ───────── 11.8 ─────────
 
   /** Active salespeople in the data scope, with their TL. */
-  salespeople(where: Prisma.EmployeeWhereInput) {
-    return this.db.employee.findMany({
+  salespeople(where: Prisma.EmployeeWhereInput, tx: Tx = this.db) {
+    return tx.employee.findMany({
       where: { ...where, user: { status: "ACTIVE", roles: { some: { role: { key: "sales" } } } } },
       select: { id: true, userId: true, name: true, team: true, target: true, teamLeaderId: true, teamLeader: { select: { id: true, name: true, team: true } } },
       orderBy: { name: "asc" },
@@ -115,8 +115,8 @@ export class ReportsRepository {
   }
 
   /** Deals of these people with a collection in [from, to), with all their payments (the first collection decides the Transaction). */
-  deals(employeeIds: string[], from: Date, to: Date): Promise<DealRecord[]> {
-    return this.db.deal.findMany({ where: { participants: { some: { employeeId: { in: employeeIds } } }, payments: { some: { receivedAt: { gte: from, lt: to } } } }, ...DEAL, orderBy: { closedAt: "asc" } });
+  deals(employeeIds: string[], from: Date, to: Date, tx: Tx = this.db): Promise<DealRecord[]> {
+    return tx.deal.findMany({ where: { participants: { some: { employeeId: { in: employeeIds } } }, payments: { some: { receivedAt: { gte: from, lt: to } } } }, ...DEAL, orderBy: { closedAt: "asc" } });
   }
 
   visits(userIds: string[], from: Date, to: Date) {

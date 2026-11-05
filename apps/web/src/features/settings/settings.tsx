@@ -18,8 +18,8 @@ export function SettingsPage() {
   const { can, canSet } = useMe();
   const [tab, setTab] = useState<"lists" | "stages" | "time" | "holidays" | "tpl" | "brand">("lists");
   // M-13 4.1: each card is its department's (the HR: leave types, holidays · the marketing: the WhatsApp limit)
-  const edLeave = canSet("leaveTypes"), edWa = canSet("whatsappDailyLimit"), edHol = canSet("holidays"), edTol = canSet("recommendTolerancePct");
-  const readOnly = tab === "time" ? !edLeave && !edWa && !edTol : tab === "holidays" ? !edHol : tab === "stages" || (tab === "tpl" && !can("master", "edit"));
+  const edLeave = canSet("leaveTypes"), edWa = canSet("whatsappDailyLimit"), edHol = canSet("holidays"), edTol = canSet("recommendTolerancePct"), edTiers = canSet("tlTiers");
+  const readOnly = tab === "time" ? !edLeave && !edWa && !edTol && !edTiers : tab === "holidays" ? !edHol : tab === "stages" || (tab === "tpl" && !can("master", "edit"));
   const [importing, setImporting] = useState(false);
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
   const holidays = useQuery({ queryKey: ["holidays"], queryFn: () => api.get<HolidayView[]>("/settings/holidays") });
@@ -64,6 +64,7 @@ export function SettingsPage() {
             {edTol && <button className="btn ghost sm">احفظ</button>}
           </form>
         </Card>
+        <TlTiers key={JSON.stringify(d.tlTiers)} tiers={d.tlTiers} canEdit={edTiers} save={(v) => set("tlTiers", v)} />
       </div>}
 
       {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="من يوم لـ يوم (زي العيد) · في أيامها الـ SLA بيمشي بمواعيد يوم الإجازة ومابتتحسبش في ساعات الشغل"
@@ -78,6 +79,28 @@ export function SettingsPage() {
 }
 
 /** The demo's «قواعد الـ SLA» card: the numbers live in «قواعد الليدز» now (1.29), this shows them and links there. */
+/** 5.8 · M-12 2.1 step 5: the TL's percentage by the team's achievement (demo «شرايح الـ Scheme بتاعة الـ TL»); an empty «أقل من» = «وأكتر». */
+function TlTiers({ tiers, canEdit, save }: { tiers: Settings["tlTiers"]; canEdit: boolean; save: (v: Settings["tlTiers"]) => void }) {
+  const [rows, setRows] = useState<Array<{ below: number | null; percent: number | null }>>(tiers);
+  const edit = (i: number, k: "below" | "percent", v: string) => setRows(rows.map((t, j) => (j === i ? { ...t, [k]: v === "" ? null : +v } : t)));
+  return (
+    <Card title="شرايح الـ Scheme بتاعة الـ TL" icon="chart" sub="حسب نسبة تحقيق تارجت الفريق · عمولة الـ TL = نسبة الشريحة × نصيب كل سيلز في فريقه">
+      <form action={() => save(rows.map((t, i) => ({ below: i === rows.length - 1 ? null : t.below, percent: t.percent ?? 0 })))}>
+        <Table head={["لو الفريق محقق أقل من", "نسبة الـ TL", ""]} rows={rows.map((t, i) => [
+          i === rows.length - 1 ? <span key="b" className="hint">وأكتر</span>
+            : <input key="b" type="number" min={1} value={t.below ?? ""} onChange={(e) => edit(i, "below", e.target.value)} disabled={!canEdit} required style={{ maxWidth: 110 }} aria-label={`حد الشريحة ${i + 1} %`} />,
+          <input key="p" type="number" min={0} max={100} step="0.5" value={t.percent ?? ""} onChange={(e) => edit(i, "percent", e.target.value)} disabled={!canEdit} required style={{ maxWidth: 90 }} aria-label={`نسبة الشريحة ${i + 1} %`} />,
+          canEdit && rows.length > 1 ? <button key="x" type="button" className="btn ghost sm" onClick={() => setRows(rows.filter((_, j) => j !== i))} aria-label="شيل الشريحة"><Icon name="x" /></button> : null,
+        ])} />
+        {canEdit && <div className="row end">
+          <button type="button" className="btn ghost sm" onClick={() => setRows([{ below: 90, percent: 5 }, ...rows])}><Icon name="plus" />شريحة</button>
+          <button className="btn sm">احفظ</button>
+        </div>}
+      </form>
+    </Card>
+  );
+}
+
 function SlaSummary() {
   const { can } = useMe();
   const rules = useQuery({ queryKey: ["lead-rules"], queryFn: () => api.get<LeadRules>("/leads/rules"), enabled: can("settings", "view") });
