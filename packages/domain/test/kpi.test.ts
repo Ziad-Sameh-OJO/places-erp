@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pct, perWeek, kpiPeriodStart, salesAttendance, timeliness } from "../src/kpi.ts";
+import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timeliness } from "../src/kpi.ts";
 import { monthDeduction } from "../src/attendance.ts";
 
 test("11.6 · the client's bands reach payroll: 102% on a 10,000 bonus → +1,500, 65% on a 12,000 salary → −1,800", () => {
@@ -105,6 +105,9 @@ test("11.15 · on time / late / still waiting (not counted)", () => {
   assert.equal(onTimeShare(["waiting"]), 100);
   // a lead of 5 Nov 23:30 Cairo is due by Cairo midnight
   assert.equal(endOfLocalDay(at("2026-11-05T21:30:00Z")).toISOString(), "2026-11-05T22:00:00.000Z");
+  // the Channels left out of the Second Calls: «By Safwat» by default, else the item's list
+  assert.deepEqual(secondCallExcluded({}), ["By Safwat"]);
+  assert.deepEqual(secondCallExcluded({ excl: "By Safwat, Referral ," }), ["By Safwat", "Referral"]);
 });
 
 test("«الحضور (السيلز)»: half for absence up to 5 days, half for lateness up to 6 hours", () => {

@@ -370,7 +370,7 @@ model Lead {
   note           String?
   post           String?       // the campaign post it came from (M-04: channel → campaign → post)
   answers        Json?         // answers to the recommendation questions, they narrow the suggested units
-  verification   Json?         // Second Call: { called, sent, byUserId, at }
+  verification   Json?         // Second Call (11.15): { called, sent, note, byUserId, at }
   activities     LeadActivity[]
   arrivals       LeadArrival[]
   calls          LeadCall[]
