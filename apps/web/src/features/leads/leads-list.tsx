@@ -17,6 +17,7 @@ import { BulkNew } from "./bulk";
 import { OldDataImport } from "../imports/old-data-import";
 import { SecondCalls } from "./second-calls";
 import { CompaniesSheet, usePendingCompanies } from "./companies";
+import { DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
 
@@ -43,6 +44,7 @@ export function LeadsList() {
     if (q.get("companies") === "1") setCompanies(true); // the new-company notification's link (1.20)
   }, []);
   useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
+  const [draftTab, setDraftTab] = useState(false);
   const summary = useLeadSummary(kind);
   const calls = useMyCalls().data;
   const options = useLeadOptions();
@@ -59,10 +61,20 @@ export function LeadsList() {
   const s = summary.data;
   // prev / next in the drawer walk what's on screen: this page of the list, or the board's cards lane by lane
   const ids = mode === "board" ? (board.data?.lanes ?? []).flatMap((l) => l.items.map((x) => x.id)) : (leads.data?.items ?? []).map((x) => x.id);
+  // «Draft» (1.26): only for the people «قواعد الليدز» names — the API says so with a count instead of null
+  const tabRow = (
+    <div className="row">
+      <Tabs<LeadKind | "draft"> value={draftTab ? "draft" : kind} onChange={(k) => { setDraftTab(k === "draft"); if (k !== "draft") setKind(k); setPage(1); }}
+        items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker], ...(s?.drafts != null ? [["draft", "Draft", s.drafts] as ["draft", string, number]] : [])]} />
+    </div>
+  );
+  if (draftTab && s?.drafts != null) {
+    return <>{tabRow}<DraftView onOpen={setOpen} />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;
+  }
 
   return (
     <>
-      <div className="row"><Tabs value={kind} onChange={(k) => { setKind(k); setPage(1); }} items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker]]} /></div>
+      {tabRow}
       <OperationsQueue />
       <SecondCalls onOpen={setOpen} />
       {newCompanies.length > 0 && <Note kind="warn">فيه {newCompanies.length} شركة جديدة محتاجة تتضاف لشيت الشركات. <button className="btn sm" onClick={() => setCompanies(true)}>افتح شيت الشركات</button></Note>}

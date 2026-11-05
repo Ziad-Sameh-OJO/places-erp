@@ -1,13 +1,12 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma, PrismaClient } from "@places/db";
+import type { PrismaClient } from "@places/db";
 import { ROTATION, type NewLeadRequestRow, type RouteNewLead } from "@places/contracts";
-import { LeadRouter, NEW_LEAD_ROUTE_MIN, localDate, newLeadMinutesLeft } from "@places/domain";
+import { LeadRouter, NEW_LEAD_ROUTE_MIN, newLeadMinutesLeft } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
-import { LeavesService } from "../hr/leaves.service";
 import { LeadsRepository } from "./leads.repository";
 import { LeadsService } from "./leads.service";
 
@@ -26,7 +25,6 @@ export class NewLeadsService {
     private readonly repo: LeadsRepository,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
-    private readonly leaves: LeavesService,
     private readonly leads: LeadsService,
   ) {}
 
@@ -70,7 +68,7 @@ export class NewLeadsService {
       if (!lead) throw new NotFoundException("الطلب ده مش موجود");
       if (lead.newLeadRoutedAt) throw new ConflictException(DECIDED);
       const router = new LeadRouter(await this.repo.lockRouting(tx));
-      const to = picked?.id ?? router.next(lead.area, await this.rotationPool(tx, lead.area));
+      const to = picked?.id ?? router.next(lead.area, await this.leads.areaPool(tx, lead.area));
       if (!to) throw new BadRequestException("مفيش سيلز متاح على الـ area دي · اختار سيلز معيّن");
       if (picked) router.assignedByHand(picked.id);
       const now = new Date();
@@ -91,12 +89,5 @@ export class NewLeadsService {
     });
     await this.leads.notifyAssigned(id, routed.name, routed.area, routed.to);
     return this.leads.get(me, id);
-  }
-
-  /** The area's rotation as a new lead gets it (1.13, 1.15): still working, not on approved leave today. */
-  private async rotationPool(tx: Prisma.TransactionClient, area: string) {
-    const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
-    const onLeave = await this.leaves.employeesOnLeave(localDate(new Date()), tx);
-    return (await this.repo.stillWorking(pools[area] ?? [], tx)).filter((e) => !onLeave.has(e));
   }
 }

@@ -3,7 +3,7 @@
  * leads, editable without a developer. The jobs (SLA 1.16, No Answer 1.17, Draft 1.26, deal Alarm 5.6) read these,
  * never numbers in the code. Defaults are the demo's (data.js leadRules) and the requirements' (M-01 Q4, Q5).
  */
-import { type SlaRules, leadSla } from "./leads.ts";
+import { type LeadStage, type SlaRules, leadSla } from "./leads.ts";
 import { type WorkCalendar, PLACES_CALENDAR, localDate, wallClockMinutesBetween, workingMinutesBetween } from "./business-time.ts";
 import type { Channel } from "./notifications.ts";
 
@@ -97,6 +97,14 @@ export function ruleRecipients(who: RuleWho, lead: { readonly ownerUserId: strin
 }
 
 /**
+ * Is this person one the rule names, as a person or by a role (demo isIn)? «مين يشوف الـ Draft» (1.26): the admin
+ * always may, like the demo.
+ */
+export function isNamedIn(who: RuleWho, person: { readonly userId: string; readonly roles: readonly string[] }): boolean {
+  return person.roles.includes("admin") || who.to.some((x) => x === person.userId || person.roles.includes(x));
+}
+
+/**
  * The saved rules over the defaults, deep (a rule added later gets its default until someone changes it). Objects
  * are merged; arrays and values are taken as saved. The API and the worker's jobs read the rules through this.
  */
@@ -175,4 +183,28 @@ export function noAnswerReminderDue(
 export const NEW_LEAD_ROUTE_MIN = 30;
 export function newLeadMinutesLeft(requestedAt: Date, now: Date, limit = NEW_LEAD_ROUTE_MIN): number {
   return limit - Math.floor((now.getTime() - requestedAt.getTime()) / 60_000);
+}
+
+/** Stages a lead is never pulled to the Draft from: finished, or already on the No Answer rotation (demo DRAFT_SKIP). */
+export const DRAFT_SKIP: readonly LeadStage[] = ["Done Deal", "Cancellation", "Not Interested", "No Answer"];
+const DAY_MS = 86_400_000;
+
+/**
+ * 1.26 · 4 Nov meeting: a lead nobody acted on or commented on for draft.days (7), or draft.holdDays (14) while on Hold,
+ * leaves its salesperson for the Draft. Days are calendar days from the last touch (the assignment or a person's
+ * comment / action), like the demo. Returns the days that pulled it, or null.
+ */
+export function draftStep(lead: { readonly stage: LeadStage; readonly lastTouch: Date }, now: Date, rules: LeadRules): number | null {
+  if (!rules.draft.on || DRAFT_SKIP.includes(lead.stage)) return null;
+  const days = lead.stage === "Hold" ? rules.draft.holdDays : rules.draft.days;
+  return now.getTime() - lead.lastTouch.getTime() >= days * DAY_MS ? days : null;
+}
+
+/**
+ * Hours Operations has to decide on a Draft / Draft Admin lead (demo: Heba's KPI item «قرارات الـ Draft في ميعادها»,
+ * 24 hours by default · 11.15): «باقي X س», or «اتأخر X س» once negative.
+ */
+export const DRAFT_DECIDE_HOURS = 24;
+export function draftMinutesLeft(at: Date, now: Date, hours = DRAFT_DECIDE_HOURS): number {
+  return hours * 60 - Math.floor((now.getTime() - at.getTime()) / 60_000);
 }

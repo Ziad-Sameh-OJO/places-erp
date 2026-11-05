@@ -165,6 +165,10 @@ export interface LeadSummary {
   holidayMode: boolean; slaRules: { warnAfter: number; pullAfter: number; holidayWarnAfter: number; holidayPullAfter: number }; slaOn: boolean;
   /** «قواعد الليدز ← No Answer»: how long it stays, how often the Alarm comes (the «بعتله واتساب؟» note, 1.18) */
   noAnswerRules: { hours: number; remindH: number };
+  /** leads waiting in the Draft tab (1.26), or null when this person isn't one «مين يشوف الـ Draft» names */
+  drafts: number | null;
+  /** «قواعد الليدز ← Draft»: the idle days, and on Hold (the Draft tab's note) */
+  draftRules: { days: number; holdDays: number };
 }
 
 /** One line of a lead's «Logs» tab: recorded automatically, a person's comment, or an audit entry (1.25). */
@@ -302,3 +306,26 @@ export interface NewLeadRequestRow {
 export const RouteNewLead = z.object({ to: z.string({ required_error: "اختار", invalid_type_error: "اختار" }).min(1, "اختار").max(40) });
 export type RouteNewLead = z.infer<typeof RouteNewLead>;
 export const ROTATION = "rotation";
+
+/** 1.26 · 1.27 · which Draft tab: «Draft» (idle leads) or «Draft Admin» (Not Interested / Cancellation). */
+export const DraftKind = z.enum(["draft", "admin"]);
+export type DraftKind = z.infer<typeof DraftKind>;
+export const DraftQuery = z.object({ kind: DraftKind.default("draft") });
+export type DraftQuery = z.infer<typeof DraftQuery>;
+
+/** One lead waiting in a Draft tab (demo: الليد · المرحلة · كان عند · اتسحب · آخر أكشن · وزّعه على). */
+export interface DraftRow {
+  id: string;
+  lead: { id: string; code: string; name: string; company: string | null; stage: string; kind: LeadKind; area: string };
+  from: { id: string; name: string } | null;
+  at: string; days: number | null; lastAction: string;
+  /** «يفضل في الـ Draft» was chosen: it stays, the clock stopped */
+  kept: boolean;
+  /** minutes left of Operations' time to decide (negative = late) */
+  minutesLeft: number;
+}
+
+/** Operations' decision: "keep" (stays), "rotation", or a salesperson's employee id (the one it came from = «رجّعه»). */
+export const DraftDecision = z.object({ to: z.string({ required_error: "اختار", invalid_type_error: "اختار" }).min(1, "اختار").max(40) });
+export type DraftDecision = z.infer<typeof DraftDecision>;
+export const KEEP = "keep";

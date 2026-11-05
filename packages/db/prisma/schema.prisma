@@ -369,6 +369,7 @@ model Lead {
   naMarkedById   String?       // the employee who marked it No Answer: only the salesperson's own mark moves it (1.17)
   naMarkedAt     DateTime?     // the No Answer 24 hours count from here (4 Nov meeting)
   naRemindedAt   DateTime?     // the last «كلّم …» Alarm while in No Answer: the next one 4 working hours later (1.18)
+  draft          String?       // in a Draft tab (1.26 · 1.27): "draft" · "admin"; null = with its salesperson. The open LeadDraft says more
   newLeadRequestedAt   DateTime? // Telesales sent it as a New Lead (1.17): Operations' queue · KPI 11.15 «توزيع الـ New Lead في ميعاده»
   newLeadRequestedById String?
   newLeadRoutedAt      DateTime? // Operations sent it on; null while the request waits
@@ -383,6 +384,7 @@ model Lead {
   duplicates     LeadDuplicate[]
   companyRequests CompanyRequest[] // 1.20: its company isn't in the sheet yet
   visits         LeadVisit[]
+  drafts         LeadDraft[]
   suggestedUnits LeadUnit[]
   deals          Deal[]
   clientId       String?       // the client file it belongs to (M-10 2.1 / 2.3: Done Deal, or an old client's number)
@@ -398,6 +400,29 @@ model Lead {
   @@index([area])
   @@index([createdAt])
   @@index([phones], type: Gin) // the duplicate check on every new lead
+  @@schema("sales")
+}
+
+/// A lead's stay in a Draft tab (1.26 Draft · 1.27 Draft Admin): when it came, from whom, and Operations' decision.
+/// Open while decidedAt is null; the times feed Operations' KPI item «قرارات الـ Draft في ميعادها» (11.15).
+model LeadDraft {
+  id          String    @id @default(cuid())
+  leadId      String
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  kind        String    // draft · admin
+  at          DateTime  @default(now())
+  fromId      String?   // the employee who had it
+  stage       String    // the stage it came in with (LeadStage, db spelling)
+  days        Int?      // draft: the idle days that pulled it (7, or 14 on Hold)
+  keptAt      DateTime? // «يفضل في الـ Draft»: reviewed, stays (the first decision, for the KPI)
+  keptById    String?
+  decidedAt   DateTime? // sent to someone: the stay ends
+  decidedById String?
+  decision    String?   // rotation · hand · back (to the same salesperson) · telesales
+  toId        String?   // the employee it went to
+
+  @@index([kind, decidedAt])
+  @@index([leadId])
   @@schema("sales")
 }
 
