@@ -8,6 +8,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
+import { cleanFinance } from "./finance-helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E ${stamp}`;
@@ -45,6 +46,7 @@ before(async () => {
 after(async () => {
   await prisma.file.deleteMany({ where: { name: { startsWith: C } } });
   await prisma.deal.deleteMany({ where: { company: { startsWith: C } } });
+  await cleanFinance(C, new Date(0)); // 9.12: the approval opened the client's account under 113 (named after the company)
   await prisma.notification.deleteMany({ where: { text: { contains: C } } });
   // a registered deal makes the lead's client file (M-10 2.1): gone with the leads, once nothing else is in it
   const files = (await prisma.lead.findMany({ where: { code: { startsWith: `L-D${stamp}` }, clientId: { not: null } }, select: { clientId: true } })).map((l) => l.clientId!);

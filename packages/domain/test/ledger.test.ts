@@ -34,6 +34,7 @@ test("a new sub-account's code follows its parent: a loan under 22 after 221 / 2
   assert.equal(nextChildCode("22", ["221", "222", "2201"]), "2202");
   assert.equal(nextChildCode("5317", ["531701", "531702", "531703"]), "531704");
   assert.equal(nextChildCode("13201", []), "1320101");
+  assert.equal(nextChildCode("113", ["11301", "113001", "113002"], 3), "113003"); // 9.12: clients take three digits
 });
 
 test("a parent's balance is the sum of its children's; a contra account counts against it (fixed assets 420,000 net)", () => {

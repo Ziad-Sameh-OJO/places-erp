@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { BudgetPatch, BudgetRow, BudgetView, CashView, MoveEffect, MoveFilters, MoveSaved, MoveView, MovesView, NewBudgetLine, NewMove } from "@places/contracts";
 import {
-  ADVANCES_PARENT, BUDGET_PERIODS, CUSTODY_PARENT, monthOf, OTHER_REVENUE, VOUCHER_LABEL, budgetCrossed, budgetLevel, formatEGP, fromDecimal, localDate,
+  ADVANCES_PARENT, BUDGET_PERIODS, CLIENTS_PARENT, CUSTODY_PARENT, monthOf, OTHER_REVENUE, VOUCHER_LABEL, budgetCrossed, budgetLevel, formatEGP, fromDecimal, localDate,
   periodStart, toDecimal, voucherLines, voucherProblem, type BudgetPeriod, type Piasters, type VoucherKind, type VoucherSides,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
@@ -78,6 +78,11 @@ export class VouchersService {
   /** 9.17 → a collected claim posts as a receive voucher on a commission revenue line (41…), inside the caller's transaction. */
   async recordClaimReceipt(me: CurrentUser, r: { toId: string; accountId: string; amount: string; party: string; ref: string; memo: string; date?: string | undefined }, tx: Tx) {
     return (await this.save(me, { kind: "receive", toId: r.toId, accountId: r.accountId, amount: r.amount, party: r.party, ref: r.ref, memo: r.memo, ...(r.date ? { date: r.date } : {}) }, tx, COMMISSION_REVENUE)).saved.move;
+  }
+
+  /** 5.3 (4 Nov): a deal's collection is a receive voucher into a safe / bank against the client's own account (113…), inside the caller's transaction. */
+  async recordDealCollection(me: CurrentUser, r: { toId: string; clientAccountId: string; amount: string; party: string; ref: string; memo: string; date?: string | undefined }, tx: Tx) {
+    return (await this.save(me, { kind: "receive", toId: r.toId, accountId: r.clientAccountId, amount: r.amount, party: r.party, ref: r.ref, memo: r.memo, ...(r.date ? { date: r.date } : {}) }, tx, CLIENTS_PARENT)).saved;
   }
 
   /** The commission revenue lines a collected claim can go to. */

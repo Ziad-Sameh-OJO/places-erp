@@ -966,6 +966,9 @@ model Account {
   cap        Decimal?      @db.Decimal(14, 2) // petty-cash ceiling
   /// the person a 131 (سلف) / 134 (عهد) sub-account belongs to (M-07 9.3)
   holderId   String?
+  /// 9.12: whose own account it is — «client» (a client file under 113) or «sales» (an employee under 21103); one each
+  partyType  String?
+  partyId    String?
   budget     BudgetLine?
   movesFrom  TreasuryMove[] @relation("MoveFrom")
   movesTo    TreasuryMove[] @relation("MoveTo")
@@ -978,6 +981,7 @@ model Account {
   paidFor    Purchase[]    @relation("PurchasePaidFrom")
 
   @@index([parentId])
+  @@unique([partyType, partyId])
   @@schema("finance")
 }
 

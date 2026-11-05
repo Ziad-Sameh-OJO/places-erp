@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEAL_STATUSES, DEAL_TYPES, type DealStatus, type DealType } from "@places/domain";
-import { Id, Money, Page } from "./common.ts";
+import { CalendarDay, Id, Money, Page } from "./common.ts";
 
 /** «سجّل صفقة» (M-02 2.1 step 1 · 5): the company, source, location and Seller come from the lead and the unit. */
 export const CreateDeal = z.object({
@@ -34,6 +34,21 @@ export const DealNote = z.object({
   targetBase: Money.refine((m) => !m.startsWith("-"), "المبلغ مايبقاش بالسالب").nullable(),
 });
 export type DealNote = z.infer<typeof DealNote>;
+
+/**
+ * «سجّل تحصيل» (5.3, 4 Nov): a receive voucher (9.11) into a safe / bank against the client's account (113…).
+ * The first collection also books the whole commission as revenue, so it needs the revenue line (41…).
+ */
+export const CollectDeal = z.object({
+  side: z.enum(["owner", "client"]),
+  toId: Id,
+  amount: Money,
+  revenueId: Id.optional(),
+  date: CalendarDay.optional(),
+});
+export type CollectDeal = z.infer<typeof CollectDeal>;
+/** A recorded collection: the deal's new status, what's left, and the voucher and entry numbers. */
+export interface DealCollected { status: DealStatus; collected: string; remaining: string; move: string; entry: string }
 
 /** 4.9: marketing attaches the client's logo (a finished upload, 0.9). */
 export const DealLogo = z.object({ fileId: Id });
