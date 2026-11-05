@@ -356,7 +356,7 @@ test("summary: the tiles agree with the list for the same person; HR 403", async
     };
     // other test files create leads at the same time: compare a reading taken while nothing changed in between
     let r = await read();
-    for (let i = 0; i < 5 && JSON.stringify(r.tiles) !== JSON.stringify(r.list); i++) r = await read();
+    for (let i = 0; i < 20 && JSON.stringify(r.tiles) !== JSON.stringify(r.list); i++) { await new Promise((ok) => setTimeout(ok, 250)); r = await read(); } // a reading takes 6 calls, so wait for a quiet moment
     assert.deepEqual(r.tiles, r.list);
     assert.equal(typeof r.s.holidayMode, "boolean");
     assert.ok(r.s.slaRules.pullAfter > r.s.slaRules.warnAfter);
