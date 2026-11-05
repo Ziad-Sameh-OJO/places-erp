@@ -103,6 +103,7 @@ function Review({ d, post }: { d: DealSheetRow; post: (path: string, body: unkno
     return post("review", {
       decision: "approve", space: Number(f.get("space")), type: f.get("type"), location: f.get("location"),
       commissionOwner: f.get("commissionOwner"), commissionClient: f.get("commissionClient"), ...(buyers.length ? { buyers } : {}),
+      ...(f.get("externalCommission") ? { externalCommission: f.get("externalCommission") } : {}),
     }, "اتسجّلت في شيت الـ Done Deals · والتسويق وصلها Alarm");
   };
   return (
@@ -114,6 +115,7 @@ function Review({ d, post }: { d: DealSheetRow; post: (path: string, body: unkno
         <Field label="المبنى / المشروع"><input name="location" defaultValue={d.location} /></Field>
         <Field label="عمولة من الـ Owner"><input name="commissionOwner" inputMode="decimal" defaultValue={d.commissionOwner} /></Field>
         <Field label="عمولة من الـ Client"><input name="commissionClient" inputMode="decimal" defaultValue={d.commissionClient} /></Field>
+        <Field label="عمولة خارجية (لو فيه)"><input name="externalCommission" inputMode="decimal" placeholder="0" /></Field>
         <Field label="سيلز الـ Buyer">
           <select name="buyers" multiple size={3} defaultValue={d.buyers.map((b) => b.id)}>
             {[...new Map([...d.buyers.map((b) => [b.id, b.name] as const), ...sales.map((s) => [s.employeeId, s.name] as const)])].map(([id, name]) => <option key={id} value={id}>{name}</option>)}

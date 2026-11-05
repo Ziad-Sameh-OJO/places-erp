@@ -120,7 +120,7 @@ test("12 · 9.6: cancelling the collected deal reverses its revenue and commissi
   const r = await cancel(nancy);
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.status, "Cancelled");
-  assert.equal(r.body.reversed.length, 2); // the revenue entry and the commission entry
+  assert.equal(r.body.reversed.length, 3); // the revenue, the operations commission (9.6) and the sales commission entries
   const due = await prisma.account.findUniqueOrThrow({ where: { partyType_partyId: { partyType: "sales", partyId: mohsenId } } });
   assert.equal(await balance(ashraf, revenueId), 0);
   assert.equal(await balance(ashraf, due.id), 0);
@@ -128,6 +128,6 @@ test("12 · 9.6: cancelling the collected deal reverses its revenue and commissi
   assert.equal(await balance(ashraf, bankId), cents("100000"));
   assert.equal((await cancel(nancy)).status, 400); // once
   const posted = (await prisma.journalEntry.findMany({ where: { sourceId: dealId }, select: { id: true } })).map((e) => e.id);
-  assert.equal(await prisma.journalEntry.count({ where: { source: "reversal", sourceId: { in: posted } } }), 2);
+  assert.equal(await prisma.journalEntry.count({ where: { source: "reversal", sourceId: { in: posted } } }), 3);
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "cancel" } }));
 });

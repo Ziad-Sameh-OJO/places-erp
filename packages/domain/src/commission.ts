@@ -7,6 +7,7 @@
  * - A «note» override (targetBase) changes the target figure only, never the commission.
  */
 import { type Piasters, allocate, formatEGP, percentOf } from "./money.ts";
+import type { EntryLine } from "./ledger.ts";
 
 export type DealSide = "buyer" | "seller";
 export type DealStatus = "Pending Review" | "Approved" | "Partially Collected" | "Fully Collected" | "Rejected" | "Cancelled";
@@ -126,3 +127,27 @@ export function payoutProblem(due: Piasters, balance: Piasters, amount: Piasters
   if (amount > balance) return `رصيد حسابه في العمولات المستحقة ${formatEGP(Math.max(0, balance))} بس`;
   return null;
 }
+
+/**
+ * 9.6 (4 Nov tree: 5303 «عمولة اوبريشن» · 5304 «عمولات خارجية»): booked with the revenue at the first collection.
+ * Operations = opsPct% of Places' commission; external = the amount the Office Manager wrote on the review, else
+ * externalPct%. The rates are the Super Admin's settings, the demo's 5% and 0 until the client confirms (needs-client).
+ */
+export interface DirectCostRates { readonly opsPct: number; readonly externalPct: number }
+export function directCosts(commission: Piasters, rates: DirectCostRates, external: Piasters | null): { ops: Piasters; external: Piasters } {
+  return { ops: percentOf(commission, rates.opsPct), external: external ?? percentOf(commission, rates.externalPct) };
+}
+
+/** Dr each expense / Cr what's owed on it; null when both are zero. */
+export function directCostLines(c: { ops: Piasters; external: Piasters }, a: { opsExpense: string; opsDue: string; extExpense: string; extDue: string }): EntryLine[] | null {
+  const lines: EntryLine[] = [];
+  if (c.ops > 0) lines.push({ accountId: a.opsExpense, debit: c.ops, credit: 0 }, { accountId: a.opsDue, debit: 0, credit: c.ops });
+  if (c.external > 0) lines.push({ accountId: a.extExpense, debit: c.external, credit: 0 }, { accountId: a.extDue, debit: 0, credit: c.external });
+  return lines.length ? lines : null;
+}
+
+/**
+ * Q40 (9.10): in the Cost Center a campaign's spend is spread over the Qualified leads it brought; a deal carries one
+ * lead's share. With no Qualified lead yet the deal carries all of it (the demo's «|| 1»). The books keep the total.
+ */
+export const campaignShare = (spent: Piasters, qualified: number): Piasters => (qualified > 0 ? Math.round(spent / qualified) : spent);

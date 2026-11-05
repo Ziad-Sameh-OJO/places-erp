@@ -20,6 +20,12 @@ export const SALES_COMMISSION_PARENT = "21103";
 export const SALES_COMMISSION_EXPENSE = "5302";
 /** 5.8 (4 Nov): a Team Leader's commission is due on their own account under 21103 too, booked against «عمولة تيم ليدر». */
 export const TL_COMMISSION_EXPENSE = "5305";
+/** 9.6: the operations commission, owed on «عمولة اوبريشن مستحقة»; the external one on a sub-account the system opens under 211 (the tree has none yet · needs-client). */
+export const OPS_COMMISSION_EXPENSE = "5303";
+export const OPS_COMMISSION_DUE = "21104";
+export const EXTERNAL_COMMISSION_EXPENSE = "5304";
+export const ACCRUED_PARENT = "211";
+export const EXTERNAL_COMMISSION_DUE_NAME = "عمولات خارجية مستحقة";
 /** Where a receipt's other side may sit: «ايرادات اخري» (42) and its sub-accounts. */
 export const OTHER_REVENUE = "42";
 

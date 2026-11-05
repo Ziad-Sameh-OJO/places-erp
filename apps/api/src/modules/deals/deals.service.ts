@@ -1,9 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CancelDeal, CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
+import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
 import { esc, layout } from "../../core/documents/documents.service";
 import { DocumentsSetupService } from "../settings/documents-setup.service";
+import { SettingsService } from "../settings/settings.service";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -46,6 +47,7 @@ export class DealsService {
     private readonly vouchers: VouchersService,
     private readonly letterhead: DocumentsSetupService,
     private readonly targets: TargetsService,
+    private readonly settings: SettingsService,
   ) {}
 
   /** M-02 4.1: a salesperson sees the deals they are on, a TL their team's, the managers all of them. */
@@ -203,6 +205,7 @@ export class DealsService {
         if (!line) throw new BadRequestException("اختار نوع الإيراد (عمولات تسويق عقاري …) · أول تحصيل بيثبت العمولة كلها إيراد");
         await this.ledger.post(me, { date, nature: "إثبات إيراد عمولة", source: "deal", sourceId: id, memo: `عمولة ${d.code} · ${d.company}`,
           lines: [{ accountId: client.id, debit: revenue, credit: 0 }, { accountId: line.id, debit: 0, credit: revenue }] }, tx);
+        await this.directCostsDue(tx, me, d, revenue, date);
       }
       const from = input.side === "owner" ? "من الـ Owner" : "من الـ Client";
       const saved = await this.vouchers.recordDealCollection(me, { toId: input.toId, clientAccountId: client.id, amount: input.amount, party: d.company, ref: d.code, memo: `تحصيل عمولة ${d.code} ${from}`, date }, tx);
@@ -353,6 +356,22 @@ export class DealsService {
     }
   }
 
+  /**
+   * 9.6: with the revenue (first collection only, under the deal's lock, so once per deal) the operations and external
+   * commissions are booked on the deal itself (source «deal»), so cancelling it reverses them with the rest.
+   * TL commission (5305) isn't here: 5.8 posts it per TL per month (tlDue).
+   */
+  private async directCostsDue(tx: Prisma.TransactionClient, me: CurrentUser, d: DealRecord, revenue: Piasters, date: string) {
+    const s = await this.settings.all();
+    const costs = directCosts(revenue, { opsPct: s.opsCommissionPct, externalPct: s.externalCommissionPct }, d.externalCommission ? fromDecimal(d.externalCommission.toFixed(2)) : null);
+    if (!costs.ops && !costs.external) return;
+    const { accounts } = await this.ledger.balances(tx);
+    const code = (c: string) => accounts.find((a) => a.code === c)?.id ?? "";
+    const extDue = costs.external ? (await this.ledger.namedAccount(me, ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, tx)).id : "";
+    const lines = directCostLines(costs, { opsExpense: code(OPS_COMMISSION_EXPENSE), opsDue: code(OPS_COMMISSION_DUE), extExpense: code(EXTERNAL_COMMISSION_EXPENSE), extDue });
+    if (lines) await this.ledger.post(me, { date, nature: "تكاليف الصفقة المباشرة", source: "deal", sourceId: d.id, memo: `عمولة اوبريشن وعمولة خارجية على ${d.code} · ${d.company}`, lines }, tx);
+  }
+
   /** Fully collected (4 Nov): each salesperson's commission (scheme % × share, splitDeal) is due on their own 21103 account. */
   private async commissionsDue(tx: Prisma.TransactionClient, me: CurrentUser, d: DealRecord, money: DealMoney, date: string, only?: string[]) {
     const people = new Map((await this.repo.schemes([...money.buyers, ...money.sellers], tx)).map((e) => [e.id, e]));
@@ -374,8 +393,9 @@ export class DealsService {
     if (input.buyers && (await this.repo.salespeople(input.buyers)).length !== new Set(input.buyers).size) throw new BadRequestException(NOT_SALES);
     const owner = input.commissionOwner && toDecimal(fromDecimal(input.commissionOwner));
     const client = input.commissionClient && toDecimal(fromDecimal(input.commissionClient));
-    const now = { space: d.space, type: d.type, location: d.location, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), buyers: buyersOf(d).map((p) => p.id).sort() };
-    const next = { space: input.space, type: input.type, location: input.location, commissionOwner: owner, commissionClient: client, buyers: input.buyers && [...new Set(input.buyers)].sort() };
+    const external = input.externalCommission && toDecimal(fromDecimal(input.externalCommission));
+    const now = { space: d.space, type: d.type, location: d.location, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), buyers: buyersOf(d).map((p) => p.id).sort(), externalCommission: d.externalCommission?.toFixed(2) ?? null };
+    const next = { space: input.space, type: input.type, location: input.location, commissionOwner: owner, commissionClient: client, buyers: input.buyers && [...new Set(input.buyers)].sort(), externalCommission: external };
     if (!expectsCommission(fromDecimal(next.commissionOwner ?? now.commissionOwner), fromDecimal(next.commissionClient ?? now.commissionClient))) {
       throw new BadRequestException("اكتب العمولة المتوقعة من الـ Owner أو الـ Client");
     }
@@ -403,7 +423,7 @@ export class DealsService {
 }
 
 /** The deal as commission.ts reads it; the Seller counts once Manar approved them (5.4). */
-export function toMoney(d: DealRecord, payments: Array<{ side: string; amount: { toFixed(n: number): string } }>): DealMoney {
+export function toMoney(d: Omit<DealRowRecord, "payments">, payments: Array<{ side: string; amount: { toFixed(n: number): string } }>): DealMoney {
   const sellers = d.participants.filter((p) => p.side === "SELLER" && p.approved).map((p) => p.employee.id);
   return {
     status: label(d.status), commissionOwner: fromDecimal(d.commissionOwner.toFixed(2)), commissionClient: fromDecimal(d.commissionClient.toFixed(2)),
@@ -412,7 +432,7 @@ export function toMoney(d: DealRecord, payments: Array<{ side: string; amount: {
   };
 }
 
-const buyersOf = (d: DealRowRecord) => d.participants.filter((p) => p.side === "BUYER").map((p) => p.employee);
+const buyersOf = (d: Pick<DealRowRecord, "participants">) => d.participants.filter((p) => p.side === "BUYER").map((p) => p.employee);
 
 export function toRow(d: DealRowRecord): DealRow {
   return {

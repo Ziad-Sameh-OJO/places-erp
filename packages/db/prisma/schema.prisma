@@ -593,6 +593,7 @@ model Deal {
   commissionOwner  Decimal           @db.Decimal(14, 2)
   commissionClient Decimal           @db.Decimal(14, 2)
   targetBase       Decimal?          @db.Decimal(14, 2) // «note» override, target only
+  externalCommission Decimal?        @db.Decimal(14, 2) // 9.6: written on the review; null = the external % setting
   note             String?
   offTarget        Boolean           @default(false)    // created and closed within a day (Q13)
   closedAt         DateTime

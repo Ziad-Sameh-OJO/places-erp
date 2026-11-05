@@ -25,6 +25,8 @@ export const ReviewDeal = z.object({
   commissionOwner: Money.optional(),
   commissionClient: Money.optional(),
   buyers: z.array(Id).min(1, "اختار سيلز الـ Buyer").max(10).optional(),
+  /** 9.6: the external commission on this deal, if any (5304) */
+  externalCommission: Money.refine((m) => !m.startsWith("-"), "المبلغ مايبقاش بالسالب").optional(),
 });
 export type ReviewDeal = z.infer<typeof ReviewDeal>;
 
@@ -122,3 +124,23 @@ export interface DealForm {
   salespeople: DealPerson[];
 }
 export interface DealUnit { id: string; code: string; project: string; space: number; type: DealType; agent: DealPerson | null }
+
+/** 9.10 · «Cost Center» (M-07 Q40): each collected deal with its campaign's share per Qualified lead; filters as the requirements list them. */
+export const CostCenterFilters = z.object({
+  salesId: Id.optional(),
+  channel: z.string().trim().max(60).optional(),
+  campaignId: Id.optional(),
+  area: z.string().trim().max(80).optional(),
+  from: CalendarDay.optional(),
+  to: CalendarDay.optional(),
+});
+export type CostCenterFilters = z.infer<typeof CostCenterFilters>;
+export interface CostCenterRow {
+  id: string; code: string; channel: string; campaign: string | null; sales: string[]; area: string | null;
+  revenue: string; marketing: string; commission: string; net: string;
+}
+export interface CostCenterView {
+  rows: CostCenterRow[];
+  byChannel: Array<{ channel: string; revenue: string; marketing: string }>;
+  options: { sales: DealPerson[]; campaigns: DealPerson[] };
+}

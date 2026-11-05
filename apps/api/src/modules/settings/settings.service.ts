@@ -21,6 +21,8 @@ const DEFAULTS: Settings = {
   procurementBigApprovers: [], // the seed writes the client's (M-08 Q44)
   recommendTolerancePct: DEFAULT_RECOMMEND_TOLERANCE_PCT, // the proposed ±20% until the client confirms (M-03 7.2)
   tlTiers: [{ below: 70, percent: 4 }, { below: null, percent: 6 }], // the client's example (voice note 6)
+  opsCommissionPct: 5, // 9.6: the demo's rate until the client confirms
+  externalCommissionPct: 0,
 };
 
 /** M-13: the lists and rules the system is built on, editable without a developer. Every change is audited. */

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { DealFilters, Page } from "@places/contracts";
+import type { CostCenterFilters, DealFilters, Page } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 
 const PERSON = { select: { id: true, name: true } } as const;
@@ -17,7 +17,7 @@ const TCR = {
   signatures: { select: { employeeId: true, signedAt: true } },
 } satisfies Prisma.TcrSelect;
 const DEAL_DETAIL = {
-  ...DEAL_ROW, leadId: true, source: true, reviewNote: true, reviewedById: true, reviewedAt: true, createdAt: true, createdById: true,
+  ...DEAL_ROW, leadId: true, source: true, externalCommission: true, reviewNote: true, reviewedById: true, reviewedAt: true, createdAt: true, createdById: true,
   lead: { select: { code: true, name: true } },
   tcrs: { select: TCR, orderBy: { code: "asc" } },
 } satisfies Prisma.DealSelect;
@@ -128,6 +128,36 @@ export class DealsRepository {
     return tx.dealParticipant.updateMany({ where: { dealId, side: "SELLER", approved: false }, data: { approved: true } });
   }
 
+  /** 9.10: the collected deals (revenue booked, not cancelled) with their lead's area and campaign, by the report's filters. */
+  costCenter(f: CostCenterFilters) {
+    const day = (d: string) => new Date(`${d}T00:00:00Z`);
+    return this.db.deal.findMany({
+      where: {
+        status: { in: ["PARTIALLY_COLLECTED", "FULLY_COLLECTED"] },
+        ...(f.channel ? { source: f.channel } : {}),
+        ...(f.salesId ? { participants: { some: { employeeId: f.salesId } } } : {}),
+        ...(f.from || f.to ? { closedAt: { ...(f.from ? { gte: day(f.from) } : {}), ...(f.to ? { lt: new Date(day(f.to).getTime() + 86_400_000) } : {}) } } : {}),
+        ...(f.area || f.campaignId ? { lead: { ...(f.area ? { area: f.area } : {}), ...(f.campaignId ? { campaignId: f.campaignId } : {}) } } : {}),
+      },
+      select: {
+        ...DEAL_ROW, source: true, externalCommission: true,
+        payments: { select: { side: true, amount: true } },
+        lead: { select: { area: true, campaign: { select: { id: true, name: true, spent: true } } } },
+      },
+      orderBy: { closedAt: "desc" },
+    });
+  }
+
+  /** Q40: each campaign's Qualified leads. */
+  async qualifiedLeads(campaignIds: string[]) {
+    const rows = await this.db.lead.groupBy({ by: ["campaignId"], where: { qualified: true, campaignId: { in: campaignIds } }, _count: { _all: true } });
+    return new Map(rows.map((r) => [r.campaignId!, r._count._all]));
+  }
+
+  campaigns() {
+    return this.db.campaign.findMany({ select: { id: true, name: true }, orderBy: { startsOn: "desc" } });
+  }
+
   /** 5.8: the TLs of these salespeople. */
   async teamLeaders(ids: string[], tx: Prisma.TransactionClient) {
     const rows = await tx.employee.findMany({ where: { id: { in: ids }, teamLeaderId: { not: null } }, select: { teamLeaderId: true } });
@@ -164,7 +194,7 @@ export class DealsRepository {
   }
 
   /** Each salesperson's scheme % (M-02: their commission is that % of their share). */
-  schemes(ids: string[], tx: Prisma.TransactionClient) {
+  schemes(ids: string[], tx: Prisma.TransactionClient = this.db) {
     return tx.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, commissionPct: true } });
   }
 

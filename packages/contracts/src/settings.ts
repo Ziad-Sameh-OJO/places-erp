@@ -51,6 +51,8 @@ export type ListEditors = z.infer<typeof ListEditors>;
 /** What a form offers: the active values only. */
 export const activeValues = (items: readonly ListItem[]): string[] => items.filter((i) => i.active).map((i) => i.value);
 
+const Pct = z.number({ invalid_type_error: "النسبة رقم" }).min(0, "النسبة مابتبقاش بالسالب").max(100, "النسبة لحد 100");
+
 export const SETTINGS = {
   areas: List,
   channels: List,
@@ -77,6 +79,9 @@ export const SETTINGS = {
     percent: z.number({ invalid_type_error: "النسبة رقم" }).min(0, "النسبة مابتبقاش بالسالب").max(100, "النسبة لحد 100"),
   })).min(1, "لازم شريحة واحدة على الأقل").max(10)
     .refine((t) => t.every((x, i) => (i === t.length - 1 ? x.below === null : x.below !== null && (i === 0 || x.below > t[i - 1]!.below!))), "الشرايح بالترتيب من الأقل، وآخر واحدة «وأكتر»"),
+  // 9.6 (needs-client, the demo's 5% · 0): a deal's operations / external commission as a % of Places' commission
+  opsCommissionPct: Pct,
+  externalCommissionPct: Pct,
 } as const;
 export type SettingKey = keyof typeof SETTINGS;
 export type Settings = { [K in SettingKey]: z.infer<(typeof SETTINGS)[K]> };
