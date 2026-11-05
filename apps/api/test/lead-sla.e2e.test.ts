@@ -11,6 +11,10 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { DEFAULT_LEAD_RULES } from "@places/domain";
+
+// in-app only here: mail-outbox.e2e reads the whole mail queue, so this file must not queue emails to seeded people
+const D = DEFAULT_LEAD_RULES;
+const RULES = { ...D, sla: { ...D.sla, warn: { ...D.sla.warn, ch: ["app" as const] }, pull: { ...D.sla.pull, ch: ["app" as const] } } };
 import { leadSlaTick } from "../../worker/src/processors/lead-sla.ts";
 import { call, session } from "./helpers.ts";
 
@@ -61,22 +65,22 @@ const told = (userId: string, text: string) => prisma.notification.findMany({ wh
 test("2h30 of working time → the Team Leaders are warned once; 3h → pulled to the next salesperson, Operations told", async () => {
   const l = L.main, name = l.name;
 
-  assert.equal((await leadSlaTick(at("2020-01-05T13:29:00"), DEFAULT_LEAD_RULES)).warned, 0);
-  assert.equal((await leadSlaTick(at("2020-01-05T13:30:00"), DEFAULT_LEAD_RULES)).warned, 1);
-  assert.equal((await leadSlaTick(at("2020-01-05T13:45:00"), DEFAULT_LEAD_RULES)).warned, 0); // never twice
+  assert.equal((await leadSlaTick(at("2020-01-05T13:29:00"), RULES)).warned, 0);
+  assert.equal((await leadSlaTick(at("2020-01-05T13:30:00"), RULES)).warned, 1);
+  assert.equal((await leadSlaTick(at("2020-01-05T13:45:00"), RULES)).warned, 0); // never twice
   const warns = await told(abdallah, `تنبيه SLA: ${name}`);
   assert.equal(warns.length, 1);
   assert.ok(warns[0]!.text.startsWith(`تنبيه SLA: ${name} (${l.code}) من غير أكشن عند `), warns[0]!.text);
   assert.equal(warns[0]!.important, true);
   assert.ok((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).slaWarnedAt);
 
-  const pulled = await leadSlaTick(at("2020-01-05T14:00:00"), DEFAULT_LEAD_RULES);
+  const pulled = await leadSlaTick(at("2020-01-05T14:00:00"), RULES);
   assert.equal(pulled.pulled, 1);
   const moved = await prisma.lead.findUniqueOrThrow({ where: { id: l.id } });
   assert.equal(moved.assignedToId, sales2.id);
   assert.equal(moved.assignedAt?.toISOString(), at("2020-01-05T14:00:00").toISOString()); // a fresh clock with the new salesperson
   assert.equal(moved.slaWarnedAt, null);
-  assert.equal((await leadSlaTick(at("2020-01-05T14:00:00"), DEFAULT_LEAD_RULES)).pulled, 0); // a rerun at the same minute changes nothing
+  assert.equal((await leadSlaTick(at("2020-01-05T14:00:00"), RULES)).pulled, 0); // a rerun at the same minute changes nothing
 
   const activity = await prisma.leadActivity.findFirstOrThrow({ where: { leadId: l.id } });
   assert.match(activity.text, /^اتسحب أوتوماتيك من .+ بعد 3 ساعات من غير أكشن، وراح لـ .+$/);
@@ -90,13 +94,13 @@ test("2h30 of working time → the Team Leaders are warned once; 3h → pulled t
   assert.equal((await call(`/leads/${l.id}`, { cookie: cookie1 })).status, 404);
 
   // with the next salesperson it starts again: warned at his own 2h30, pulled back to the rotation's next at 3h
-  assert.equal((await leadSlaTick(at("2020-01-05T16:30:00"), DEFAULT_LEAD_RULES)).warned, 1);
-  assert.equal((await leadSlaTick(at("2020-01-05T17:00:00"), DEFAULT_LEAD_RULES)).pulled, 1);
+  assert.equal((await leadSlaTick(at("2020-01-05T16:30:00"), RULES)).warned, 1);
+  assert.equal((await leadSlaTick(at("2020-01-05T17:00:00"), RULES)).pulled, 1);
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).assignedToId, sales1.id);
 });
 
 test("an action stops the clock: a touched, non-Fresh or Telesales lead is never warned nor pulled", async () => {
-  await leadSlaTick(at("2020-01-05T18:00:00"), DEFAULT_LEAD_RULES);
+  await leadSlaTick(at("2020-01-05T18:00:00"), RULES);
   for (const l of [L.touched, L.interested, L.telesales]) {
     const now = await prisma.lead.findUniqueOrThrow({ where: { id: l.id } });
     assert.equal(now.assignedToId, sales1.id);
@@ -106,23 +110,23 @@ test("an action stops the clock: a touched, non-Fresh or Telesales lead is never
 
 test("after hours the clock waits: a lead that came Thursday 18:00 is pulled Saturday 13:00 (Friday off)", async () => {
   const l = L.evening;
-  await leadSlaTick(at("2020-01-10T23:00:00"), DEFAULT_LEAD_RULES); // Friday night: still 1 working hour
+  await leadSlaTick(at("2020-01-10T23:00:00"), RULES); // Friday night: still 1 working hour
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).slaWarnedAt, null);
-  await leadSlaTick(at("2020-01-11T12:59:00"), DEFAULT_LEAD_RULES);
+  await leadSlaTick(at("2020-01-11T12:59:00"), RULES);
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).assignedToId, sales1.id);
-  await leadSlaTick(at("2020-01-11T13:00:00"), DEFAULT_LEAD_RULES);
+  await leadSlaTick(at("2020-01-11T13:00:00"), RULES);
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).assignedToId, sales2.id);
 });
 
 test("on an official holiday range the holiday times apply: warn at 22 hours, pull at 24", async () => {
   const l = L.eid; // the holiday is 12–13 January
-  await leadSlaTick(at("2020-01-12T14:00:00"), DEFAULT_LEAD_RULES); // a working day would have pulled it by now
+  await leadSlaTick(at("2020-01-12T14:00:00"), RULES); // a working day would have pulled it by now
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).assignedToId, sales1.id);
-  assert.equal((await leadSlaTick(at("2020-01-13T08:00:00"), DEFAULT_LEAD_RULES)).warned >= 1, true);
+  assert.equal((await leadSlaTick(at("2020-01-13T08:00:00"), RULES)).warned >= 1, true);
   assert.ok((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).slaWarnedAt);
-  await leadSlaTick(at("2020-01-13T09:59:00"), DEFAULT_LEAD_RULES);
+  await leadSlaTick(at("2020-01-13T09:59:00"), RULES);
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: l.id } })).assignedToId, sales1.id);
-  await leadSlaTick(at("2020-01-13T10:00:00"), DEFAULT_LEAD_RULES);
+  await leadSlaTick(at("2020-01-13T10:00:00"), RULES);
   const moved = await prisma.lead.findUniqueOrThrow({ where: { id: l.id } });
   assert.equal(moved.assignedToId, sales2.id);
   assert.match((await prisma.leadActivity.findFirstOrThrow({ where: { leadId: l.id } })).text, /بعد 24 ساعة من غير أكشن/);
