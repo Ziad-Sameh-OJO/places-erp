@@ -3,7 +3,16 @@ import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
 import { type DealMoney, collectionProblem, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult } from "../src/team-leader.ts";
-import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, takesNote } from "../src/deals.ts";
+import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
+
+test("5.12: the TCR code comes from one sequence (T180…), and each salesperson on it signs once", () => {
+  assert.equal(tcrCode(181n), "T181");
+  const sigs = [{ employeeId: "ahmed", signedAt: null }, { employeeId: "mohamed", signedAt: new Date("2026-11-05T10:00:00Z") }];
+  assert.equal(signProblem(sigs, "ahmed"), null);
+  assert.equal(signProblem(sigs, "mohamed"), "مضيت عليها قبل كده");
+  assert.equal(signProblem(sigs, "ziad"), "الـ TCR دي مش عليك");
+  assert.equal(signProblem(sigs, null), "الـ TCR دي مش عليك");
+});
 
 const deal = (over: Partial<DealMoney> = {}): DealMoney => ({
   status: "Approved", commissionOwner: egp(50_000), commissionClient: egp(50_000),

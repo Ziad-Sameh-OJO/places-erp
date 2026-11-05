@@ -38,6 +38,7 @@ before(async () => {
 
 after(async () => {
   await prisma.employee.update({ where: { id: mohsenId }, data: { commissionPct: oldPct as number } });
+  await prisma.tcr.deleteMany({ where: { dealId } }); // each collection's TCR (5.12)
   await prisma.payment.deleteMany({ where: { dealId } });
   const posted = (await prisma.journalEntry.findMany({ where: { sourceId: dealId }, select: { id: true } })).map((e) => e.id);
   const entries = [...posted, ...(await prisma.journalEntry.findMany({ where: { source: "reversal", sourceId: { in: posted } }, select: { id: true } })).map((e) => e.id)];

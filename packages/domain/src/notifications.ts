@@ -29,6 +29,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "deal.approved", label: "صفقة اتوافق عليها · حصّل عمولة", to: "المحاسب · سيلز الصفقة", toRoles: ["accountant"], channels: ["app", "push"], important: false },
   { key: "deal.marketing", label: "Done Deal للتسويق (الخانات المسموحة)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-02 2.1 (7) · Q26
   { key: "deal.rejected", label: "صفقة اترفضت", to: "سيلز الصفقة", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "deal.tcr", label: "ورقة TCR اتعملت بعد تحصيل · امضي عليها", to: "سيلز الصفقة", toRoles: [], channels: ["app", "push"], important: false }, // M-02 2.3 · 5.12
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
   { key: "hr.forgot_fingerprint", label: "نسي البصمة", to: "الـ HR", toRoles: ["hr"], channels: ["app"], important: false }, // M-05 · 7.3
   { key: "hr.leave_request", label: "طلب إجازة", to: "الـ Team Leader ثم الـ HR", toRoles: [], channels: ["app", "push"], important: false }, // M-05 7.5
