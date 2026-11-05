@@ -47,10 +47,10 @@
 38. [#92](https://github.com/Ziad-Sameh-OJO/places-erp/issues/92) **2.9** `UnitsService.lock/release` + موافقة منار/رندا + Rent و Resale مع بعض (**الصفقات مستنياه**) · بعد 2.2
 39. [#93](https://github.com/Ziad-Sameh-OJO/places-erp/issues/93) **2.10** صفحة المؤجّر/المباع بفلاتر · بعد 2.9
 40. [#360](https://github.com/Ziad-Sameh-OJO/places-erp/issues/360) **2.20** البيانات الناقصة في الوحدة: تنبيه لحد ما تتكمّل · بعد 2.7
-41. (issue جديد) **2.21** شيت الـ Rent زي شيت الكلاينت: الأعمدة وترتيبها، ومفيش خانة إجبارية، وحقول الـ PDF · بعد 2.7
-42. (issue جديد) **2.22** فولدر Pic & Info: تحميل ملف أو الفولدر كله ZIP، والترتيب وصورة الغلاف · بعد 2.4، 2.21
-43. (issue جديد) **2.23** الـ PDF والـ slide بشكل ملفات الكلاينت + تنزيل PowerPoint · بعد 2.8، 2.22
-44. (issue جديد) **2.24** صلاحيات الانفنتوري: منار من غير «العملاء والملاك»، وفريق الانفنتوري يفتح الوحدات · بعد 2.2
+41. [#364](https://github.com/Ziad-Sameh-OJO/places-erp/issues/364) **2.21** شيت الـ Rent زي شيت الكلاينت: الأعمدة وترتيبها، ومفيش خانة إجبارية، وحقول الـ PDF · بعد 2.7
+42. [#365](https://github.com/Ziad-Sameh-OJO/places-erp/issues/365) **2.22** فولدر Pic & Info: تحميل ملف أو الفولدر كله ZIP، والترتيب وصورة الغلاف · بعد 2.4، 2.21
+43. [#366](https://github.com/Ziad-Sameh-OJO/places-erp/issues/366) **2.23** الـ PDF والـ slide بشكل ملفات الكلاينت + تنزيل PowerPoint · بعد 2.8، 2.22
+44. [#367](https://github.com/Ziad-Sameh-OJO/places-erp/issues/367) **2.24** صلاحيات الانفنتوري: منار من غير «العملاء والملاك»، وفريق الانفنتوري يفتح الوحدات · بعد 2.2
 
 ## Sprint 2
 
