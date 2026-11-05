@@ -208,3 +208,24 @@ export const DRAFT_DECIDE_HOURS = 24;
 export function draftMinutesLeft(at: Date, now: Date, hours = DRAFT_DECIDE_HOURS): number {
   return hours * 60 - Math.floor((now.getTime() - at.getTime()) / 60_000);
 }
+
+/** The stages that send a lead to the Draft Admin (1.27). */
+export const DRAFT_ADMIN_STAGES: readonly LeadStage[] = ["Not Interested", "Cancellation"];
+
+/**
+ * 1.27 · 4 Nov meeting: any lead marked Not Interested or Cancellation (by its salesperson or Telesales) is taken from
+ * whoever had it and waits in the Draft Admin, while draftAdmin.on. Not one already in a Draft tab or with nobody.
+ */
+export function goesToDraftAdmin(stage: LeadStage, rules: LeadRules, lead: { readonly draft: string | null; readonly assignedToId: string | null }): boolean {
+  return rules.draftAdmin.on && DRAFT_ADMIN_STAGES.includes(stage) && !lead.draft && !!lead.assignedToId;
+}
+
+/**
+ * The Draft Admin's daily Alarm (1.27, demo home): how many still wait for a decision (not reviewed), and how many
+ * came today (Cairo day). Null when nothing waits: no Alarm.
+ */
+export function draftAdminAlarm(waiting: readonly { readonly at: Date }[], now: Date): { waiting: number; today: number } | null {
+  if (!waiting.length) return null;
+  const today = localDate(now);
+  return { waiting: waiting.length, today: waiting.filter((w) => localDate(w.at) === today).length };
+}

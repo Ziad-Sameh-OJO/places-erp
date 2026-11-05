@@ -169,6 +169,8 @@ export interface LeadSummary {
   drafts: number | null;
   /** «قواعد الليدز ← Draft»: the idle days, and on Hold (the Draft tab's note) */
   draftRules: { days: number; holdDays: number };
+  /** the Draft Admin (1.27) for the people «قواعد الليدز» names: all waiting, still undecided, and today's (the Alarm); else null */
+  draftAdmin: { total: number; waiting: number; today: number } | null;
 }
 
 /** One line of a lead's «Logs» tab: recorded automatically, a person's comment, or an audit entry (1.25). */
@@ -329,3 +331,5 @@ export interface DraftRow {
 export const DraftDecision = z.object({ to: z.string({ required_error: "اختار", invalid_type_error: "اختار" }).min(1, "اختار").max(40) });
 export type DraftDecision = z.infer<typeof DraftDecision>;
 export const KEEP = "keep";
+/** The Draft Admin's «Telesales» choice (1.27): the Telesales «قواعد الليدز» names. */
+export const TELESALES = "telesales";

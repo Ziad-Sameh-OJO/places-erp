@@ -206,3 +206,17 @@ test("1.26 who sees the Draft: the people and roles the rule names, and the admi
   assert.equal(draftMinutesLeft(at, winter("2026-11-05T13:00:00")), 23 * 60);
   assert.equal(draftMinutesLeft(at, winter("2026-11-06T14:00:00")), -120);
 });
+
+test("1.27 Not Interested / Cancellation → the Draft Admin (from the salesperson or Telesales), while the rule is on", async () => {
+  const { goesToDraftAdmin, draftAdminAlarm } = await import("../src/lead-rules.ts");
+  const held = { draft: null, assignedToId: "e-mohsen" };
+  assert.equal(goesToDraftAdmin("Not Interested", R, held), true);
+  assert.equal(goesToDraftAdmin("Cancellation", R, held), true);
+  assert.equal(goesToDraftAdmin("Hold", R, held), false);
+  assert.equal(goesToDraftAdmin("Not Interested", R, { draft: "admin", assignedToId: null }), false); // already there
+  assert.equal(goesToDraftAdmin("Not Interested", { ...R, draftAdmin: { ...R.draftAdmin, on: false } }, held), false);
+  // the daily Alarm: everyone still waiting, and how many came today (Cairo day)
+  const now = winter("2026-11-05T11:00:00");
+  assert.equal(draftAdminAlarm([], now), null);
+  assert.deepEqual(draftAdminAlarm([{ at: winter("2026-11-05T00:30:00") }, { at: winter("2026-11-04T23:30:00") }, { at: winter("2026-11-01T12:00:00") }], now), { waiting: 3, today: 1 });
+});

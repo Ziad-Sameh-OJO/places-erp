@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas, fromDecimal, type ClientNeed, isNamedIn } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -78,7 +78,15 @@ export class LeadsService {
     return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
       noAnswerRules: { hours: rules.noAnswer.hours, remindH: rules.noAnswer.remindH },
       drafts: isNamedIn(rules.draft.see, { userId: me.id, roles: me.roles }) ? await this.repo.openDrafts("draft") : null,
-      draftRules: { days: rules.draft.days, holdDays: rules.draft.holdDays } };
+      draftRules: { days: rules.draft.days, holdDays: rules.draft.holdDays },
+      draftAdmin: isNamedIn(rules.draftAdmin.see, { userId: me.id, roles: me.roles }) ? await this.draftAdminCounts() : null };
+  }
+
+  /** The Draft Admin tab's count and its Alarm (demo: «Alarm: n Not Interested / Cancellation مستنيين قرارك · m النهارده»). */
+  private async draftAdminCounts() {
+    const [total, waiting] = await Promise.all([this.repo.openDrafts("admin"), this.repo.draftAdminWaiting()]);
+    const alarm = draftAdminAlarm(waiting, new Date());
+    return { total, waiting: alarm?.waiting ?? 0, today: alarm?.today ?? 0 };
   }
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
@@ -391,21 +399,37 @@ export class LeadsService {
    * who marked it and when: the No Answer job moves it 24 hours later, only if it was the salesperson's own mark (1.17).
    */
   async changeStage(me: CurrentUser, id: string, input: ChangeStage) {
-    return this.db.$transaction(async (tx) => {
+    const rules = await this.rules.get();
+    const moved = await this.db.$transaction(async (tx) => {
       const lead = await tx.lead.findFirst({ where: { id, ...(ownedBy(me) as object) } });
       if (!lead) throw new NotFoundException(NO_LEAD);
       const noAnswer = input.stage === "No Answer";
+      // 1.27: Not Interested / Cancellation leaves whoever had it for the Draft Admin, where Operations decides
+      const toAdmin = goesToDraftAdmin(input.stage, rules, lead);
       const next = await tx.lead.update({
         where: { id },
         data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), touched: true,
-          ...(noAnswer ? { noAnswerCount: { increment: 1 }, naMarkedAt: new Date(), naMarkedById: me.employeeId, naRemindedAt: null } : {}) },
+          ...(noAnswer ? { noAnswerCount: { increment: 1 }, naMarkedAt: new Date(), naMarkedById: me.employeeId, naRemindedAt: null } : {}),
+          ...(toAdmin ? { draft: "admin", assignedToId: null, ownedByTelesales: false } : {}) },
       });
       const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
       await this.repo.markActed(tx, id, activity.at);
-      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id, before: { stage: lead.stage }, after: { stage: next.stage } }, tx);
+      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id,
+        before: { stage: lead.stage, assignedToId: lead.assignedToId }, after: { stage: next.stage, assignedToId: next.assignedToId, draft: next.draft } }, tx);
       if (input.stage === "Done Deal") await this.clientFile(tx, me, id);
-      return next;
+      if (toAdmin) await tx.leadDraft.create({ data: { leadId: id, kind: "admin", fromId: lead.assignedToId, stage: toDb(input.stage) } });
+      return { next, toAdmin, from: lead.assignedToId };
     });
+    if (moved.toAdmin) await this.notifyDraftAdmin(moved.next, input.stage, moved.from, rules);
+    return moved.next;
+  }
+
+  /** Demo: «… بقى Not Interested عند فلان · راح الـ Draft Admin», to the people of draftAdmin.notify (1.27). */
+  private async notifyDraftAdmin(lead: { id: string; code: string; name: string }, stage: string, fromId: string | null, rules: LeadRules) {
+    const owner = fromId ? await this.repo.ownerAccounts(fromId) : null;
+    const to = ruleRecipients(rules.draftAdmin.notify, { ownerUserId: owner?.userId ?? null, ownerTlUserId: owner?.teamLeader?.userId ?? null });
+    await this.notifications.notify({ event: "lead.draft_admin", text: `${lead.name} (${lead.code}) بقى ${stage} عند ${owner?.name ?? "—"} · راح الـ Draft Admin`,
+      link: `/leads?open=${lead.id}`, to, channels: [...rules.draftAdmin.notify.ch] });
   }
 
   /** «سجّل صفقة» (M-02 2.1 step 1): the caller's leads that were ever Interested; one of them when `id` is given. */
