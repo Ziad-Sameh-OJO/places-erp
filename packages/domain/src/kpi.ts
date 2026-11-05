@@ -255,6 +255,23 @@ export function onTimeShare(states: readonly Timeliness[], empty: number | null 
 /** 11.15 · the channels whose leads need no Second Call: the item's «excl» setting, «By Safwat» until it's set. */
 export const secondCallExcluded = (p: MetricParams): string[] => String(p.excl ?? "By Safwat").split(",").map((x) => x.trim()).filter(Boolean);
 
+/** 11.15 · a New Lead request (Telesales → Operations routes it) or a Draft / Draft Admin stay (→ the first decision). */
+export interface TimedTask { name: string; at: Date; doneAt: Date | null; tag?: string }
+/**
+ * 11.15 · the share decided within `limitMs` (the waiting ones still in time aren't counted) and the line under the
+ * item (demo `detail`): «5 في الميعاد من 8 · اتأخرت في: X (42 د، لسه مستني)…».
+ */
+export function timedTasks(tasks: readonly TimedTask[], limitMs: number, now: Date, unit: "min" | "hour") {
+  const rows = tasks.map((t) => ({ ...t, state: timeliness(t.doneAt, new Date(t.at.getTime() + limitMs), now), took: (t.doneAt ?? now).getTime() - t.at.getTime() }));
+  const counted = rows.filter((r) => r.state !== "waiting"), late = counted.filter((r) => r.state === "late");
+  const took = (ms: number) => (unit === "hour" ? `${Math.floor(ms / 3_600_000)} س` : `${Math.floor(ms / 60_000)} د`);
+  const names = late.slice(0, 6).map((r) => `${r.name} (${r.tag ? `${r.tag} · ` : ""}${took(r.took)}${r.doneAt ? "" : "، لسه مستني"})`).join("، ");
+  return {
+    value: onTimeShare(rows.map((r) => r.state)),
+    detail: `${counted.length - late.length} في الميعاد من ${counted.length}${late.length ? ` · اتأخرت في: ${names}${late.length > 6 ? "…" : ""}` : ""}`,
+  };
+}
+
 /** 11.15 · a Second Call is due before the lead's Cairo day ends. */
 export function endOfLocalDay(at: Date, cal: WorkCalendar = PLACES_CALENDAR): Date {
   const next = new Date(Date.parse(`${localDate(at, cal)}T00:00:00Z`) + 24 * 60 * 60_000).toISOString().slice(0, 10);

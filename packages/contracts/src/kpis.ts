@@ -80,6 +80,8 @@ export interface KpiItemView {
   method: "system" | "report" | "manual"; module: string | null; direction: "at-least" | "at-most"; goal: number;
   metric: string | null; params: Record<string, string | number>; enteredBy: string[]; report: string | null; required: number | null;
   value: number | null; delivered: number; deliveries: { id: string; at: string; link: string | null; file: boolean }[];
+  /** 11.15 · «5 في الميعاد من 8 · اتأخرت في: …» under a timed item; null for the rest */
+  detail: string | null;
   /** «بيتحسب: …» */
   calc: string; achievement: number; contribution: number; canEnter: boolean; canDeliver: boolean;
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timeliness } from "../src/kpi.ts";
+import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness } from "../src/kpi.ts";
 import { monthDeduction } from "../src/attendance.ts";
 
 test("11.6 · the client's bands reach payroll: 102% on a 10,000 bonus → +1,500, 65% on a 12,000 salary → −1,800", () => {
@@ -108,6 +108,25 @@ test("11.15 · on time / late / still waiting (not counted)", () => {
   // the Channels left out of the Second Calls: «By Safwat» by default, else the item's list
   assert.deepEqual(secondCallExcluded({}), ["By Safwat"]);
   assert.deepEqual(secondCallExcluded({ excl: "By Safwat, Referral ," }), ["By Safwat", "Referral"]);
+});
+
+test("11.15 · New Lead in 30 minutes and Draft decisions in 24 hours: in time / late / still waiting isn't counted", () => {
+  const now = at("2026-11-05T12:00:00Z"), m = (iso: string) => at(`2026-11-05T${iso}:00Z`);
+  const nl = timedTasks([
+    { name: "A", at: m("10:00"), doneAt: m("10:30") }, // in time, on the minute
+    { name: "B", at: m("10:00"), doneAt: m("10:42") }, // late
+    { name: "C", at: m("11:00"), doneAt: null }, // waiting past 30 minutes → late
+    { name: "D", at: m("11:45"), doneAt: null }, // still in time → not counted
+  ], 30 * 60_000, now, "min");
+  assert.equal(nl.value, 33.3);
+  assert.equal(nl.detail, "1 في الميعاد من 3 · اتأخرت في: B (42 د)، C (60 د، لسه مستني)");
+  const dr = timedTasks([
+    { name: "E", at: at("2026-11-04T08:00:00Z"), doneAt: at("2026-11-04T20:00:00Z"), tag: "Draft" },
+    { name: "F", at: at("2026-11-04T08:00:00Z"), doneAt: null, tag: "Draft Admin" },
+  ], 24 * 3_600_000, now, "hour");
+  assert.equal(dr.value, 50);
+  assert.equal(dr.detail, "1 في الميعاد من 2 · اتأخرت في: F (Draft Admin · 28 س، لسه مستني)");
+  assert.deepEqual(timedTasks([], 60_000, now, "min"), { value: 100, detail: "0 في الميعاد من 0" });
 });
 
 test("«الحضور (السيلز)»: half for absence up to 5 days, half for lateness up to 6 hours", () => {
