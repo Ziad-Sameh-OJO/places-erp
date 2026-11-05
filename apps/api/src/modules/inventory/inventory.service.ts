@@ -86,6 +86,24 @@ export class InventoryService {
     return this.repo.openForDeal(id);
   }
 
+  /** M-03 6.2 · 7.1 (M-04 4.4): the new open units marketing hasn't pressed Done on yet — drafts too, newest first. */
+  forMarketing() {
+    return this.repo.forMarketing();
+  }
+
+  /** Marketing's Done on a new unit takes it off its board; Undo puts it back (M-04 7.1). Audited. */
+  async marketingDone(me: CurrentUser, id: string, done: boolean): Promise<{ code: string }> {
+    const u = await this.repo.unitById(id);
+    if (!u || u.archivedAt) throw new NotFoundException(NO_UNIT);
+    if (!!u.marketingDoneAt === done) throw new BadRequestException(done ? "الوحدة دي اتشالت من لوحة التسويق قبل كده" : "الوحدة دي لسه على لوحة التسويق");
+    const at = done ? new Date() : null;
+    await this.db.$transaction(async (tx) => {
+      await tx.unit.update({ where: { id }, data: { marketingDoneAt: at } });
+      await this.audit.record({ module: "marketing", entity: "Unit", entityId: id, action: done ? "marketing-done" : "marketing-undo", userId: me.id, before: { marketingDoneAt: u.marketingDoneAt }, after: { marketingDoneAt: at } }, tx);
+    });
+    return { code: u.code };
+  }
+
   /** For a task (M-04 4.2): open units, drafts included, by code, project or space. */
   forTasks(q?: string) {
     return this.repo.forTasks(q, 30);
@@ -151,8 +169,8 @@ export class InventoryService {
   async create(me: CurrentUser, input: UnitInput): Promise<CreatedUnit> {
     await this.check(input, null);
     const unit = await this.db.$transaction((tx) => this.insert(tx, me, input));
-    // no link: the unit isn't published to everyone until Manar confirms its PDF (Q15, 2.8)
-    await this.notifications.notify({ event: "unit.new", text: `Live Alert: وحدة جديدة ${unit.code} (${unit.project}) اتضافت للانفنتوري` });
+    // to marketing's board of new units (M-04 4.4), not the unit: it isn't published until Manar confirms its PDF (Q15, 2.8)
+    await this.notifications.notify({ event: "unit.new", text: `Live Alert: وحدة جديدة ${unit.code} (${unit.project}) اتضافت للانفنتوري`, link: "/marketing?tab=units" });
     return { id: unit.id, code: unit.code };
   }
 
