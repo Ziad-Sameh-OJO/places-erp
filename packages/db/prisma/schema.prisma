@@ -964,7 +964,8 @@ model UnitPhoto {
   unitId    String
   unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
   fileId    String   @unique // system.File (entity "Unit")
-  position  Int      // 0 = the main photo
+  position  Int      // the folder's order; the first image is the main photo (the PDF's cover)
+  pdf       Boolean  @default(false) // 2.22: a PDF in the «Pic & Info» folder, never a cover or a brochure photo
   createdAt DateTime @default(now())
 
   @@index([unitId, position])

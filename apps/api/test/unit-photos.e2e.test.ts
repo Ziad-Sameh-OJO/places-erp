@@ -99,10 +99,9 @@ test("Manar adds three photos: in order, the first is the main one, sales see th
   assert.match(row.photo ?? "", /X-Amz-Signature=/);
   assert.equal(row.photoCount, 3);
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Unit", entityId: unitId, action: "photos-add" } }));
-  // the same file can't be added twice, nor someone else's upload, nor a PDF
+  // the same file can't be added twice, nor someone else's upload
   assert.equal((await add(manar, [ids[0]!])).status, 400);
   assert.equal((await add(randa, [await upload(manar, "تاني.png", "image/png", PNG)])).status, 400);
-  assert.equal((await add(manar, [await upload(manar, "عقد.pdf", "application/pdf", PDF)])).status, 400);
 });
 
 test("ordering: the new first is the main one; a stale order is refused; Randa removes one and the rest move up", { skip }, async () => {
@@ -119,10 +118,18 @@ test("ordering: the new first is the main one; a stale order is refused; Randa r
 });
 
 test("2.22 · Sara uploads to the folder (the PDF waits for a confirm again); the sales download it all as a ZIP, audited", { skip }, async () => {
+  // a PDF goes in the folder too, first even — but the cover stays the first image (the card, the brochure)
+  const pdf = await upload(sara, "بروشور.pdf", "application/pdf", PDF);
+  assert.equal((await add(sara, [pdf])).status, 201);
+  const ids = ((await photos(manar)).body as Array<{ id: string }>).map((p) => p.id);
+  const o = await order(sara, [ids.at(-1)!, ...ids.slice(0, -1)]);
+  assert.equal(o.status, 200, JSON.stringify(o.body));
+  assert.deepEqual(names(o), ["بروشور.pdf", "واجهة.png*", "ريسبشن.png"]);
+  assert.equal((o.body as Array<{ pdf: boolean }>)[0]!.pdf, true);
   const id = await upload(sara, "واجهة.png", "image/png", PNG);
   const r = await add(sara, [id]);
   assert.equal(r.status, 201, JSON.stringify(r.body));
-  assert.deepEqual(names(r), ["واجهة.png*", "ريسبشن.png", "واجهة.png"]);
+  assert.deepEqual(names(r), ["بروشور.pdf", "واجهة.png*", "ريسبشن.png", "واجهة.png"]);
   const mine = (r.body as Array<{ id: string; by: string | null; at: string }>).at(-1)!;
   assert.ok(mine.by);
   assert.ok(!Number.isNaN(Date.parse(mine.at)));
@@ -131,9 +138,13 @@ test("2.22 · Sara uploads to the folder (the PDF waits for a confirm again); th
   const z = await zip(sales);
   assert.equal(z.status, 200);
   const got = unzip(Buffer.from(await z.arrayBuffer()));
-  assert.deepEqual(got.map((e) => e.name), [`U-P${stamp}/واجهة.png`, `U-P${stamp}/ريسبشن.png`, `U-P${stamp}/واجهة-1.png`], "every file by its name, a repeated name numbered");
-  assert.deepEqual(Buffer.from(got[0]!.data), PNG);
-  assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Unit", entityId: unitId, action: "photos-zip", after: { equals: { files: 3 } } } }));
+  assert.deepEqual(got.map((e) => e.name), [`U-P${stamp}/بروشور.pdf`, `U-P${stamp}/واجهة.png`, `U-P${stamp}/ريسبشن.png`, `U-P${stamp}/واجهة-1.png`], "every file by its name, a repeated name numbered");
+  assert.deepEqual(Buffer.from(got[0]!.data), PDF);
+  assert.deepEqual(Buffer.from(got[1]!.data), PNG);
+  const card = ((await call(`/inventory/units?q=${encodeURIComponent(`E2E ${stamp}`)}`, { cookie: sales })).body as { items: Array<{ photo: string | null; photoCount: number }> }).items[0]!;
+  assert.equal(card.photoCount, 4);
+  assert.ok(await fetch(card.photo!).then((x) => x.arrayBuffer()).then((b) => Buffer.from(b).equals(PNG)), "the card's photo is the first image, not the PDF");
+  assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Unit", entityId: unitId, action: "photos-zip", after: { equals: { files: 4 } } } }));
   // the sales still can't take one out; Sara can, and the PDF waits again
   assert.equal((await call(`/inventory/units/${unitId}/photos/${id}`, { method: "DELETE", cookie: sales })).status, 403);
   assert.equal((await call(`/inventory/units/${unitId}/photos/${id}`, { method: "DELETE", cookie: sara })).status, 204);

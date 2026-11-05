@@ -57,7 +57,7 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
       <div className="ufolder">
         {photos.map((p, i) => (
           <figure className="uf" key={p.id}>
-            <a href={p.url} target="_blank" rel="noopener noreferrer" title="افتح"><img src={p.url} alt={p.name} loading="lazy" /></a>
+            <a href={p.url} target="_blank" rel="noopener noreferrer" title="افتح">{p.pdf ? <span className="uf-doc"><Icon name="file" />PDF</span> : <img src={p.url} alt={p.name} loading="lazy" />}</a>
             {p.main && <Chip tone="ok">الرئيسية</Chip>}
             <figcaption>
               <span>{p.name}</span>
@@ -67,7 +67,7 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
                 <div className="row">
                   <button className="btn ghost sm" disabled={i === 0} onClick={() => move(i, -1)}>قدّم</button>
                   <button className="btn ghost sm" disabled={i === photos.length - 1} onClick={() => move(i, 1)}>أخّر</button>
-                  {!p.main && <button className="btn ghost sm" onClick={() => main(i)}>خليها الرئيسية</button>}
+                  {!p.main && !p.pdf && <button className="btn ghost sm" onClick={() => main(i)}>خليها الرئيسية</button>}
                 </div>
               )}
             </figcaption>
@@ -78,7 +78,7 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
     ) : (
       <div className="ufolder empty"><Icon name="folder" /><b>الفولدر فاضي</b><span className="hint">{up ? "ارفع كل صور الوحدة هنا." : "لسه محدش رفع صور للوحدة دي."}</span></div>
     )}
-    {up && <FileUpload kind="image" label="ارفع صور" onUploaded={add} />}
+    {up && <div className="row"><FileUpload kind="image" label="ارفع صور" onUploaded={add} /><FileUpload kind="pdf" label="ارفع PDF" onUploaded={add} /></div>}
     <Note>الصور دي بتتشاف من خانة Pic & Info في الشيت ومن صفحة الوحدة، ومنها بيتعمل الـ PDF والـ slide (أول صورة هي الغلاف). أول رفع بيتسجّل وقته وبيتحسب في «رفع الصور خلال 24 ساعة».</Note>
   </>;
 }

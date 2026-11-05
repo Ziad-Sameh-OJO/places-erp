@@ -12,8 +12,8 @@ export const UNIT_ROW = {
   divisible: true, minSplit: true, location: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
   // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
   locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
-  // the main photo (2.4) and how many there are
-  photos: { select: { fileId: true }, orderBy: { position: "asc" }, take: 1 },
+  // the main photo (2.4: the first image, never a PDF of the folder, 2.22) and how many files there are
+  photos: { where: { pdf: false }, select: { fileId: true }, orderBy: { position: "asc" }, take: 1 },
   _count: { select: { photos: true } },
 } satisfies Prisma.UnitSelect;
 export const UNIT_DETAIL = { ...UNIT_ROW, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true, mediaUploadedAt: true } satisfies Prisma.UnitSelect;
@@ -29,7 +29,7 @@ export type ListFilters = UnitFilters & { missingIds?: string[] };
 const MISSING_CHECK = {
   id: true, code: true, type: true, project: true, space: true, condition: true, building: true, ownerName: true, ownerPhone: true,
   pricePerSqm: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, location: true, details: true,
-  _count: { select: { photos: true } },
+  _count: { select: { photos: { where: { pdf: false } } } }, // a PDF alone isn't the unit's photos
 } satisfies Prisma.UnitSelect;
 
 /** Data access only. The visibility rule (Q15: no drafts for sales) is part of every query, never filtered afterwards. */
@@ -188,7 +188,7 @@ export class InventoryRepository {
 
   /** A unit's photos in their order (2.4). */
   photos(unitId: string, tx: Prisma.TransactionClient = this.db) {
-    return tx.unitPhoto.findMany({ where: { unitId }, orderBy: { position: "asc" }, select: { id: true, fileId: true } });
+    return tx.unitPhoto.findMany({ where: { unitId }, orderBy: { position: "asc" }, select: { id: true, fileId: true, pdf: true } });
   }
 
   /** A unit's two sides, for closing one (Q16 · Q17). Archived units can't be closed. */

@@ -10,7 +10,7 @@ function dosTime(d: Date): [time: number, date: number] {
 /**
  * A stored (uncompressed) ZIP, written to `out` one entry at a time so only one file is in memory: photos and PDFs are
  * compressed already. Names are UTF-8 (flag bit 11) so Arabic names survive. Returns how many entries it wrote.
- * shortcut: no ZIP64, so under 4 GB and 65k entries in all (a unit folder is ≤ 40 × 10 MB); add ZIP64 for bigger ones.
+ * shortcut: no ZIP64, so under 4 GB and 65k entries in all (a unit folder is ≤ 40 files of ≤ 20 MB); add ZIP64 for bigger ones.
  */
 export async function writeZip(out: Writable, entries: AsyncIterable<{ name: string; data: Buffer }>, now = new Date()): Promise<number> {
   const put = async (b: Buffer) => { if (!out.write(b)) await once(out, "drain"); };

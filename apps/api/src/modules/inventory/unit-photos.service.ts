@@ -35,10 +35,11 @@ export class UnitPhotosService {
     const photos = await this.repo.photos(unitId);
     const ids = photos.map((p) => p.fileId);
     const [files, links, saves] = await Promise.all([this.files.names(ids), this.links(ids), this.links(ids, false)]);
+    const cover = photos.find((p) => !p.pdf)?.fileId;
     const people = new Map((await this.repo.namesByUser([...new Set(files.map((f) => f.uploadedById))])).map((e) => [e.userId, e.name]));
-    return photos.flatMap((p, i) => {
+    return photos.flatMap((p) => {
       const url = links.get(p.fileId), download = saves.get(p.fileId), f = files.find((n) => n.id === p.fileId);
-      return url && download && f ? [{ id: p.fileId, name: f.name, url, download, main: i === 0, by: people.get(f.uploadedById) ?? null, at: f.createdAt.toISOString() }] : [];
+      return url && download && f ? [{ id: p.fileId, name: f.name, url, download, pdf: p.pdf, main: p.fileId === cover, by: people.get(f.uploadedById) ?? null, at: f.createdAt.toISOString() }] : [];
     });
   }
 
@@ -66,18 +67,20 @@ export class UnitPhotosService {
     return { filename: `${u.code} - Pic & Info.zip`, entries: entries() };
   }
 
-  /** Your own finished uploads, images only, appended after the unit's photos. */
+  /** Your own finished uploads, images or PDFs (2.22), appended after the unit's files. */
   async add(me: CurrentUser, unitId: string, fileIds: string[]): Promise<UnitPhotoView[]> {
     this.mayFill(me);
     await this.visibleUnit(me, unitId);
     const ids = [...new Set(fileIds)];
-    const images = new Set<string>(FILE_KINDS.image.mimes);
-    if ((await this.files.names(ids)).some((f) => !images.has(f.mime))) throw new BadRequestException("الصور بس (jpg / png / webp)");
+    const pdfs = new Set<string>(FILE_KINDS.pdf.mimes), allowed = new Set<string>([...FILE_KINDS.image.mimes, ...pdfs]);
+    const files = await this.files.names(ids);
+    if (files.some((f) => !allowed.has(f.mime))) throw new BadRequestException("صور (jpg / png / webp) أو PDF بس");
+    const isPdf = new Set(files.filter((f) => pdfs.has(f.mime)).map((f) => f.id));
     await this.db.$transaction(async (tx) => {
       const have = await this.repo.photos(unitId, tx);
       if (have.length + ids.length > MAX_UNIT_PHOTOS) throw new BadRequestException(`الوحدة ليها لحد ${MAX_UNIT_PHOTOS} صورة`);
       await this.files.attach(me, ids, "Unit", unitId, tx);
-      await tx.unitPhoto.createMany({ data: ids.map((fileId, i) => ({ unitId, fileId, position: have.length + i })) });
+      await tx.unitPhoto.createMany({ data: ids.map((fileId, i) => ({ unitId, fileId, position: have.length + i, pdf: isPdf.has(fileId) })) });
       await this.toDraft(unitId, tx);
       // M-03 3.1 KPI (Sara): the first upload is what's measured against the time the unit was entered (2.16)
       await tx.unit.updateMany({ where: { id: unitId, mediaUploadedAt: null }, data: { mediaUploadedAt: new Date() } });
@@ -86,7 +89,7 @@ export class UnitPhotosService {
     return this.list(me, unitId);
   }
 
-  /** The new order; the first becomes the main photo. */
+  /** The new order; the first image becomes the main photo. */
   async reorder(me: CurrentUser, unitId: string, fileIds: string[]): Promise<UnitPhotoView[]> {
     this.mayFill(me);
     await this.visibleUnit(me, unitId);
