@@ -15,6 +15,8 @@ import { hrActionAlarmTick } from "./processors/hr-action-alarm.ts";
 import { ticketSlaTick } from "./processors/ticket-sla.ts";
 import { procurementReminderTick } from "./processors/procurement-reminder.ts";
 import { staleUploadsTick } from "./processors/stale-uploads.ts";
+import { scheduledReportsTick } from "./processors/scheduled-reports.ts";
+import { targetPaceTick } from "./processors/target-pace.ts";
 import { kpiMidQuarterTick } from "./processors/kpi-mid-quarter.ts";
 import { kpiRefreshTick } from "./processors/kpi-refresh.ts";
 
@@ -30,6 +32,8 @@ const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   // next: no-answer-rotation (T-07), contracts (T-16)… one processor file each, same shape as lead-sla.ts
   { name: "leave-chase", pattern: "15 * * * *", processor: leaveChaseTick }, // hourly: remind at 24h, escalate at 48h (M-05 7.5)
   { name: "hr-action-alarm", pattern: "0 11 * * *", processor: hrActionAlarmTick }, // daily: «حل الـ HR» due today (M-05 7.8)
+  { name: "scheduled-reports", pattern: "*/5 * * * *", processor: () => scheduledReportsTick() }, // 11.10: auto reports at their time, reminders, late notices
+  { name: "target-pace", pattern: "0 12 * * *", processor: () => targetPaceTick() }, // 11.8: the TL hears who is under the month's pace
   { name: "kpi-mid-quarter", pattern: "0 11 * * *", processor: () => kpiMidQuarterTick() }, // daily at the start of work: once per card mid-quarter (M-12 2.1 · 11.6)
   { name: "kpi-refresh", pattern: "30 19 * * *", processor: () => kpiRefreshTick() }, // daily after work: the automatic KPI items (M-12 · 11.5)
   { name: "stale-uploads", pattern: "0 4 * * *", processor: () => staleUploadsTick() }, // daily at night: uploads never completed (#209)

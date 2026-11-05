@@ -1447,3 +1447,99 @@ model KpiDelivery {
 
   @@schema("kpi")
 }
+
+/// 11.10 · a scheduled report (meeting 4 Nov): the system sends it (auto, `content` = what it builds) or people hand it in
+/// (handin: `preparedBy`, a reminder `remindMin` before, `lateNotify` told after). Names are user ids, role keys or
+/// "follower". `money` keeps it from the KPI watcher. `daily` = the daily report of every team (11.12).
+/// A KpiItem whose `report` is this id counts the on-time hand-ins.
+model ScheduledReport {
+  id         String         @id @default(cuid())
+  name       String
+  on         Boolean        @default(true)
+  kind       String // auto · handin
+  freq       String // daily · weekly · monthly · quarterly
+  day        Int            @default(0) // weekday 0–6 (Sunday = 0) or day of the month
+  time       String // "HH:MM" Cairo
+  fmt        String         @default("جوه السيستم")
+  content    String? // auto: "performance" (11.10 the sales performance report)
+  preparedBy String[]       @default([])
+  recipients String[]       @default([])
+  remindMin  Int            @default(60)
+  lateNotify String[]       @default([])
+  money      Boolean        @default(false)
+  daily      Boolean        @default(false)
+  createdAt  DateTime       @default(now()) // first run: periods due before this aren't sent or chased
+  handIns    ReportHandIn[]
+  runs       ReportRun[]
+
+  @@schema("kpi")
+}
+
+/// One person's hand-in for one period (its due date): when, and the reminder / late notice the worker sent once.
+model ReportHandIn {
+  id         String          @id @default(cuid())
+  reportId   String
+  report     ScheduledReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  userId     String
+  period     String // "YYYY-MM-DD", the due date
+  at         DateTime?
+  remindedAt DateTime?
+  lateAt     DateTime?
+
+  @@unique([reportId, userId, period])
+  @@schema("kpi")
+}
+
+/// An auto report the system built: its rows, listed under the report and downloadable as Excel.
+model ReportRun {
+  id       String          @id @default(cuid())
+  reportId String
+  report   ScheduledReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  period   String
+  at       DateTime        @default(now())
+  title    String
+  rows     Json
+
+  @@unique([reportId, period])
+  @@schema("kpi")
+}
+
+/// 11.12 · one person's daily report: what he typed (KpiItem key or extra field id → value) and when he handed it in.
+model DailyReport {
+  id     String   @id @default(cuid())
+  userId String
+  day    DateTime @db.Date
+  values Json     @default("{}")
+  note   String   @default("")
+  at     DateTime @default(now())
+
+  @@unique([userId, day])
+  @@schema("kpi")
+}
+
+/// 11.12 · an extra field on one person's daily report (a number or a sentence), added by the admin / the KPI watcher.
+model DailyReportField {
+  id       String @id @default(cuid())
+  userId   String
+  label    String
+  type     String // number · text
+  position Int    @default(0)
+
+  @@index([userId])
+  @@schema("kpi")
+}
+
+/// 11.8 · a salesperson's target for a month: value (his share of collections), Transactions and visits. A change in the
+/// middle of the month waits in `pending` until someone with «reports: approve» accepts it.
+model SalesTarget {
+  id         String  @id @default(cuid())
+  employeeId String
+  month      String // "YYYY-MM"
+  value      Decimal @db.Decimal(14, 2)
+  deals      Int     @default(0)
+  visits     Int     @default(0)
+  pending    Json? // { value, deals, visits, by }
+
+  @@unique([employeeId, month])
+  @@schema("kpi")
+}

@@ -10,6 +10,7 @@ export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon:
   finance: { label: "المالية", code: "M-07", icon: "wallet", section: "الإدارة", sub: "الداشبورد · الخزن والحركات · العهد والسلف · القيود · الفواتير الثابتة · قايمة الدخل والميزانية · البادجت · شجرة الحسابات" },
   procurement: { label: "المشتريات", code: "M-08", icon: "cart", section: "الإدارة", sub: "Request ← موافقة (لحد 50,000 أي معتمد · أكتر من كده أحمد أو صفوت) ← مختار يصرف ← Budget البند بعد الدفع" },
   hr: { label: "الموارد البشرية", code: "M-05", icon: "id", section: "الإدارة", short: "الـ HR", sub: "الحضور بالبصمة والشرايح · التاريخ · الـ Weekly Delay · فايل كل موظف" },
+  reports: { label: "التقارير والتارجت", code: "M-12", icon: "chart", section: "الإدارة", short: "التقارير", sub: "التارجت الشهري · الـ Team Leaders · تقارير متجدولة" },
   kpis: { label: "مؤشرات الأداء (KPIs)", code: "M-12", icon: "trend", section: "الإدارة", short: "الـ KPIs", sub: "كارت كل موظف للربع · المدير بيتحكم في بنود فريقه" },
   tickets: { label: "التذاكر", code: "M-06", icon: "ticket", section: "الإدارة", sub: "الطلبات بين الأقسام بدل الواتساب · Audit Trail" },
   access: { label: "الأدوار والصلاحيات", code: "M-09", icon: "lock", section: "النظام", short: "الصلاحيات", sub: "الأدوار ومصفوفة الصلاحيات · المستخدمين · Audit Log" },

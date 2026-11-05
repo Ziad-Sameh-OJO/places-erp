@@ -109,6 +109,14 @@ async function main() {
   for (const r of kpi.teamLeaders.people) kpiCards += await kpiCard(kpi.teamLeaders.quarter, r, kpi.teamLeaders.card);
   await prisma.kpiQuarter.upsert({ where: { id: kpi.quarter }, create: { id: kpi.quarter }, update: {} });
   await prisma.kpiBands.upsert({ where: { id: "default" }, create: {}, update: {} });
+  // M-12 · the scheduled reports from the demo meeting of 4 Nov (11.10 · 11.12); changes made in the app stay
+  const reports = [
+    { id: "sr-weekly-performance", name: "أداء السيلز الأسبوعي", kind: "auto", freq: "weekly", day: 0, time: "09:00", fmt: "Excel", content: "performance", recipients: ["tl", "admin"] },
+    { id: "sr-monthly-performance", name: "تقرير الأداء الشهري", kind: "auto", freq: "monthly", day: 1, time: "09:00", fmt: "Excel", content: "performance", recipients: ["admin", "officemgr", "salesdir", "tl"] },
+    { id: "sr-daily", name: "التقرير اليومي", kind: "handin", freq: "daily", day: 0, time: "18:00", daily: true, remindMin: 60, recipients: ["ops", "follower"], lateNotify: ["follower"],
+      preparedBy: ["sales", "telesales", "ops", "inventory", "inventory_staff", "resale", "marketing", "photographer", "designer", "hr", "accountant", "procurement", "officemgr", "tl"] },
+  ];
+  for (const r of reports) await prisma.scheduledReport.upsert({ where: { id: r.id }, create: r, update: {} });
   console.log(`seed: ${Object.keys(settings).length} settings · ${roles.length} roles · ${people.length} people · ${chart.length} accounts · ${kpiCards} new KPI cards · ${passwordHash ? "ACTIVE with the dev password" : "INVITED"}`);
 }
 

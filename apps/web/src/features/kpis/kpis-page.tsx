@@ -6,11 +6,12 @@ import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { dayTime, money } from "@/lib/format";
 import { useMe } from "@/lib/me";
+import { DailyBoard } from "@/features/reports/daily";
 import { IdealEmployee } from "../hr/ideal";
 import { KpiCardBody, KpiDrawer } from "./kpi-drawer";
 import { type Scope, useBoard, useCompany, useKpiLog, useRefreshKpis } from "./use-kpis";
 
-type Tab = Scope | "log" | "ideal";
+type Tab = Scope | "log" | "daily" | "ideal";
 const barTone = (t: string) => (t === "ok" ? "" : t);
 export const Bar = ({ pct, tone }: { pct: number; tone: string }) => <div className={`bar ${barTone(tone)}`}><i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} /></div>;
 export const moneyChip = (v: string | null) => (v && Number(v) ? <Chip tone={Number(v) > 0 ? "ok" : "bad"} plain>{Number(v) > 0 ? "+" : "−"}{money(v.replace("-", ""))}</Chip> : null);
@@ -24,7 +25,9 @@ export function KpisPage() {
   const tabs: [Tab, string, number?][] = [
     ...(mine ? [["me", "كارتي"] as [Tab, string]] : []),
     ...(team.data?.cards.length ? [["team", "فريقي", team.data.cards.length] as [Tab, string, number]] : []),
-    ...(all ? [["all", "كل الشركة"] as [Tab, string], ["log", "التقارير والتغييرات"] as [Tab, string]] : []),
+    ...(all ? [["all", "كل الشركة"] as [Tab, string]] : []),
+    ...(all || team.data?.cards.length ? [["daily", "التقارير اليومية"] as [Tab, string]] : []),
+    ...(all ? [["log", "التقارير والتغييرات"] as [Tab, string]] : []),
     // 7.11: not for the KPI watcher (money); the list itself is the HR one, so it needs «hr: view»
     ...(me.data?.seesMoney && can("hr", "view") ? [["ideal", "الموظف المثالي"] as [Tab, string]] : []),
   ];
@@ -35,7 +38,7 @@ export function KpisPage() {
   return (
     <>
       <div className="row"><Tabs<Tab> items={tabs} value={tab} onChange={setPick} /></div>
-      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "ideal" ? <IdealEmployee /> : <Log />}
+      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : tab === "ideal" ? <IdealEmployee /> : <Log />}
     </>
   );
 }

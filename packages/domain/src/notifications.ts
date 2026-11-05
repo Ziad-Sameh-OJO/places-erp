@@ -47,6 +47,12 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "ticket.new", label: "تذكرة جديدة / اتحوّلت لقسمك", to: "القسم المسؤول", toRoles: [], channels: ["app", "push"], important: false }, // M-06 2.1
   { key: "ticket.late", label: "تذكرة اتأخرت · تصعيد", to: "مدير القسم · نانسي للنزاعات", toRoles: [], channels: ["app", "push", "email"], important: true }, // M-06 2.4
   { key: "kpi.changed", label: "تغيير في الـ KPIs", to: "مسؤول الـ KPIs", toRoles: [], channels: ["app"], important: false }, // 11.14: never about money
+  { key: "report.sent", label: "تقرير متجدول اتبعت", to: "مستلمين التقرير", toRoles: [], channels: ["app"], important: false }, // 11.10
+  { key: "report.remind", label: "تذكير بتسليم تقرير", to: "اللي بيسلّمه", toRoles: [], channels: ["app"], important: false }, // 11.10
+  { key: "report.late", label: "تقرير ماتسلّمش في ميعاده", to: "اللي متحدد في التقرير · المتابع", toRoles: [], channels: ["app"], important: true }, // 11.10
+  { key: "report.handed", label: "حد سلّم تقرير", to: "مستلمين التقرير", toRoles: [], channels: ["app"], important: false }, // 11.10
+  { key: "target.behind", label: "سيلز تحت معدل التارجت", to: "الـ Team Leader بتاعه", toRoles: [], channels: ["app"], important: false }, // 11.8
+  { key: "target.change", label: "تغيير تارجت مستني موافقة", to: "الإدارة · الـ Office Manager", toRoles: ["admin", "officemgr"], channels: ["app"], important: false }, // 11.8
   // 11.6 (M-12 2.1 · 2.3): mid-quarter items under target; the closed result's plan / warning; under 50% twice → HR
   { key: "kpi.mid_quarter", label: "بنود تحت المستهدف في نص الربع", to: "الموظف والمتابع", toRoles: [], channels: ["app", "push"], important: true },
   { key: "kpi.result", label: "نتيجة الربع: خطة تحسين أو إنذار", to: "الموظف والمتابع", toRoles: [], channels: ["app", "email"], important: true },
