@@ -55,6 +55,24 @@ model User {
   @@schema("access")
 }
 
+/// M-09 2.2 · 7.1: a leaver's open leads and tasks move to someone else once their direct manager approves.
+model Handover {
+  id         String    @id @default(cuid())
+  fromUserId String    // the person leaving
+  toUserId   String    // who gets the work
+  byUserId   String    // who asked (HR / Super Admin)
+  approverId String    // the leaver's direct manager's account when it was asked
+  status     String    @default("pending") // pending · approved · rejected
+  leads      Int?      // how many moved, once approved
+  tasks      Int?
+  decidedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([approverId, status])
+  @@index([fromUserId, status])
+  @@schema("access")
+}
+
 model Session {
   id        String   @id // random 256-bit token hash
   userId    String
@@ -1110,9 +1128,26 @@ model Installment {
   dueOn      DateTime  @db.Date
   amount     Decimal   @db.Decimal(14, 2)
   paid       Decimal   @default(0) @db.Decimal(14, 2)
+  alerts     String[]  @default([]) // which of reminder / late / escalated went out (M-11 2.4)
+  payments   InstallmentPayment[]
 
   @@index([contractId, dueOn])
   @@index([dueOn])
+  @@schema("finance")
+}
+
+/// M-11 2.1 step 4: a payment Finance records on an installment (part of it = Partially Paid, 2.3); each prints a receipt.
+model InstallmentPayment {
+  id            String      @id @default(cuid())
+  installmentId String
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  amount        Decimal     @db.Decimal(14, 2)
+  paidOn        DateTime    @db.Date
+  createdById   String
+  createdAt     DateTime    @default(now())
+
+  @@index([installmentId])
+  @@index([paidOn])
   @@schema("finance")
 }
 

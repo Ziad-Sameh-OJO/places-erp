@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CalendarItem, ContractCalendar, ContractDetail, ContractFilters, ContractForm, ContractRow, ContractSummary, CreateContract, Paged } from "@places/contracts";
+import type { CalendarItem, CollectionReport, ContractCalendar, ContractDetail, ContractFilters, ContractForm, ContractRow, ContractSummary, CreateContract, Paged, RecordPayment } from "@places/contracts";
 import {
   type ContractStatus, type InstallmentLine, RENEWAL_WINDOW_DAYS, agingBuckets, contractProblem, daysBetween, endingSoon, fromDecimal,
-  installmentPlan, installmentState, localDate, nextYearValue, toDecimal,
+  installmentPlan, installmentState, localDate, nextYearValue, paymentProblem, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -11,7 +11,8 @@ import { FilesService } from "../../core/files/files.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { DealsService } from "../deals/deals.service";
-import { type ContractRecord, ContractsRepository } from "./contracts.repository";
+import { DocumentsSetupService } from "../settings/documents-setup.service";
+import { type ContractRecord, ContractsRepository, type PaymentRecord } from "./contracts.repository";
 
 const NO_CONTRACT = "العقد ده مش موجود";
 const FILE_ENTITY = "Contract";
@@ -32,6 +33,7 @@ export class ContractsService {
     private readonly audit: AuditService,
     private readonly files: FilesService,
     private readonly deals: DealsService,
+    private readonly docs: DocumentsSetupService,
   ) {}
 
   /** M-11 4.1: a salesperson sees the contracts of their own deals («عقود عملاءه»), Finance and management all. */
@@ -55,9 +57,12 @@ export class ContractsService {
       ...toRow(c, today), createdAt: c.createdAt.toISOString(),
       nextYearValue: toDecimal(nextYearValue(fromDecimal(c.value.toFixed(2)), Number(c.escalation))),
       file: c.fileId ? await this.repo.file(c.fileId).then((f) => f && { id: f.id, name: f.name }) : null,
-      installments: c.installments.map((i) => {
+      installments: c.installments.map((i, k) => {
         const amount = fromDecimal(i.amount.toFixed(2)), paid = fromDecimal(i.paid.toFixed(2));
-        return { id: i.id, dueOn: day(i.dueOn), amount: toDecimal(amount), paid: toDecimal(paid), state: installmentState({ dueOn: day(i.dueOn), amount, paid }, today) };
+        return {
+          id: i.id, dueOn: day(i.dueOn), amount: toDecimal(amount), paid: toDecimal(paid), state: installmentState({ dueOn: day(i.dueOn), amount, paid }, today),
+          payments: i.payments.map((p, n) => ({ id: p.id, amount: p.amount.toFixed(2), paidOn: day(p.paidOn), receiptNo: receiptNo(c.code, k, n) })),
+        };
       }),
     };
   }
@@ -91,6 +96,57 @@ export class ContractsService {
     }
     for (const c of ends) add(c.endsOn, { contractId: c.id, code: c.code, client: c.deal.company, kind: "end", amount: null, state: null });
     return { month, byDay };
+  }
+
+  /**
+   * M-11 2.1 step 4 · 4.1: Finance records what the client paid on an installment — all of it or part (2.3 Partially
+   * Paid). The payment and the installment's new total are saved and audited together.
+   * Not posted to the journal: whether a tenant's installment is Places' money is still open (M-11 7.2).
+   */
+  async pay(me: CurrentUser, installmentId: string, input: RecordPayment, now = new Date()): Promise<ContractDetail> {
+    const today = localDate(now), paidOn = input.paidOn ?? today, amount = fromDecimal(input.amount);
+    const contractId = await this.db.$transaction(async (tx) => {
+      const i = await this.repo.installment(tx, this.scope(me), installmentId);
+      if (!i) throw new NotFoundException("القسط ده مش موجود");
+      const before = fromDecimal(i.paid.toFixed(2));
+      const problem = paymentProblem(amount, fromDecimal(i.amount.toFixed(2)) - before, paidOn, today);
+      if (problem) throw new BadRequestException(problem);
+      if (!(await this.repo.setPaid(tx, i.id, i.paid, toDecimal(before + amount))).count) throw new ConflictException("القسط اتعدّل دلوقتي، جرّب تاني");
+      const p = await this.repo.addPayment(tx, { installmentId: i.id, amount: toDecimal(amount), paidOn: new Date(paidOn), createdById: me.id });
+      await this.audit.record({ module: "contracts", entity: "InstallmentPayment", entityId: p.id, action: "create", userId: me.id,
+        before: { installmentId: i.id, paid: toDecimal(before) }, after: { installmentId: i.id, amount: toDecimal(amount), paidOn, paid: toDecimal(before + amount) } }, tx);
+      return i.contractId;
+    });
+    return this.get(me, contractId, now);
+  }
+
+  /** «تقرير التحصيل» (M-11 6.1): the month's due vs collected, every payment with its receipt, and the Aging now. */
+  async collections(me: CurrentUser, month: string, now = new Date()): Promise<CollectionReport> {
+    const from = new Date(`${month}-01T00:00:00Z`), to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 0));
+    const [[payments, due], { aging }] = await Promise.all([this.repo.collections(this.scope(me), from, to), this.summary(me, now)]);
+    return {
+      month, due: toDecimal(fromDecimal((due._sum.amount ?? 0).toFixed(2))), aging,
+      collected: toDecimal(payments.reduce((s, p) => s + fromDecimal(p.amount.toFixed(2)), 0)),
+      items: payments.map((p) => ({
+        paymentId: p.id, contractId: p.installment.contract.id, code: p.installment.contract.code, client: p.installment.contract.deal.company,
+        unitCode: p.installment.contract.deal.unit.code, dueOn: day(p.installment.dueOn), paidOn: day(p.paidOn), amount: p.amount.toFixed(2), receiptNo: paymentReceiptNo(p),
+      })),
+    };
+  }
+
+  /** 6.7: a payment's receipt from the 12.12 template (the entity's logo; the stamp and signature come when printed), for whoever sees the contract. */
+  async receipt(me: CurrentUser, paymentId: string) {
+    const p = await this.repo.payment(this.scope(me), paymentId);
+    if (!p) throw new NotFoundException("الدفعة دي مش موجودة");
+    const c = p.installment.contract, no = paymentReceiptNo(p);
+    // shortcut: printed under the first entity (places); move to the contract's own once contracts carry one (open question)
+    const [entity] = await this.docs.entities();
+    const { title, html } = await this.docs.render("installment", {
+      no, date: day(p.paidOn), entityId: entity?.id ?? "", company: c.deal.company, unit: c.deal.unit.code, unitInfo: c.deal.location,
+      amount: p.amount.toFixed(2), kind: "", claimNo: "", contractNo: c.code,
+      installment: `القسط ${c.installments.findIndex((x) => x.id === p.installment.id) + 1} من ${c.installments.length}`,
+    });
+    return { name: `${title} ${no}.pdf`, html };
   }
 
   async form(me: CurrentUser): Promise<ContractForm> {
@@ -136,6 +192,11 @@ export class ContractsService {
     return this.get(me, created.id);
   }
 }
+
+/** C-501-1 = the first payment on installment 1 of C-501 (the demo's number); a second payment on it is C-501-1/2. */
+const receiptNo = (code: string, k: number, n: number) => `${code}-${k + 1}${n ? `/${n + 1}` : ""}`;
+const paymentReceiptNo = (p: PaymentRecord) =>
+  receiptNo(p.installment.contract.code, p.installment.contract.installments.findIndex((x) => x.id === p.installment.id), p.installment.payments.findIndex((x) => x.id === p.id));
 
 const addDays = (today: string, n: number) => day(new Date(new Date(`${today}T00:00:00Z`).getTime() + n * 86_400_000));
 

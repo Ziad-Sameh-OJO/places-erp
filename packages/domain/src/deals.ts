@@ -53,9 +53,30 @@ export const closedTooSoon = (requestCreatedAt: Date, closedAt: Date, alarmH: nu
 /** The note (Office Manager / Finance, 3.1) is written on a deal that is on the sheet: approved or being collected. */
 export const takesNote = (status: DealStatus): boolean => status === "Approved" || status === "Partially Collected" || status === "Fully Collected";
 
+/** M-02 2.3 (12) · 9.6: a deal on the sheet (approved or being collected) is cancelled once, with the reason written. */
+export function cancelProblem(status: DealStatus, reason: string): string | null {
+  if (!takesNote(status)) return status === "Cancelled" ? "الصفقة دي اتلغت قبل كده" : "الإلغاء بيبقى على صفقة اتوافق عليها";
+  if (!reason.trim()) return "اكتب سبب الإلغاء";
+  return null;
+}
+
 /** Only what really changed, old next to new (5.2: every amount change is audited with both values). */
 export function changes(before: Readonly<Record<string, unknown>>, after: Readonly<Record<string, unknown>>): { before: Record<string, unknown>; after: Record<string, unknown> } | null {
   const keys = Object.keys(after).filter((k) => after[k] !== undefined && JSON.stringify(before[k]) !== JSON.stringify(after[k]));
   if (!keys.length) return null;
   return { before: Object.fromEntries(keys.map((k) => [k, before[k]])), after: Object.fromEntries(keys.map((k) => [k, after[k]])) };
+}
+
+/** T181… one sequence for the whole company (M-02 3.2: «كود تسلسلي، مثال T180»). */
+export const tcrCode = (n: number | bigint): string => `T${n}`;
+
+/**
+ * M-02 2.3 · 3.2: every salesperson on the deal signs each TCR, once (a later collection makes a new TCR they sign
+ * again). Returns what's wrong, or null when `me` may sign.
+ */
+export function signProblem(signatures: ReadonlyArray<{ employeeId: string; signedAt: Date | null }>, me: string | null): string | null {
+  const s = signatures.find((x) => x.employeeId === me);
+  if (!s) return "الـ TCR دي مش عليك";
+  if (s.signedAt) return "مضيت عليها قبل كده";
+  return null;
 }

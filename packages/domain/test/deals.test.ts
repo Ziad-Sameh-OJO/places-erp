@@ -3,7 +3,16 @@ import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
 import { type DealMoney, collectionProblem, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult, tlAdjustment } from "../src/team-leader.ts";
-import { changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, takesNote } from "../src/deals.ts";
+import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
+
+test("5.12: the TCR code comes from one sequence (T180…), and each salesperson on it signs once", () => {
+  assert.equal(tcrCode(181n), "T181");
+  const sigs = [{ employeeId: "ahmed", signedAt: null }, { employeeId: "mohamed", signedAt: new Date("2026-11-05T10:00:00Z") }];
+  assert.equal(signProblem(sigs, "ahmed"), null);
+  assert.equal(signProblem(sigs, "mohamed"), "مضيت عليها قبل كده");
+  assert.equal(signProblem(sigs, "ziad"), "الـ TCR دي مش عليك");
+  assert.equal(signProblem(sigs, null), "الـ TCR دي مش عليك");
+});
 
 const deal = (over: Partial<DealMoney> = {}): DealMoney => ({
   status: "Approved", commissionOwner: egp(50_000), commissionClient: egp(50_000),
@@ -125,4 +134,12 @@ test("5.3 · a collection: approved deals only, above zero, never above what's l
   assert.match(collectionProblem(deal({ status: "Pending Review", payments: [] }), egp(1))!, /اتوافق عليها/);
   assert.equal(revenueOnCollection(none), egp(100_000));
   assert.equal(revenueOnCollection(part), 0);
+});
+
+test("12 · 9.6: only a deal on the sheet is cancelled, once, with a reason", () => {
+  assert.equal(cancelProblem("Fully Collected", "العميل رجع في كلامه"), null);
+  assert.equal(cancelProblem("Approved", "x"), null);
+  assert.equal(cancelProblem("Cancelled", "x"), "الصفقة دي اتلغت قبل كده");
+  assert.equal(cancelProblem("Pending Review", "x"), "الإلغاء بيبقى على صفقة اتوافق عليها");
+  assert.equal(cancelProblem("Approved", "  "), "اكتب سبب الإلغاء");
 });

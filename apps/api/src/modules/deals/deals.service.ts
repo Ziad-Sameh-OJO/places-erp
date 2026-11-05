@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
+import type { CancelDeal, CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
+import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
+import { esc, layout } from "../../core/documents/documents.service";
+import { DocumentsSetupService } from "../settings/documents-setup.service";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -18,6 +20,9 @@ import { type DealRecord, type DealRowRecord, DealsRepository } from "./deals.re
 /** Out of scope or gone: the same answer, so it doesn't tell whether the deal exists. */
 const NO_DEAL = "الصفقة دي مش موجودة";
 const NOT_SALES = "اختار سيلز من القايمة";
+const NO_TCR = "الـ TCR دي مش موجودة";
+/** Only the number is left-to-right: «ج.م» inside an LTR run would come out as «م.ج» (core/documents). */
+const egp = (p: Piasters) => `<span class="num">${(p / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}</span> ج.م`;
 /** PENDING_REVIEW ↔ «Pending Review»: the API speaks the statuses the team uses (M-02 3.3). */
 const toDb = (s: DealStatus) => s.toUpperCase().replace(/ /g, "_");
 const label = (s: string) => s.split("_").map((w) => w[0] + w.slice(1).toLowerCase()).join(" ") as DealStatus;
@@ -39,6 +44,7 @@ export class DealsService {
     private readonly rules: LeadRulesService,
     private readonly ledger: LedgerService,
     private readonly vouchers: VouchersService,
+    private readonly letterhead: DocumentsSetupService,
     private readonly targets: TargetsService,
   ) {}
 
@@ -182,7 +188,7 @@ export class DealsService {
   async collect(me: CurrentUser, id: string, input: CollectDeal): Promise<DealCollected> {
     const amount = fromDecimal(input.amount);
     const lines = await this.vouchers.commissionLines();
-    return this.db.$transaction(async (tx) => {
+    const { result, signers } = await this.db.$transaction(async (tx) => {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
       await this.repo.lock(tx, id);
@@ -201,15 +207,92 @@ export class DealsService {
       const from = input.side === "owner" ? "من الـ Owner" : "من الـ Client";
       const saved = await this.vouchers.recordDealCollection(me, { toId: input.toId, clientAccountId: client.id, amount: input.amount, party: d.company, ref: d.code, memo: `تحصيل عمولة ${d.code} ${from}`, date }, tx);
       const payment = await this.repo.addPayment(tx, { dealId: id, side: input.side, amount: toDecimal(amount), receivedAt: new Date(`${date}T00:00:00Z`), accountId: input.toId, recordedById: me.id });
+      // 5.12 (M-02 2.3 · 3.2): every collection makes a new TCR on the same deal code, for each salesperson on it to sign
+      const [{ n }] = (await this.repo.nextTcr(tx)) as [{ n: bigint }];
+      const signers = [...money.buyers, ...money.sellers];
+      await this.repo.addTcr(tx, { code: Number(n), dealId: id, paymentId: payment.id, signers });
       const after: DealMoney = { ...money, payments: [...money.payments, { side: input.side, amount }] };
       const status = collectionStatus(after);
       await this.repo.update(tx, id, { status: toDb(status) as never });
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "collect", userId: me.id,
         before: { status: d.status, collected: toDecimal(collected(money)) },
-        after: { status: toDb(status), collected: toDecimal(collected(after)), side: input.side, amount: input.amount, payment: payment.id, move: saved.move.no } }, tx);
+        after: { status: toDb(status), collected: toDecimal(collected(after)), side: input.side, amount: input.amount, payment: payment.id, move: saved.move.no, tcr: tcrCode(n) } }, tx);
       if (status === "Fully Collected") await this.commissionsDue(tx, me, d, after, date);
       await this.tlDue(tx, me, [...after.buyers, ...after.sellers], [date.slice(0, 7)], date); // 5.8: from every collection
-      return { status, collected: toDecimal(collected(after)), remaining: toDecimal(remaining(after)), move: saved.move.no, entry: saved.move.entry.no };
+      return { signers, result: { status, collected: toDecimal(collected(after)), remaining: toDecimal(remaining(after)), move: saved.move.no, entry: saved.move.entry.no, tcr: tcrCode(n), code: d.code } };
+    });
+    const { code, ...out } = result;
+    const userIds = (await this.repo.employeeNames(signers)).map((e) => e.userId);
+    await this.notifications.notify({ event: "deal.tcr", userIds, link: link(id), text: `${out.tcr}: TCR جديدة على ${code} · امضي عليها` });
+    return out;
+  }
+
+  /** 5.12: a salesperson on the TCR signs it, once; the time is kept and audited. */
+  async sign(me: CurrentUser, id: string, tcrId: string): Promise<DealDetail> {
+    await this.db.$transaction(async (tx) => {
+      const t = await this.repo.tcr(this.scope(me), id, tcrId, tx);
+      if (!t) throw new NotFoundException(NO_TCR);
+      const problem = signProblem(t.signatures, me.employeeId);
+      if (problem) throw new BadRequestException(problem);
+      const signedAt = new Date();
+      if (!(await this.repo.sign(tx, tcrId, me.employeeId!, signedAt)).count) throw new BadRequestException("مضيت عليها قبل كده");
+      await this.audit.record({ module: "deals", entity: "Tcr", entityId: tcrId, action: "sign", userId: me.id,
+        before: { signedAt: null }, after: { tcr: tcrCode(t.code), employeeId: me.employeeId, signedAt: signedAt.toISOString() } }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  /**
+   * 5.13: the TCR as a PDF page like the demo's (the client's own sample «Tcr 182» hasn't arrived yet): Places' letterhead
+   * (12.12 entity), the collection, each salesperson's share, rate and commission on this amount, and who signed.
+   * DocumentsService.pdf() adds the Super Admin's signature and stamp.
+   */
+  async tcrDocument(me: CurrentUser, id: string, tcrId: string): Promise<{ name: string; html: string }> {
+    const d = await this.repo.detail(this.scope(me), id);
+    const t = d && d.tcrs.find((x) => x.id === tcrId);
+    if (!d || !t) throw new NotFoundException(NO_TCR);
+    const side = (eid: string) => d.participants.find((p) => p.employee.id === eid)?.side;
+    const signed = new Map(t.signatures.map((s) => [s.employeeId, s.signedAt]));
+    const ids = t.signatures.map((s) => s.employeeId);
+    // the split on this collection alone, between the people the TCR was made for
+    const money = { ...toMoney(d, [t.payment]), targetBase: null, buyers: ids.filter((x) => side(x) === "BUYER"), sellers: ids.filter((x) => side(x) === "SELLER") };
+    const people = new Map((await this.repo.schemes(ids, this.db)).map((e) => [e.id, e]));
+    const rows = splitDeal(money, (sid) => Number(people.get(sid)?.commissionPct ?? 0));
+    const head = await this.letterhead.letterhead("places");
+    const code = tcrCode(t.code), date = t.payment.receivedAt.toISOString().slice(0, 10);
+    const kv: [string, string][] = [["الصفقة", `${d.code} · ${d.company}`], ["الوحدة", `${d.unit.code} · ${d.location}`], ["تاريخ التحصيل", date],
+      ["التحصيل", t.payment.side === "owner" ? "تحصيل من الـ Owner" : "تحصيل من الـ Client"]];
+    const html = layout(`TCR ${code}`, `
+      <div style="display:flex;align-items:center;gap:12pt;margin-bottom:12pt">${head.logo ? `<img src="${esc(head.logo)}" alt="${esc(head.name)}" style="max-height:60pt;max-width:140pt">` : `<b>${esc(head.name)}</b>`}
+        <h1 style="margin:0">ورقة TCR <span class="num">${esc(code)}</span></h1></div>
+      <table><tbody>${kv.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}
+        <tr><th>المبلغ</th><td><b>${egp(fromDecimal(t.payment.amount.toFixed(2)))}</b></td></tr></tbody></table>
+      <table><thead><tr><th>السيلز</th><th>الجهة</th><th>نصيبه</th><th>نسبته</th><th>العمولة</th><th>الإمضاء</th></tr></thead><tbody>
+        ${rows.map((r) => { const at = signed.get(r.salesId); return `<tr><td>${esc(people.get(r.salesId)?.name)}</td><td>${r.side === "buyer" ? "Buyer" : "Seller"}</td><td>${egp(r.share)}</td><td><span class="num">${r.schemePercent}%</span></td><td><b>${egp(r.commission)}</b></td><td>${at ? `مضى · <span class="num">${esc(localDate(at))}</span>` : "................."}</td></tr>`; }).join("")}
+      </tbody></table>
+      <p style="color:#6b7489;font-size:10pt">الـ TCR بتتعمل أوتوماتيك بعد كل تحصيل بكود تسلسلي، ولو اتحصّل باقي المبلغ بعدين بتتعمل TCR تانية لنفس الديل.</p>`);
+    return { name: `TCR ${code}.pdf`, html };
+  }
+
+  /**
+   * «الغي الصفقة» (M-02 2.3 (12) · 9.6): the deal drops out of targets and Transactions (commission.ts OFF_BOOKS) and
+   * every entry it posted — Places' revenue and the salespeople's due commission — is reversed. The collected cash
+   * stays on the client's account (113…) until finance pays it back or settles it.
+   */
+  async cancel(me: CurrentUser, id: string, input: CancelDeal) {
+    return this.db.$transaction(async (tx) => {
+      await this.repo.lock(tx, id); // read the status after the lock: a second cancel waits, then is refused
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      if (!d) throw new NotFoundException(NO_DEAL);
+      const problem = cancelProblem(label(d.status), input.reason);
+      if (problem) throw new BadRequestException(problem);
+      await this.repo.update(tx, id, { status: "CANCELLED" });
+      const reversed = await this.ledger.reverse(me, "deal", id, `إلغاء ${d.code} · ${d.company}`, tx);
+      // 5.8: the TL's month is worked out again without this deal (it's off the books now); the difference books back
+      const payments = await this.repo.payments(tx, id);
+      await this.tlDue(tx, me, d.participants.map((p) => p.employee.id), [...new Set(payments.map((p) => p.receivedAt.toISOString().slice(0, 7)))], localDate(new Date()));
+      await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "cancel", userId: me.id, before: { status: d.status }, after: { status: "CANCELLED", reason: input.reason, reversed } }, tx);
+      return { status: "Cancelled" as const, reversed };
     });
   }
 
@@ -335,6 +418,7 @@ function toRow(d: DealRowRecord): DealRow {
     status: label(d.status), commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2),
     buyers: buyersOf(d), sellers: d.participants.filter((p) => p.side === "SELLER").map((p) => ({ ...p.employee, approved: p.approved })),
     closedAt: d.closedAt.toISOString(), offTarget: d.offTarget, note: d.note, targetBase: d.targetBase?.toFixed(2) ?? null,
+    month: d.payments[0]?.receivedAt.toISOString().slice(0, 7) ?? null, tcrs: d.tcrs.map((t) => tcrCode(t.code)),
   };
 }
 
@@ -342,5 +426,12 @@ function toDetail(d: DealRecord, reviewedBy: string | null): DealDetail {
   return {
     ...toRow(d), leadId: d.leadId, leadCode: d.lead?.code ?? null, source: d.source, unitId: d.unit.id,
     reviewNote: d.reviewNote, reviewedBy, reviewedAt: d.reviewedAt?.toISOString() ?? null, createdAt: d.createdAt.toISOString(),
+    tcrs: d.tcrs.map((t) => ({
+      id: t.id, code: tcrCode(t.code), date: t.payment.receivedAt.toISOString().slice(0, 10), side: t.payment.side as "owner" | "client", amount: t.payment.amount.toFixed(2),
+      signatures: t.signatures.map((s) => {
+        const p = d.participants.find((x) => x.employee.id === s.employeeId);
+        return { id: s.employeeId, name: p?.employee.name ?? "", side: p?.side === "SELLER" ? "seller" as const : "buyer" as const, signedAt: s.signedAt?.toISOString() ?? null };
+      }),
+    })),
   };
 }

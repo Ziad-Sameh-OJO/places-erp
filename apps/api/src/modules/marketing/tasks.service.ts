@@ -153,6 +153,16 @@ export class TasksService {
     return this.get(me, id);
   }
 
+  /** M-09 2.2 · 7.1: a leaver's unfinished tasks. */
+  openCount(userId: string) {
+    return this.db.task.count({ where: { toUserId: userId, status: { not: "done" } } });
+  }
+
+  /** M-09 2.2 · 7.1: a leaver's unfinished tasks go to `toUserId` inside the caller's transaction (the manager's approval). */
+  async handOver(tx: Prisma.TransactionClient, fromUserId: string, toUserId: string): Promise<number> {
+    return (await tx.task.updateMany({ where: { toUserId: fromUserId, status: { not: "done" } }, data: { toUserId } })).count;
+  }
+
   private async find(me: CurrentUser, id: string): Promise<TaskRecord> {
     const t = await this.repo.find(await this.scope(me), id);
     if (!t) throw new NotFoundException(NO_TASK);

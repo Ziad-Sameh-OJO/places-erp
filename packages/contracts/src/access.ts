@@ -61,3 +61,11 @@ export const Otp = z.object({ email: z.string().trim().toLowerCase().email(), co
 export const SetPassword = z.object({ token: z.string().min(20).max(100), password: Password });
 export const Forgot = z.object({ email: z.string().trim().toLowerCase().email() });
 export const ChangePassword = z.object({ current: z.string().min(1).max(200), next: Password });
+
+/** M-09 2.2 · 7.1: a leaver's open leads and tasks go to `to` (a user id) once their direct manager approves. */
+export const HandoverInput = z.object({ to: Id });
+export type HandoverInput = z.infer<typeof HandoverInput>;
+export const HandoverDecision = z.object({ approve: z.boolean({ required_error: "وافق أو ارفض", invalid_type_error: "وافق أو ارفض" }) });
+export type HandoverDecision = z.infer<typeof HandoverDecision>;
+/** One request waiting for the signed-in manager, with how much work would move now. */
+export interface HandoverRow { id: string; from: string; to: string; by: string; leads: number; tasks: number; createdAt: string }

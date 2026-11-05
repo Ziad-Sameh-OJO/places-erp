@@ -46,6 +46,7 @@ before(async () => {
 });
 
 after(async () => {
+  await prisma.tcr.deleteMany({ where: { dealId } }); // each collection's TCR (5.12)
   await prisma.payment.deleteMany({ where: { dealId } });
   await prisma.journalEntry.deleteMany({ where: { source: "tl-commission", sourceId: { startsWith: `${people.tl.id}:` } } });
   await cleanFinance(C, since); // the client's, the bank, and everyone's 21103 account (named with the prefix) with their entries
@@ -105,4 +106,12 @@ test("5.4: the Seller approved after full collection gets their commission then,
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "approve-seller" } }));
   assert.ok(await prisma.notification.findFirst({ where: { userId: people.seller.userId, text: { contains: `D-M${stamp}` } } }));
   assert.equal((await approveSeller(manar)).status, 400); // nothing waiting any more
+});
+
+test("9.6 · 5.8: cancelling the deal books the TL's share back too", async () => {
+  const r = await call(`/deals/${dealId}/cancel`, { method: "POST", cookie: nancy, body: { reason: `${C} إلغاء` } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(await dueOf(people.tl.id), 0);
+  assert.equal(await dueOf(people.buyer.id), 0);
+  assert.equal(await dueOf(people.seller.id), 0);
 });

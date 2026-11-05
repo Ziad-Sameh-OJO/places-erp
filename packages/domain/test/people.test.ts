@@ -123,3 +123,14 @@ test("M-09 4.1: the Operations Head gives and takes only what he has himself", a
   assert.equal(withinOwnPermissions(opsHead, "access", ["view"], ["view", "edit"]), false);      // management: not his
   assert.equal(withinOwnPermissions(opsHead, "inventory", ["view", "edit"], ["view"]), false);   // can't take what he doesn't have
 });
+
+test("handover (M-09 2.2 · 7.1): a stopped account's work goes to a working account, approved by the direct manager", async () => {
+  const { handoverRefusal } = await import("../src/permissions.ts");
+  const ok = { leaving: true, managerUserId: "mgr", fromId: "a", toId: "b", toActive: true, pending: false };
+  assert.equal(handoverRefusal(ok), null);
+  assert.match(handoverRefusal({ ...ok, leaving: false })!, /لسه شغال/);
+  assert.match(handoverRefusal({ ...ok, pending: true })!, /مستني موافقة/);
+  assert.match(handoverRefusal({ ...ok, managerUserId: null })!, /مدير مباشر/);
+  assert.match(handoverRefusal({ ...ok, toId: "a" })!, /حد تاني/);
+  assert.match(handoverRefusal({ ...ok, toActive: false })!, /حسابه يكون شغال/);
+});
