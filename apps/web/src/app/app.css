@@ -9,3 +9,8 @@
 .role-list small { color: var(--ink-3); }
 .access-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .access-grid { grid-template-columns: 1fr; } }
+/* #210: errors use design-2's bad colour, not the green success dot */
+.toast.bad { box-shadow: 6px 6px 0 var(--bad); }
+.toast.bad::before { background: var(--bad); }
+/* #211: the email sits on its own line under the name; ltr so it doesn't mix into the Arabic line */
+.who > span > small { display: block; text-align: right; }

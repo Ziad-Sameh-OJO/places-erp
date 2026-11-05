@@ -122,7 +122,8 @@ export class PeopleCareService {
     if (o.hrAction && !o.hrActionDue) throw new BadRequestException("«حل الـ HR» لازم يتحدد له ميعاد");
     if (o.heldOn > localDate(new Date())) throw new BadRequestException("مينفعش يوم بعد النهارده");
     return run(async (tx) => {
-      const e = await tx.employee.findUnique({ where: { id: employeeId }, select: { id: true, name: true } });
+      // 13.3: only someone in the caller's scope, as oneOnOnes() reads (an hr: edit override on a TL stays on his team)
+      const e = await tx.employee.findFirst({ where: { AND: [{ id: employeeId }, this.scope(me)] }, select: { id: true, name: true } });
       if (!e) throw new NotFoundException("الموظف مش موجود");
       const r = await tx.oneOnOne.create({ data: { employeeId, heldOn: day(o.heldOn), answers: o.answers, hrAction: o.hrAction || null, hrActionDue: o.hrActionDue ? day(o.hrActionDue) : null, byUserId: me.id } });
       await this.audit.record({ module: "hr", entity: "OneOnOne", entityId: r.id, action: "create", userId: me.id, after: { employee: e.name, heldOn: o.heldOn, hrAction: o.hrAction ?? null, hrActionDue: o.hrActionDue ?? null } }, tx);
@@ -132,7 +133,7 @@ export class PeopleCareService {
 
   async actionDone(me: CurrentUser, id: string, run: Run) {
     return run(async (tx) => {
-      const r = await tx.oneOnOne.findUnique({ where: { id } });
+      const r = await tx.oneOnOne.findFirst({ where: { id, employee: this.scope(me) } });
       if (!r || !r.hrAction) throw new NotFoundException("مفيش حل HR في الجلسة دي");
       await tx.oneOnOne.update({ where: { id }, data: { hrActionDone: true } });
       await this.audit.record({ module: "hr", entity: "OneOnOne", entityId: id, action: "action-done", userId: me.id, after: { hrAction: r.hrAction } }, tx);

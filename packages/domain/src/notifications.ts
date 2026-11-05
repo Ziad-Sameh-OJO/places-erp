@@ -27,6 +27,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "hr.leave_escalated", label: "طلب إجازة متأخر الرد عليه (48 ساعة)", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "email"], important: true },
   { key: "hr.penalty", label: "جزاء مقترح من Team Leader", to: "الـ HR", toRoles: ["hr"], channels: ["app"], important: false }, // M-05 7.7
   { key: "hr.action_due", label: "ميعاد «حل الـ HR» من الـ 1-to-1", to: "الـ HR", toRoles: ["hr"], channels: ["app", "email"], important: true }, // M-05 7.8
+  { key: "hr.deductions_approved", label: "الـ HR اعتمدت خصومات الشهر", to: "المحاسب", toRoles: ["accountant"], channels: ["app"], important: false }, // M-05 7.9
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },
   { key: "procurement.reminder", label: "تذكير بطلب شراء مستني موافقة", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push"], important: false }, // M-08 2.4
   { key: "procurement.decided", label: "طلب شراء اتوافق / اترفض / اترحّل", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },

@@ -167,6 +167,7 @@ model Employee {
   leaves          LeaveRequest[]
   penalties       Penalty[]
   oneOnOnes       OneOnOne[]
+  dealParts       DealParticipant[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -234,6 +235,7 @@ model LeaveRequest {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@index([employeeId, createdAt]) // 13.3: an employee's leaves, newest first
   @@index([status])
   @@schema("hr")
 }
@@ -256,6 +258,17 @@ model Penalty {
   @@schema("hr")
 }
 
+/// M-05 (32) · 7.9: HR approves the month's deductions once; payroll (9.14) reads these numbers, not the live ones.
+model DeductionApproval {
+  id           String   @id @default(cuid())
+  month        String   @unique // 2026-11
+  lines        Json     // [{ userId, employeeId, attendanceDays, penaltyDays, amount }] · amount as a decimal string
+  approvedById String
+  at           DateTime @default(now())
+
+  @@schema("hr")
+}
+
 model OneOnOne {
   id          String    @id @default(cuid())
   employeeId  String
@@ -270,6 +283,7 @@ model OneOnOne {
   alarmedAt   DateTime?
   createdAt   DateTime  @default(now())
 
+  @@index([employeeId, heldOn]) // 13.3: an employee's 1:1 history
   @@schema("hr")
 }
 
@@ -502,6 +516,16 @@ enum DealStatus {
   @@schema("sales")
 }
 
+/// M-02 3.1 «type»: the four kinds of deal on the done-deals sheet.
+enum DealType {
+  Rent
+  Resale
+  Primary
+  Income
+
+  @@schema("sales")
+}
+
 model Deal {
   id               String            @id @default(cuid())
   code             String            @unique // D-301…
@@ -509,9 +533,11 @@ model Deal {
   lead             Lead?             @relation(fields: [leadId], references: [id])
   unitId           String
   unit             Unit              @relation(fields: [unitId], references: [id])
-  type             String
+  type             DealType
   space            Int
   location         String
+  company          String            // M-02 3.1 «company»: the client's company when the deal was registered (the lead's name if none)
+  source           String            // M-02 3.1 «source»: the lead's channel
   status           DealStatus        @default(PENDING_REVIEW)
   commissionOwner  Decimal           @db.Decimal(14, 2)
   commissionClient Decimal           @db.Decimal(14, 2)
@@ -523,6 +549,11 @@ model Deal {
   executedAt       DateTime?         @db.Date
   papersOk         Boolean?          // Finance's check of contract · mandate · registration
   papersNote       String?
+  reviewedById     String?           // the Office Manager who approved or rejected it (Q9)
+  reviewedAt       DateTime?
+  reviewNote       String?           // why it went back to the salesperson (Q9)
+  cancelledAt      DateTime?         // Q12: a cancelled deal drops out of revenue, targets and commissions
+  cancelNote       String?
   participants     DealParticipant[]
   payments         Payment[]
   tcrs             Tcr[]
@@ -531,6 +562,8 @@ model Deal {
   updatedAt        DateTime          @updatedAt
 
   @@index([status])
+  @@index([leadId])
+  @@index([unitId])
   @@schema("sales")
 }
 
@@ -547,8 +580,10 @@ model DealParticipant {
   side       DealSide
   approved   Boolean  @default(true) // the Seller waits for Manar's approval
   deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id])
 
   @@id([dealId, employeeId])
+  @@index([employeeId])
   @@schema("sales")
 }
 
@@ -849,6 +884,7 @@ model JournalLine {
   debit     Decimal      @default(0) @db.Decimal(14, 2)
   credit    Decimal      @default(0) @db.Decimal(14, 2)
 
+  @@index([entryId]) // 13.3: an entry's lines (journal, ledger, every voucher) - Postgres doesn't index FKs itself
   @@index([accountId])
   @@schema("finance")
 }
@@ -1054,6 +1090,7 @@ model File {
   updatedAt    DateTime   @updatedAt
 
   @@index([entity, entityId])
+  @@index([status, createdAt]) // #209: the nightly sweep of PENDING uploads
   @@index([uploadedById])
   @@schema("system")
 }
@@ -1260,6 +1297,7 @@ model PayrollLine {
   advance    Decimal    @db.Decimal(14, 2)
   net        Decimal    @db.Decimal(14, 2)
 
+  @@index([runId])
   @@index([userId])
   @@schema("finance")
 }
