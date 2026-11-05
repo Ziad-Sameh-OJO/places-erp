@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergedFile, mergedKind, normalizePhone, partyBalance, showsNumbers, withRole } from "../src/clients.ts";
+import { isInactive, mergedFile, mergedKind, normalizePhone, partyBalance, showsNumbers, withRole } from "../src/clients.ts";
+
+test("Inactive after a year without dealing (M-10 3.3): a day under a year stays Active, a day over goes Inactive", () => {
+  const now = new Date("2026-11-05T09:00:00Z");
+  assert.equal(isInactive(new Date("2025-11-06T09:00:00Z"), now), false);
+  assert.equal(isInactive(new Date("2025-11-05T09:00:00Z"), now), false); // exactly a year: not yet
+  assert.equal(isInactive(new Date("2025-11-04T09:00:00Z"), now), true);
+  assert.equal(isInactive(new Date("2024-01-01T00:00:00Z"), now), true);
+});
 import { effectiveGrants } from "../src/permissions.ts";
 
 test("owners' numbers (M-10 4.1): hidden from sales and finance, shown to inventory and Operations; a client's always", () => {

@@ -1,9 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { ClientDeal, ClientFile, ClientFilters, ClientRow, ClientSummary, LogInteraction, Paged, TimelineItem } from "@places/contracts";
+import type { AskDeletion, ClientDeal, ClientFile, ClientFilters, ClientRow, ClientSummary, LogInteraction, Paged, SetConsent, TimelineItem } from "@places/contracts";
 import { allowedValue, fromDecimal, isStale, normalizePhone, partyBalance, showsNumbers, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
+import { NotificationsService } from "../../core/notifications/notifications.service";
 import { ownedBy } from "../../core/authz/scope";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
@@ -25,10 +26,11 @@ export class ClientsService {
     private readonly repo: ClientsRepository,
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(me: CurrentUser, f: ClientFilters): Promise<Paged<ClientRow>> {
-    const [rows, total] = await this.repo.list(visibleTo(me), f);
+    const [rows, total] = await this.repo.list(visibleTo(me), f, staleBefore(new Date()));
     const deals = await this.repo.dealsOf(rows.map((r) => r.id));
     return { items: rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me)), total, page: f.page, pageSize: f.pageSize };
   }
@@ -44,7 +46,7 @@ export class ClientsService {
     const now = new Date();
     const deals = (await this.repo.dealsOf([id])).map((d) => toDeal(d, id));
     const contracts = await this.repo.contracts(deals.map((d) => d.id));
-    const names = new Map((await this.repo.userNames([...new Set(c.interactions.map((i) => i.byId))])).map((e) => [e.userId, e.name]));
+    const names = new Map((await this.repo.userNames([...new Set([...c.interactions.map((i) => i.byId), ...(c.deletionAskedBy ? [c.deletionAskedBy] : [])])])).map((e) => [e.userId, e.name]));
     const balance = partyBalance(deals.map((d) => ({ status: d.status as DealStatus, due: fromDecimal(d.due), paid: fromDecimal(d.paid) })));
     const units = c.units.map((u) => ({ ...u, lastOwnerUpdateAt: u.lastOwnerUpdateAt.toISOString(), stale: isStale(u.lastOwnerUpdateAt, now) }));
     const codeOf = new Map(deals.map((d) => [d.id, d.code]));
@@ -53,7 +55,8 @@ export class ClientsService {
       ...deals.map((d) => ({ at: d.closedAt, text: `صفقة ${d.code} على ${d.unit}`, by: null })),
     ].sort((a, b) => b.at.localeCompare(a.at));
     return {
-      ...toRow(c, deals.length, me), preferredContact: c.preferredContact, units, deals,
+      ...toRow(c, deals.length, me), preferredContact: c.preferredContact, units, deals, marketingConsent: c.marketingConsent,
+      deletionAsked: c.deletionAskedAt ? { at: c.deletionAskedAt.toISOString(), by: c.deletionAskedBy ? names.get(c.deletionAskedBy) ?? null : null, reason: c.deletionReason ?? "" } : null,
       contracts: contracts.map((k) => ({ id: k.id, code: k.code, deal: codeOf.get(k.dealId) ?? "", startsOn: day(k.startsOn), endsOn: day(k.endsOn), status: k.status })),
       leads: c.leads.map((l) => ({ id: l.id, code: l.code, stage: l.stage, createdAt: l.createdAt.toISOString() })),
       balance: { paid: toDecimal(balance.paid), remaining: toDecimal(balance.remaining) },
@@ -80,6 +83,34 @@ export class ClientsService {
       }
       return { id: row.id, at: row.at.toISOString() };
     });
+  }
+
+  /** M-10 3.1 «موافقة على التواصل التسويقي»: written by sales (and whoever edits files), audited old → new. */
+  async setConsent(me: CurrentUser, id: string, input: SetConsent) {
+    await this.db.$transaction(async (tx) => {
+      const c = await tx.client.findFirst({ where: { AND: [visibleTo(me), { id }] }, select: { marketingConsent: true } });
+      if (!c) throw new NotFoundException(NO_CLIENT);
+      if (c.marketingConsent === input.consent) return;
+      await tx.client.update({ where: { id }, data: { marketingConsent: input.consent } });
+      await this.audit.record({ module: "clients", entity: "Client", entityId: id, action: "update", userId: me.id, before: { marketingConsent: c.marketingConsent }, after: { marketingConsent: input.consent } }, tx);
+    });
+  }
+
+  /**
+   * M-10 2.3: «عميل عايز يمسح بياناته: الطلب بيروح للإدارة (حماية البيانات)». The request is recorded on the file and
+   * management is told; what management then does with it isn't settled by the client yet, so nothing is erased here.
+   */
+  async askDeletion(me: CurrentUser, id: string, input: AskDeletion) {
+    const c = await this.db.$transaction(async (tx) => {
+      const file = await tx.client.findFirst({ where: { AND: [visibleTo(me), { id }] }, select: { name: true, deletionAskedAt: true } });
+      if (!file) throw new NotFoundException(NO_CLIENT);
+      if (file.deletionAskedAt) throw new BadRequestException("طلب مسح البيانات اتبعت للإدارة قبل كده");
+      const at = new Date();
+      await tx.client.update({ where: { id }, data: { deletionAskedAt: at, deletionAskedBy: me.id, deletionReason: input.reason } });
+      await this.audit.record({ module: "clients", entity: "Client", entityId: id, action: "deletion-request", userId: me.id, after: { deletionAskedAt: at, reason: input.reason } }, tx);
+      return file;
+    });
+    await this.notifications.notify({ event: "client.deletion", text: `${c.name} طالب يمسح بياناته (حماية البيانات) · ${input.reason} · من ${me.name}`, link: "/clients" });
   }
 
   /**

@@ -23,6 +23,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.visit_postponed", label: "قرار تأجيل Visit / Meeting", to: "السيلز · الأوبريشن · الـ HR", toRoles: [], channels: ["app"], important: false }, // 1.24 · visit.postponeInfo
   { key: "lead.duplicate", label: "عميل مكرر", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 Q7
   { key: "client.merge", label: "اقتراح دمج ملفين بنفس الموبايل", to: "الأوبريشن", toRoles: ["ops", "opshead"], channels: ["app", "push"], important: false }, // M-10 2.2
+  { key: "client.deletion", label: "عميل طالب يمسح بياناته", to: "الإدارة", toRoles: ["admin"], channels: ["app", "email"], important: true }, // M-10 2.3
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
   // M-02 Q9 · 4 Nov meeting: on approval the accountant is told to collect the commission; a rejection goes back to the salesperson
   { key: "deal.approved", label: "صفقة اتوافق عليها · حصّل عمولة", to: "المحاسب · سيلز الصفقة", toRoles: ["accountant"], channels: ["app", "push"], important: false },

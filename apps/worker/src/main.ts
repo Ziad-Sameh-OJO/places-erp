@@ -20,6 +20,7 @@ import { targetPaceTick } from "./processors/target-pace.ts";
 import { kpiMidQuarterTick } from "./processors/kpi-mid-quarter.ts";
 import { kpiRefreshTick } from "./processors/kpi-refresh.ts";
 import { contractRenewalTick } from "./processors/contract-renewal.ts";
+import { clientsInactiveTick } from "./processors/clients-inactive.ts";
 
 const connection = { url: env.REDIS_URL };
 
@@ -39,6 +40,7 @@ const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "kpi-refresh", pattern: "30 19 * * *", processor: () => kpiRefreshTick() }, // daily after work: the automatic KPI items (M-12 · 11.5)
   { name: "contract-renewal", pattern: "10 11 * * *", processor: () => contractRenewalTick() }, // daily: 90 / 60 / 30 days before the end (M-11 2.4)
   { name: "stale-uploads", pattern: "0 4 * * *", processor: () => staleUploadsTick() }, // daily at night: uploads never completed (#209)
+  { name: "clients-inactive", pattern: "10 11 * * *", processor: () => clientsInactiveTick() }, // daily at the start of work: a year without dealing = Inactive (M-10 3.3)
 ];
 
 const queues: Queue[] = [];

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { KpiTile } from "@/components/blocks";
-import { Icon, Note, Table } from "@/components/ui";
+import { Chip, Icon, Note, Table } from "@/components/ui";
 import { ago, num } from "@/lib/format";
 import { ClientDrawer } from "./client-drawer";
 import { KindChips } from "./client-bits";
@@ -33,7 +33,7 @@ export function ClientsList() {
       <div className="kpis">
         <KpiTile label="العملاء" value={s ? num(s.clients) : "…"} sub="عملوا صفقة" icon="handshake" />
         <KpiTile label="الملاك" value={s ? num(s.owners) : "…"} sub="عندنا وحداتهم" icon="building" tone="ok" />
-        <KpiTile label="ملاك محتاجين ابديت" value={s ? num(s.ownersStale) : "…"} sub="last update أكتر من شهر" icon="clock" tone="bad" />
+        <KpiTile label="ملاك محتاجين ابديت" value={s ? num(s.ownersStale) : "…"} sub="last update أكتر من شهر" icon="clock" tone="bad" onClick={() => filter({ ...f, stale: "true" })} />
         <KpiTile label="عميل ومالك" value={s ? num(s.both) : "…"} sub="نفس الشخص" icon="users" tone="warn" />
       </div>
       <MergeQueue />
@@ -42,13 +42,16 @@ export function ClientsList() {
         <div className="seg" role="group" aria-label="النوع">
           {seg.map(([k, label]) => <button key={label} aria-pressed={f.kind === k} onClick={() => filter({ ...f, kind: k })}>{label}</button>)}
         </div>
+        {/* M-10 6.1 the owners needing an update · M-10 3.3 a year without dealing */}
+        <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={(e) => filter({ ...f, stale: e.target.checked ? "true" : undefined })} /><span>ملاك محتاجين ابديت</span></label>
+        <label className="tog"><input type="checkbox" checked={f.status === "inactive"} onChange={(e) => filter({ ...f, status: e.target.checked ? "inactive" : undefined })} /><span>Inactive</span></label>
       </div>
       <div className="row"><span className="hint num">{num(total)} ملف</span></div>
       {failed ? <Note kind="warn">{failed}</Note> : (
         <Table head={["الاسم", "النوع", "الأرقام", "الوحدات", "الصفقات", "آخر تواصل"]} empty="مفيش حد بالبحث ده" onRow={(i) => setOpen(list[i]!.id)}
           rows={list.map((p) => [
             <><b>{p.name}</b>{p.company && <span className="sub">{p.company}</span>}</>,
-            <div className="row"><KindChips kind={p.kind} /></div>,
+            <div className="row"><KindChips kind={p.kind} />{p.status === "inactive" && <Chip>Inactive</Chip>}</div>,
             <span className="mono">{p.phones ? p.phones.join(" · ") : "—"}</span>,
             <span className="n">{num(p.units)}</span>,
             <span className="n">{num(p.deals)}</span>,

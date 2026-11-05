@@ -24,8 +24,8 @@ export type FileDealRecord = Prisma.DealGetPayload<{ select: typeof DEAL_OF_FILE
 export class ClientsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  list(visible: Prisma.ClientWhereInput, f: ClientFilters) {
-    const where = { AND: [visible, filterWhere(f)] };
+  list(visible: Prisma.ClientWhereInput, f: ClientFilters, staleBefore: Date) {
+    const where = { AND: [visible, filterWhere(f, staleBefore)] };
     return this.db.$transaction([
       this.db.client.findMany({ where, select: CLIENT_ROW, orderBy: [{ lastContactAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.client.count({ where }),
@@ -37,7 +37,7 @@ export class ClientsRepository {
     return this.db.$transaction([
       count({ kind: { in: ["client", "both"] } }),
       count({ kind: { in: ["owner", "both"] } }),
-      count({ kind: { in: ["owner", "both"] }, units: { some: { archivedAt: null, lastOwnerUpdateAt: { lt: staleBefore } } } }),
+      count(staleOwner(staleBefore)),
       count({ kind: "both" }),
     ]);
   }
@@ -54,7 +54,7 @@ export class ClientsRepository {
     return this.db.client.findFirst({
       where: { AND: [visible, { id }] },
       select: {
-        ...CLIENT_ROW, preferredContact: true,
+        ...CLIENT_ROW, preferredContact: true, marketingConsent: true, deletionAskedAt: true, deletionAskedBy: true, deletionReason: true,
         units: { where: { archivedAt: null }, select: { id: true, code: true, project: true, type: true, space: true, status: true, lastOwnerUpdateAt: true }, orderBy: { code: "asc" } },
         leads: { where: { archivedAt: null }, select: { id: true, code: true, stage: true, createdAt: true }, orderBy: { createdAt: "desc" } },
         interactions: { select: { id: true, kind: true, text: true, byId: true, at: true }, orderBy: { at: "desc" }, take: 200 },
@@ -126,10 +126,16 @@ export class ClientsRepository {
   }
 }
 
+/** M-10 6.1: an owner with a unit whose last update is older than a month (M-03 2.4). */
+const staleOwner = (staleBefore: Date): Prisma.ClientWhereInput =>
+  ({ kind: { in: ["owner", "both"] }, units: { some: { archivedAt: null, lastOwnerUpdateAt: { lt: staleBefore } } } });
+
 /** The list's search (M-10 5.2: name, number, company, unit code) and its tabs. */
-function filterWhere(f: ClientFilters): Prisma.ClientWhereInput {
+function filterWhere(f: ClientFilters, staleBefore: Date): Prisma.ClientWhereInput {
   const and: Prisma.ClientWhereInput[] = [{ archivedAt: null }];
   if (f.kind) and.push({ kind: { in: [f.kind, "both"] } });
+  if (f.status) and.push({ status: f.status });
+  if (f.stale) and.push(staleOwner(staleBefore));
   if (f.q) {
     const digits = normalizePhone(f.q) ?? f.q.replace(/\D/g, ""); // a number written any way (+20, spaces…)
     and.push({ OR: [

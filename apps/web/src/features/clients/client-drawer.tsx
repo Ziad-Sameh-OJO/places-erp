@@ -9,6 +9,7 @@ import { useMe } from "@/lib/me";
 import { day, dayTime, money, num } from "@/lib/format";
 import { KIND_WORD, KindChips } from "./client-bits";
 import { SuggestMergeForm } from "./merges";
+import { PrivacyBits } from "./privacy";
 
 /**
  * The demo's file drawer (clients.js clDrawer): the details with what they owe, their units with the last update,
@@ -32,7 +33,7 @@ export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
     ["عليه", money(p.balance.remaining)],
   ];
   return (
-    <Drawer title={p.name} sub={`ملف ${KIND_WORD[p.kind]}`} chips={<KindChips kind={p.kind} />} onClose={onClose}
+    <Drawer title={p.name} sub={`ملف ${KIND_WORD[p.kind]}`} chips={<><KindChips kind={p.kind} />{p.status === "inactive" && <Chip>Inactive</Chip>}</>} onClose={onClose}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}>
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
@@ -51,6 +52,7 @@ export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
           {p.contracts.map((c) => <div key={c.id} className="line-item"><span><b className="mono">{c.code}</b> · ينتهي {day(c.endsOn)}</span></div>)}
         </Card>
       )}
+      <PrivacyBits file={p} />
       <LogForm file={p} />
       <SuggestMergeForm file={p} />
       <h4 className="mini-h">التاريخ كله</h4>

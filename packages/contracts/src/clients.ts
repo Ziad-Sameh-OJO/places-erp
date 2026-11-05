@@ -8,8 +8,18 @@ import { Page } from "./common.ts";
 export const ClientFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
   kind: z.enum(["client", "owner"]).optional(),
+  /** M-10 6.1 «الملاك اللي محتاجين ابديت»: owners with a unit whose last update is over a month old */
+  stale: z.enum(["true"]).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
 });
 export type ClientFilters = z.infer<typeof ClientFilters>;
+
+/** M-10 3.1 «موافقة على التواصل التسويقي»: اه / لا. */
+export const SetConsent = z.object({ consent: z.boolean({ required_error: "اختار اه أو لا", invalid_type_error: "اختار اه أو لا" }) });
+export type SetConsent = z.infer<typeof SetConsent>;
+/** M-10 2.3: the client asks to erase their data → management. */
+export const AskDeletion = z.object({ reason: z.string({ required_error: "اكتب السبب" }).trim().min(3, "اكتب السبب").max(500, "السبب طويل") });
+export type AskDeletion = z.infer<typeof AskDeletion>;
 
 /** M-10 2.1 step 5: one contact (the kind from «أنواع التواصل مع العميل»). */
 export const LogInteraction = z.object({
@@ -40,6 +50,9 @@ export interface TimelineItem { at: string; text: string; by: string | null }
 
 export interface ClientFile extends Omit<ClientRow, "units" | "deals"> {
   preferredContact: string | null;
+  marketingConsent: boolean | null;
+  /** M-10 2.3: a request to erase their data is with management */
+  deletionAsked: { at: string; by: string | null; reason: string } | null;
   units: ClientUnit[]; deals: ClientDeal[]; contracts: ClientContract[]; leads: ClientLead[];
   /** M-10 3.2: what they paid Places and what's left, as decimal strings */
   balance: { paid: string; remaining: string };
