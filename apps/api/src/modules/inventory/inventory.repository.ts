@@ -34,6 +34,19 @@ export class InventoryRepository {
     return this.db.unit.findMany({ where: openSearch(q), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
   }
 
+  /** Marketing's board of new units (M-04 4.4): open, not archived, not Done by marketing yet. */
+  forMarketing() {
+    return this.db.unit.findMany({
+      where: { AND: [{ archivedAt: null, marketingDoneAt: null }, AVAILABLE] },
+      select: { id: true, code: true, project: true, area: true, space: true, type: true, pdfStatus: true, createdAt: true },
+      orderBy: { createdAt: "desc" }, take: 200,
+    });
+  }
+
+  unitById(id: string) {
+    return this.db.unit.findUnique({ where: { id }, select: { id: true, code: true, archivedAt: true, marketingDoneAt: true } });
+  }
+
   /** A task's unit (M-04 4.2): open units, drafts too — a new unit's shoot is given before Manar confirms its PDF (M-03 2.1 steps 4-5). */
   forTasks(q: string | undefined, take: number) {
     return this.db.unit.findMany({ where: openSearch(q, true), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });

@@ -13,6 +13,9 @@ export type PostInput = z.infer<typeof PostInput>;
 export const PostQuery = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "الشهر لازم يبقى YYYY-MM").optional() });
 export type PostQuery = z.infer<typeof PostQuery>;
 
+/** M-04 4.4: a new unit on marketing's board (the demo's «وحدات جديدة» tab). */
+export interface MarketingUnit { id: string; code: string; project: string; area: string; space: number; type: string; pdfStatus: string; createdAt: string }
+
 export interface PostRow {
   id: string;
   title: string;
