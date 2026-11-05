@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -13,6 +13,7 @@ import { NotificationsService } from "../../core/notifications/notifications.ser
 import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { LeavesService } from "../hr/leaves.service";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
 const NO_LEAD = "الليد ده مش موجود أو مبقاش معاك";
@@ -36,6 +37,7 @@ export class LeadsService {
     private readonly rules: LeadRulesService,
     private readonly notifications: NotificationsService,
     private readonly inventory: InventoryService,
+    private readonly leaves: LeavesService,
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
@@ -192,8 +194,9 @@ export class LeadsService {
         { assignToId: input.assignToId, keep: input.keep },
       );
       if (placement.kind === "hand") router.assignedByHand(placement.to);
-      // the area's rotation, without anyone whose account was switched off since they were ticked (1.13)
-      const assignedToId = placement.kind === "route" ? router.next(input.area, await this.repo.stillWorking(pools[input.area] ?? [], tx)) : placement.to;
+      // the area's rotation, without anyone whose account was switched off since they were ticked (1.13) or who is on approved leave today (1.15, M-05 6.2)
+      const onLeave = placement.kind === "route" ? await this.leaves.employeesOnLeave(localDate(new Date())) : new Set<string>();
+      const assignedToId = placement.kind === "route" ? router.next(input.area, (await this.repo.stillWorking(pools[input.area] ?? [], tx)).filter((id) => !onLeave.has(id))) : placement.to;
       await this.repo.saveRouting(tx, router.snapshot());
 
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
