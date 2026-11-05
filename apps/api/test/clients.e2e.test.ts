@@ -127,3 +127,13 @@ test("the contact log: sales logs on their client, it shows in the timeline and 
   assert.equal((await call(`/clients/${lead.clientId}/interactions`, { method: "POST", cookie: mohsen, body: { kind: "حاجة تانية", text: "x" } })).status, 400);
   assert.equal((await call(`/clients/${lead.clientId}/interactions`, { method: "POST", cookie: eid, body: { kind: "مكالمة", text: "x" } })).status, 404);
 });
+
+test("«ابديت مع المالك» is the owner's update: their units' last update is today (demo clients.js · M-10 2.4)", async () => {
+  await prisma.unit.update({ where: { id: unitId }, data: { lastOwnerUpdateAt: new Date(Date.now() - 50 * 86_400_000) } });
+  assert.equal((await call(`/clients/${ownerId}`, { cookie: manar })).body.units[0].stale, true);
+  const r = await call(`/clients/${ownerId}/interactions`, { method: "POST", cookie: manar, body: { kind: "ابديت مع المالك", text: `${P} لسه متاحة بنفس السعر` } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal((await call(`/clients/${ownerId}`, { cookie: manar })).body.units[0].stale, false);
+  assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Unit", entityId: unitId, action: "update", userId: { not: null }, at: { gte: new Date(Number(stamp)) } } }));
+  await prisma.auditLog.deleteMany({ where: { entity: "Unit", entityId: unitId } });
+});

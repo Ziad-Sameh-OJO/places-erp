@@ -77,6 +77,13 @@ export class ClientsRepository {
     return tx.clientPhone.findMany({ where: { phone: { in: phones } }, select: { phone: true, client: { select: { id: true, kind: true } } } });
   }
 
+  /** The owner's units get this «last update»; returns them as they were (for the audit). */
+  async touchOwnerUnits(tx: Tx, ownerId: string, at: Date) {
+    const units = await tx.unit.findMany({ where: { ownerId, archivedAt: null }, select: { id: true, lastOwnerUpdateAt: true } });
+    await tx.unit.updateMany({ where: { id: { in: units.map((u) => u.id) } }, data: { lastOwnerUpdateAt: at } });
+    return units;
+  }
+
   addInteraction(tx: Tx, data: { clientId: string; kind: string; text: string; byId: string }) {
     return tx.clientInteraction.create({ data });
   }

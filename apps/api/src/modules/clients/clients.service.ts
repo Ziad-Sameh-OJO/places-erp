@@ -10,6 +10,8 @@ import { SettingsService } from "../settings/settings.service";
 import { ClientsRepository, type ClientRowRecord, type FileDealRecord } from "./clients.repository";
 
 const NO_CLIENT = "الملف ده مش موجود أو مش معاك";
+/** The «أنواع التواصل» value that counts as the owner's update (default list, M-13; locked in the demo's wording). */
+const OWNER_UPDATE = "ابديت مع المالك";
 
 /**
  * M-10 · one file per client and owner. The list and the file read through the reader's scope (sales: the clients of
@@ -69,6 +71,13 @@ export class ClientsService {
       const row = await this.repo.addInteraction(tx, { clientId: id, kind: input.kind, text: input.text, byId: me.id });
       await tx.client.update({ where: { id }, data: { lastContactAt: row.at, status: "active" } });
       await this.audit.record({ module: "clients", entity: "ClientInteraction", entityId: row.id, action: "create", userId: me.id, after: row }, tx);
+      // demo clients.js: «ابديت مع المالك» is the owner's monthly update (M-10 2.4 = M-03 «last update») for all their units
+      if (input.kind === OWNER_UPDATE) {
+        const units = await this.repo.touchOwnerUnits(tx, id, row.at);
+        for (const u of units) {
+          await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "update", userId: me.id, before: { lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { lastOwnerUpdateAt: row.at } }, tx);
+        }
+      }
       return { id: row.id, at: row.at.toISOString() };
     });
   }

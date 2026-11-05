@@ -6,6 +6,7 @@ export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon:
   home: { label: "مهامي النهارده", code: "Today", icon: "home", section: "", short: "الرئيسية", sub: "اللي محتاج منك النهارده" },
   leads: { label: "العملاء المحتملين", code: "M-01", icon: "users", section: "المبيعات", short: "الليدز", sub: "Create lead · توزيع بالـ area · SLA · المراحل · Qualified · روتيشن No Answer" },
   settings: { label: "قواعد الليدز والتوزيع", code: "Routing", icon: "route", section: "المبيعات", short: "قواعد الليدز", sub: "التوزيع والمواعيد والـ SLA والـ No Answer والإقفال · كل رقم وكل شخص مسؤول بيتعدّل من هنا" },
+  clients: { label: "العملاء والملاك", code: "M-10", icon: "id", section: "المبيعات", sub: "ملف واحد لكل عميل ومالك · كل التعامل معاه في مكان واحد" },
   contracts: { label: "العقود والتحصيل", code: "M-11", icon: "file", section: "المبيعات", short: "العقود", sub: "العقود · تنبيهات التجديد 90/60/30 · الأقساط والمتأخرات · الفواتير" },
   inventory: { label: "مخزون الوحدات", code: "M-03", icon: "building", section: "العمليات", short: "الوحدات", sub: "Rent · Resale · Income في قايمة واحدة بفلتر، وتابات المساحات تحت زي الشيت" },
   notactive: { label: "Not Active Inventory", code: "M-03", icon: "layers", section: "العمليات", short: "Not Active", sub: "شيتات بتترفع Excel · دمج من غير تكرار · مروة بتصنّف كل رقم · Done بيدخّل وحدة جديدة" },
