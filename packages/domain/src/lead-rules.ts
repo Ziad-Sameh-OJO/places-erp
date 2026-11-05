@@ -4,7 +4,7 @@
  * never numbers in the code. Defaults are the demo's (data.js leadRules) and the requirements' (M-01 Q4, Q5).
  */
 import { type SlaRules, leadSla } from "./leads.ts";
-import { type WorkCalendar, PLACES_CALENDAR, localDate } from "./business-time.ts";
+import { type WorkCalendar, PLACES_CALENDAR, localDate, wallClockMinutesBetween } from "./business-time.ts";
 import type { Channel } from "./notifications.ts";
 
 /**
@@ -134,4 +134,29 @@ export function slaStep(
     { holidayMode: isHolidayNow(rules, now, holidays), calendar, rules: slaRulesOf(rules) });
   if (sla?.level === "pull") return "pull";
   return sla?.level === "warn" && !lead.warned ? "warn" : null;
+}
+
+/**
+ * 1.17 · No Answer (M-01 Q5, 2.3 · 4 Nov meeting): a lead its own salesperson marked No Answer stays with them
+ * noAnswer.hours (24 by default) counted from the mark, wall-clock (it moves «حتى لو الـ 24 ساعة خلصت في إجازة»),
+ * then goes to the next salesperson as Fresh («next»), or to Telesales on the rotation the rules name (3rd by default).
+ * A No Answer someone else marked doesn't count: the salesperson who has it must try first.
+ */
+export function noAnswerStep(
+  lead: { readonly assignedToId: string | null; readonly naMarkedById: string | null; readonly naMarkedAt: Date | null; readonly rotation: number },
+  now: Date,
+  rules: LeadRules,
+): "next" | "telesales" | null {
+  if (!lead.naMarkedAt || !lead.assignedToId || lead.naMarkedById !== lead.assignedToId) return null;
+  if (wallClockMinutesBetween(lead.naMarkedAt, now) < rules.noAnswer.hours * 60) return null;
+  return lead.rotation + 1 >= rules.noAnswer.toTelesalesAt ? "telesales" : "next";
+}
+
+/**
+ * Minutes Operations has to route a New Lead from Telesales (demo: Heba's KPI item «توزيع الـ New Lead في ميعاده»,
+ * 30 minutes by default · 11.15). The queue shows «باقي X د», or «اتأخر X د» once it's negative.
+ */
+export const NEW_LEAD_ROUTE_MIN = 30;
+export function newLeadMinutesLeft(requestedAt: Date, now: Date, limit = NEW_LEAD_ROUTE_MIN): number {
+  return limit - Math.floor((now.getTime() - requestedAt.getTime()) / 60_000);
 }

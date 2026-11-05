@@ -88,6 +88,8 @@ export interface LeadDetail extends LeadRow {
   /** how many lines the Logs tab has (its label shows it, like the demo); null when the person can't see it */
   logCount: number | null;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
+  /** Telesales sent it as a New Lead and Operations hasn't routed it yet (1.17): «مستني قرار الأوبريشن» */
+  newLeadPending: boolean;
   /** «الزيارات» (1.9): every Visit / Meeting, newest time first */
   visits: VisitRow[];
 }
@@ -287,3 +289,14 @@ export interface SecondCallRow {
   late: boolean;
   done: { called: boolean; sent: boolean; note: string; at: string } | null;
 }
+/** 1.17 · a New Lead from Telesales waiting for Operations (demo «Telesales بعتت … كـ New Lead»), with its clock. */
+export interface NewLeadRequestRow {
+  id: string; code: string; name: string; area: string; requestedAt: string; by: { id: string; name: string } | null;
+  /** minutes left of Operations' time (negative = late), from the server's clock */
+  minutesLeft: number;
+}
+
+/** Operations' decision: «الروتيشن العادي» or a chosen salesperson (an employee id). */
+export const RouteNewLead = z.object({ to: z.string({ required_error: "اختار", invalid_type_error: "اختار" }).min(1, "اختار").max(40) });
+export type RouteNewLead = z.infer<typeof RouteNewLead>;
+export const ROTATION = "rotation";

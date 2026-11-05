@@ -123,3 +123,36 @@ test("saved rules over the defaults: a rule saved before a new one existed gets 
   assert.deepEqual(r.sla.warn, R.sla.warn);
   assert.deepEqual(withRuleDefaults(null), R);
 });
+
+test("1.17 No Answer (M-01 Q5): 24 hours from the salesperson's own mark → the next one; the 3rd rotation → Telesales", async () => {
+  const { noAnswerStep } = await import("../src/lead-rules.ts");
+  const marked = winter("2026-11-05T15:00:00"); // a Thursday afternoon
+  const lead = { assignedToId: "e-mohsen", naMarkedById: "e-mohsen", naMarkedAt: marked, rotation: 1 };
+  assert.equal(noAnswerStep(lead, winter("2026-11-06T14:59:00"), R), null);
+  // wall-clock: it moves on Friday (a day off) all the same — «حتى لو الـ 24 ساعة خلصت في إجازة»
+  assert.equal(noAnswerStep(lead, winter("2026-11-06T15:00:00"), R), "next");
+  // with the second salesperson, who marked it too: the 3rd rotation is Telesales
+  assert.equal(noAnswerStep({ ...lead, rotation: 2 }, winter("2026-11-06T15:00:00"), R), "telesales");
+  // the next salesperson hasn't marked it (or someone else did): it doesn't move; the SLA takes over
+  assert.equal(noAnswerStep({ ...lead, naMarkedById: null, naMarkedAt: null }, winter("2026-11-09T15:00:00"), R), null);
+  assert.equal(noAnswerStep({ ...lead, naMarkedById: "e-heba" }, winter("2026-11-09T15:00:00"), R), null);
+  assert.equal(noAnswerStep({ ...lead, assignedToId: "e-eid" }, winter("2026-11-09T15:00:00"), R), null);
+});
+
+test("1.17 the hours and the Telesales rotation come from «قواعد الليدز»", async () => {
+  const { noAnswerStep } = await import("../src/lead-rules.ts");
+  const lead = { assignedToId: "e-1", naMarkedById: "e-1", naMarkedAt: winter("2026-11-05T15:00:00"), rotation: 2 };
+  const rules = { ...R, noAnswer: { ...R.noAnswer, hours: 12, toTelesalesAt: 4 } };
+  assert.equal(noAnswerStep(lead, winter("2026-11-06T02:59:00"), rules), null);
+  assert.equal(noAnswerStep(lead, winter("2026-11-06T03:00:00"), rules), "next");
+  assert.equal(noAnswerStep({ ...lead, rotation: 3 }, winter("2026-11-06T03:00:00"), rules), "telesales");
+});
+
+test("1.17 the New Lead clock: 30 minutes by default (Heba's KPI item), negative once late", async () => {
+  const { newLeadMinutesLeft, NEW_LEAD_ROUTE_MIN } = await import("../src/lead-rules.ts");
+  const at = winter("2026-11-05T12:00:00");
+  assert.equal(NEW_LEAD_ROUTE_MIN, 30);
+  assert.equal(newLeadMinutesLeft(at, winter("2026-11-05T12:00:30")), 30);
+  assert.equal(newLeadMinutesLeft(at, winter("2026-11-05T12:21:00")), 9);
+  assert.equal(newLeadMinutesLeft(at, winter("2026-11-05T12:45:00")), -15);
+});

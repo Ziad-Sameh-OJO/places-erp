@@ -311,7 +311,7 @@ export class LeadsService {
   }
 
   /** The lead rules' «ليد جديد اتوزع» for one lead and the salesperson it went to. */
-  private async notifyAssigned(leadId: string, name: string, area: string, employeeId: string) {
+  async notifyAssigned(leadId: string, name: string, area: string, employeeId: string) {
     const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(employeeId)]);
     if (!owner) return;
     const to = ruleRecipients(rules.newLead, { ownerUserId: owner.userId, ownerTlUserId: owner.teamLeader?.userId ?? null });
@@ -371,15 +371,19 @@ export class LeadsService {
     return this.get(me, id);
   }
 
-  /** Stage change: Qualified is sticky (isQualifiedAfter), the SLA clock stops on the first action. */
+  /**
+   * Stage change: Qualified is sticky (isQualifiedAfter), the SLA clock stops on the first action. No Answer records
+   * who marked it and when: the No Answer job moves it 24 hours later, only if it was the salesperson's own mark (1.17).
+   */
   async changeStage(me: CurrentUser, id: string, input: ChangeStage) {
     return this.db.$transaction(async (tx) => {
       const lead = await tx.lead.findFirst({ where: { id, ...(ownedBy(me) as object) } });
       if (!lead) throw new NotFoundException(NO_LEAD);
+      const noAnswer = input.stage === "No Answer";
       const next = await tx.lead.update({
         where: { id },
         data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), touched: true,
-          noAnswerCount: input.stage === "No Answer" ? { increment: 1 } : undefined },
+          ...(noAnswer ? { noAnswerCount: { increment: 1 }, naMarkedAt: new Date(), naMarkedById: me.employeeId } : {}) },
       });
       const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
       await this.repo.markActed(tx, id, activity.at);
@@ -553,10 +557,10 @@ function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<stri
 }
 
 function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
-  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
+  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, ...row } = lead;
   const now = Date.now();
   return {
-    ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation,
+    ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
     company: company?.name ?? null, firstActionAt: iso(firstActionAt),
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
