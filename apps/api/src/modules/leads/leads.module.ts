@@ -23,12 +23,13 @@ import { LeadBulkService } from "./bulk.service";
 import { LeadBulkRepository } from "./bulk.repository";
 import { LeadsTodayService } from "./today.service";
 import { LeadsTodayRepository } from "./today.repository";
+import { LeadImportService } from "./import.service";
 
 /** M-01 · العملاء المحتملين والتوزيع. The reference module: copy its shape for every other module. */
 @Module({
   imports: [SettingsModule, AccessModule, InventoryModule, HrModule, ClientsModule], // ClientsModule: the client file on Done Deal (M-10) · // HrModule: who is on approved leave today (1.15) · // InventoryModule: the units a Visit lists (1.9) · // the lists and holidays (M-13); the roles for «مين يتبلّغ» (1.29) // the SLA rules (M-13) for the list's SLA column
   controllers: [LeadDuplicatesController, LeadBulkController, RoutingController, RotationController, LeadRulesController, VisitPostponeController, LeadsController, LeadsTodayController], // first: «leads/duplicates», «leads/routing» must win over «leads/:id»
-  providers: [LeadsService, LeadDuplicatesService, RoutingService, LeadRulesService, LeadsRepository, RotationService, VisitPostponeService, LeadsTodayService, LeadsTodayRepository, LeadBulkService, LeadBulkRepository], // 1.23 · 1.24 · 1.22
-  exports: [LeadsService, LeadRulesService],
+  providers: [LeadsService, LeadDuplicatesService, RoutingService, LeadRulesService, LeadsRepository, RotationService, VisitPostponeService, LeadsTodayService, LeadsTodayRepository, LeadBulkService, LeadBulkRepository, LeadImportService], // 1.23 · 1.24 · 1.22
+  exports: [LeadsService, LeadRulesService, LeadImportService], // LeadImportService: 13.1
 })
 export class LeadsModule {}

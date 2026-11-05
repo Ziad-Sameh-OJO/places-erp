@@ -10,6 +10,7 @@ import { num, short } from "@/lib/format";
 import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
 import { UnitForm } from "./unit-form";
+import { OldDataImport } from "../imports/old-data-import";
 import { AreaTabsBar } from "./area-tabs";
 import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 
@@ -77,6 +78,7 @@ export function InventoryList() {
       <div className="row">
         <Tabs value={tab} onChange={(t) => { setTab(t); setPage(1); }} items={types} />
         <span className="spacer" />
+        {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />وحدة جديدة</button>}
       </div>
       <div className="toolbar">

@@ -1,7 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import { Readable } from "node:stream";
 import ExcelJS from "exceljs";
-import type { ZodType } from "zod";
+import type { ZodType, ZodTypeDef } from "zod";
 import type { ImportError, ImportPreview } from "@places/contracts";
 
 /** What multer hands the controller (FileInterceptor keeps the file in memory). */
@@ -14,6 +14,11 @@ export const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 /** Column key → the header people see in the template (Arabic, same as the screens). */
 export type ImportColumns<K extends string> = Record<K, string>;
 
+/** A big old-data sheet (13.1) is thousands of rows in one transaction: Prisma's 5 s default is too short. */
+export const IMPORT_TX = { timeout: 120_000, maxWait: 10_000 };
+/** 13.1 · what a module's import did (or would do, in the preview): added, skipped as duplicates, and the errors. */
+export interface ImportReport { added: number; duplicates: number; errors: ImportError[] }
+
 export interface ParsedSheet<T> { rows: { line: number; data: T }[]; errors: ImportError[]; total: number }
 
 /**
@@ -21,7 +26,7 @@ export interface ParsedSheet<T> { rows: { line: number; data: T }[]; errors: Imp
  * row with the module's schema. Returns the valid rows with their sheet line, and every error by line and column.
  * Saving is the module service's job, in its own transaction.
  */
-export async function parseSheet<K extends string, T>(file: UploadedSheet | undefined, columns: ImportColumns<K>, schema: ZodType<T>, uniqueBy?: (row: T) => string): Promise<ParsedSheet<T>> {
+export async function parseSheet<K extends string, T>(file: UploadedSheet | undefined, columns: ImportColumns<K>, schema: ZodType<T, ZodTypeDef, unknown>, uniqueBy?: (row: T) => string): Promise<ParsedSheet<T>> {
   if (!file) throw new BadRequestException("ارفع ملف Excel أو CSV");
   const sheet = await readFirstSheet(file);
   const headers = new Map<string, number>();

@@ -17,5 +17,7 @@ export interface Paged<T> { items: T[]; total: number; page: number; pageSize: n
 
 /** Excel/CSV import: what the screen shows before «تأكيد» (lines are sheet lines, the header is line 1). */
 export interface ImportError { line: number; column: string; message: string }
-export interface ImportPreview<T> { total: number; valid: number; errors: ImportError[]; sample: T[] }
-export interface ImportDone { imported: number }
+/** `duplicates`: rows we already have (13.1), skipped, not errors. */
+export interface ImportPreview<T> { total: number; valid: number; errors: ImportError[]; sample: T[]; duplicates?: number }
+/** 13.1's report: added, duplicates and rows with errors (skipped). */
+export interface ImportDone { imported: number; duplicates?: number; skipped?: number }

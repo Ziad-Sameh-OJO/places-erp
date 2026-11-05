@@ -19,4 +19,5 @@ export * from "./deals.ts";
 export * from "./deal-sheet.ts";
 export * from "./contracts.ts";
 export * from "./not-active.ts";
+export * from "./imports.ts";
 // one file per module as it is built: deals.ts, inventory.ts, hr.ts, kpis.ts …
