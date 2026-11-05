@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { ClientDeal, ClientFile, ClientFilters, ClientRow, ClientSummary, LogInteraction, Paged, TimelineItem } from "@places/contracts";
-import { allowedValue, fromDecimal, isStale, normalizePhone, partyBalance, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
+import { allowedValue, fromDecimal, isStale, normalizePhone, partyBalance, showsNumbers, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { ownedBy } from "../../core/authz/scope";
@@ -30,7 +30,7 @@ export class ClientsService {
   async list(me: CurrentUser, f: ClientFilters): Promise<Paged<ClientRow>> {
     const [rows, total] = await this.repo.list(visibleTo(me), f);
     const deals = await this.repo.dealsOf(rows.map((r) => r.id));
-    return { items: rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length)), total, page: f.page, pageSize: f.pageSize };
+    return { items: rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me)), total, page: f.page, pageSize: f.pageSize };
   }
 
   async summary(me: CurrentUser): Promise<ClientSummary> {
@@ -53,7 +53,7 @@ export class ClientsService {
       ...deals.map((d) => ({ at: d.closedAt, text: `صفقة ${d.code} على ${d.unit}`, by: null })),
     ].sort((a, b) => b.at.localeCompare(a.at));
     return {
-      ...toRow(c, deals.length), preferredContact: c.preferredContact, units, deals,
+      ...toRow(c, deals.length, me), preferredContact: c.preferredContact, units, deals,
       contracts: contracts.map((k) => ({ id: k.id, code: k.code, deal: codeOf.get(k.dealId) ?? "", startsOn: day(k.startsOn), endsOn: day(k.endsOn), status: k.status })),
       leads: c.leads.map((l) => ({ id: l.id, code: l.code, stage: l.stage, createdAt: l.createdAt.toISOString() })),
       balance: { paid: toDecimal(balance.paid), remaining: toDecimal(balance.remaining) },
@@ -141,9 +141,10 @@ const normalized = (phones: string[]) => [...new Set(phones.map(normalizePhone).
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const belongs = (d: FileDealRecord, id: string) => d.lead?.clientId === id || d.unit.ownerId === id;
 
-function toRow(r: ClientRowRecord, deals: number): ClientRow {
+/** Owners' numbers never leave the API for people who may not see them (M-10 4.1), not just hidden on the screen. */
+function toRow(r: ClientRowRecord, deals: number, me: CurrentUser): ClientRow {
   return {
-    id: r.id, name: r.name, company: r.company, kind: r.kind, status: r.status, phones: r.phones.map((p) => p.phone),
+    id: r.id, name: r.name, company: r.company, kind: r.kind, status: r.status, phones: showsNumbers(r.kind, me.grants) ? r.phones.map((p) => p.phone) : null,
     units: r._count.units, deals, lastContactAt: r.lastContactAt.toISOString(),
   };
 }

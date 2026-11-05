@@ -1,6 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergedFile, mergedKind, normalizePhone, partyBalance, withRole } from "../src/clients.ts";
+import { mergedFile, mergedKind, normalizePhone, partyBalance, showsNumbers, withRole } from "../src/clients.ts";
+import { effectiveGrants } from "../src/permissions.ts";
+
+test("owners' numbers (M-10 4.1): hidden from sales and finance, shown to inventory and Operations; a client's always", () => {
+  const sales = effectiveGrants([{ scope: "own", modules: { clients: ["view", "create"], inventory: ["view"] } }]);
+  const finance = effectiveGrants([{ scope: "all", modules: { clients: ["view"] } }]);
+  const manar = effectiveGrants([{ scope: "dept", modules: { clients: ["view", "create", "edit"], inventory: ["view", "create", "edit"] } }]);
+  const ops = effectiveGrants([{ scope: "all", modules: { clients: ["view", "create", "edit", "approve"] } }]);
+  for (const kind of ["owner", "both"] as const) {
+    assert.equal(showsNumbers(kind, sales), false);
+    assert.equal(showsNumbers(kind, finance), false);
+    assert.equal(showsNumbers(kind, manar), true);
+    assert.equal(showsNumbers(kind, ops), true);
+  }
+  assert.equal(showsNumbers("client", sales), true);
+});
 
 test("merge (M-10 2.2): the kept file keeps its name, fills what it lacks, both roles, active if either, latest contact", () => {
   const jan = new Date("2026-01-10T10:00:00Z"), oct = new Date("2026-10-01T10:00:00Z");

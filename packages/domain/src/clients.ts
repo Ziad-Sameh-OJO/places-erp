@@ -4,6 +4,8 @@
  */
 import type { Piasters } from "./money.ts";
 import type { DealStatus } from "./commission.ts";
+import type { Grants } from "./permissions.ts";
+import { keepsInventory } from "./units.ts";
 
 export const CLIENT_KINDS = ["client", "owner", "both"] as const;
 export type ClientKind = (typeof CLIENT_KINDS)[number];
@@ -25,6 +27,13 @@ export function normalizePhone(raw: string): string | null {
   const abroad = EG_MOBILE_ABROAD.exec(digits);
   return abroad ? `0${abroad[1]}` : digits;
 }
+
+/**
+ * M-10 4.1: owners' numbers are for the people who keep the inventory (Manar and Randa, M-03 1.2) and for Operations,
+ * who merge files by number (M-10 2.2) — never for sales. A file that is an owner (or both) shows its numbers only to them.
+ */
+export const seesOwnerNumbers = (g: Pick<Grants, "can">): boolean => keepsInventory(g) || g.can("clients", "approve");
+export const showsNumbers = (kind: ClientKind, g: Pick<Grants, "can">): boolean => kind === "client" || seesOwnerNumbers(g);
 
 /** The file's kind after the person gets another role: a client who becomes an owner (or the reverse) is «both». */
 export function withRole(kind: ClientKind | null, role: ClientRole): ClientKind {
