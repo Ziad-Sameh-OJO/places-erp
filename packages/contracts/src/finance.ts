@@ -170,6 +170,8 @@ export interface IncomeView {
 export interface PayrollRowView { userId: string; name: string; line: "admin" | "sales"; salary: string; attendance: string; advanceLeft: string; advance: string; net: string; advanceAccountId: string | null }
 export interface PayrollView {
   month: string; label: string; payDay: number; due: boolean;
+  /** HR approved this month's deductions (7.9); until then the attendance column is 0 */
+  deductionsApproved: boolean;
   run: { id: string; at: string; net: string; gross: string; from: string; move: { id: string; no: string } } | null;
   rows: PayrollRowView[]; totals: { salary: string; attendance: string; advance: string; net: string; people: number };
 }

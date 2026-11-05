@@ -10,6 +10,7 @@ import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { LedgerService } from "./ledger.service";
+import { AttendanceService } from "../hr/attendance.service";
 import type { Tx } from "./ledger.repository";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
@@ -20,7 +21,7 @@ const CASH_KINDS = new Set(["treasury", "bank", "wallet"]);
 /**
  * M-07 · «المرتبات» (9.14, with 9.3's monthly advance deduction): everyone at once, as one voucher «صرف مرتبات» with
  * one entry (5202 / 5301 → each person's 131xx + the safe / bank). Once a month; every employee hears their net.
- * Attendance deductions join once HR approves them (7.2 / 7.9); until then they are 0.
+ * Attendance + penalty deductions join once HR approves the month (7.9); until then they are 0.
  */
 @Injectable()
 export class PayrollService {
@@ -29,6 +30,7 @@ export class PayrollService {
     private readonly ledger: LedgerService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly attendance: AttendanceService,
   ) {}
 
   private async payDay(tx: Tx | PrismaClient = this.db) {
@@ -38,10 +40,11 @@ export class PayrollService {
 
   /** Each person's row this month: salary, attendance (0 until HR approves), the advance deduction chosen, net. */
   private async rows(month: string, tx: Tx | PrismaClient = this.db) {
-    const [people, holders, plans] = await Promise.all([
+    const [people, holders, plans, approved] = await Promise.all([
       tx.employee.findMany({ where: { user: { status: "ACTIVE" }, salary: { gt: 0 } }, select: { userId: true, name: true, salary: true, user: { select: { roles: { select: { role: { select: { key: true } } } } } } }, orderBy: { name: "asc" } }),
       tx.account.findMany({ where: { parent: { code: ADVANCES_PARENT }, holderId: { not: null }, archivedAt: null }, select: { id: true, holderId: true } }),
       tx.advanceDeduction.findMany({ where: { month: { lte: month } }, orderBy: { month: "desc" } }),
+      this.attendance.approvedDeductions(month, tx),
     ]);
     const sums = holders.length ? await tx.journalLine.groupBy({ by: ["accountId"], where: { accountId: { in: holders.map((h) => h.id) } }, _sum: { debit: true, credit: true } }) : [];
     return people.map((p) => {
@@ -49,18 +52,18 @@ export class PayrollService {
       const left = s ? dec(s._sum.debit) - dec(s._sum.credit) : 0;
       // this month's choice, or the latest one before it («الشهر الجاي بيبدأ بنفس الاختيار»)
       const plan = plans.find((x) => x.userId === p.userId);
-      const r = payRow({ salary: dec(p.salary), attendance: 0, advanceLeft: Math.max(0, left), advancePlan: plan ? dec(plan.amount) : null });
+      const r = payRow({ salary: dec(p.salary), attendance: approved?.get(p.userId) ?? 0, advanceLeft: Math.max(0, left), advancePlan: plan ? dec(plan.amount) : null });
       return { userId: p.userId, name: p.name, line: salaryLine(p.user.roles.map((x) => x.role.key)), advanceLeft: Math.max(0, left), advanceAccountId: acc?.id ?? null, ...r };
     });
   }
 
   async view(): Promise<PayrollView> {
     const today = localDate(new Date()), month = monthOf(today);
-    const [day, rows, run] = await Promise.all([this.payDay(), this.rows(month), this.db.payrollRun.findUnique({ where: { month } })]);
+    const [day, rows, run, approved] = await Promise.all([this.payDay(), this.rows(month), this.db.payrollRun.findUnique({ where: { month } }), this.attendance.approvedDeductions(month)]);
     const move = run ? await this.db.treasuryMove.findUnique({ where: { id: run.moveId }, select: { id: true, no: true, from: { select: { name: true } } } }) : null;
     const t = (k: "salary" | "attendance" | "advance" | "net") => toDecimal(rows.reduce((s, r) => s + r[k], 0));
     return {
-      month, label: monthLabel(month), payDay: day, due: !run && Number(today.slice(8, 10)) >= day,
+      month, label: monthLabel(month), payDay: day, deductionsApproved: !!approved, due: !run && Number(today.slice(8, 10)) >= day,
       run: run && move ? { id: run.id, at: run.at.toISOString(), net: toDecimal(dec(run.net)), gross: toDecimal(dec(run.gross)), from: move.from?.name ?? "", move: { id: move.id, no: `MV-${move.no}` } } : null,
       rows: rows.map((r) => ({ userId: r.userId, name: r.name, line: r.line, salary: toDecimal(r.salary), attendance: toDecimal(r.attendance), advanceLeft: toDecimal(r.advanceLeft), advance: toDecimal(r.advance), net: toDecimal(r.net), advanceAccountId: r.advanceAccountId })),
       totals: { salary: t("salary"), attendance: t("attendance"), advance: t("advance"), net: t("net"), people: rows.length },
