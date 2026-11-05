@@ -12,6 +12,7 @@ export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon:
   inventory: { label: "مخزون الوحدات", code: "M-03", icon: "building", section: "العمليات", short: "الوحدات", sub: "Rent · Resale · Income في قايمة واحدة بفلتر، وتابات المساحات تحت زي الشيت" },
   notactive: { label: "Not Active Inventory", code: "M-03", icon: "layers", section: "العمليات", short: "Not Active", sub: "شيتات بتترفع Excel · دمج من غير تكرار · مروة بتصنّف كل رقم · Done بيدخّل وحدة جديدة" },
   tasks: { label: "المهام", code: "Tasks", icon: "check", section: "العمليات", sub: "تصوير · Retouch بموافقة منار · متابعة الملاك · ابديت للبيع · مهام التسويق" },
+  marketing: { label: "التسويق", code: "M-04", icon: "megaphone", section: "العمليات", sub: "الليدز لكل channel وكامبين · Qualified · المحتوى · Broadcast · وحدات جديدة" },
   finance: { label: "المالية", code: "M-07", icon: "wallet", section: "الإدارة", sub: "الداشبورد · الخزن والحركات · العهد والسلف · القيود · الفواتير الثابتة · قايمة الدخل والميزانية · البادجت · شجرة الحسابات" },
   procurement: { label: "المشتريات", code: "M-08", icon: "cart", section: "الإدارة", sub: "Request ← موافقة (لحد 50,000 أي معتمد · أكتر من كده أحمد أو صفوت) ← مختار يصرف ← Budget البند بعد الدفع" },
   hr: { label: "الموارد البشرية", code: "M-05", icon: "id", section: "الإدارة", short: "الـ HR", sub: "الحضور بالبصمة والشرايح · التاريخ · الـ Weekly Delay · فايل كل موظف" },
