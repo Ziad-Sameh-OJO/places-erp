@@ -11,6 +11,7 @@ import { MyBroadcasts } from "@/features/marketing/broadcast";
 import { Inbox, type InboxLine } from "@/components/inbox";
 import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads/today";
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
+import { MyTeamTasks } from "@/features/inventory/team-tasks";
 
 /**
  * Home = «مهامي النهارده» (1.22, demo home.js): everything waiting for this person's action now, the late first.
@@ -34,6 +35,7 @@ export default function HomePage() {
       <HandoversCard />
       <MyBroadcasts />
       <ActivitiesCard />
+      <MyTeamTasks />
       <div className="cols wide">
         <Card title="مهامي النهارده" icon="check" sub="مترتبة: المتأخر الأول" extra={<Chip tone={urgent ? "bad" : "ok"}>{urgent ? `${urgent} متأخر` : "كله في الميعاد"}</Chip>}>
           {leads.isLoading ? <p className="hint">بيحمّل…</p> : <Inbox lines={lines} />}

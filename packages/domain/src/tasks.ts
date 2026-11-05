@@ -26,6 +26,8 @@ export const TASK_KINDS: readonly TaskKind[] = [
   { key: "followup", label: "متابعة مع المالك", assigneeRoles: ["inventory", "resale"], withUnit: true, createdWith: null },
   // the demo's rent → resale hand-off to Randa
   { key: "toResale", label: "ابديت للبيع", assigneeRoles: ["resale"], withUnit: true, createdWith: { module: "inventory", action: "edit" } },
+  // M-03 3.1 · 2.16: Manar's daily tasks to her team, given from the inventory («مهمة للفريق», at most 30 a day each)
+  { key: "team", label: "مهمة من منار", assigneeRoles: ["resale", "inventory_staff"], withUnit: false, createdWith: null },
   // M-04 3.1: «مدير التسويق (الباقي)»
   { key: "marketing", label: "تسويق", assigneeRoles: ["marketing", "photographer", "designer"], withUnit: false, createdWith: { module: "marketing", action: "create" } },
 ];

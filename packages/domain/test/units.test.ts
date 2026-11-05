@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, fromDecimal, toDecimal } from "../src/money.ts";
-import { UNIT_SHEET_FIELDS, carrySides, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+import { TEAM_TASKS_PER_DAY, UNIT_SHEET_FIELDS, carrySides, mediaOnTime, teamTaskRoom, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
 
 // The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
 
@@ -184,6 +184,21 @@ test("2.8 · the PDF / slide show the unit, never its owner, agent or commission
     assert.ok(keys.includes("total") && keys.includes("space"));
   }
   assert.equal(UNIT_SHEET_FIELDS.Resale.find(([k]) => k === "total")![1], "إجمالي السعر");
+});
+
+test("2.16 · Manar gives each one at most 30 tasks a day (M-03 3.1 KPI)", () => {
+  assert.equal(TEAM_TASKS_PER_DAY, 30);
+  assert.equal(teamTaskRoom(0), 30);
+  assert.equal(teamTaskRoom(29), 1);
+  assert.equal(teamTaskRoom(30), 0);
+  assert.equal(teamTaskRoom(31), 0);
+});
+
+test("2.16 · Sara's upload counts on time within 24 hours of the unit being entered", () => {
+  const entered = new Date("2026-11-04T10:00:00Z");
+  assert.equal(mediaOnTime(entered, new Date("2026-11-05T10:00:00Z")), true, "exactly 24h");
+  assert.equal(mediaOnTime(entered, new Date("2026-11-05T10:01:00Z")), false);
+  assert.equal(mediaOnTime(entered, new Date("2026-11-04T12:00:00Z")), true);
 });
 
 test("2.4 · photo order: the same photos, each once, in the new order; the first is the main one", () => {

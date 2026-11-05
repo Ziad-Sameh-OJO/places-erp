@@ -2,13 +2,14 @@
 import { useState, type ReactNode } from "react";
 import type { UnitDetail } from "@places/contracts";
 import { Drawer } from "@/components/blocks";
-import { Empty, Note, Tabs } from "@/components/ui";
+import { Chip, Empty, Note, Tabs } from "@/components/ui";
 import { CloseRequests } from "./close-requests";
 import { UnitPhotos } from "./unit-photos";
 import { UnitPdfTab } from "./unit-pdf-tab";
 import { amount, moneyExact, num } from "@/lib/format";
 import { COLS, UnitChips, cell, columnsFor } from "./unit-bits";
 
+const hours = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 3_600_000;
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" }) : "—");
 
 /**
@@ -26,6 +27,7 @@ export function UnitDrawer({ ids, id, insider, editable, canConfirm, unit, error
   if (error) return <Drawer title="الوحدة مش موجودة" onClose={onClose}><Empty text={error.message} /></Drawer>;
   if (!unit) return <Drawer title="…" onClose={onClose}><p className="hint">بيحمّل…</p></Drawer>;
   const u = unit;
+  const entered = u.receivedAt ? hours(u.receivedAt, u.enteredAt) : null;
   const cols = columnsFor(u.type, insider).filter(([k]) => k !== "code");
   const kv: [string, ReactNode][] = [
     // the region (Income's «Area» column is the unit's size, as in its sheet)
@@ -46,7 +48,11 @@ export function UnitDrawer({ ids, id, insider, editable, canConfirm, unit, error
       <UnitPhotos unitId={u.id} editable={editable} />
       {u.divisible && <Note>تنفع تتقسم{u.minSplit ? ` · أقل مساحة ${num(u.minSplit)} م` : ""}{u.splitNote ? ` · ${u.splitNote}` : ""}</Note>}
       <section className="card flat">
-        <div className="row"><span className="hint">اتستلمت:</span><b>{when(u.receivedAt)}</b><span className="hint">اتدخلت:</span><b>{when(u.enteredAt)}</b></div>
+        <div className="row"><span className="hint">اتستلمت:</span><b>{when(u.receivedAt)}</b><span className="hint">اتدخلت:</span><b>{when(u.enteredAt)}</b>{entered != null && <Chip tone={entered <= 24 ? "ok" : "bad"}>{entered <= 24 ? "خلال 24 ساعة" : `بعد ${Math.round(entered)} ساعة`}</Chip>}</div>
+        {/* 2.16 · Sara's KPI: the photos up within 24 hours of entering the unit (the demo's «الصور والـ PDF») */}
+        <div className="row"><span className="hint">الصور والـ PDF:</span>{u.mediaUploadedAt
+          ? <><b>{when(u.mediaUploadedAt)}</b><Chip tone={u.mediaOnTime ? "ok" : "bad"}>{u.mediaOnTime ? "اترفعت خلال 24 ساعة" : `اترفعت بعد ${Math.round(hours(u.enteredAt, u.mediaUploadedAt))} ساعة`}</Chip></>
+          : <Chip tone="warn">لسه مااترفعتش</Chip>}</div>
         {u.createdBy && <p className="hint">دخّلها: {u.createdBy.name}</p>}
       </section>
       {actions}

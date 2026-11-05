@@ -53,6 +53,8 @@ export class UnitPhotosService {
       await this.files.attach(me, ids, "Unit", unitId, tx);
       await tx.unitPhoto.createMany({ data: ids.map((fileId, i) => ({ unitId, fileId, position: have.length + i })) });
       await this.toDraft(unitId, tx);
+      // M-03 3.1 KPI (Sara): the first upload is what's measured against the time the unit was entered (2.16)
+      await tx.unit.updateMany({ where: { id: unitId, mediaUploadedAt: null }, data: { mediaUploadedAt: new Date() } });
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-add", userId: me.id, after: { photos: ids } }, tx);
     });
     return this.list(me, unitId);

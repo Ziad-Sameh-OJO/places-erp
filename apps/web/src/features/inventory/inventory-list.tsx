@@ -12,6 +12,7 @@ import { UnitDrawer } from "./unit-drawer";
 import { UnitForm } from "./unit-form";
 import { OldDataImport } from "../imports/old-data-import";
 import { AreaTabsBar } from "./area-tabs";
+import { TeamTaskModal } from "./team-tasks";
 import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 
 const PAGE = 50;
@@ -32,6 +33,7 @@ export function InventoryList() {
   // a notification links to one unit (the close to confirm, Q16)
   useEffect(() => { const unit = new URLSearchParams(window.location.search).get("unit"); if (unit) setOpen(unit); }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
+  const [teamTask, setTeamTask] = useState(false);
   const qc = useQueryClient();
   const run = useAction();
   // the rented / sold sheet keeps its own type and dates (M-03 5.2); the other tabs don't use them
@@ -79,6 +81,7 @@ export function InventoryList() {
         <Tabs value={tab} onChange={(t) => { setTab(t); setPage(1); }} items={types} />
         <span className="spacer" />
         {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
+        {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />مهمة للفريق</button>}
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />وحدة جديدة</button>}
       </div>
       <div className="toolbar">
@@ -141,6 +144,7 @@ export function InventoryList() {
         )} />}
       {form && <UnitForm unit={form === "edit" ? unit.data : undefined} options={options} tabs={areaTabs} onClose={() => setForm(null)}
         onSaved={(id) => { setForm(null); setOpen(id); }} />}
+      {teamTask && <TeamTaskModal units={list} onClose={() => setTeamTask(false)} />}
       {me.can("inventory", "create") && <Fab onClick={() => setForm("new")} label="وحدة جديدة" />}
     </>
   );
