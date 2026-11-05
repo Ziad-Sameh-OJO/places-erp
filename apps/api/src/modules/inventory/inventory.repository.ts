@@ -177,6 +177,11 @@ export class InventoryRepository {
     return this.db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
+  /** Employee names by their user id (who uploaded a unit's photos, 2.22). */
+  namesByUser(userIds: string[]) {
+    return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
+  }
+
   userName(userId: string) {
     return this.db.employee.findUnique({ where: { userId }, select: { name: true } });
   }

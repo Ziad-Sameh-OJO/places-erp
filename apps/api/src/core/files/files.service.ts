@@ -108,11 +108,17 @@ export class FilesService implements OnModuleInit {
 
   /** A READY image as a data: URL, for a PDF (it never fetches anything). Null when it's gone or storage is down. */
   async dataUrl(id: string): Promise<string | null> {
+    const f = await this.bytes(id);
+    return f && `data:${f.mime};base64,${f.body.toString("base64")}`;
+  }
+
+  /** A READY file's bytes (a PDF's photos, a folder's ZIP). Null when it's gone or storage is down. */
+  async bytes(id: string): Promise<{ mime: string; body: Buffer } | null> {
     const file = await this.db.file.findUnique({ where: { id } });
     if (!file || file.status !== "READY") return null;
     try {
       const obj = await this.s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key }));
-      return `data:${file.mime};base64,${Buffer.from(await obj.Body!.transformToByteArray()).toString("base64")}`;
+      return { mime: file.mime, body: Buffer.from(await obj.Body!.transformToByteArray()) };
     } catch (e) {
       this.log.warn(`couldn't read ${id} (${(e as Error).name})`);
       return null;
@@ -128,7 +134,7 @@ export class FilesService implements OnModuleInit {
   }
 
   names(ids: string[]) {
-    return this.db.file.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, mime: true } });
+    return this.db.file.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, mime: true, uploadedById: true, createdAt: true } });
   }
 
   /** The generic endpoint only serves your own uploads (the preview right after uploading). */
