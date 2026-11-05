@@ -1,0 +1,60 @@
+import { z } from "zod";
+import { TASK_STATUSES, taskKind } from "@places/domain";
+import { CalendarDay, Id } from "./common.ts";
+
+/** M-04 · the board's filters: by kind and by assignee (4.2). */
+export const TaskFilters = z.object({
+  kind: z.string().max(20).optional(),
+  toUserId: Id.optional(),
+});
+export type TaskFilters = z.infer<typeof TaskFilters>;
+
+export const CreateTask = z.object({
+  kind: z.string().refine((k) => !!taskKind(k)?.createdWith, "نوع المهمة مش موجود"),
+  toUserId: Id,
+  dueOn: CalendarDay,
+  unitId: Id.optional(), // photo / Retouch / rent → resale: the unit; its data reaches the assignee with the task
+  title: z.string().trim().min(1).max(120).optional(), // a marketing task: its type from «أنواع تاسكات التسويق»
+  note: z.string().trim().max(1000, "الملاحظات طويلة · 1000 حرف بالكتير").optional(),
+});
+export type CreateTask = z.infer<typeof CreateTask>;
+
+/** Reassign or change the day (whoever manages the task). */
+export const EditTask = z.object({
+  toUserId: Id.optional(),
+  dueOn: CalendarDay.optional(),
+  note: z.string().trim().max(1000, "الملاحظات طويلة · 1000 حرف بالكتير").nullable().optional(),
+}).refine((e) => e.toUserId !== undefined || e.dueOn !== undefined || e.note !== undefined, "مفيش تعديل");
+export type EditTask = z.infer<typeof EditTask>;
+
+export const MoveTask = z.object({ status: z.enum(TASK_STATUSES) });
+export type MoveTask = z.infer<typeof MoveTask>;
+
+export interface TaskUnit { id: string; code: string; project: string; area: string; floor: string | null; building: string | null; ownerName: string | null; ownerPhone: string | null }
+
+export interface TaskRow {
+  id: string;
+  kind: string;
+  kindLabel: string;
+  title: string | null;
+  unit: TaskUnit | null;
+  /** null = the system */
+  by: { id: string; name: string } | null;
+  to: { id: string; name: string };
+  dueOn: string;
+  status: (typeof TASK_STATUSES)[number];
+  returned: number;
+  note: string | null;
+  doneAt: string | null;
+  createdAt: string;
+  late: boolean;
+  /** the stages the caller may move it to, and whether they may reassign it (the server checks again) */
+  can: { moves: (typeof TASK_STATUSES)[number][]; edit: boolean };
+}
+
+export interface TaskOptions {
+  /** the kinds the caller may give, each with the people it can go to */
+  kinds: Array<{ key: string; label: string; assignees: Array<{ id: string; name: string }> }>;
+  /** «أنواع تاسكات التسويق» (M-13), the active ones */
+  marketingTypes: string[];
+}

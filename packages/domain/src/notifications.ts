@@ -36,6 +36,8 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "procurement.decided", label: "طلب شراء اتوافق / اترفض / اترحّل", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },
   { key: "procurement.settled", label: "طلب شراء اتسوّى · مستني الصرف", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false },
   { key: "unit.new", label: "وحدة جديدة (Live Alert)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-03 7.1
+  { key: "task.new", label: "مهمة جديدة ليك", to: "المسؤول عن المهمة", toRoles: [], channels: ["app", "push"], important: false }, // M-04 2.1 step 4
+  { key: "task.changed", label: "مهمة اتغيّرت (حالة / Undo / تعديل)", to: "المسؤول عن المهمة · اللي إدّاها", toRoles: [], channels: ["app"], important: false }, // 4.1
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "finance.budget", label: "بند قرّب يخلص أو عدّى البادجت", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.2 / 9.9
   { key: "finance.bill_due", label: "ميعاد فاتورة ثابتة", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.16

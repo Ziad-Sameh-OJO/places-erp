@@ -28,3 +28,4 @@ export * from "./reports.ts";
 export * from "./targets.ts";
 export * from "./recommendations.ts";
 export * from "./my-day.ts";
+export * from "./tasks.ts";
