@@ -15,7 +15,8 @@ const GRADIENT: Record<string, string> = { Rent: "#0a1f8f, #2c5cff", Resale: "#3
 function value(u: UnitDetail, key: string): string {
   const d = u.details;
   switch (key) {
-    case "space": return `${num(u.space)} م`;
+    // the client's slide: «20 SQM Up TO 690 SQM» for a unit that splits (2.21)
+    case "space": return !u.space ? "—" : u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)} م` : `${num(u.space)} م`;
     case "parking": return num(u.parking);
     case "pricePerSqm": return money(u.pricePerSqm);
     case "total": return money(u.totalPrice);
@@ -23,8 +24,8 @@ function value(u: UnitDetail, key: string): string {
     case "annual": return money(u.income?.annualRent ?? null);
     case "yield": return u.income?.yieldPct != null ? `${num(u.income.yieldPct.toFixed(2))}%` : "—";
     case "escalationPct": return d.escalationPct != null ? `${num(String(d.escalationPct))}%` : "—";
-    case "delivery": case "contractDuration": case "endsOn": return esc(d[key] ?? "—");
-    default: return esc((u as unknown as Record<string, unknown>)[key] ?? "—");
+    case "delivery": case "contractDuration": case "endsOn": case "upfront": case "security": case "payment": case "term": case "grace": return esc(d[key] ?? "—");
+    default: return esc((u as unknown as Record<string, unknown>)[key] || "—");
   }
 }
 

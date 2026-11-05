@@ -928,3 +928,11 @@ table.kpi-items td:first-child { min-width: 220px; }
 details.bs-acct > summary { list-style: none; cursor: pointer; } details.bs-acct > summary::-webkit-details-marker { display: none; } details.bs-acct > summary::before { content: "▸"; margin-inline-end: 6px; color: var(--muted, #888); } details.bs-acct[open] > summary::before { content: "▾"; } .acct.sub { padding-inline-start: 22px; font-size: .95em; }
 .kids .add-sub { margin: 6px 0 4px; }
 table.je { width: 100%; border-collapse: collapse; } table.je td, table.je th { padding: 4px 6px; text-align: right; } table.je select { width: 100%; } .ok-t { color: var(--ok, #16794c); font-weight: 600; } .bad-t { color: var(--bad, #b42318); font-weight: 600; }
+
+/* 2.21 · the inventory sheet: every column on screen at 1280 like the client's Excel (compact cells that wrap, demo design-2) */
+.tbl-wrap.has-sheets table { font-size: 10.5px; table-layout: auto; }
+.tbl-wrap.has-sheets th, .tbl-wrap.has-sheets td { padding: 6px 3px; min-width: 0; white-space: normal; line-height: 1.3; }
+.tbl-wrap.has-sheets th { font-size: 9.5px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.tbl-wrap.has-sheets .chip { font-size: 9.5px; padding: 0 3px; white-space: normal; }
+.tbl-wrap.has-sheets .avatar { display: none; }
+.tbl-wrap.has-sheets .lnk svg, .tbl-wrap.has-sheets .chip svg { display: none; }
