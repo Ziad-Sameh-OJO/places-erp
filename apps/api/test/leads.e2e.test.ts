@@ -383,7 +383,13 @@ test("board: every stage once, each lane's total is the list's count for that st
     const b = (await call("/leads/board", { cookie })).body;
     assert.equal(b.lanes.length, 14); // «Follow up to Meeting» since 1.9
     for (const lane of b.lanes) {
-      const listTotal = (await call(`/leads?pageSize=1&stage=${encodeURIComponent(lane.stage)}`, { cookie })).body.total;
+      // other test files add and move leads in parallel: compare the board and the list read back to back, retrying a moving lane
+      let listTotal = -1;
+      for (let i = 0; i < 4; i++) {
+        listTotal = (await call(`/leads?pageSize=1&stage=${encodeURIComponent(lane.stage)}`, { cookie })).body.total;
+        if (listTotal === lane.total) break;
+        Object.assign(lane, (await call("/leads/board", { cookie })).body.lanes.find((l: { stage: string }) => l.stage === lane.stage));
+      }
       assert.equal(lane.total, listTotal, lane.stage);
       assert.ok(lane.items.length <= 30 && lane.items.length === Math.min(30, lane.total), lane.stage);
       assert.ok(lane.items.every((l: { stage: string }) => l.stage === lane.stage));
