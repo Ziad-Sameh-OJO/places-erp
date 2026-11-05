@@ -59,3 +59,17 @@ export function changes(before: Readonly<Record<string, unknown>>, after: Readon
   if (!keys.length) return null;
   return { before: Object.fromEntries(keys.map((k) => [k, before[k]])), after: Object.fromEntries(keys.map((k) => [k, after[k]])) };
 }
+
+/** T181… one sequence for the whole company (M-02 3.2: «كود تسلسلي، مثال T180»). */
+export const tcrCode = (n: number | bigint): string => `T${n}`;
+
+/**
+ * M-02 2.3 · 3.2: every salesperson on the deal signs each TCR, once (a later collection makes a new TCR they sign
+ * again). Returns what's wrong, or null when `me` may sign.
+ */
+export function signProblem(signatures: ReadonlyArray<{ employeeId: string; signedAt: Date | null }>, me: string | null): string | null {
+  const s = signatures.find((x) => x.employeeId === me);
+  if (!s) return "الـ TCR دي مش عليك";
+  if (s.signedAt) return "مضيت عليها قبل كده";
+  return null;
+}

@@ -91,6 +91,12 @@ export class DocumentsSetupService {
     });
   }
 
+  /** An entity's name and logo (inline) for a document's head, e.g. Places on the TCR (5.13). */
+  async letterhead(id: string) {
+    const e = await this.db.entity.findUnique({ where: { id }, select: { name: true, logoFileId: true } });
+    return { name: e?.name ?? "Places", logo: e?.logoFileId ? await this.files.dataUrl(e.logoFileId) : null };
+  }
+
   async entities() {
     return this.db.entity.findMany({ select: { id: true, name: true }, orderBy: { id: "asc" } });
   }
