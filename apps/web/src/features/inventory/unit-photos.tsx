@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StoredFile, UnitDetail, UnitPhotoView } from "@places/contracts";
 import { fillsUnitFolder } from "@places/domain";
@@ -16,12 +16,14 @@ const when = (iso: string) => new Date(iso).toLocaleString("ar-EG", { timeZone: 
  * opens it, a file full size or downloaded, or the whole folder as one ZIP; Manar, Randa and the inventory team add,
  * order and remove. The first photo is the main one (the card, the PDF's cover). The API decides; the buttons follow.
  */
-export function UnitFolder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area"> }) {
+export function UnitFolder({ u, label }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">; label?: ReactNode }) {
   const [open, setOpen] = useState(false);
-  return <>
-    <button className="btn ghost" onClick={() => setOpen(true)}><Icon name="folder" />فولدر الصور (Pic & Info)</button>
+  // inside a sheet row: opening (and using) the folder isn't a click on the row
+  return <span onClick={(e) => e.stopPropagation()}>
+    {label ? <button className="lnk" title="فولدر صور الوحدة" onClick={() => setOpen(true)}>{label}</button>
+      : <button className="btn ghost" onClick={() => setOpen(true)}><Icon name="folder" />فولدر الصور (Pic & Info)</button>}
     {open && <Modal title={`فولدر ${u.code} · Pic & Info`} onClose={() => setOpen(false)}><Folder u={u} /></Modal>}
-  </>;
+  </span>;
 }
 
 function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area"> }) {

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { UnitDetail, UnitRow } from "@places/contracts";
 import { Avatar, Chip, Icon } from "@/components/ui";
 import { amount, day, moneyExact, num } from "@/lib/format";
+import { UnitFolder } from "./unit-photos";
 
 export type UnitTypeName = UnitRow["type"];
 export const TYPE_TONE: Record<UnitTypeName, "info" | "acc" | "ok" | "warn"> = { Rent: "info", Resale: "acc", Income: "ok", Primary: "warn" };
@@ -68,7 +69,7 @@ export function cell(u: UnitRow, key: string): ReactNode {
     case "escalation": return d.escalationPct != null ? <span className="num">{d.escalationPct}%</span> : "—";
     case "serviceUsd": return d.serviceChargeUsd != null ? <span className="num">{amount(String(d.serviceChargeUsd))}</span> : "—";
     case "link": case "tenant": case "note": return text(d[key]);
-    case "photos": return u.photoCount ? <span className="lnk"><Icon name="image" />{num(u.photoCount)} صورة</span> : "—";
+    case "photos": return <UnitFolder u={u} label={<><Icon name="folder" />{u.photoCount ? `${num(u.photoCount)} ملف` : "فاضي"}</>} />; // 2.22: opens the folder
     case "ownerPhone": return u.ownerPhone ? <span className="mono">{u.ownerPhone}</span> : "—";
     case "closedAs": return closedSides(u).map((c) => <Chip key={c.type} tone="bad">{c.type} · {c.status === "sold" ? "Sold" : "Rented"}</Chip>);
     case "closedAt": return u.closings.length ? day(u.closings.at(-1)!.at) : "—";
