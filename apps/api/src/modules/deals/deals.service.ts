@@ -11,6 +11,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { LeadsService } from "../leads/leads.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { UnitsService } from "../inventory/units.service";
 import { LeadRulesService } from "../leads/lead-rules.service";
 import { LedgerService } from "../finance/ledger.service";
 import { VouchersService } from "../finance/vouchers.service";
@@ -46,6 +47,7 @@ export class DealsService {
     private readonly vouchers: VouchersService,
     private readonly letterhead: DocumentsSetupService,
     private readonly targets: TargetsService,
+    private readonly unitLocks: UnitsService,
   ) {}
 
   /** M-02 4.1: a salesperson sees the deals they are on, a TL their team's, the managers all of them. */
@@ -289,6 +291,7 @@ export class DealsService {
       const problem = cancelProblem(label(d.status), input.reason);
       if (problem) throw new BadRequestException(problem);
       await this.repo.update(tx, id, { status: "CANCELLED" });
+      await this.unitLocks.release(d.unit.id, id, { userId: me.id }, tx); // 2.9: the unit's side is open again; no lock → no-op
       const reversed = await this.ledger.reverse(me, "deal", id, `إلغاء ${d.code} · ${d.company}`, tx);
       // 5.8: the TL's month is worked out again without this deal (it's off the books now); the difference books back
       const payments = await this.repo.payments(tx, id);
