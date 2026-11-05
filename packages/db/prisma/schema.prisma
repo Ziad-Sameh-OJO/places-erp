@@ -3,14 +3,13 @@
 // every table has createdAt/updatedAt · nothing business-relevant is hard-deleted (archivedAt) · times are UTC.
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
+  provider = "prisma-client-js"
 }
 
+// the connection string lives in prisma.config.ts (Prisma 7)
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-  schemas  = ["access", "sales", "inventory", "marketing", "hr", "ops", "finance", "kpi", "system"]
+  schemas = ["access", "sales", "inventory", "marketing", "hr", "ops", "finance", "kpi", "system"]
 }
 
 // ───────────────────────────── M-09 · users, roles, permissions ─────────────────────────────
