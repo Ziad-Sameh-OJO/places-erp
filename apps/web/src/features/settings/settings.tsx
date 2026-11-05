@@ -11,13 +11,15 @@ import { Card, Chip, Icon, ImportDialog, Note, Table, Tabs, useAction } from "@/
 import { ListsTab } from "./lists";
 import { StampTab, TemplatesTab } from "./documents";
 
-/** M-13 · الإعدادات: lists, lead stages, time rules, official holidays. Everyone reads; «master: edit» changes. */
+/** M-13 · الإعدادات: lists, lead stages, time rules, official holidays. Everyone reads; each department's manager changes his own (M-13 4.1). */
 export function SettingsPage() {
   const qc = useQueryClient();
   const run = useAction();
-  const { can } = useMe();
-  const ed = can("master", "edit");
+  const { can, canSet } = useMe();
   const [tab, setTab] = useState<"lists" | "stages" | "time" | "holidays" | "tpl" | "brand">("lists");
+  // M-13 4.1: each card is its department's (the HR: leave types, holidays · the marketing: the WhatsApp limit)
+  const edLeave = canSet("leaveTypes"), edWa = canSet("whatsappDailyLimit"), edHol = canSet("holidays"), edTol = canSet("recommendTolerancePct");
+  const readOnly = tab === "time" ? !edLeave && !edWa && !edTol : tab === "holidays" ? !edHol : tab === "stages" || (tab === "tpl" && !can("master", "edit"));
   const [importing, setImporting] = useState(false);
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
   const holidays = useQuery({ queryKey: ["holidays"], queryFn: () => api.get<HolidayView[]>("/settings/holidays") });
@@ -31,7 +33,7 @@ export function SettingsPage() {
     <>
       <div className="row"><Tabs value={tab} onChange={setTab} items={[["lists", "القوايم"], ["stages", "مراحل الليد"], ["time", "المواعيد والقواعد"], ["holidays", "الإجازات الرسمية", holidays.data?.length], ["tpl", "قوالب المستندات"], ["brand", "الختم والإمضا"]]} /></div>
       {/* the lists have their own editors (#186): each card shows what this person may do */}
-      {!ed && tab !== "lists" && tab !== "brand" && <Note>عرض بس · التعديل لـ Super Admin أو مدير القسم.</Note>}
+      {readOnly && <Note>عرض بس · التعديل لـ Super Admin أو مدير القسم.</Note>}
 
       {tab === "lists" && <ListsTab settings={d} />}
       {tab === "tpl" && <TemplatesTab />}
@@ -45,21 +47,28 @@ export function SettingsPage() {
         <SlaSummary />
         <Card title="أنواع الإجازات" icon="calendar">
           <form action={(f) => set("leaveTypes", d.leaveTypes.map((x, i) => ({ ...x, days: +f.get(`d${i}`)! })))}>
-            <Table head={["النوع", "الرصيد السنوي"]} rows={d.leaveTypes.map((x, i) => [x.name, <input key="d" name={`d${i}`} type="number" min={0} max={60} defaultValue={x.days} disabled={!ed} style={{ maxWidth: 90 }} aria-label={`رصيد ${x.name}`} />])} />
-            {ed && <div className="row end"><button className="btn sm">احفظ</button></div>}
+            <Table head={["النوع", "الرصيد السنوي"]} rows={d.leaveTypes.map((x, i) => [x.name, <input key="d" name={`d${i}`} type="number" min={0} max={60} defaultValue={x.days} disabled={!edLeave} style={{ maxWidth: 90 }} aria-label={`رصيد ${x.name}`} />])} />
+            {edLeave && <div className="row end"><button className="btn sm">احفظ</button></div>}
           </form>
         </Card>
         <Card title="حد الواتساب اليومي" icon="megaphone">
           <form className="row" action={(f) => set("whatsappDailyLimit", +f.get("lim")!)}>
-            <input name="lim" type="number" min={0} defaultValue={d.whatsappDailyLimit} disabled={!ed} style={{ maxWidth: 120 }} aria-label="الحد اليومي" /><span className="hint">رسالة في اليوم</span>
-            {ed && <button className="btn ghost sm">احفظ</button>}
+            <input name="lim" type="number" min={0} defaultValue={d.whatsappDailyLimit} disabled={!edWa} style={{ maxWidth: 120 }} aria-label="الحد اليومي" /><span className="hint">رسالة في اليوم</span>
+            {edWa && <button className="btn ghost sm">احفظ</button>}
+          </form>
+        </Card>
+        {/* M-03 7.2: «قريبة من» is proposed as ±20% and waits for the client, so it's editable here (2.12) */}
+        <Card title="ترشيح الوحدات للعميل" icon="building" sub="الوحدات «القريبة من» مساحة الكلاينت والبادجت بتاعه · مقترح ±20% لحد ما الكلاينت يأكد">
+          <form className="row" action={(f) => set("recommendTolerancePct", +f.get("tol")!)}>
+            <span className="hint">±</span><input name="tol" type="number" min={0} max={100} defaultValue={d.recommendTolerancePct} disabled={!edTol} style={{ maxWidth: 90 }} aria-label="نسبة القرب" /><span className="hint">% من المساحة والبادجت</span>
+            {edTol && <button className="btn ghost sm">احفظ</button>}
           </form>
         </Card>
       </div>}
 
       {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="من يوم لـ يوم (زي العيد) · في أيامها الـ SLA بيمشي بمواعيد يوم الإجازة ومابتتحسبش في ساعات الشغل"
-        extra={ed && <button className="btn ghost sm" onClick={() => setImporting(true)}><Icon name="upload" />استيراد Excel</button>}>
-        <Holidays path="/settings/holidays" editable={ed} />
+        extra={edHol && <button className="btn ghost sm" onClick={() => setImporting(true)}><Icon name="upload" />استيراد Excel</button>}>
+        <Holidays path="/settings/holidays" editable={edHol} />
       </Card>}
       {importing && <ImportDialog<{ from: string; to: string; label: string }> title="استيراد الإجازات الرسمية" path="/settings/holidays/import" template="قالب الإجازات الرسمية.xlsx"
         columns={[["from", "من"], ["to", "لحد"], ["label", "الإجازة"]]} onClose={() => setImporting(false)}

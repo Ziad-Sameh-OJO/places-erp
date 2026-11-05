@@ -4,10 +4,11 @@ import type { RoutingView } from "@places/contracts";
 import { Avatar, Card, Chip, Empty, Note, Tick, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { num } from "@/lib/format";
+import { RotationCard } from "./rotation-card";
 
 /**
  * Demo «إعدادات توزيع المناطق» (1.12): areas × salespeople. A tick puts the salesperson in that area's rotation
- * (M-01 Q1); every tick saves at once and is audited. Today's order by fingerprint comes with 1.23.
+ * (M-01 Q1); every tick saves at once and is audited. Beside it, today's order by fingerprint (1.23).
  */
 export function RoutingTab({ editable }: { editable: boolean }) {
   const qc = useQueryClient();
@@ -23,6 +24,7 @@ export function RoutingTab({ editable }: { editable: boolean }) {
   return (
     <>
       {!editable && <Note>عرض بس · التعديل محتاج صلاحية «يعدّل» على إعدادات التوزيع</Note>}
+      <div className="cols wide">
       <Card title="إعدادات توزيع المناطق" icon="route" sub="لما حد يختار area في الليد، الليد بيروح دايركت للسيلز دول" extra={editable ? undefined : <Chip plain>عرض بس</Chip>}>
         {!areas.length || !salespeople.length ? <Empty text="مفيش مناطق أو سيلز لسه" /> : (
           <div className="tbl-wrap">
@@ -48,8 +50,10 @@ export function RoutingTab({ editable }: { editable: boolean }) {
             </table>
           </div>
         )}
-        <p className="hint">لو الـ area ليها أكتر من سيلز، الليدز بتتوزع بينهم بالدور، بالترتيب اللي اتعلّموا بيه.</p>
+        <p className="hint">لو الـ area ليها أكتر من سيلز، الليدز بتتوزع بينهم بترتيب الروتيشن النهارده. والسيلز اللي في إجازة معتمدة بيتشال من التوزيع لوحده.</p>
       </Card>
+      <div className="stack"><RotationCard editable={editable} /></div>
+      </div>
     </>
   );
 }

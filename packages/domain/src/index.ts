@@ -26,3 +26,4 @@ export * from "./procurement.ts";
 export * from "./claims.ts";
 export * from "./reports.ts";
 export * from "./targets.ts";
+export * from "./recommendations.ts";

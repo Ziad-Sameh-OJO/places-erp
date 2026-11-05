@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { LeaveAsk, LeaveBalance, LeaveBalancesView, LeaveCalendarView, LeaveStatusKey, LeaveView, MyLeaves } from "@places/contracts";
-import { afterReturn, daysWithin, leaveDays, leaveProblem, localDate } from "@places/domain";
+import { afterReturn, daysWithin, isOutsideRequest, leaveDays, leaveProblem, localDate, OUTSIDE_REQUESTS } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -56,7 +56,7 @@ export class LeavesService {
       this.db.leaveRequest.findMany({ where: { employeeId: e.id }, ...ROW, orderBy: { createdAt: "desc" }, take: 50 }),
       this.balances(e, localDate(new Date()).slice(0, 4)), this.types(),
     ]);
-    return { items: rows.map((r) => this.view(r, null)), balances, types: types.map((t) => ({ name: t.name, afterReturn: afterReturn(t.name) })) };
+    return { items: rows.map((r) => this.view(r, null)), balances, types: [...types, ...OUTSIDE_REQUESTS.map((name) => ({ name }))].map((t) => ({ name: t.name, afterReturn: afterReturn(t.name) })) };
   }
 
   async ask(me: CurrentUser, a: LeaveAsk, run: Run): Promise<LeaveView> {
@@ -64,9 +64,9 @@ export class LeavesService {
       const e = await tx.employee.findUnique({ where: { userId: me.id }, select: { id: true, name: true, leaveBalance: true, teamLeader: { select: { userId: true } } } });
       if (!e) throw new NotFoundException("مالكش فايل موظف");
       const types = await this.types(tx);
-      if (!types.some((t) => t.name === a.type)) throw new BadRequestException("نوع الإجازة مش موجود في الإعدادات");
+      if (!types.some((t) => t.name === a.type) && !isOutsideRequest(a.type)) throw new BadRequestException("نوع الإجازة مش موجود في الإعدادات");
       if (a.documentId && !(await tx.file.findFirst({ where: { id: a.documentId, uploadedById: me.id, entityId: null } }))) throw new BadRequestException("المستند مش موجود");
-      const bal = (await this.balances(e, a.from.slice(0, 4), tx)).find((b) => b.type === a.type)!;
+      const bal = (await this.balances(e, a.from.slice(0, 4), tx)).find((b) => b.type === a.type) ?? { left: 0 }; // «شغل من بره / عذر غياب» have no balance
       const problem = leaveProblem({ type: a.type, from: a.from, to: a.to, today: localDate(new Date()), left: bal.left, hasDocument: !!a.documentId });
       if (problem) throw new BadRequestException(problem);
       const overlap = await tx.leaveRequest.findFirst({ where: { employeeId: e.id, status: { in: ["PENDING_TL", ...COUNTED] }, fromDay: { lte: day(a.to) }, toDay: { gte: day(a.from) } } });
@@ -102,6 +102,8 @@ export class LeavesService {
       if (!turn) throw new ForbiddenException("الطلب ده مش مستنيك");
       const data: Prisma.LeaveRequestUpdateInput = turn === "tl" ? { status: "APPROVED_BY_TL", tlDecidedAt: new Date(), ...(r.tlUserId ? {} : { tlUserId: me.id }) } : { status: "CLOSED_BY_HR", hrUserId: me.id, closedAt: new Date() };
       const out = await tx.leaveRequest.update({ where: { id }, data, ...ROW });
+      // 7.3: outside work / an excused absence HR confirmed → those days without a deduction, even if the fingerprint says otherwise
+      if (turn === "hr" && isOutsideRequest(r.type)) await tx.attendanceDay.updateMany({ where: { employeeId: r.employeeId, day: { gte: r.fromDay, lte: r.toDay } }, data: { kind: "OUTSIDE_APPROVED", deduction: 0 } });
       await this.audit.record({ module: "hr", entity: "LeaveRequest", entityId: id, action: turn === "tl" ? "approve" : "close", userId: me.id, before: { status: r.status }, after: { status: out.status } }, tx);
       return out;
     });

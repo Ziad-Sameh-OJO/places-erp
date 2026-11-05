@@ -108,6 +108,15 @@ export class LeadsRepository {
     return this.db.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: LEAD_DETAIL });
   }
 
+  /** What the client wants and the narrowing answers (2.12), when the lead is in the caller's scope. */
+  clientNeed(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { type: true, space: true, condition: true, budget: true, area: true, answers: true } });
+  }
+
+  setAnswers(tx: Prisma.TransactionClient, id: string, answers: Prisma.InputJsonValue) {
+    return tx.lead.update({ where: { id }, data: { answers } });
+  }
+
   /** The id when the lead exists and is inside the caller's scope — the same rule as reading it. */
   findInScope(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
     return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { id: true, firstActionAt: true } });
@@ -145,7 +154,7 @@ export class LeadsRepository {
   }
 
   findVisit(tx: Prisma.TransactionClient, leadId: string, visitId: string) {
-    return tx.leadVisit.findFirst({ where: { id: visitId, leadId }, select: { id: true, kind: true, at: true, extra: true, outcome: true, units: { select: { unitId: true } } } });
+    return tx.leadVisit.findFirst({ where: { id: visitId, leadId }, select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, units: { select: { unitId: true } } } });
   }
 
   /** «تعديل الميعاد»: a new time means a new Alarm. */
@@ -245,7 +254,7 @@ const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
-  visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },
+  visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, postponeReason: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;
 export type LeadDetailRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_DETAIL }>;
 

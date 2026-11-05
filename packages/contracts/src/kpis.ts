@@ -92,7 +92,7 @@ export interface KpiCardView {
   /** null for whoever doesn't see money (11.14) */
   pay: { base: "salary" | "bonus"; period: "month" | "quarter"; amount: string | null; salary: string; delta: string } | null;
   items: KpiItemView[];
-  can: { manage: boolean; approve: boolean; plan: boolean; pay: boolean; admin: boolean };
+  can: { manage: boolean; approve: boolean; plan: boolean; pay: boolean; admin: boolean; sheet: boolean };
   /** for the editor's pickers, to whoever manages the card */
   options: { people: KpiPerson[]; roles: { key: string; label: string }[] } | null;
 }
@@ -103,6 +103,32 @@ export interface KpiCompany {
   people: KpiPerson[];
   /** null for the watcher (money) */
   bands: KpiBandsInput | null;
-  can: { edit: boolean; close: boolean };
+  can: { edit: boolean; close: boolean; sheets: boolean };
+  /** 11.7: when the Office Manager approved and emailed the current quarter's sheets */
+  sheets: { by: string; at: string } | null;
 }
 export interface KpiLogEntry { at: string; by: string; text: string }
+
+/** 11.13 · «نشاط جديد»: Farming / Approach, where and when. */
+export const ActivityInput = z.object({
+  kind: z.enum(["Farming", "Approach"], { errorMap: () => ({ message: "اختار النوع" }) }),
+  place: text(200, "اكتب المكان"),
+  at: z.string({ required_error: "اختار الميعاد" }).datetime({ offset: true, message: "اختار الميعاد" }),
+});
+export type ActivityInput = z.infer<typeof ActivityInput>;
+
+/** «عملتها؟»: done with what came of it (Farming: got + note · Approach: the companies), or «ماعملتهاش». */
+export const ActivityResultInput = z.object({
+  done: z.boolean(),
+  got: z.boolean().default(false),
+  note: z.string().trim().max(1000, "النوت طويلة").default(""),
+  companies: z.array(z.string().trim().min(1).max(160)).max(50, "شركات كتير").default([]),
+});
+export type ActivityResultInput = z.infer<typeof ActivityResultInput>;
+
+export interface ActivityView {
+  id: string; kind: "Farming" | "Approach"; place: string; at: string; status: "planned" | "done" | "notDone";
+  got: boolean | null; note: string | null; companies: string[];
+}
+/** «نشاطاتي»: shown to sales and to anyone whose card counts these activities. */
+export interface MyActivities { show: boolean; items: ActivityView[] }

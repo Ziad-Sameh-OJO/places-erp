@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allowedValue, asListValues, canChangeList, listActions, listChangeProblem } from "../src/lists.ts";
+import { allowedValue, asListValues, canChangeList, canEditSetting, defaultListEditors, listActions, listChangeProblem } from "../src/lists.ts";
 
 const on = (value: string) => ({ value, active: true });
 const off = (value: string) => ({ value, active: false });
@@ -56,4 +56,36 @@ test("who changes a list: its own roles / people once set, «master: edit» unti
   assert.equal(canChangeList(rule, "add", hr), false); // «master: edit» no longer enough once the list is set up
   assert.equal(canChangeList(rule, "off", hr), true); // by name
   assert.equal(canChangeList({ add: [], off: [] }, "add", hr), false);
+});
+
+test("each department's settings for its manager only, the money rules for the Super Admin only (M-13 1.2 · 2.2 · 4.1)", () => {
+  const admin = { roles: ["admin"], masterEdit: true, accessEdit: true };
+  const hr = { roles: ["hr"], masterEdit: true, accessEdit: false };
+  const marketing = { roles: ["marketing"], masterEdit: true, accessEdit: false };
+  const office = { roles: ["officemgr", "approver"], masterEdit: true, accessEdit: true };
+  const sales = { roles: ["sales"], masterEdit: false, accessEdit: false };
+  // the HR: leave types and holidays · the marketing: channels and the WhatsApp limit · not each other's
+  assert.equal(canEditSetting("leaveTypes", hr), true);
+  assert.equal(canEditSetting("holidays", hr), true);
+  assert.equal(canEditSetting("leaveTypes", marketing), false);
+  assert.equal(canEditSetting("whatsappDailyLimit", marketing), true);
+  assert.equal(canEditSetting("channels", marketing), true);
+  assert.equal(canEditSetting("whatsappDailyLimit", hr), false);
+  assert.equal(canEditSetting("leaveTypes", office), false); // «master: edit» alone isn't the HR
+  assert.equal(canEditSetting("leaveTypes", { roles: ["hr"], masterEdit: false, accessEdit: false }), false); // the role without the right
+  // the Super Admin: everything, and alone on the money rules and the areas
+  for (const key of ["leaveTypes", "channels", "areas", "procurementBigApprovers", "notificationsFrom", "vendors"]) assert.equal(canEditSetting(key, admin), true);
+  assert.equal(canEditSetting("procurementBigApprovers", office), false);
+  assert.equal(canEditSetting("areas", marketing), false);
+  // roles and editors: whoever manages access · a list without a department: «master: edit», as before
+  assert.equal(canEditSetting("listEditors", office), true);
+  assert.equal(canEditSetting("leadLogRoles", hr), false);
+  assert.equal(canEditSetting("vendors", office), true);
+  assert.equal(canEditSetting("vendors", sales), false);
+});
+
+test("«مين يعدّل» starts from the list's department, else from today's «master: edit» roles (#186 · M-13 1.2)", () => {
+  assert.deepEqual(defaultListEditors("channels", ["hr", "marketing", "officemgr"]), ["admin", "marketing"]);
+  assert.deepEqual(defaultListEditors("areas", ["hr", "marketing"]), ["admin"]);
+  assert.deepEqual(defaultListEditors("vendors", ["hr", "officemgr"]), ["hr", "officemgr"]);
 });

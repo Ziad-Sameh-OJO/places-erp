@@ -19,9 +19,12 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.no_answer", label: "No Answer كل 4 ساعات", to: "السيلز المسؤول", toRoles: [], channels: ["app", "push"], important: false },
   { key: "lead.visit_due", label: "Alarm ميعاد Visit / Meeting", to: "السيلز المسؤول", toRoles: [], channels: ["app", "push"], important: true }, // M-01 3.3 · 1.9
   { key: "lead.visit_not_done", label: "Visit / Meeting معملهاش", to: "الـ HR (من قواعد الليدز)", toRoles: [], channels: ["app", "email"], important: false }, // 1.9 · the lead rules' visit.notDone
+  { key: "lead.visit_postpone", label: "طلب تأجيل Visit / Meeting", to: "الـ Team Leader (من قواعد الليدز)", toRoles: [], channels: ["app", "push"], important: false }, // 1.24 · visit.postpone
+  { key: "lead.visit_postponed", label: "قرار تأجيل Visit / Meeting", to: "السيلز · الأوبريشن · الـ HR", toRoles: [], channels: ["app"], important: false }, // 1.24 · visit.postponeInfo
   { key: "lead.duplicate", label: "عميل مكرر", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 Q7
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
+  { key: "hr.forgot_fingerprint", label: "نسي البصمة", to: "الـ HR", toRoles: ["hr"], channels: ["app"], important: false }, // M-05 · 7.3
   { key: "hr.leave_request", label: "طلب إجازة", to: "الـ Team Leader ثم الـ HR", toRoles: [], channels: ["app", "push"], important: false }, // M-05 7.5
   { key: "hr.leave_decided", label: "رد على طلب إجازتك", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },
   { key: "hr.leave_escalated", label: "طلب إجازة متأخر الرد عليه (48 ساعة)", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "email"], important: true },
@@ -50,6 +53,11 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "report.handed", label: "حد سلّم تقرير", to: "مستلمين التقرير", toRoles: [], channels: ["app"], important: false }, // 11.10
   { key: "target.behind", label: "سيلز تحت معدل التارجت", to: "الـ Team Leader بتاعه", toRoles: [], channels: ["app"], important: false }, // 11.8
   { key: "target.change", label: "تغيير تارجت مستني موافقة", to: "الإدارة · الـ Office Manager", toRoles: ["admin", "officemgr"], channels: ["app"], important: false }, // 11.8
+  // 11.6 (M-12 2.1 · 2.3): mid-quarter items under target; the closed result's plan / warning; under 50% twice → HR
+  { key: "kpi.mid_quarter", label: "بنود تحت المستهدف في نص الربع", to: "الموظف والمتابع", toRoles: [], channels: ["app", "push"], important: true },
+  { key: "kpi.result", label: "نتيجة الربع: خطة تحسين أو إنذار", to: "الموظف والمتابع", toRoles: [], channels: ["app", "email"], important: true },
+  { key: "kpi.hr_review", label: "KPI تحت الـ Threshold ربعين ورا بعض", to: "الـ HR", toRoles: ["hr"], channels: ["app", "email"], important: true },
+  { key: "kpi.activity", label: "نتيجة Farming / Approach", to: "المتابع · الأوبريشن", toRoles: ["ops"], channels: ["app"], important: false }, // 11.13
   { key: "access.changed", label: "تغيير في حسابك أو صلاحياتك", to: "صاحب الحساب", toRoles: [], channels: ["app", "email"], important: true },
   // M-09 6.1: the Super Admin hears of any permission change and of any strange sign-in
   { key: "access.permissions", label: "تغيير في الصلاحيات", to: "Super Admin", toRoles: ["admin"], channels: ["app", "email"], important: true },

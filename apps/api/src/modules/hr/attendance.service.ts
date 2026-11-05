@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView } from "@places/contracts";
-import { attendanceDay, dayStart, deductionAmount, fingerprintDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers } from "@places/domain";
+import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView, IdealView } from "@places/contracts";
+import { attendanceDay, dayStart, dayStartTime, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, type MemberMonth } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -11,6 +11,7 @@ import type { ParsedSheet } from "../../core/http/import";
 import type { Tx } from "./hr.repository";
 import { LeavesService } from "./leaves.service";
 import { ExcusesService } from "./excuses.service";
+import { KpisService } from "../kpis/kpis.service";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const EMP = { id: true, name: true, department: true, salary: true, partTime: true, partTimeDeductions: true, deductionTiers: true, fixedSchedule: true } as const;
@@ -18,7 +19,7 @@ type Emp = Prisma.EmployeeGetPayload<{ select: typeof EMP }>;
 const asDay = (s: string) => new Date(`${s}T00:00:00Z`);
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 /** One approved line (7.9): what HR saw and approved, so payroll keeps reading it even if a day is corrected afterwards. */
-type DeductionLine = Omit<DeductionRowView, "net"> & { userId: string };
+type DeductionLine = Omit<DeductionRowView, "net" | "kpi"> & { userId: string; kpi?: string }; // kpi: lines approved before 11.6 have none
 /** «11:05» on a Cairo day → the instant. */
 const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5))) * 60_000);
 
@@ -29,7 +30,7 @@ const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Nu
  */
 @Injectable()
 export class AttendanceService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly notifications: NotificationsService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly notifications: NotificationsService, private readonly kpis: KpisService) {}
 
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
@@ -46,27 +47,93 @@ export class AttendanceService {
     return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
   }
 
-  private row(e: Emp, a: { day: Date; checkInAt: Date | null; checkOutAt: Date | null; lateMinutes: number; deduction: Prisma.Decimal; source: string; kind?: string }): AttendanceRowView {
+  private row(e: Emp, a: { id: string; day: Date; checkInAt: Date | null; checkOutAt: Date | null; visitAt: Date | null; lateMinutes: number; deduction: Prisma.Decimal; source: string; kind: string; hrConfirmed: boolean }): AttendanceRowView {
     const day = isoDay(a.day), checkIn = this.hhmm(a.checkInAt, day);
     const r = fingerprintDay({ checkIn, partTime: e.partTime, partTimeDeductions: e.partTimeDeductions, tiers: (e.deductionTiers as DeductionTiers | null) ?? null, specialSchedule: !!e.fixedSchedule });
     const ded = Number(a.deduction);
-    return { employeeId: e.id, name: e.name, department: e.department, day, checkIn, checkOut: this.hhmm(a.checkOutAt, day), lateMinutes: a.lateMinutes, deduction: ded,
-      deductionAmount: toDecimal(deductionAmount(fromDecimal(e.salary.toFixed(2)), ded)), label: a.kind === "EXCUSE" ? "Excuse" : r.label, source: a.source, customTiers: e.deductionTiers != null, fixedSchedule: e.fixedSchedule };
+    const label = a.kind === "EXCUSE" ? "Excuse" : a.kind === "OUTSIDE_APPROVED" ? "شغل من بره (معتمد)" : a.kind === "FORGOT" ? (a.hrConfirmed ? "نسي البصمة" : "نسي البصمة · مستني Confirmation")
+      : a.kind === "VISIT" ? (a.visitAt ? "Visit" : "Visit اتأجلت (معتمد)") : a.visitAt ? "Visit · معملهاش" : r.label;
+    return { id: a.id, employeeId: e.id, name: e.name, department: e.department, day, checkIn, checkOut: this.hhmm(a.checkOutAt, day), visitAt: this.hhmm(a.visitAt, day),
+      confirmForgot: a.kind === "FORGOT" && !a.hrConfirmed, lateMinutes: a.lateMinutes, deduction: ded,
+      deductionAmount: toDecimal(deductionAmount(fromDecimal(e.salary.toFixed(2)), ded)), label, source: a.source, customTiers: e.deductionTiers != null, fixedSchedule: e.fixedSchedule };
   }
 
-  /** Writes a day from a check-in (sheet, or HR filling a missing day); the same person and day is never duplicated. */
-  private async write(e: Emp, day: string, checkIn: string, checkOut: string | null, source: string, tx: Tx, overwrite: boolean) {
-    // a confirmed Excuse (7.4) replaces «متأخر» with its own cost; Weekly Delay keeps every minute
-    const excuse = await this.excuses.confirmedFor(e.id, day, tx);
-    const r = excuse ? attendanceDay({ kind: "excuse", minutesAfterStart: minutesAfterStart(checkIn), excuseNumberThisMonth: excuse }, (e.deductionTiers as DeductionTiers | null) ?? undefined)
-      : fingerprintDay({ checkIn, partTime: e.partTime, partTimeDeductions: e.partTimeDeductions, tiers: (e.deductionTiers as DeductionTiers | null) ?? null, specialSchedule: !!e.fixedSchedule });
-    const kind = excuse ? "EXCUSE" : e.fixedSchedule ? "SPECIAL_SCHEDULE" : "CHECKIN";
-    const data = { checkInAt: at(day, checkIn), checkOutAt: checkOut ? at(day, checkOut) : null, kind: kind as "CHECKIN", deduction: r.deduction, lateMinutes: r.lateMinutes, source };
+  /** 7.3 · each salesperson's Visits that day (the lead's owner). Meetings stay out until the client says they count (open question). */
+  private async visitsOn(ids: string[], day: string, tx: Tx | PrismaClient = this.db): Promise<Map<string, DayVisit[]>> {
+    const from = dayStart(day);
+    const rows = await tx.leadVisit.findMany({ where: { kind: "visit", at: { gte: from, lt: new Date(from.getTime() + 86_400_000) }, lead: { assignedToId: { in: ids } } },
+      select: { at: true, outcome: true, postponeStatus: true, lead: { select: { assignedToId: true } } } });
+    const out = new Map<string, DayVisit[]>();
+    for (const v of rows) out.set(v.lead.assignedToId!, [...(out.get(v.lead.assignedToId!) ?? []),
+      { at: this.hhmm(v.at, day)!, outcome: v.outcome === "done" || v.outcome === "not_done" ? v.outcome : null, postponed: v.postponeStatus === "approved" }]);
+    return out;
+  }
+
+  /**
+   * A day's kind and cost: outside work HR confirmed (no deduction even if the fingerprint says otherwise) → the day's Visit
+   * (7.3) → only a check-out = «نسي البصمة» (a day once HR confirms) → a confirmed Excuse (7.4) → the fingerprint. null = no start.
+   */
+  private async compute(e: Emp, day: string, checkIn: string | null, checkOut: string | null, forgotConfirmed: boolean, tx: Tx) {
+    const input = { checkIn, partTime: e.partTime, partTimeDeductions: e.partTimeDeductions, tiers: (e.deductionTiers as DeductionTiers | null) ?? null, specialSchedule: !!e.fixedSchedule };
+    const [outside, excuse, visits] = await Promise.all([
+      tx.leaveRequest.findFirst({ where: { employeeId: e.id, type: { in: [...OUTSIDE_REQUESTS] }, status: "CLOSED_BY_HR", fromDay: { lte: asDay(day) }, toDay: { gte: asDay(day) } }, select: { id: true } }),
+      checkIn ? this.excuses.confirmedFor(e.id, day, tx) : null, this.visitsOn([e.id], day, tx),
+    ]);
+    const visit = pickDayVisit(visits.get(e.id) ?? []), byVisit = visit && visitDay(input, visit);
+    let kind: NonNullable<Prisma.AttendanceDayCreateInput["kind"]>, r: { deduction: number; lateMinutes: number }, visitAt: Date | null = null;
+    if (outside) [kind, r] = ["OUTSIDE_APPROVED", attendanceDay({ kind: "outside-approved" })];
+    else if (visit && byVisit) {
+      [kind, r] = [visit.outcome === "not_done" ? "CHECKIN" : "VISIT", byVisit];
+      if (!visit.postponed) visitAt = at(day, visit.at);
+    } else if (!checkIn) {
+      if (!checkOut) return null;
+      [kind, r] = ["FORGOT", attendanceDay({ kind: "forgot-fingerprint", confirmedByHr: forgotConfirmed })];
+    } else if (excuse) [kind, r] = ["EXCUSE", attendanceDay({ kind: "excuse", minutesAfterStart: minutesAfterStart(checkIn), excuseNumberThisMonth: excuse }, input.tiers ?? undefined)];
+    else [kind, r] = [e.fixedSchedule ? "SPECIAL_SCHEDULE" : "CHECKIN", fingerprintDay(input)];
+    return { checkInAt: checkIn ? at(day, checkIn) : null, checkOutAt: checkOut ? at(day, checkOut) : null, visitAt, kind, deduction: r.deduction, lateMinutes: r.lateMinutes, hrConfirmed: kind === "FORGOT" && forgotConfirmed };
+  }
+
+  /** Writes a day (sheet, HR, or a Visit marked); the same person and day is never duplicated. A day without a check-in yet is completed by the sheet. */
+  private async write(e: Emp, day: string, checkIn: string | null, checkOut: string | null, source: string, tx: Tx, overwrite: boolean) {
     const key = { employeeId_day: { employeeId: e.id, day: asDay(day) } };
     const had = await tx.attendanceDay.findUnique({ where: key });
-    if (had && !overwrite) return { created: false, before: had };
-    await tx.attendanceDay.upsert({ where: key, create: { employeeId: e.id, day: asDay(day), ...data }, update: data });
-    return { created: !had, before: had };
+    if (had?.checkInAt && !overwrite) return { created: false, before: had };
+    const data = await this.compute(e, day, checkIn ?? this.hhmm(had?.checkInAt ?? null, day), checkOut ?? this.hhmm(had?.checkOutAt ?? null, day), !!had?.hrConfirmed, tx);
+    if (!data) {
+      if (had) await tx.attendanceDay.delete({ where: key }); // a Visit marked «معملتهاش» with no fingerprint: no start
+      return { created: false, before: had };
+    }
+    await tx.attendanceDay.upsert({ where: key, create: { employeeId: e.id, day: asDay(day), source, ...data }, update: { ...data, ...(checkIn ? { source } : {}) } });
+    return { created: !had || (!had.checkInAt && !!checkIn), before: had };
+  }
+
+  /** 7.3 · a Visit marked or a postponement decided (leads): that day is read again, if it has come. */
+  async refreshDay(employeeId: string, visitAt: Date, tx: Tx) {
+    const day = localDate(visitAt);
+    if (day > localDate(new Date())) return;
+    const e = await tx.employee.findUnique({ where: { id: employeeId }, select: EMP });
+    if (e) await this.write(e, day, null, null, "visit", tx, true);
+  }
+
+  /** «Confirm خصم يوم» (7.3): HR confirms «نسي البصمة»; only then the day is deducted. */
+  async confirmForgot(me: CurrentUser, id: string, run: Run): Promise<AttendanceRowView> {
+    return run(async (tx) => {
+      const a = await tx.attendanceDay.findFirst({ where: { id, kind: "FORGOT", hrConfirmed: false, employee: this.scope(me) }, include: { employee: { select: EMP } } });
+      if (!a) throw new NotFoundException("مفيش «نسي البصمة» مستني تأكيد هنا");
+      const r = attendanceDay({ kind: "forgot-fingerprint", confirmedByHr: true });
+      const out = await tx.attendanceDay.update({ where: { id }, data: { hrConfirmed: true, deduction: r.deduction } });
+      await this.audit.record({ module: "hr", entity: "AttendanceDay", entityId: id, action: "confirm-forgot", userId: me.id, before: { deduction: Number(a.deduction) }, after: { day: isoDay(a.day), deduction: r.deduction } }, tx);
+      return this.row(a.employee, out);
+    });
+  }
+
+  /** 1.23 · when each of these people started the day: the fingerprint, or the Visit time (7.3); the Visit itself for the card. */
+  async dayStarts(ids: string[], day: string, tx: Tx | PrismaClient = this.db): Promise<Map<string, { start: string | null; visit: string | null }>> {
+    const [rows, visits] = await Promise.all([tx.attendanceDay.findMany({ where: { employeeId: { in: ids }, day: asDay(day) }, select: { employeeId: true, checkInAt: true } }), this.visitsOn(ids, day, tx)]);
+    return new Map(ids.map((id) => {
+      const v = pickDayVisit(visits.get(id) ?? []), counted = v && v.outcome !== "not_done" ? v : null;
+      return [id, { start: dayStartTime(this.hhmm(rows.find((r) => r.employeeId === id)?.checkInAt ?? null, day), counted), visit: counted?.at ?? null }];
+    }));
   }
 
   async day(me: CurrentUser, day = localDate(new Date())): Promise<AttendanceDayView> {
@@ -116,19 +183,23 @@ export class AttendanceService {
     return { days, people };
   }
 
-  /** 7.9 · this month's live lines for everyone payroll pays: attendance days (Excuses already in them) + approved penalties. */
+  /**
+   * 7.9 · this month's live lines for everyone payroll pays: attendance days (Excuses already in them) + approved penalties,
+   * and (11.6) the KPI reward or deduction of a quarter closed this month.
+   */
   private async liveDeductions(month: string, tx: Tx | PrismaClient = this.db): Promise<DeductionLine[]> {
     const within = { gte: asDay(`${month}-01`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) };
-    const [emps, days, pens] = await Promise.all([
+    const [emps, days, pens, kpis] = await Promise.all([
       tx.employee.findMany({ where: { user: { status: "ACTIVE" }, salary: { gt: 0 } }, select: { id: true, userId: true, name: true, salary: true }, orderBy: { name: "asc" } }),
       tx.attendanceDay.groupBy({ by: ["employeeId"], where: { day: within }, _sum: { deduction: true, lateMinutes: true } }),
       tx.penalty.groupBy({ by: ["employeeId"], where: { day: within, status: "approved" }, _sum: { deductionDays: true } }),
+      this.kpis.payrollAmounts(month, tx),
     ]);
     return emps.map((e) => {
       const a = days.find((x) => x.employeeId === e.id)?._sum, p = pens.find((x) => x.employeeId === e.id)?._sum;
-      const salary = fromDecimal(e.salary.toFixed(2)), attendanceDays = Number(a?.deduction ?? 0), penaltyDays = Number(p?.deductionDays ?? 0);
-      return { employeeId: e.id, userId: e.userId, name: e.name, salary: toDecimal(salary), attendanceDays, penaltyDays, lateMinutes: a?.lateMinutes ?? 0,
-        amount: toDecimal(monthDeduction({ salary, attendanceDays, penaltyDays }).amount) };
+      const salary = fromDecimal(e.salary.toFixed(2)), attendanceDays = Number(a?.deduction ?? 0), penaltyDays = Number(p?.deductionDays ?? 0), kpi = kpis.get(e.id) ?? 0;
+      return { employeeId: e.id, userId: e.userId, name: e.name, salary: toDecimal(salary), attendanceDays, penaltyDays, lateMinutes: a?.lateMinutes ?? 0, kpi: toDecimal(kpi),
+        amount: toDecimal(monthDeduction({ salary, attendanceDays, penaltyDays, kpi }).amount) };
     });
   }
 
@@ -138,10 +209,52 @@ export class AttendanceService {
     const ids = new Set(mine.map((e) => e.id));
     const lines = (ok ? (ok.lines as DeductionLine[]) : await this.liveDeductions(month)).filter((l) => ids.has(l.employeeId));
     const by = ok ? await this.db.employee.findUnique({ where: { userId: ok.approvedById }, select: { name: true } }) : null;
-    const rows = lines.map((l) => ({ employeeId: l.employeeId, name: l.name, salary: l.salary, attendanceDays: l.attendanceDays, penaltyDays: l.penaltyDays, lateMinutes: l.lateMinutes, amount: l.amount,
+    const rows = lines.map((l) => ({ employeeId: l.employeeId, name: l.name, salary: l.salary, attendanceDays: l.attendanceDays, penaltyDays: l.penaltyDays, lateMinutes: l.lateMinutes, kpi: l.kpi ?? "0.00", amount: l.amount,
       net: toDecimal(fromDecimal(l.salary) - fromDecimal(l.amount)) }));
     const sum = (k: "salary" | "amount" | "net") => toDecimal(rows.reduce((s, r) => s + fromDecimal(r[k]), 0));
     return { month, rows, totals: { salary: sum("salary"), amount: sum("amount"), net: sum("net"), people: rows.length }, approved: ok ? { by: by?.name ?? "", at: ok.at.toISOString() } : null };
+  }
+
+  /**
+   * 7.11 · «الموظف المثالي وصندوق الفريق» (M-05, client sheet 28/10): a team = a Team Leader's sales team or the people a
+   * manager follows in the KPIs; idealEmployee() picks the winner and the fund. Only the people in my scope.
+   */
+  async ideal(me: CurrentUser, month = monthOf(localDate(new Date()))): Promise<IdealView> {
+    const within = { gte: asDay(`${month}-01`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) };
+    const [emps, names, cards, days, pens] = await Promise.all([
+      this.db.employee.findMany({ where: { AND: [this.scope(me), { user: { status: "ACTIVE" } }] }, select: { id: true, name: true, salary: true, teamLeaderId: true } }),
+      this.db.employee.findMany({ select: { id: true, name: true } }),
+      this.kpis.liveCards(),
+      this.db.attendanceDay.findMany({ where: { day: within }, select: { employeeId: true, day: true, checkInAt: true, kind: true, lateMinutes: true, deduction: true } }),
+      this.db.penalty.findMany({ where: { day: within, status: "approved" }, select: { employeeId: true } }),
+    ]);
+    const byId = new Map(emps.map((e) => [e.id, e])), nameOf = new Map(names.map((e) => [e.id, e.name])), score = new Map(cards.map((c) => [c.employeeId, c.score]));
+    const teams = new Map<string, Set<string>>();
+    const add = (lead: string | null, id: string) => { if (lead && byId.has(id)) { if (!teams.has(lead)) teams.set(lead, new Set()); teams.get(lead)!.add(id); } };
+    for (const e of emps) add(e.teamLeaderId, e.id);
+    for (const c of cards) add(c.followerId, c.employeeId);
+    const member = (id: string): MemberMonth => {
+      const mine = days.filter((d) => d.employeeId === id);
+      return {
+        id, earlyDays: mine.filter((d) => d.checkInAt && d.checkInAt < at(isoDay(d.day), "11:00")).length, // before the start of work
+        lateHours: mine.reduce((s, d) => s + d.lateMinutes, 0) / 60, absentDays: mine.filter((d) => d.kind === "ABSENT").length,
+        deductions: deductionAmount(fromDecimal(byId.get(id)!.salary.toFixed(2)), mine.reduce((s, d) => s + Number(d.deduction), 0)),
+        // shortcut: no achieved-target figure per person yet (deals 5.x), so a tie falls to the KPI score
+        kpiScore: score.get(id) ?? null, targetPercent: 0, hasPenalty: pens.some((p) => p.employeeId === id),
+      };
+    };
+    const out = [...teams].filter(([, ids]) => ids.size > 1).map(([lead, ids]) => {
+      const team = [...ids].map(member), r = idealEmployee(team);
+      return {
+        name: `فريق ${nameOf.get(lead) ?? ""}`, winner: r.winner ? { employeeId: r.winner, name: byId.get(r.winner)!.name } : null, fund: toDecimal(r.fund),
+        rows: team.map((m) => ({
+          employeeId: m.id, name: byId.get(m.id)!.name, earlyDays: m.earlyDays, lateHours: Math.round(m.lateHours * 10) / 10, absentDays: m.absentDays,
+          kpi: m.kpiScore == null ? null : Math.round(m.kpiScore), points: Math.round(r.points.get(m.id)! * 10) / 10,
+          status: m.id === r.winner ? "ideal" as const : m.hasPenalty ? "penalty" as const : m.kpiScore != null && m.kpiScore < MIN_KPI_FOR_IDEAL ? "kpi" as const : null,
+        })).sort((a, b) => b.points - a.points),
+      };
+    });
+    return { month, teams: out.sort((a, b) => a.name.localeCompare(b.name, "ar")) };
   }
 
   /** «اعتمد الخصومات وابعتها للمالية» (7.9, M-05 (32)): once a month, by HR; payroll reads these numbers from then on. */
@@ -170,26 +283,30 @@ export class AttendanceService {
   async importSheet(me: CurrentUser, sheet: ParsedSheet<FingerprintRow>, run: Run): Promise<FingerprintDone> {
     if (sheet.errors.length) throw new BadRequestException(`الشيت فيه ${sheet.errors.length} خطأ · صلّحهم وارفعه تاني`);
     if (!sheet.rows.length) throw new BadRequestException("الشيت مفيهوش صفوف");
-    return run(async (tx) => {
+    const out = await run(async (tx) => {
       const [emps, aliases] = await Promise.all([tx.employee.findMany({ where: { user: { status: "ACTIVE" } }, select: EMP }), tx.fingerprintAlias.findMany()]);
       const byName = new Map(emps.map((e) => [normName(e.name), e]));
       const byId = new Map(emps.map((e) => [e.id, e]));
       for (const a of aliases) { const e = byId.get(a.employeeId); if (e) byName.set(a.name, e); }
       let imported = 0, skipped = 0, unmatched = 0;
+      const forgot: string[] = [];
       for (const { data: r } of sheet.rows) {
         const checkIn = normTime(r.checkIn), checkOut = normTime(r.checkOut);
-        if (!checkIn) { skipped++; continue; }
+        if (!checkIn && !checkOut) { skipped++; continue; }
         const e = byName.get(normName(r.name));
         if (!e) {
           await tx.fingerprintUnmatched.upsert({ where: { name_day: { name: r.name.trim(), day: asDay(r.day) } }, create: { name: r.name.trim(), day: asDay(r.day), checkIn, checkOut, uploadedById: me.id }, update: { checkIn, checkOut } });
           unmatched++; continue;
         }
-        if ((await this.write(e, r.day, checkIn, checkOut, "sheet", tx, false)).created) imported++;
+        if ((await this.write(e, r.day, checkIn, checkOut, "sheet", tx, false)).created) { imported++; if (!checkIn) forgot.push(e.name); }
         else skipped++;
       }
       await this.audit.record({ module: "hr", entity: "AttendanceDay", entityId: "sheet", action: "import", userId: me.id, after: { rows: sheet.rows.length, imported, skipped, unmatched } }, tx);
-      return { imported, skipped, unmatched };
+      return { done: { imported, skipped, unmatched }, forgot };
     });
+    // 7.3 «نسي البصمة» → HR is told; the day is deducted only once she confirms
+    if (out.forgot.length) await this.notifications.notify({ event: "hr.forgot_fingerprint", link: "/hr", text: `نسي البصمة (${out.forgot.length}): ${out.forgot.join("، ")} · مستني Confirmation` });
+    return out.done;
   }
 
   /** HR links a sheet name to an employee: that day is written, and the name matches by itself next time. */
@@ -202,7 +319,7 @@ export class AttendanceService {
       await tx.fingerprintAlias.upsert({ where: { name: normName(u.name) }, create: { name: normName(u.name), employeeId }, update: { employeeId } });
       // every waiting row with the same name goes to that person
       const same = (await tx.fingerprintUnmatched.findMany()).filter((x) => normName(x.name) === normName(u.name));
-      for (const x of same) if (x.checkIn) await this.write(e, isoDay(x.day), x.checkIn, x.checkOut, "sheet", tx, false);
+      for (const x of same) if (x.checkIn || x.checkOut) await this.write(e, isoDay(x.day), x.checkIn, x.checkOut, "sheet", tx, false);
       await tx.fingerprintUnmatched.deleteMany({ where: { id: { in: same.map((x) => x.id) } } });
       await this.audit.record({ module: "hr", entity: "FingerprintAlias", entityId: normName(u.name), action: "link", userId: me.id, after: { name: u.name, employeeId, days: same.length } }, tx);
       return { linked: same.length };

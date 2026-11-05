@@ -5,11 +5,13 @@ import { Avatar, Card, Chip, Empty, Icon, Note, Tabs, Table, onFormSubmit, useAc
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { dayTime, money } from "@/lib/format";
+import { useMe } from "@/lib/me";
 import { DailyBoard } from "@/features/reports/daily";
+import { IdealEmployee } from "../hr/ideal";
 import { KpiCardBody, KpiDrawer } from "./kpi-drawer";
 import { type Scope, useBoard, useCompany, useKpiLog, useRefreshKpis } from "./use-kpis";
 
-type Tab = Scope | "log" | "daily";
+type Tab = Scope | "log" | "daily" | "ideal";
 const barTone = (t: string) => (t === "ok" ? "" : t);
 export const Bar = ({ pct, tone }: { pct: number; tone: string }) => <div className={`bar ${barTone(tone)}`}><i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} /></div>;
 export const moneyChip = (v: string | null) => (v && Number(v) ? <Chip tone={Number(v) > 0 ? "ok" : "bad"} plain>{Number(v) > 0 ? "+" : "−"}{money(v.replace("-", ""))}</Chip> : null);
@@ -17,6 +19,7 @@ export const moneyChip = (v: string | null) => (v && Number(v) ? <Chip tone={Num
 /** M-12 · مؤشرات الأداء (demo kpis.js): كارتي · فريقي · كل الشركة · التقارير والتغييرات. */
 export function KpisPage() {
   const me = useBoard("me"), team = useBoard("team");
+  const { can } = useMe();
   const all = !!me.data?.seesAll;
   const mine = me.data?.cards[0];
   const tabs: [Tab, string, number?][] = [
@@ -25,6 +28,8 @@ export function KpisPage() {
     ...(all ? [["all", "كل الشركة"] as [Tab, string]] : []),
     ...(all || team.data?.cards.length ? [["daily", "التقارير اليومية"] as [Tab, string]] : []),
     ...(all ? [["log", "التقارير والتغييرات"] as [Tab, string]] : []),
+    // 7.11: not for the KPI watcher (money); the list itself is the HR one, so it needs «hr: view»
+    ...(me.data?.seesMoney && can("hr", "view") ? [["ideal", "الموظف المثالي"] as [Tab, string]] : []),
   ];
   const [pick, setPick] = useState<Tab | null>(null);
   const tab = tabs.find((t) => t[0] === pick)?.[0] ?? tabs[0]?.[0];
@@ -33,7 +38,7 @@ export function KpisPage() {
   return (
     <>
       <div className="row"><Tabs<Tab> items={tabs} value={tab} onChange={setPick} /></div>
-      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : <Log />}
+      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : tab === "ideal" ? <IdealEmployee /> : <Log />}
     </>
   );
 }
@@ -113,12 +118,16 @@ function Quarters({ c }: { c: KpiCompany }) {
   const cur = c.quarters[0];
   const start = () => { if (confirm("تبدأ الربع الجديد؟ نتايج الربع ده هتتحفظ، وكل كارت هيبدأ بنفس البنود والأوزان من غير أرقام.")) void run(async () => { await api.post("/kpis/quarter/next"); await refresh(); }, "الربع الجديد بدأ · عدّلوا البنود براحتكم"); };
   const close = () => { if (confirm("تقفل الربع؟ نتيجة كل كارت وفلوسه هتتحفظ ومفيش تعديل بعدها.")) void run(async () => { await api.post("/kpis/quarter/close"); await refresh(); }, "الربع اتقفل"); };
+  const sheets = () => { if (confirm("توافقي على ورق الربع؟ كل موظف هتوصله ورقته PDF على إيميله.")) void run(async () => { await api.post("/kpis/quarter/sheets"); await refresh(); }, "الورق اتبعت على الإيميل"); };
   return (
     <Card title="الأرباع" icon="calendar" sub="كل ربع بيبدأ بنسخة من كروت الربع اللي قبله، وبعدها تعدّلوا البنود براحتكم"
       extra={cur && <Chip tone={cur.status === "open" ? "ok" : "warn"}>{cur.label} · {cur.status === "open" ? "شغال" : "اتقفل"}</Chip>}>
       <Table head={["الربع", "عدد الكروت", "متوسط النتيجة"]} rows={c.quarters.map((x) => [<b key="q">{x.label}</b>, x.cards, x.avg == null ? "—" : `${x.avg}%`])} />
+      {c.sheets && <Note kind="ok">ورق الربع (PDF) اتوافق عليه من {c.sheets.by} واتبعت لكل موظف على إيميله.</Note>}
+      {c.can.sheets && <Note kind="warn">الربع اتقفل · راجعي ورقة أي موظف من الكارت بتاعه، وبعد موافقتك كل واحد بتوصله ورقته على الإيميل.</Note>}
       <div className="row end">
         {c.can.close && <button className="btn" onClick={close}><Icon name="send" />اقفل الربع</button>}
+        {c.can.sheets && <button className="btn" onClick={sheets}><Icon name="check" />وافق على ورق الربع وابعته</button>}
         {cur && <button className="btn ghost" onClick={start}><Icon name="plus" />ابدأ ربع جديد</button>}
       </div>
     </Card>

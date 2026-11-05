@@ -130,7 +130,7 @@
           "module": "M-01",
           "direction": "at-least",
           "goal": 70,
-          "metric": null
+          "metric": "big500"
         },
         {
           "title": "أورينتيشن لفريق المبيعات",

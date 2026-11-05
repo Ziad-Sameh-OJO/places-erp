@@ -13,7 +13,7 @@ const CH: [Channel, string][] = [["app", "جوه السيستم"], ["push", "Pus
 export function NotificationRules() {
   const qc = useQueryClient();
   const run = useAction();
-  const { can } = useMe();
+  const { can, canSet } = useMe();
   const ed = can("integrations", "edit");
   const rules = useQuery({ queryKey: ["notif-rules"], queryFn: () => api.get<Rule[]>("/notifications/rules") });
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
@@ -26,8 +26,8 @@ export function NotificationRules() {
       <div className="cols">
         <Card title="إيميل الإرسال" icon="send" sub="الإيميل اللي كل الإشعارات بتطلع منه">
           {s.data && <form className="form" action={(f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, "اتحفظ")}>
-            <Field label="من"><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!can("master", "edit")} /></Field>
-            {can("master", "edit") && <div className="row end"><button className="btn ghost sm">احفظ</button></div>}
+            <Field label="من"><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!canSet("notificationsFrom")} /></Field>
+            {canSet("notificationsFrom") && <div className="row end"><button className="btn ghost sm">احفظ</button></div>}
           </form>}
         </Card>
         <Card title="تفضيلاتي" icon="bell" sub="من صفحة «حسابي»">

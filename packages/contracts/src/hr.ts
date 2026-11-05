@@ -32,7 +32,9 @@ export type EmployeePatch = z.infer<typeof EmployeePatch>;
 
 /* ---- 7.2 · 7.10 · 7.12 · attendance ---- */
 export interface AttendanceRowView {
-  employeeId: string; name: string; department: string; day: string; checkIn: string | null; checkOut: string | null;
+  id: string; employeeId: string; name: string; department: string; day: string; checkIn: string | null; checkOut: string | null;
+  /** 7.3: the Visit that started the day (HR sees it and the real fingerprint); `confirmForgot` = «نسي البصمة» waiting for HR */
+  visitAt: string | null; confirmForgot: boolean;
   lateMinutes: number; deduction: number; deductionAmount: string; label: string; source: string; customTiers: boolean; fixedSchedule: string | null;
 }
 /** «حضور النهارده»: the day's rows, who didn't check in (a working day only), the unmatched names waiting for HR. */
@@ -54,7 +56,7 @@ const Hhmm = z.string().trim().regex(/^\d{1,2}[:.]?\d{2}(:\d{2})?$/, "الوقت
 export const FingerprintRow = z.object({
   name: z.string().trim().min(2, "الاسم ناقص").max(120),
   day: CalendarDay,
-  checkIn: Hhmm,
+  checkIn: Hhmm.optional(), // only a check-out = «نسي البصمة» (7.3)
   checkOut: Hhmm.optional(),
 });
 export type FingerprintRow = z.infer<typeof FingerprintRow>;
@@ -88,11 +90,16 @@ export interface LeaveBalancesView { month: string; types: string[]; rows: { emp
 export const MonthQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/, "الشهر بالشكل 2026-11").optional() });
 
 /* ---- 7.9 · «التوفير»: the month's deductions HR approves for payroll ---- */
-export interface DeductionRowView { employeeId: string; name: string; salary: string; attendanceDays: number; penaltyDays: number; lateMinutes: number; amount: string; net: string }
+export interface DeductionRowView { employeeId: string; name: string; salary: string; attendanceDays: number; penaltyDays: number; lateMinutes: number; /** 11.6: a closed quarter's KPI reward (+) or deduction (−), already inside `amount` */ kpi: string; amount: string; net: string }
 export interface DeductionsView {
   month: string; rows: DeductionRowView[]; totals: { salary: string; amount: string; net: string; people: number };
   approved: { by: string; at: string } | null;
 }
+
+/* ---- 7.11 · the ideal employee and the team fund (M-05, client sheet 28/10) ---- */
+export interface IdealRowView { employeeId: string; name: string; earlyDays: number; lateHours: number; absentDays: number; kpi: number | null; points: number; status: "ideal" | "penalty" | "kpi" | null }
+export interface IdealTeamView { name: string; winner: { employeeId: string; name: string } | null; fund: string; rows: IdealRowView[] }
+export interface IdealView { month: string; teams: IdealTeamView[] }
 
 /* ---- 7.7 · penalties · 7.8 · the 1-to-1 ---- */
 export const NewPenalty = z.object({

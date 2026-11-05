@@ -8,10 +8,15 @@ export const leaveDays = (from: string, to: string): number => Math.round((Date.
 /** Sick and emergency leave are recorded after coming back, with a document (0.9). */
 export const afterReturn = (type: string): boolean => /مرض|طوارئ|عارض/.test(type);
 
+/** «شغل من بره / عذر غياب» (M-05, 7.3): the Head approves, then HR confirms; no balance, asked before or after the day. */
+export const OUTSIDE_REQUESTS = ["شغل من بره", "عذر غياب"] as const;
+export const isOutsideRequest = (type: string): boolean => (OUTSIDE_REQUESTS as readonly string[]).includes(type);
+
 export interface LeaveAsk { type: string; from: string; to: string; today: string; left: number; hasDocument: boolean }
 /** Why the request can't be sent, or null. */
 export function leaveProblem(a: LeaveAsk): string | null {
   if (a.from > a.to) return "«من» لازم تبقى قبل «لحد»";
+  if (isOutsideRequest(a.type)) return null;
   if (afterReturn(a.type)) {
     if (!a.hasDocument) return `الإجازة ${a.type} بتتسجّل بمستند`;
   } else if (a.from < a.today) return "الطلب بيتعمل قبل الإجازة";

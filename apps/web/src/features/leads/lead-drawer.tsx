@@ -13,17 +13,19 @@ import { StageChip, Who, slaText, slaTone } from "./lead-bits";
 import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
 import { useLeadOptions } from "./use-leads";
 import { Visits } from "./visits";
+import { RecommendedUnits, useRecommendations } from "./recommendations";
 
 /** The pipeline the stepper shows (demo PIPE); the side stages (No Answer, Hold…) hide it. */
 const PIPE = LEAD_PIPELINE;
 
 /**
  * The demo's lead drawer: «نظرة عامة» (stepper, details, change the stage) and «Activity» (comment + timeline).
- * «الزيارات» (1.9). Prev / next walk the list the drawer was opened from. Units (2.12) come with their task.
+ * «الوحدات» (2.12), «الزيارات» (1.9). Prev / next walk the list the drawer was opened from.
  */
 export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: string; onGo: (id: string) => void; onClose: () => void }) {
   const lead = useLead(id);
-  const [tab, setTab] = useState<"overview" | "visits" | "activity" | "logs">("overview");
+  const [tab, setTab] = useState<"overview" | "units" | "visits" | "activity" | "logs">("overview");
+  const recs = useRecommendations(id);
   const [visitKind, setVisitKind] = useState<"Visit" | "Meeting">("Visit");
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
@@ -43,10 +45,10 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
         {l.noAnswerCount > 0 && <Chip tone="warn">No Answer ×{l.noAnswerCount} · روتيشن {l.rotation}</Chip>}
       </>}>
       <Tabs value={tab} onChange={setTab} items={[
-        ["overview", "نظرة عامة"], ["visits", "الزيارات", l.visits.length], ["activity", "Activity", comments(l).length],
+        ["overview", "نظرة عامة"], ["units", "الوحدات", recs.data?.items.length], ["visits", "الزيارات", l.visits.length], ["activity", "Activity", comments(l).length],
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
-      {tab === "overview" ? <Overview l={l} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
+      {tab === "overview" ? <Overview l={l} /> : tab === "units" ? <RecommendedUnits id={l.id} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
         : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );

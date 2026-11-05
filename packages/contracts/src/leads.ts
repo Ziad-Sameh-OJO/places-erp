@@ -96,7 +96,21 @@ export interface VisitUnit { id: string; code: string; project: string; space: n
 /** One Visit / Meeting: null outcome = not marked yet; `due` = its time came and nobody marked it (the Alarm). */
 export interface VisitRow {
   id: string; kind: "Visit" | "Meeting"; at: string; extra: string | null; outcome: "done" | "not_done" | null; due: boolean; units: VisitUnit[];
+  /** 1.24 «اتأجلت»: null = never asked; `canDecide` = the caller is whom the lead rules name to approve */
+  postpone: { status: "pending" | "approved" | "rejected"; reason: string; canDecide: boolean } | null;
 }
+/** «اتأجلت» (1.24): the reason is a must. */
+export const VisitPostpone = z.object({ reason: z.string({ required_error: "اكتب سبب التأجيل" }).trim().min(3, "اكتب سبب التأجيل").max(300) });
+export type VisitPostpone = z.infer<typeof VisitPostpone>;
+/** «وافق على التأجيل» / «ارفض». */
+export const PostponeDecision = z.object({ approve: z.boolean({ required_error: "وافق أو ارفض", invalid_type_error: "وافق أو ارفض" }) });
+export type PostponeDecision = z.infer<typeof PostponeDecision>;
+
+/** «ترتيب الروتيشن النهارده» (1.23): who comes first today, and what put them there (fingerprint or Visit time). */
+export interface RotationView { day: string; manual: boolean; people: { id: string; name: string; start: string | null; visit: string | null }[] }
+/** The order by hand, for today only. */
+export const RotationOrder = z.object({ ids: z.array(z.string().min(1).max(40)).min(1).max(200) });
+export type RotationOrder = z.infer<typeof RotationOrder>;
 
 /** «Visit / Meeting جديدة» and «تعديل الميعاد» (demo form, M-01 3.3): the kind, the time, units from the inventory, spaces not in the sheet. */
 export const VisitInput = z.object({
@@ -184,3 +198,36 @@ export interface RoutingView { areas: string[]; salespeople: { id: string; name:
 /** «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand a lead to a salesperson. */
 export const AssignLead = z.object({ to: z.string({ required_error: "اختار السيلز", invalid_type_error: "اختار السيلز" }).min(1, "اختار السيلز").max(40) });
 export type AssignLead = z.infer<typeof AssignLead>;
+
+/**
+ * The narrowing questions' answers (M-03 3.2, the requirements' proposed examples, as the demo asks them), kept on
+ * the lead. An empty answer is «مش مهم».
+ */
+const blank = (v: unknown) => (v === "" || v === null ? undefined : v);
+export const RecommendAnswers = z.object({
+  project: z.preprocess(blank, z.string().trim().max(160).optional()),
+  floor: z.preprocess(blank, z.literal("ground").optional()),
+  parking: z.preprocess(blank, z.coerce.number().int().min(1, "الـ Parking من 1").max(20, "الـ Parking كبير أوي").optional()),
+  area: z.preprocess(blank, z.literal("same").optional()),
+  split: z.preprocess(blank, z.literal("no").optional()),
+  payment: z.preprocess(blank, z.string().trim().max(80).optional()),
+  deliveryBy: z.preprocess(blank, CalendarDay.optional()),
+}).strict();
+export type RecommendAnswers = z.infer<typeof RecommendAnswers>;
+
+/** A suggested unit as the lead's «الوحدات» tab shows it (no owner details: those are Manar's). */
+export interface RecommendedUnit {
+  id: string; code: string; type: string; project: string; area: string; floor: string | null; space: number; condition: string; parking: number;
+  minSplit: number | null;
+  /** the client's price: a month's rent (Rent) or the total; null when the unit has none for this type */
+  price: string | null; monthly: boolean;
+  split: boolean; sameArea: boolean; match: number;
+}
+/** The tab: what the client wants, the ± tolerance (a setting), the answers, the choices for the questions, the units. */
+export interface Recommendations {
+  tolerancePct: number;
+  client: { type: string; space: number | null; condition: string | null; budget: string | null; area: string };
+  answers: RecommendAnswers;
+  projects: string[]; paymentMethods: string[];
+  items: RecommendedUnit[];
+}

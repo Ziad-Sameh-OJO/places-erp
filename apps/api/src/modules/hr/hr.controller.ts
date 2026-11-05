@@ -69,6 +69,14 @@ export class HrController {
     return this.attendance.entry(me, body, this.run);
   }
 
+  /** «Confirm خصم يوم» on «نسي البصمة» (7.3). */
+  @Post("attendance/:id/confirm-forgot")
+  @HttpCode(200)
+  @Requires("hr", "approve")
+  confirmForgot(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.attendance.confirmForgot(me, id, this.run);
+  }
+
   @Post("attendance/unmatched/:id/link")
   @Requires("hr", "edit")
   link(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(LinkUnmatched)) body: { employeeId: string }) {
@@ -152,6 +160,13 @@ export class HrController {
   @Requires("hr", "view")
   deductions(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
     return this.attendance.deductions(me, q.month);
+  }
+
+  /* ---- 7.11 · the ideal employee and the team fund ---- */
+  @Get("ideal")
+  @Requires("hr", "view")
+  ideal(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
+    return this.attendance.ideal(me, q.month);
   }
 
   /** HR only (hr: edit + approve, scope all): the Super Admin and a Team Leader can't. */
