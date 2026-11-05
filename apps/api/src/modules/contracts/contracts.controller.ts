@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { ContractFilters, ContractMonth, CreateContract, Id, RecordPayment } from "@places/contracts";
+import { ContractFilters, ContractMonth, CreateContract, DecideValue, Id, ProposeValue, RecordPayment, TerminateContract } from "@places/contracts";
 import { DocumentsService, sendPdf } from "../../core/documents/documents.service";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -76,5 +76,29 @@ export class ContractsController {
   @Requires("contracts", "create")
   create(@Me() me: CurrentUser, @Body(new ZodPipe(CreateContract)) body: CreateContract) {
     return this.contracts.create(me, body);
+  }
+
+  /** «فسخ العقد» (M-11 2.3): the demo shows it to whoever approves contracts. */
+  @Post(":id/terminate")
+  @HttpCode(200)
+  @Requires("contracts", "approve")
+  terminate(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(TerminateContract)) body: TerminateContract) {
+    return this.contracts.terminate(me, id, body);
+  }
+
+  /** M-11 2.2: whoever uploads contracts asks for a new value… */
+  @Post(":id/value")
+  @HttpCode(200)
+  @Requires("contracts", "create")
+  proposeValue(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(ProposeValue)) body: ProposeValue) {
+    return this.contracts.proposeValue(me, id, body);
+  }
+
+  /** …and management approves or refuses it. */
+  @Post(":id/value/decision")
+  @HttpCode(200)
+  @Requires("contracts", "approve")
+  decideValue(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(DecideValue)) body: DecideValue) {
+    return this.contracts.decideValue(me, id, body);
   }
 }

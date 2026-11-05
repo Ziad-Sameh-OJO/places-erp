@@ -7,6 +7,7 @@ import { useMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import { day, money } from "@/lib/format";
 import { INSTALLMENT, openContractFile, statusChip, useContract, useRefreshContracts } from "./use-contracts";
+import { ContractActions } from "./contract-actions";
 
 /** The demo's contract drawer (clients.js ctDrawer): the renewal note, the details, then the installment table. */
 export function ContractDrawer({ id, onClose }: { id: string; onClose: () => void }) {
@@ -25,6 +26,8 @@ export function ContractDrawer({ id, onClose }: { id: string; onClose: () => voi
   ];
   return (
     <Drawer title={`عقد ${c.code}`} sub={`${c.client} · ${c.unitCode}`} chips={<Chip tone={tone}>{label}</Chip>} onClose={onClose}>
+      {c.endReason && <Note kind="warn"><b>العقد اتفسخ {day(c.endedOn)}:</b> {c.endReason}{c.penalty && Number(c.penalty) > 0 ? ` · الغرامة ${money(c.penalty)}` : ""} · الوحدة رجعت متاحة في الانفنتوري.</Note>}
+      {c.status === "Ended" && <Note>العقد خلص {day(c.endedOn)} · الوحدة رجعت متاحة في الانفنتوري.</Note>}
       {c.endingSoon && <Note kind="warn">العقد بينتهي بعد <b>{c.daysLeft}</b> يوم. التنبيهات بتتبعت 90 و60 و30 يوم قبل النهاية.</Note>}
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       <section className="card flat">
@@ -39,6 +42,7 @@ export function ContractDrawer({ id, onClose }: { id: string; onClose: () => voi
         ])} />
       </section>
       {paying && <PayForm i={paying} onClose={() => setPaying(null)} />}
+      <ContractActions c={c} />
     </Drawer>
   );
 }

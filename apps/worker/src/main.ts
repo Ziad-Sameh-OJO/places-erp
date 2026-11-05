@@ -25,6 +25,7 @@ import { clientsInactiveTick } from "./processors/clients-inactive.ts";
 import { installmentAlertsTick } from "./processors/installment-alerts.ts";
 import { postReminderTick } from "./processors/post-reminder.ts";
 import { staleUnitsTick } from "./processors/stale-units.ts";
+import { contractExpiryTick } from "./processors/contract-expiry.ts";
 
 const connection = { url: env.REDIS_URL };
 const sendMail = mailSender(env);
@@ -44,6 +45,7 @@ const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "target-pace", pattern: "0 12 * * *", processor: () => targetPaceTick() }, // 11.8: the TL hears who is under the month's pace
   { name: "kpi-mid-quarter", pattern: "0 11 * * *", processor: () => kpiMidQuarterTick() }, // daily at the start of work: once per card mid-quarter (M-12 2.1 · 11.6)
   { name: "kpi-refresh", pattern: "30 19 * * *", processor: () => kpiRefreshTick() }, // daily after work: the automatic KPI items (M-12 · 11.5)
+  { name: "contract-expiry", pattern: "5 0 * * *", processor: () => contractExpiryTick() }, // just after midnight: past its last day → ended, unit open (6.4)
   { name: "contract-renewal", pattern: "10 11 * * *", processor: () => contractRenewalTick() }, // daily: 90 / 60 / 30 days before the end (M-11 2.4)
   { name: "installment-alerts", pattern: "15 11 * * *", processor: () => installmentAlertsTick() }, // daily: 3 days before, late, 7 days late (M-11 2.4)
   { name: "stale-uploads", pattern: "0 4 * * *", processor: () => staleUploadsTick() }, // daily at night: uploads never completed (#209)

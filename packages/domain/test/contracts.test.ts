@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
-import { agingBuckets, addMonths, contractProblem, endingSoon, installmentAlerts, installmentPlan, installmentState, nextYearValue, paymentProblem, renewalAlert } from "../src/contracts.ts";
+import { agingBuckets, addMonths, contractProblem, expired, respread, terminationProblem, endingSoon, installmentAlerts, installmentPlan, installmentState, nextYearValue, paymentProblem, renewalAlert } from "../src/contracts.ts";
 
 test("M-11 2.3: a payment is more than zero, no more than what's left, not dated after today", () => {
   const p = (amount: number, owed: number, on = "2026-11-05") => paymentProblem(egp(amount), egp(owed), on, "2026-11-05");
@@ -87,4 +87,27 @@ test("M-11 6.1 Aging: what is owed on late installments, by 0–30 / 31–60 / 6
     { dueOn: "2026-11-05", amount: egp(10_000), paid: 0 }, // due today: not late yet
   ];
   assert.deepEqual(agingBuckets(lines, today), [egp(6_000), 0, egp(10_000), egp(5_000)]);
+});
+
+test("M-11 2.3: early termination needs a reason; the penalty can be 0, never negative; an active contract only", () => {
+  assert.equal(terminationProblem("Active", "العميل نقل", egp(20_000)), null);
+  assert.equal(terminationProblem("Active", "العميل نقل", 0), null);
+  assert.equal(terminationProblem("Active", "  ", 0), "اكتب سبب الفسخ");
+  assert.equal(terminationProblem("Active", "x", -1), "الغرامة مايبقاش بالسالب");
+  assert.equal(terminationProblem("Ended", "x", 0), "العقد ده مش شغال");
+});
+
+test("6.4: an active contract past its last day has ended", () => {
+  assert.equal(expired("Active", "2026-11-04", "2026-11-05"), true);
+  assert.equal(expired("Active", "2026-11-05", "2026-11-05"), false); // its last day
+  assert.equal(expired("Terminated", "2026-11-01", "2026-11-05"), false);
+});
+
+test("M-11 2.2 · 3.2: a new value is spread over what isn't paid yet; paid installments stay", () => {
+  // 120,000 in 4 × 30,000; the first paid, the second half paid; the value goes up to 132,000
+  const lines = [{ amount: egp(30_000), paid: egp(30_000) }, { amount: egp(30_000), paid: egp(15_000) }, { amount: egp(30_000), paid: 0 }, { amount: egp(30_000), paid: 0 }];
+  const r = respread(lines, egp(132_000));
+  assert.deepEqual(r, { amounts: [egp(30_000), egp(15_000) + egp(29_000), egp(29_000), egp(29_000)] }); // 87,000 left ÷ 3
+  assert.deepEqual(respread(lines, egp(40_000)), { problem: "القيمة الجديدة أقل من اللي اتدفع بالفعل" });
+  assert.deepEqual(respread([{ amount: egp(10), paid: egp(10) }], egp(20)), { problem: "مفيش أقساط لسه ماتدفعتش تشيل الفرق" });
 });
