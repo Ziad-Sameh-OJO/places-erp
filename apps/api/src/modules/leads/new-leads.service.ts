@@ -77,7 +77,7 @@ export class NewLeadsService {
       const done = await tx.lead.updateMany({
         where: { id, newLeadRoutedAt: null },
         data: { assignedToId: to, assignedAt: now, ownedByTelesales: false, stage: "FRESH", touched: false, firstActionAt: null, slaWarnedAt: null,
-          rotation: 1, noAnswerCount: 0, naMarkedAt: null, naMarkedById: null, newLeadRoutedAt: now, newLeadRoutedById: me.id },
+          rotation: 1, noAnswerCount: 0, naMarkedAt: null, naMarkedById: null, naRemindedAt: null, newLeadRoutedAt: now, newLeadRoutedById: me.id },
       });
       if (!done.count) throw new ConflictException(DECIDED);
       await this.repo.saveRouting(tx, router.snapshot());

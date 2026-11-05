@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { StageChip, Who, slaText, slaTone } from "./lead-bits";
 import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
 import { useSendNewLead } from "./use-new-leads";
+import { WhatsAppQuestion } from "./whatsapp-question";
 import { useLeadOptions } from "./use-leads";
 import { Visits } from "./visits";
 import { RecommendedUnits, useRecommendations } from "./recommendations";
@@ -106,16 +107,19 @@ function StageCard({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meet
   const run = useAction();
   const toast = useToast();
   const refresh = useRefreshLead();
+  const [ask, setAsk] = useState(false); // «بعتله واتساب؟» right after No Answer (1.18)
   const pick = (stage: LeadStage) => {
     if (stage === l.stage) return;
     if (stage === "Visit" || stage === "Meeting") { onVisit(stage); toast(`حدد ميعاد الـ ${stage} والوحدات`); return; }
     const qualifies = !l.qualified && isQualifiedAfter(false, stage);
     // refreshed even when refused (e.g. the lead was taken away meanwhile): the drawer then shows why
-    void run(async () => { try { await api.patch(`/leads/${l.id}/stage`, { stage }); } finally { await refresh(l.id); } },
-      qualifies ? `${stage} · واتعلّم Qualified في الكامبين والـ channel` : `المرحلة بقت ${stage}`);
+    void run(async () => {
+      try { await api.patch(`/leads/${l.id}/stage`, { stage }); if (stage === "No Answer") setAsk(true); } finally { await refresh(l.id); }
+    }, qualifies ? `${stage} · واتعلّم Qualified في الكامبين والـ channel` : `المرحلة بقت ${stage}`);
   };
   return (
     <section className="card flat">
+      {ask && <WhatsAppQuestion lead={l} onClose={() => setAsk(false)} />}
       <div className="card-head"><h3><span className="ico"><Icon name="layers" /></span><span>غيّر المرحلة</span></h3></div>
       <div className="stage-grid">
         {LEAD_STAGES.map((s) => <button key={s} className={`stage-btn ${s === l.stage ? "on" : ""}`} onClick={() => pick(s)}>{s}</button>)}

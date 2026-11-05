@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { DEFAULT_LEAD_RULES, type LeadRules } from "@places/domain";
 import { noAnswerTick } from "../../worker/src/processors/no-answer.ts";
+import { noAnswerReminderTick } from "../../worker/src/processors/no-answer-reminder.ts";
 import { call, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
@@ -21,7 +22,7 @@ let s1: Person, s2: Person, hadeer: Person, heba: Person;
 let c1: string, c2: string, cHadeer: string, cHeba: string, cHr: string;
 let rules: LeadRules;
 let skipTurnsBefore: number | undefined;
-const L: Record<"rotate" | "pick" | "other", string> = {} as never;
+const L: Record<"rotate" | "pick" | "other" | "remind", string> = {} as never;
 
 let n = 0;
 const lead = async (extra: object) => (await prisma.lead.create({ data: {
@@ -42,6 +43,7 @@ before(async () => {
   L.rotate = await lead({});
   L.pick = await lead({ assignedToId: hadeer.id, ownedByTelesales: true, stage: "INTERESTED", qualified: true, rotation: 3, newLeadRequestedAt: new Date(), newLeadRequestedById: hadeer.userId });
   L.other = await lead({ stage: "NO_ANSWER", touched: true, naMarkedById: heba.id, naMarkedAt: at("2021-01-03T12:00:00") });
+  L.remind = await lead({});
 });
 
 after(async () => {
@@ -157,4 +159,27 @@ test("a No Answer someone else marked doesn't move the lead: the salesperson who
   const l = await get(L.other);
   assert.equal(l.assignedToId, s1.id);
   assert.equal(l.stage, "NO_ANSWER");
+});
+
+test("1.18 the «كلّم» Alarm every 4 working hours while in No Answer; a logged call restarts it; the WhatsApp answer is a comment", async () => {
+  const id = L.remind, text = `Alarm: كلّم E2E ${stamp} NA 4 (No Answer)`;
+  assert.equal((await stage(c1, id, "No Answer")).status, 200);
+  await prisma.lead.update({ where: { id }, data: { naMarkedAt: at("2021-01-10T11:00:00") } }); // a Sunday
+  await noAnswerReminderTick(at("2021-01-10T14:59:00"), rules);
+  assert.equal(await told(s1.userId, text), 0);
+  await noAnswerReminderTick(at("2021-01-10T15:00:00"), rules);
+  await noAnswerReminderTick(at("2021-01-10T15:00:00"), rules); // a rerun sends nothing more
+  assert.equal(await told(s1.userId, text), 1);
+  // a call at 16:00 restarts the clock: 3 hours that day, the 4th on Monday at 12:00
+  await prisma.leadCall.create({ data: { leadId: id, byUserId: s1.userId, at: at("2021-01-10T16:00:00") } });
+  await noAnswerReminderTick(at("2021-01-11T11:59:00"), rules);
+  assert.equal(await told(s1.userId, text), 1);
+  await noAnswerReminderTick(at("2021-01-11T12:00:00"), rules);
+  assert.equal(await told(s1.userId, text), 2);
+  // «بعتله واتساب؟» → a comment on the lead (the drawer sends it through the comments endpoint)
+  assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: c1, body: { text: "No Answer · بعتله واتساب" } })).status, 201);
+  const detail = (await call(`/leads/${id}`, { cookie: c1 })).body;
+  assert.ok(detail.activities.some((a: { kind: string; text: string }) => a.kind === "comment" && a.text === "No Answer · بعتله واتساب"));
+  // the summary carries the rules the question's note quotes
+  assert.deepEqual(Object.keys((await call("/leads/summary?kind=client", { cookie: c1 })).body.noAnswerRules).sort(), ["hours", "remindH"]);
 });

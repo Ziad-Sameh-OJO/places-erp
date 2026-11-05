@@ -61,7 +61,7 @@ async function toTelesales(lead: Lead, rules: LeadRules, now: Date): Promise<boo
 async function move(tx: Prisma.TransactionClient, lead: Lead, to: { assignedToId: string; ownedByTelesales: boolean }, now: Date): Promise<boolean> {
   const moved = await tx.lead.updateMany({
     where: { id: lead.id, stage: "NO_ANSWER", assignedToId: lead.assignedToId, naMarkedAt: lead.naMarkedAt, archivedAt: null },
-    data: { ...to, assignedAt: now, stage: "FRESH", touched: false, firstActionAt: null, slaWarnedAt: null, naMarkedAt: null, naMarkedById: null, rotation: { increment: 1 } },
+    data: { ...to, assignedAt: now, stage: "FRESH", touched: false, firstActionAt: null, slaWarnedAt: null, naMarkedAt: null, naMarkedById: null, naRemindedAt: null, rotation: { increment: 1 } },
   });
   return moved.count === 1;
 }
