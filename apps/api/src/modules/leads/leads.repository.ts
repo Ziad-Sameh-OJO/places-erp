@@ -224,6 +224,17 @@ export class LeadsRepository {
     return this.db.leadDuplicate.findMany({ where: { decidedAt: null, lead: { archivedAt: null } }, select: DUPLICATE_ROW, orderBy: { at: "asc" } });
   }
 
+  /** The Telesales who receives (the rules' user id), else the first one by name; still working here (1.27). */
+  telesalesEmployee(userId: string | null) {
+    const active = { user: { status: { not: "DISABLED" as const }, roles: { some: { role: { key: "telesales" } } } } };
+    return this.db.employee.findFirst({ where: userId ? { ...active, userId } : active, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  }
+
+  /** The Draft Admin still waiting for a decision (not reviewed): the Alarm (1.27). */
+  draftAdminWaiting() {
+    return this.db.leadDraft.findMany({ where: { kind: "admin", decidedAt: null, keptAt: null, lead: { archivedAt: null } }, select: { at: true } });
+  }
+
   /** How many leads wait in a Draft tab (1.26 · 1.27). */
   openDrafts(kind: string) {
     return this.db.leadDraft.count({ where: { kind, decidedAt: null, lead: { archivedAt: null } } });

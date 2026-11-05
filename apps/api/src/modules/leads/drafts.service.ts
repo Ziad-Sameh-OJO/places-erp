@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import { KEEP, ROTATION, type DraftDecision, type DraftKind, type DraftRow } from "@places/contracts";
+import { KEEP, ROTATION, TELESALES, type DraftDecision, type DraftKind, type DraftRow } from "@places/contracts";
 import { LEAD_STAGES, LeadRouter, draftMinutesLeft, isNamedIn } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -60,7 +60,10 @@ export class DraftsService {
     const kind = kindOf(draft.kind);
     await this.mustSee(me, kind);
     if (input.to === KEEP) return this.keep(me, id, kind);
-    const picked = input.to === ROTATION ? null : (await this.repo.routingPeople()).find((p) => p.id === input.to);
+    // the Draft Admin can also send it to Telesales (1.27, «قواعد الليدز ← No Answer»'s Telesales)
+    const tele = kind === "admin" && input.to === TELESALES ? await this.repo.telesalesEmployee((await this.rules.get()).noAnswer.telesales) : null;
+    if (kind === "admin" && input.to === TELESALES && !tele) throw new BadRequestException("مفيش Telesales متاح");
+    const picked = tele ?? (input.to === ROTATION ? null : (await this.repo.routingPeople()).find((p) => p.id === input.to));
     if (input.to !== ROTATION && !picked) throw new BadRequestException("اختار سيلز من القايمة");
     const sent = await this.db.$transaction(async (tx) => {
       const d = await this.repo.openDraft(tx, id);
@@ -68,21 +71,25 @@ export class DraftsService {
       const router = new LeadRouter(await this.repo.lockRouting(tx));
       const to = picked?.id ?? router.next(d.lead.area, await this.leads.areaPool(tx, d.lead.area));
       if (!to) throw new BadRequestException("مفيش سيلز متاح على الـ area دي · اختار سيلز معيّن");
-      if (picked) router.assignedByHand(picked.id); // a hand-picked person, the old one too, uses up their turn (Q2)
+      if (picked && !tele) router.assignedByHand(picked.id); // a hand-picked person, the old one too, uses up their turn (Q2)
       const now = new Date();
-      const moved = await tx.lead.updateMany({ where: { id: d.lead.id, draft: kind }, data: { draft: null, assignedToId: to, assignedAt: now, slaWarnedAt: null } });
+      // from the Draft Admin the lead starts over («رجع Fresh», demo); from the Draft it keeps its stage
+      const fresh = kind === "admin" ? { stage: "FRESH" as const, touched: false, firstActionAt: null, rotation: 1, ownedByTelesales: !!tele } : {};
+      const moved = await tx.lead.updateMany({ where: { id: d.lead.id, draft: kind }, data: { draft: null, assignedToId: to, assignedAt: now, slaWarnedAt: null, ...fresh } });
       if (!moved.count) throw new ConflictException("القرار ده اتاخد قبل كده");
       await this.repo.saveRouting(tx, router.snapshot());
-      const decision = !picked ? "rotation" : picked.id === d.fromId ? "back" : "hand";
+      const decision = tele ? "telesales" : !picked ? "rotation" : picked.id === d.fromId ? "back" : "hand";
       await tx.leadDraft.update({ where: { id }, data: { decidedAt: now, decidedById: me.id, decision, toId: to } });
-      const [person] = await this.repo.employeeNames([to], tx);
-      await this.repo.addActivity(tx, d.lead.id, "assign", `اتوزع من ${TAB[kind]} لـ ${person?.name ?? "—"}${decision === "rotation" ? " (بالروتيشن)" : ""}`, me.id);
+      const [person, from] = await this.repo.employeeNames([to, ...(d.fromId ? [d.fromId] : [])], tx).then((rows) => [to, d.fromId].map((x) => rows.find((r) => r.id === x)));
+      await this.repo.addActivity(tx, d.lead.id, "assign", kind === "admin"
+        ? `اتبعت من الـ Draft Admin لـ ${person?.name ?? "—"} (كان ${STAGE.get(d.stage) ?? d.stage} عند ${from?.name ?? "—"}) · رجع Fresh`
+        : `اتوزع من ${TAB[kind]} لـ ${person?.name ?? "—"}${decision === "rotation" ? " (بالروتيشن)" : ""}`, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: d.lead.id, action: "draft-route", userId: me.id,
         before: { draft: kind, assignedToId: null, from: d.fromId }, after: { draft: null, assignedToId: to, decision } }, tx);
       return { leadId: d.lead.id, name: d.lead.name, to };
     });
     const owner = await this.repo.ownerAccounts(sent.to);
-    if (owner) await this.notifications.notify({ event: "lead.assigned", text: `ليد ${sent.name} اتحوّلك من ${TAB[kind]}`, link: `/leads?open=${sent.leadId}`, to: [owner.userId], channels: [...(await this.rules.get()).newLead.ch] });
+    if (owner) await this.notifications.notify({ event: "lead.assigned", text: kind === "admin" ? `ليد ${sent.name} اتبعتلك من الـ Draft Admin` : `ليد ${sent.name} اتحوّلك من الـ Draft`, link: `/leads?open=${sent.leadId}`, to: [owner.userId], channels: [...(await this.rules.get()).newLead.ch] });
     return { id: sent.leadId, assignedTo: { id: sent.to } };
   }
 
