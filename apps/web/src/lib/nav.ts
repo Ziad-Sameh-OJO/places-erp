@@ -7,6 +7,7 @@ export const NAV: Partial<Record<ModuleKey, { label: string; code: string; icon:
   leads: { label: "العملاء المحتملين", code: "M-01", icon: "users", section: "المبيعات", short: "الليدز", sub: "Create lead · توزيع بالـ area · SLA · المراحل · Qualified · روتيشن No Answer" },
   settings: { label: "قواعد الليدز والتوزيع", code: "Routing", icon: "route", section: "المبيعات", short: "قواعد الليدز", sub: "التوزيع والمواعيد والـ SLA والـ No Answer والإقفال · كل رقم وكل شخص مسؤول بيتعدّل من هنا" },
   inventory: { label: "مخزون الوحدات", code: "M-03", icon: "building", section: "العمليات", short: "الوحدات", sub: "Rent · Resale · Income في قايمة واحدة بفلتر، وتابات المساحات تحت زي الشيت" },
+  notactive: { label: "Not Active Inventory", code: "M-03", icon: "layers", section: "العمليات", short: "Not Active", sub: "شيتات بتترفع Excel · دمج من غير تكرار · مروة بتصنّف كل رقم · Done بيدخّل وحدة جديدة" },
   finance: { label: "المالية", code: "M-07", icon: "wallet", section: "الإدارة", sub: "الداشبورد · الخزن والحركات · العهد والسلف · القيود · الفواتير الثابتة · قايمة الدخل والميزانية · البادجت · شجرة الحسابات" },
   procurement: { label: "المشتريات", code: "M-08", icon: "cart", section: "الإدارة", sub: "Request ← موافقة (لحد 50,000 أي معتمد · أكتر من كده أحمد أو صفوت) ← مختار يصرف ← Budget البند بعد الدفع" },
   hr: { label: "الموارد البشرية", code: "M-05", icon: "id", section: "الإدارة", short: "الـ HR", sub: "الحضور بالبصمة والشرايح · التاريخ · الـ Weekly Delay · فايل كل موظف" },

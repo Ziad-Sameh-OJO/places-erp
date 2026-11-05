@@ -51,6 +51,30 @@ export async function parseSheet<K extends string, T>(file: UploadedSheet | unde
   return { rows, errors, total };
 }
 
+/** A sheet read as it is: its own headers and every non-blank row as header → text. */
+export interface SheetTable { headers: string[]; rows: Record<string, string>[] }
+
+/**
+ * For sheets whose columns aren't fixed (the Not Active sheets, M-03 1.1: the client hasn't sent their columns yet):
+ * the first row's headers, then each row by them. Columns without a header are ignored.
+ */
+export async function readTable(file: UploadedSheet | undefined): Promise<SheetTable> {
+  if (!file) throw new BadRequestException("ارفع ملف Excel أو CSV");
+  const sheet = await readFirstSheet(file);
+  const cols: [number, string][] = [];
+  sheet.getRow(1).eachCell((cell, col) => { const h = text(cell.value); if (h && !cols.some(([, x]) => x === h)) cols.push([col, h]); });
+  if (!cols.length) throw new BadRequestException("أول صف في الشيت لازم يبقى العناوين");
+  const rows: Record<string, string>[] = [];
+  for (let line = 2; line <= sheet.rowCount; line++) {
+    const row = sheet.getRow(line);
+    const data = Object.fromEntries(cols.map(([col, h]) => [h, text(row.getCell(col).value)]).filter((e): e is [string, string] => e[1] !== undefined));
+    if (!Object.keys(data).length) continue;
+    if (rows.length >= IMPORT_LIMIT) throw new BadRequestException(`الشيت أكبر من ${IMPORT_LIMIT} صف · قسّمه`);
+    rows.push(data);
+  }
+  return { headers: cols.map(([, h]) => h), rows };
+}
+
 /** What the screen shows before «تأكيد»: the first 50 valid rows and every error. */
 export function preview<T>(p: ParsedSheet<T>): ImportPreview<T> {
   return { total: p.total, valid: p.rows.length, errors: p.errors, sample: p.rows.slice(0, 50).map((r) => r.data) };
