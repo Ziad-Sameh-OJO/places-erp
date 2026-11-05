@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Icon, useToast } from "@/components/ui";
 
 /** PUT straight to storage with progress (fetch has no upload progress, XHR does). */
-function put(t: UploadTicket, file: File, onProgress: (pct: number) => void) {
+export function put(t: UploadTicket, file: Blob, onProgress: (pct: number) => void) {
   return new Promise<void>((ok, fail) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", t.url);

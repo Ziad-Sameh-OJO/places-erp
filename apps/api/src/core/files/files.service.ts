@@ -106,6 +106,19 @@ export class FilesService implements OnModuleInit {
     return { url, expiresIn: LINK_TTL };
   }
 
+  /** A READY image as a data: URL, for a PDF (it never fetches anything). Null when it's gone or storage is down. */
+  async dataUrl(id: string): Promise<string | null> {
+    const file = await this.db.file.findUnique({ where: { id } });
+    if (!file || file.status !== "READY") return null;
+    try {
+      const obj = await this.s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key }));
+      return `data:${file.mime};base64,${Buffer.from(await obj.Body!.transformToByteArray()).toString("base64")}`;
+    } catch (e) {
+      this.log.warn(`couldn't read ${id} (${(e as Error).name})`);
+      return null;
+    }
+  }
+
   /** Ties the caller's own finished, still-unattached uploads to a record; from then on that record decides who sees them. */
   async attach(me: CurrentUser, ids: string[], entity: string, entityId: string, tx: Prisma.TransactionClient) {
     const unique = [...new Set(ids)];
