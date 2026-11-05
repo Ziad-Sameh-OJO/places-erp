@@ -57,16 +57,18 @@ export async function ownerOf(employeeId: string | null, tx: Prisma.TransactionC
 
 /**
  * Tells the people a rule names (roles and people, «owner» / «ownerTl» of this lead), active accounts only, never
- * twice. In-app when the rule has the app channel; `important` ones stay until read (M-14). Returns who was told.
+ * twice, on the rule's channels: in-app (`important` ones stay until read), and email queued for the mail-outbox job
+ * (M-14 2.4) — skipped for someone who turned email off, unless important. Returns who was told.
  */
-export async function tellRule(tx: Prisma.TransactionClient, who: RuleWho, owner: LeadOwner | null, n: { text: string; link: string; important: boolean }): Promise<string[]> {
-  if (!who.ch.includes("app")) return [];
+export async function tellRule(tx: Prisma.TransactionClient, who: RuleWho, owner: LeadOwner | null, n: { text: string; link: string; important: boolean; subject?: string }): Promise<string[]> {
   const to = ruleRecipients(who, { ownerUserId: owner?.userId ?? null, ownerTlUserId: owner?.tlUserId ?? null });
-  if (!to.length) return [];
+  if (!to.length || !(who.ch.includes("app") || who.ch.includes("email"))) return [];
   const people = await tx.user.findMany({
     where: { status: "ACTIVE", OR: [{ id: { in: to } }, { roles: { some: { role: { key: { in: to } } } } }] },
-    select: { id: true },
+    select: { id: true, email: true, emailNotifications: true },
   });
-  await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, text: n.text, link: n.link, important: n.important })) });
+  if (who.ch.includes("app")) await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, text: n.text, link: n.link, important: n.important })) });
+  const mail = who.ch.includes("email") ? people.filter((p) => p.emailNotifications || n.important) : [];
+  if (mail.length) await tx.mailLog.createMany({ data: mail.map((p) => ({ to: p.email, subject: `${n.subject ?? "الليدز"} · Places ERP`, text: `${n.text}\n${process.env.WEB_ORIGIN ?? ""}${n.link}` })) });
   return people.map((p) => p.id);
 }
