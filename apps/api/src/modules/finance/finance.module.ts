@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { HrModule } from "../hr/hr.module";
 import { FinanceController } from "./finance.controller";
 import { LedgerService } from "./ledger.service";
 import { LedgerRepository } from "./ledger.repository";
@@ -16,7 +17,7 @@ import { SettingsModule } from "../settings/settings.module";
  * movement (vouchers, manual entries, payroll, procurement) posts through, so it is exported, with VouchersService.recordExpense() for procurement (9.3 → 10.2).
  */
 @Module({
-  imports: [SettingsModule], // the entities and templates claims print from (12.12)
+  imports: [SettingsModule, HrModule], // the entities and templates claims print from (12.12) · the deductions HR approved (7.9)
   controllers: [FinanceController, ClaimsController],
   providers: [LedgerService, LedgerRepository, VouchersService, VouchersRepository, BillsService, PayrollService, ClaimsService, ClaimsRepository],
   exports: [LedgerService, VouchersService],

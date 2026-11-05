@@ -157,7 +157,8 @@ export class LeavesService {
   }
 
   /** Approved leave days (used by attendance: a person on leave isn't «مبصمش»). */
-  async employeesOnLeave(dayIso: string): Promise<Set<string>> {
-    return new Set((await this.db.leaveRequest.findMany({ where: { status: { in: COUNTED }, fromDay: { lte: day(dayIso) }, toDay: { gte: day(dayIso) } }, select: { employeeId: true } })).map((r) => r.employeeId));
+  async employeesOnLeave(dayIso: string, tx: Tx | PrismaClient = this.db): Promise<Set<string>> {
+    // `tx`: a caller holding a transaction (lead routing) must not wait for a second pooled connection
+    return new Set((await tx.leaveRequest.findMany({ where: { status: { in: COUNTED }, fromDay: { lte: day(dayIso) }, toDay: { gte: day(dayIso) } }, select: { employeeId: true } })).map((r) => r.employeeId));
   }
 }
