@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import { LIST_DEFAULTS, LIST_GROUPS, LOCKED_VALUES, ListEditors, SETTINGS, type HolidayInput, type HolidayView, type ImportDone, type ListKey, type SettingKey, type Settings } from "@places/contracts";
-import { LEAD_STAGES, asListValues, canChangeList, isQualifiedAfter, listActions, listChangeProblem } from "@places/domain";
+import { DEFAULT_RECOMMEND_TOLERANCE_PCT, LEAD_STAGES, asListValues, canChangeList, isQualifiedAfter, listActions, listChangeProblem } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -19,6 +19,7 @@ const DEFAULTS: Settings = {
   leadLogRoles: [], // only the admin until the admin picks more (1.25)
   listEditors: {}, // every list with «master: edit» until the admin sets it up (#186)
   procurementBigApprovers: [], // the seed writes the client's (M-08 Q44)
+  recommendTolerancePct: DEFAULT_RECOMMEND_TOLERANCE_PCT, // the proposed ±20% until the client confirms (M-03 7.2)
 };
 
 /** M-13: the lists and rules the system is built on, editable without a developer. Every change is audited. */

@@ -68,6 +68,8 @@ export const SETTINGS = {
   listEditors: ListEditors,
   // M-08 Q44: who may approve a purchase above 50,000 («أحمد أو صفوت»), by their sign-in email
   procurementBigApprovers: z.array(z.string().trim().toLowerCase().email()).max(10),
+  // M-03 7.2 (needs-client, proposed ±20%): how near the space and the budget a recommended unit is (2.12)
+  recommendTolerancePct: z.number({ invalid_type_error: "النسبة رقم" }).int("النسبة رقم صحيح").min(0, "النسبة مابتبقاش بالسالب").max(100, "النسبة لحد 100"),
 } as const;
 export type SettingKey = keyof typeof SETTINGS;
 export type Settings = { [K in SettingKey]: z.infer<(typeof SETTINGS)[K]> };
