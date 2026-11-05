@@ -168,6 +168,22 @@ export class DealsRepository {
     return tx.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, commissionPct: true } });
   }
 
+  /** 9.15: the approved deals a salesperson is on, with every collection (his «كشف عمولة»). */
+  commissionDeals(employeeId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.deal.findMany({
+      where: { participants: { some: { employeeId } }, status: { in: ["APPROVED", "PARTIALLY_COLLECTED", "FULLY_COLLECTED"] } },
+      select: { ...DEAL_DETAIL, payments: { select: { side: true, amount: true, receivedAt: true } } }, orderBy: { closedAt: "desc" },
+    });
+  }
+
+  payouts(employeeId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.commissionPayout.findMany({ where: { employeeId }, select: { id: true, dealId: true, amount: true, moveId: true, deal: { select: { code: true } }, tcr: { select: { code: true } } }, orderBy: { createdAt: "asc" } });
+  }
+
+  addPayout(tx: Prisma.TransactionClient, data: Prisma.CommissionPayoutUncheckedCreateInput) {
+    return tx.commissionPayout.create({ data, select: { id: true } });
+  }
+
   employeeNames(ids: string[]) {
     return this.db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, userId: true } });
   }

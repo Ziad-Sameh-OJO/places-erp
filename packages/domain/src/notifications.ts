@@ -55,6 +55,8 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "finance.bill_due", label: "ميعاد فاتورة ثابتة", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.16
   { key: "finance.payroll_due", label: "ميعاد صرف المرتبات", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.14
   { key: "finance.payslip", label: "اتصرف مرتبك", to: "صاحب المرتب", toRoles: [], channels: ["app"], important: false }, // M-07 9.14
+  { key: "finance.commission_due", label: "عمولات سيلز مستحقة (صفقة اتحصّلت بالكامل)", to: "المحاسب", toRoles: ["accountant"], channels: ["app"], important: false }, // M-07 9.15
+  { key: "finance.commission_paid", label: "اتصرفتلك عمولة", to: "السيلز", toRoles: [], channels: ["app", "push"], important: false }, // M-07 9.15
   { key: "finance.claim", label: "مطالبة / فاتورة إلكترونية / إيصال مطلوب", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.17
   { key: "finance.claim_ready", label: "مطالبتك اتعملت / اترفضت / إيصالها جاهز", to: "اللي طلب المطالبة", toRoles: [], channels: ["app", "push"], important: false }, // M-07 9.17
   { key: "contract.renewal", label: "تجديد عقد (90/60/30)", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app", "email"], important: false },
