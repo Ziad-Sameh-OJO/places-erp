@@ -53,6 +53,33 @@ export type CancelDeal = z.infer<typeof CancelDeal>;
 /** A recorded collection: the deal's new status, what's left, the voucher and entry numbers, and its TCR (5.12). */
 export interface DealCollected { status: DealStatus; collected: string; remaining: string; move: string; entry: string; tcr: string }
 
+/** 9.15 «صرف عمولة سيلز»: on one deal and its TCR; without a deal it is a Team Leader's commission (5.8). */
+export const PayCommission = z.object({
+  employeeId: Id,
+  dealId: Id.optional(),
+  tcrId: Id.optional(),
+  fromId: Id,
+  amount: Money,
+  date: CalendarDay.optional(),
+  memo: z.string().trim().max(500, "البيان طويل").optional(),
+});
+export type PayCommission = z.infer<typeof PayCommission>;
+/** «كشف عمولة» (demo finance.js): each deal with his part, what's due and paid, its TCRs; the vouchers paid; amounts as decimal strings. */
+export interface CommissionStatement {
+  employee: { id: string; name: string };
+  /** his 21103 balance (deals + TL commission − paid) */
+  balance: string;
+  /** the balance outside the deals' dues: a Team Leader's commission, paid without a deal */
+  tlDue: string;
+  deals: Array<{
+    dealId: string; code: string; company: string; unitCode: string; placesCommission: string; status: DealStatus; state: string;
+    shares: Array<{ side: "buyer" | "seller"; schemePercent: number; share: string }>; commission: string; paid: string; due: string;
+    tcrs: Array<{ id: string; code: string; amount: string; side: "owner" | "client"; signed: boolean }>;
+  }>;
+  payouts: Array<{ id: string; move: string; date: string; deal: string | null; tcr: string | null; amount: string }>;
+}
+export interface CommissionPaid { move: string; entry: string; due: string; signed: boolean | null }
+
 /** 4.9: marketing attaches the client's logo (a finished upload, 0.9). */
 export const DealLogo = z.object({ fileId: Id });
 export type DealLogo = z.infer<typeof DealLogo>;

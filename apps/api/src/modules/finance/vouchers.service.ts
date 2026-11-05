@@ -85,6 +85,28 @@ export class VouchersService {
     return (await this.save(me, { kind: "receive", toId: r.toId, accountId: r.clientAccountId, amount: r.amount, party: r.party, ref: r.ref, memo: r.memo, ...(r.date ? { date: r.date } : {}) }, tx, CLIENTS_PARENT)).saved;
   }
 
+  /**
+   * 9.15 (4 Nov tree): «صرف عمولة سيلز» from a safe / bank — Dr the salesperson's own 21103 account, Cr the safe — inside
+   * the caller's transaction (the deals module checks what's due). Same checks as a payment: a cash leaf with enough in it.
+   */
+  async recordCommissionPayout(me: CurrentUser, p: { fromId: string; accountId: string; amount: Piasters; party: string; partyId: string; ref?: string; memo: string; date?: string | undefined }, tx: Tx) {
+    const date = p.date ?? localDate(new Date());
+    if (date > localDate(new Date())) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
+    const { accounts, balance } = await this.ledger.balances(tx);
+    const from = accounts.find((a) => a.id === p.fromId);
+    if (!from || !from.kind || !CASH_KINDS.has(from.kind) || accounts.some((a) => a.parentId === from.id)) throw new BadRequestException("اختار الخزنة / البنك");
+    const sides: VoucherSides = { from: from.id, account: p.accountId, amount: p.amount };
+    const problem = voucherProblem("pay", sides, { from: balance.get(from.id) ?? 0, fromName: from.name });
+    if (problem) throw new BadRequestException(problem);
+    const entry = await this.ledger.post(me, { date, nature: VOUCHER_LABEL.commission, source: "voucher", memo: p.memo, lines: voucherLines("pay", sides) }, tx);
+    const move = await this.repo.createMove({ kind: "commission", date: day(date), fromId: from.id, toId: null, accountId: p.accountId, expenseId: null, amount: toDecimal(p.amount),
+      spent: null, returned: null, party: p.party, partyId: p.partyId, ref: p.ref ?? null, memo: p.memo, entryId: entry.id, createdById: me.id }, tx);
+    await this.ledger.linkEntry(entry.id, move.id, tx);
+    await this.audit.record({ module: "finance", entity: "TreasuryMove", entityId: move.id, action: "create", userId: me.id,
+      after: { no: `MV-${move.no}`, kind: "commission", date, amount: toDecimal(p.amount), from: from.code, party: p.party, ref: p.ref, entry: entry.no } }, tx);
+    return { id: move.id, no: `MV-${move.no}`, entry: entry.no };
+  }
+
   /** The commission revenue lines a collected claim can go to. */
   async commissionLines() {
     const { accounts } = await this.ledger.balances();

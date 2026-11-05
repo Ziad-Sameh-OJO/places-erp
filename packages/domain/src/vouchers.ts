@@ -7,8 +7,8 @@ import type { EntryLine } from "./ledger.ts";
  */
 export const VOUCHER_KINDS = ["pay", "receive", "transfer", "advance", "custody", "settle"] as const;
 export type VoucherKind = (typeof VOUCHER_KINDS)[number];
-export const VOUCHER_LABEL: Record<VoucherKind | "payroll", string> = {
-  payroll: "صرف مرتبات",
+export const VOUCHER_LABEL: Record<VoucherKind | "payroll" | "commission", string> = {
+  payroll: "صرف مرتبات", commission: "صرف عمولة سيلز",
   pay: "إذن صرف خزنة", receive: "إذن توريد خزنة", transfer: "تحويل بين خزن", advance: "سلفة موظف", custody: "عهدة", settle: "تسوية عهدة",
 };
 /** The chart's parents for a person's own account (docs/requirements/sources/chart-of-accounts.md): one sub-account per person. */

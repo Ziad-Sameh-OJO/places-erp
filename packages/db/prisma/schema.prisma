@@ -588,6 +588,7 @@ model Deal {
   participants     DealParticipant[]
   payments         Payment[]
   tcrs             Tcr[]
+  payouts          CommissionPayout[]
   contract         Contract?
   unitLocks        UnitLock[]
   createdById      String
@@ -644,9 +645,28 @@ model Tcr {
   paymentId  String         @unique
   payment    Payment        @relation(fields: [paymentId], references: [id])
   signatures TcrSignature[]
+  payouts    CommissionPayout[]
   pdfKey     String?        // file in object storage
   createdAt  DateTime       @default(now())
 
+  @@schema("sales")
+}
+
+/// 9.15: «صرف عمولة سيلز» — what was paid to a salesperson on a deal against its TCR; no deal = a Team Leader's commission (5.8).
+model CommissionPayout {
+  id          String   @id @default(cuid())
+  employeeId  String
+  dealId      String?
+  deal        Deal?    @relation(fields: [dealId], references: [id])
+  tcrId       String?
+  tcr         Tcr?     @relation(fields: [tcrId], references: [id])
+  amount      Decimal  @db.Decimal(14, 2)
+  moveId      String   @unique // the voucher (finance.TreasuryMove)
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([dealId])
   @@schema("sales")
 }
 

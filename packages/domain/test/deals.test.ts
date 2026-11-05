@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { egp } from "../src/money.ts";
-import { type DealMoney, collectionProblem, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
+import { egp, formatEGP } from "../src/money.ts";
+import { type DealMoney, collectionProblem, payoutDue, payoutProblem, payoutState, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult, tlAdjustment } from "../src/team-leader.ts";
 import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
 
@@ -142,4 +142,20 @@ test("12 · 9.6: only a deal on the sheet is cancelled, once, with a reason", ()
   assert.equal(cancelProblem("Cancelled", "x"), "الصفقة دي اتلغت قبل كده");
   assert.equal(cancelProblem("Pending Review", "x"), "الإلغاء بيبقى على صفقة اتوافق عليها");
   assert.equal(cancelProblem("Approved", "  "), "اكتب سبب الإلغاء");
+});
+
+test("9.15: commission is payable once fully collected, less what was paid; never above what's due or the 21103 balance", () => {
+  const full = deal({ status: "Fully Collected" });
+  assert.equal(payoutDue(full, "mohamed", scheme, 0), egp(15_000)); // the client's example: 30% of the Seller's 50,000
+  assert.equal(payoutDue(full, "mohamed", scheme, egp(10_000)), egp(5_000));
+  assert.equal(payoutDue(full, "mohamed", scheme, egp(15_000)), 0);
+  assert.equal(payoutDue(deal({ status: "Partially Collected" }), "mohamed", scheme, 0), 0);
+  assert.equal(payoutState(full, egp(5_000)), "مستحقة · اتحصّلت بالكامل");
+  assert.equal(payoutState(full, 0), "اتصرفت");
+  assert.equal(payoutState(deal({ payments: [] }), 0), "لسه مااتحصّلتش");
+  assert.equal(payoutProblem(egp(5_000), egp(20_000), egp(5_000)), null);
+  assert.equal(payoutProblem(egp(5_000), egp(20_000), egp(5_001)), `المستحق ${formatEGP(egp(5_000))} بس`);
+  assert.equal(payoutProblem(0, egp(20_000), egp(1)), "مفيش عمولة مستحقة هنا");
+  assert.equal(payoutProblem(egp(5_000), egp(2_000), egp(5_000)), `رصيد حسابه في العمولات المستحقة ${formatEGP(egp(2_000))} بس`);
+  assert.equal(payoutProblem(egp(5_000), egp(20_000), 0), "المبلغ لازم يبقى أكبر من صفر");
 });
