@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
-import { CreateTask, EditTask, MoveTask, TaskFilters } from "@places/contracts";
+import { CreateTask, EditTask, MoveTask, TaskFilters, TaskUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -21,6 +21,12 @@ export class TasksController {
   @Requires("tasks", "create")
   options(@Me() me: CurrentUser) {
     return this.tasks.options(me);
+  }
+
+  @Get("units")
+  @Requires("tasks", "create")
+  units(@Query(new ZodPipe(TaskUnitQuery)) f: TaskUnitQuery) {
+    return this.tasks.units(f.q);
   }
 
   @Get(":id")

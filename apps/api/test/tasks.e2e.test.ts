@@ -50,6 +50,10 @@ test("who gives which kind (M-04 3.1): Manar the shoots, Rahma the marketing tas
   assert.deepEqual(await kinds(manar), ["photo", "retouch", "toResale"]);
   assert.deepEqual(await kinds(randa), ["photo", "retouch", "toResale"]); // «منار / رندا (تصوير)»
   assert.deepEqual(await kinds(rahma), ["marketing"]);
+  // the form's unit search (4.2): a new unit is shot before its PDF is confirmed, so drafts are in
+  const found = (await call(`/tasks/units?q=U-T${stamp}`, { cookie: manar })).body as Array<{ id: string }>;
+  assert.deepEqual(found.map((u) => u.id), [unitId]);
+  assert.equal((await call(`/tasks/units?q=x`, { cookie: bayoumi })).status, 403);
   const opts = (await call("/tasks/options", { cookie: rahma })).body;
   assert.ok(opts.marketingTypes.includes("Website leasing"));
   assert.equal((await call("/tasks", { method: "POST", cookie: rahma, body: { kind: "photo", toUserId: bayoumiId, dueOn: today, unitId } })).status, 403);

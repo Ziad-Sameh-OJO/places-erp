@@ -58,3 +58,8 @@ export interface TaskOptions {
   /** «أنواع تاسكات التسويق» (M-13), the active ones */
   marketingTypes: string[];
 }
+
+/** The new-task form's unit search (4.2). */
+export const TaskUnitQuery = z.object({ q: z.string().trim().max(60).optional() });
+export type TaskUnitQuery = z.infer<typeof TaskUnitQuery>;
+export interface TaskUnitOption { id: string; code: string; project: string; space: number }
