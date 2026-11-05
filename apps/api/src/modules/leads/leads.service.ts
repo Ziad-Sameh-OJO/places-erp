@@ -195,7 +195,7 @@ export class LeadsService {
       );
       if (placement.kind === "hand") router.assignedByHand(placement.to);
       // the area's rotation, without anyone whose account was switched off since they were ticked (1.13) or who is on approved leave today (1.15, M-05 6.2)
-      const onLeave = placement.kind === "route" ? await this.leaves.employeesOnLeave(localDate(new Date())) : new Set<string>();
+      const onLeave = placement.kind === "route" ? await this.leaves.employeesOnLeave(localDate(new Date()), tx) : new Set<string>();
       const assignedToId = placement.kind === "route" ? router.next(input.area, (await this.repo.stillWorking(pools[input.area] ?? [], tx)).filter((id) => !onLeave.has(id))) : placement.to;
       await this.repo.saveRouting(tx, router.snapshot());
 
