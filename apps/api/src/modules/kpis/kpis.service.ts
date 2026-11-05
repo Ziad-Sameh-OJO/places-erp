@@ -1,11 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  KpiWatch, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView, type KpiCompany, type KpiDeliveryInput, type KpiItemsInput,
-  type KpiLogEntry, type KpiPayInput, type KpiQuarterView,
+  KpiWatch, type ActivityInput, type ActivityResultInput, type ActivityView, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView,
+  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
 } from "@places/contracts";
 import {
-  type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, fromDecimal, itemAchievement, levelLabel,
+  type ActivityKind, type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, fromDecimal, itemAchievement, levelLabel,
   metricProblem, nextQuarter, payoutDelta, quarterLabel, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -452,6 +452,60 @@ export class KpisService {
   }
 
   /** 11.14 «سجل التغييرات»: every KPI change, who and when; the money ones are left out for the watcher. */
+  // ───────── 11.13 · Farming / Approach (demo kpis.js `actCard`) ─────────
+
+  private async activityCard(employeeId: string) {
+    const q = await this.repo.currentQuarter();
+    return q ? this.repo.activityCard(q.id, employeeId) : null;
+  }
+
+  /** «نشاطاتي»: for sales, and for anyone whose card this quarter counts these activities. */
+  async activities(me: CurrentUser): Promise<MyActivities> {
+    if (!me.employeeId) return { show: false, items: [] };
+    const [rows, card] = await Promise.all([this.repo.activities(me.employeeId), this.activityCard(me.employeeId)]);
+    return {
+      show: me.roles.includes("sales") || !!card?.items.length || rows.length > 0,
+      items: rows.map((a) => ({
+        id: a.id, kind: a.kind as ActivityKind, place: a.place, at: a.at.toISOString(), status: a.status as ActivityView["status"],
+        got: a.got, note: a.note, companies: a.companies,
+      })),
+    };
+  }
+
+  async addActivity(me: CurrentUser, input: ActivityInput) {
+    if (!me.employeeId) throw new ForbiddenException("النشاطات للموظفين بس");
+    const employeeId = me.employeeId;
+    await this.db.$transaction(async (tx) => {
+      const a = await tx.salesActivity.create({ data: { employeeId, kind: input.kind, place: input.place, at: new Date(input.at) } });
+      await this.audit.record({ module: MODULE, entity: "SalesActivity", entityId: a.id, action: "create", userId: me.id,
+        after: { ...input, summary: `${me.name} سجّل ${input.kind} في ${input.place}` } }, tx);
+    });
+  }
+
+  /** «عملتها؟» after its time: done (with what came of it) or not. The follower and Operations hear of it. */
+  async activityResult(me: CurrentUser, id: string, input: ActivityResultInput) {
+    const a = await this.repo.activity(id);
+    if (!a || a.employeeId !== me.employeeId) throw new NotFoundException("النشاط ده مش موجود");
+    if (a.status !== "planned") throw new ConflictException("النشاط ده اتسجّلت نتيجته قبل كده");
+    const now = new Date();
+    if (a.at > now) throw new BadRequestException("لسه ميعاده ماجاش");
+    const approach = a.kind === "Approach";
+    if (input.done && approach && !input.companies.length) throw new BadRequestException("اكتب الشركات");
+    const data = !input.done ? { status: "notDone" }
+      : { status: "done", doneAt: now, ...(approach ? { companies: input.companies } : { got: input.got, note: input.note || null }) };
+    const what = !input.done ? `ماعملش الـ ${a.kind} في ${a.place}`
+      : `عمل ${a.kind} في ${a.place} · ${approach ? `شركات: ${input.companies.join("، ")}` : `${input.got ? "جاب حاجة" : "مجابش حاجة"}${input.note ? `: ${input.note}` : ""}`}`;
+    await this.db.$transaction(async (tx) => {
+      // only if no other tab answered it meanwhile
+      const done = await tx.salesActivity.updateMany({ where: { id, status: "planned" }, data });
+      if (done.count === 0) throw new ConflictException("النشاط ده اتسجّلت نتيجته قبل كده");
+      await this.audit.record({ module: MODULE, entity: "SalesActivity", entityId: id, action: "update", userId: me.id,
+        before: { status: a.status }, after: { ...data, summary: `${me.name} ${what}` } }, tx);
+    });
+    const follower = (await this.activityCard(a.employeeId))?.follower?.userId;
+    await this.notifications.notify({ event: "kpi.activity", text: `${me.name} ${what}`, link: LINK, userIds: follower && follower !== me.id ? [follower] : [] });
+  }
+
   async log(me: CurrentUser): Promise<KpiLogEntry[]> {
     const w = await this.who(me);
     if (!w.all) throw new ForbiddenException("السجل للإدارة ومسؤول الـ KPIs");

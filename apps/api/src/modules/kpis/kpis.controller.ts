@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import {
-  KpiBandsInput, KpiCopyInput, KpiDeliveryInput, KpiFollowerInput, KpiItemsInput, KpiNewCardInput, KpiPayInput, KpiPlanInput, KpiScope, KpiValueInput,
+  ActivityInput, ActivityResultInput, KpiBandsInput, KpiCopyInput, KpiDeliveryInput, KpiFollowerInput, KpiItemsInput, KpiNewCardInput, KpiPayInput, KpiPlanInput, KpiScope, KpiValueInput,
   KpiWatchInput,
 } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
@@ -125,6 +125,27 @@ export class KpisController {
   @Requires("kpis", "approve")
   closeQuarter(@Me() me: CurrentUser) {
     return this.kpis.closeQuarter(me);
+  }
+
+  /** 11.13 «نشاطاتي»: each person's own Farming / Approach. */
+  @Get("activities")
+  @SignedIn()
+  activities(@Me() me: CurrentUser) {
+    return this.kpis.activities(me);
+  }
+
+  @Post("activities")
+  @HttpCode(204)
+  @SignedIn()
+  addActivity(@Me() me: CurrentUser, @Body(new ZodPipe(ActivityInput)) body: ActivityInput) {
+    return this.kpis.addActivity(me, body);
+  }
+
+  @Post("activities/:id/result")
+  @HttpCode(204)
+  @SignedIn()
+  activityResult(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(ActivityResultInput)) body: ActivityResultInput) {
+    return this.kpis.activityResult(me, id, body);
   }
 
   @Post("quarter/next")
