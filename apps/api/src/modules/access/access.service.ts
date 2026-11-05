@@ -99,7 +99,7 @@ export class AccessService {
     return this.getUser(id);
   }
 
-  /** Disabling signs the person out everywhere at once. (Phase 2: their open leads move to the next salesperson.) */
+  /** Disabling signs the person out everywhere at once. Their open leads and tasks then move through HandoverService, once their direct manager approves (M-09 2.2 · 7.1). */
   async setActive(me: CurrentUser, id: string, active: boolean) {
     if (id === me.id && !active) throw new BadRequestException("مينفعش توقف حسابك");
     const u = await this.db.user.findUnique({ where: { id } });

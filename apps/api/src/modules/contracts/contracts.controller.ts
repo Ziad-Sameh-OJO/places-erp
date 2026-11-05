@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
-import { ContractFilters, ContractMonth, CreateContract } from "@places/contracts";
+import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
+import type { Response } from "express";
+import { ContractFilters, ContractMonth, CreateContract, Id, RecordPayment } from "@places/contracts";
+import { DocumentsService, sendPdf } from "../../core/documents/documents.service";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -8,7 +10,7 @@ import { ContractsService } from "./contracts.service";
 /** HTTP only (M-11): validate, check the permission, call the service. */
 @Controller("contracts")
 export class ContractsController {
-  constructor(private readonly contracts: ContractsService) {}
+  constructor(private readonly contracts: ContractsService, private readonly pdf: DocumentsService) {}
 
   @Get()
   @Requires("contracts", "view")
@@ -27,6 +29,28 @@ export class ContractsController {
   @Requires("contracts", "view")
   calendar(@Me() me: CurrentUser, @Query(new ZodPipe(ContractMonth)) q: ContractMonth) {
     return this.contracts.calendar(me, q.month);
+  }
+
+  /** «تقرير التحصيل» for a month (M-11 6.1). */
+  @Get("collections")
+  @Requires("contracts", "view")
+  collections(@Me() me: CurrentUser, @Query(new ZodPipe(ContractMonth)) q: ContractMonth) {
+    return this.contracts.collections(me, q.month);
+  }
+
+  /** 6.7: a payment's receipt as a PDF, with the stamp and signature (12.12). */
+  @Get("payments/:id/receipt")
+  @Requires("contracts", "view")
+  async receipt(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string, @Res() res: Response) {
+    const { name, html } = await this.contracts.receipt(me, id);
+    sendPdf(res, name, await this.pdf.pdf(html));
+  }
+
+  /** M-11 4.1: Finance records payments («contracts: edit»); sales may not. */
+  @Post("installments/:id/payments")
+  @Requires("contracts", "edit")
+  pay(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string, @Body(new ZodPipe(RecordPayment)) body: RecordPayment) {
+    return this.contracts.pay(me, id, body);
   }
 
   @Get("form")

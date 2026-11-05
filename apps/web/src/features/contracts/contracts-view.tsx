@@ -5,11 +5,11 @@ import { Card, Chip, Icon, Table, Tabs } from "@/components/ui";
 import { Fab, KpiTile } from "@/components/blocks";
 import { useMe } from "@/lib/me";
 import { day, money, num } from "@/lib/format";
-import { useCalendar, useContracts, useSummary, statusChip } from "./use-contracts";
+import { useCalendar, useCollections, useContracts, useSummary, statusChip } from "./use-contracts";
 import { ContractDrawer } from "./contract-drawer";
 import { ContractForm } from "./contract-form";
 
-type Tab = "list" | "calendar";
+type Tab = "list" | "calendar" | "collections";
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 
 /** M-11 · the demo's contracts screen (clients.js V.contracts): tiles, renewals coming up, the contracts and the Aging, plus the calendar (5.3). */
@@ -25,11 +25,11 @@ export function ContractsView() {
       {s.data && <Kpis s={s.data} />}
       {s.data && s.data.renewals.length > 0 && <Renewals s={s.data} onOpen={setOpen} />}
       <div className="row">
-        <Tabs items={[["list", "العقود"], ["calendar", "الكالندر"]]} value={tab} onChange={setTab} />
+        <Tabs items={[["list", "العقود"], ["calendar", "الكالندر"], ["collections", "التحصيل"]]} value={tab} onChange={setTab} />
         <span className="spacer" />
         {uploader && <button className="btn" onClick={() => setForm(true)}><Icon name="plus" />عقد جديد</button>}
       </div>
-      {tab === "list" ? <List aging={s.data?.aging} onOpen={setOpen} /> : <Calendar onOpen={setOpen} />}
+      {tab === "list" ? <List aging={s.data?.aging} onOpen={setOpen} /> : tab === "calendar" ? <Calendar onOpen={setOpen} /> : <Collections onOpen={setOpen} />}
       {uploader && <Fab onClick={() => setForm(true)} label="عقد جديد" />}
       {open && <ContractDrawer id={open} onClose={() => setOpen(null)} />}
       {form && <ContractForm onClose={() => setForm(false)} onCreated={(id) => { setForm(false); setOpen(id); }} />}
@@ -125,6 +125,27 @@ function Calendar({ onOpen }: { onOpen: (id: string) => void }) {
       extra={<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label="الشهر" style={{ width: "auto" }} />}>
       <MonthGrid month={month} byDay={cal.data?.byDay ?? {}} onOpen={onOpen} />
     </Card>
+  );
+}
+
+/** «تقرير التحصيل» (M-11 6.1): the month's due vs collected, each payment with its receipt (6.7), and the Aging. */
+function Collections({ onOpen }: { onOpen: (id: string) => void }) {
+  const [month, setMonth] = useState(today().slice(0, 7));
+  const r = useCollections(month);
+  const items = r.data?.items ?? [];
+  return (
+    <div className="cols wide">
+      <Card title="تقرير التحصيل" icon="wallet" sub={r.data ? `المستحق في الشهر ${money(r.data.due)} · اتحصّل ${money(r.data.collected)}` : ""}
+        extra={<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label="الشهر" style={{ width: "auto" }} />}>
+        <Table head={["تاريخ الدفع", "العقد", "العميل", "الوحدة", "ميعاد القسط", "المبلغ", ""]} empty={r.isPending ? "بيحمّل…" : "مفيش تحصيل في الشهر ده"} onRow={(i) => onOpen(items[i]!.contractId)}
+          rows={items.map((x) => [
+            day(x.paidOn), <span key="c" className="mono">{x.code}</span>, x.client, <span key="u" className="mono">{x.unitCode}</span>, day(x.dueOn),
+            <span key="a" className="n">{money(x.amount)}</span>,
+            <a key="r" className="btn ghost sm" href={`/api/v1/contracts/payments/${x.paymentId}/receipt`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><Icon name="file" />إيصال {x.receiptNo}</a>,
+          ])} />
+      </Card>
+      {r.data && <Aging aging={r.data.aging} />}
+    </div>
   );
 }
 
