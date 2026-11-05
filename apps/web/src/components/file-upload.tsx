@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Icon, useToast } from "@/components/ui";
 
 /** PUT straight to storage with progress (fetch has no upload progress, XHR does). */
-function put(t: UploadTicket, file: File, onProgress: (pct: number) => void) {
+export function put(t: UploadTicket, file: Blob, onProgress: (pct: number) => void) {
   return new Promise<void>((ok, fail) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", t.url);
@@ -33,7 +33,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
     const req = { name: file.name, mime: file.type, size: file.size };
     const check = UploadRequest.safeParse(req);
     if (!check.success || !(FILE_KINDS[kind].mimes as readonly string[]).includes(file.type)) {
-      return toast(check.success ? `لازم ${FILE_KINDS[kind].label === "الصورة" ? "صورة" : "PDF"}` : check.error.issues[0]!.message);
+      return toast(check.success ? `لازم ${FILE_KINDS[kind].label === "الصورة" ? "صورة" : "PDF"}` : check.error.issues[0]!.message, "bad");
     }
     setDone(null);
     setPreview(kind === "image" ? URL.createObjectURL(file) : null);
@@ -45,7 +45,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
       setDone(f);
       onUploaded?.(f);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "الرفع فشل");
+      toast(e instanceof Error ? e.message : "الرفع فشل", "bad");
     } finally {
       setPct(null);
     }

@@ -53,3 +53,13 @@ test("the Excuse: 1–2 free, 3–4 half a day, the 5th refused; on the day it r
   const day = attendanceDay({ kind: "excuse", minutesAfterStart: 75, excuseNumberThisMonth: 2 });
   assert.deepEqual([day.deduction, day.lateMinutes, day.label], [0, 59, "Excuse #2"]); // 12:15 would be a full day; Weekly Delay still counts
 });
+
+test("the month's deduction for payroll: attendance + approved penalty days at salary ÷ 26, rounded once (7.9)", async () => {
+  const { monthDeduction } = await import("../src/index.ts");
+  // 13,000 a month = 500 a day; 1¼ days late + a half-day penalty = 1¾ days = 875
+  assert.deepEqual(monthDeduction({ salary: 13_000_00, attendanceDays: 1.25, penaltyDays: 0.5 }), { days: 1.75, amount: 875_00 });
+  // 12,000: three quarters rounded once (346.15), not three times
+  assert.equal(monthDeduction({ salary: 12_000_00, attendanceDays: 0.75, penaltyDays: 0 }).amount, 346_15);
+  assert.equal(monthDeduction({ salary: 2_600_00, attendanceDays: 20, penaltyDays: 9 }).amount, 2_600_00); // never above the salary
+  assert.deepEqual(monthDeduction({ salary: 10_000_00, attendanceDays: 0, penaltyDays: 0 }), { days: 0, amount: 0 });
+});

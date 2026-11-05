@@ -5,6 +5,7 @@ import {
   periodStart, toDecimal, voucherLines, voucherProblem, type BudgetPeriod, type Piasters, type VoucherKind, type VoucherSides,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
+import { esc, layout } from "../../core/documents/documents.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { LedgerService } from "./ledger.service";
@@ -12,6 +13,8 @@ import type { AccountRow, Tx } from "./ledger.repository";
 import { VouchersRepository, type MoveRow } from "./vouchers.repository";
 
 const CASH_KINDS = new Set(["treasury", "bank", "wallet"]);
+/** ايرادات النشاط الرئيسي (عمولات تسويق عقاري …), the chart's 41 */
+const COMMISSION_REVENUE = "41";
 const dec = (v: { toFixed(n: number): string } | null | undefined): Piasters => (v ? fromDecimal(v.toFixed(2)) : 0);
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
@@ -72,7 +75,19 @@ export class VouchersService {
     return (await this.save(me, { kind: "pay", fromId: e.fromId, accountId: e.accountId, amount: e.amount, party: e.party, memo: e.memo, ...(e.date ? { date: e.date } : {}), ...(e.ref ? { ref: e.ref } : {}) }, tx)).saved;
   }
 
-  private async save(me: CurrentUser, input: NewMove, tx: Tx): Promise<{ saved: Omit<MoveSaved, "budget">; crossed: { line: string; text: string; ownerId: string | null } | null }> {
+  /** 9.17 → a collected claim posts as a receive voucher on a commission revenue line (41…), inside the caller's transaction. */
+  async recordClaimReceipt(me: CurrentUser, r: { toId: string; accountId: string; amount: string; party: string; ref: string; memo: string; date?: string | undefined }, tx: Tx) {
+    return (await this.save(me, { kind: "receive", toId: r.toId, accountId: r.accountId, amount: r.amount, party: r.party, ref: r.ref, memo: r.memo, ...(r.date ? { date: r.date } : {}) }, tx, COMMISSION_REVENUE)).saved.move;
+  }
+
+  /** The commission revenue lines a collected claim can go to. */
+  async commissionLines() {
+    const { accounts } = await this.ledger.balances();
+    const parents = new Set(accounts.map((a) => a.parentId));
+    return accounts.filter((a) => a.code.startsWith(COMMISSION_REVENUE) && !parents.has(a.id)).map((a) => ({ id: a.id, code: a.code, name: a.name }));
+  }
+
+  private async save(me: CurrentUser, input: NewMove, tx: Tx, revenue: string = OTHER_REVENUE): Promise<{ saved: Omit<MoveSaved, "budget">; crossed: { line: string; text: string; ownerId: string | null } | null }> {
     const kind = input.kind as VoucherKind;
     const date = input.date ?? localDate(new Date());
     if (date > localDate(new Date())) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
@@ -90,7 +105,7 @@ export class VouchersService {
     let from: AccountRow | undefined, to: AccountRow | undefined, account: AccountRow | undefined, expense: AccountRow | undefined;
     let party = input.party?.trim() ?? "", partyId: string | undefined;
     if (kind === "pay") { from = cash(input.fromId, "الخزنة / البنك"); account = leaf(input.accountId, "نوع المصروف", (a) => a.code.startsWith("5")); }
-    if (kind === "receive") { to = cash(input.toId, "الخزنة / البنك"); account = leaf(input.accountId, "المصدر", (a) => a.code.startsWith(OTHER_REVENUE)); }
+    if (kind === "receive") { to = cash(input.toId, "الخزنة / البنك"); account = leaf(input.accountId, "المصدر", (a) => a.code.startsWith(revenue)); }
     if (kind === "transfer") { from = cash(input.fromId, "الخزنة اللي هيتحوّل منها"); to = cash(input.toId, "الخزنة اللي هيتحوّل لها"); party = party || "تحويل داخلي"; }
     if (kind === "advance" || kind === "custody") {
       from = cash(input.fromId, "الخزنة / البنك");
@@ -160,6 +175,21 @@ export class VouchersService {
     const m = await this.repo.move(id);
     if (!m) throw new NotFoundException("الحركة مش موجودة");
     return (await this.views([m]))[0]!;
+  }
+
+  /** «اطبع السند» as a PDF (12.12: with the stamp and signature): the voucher's fields and its journal entry. */
+  async pdf(id: string): Promise<{ name: string; html: string }> {
+    const m = await this.get(id);
+    const e = await this.ledger.entry(m.entry.id);
+    const acc = (a: { code: string; name: string } | null) => (a ? `${a.code} · ${a.name}` : "");
+    const kv: [string, string][] = [["التاريخ", m.date], ["المبلغ", formatEGP(fromDecimal(m.amount))], ["قيد اليومية", `${m.entry.no} · ${m.label}`],
+      ...([["رقم الفاتورة / المرجع", m.ref ?? ""], ["من", acc(m.from)], ["لـ", acc(m.to)], ["الطرف", m.party], ["الحساب", acc(m.account)]] as [string, string][]).filter(([, v]) => v),
+      ["البيان", m.memo], ["سجّله", m.by]];
+    const amt = (s: string) => (fromDecimal(s) ? formatEGP(fromDecimal(s)) : "");
+    return { name: `${m.label} ${m.no}.pdf`, html: layout(`${m.label} ${m.no}`, `<h1>Places · ${esc(m.label)} <span class="num">${esc(m.no)}</span></h1>
+      <table><tbody>${kv.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table>
+      <h2>قيد اليومية ${esc(m.entry.no)}</h2>
+      <table><thead><tr><th>الحساب</th><th>مدين</th><th>دائن</th></tr></thead><tbody>${e.lines.map((l) => `<tr><td><span class="num">${esc(l.code)}</span> ${esc(l.name)}</td><td>${esc(amt(l.debit))}</td><td>${esc(amt(l.credit))}</td></tr>`).join("")}</tbody></table>`) };
   }
 
   private async views(rows: MoveRow[]): Promise<MoveView[]> {

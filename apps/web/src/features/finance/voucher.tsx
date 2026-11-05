@@ -40,7 +40,8 @@ export function Voucher({ move, effect, onClose }: { move: MoveView; effect?: Mo
           <div className="row" style={{ marginTop: 28 }}><span className="spacer">توقيع المستلم: ____________</span><span>توقيع المحاسب: ____________</span></div>
         </div>
       </div>
-      <div className="row end no-print"><button className="btn ghost sm" onClick={() => printBlock(ref.current)}><Icon name="file" />اطبع السند</button></div>
+      <div className="row end no-print"><button className="btn ghost sm" onClick={() => printBlock(ref.current)}><Icon name="file" />اطبع السند</button>
+        <a className="btn ghost sm" href={`/api/v1/finance/moves/${move.id}/pdf`} target="_blank" rel="noreferrer"><Icon name="file" />PDF (بالختم والإمضا)</a></div>
     </Modal>
   );
 }
