@@ -5,7 +5,7 @@ import {
   type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
 } from "@places/contracts";
 import {
-  type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, toDecimal, type ActivityKind,
+  type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -148,6 +148,7 @@ export class KpisService {
     const names = new Map<string, string>([...people.map((p) => [p.userId, p.name] as const), ...roles.map((r) => [r.key, r.label] as const)]);
     const follower = this.isFollower(w, c), mine = c.employeeId === w.me.employeeId, manage = open && this.canManage(w, c);
     const approver = c.approvedBy ? people.find((p) => p.userId === c.approvedBy)?.name ?? "" : "";
+    const details = await this.details(c, q);
     return {
       id: c.id, quarter: this.qView(q), employee: { id: c.employeeId, name: c.employee.name, title: c.employee.jobTitle },
       follower: { id: c.followerId, name: c.follower?.name ?? "الملاك" },
@@ -164,7 +165,7 @@ export class KpisService {
           id: it.id, key: it.key, title: it.title, weight: it.weight, targetText: it.targetText, source: it.source,
           method: it.method as Method, module: it.module, direction: it.direction as "at-least" | "at-most", goal: Number(it.goal),
           metric: it.metric, params, enteredBy: it.enteredBy, report: it.report, required: it.required,
-          value: num(it.value), delivered: it.deliveries.length,
+          value: num(it.value), delivered: it.deliveries.length, detail: details.get(it.id) ?? null,
           deliveries: it.deliveries.map((d) => ({ id: d.id, at: d.at.toISOString(), link: d.link, file: !!d.fileId })),
           calc: calcText({ ...it, method: it.method as Method, params: params as MetricParams, report: it.report && (reports.find((r) => r.id === it.report)?.name ?? it.report) }, (x) => names.get(x) ?? x),
           achievement: Math.round(a * 1000) / 10, contribution: Math.round(it.weight * a * 10) / 10,
@@ -175,6 +176,21 @@ export class KpisService {
       can: { manage, approve: open && follower && !c.approvedAt, plan: open && follower, pay: open && w.edit, admin: open && (w.edit || w.watcher), sheet: this.canSheet(w, q) },
       options: manage ? { people: people.map((p) => ({ id: p.id, userId: p.userId, name: p.name })), roles } : null,
     };
+  }
+
+  /**
+   * 11.15 · the line under a timed item (demo `detail`): «5 في الميعاد من 8 · اتأخرت في: …». Read now, while the item's
+   * number is the daily job's (kpi-refresh), so the two can differ until tomorrow's run.
+   */
+  private async details(c: CardRecord, q: Quarter) {
+    const out = new Map<string, string>(), now = new Date();
+    for (const it of c.items.filter((x) => x.method === "system" && (x.metric === "newLeadRoute" || x.metric === "draftAction"))) {
+      const p = (it.params ?? {}) as MetricParams, from = kpiPeriodStart(p.per, now, q.id);
+      out.set(it.id, it.metric === "newLeadRoute"
+        ? timedTasks(await this.repo.newLeadTasks(from, c.employee.userId), (Number(p.min) || 30) * 60_000, now, "min").detail
+        : timedTasks(await this.repo.draftTasks(from), (Number(p.hours) || 24) * 3_600_000, now, "hour").detail);
+    }
+    return out;
   }
 
   /** Watchers hear of every change but never of money (11.14); whoever made it doesn't need telling. */

@@ -74,6 +74,7 @@ function ItemRow({ c, it }: { c: KpiCardView; it: KpiItemView }) {
   return (
     <tr className={it.achievement < 100 ? "under" : ""}>
       <td><b>{it.title}</b><span className="sub">بيتحسب: {it.calc}</span>
+        {it.detail && <span className="sub"><b>{it.detail}</b></span>}
         {it.deliveries.length > 0 && <span className="sub">اتسلّم: {it.deliveries.map((d) => day(d.at)).join("، ")}</span>}</td>
       <td className="c">{it.weight}%</td>
       <td>{it.targetText}</td>
