@@ -1,4 +1,7 @@
-import { Injectable, type OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, type OnModuleDestroy } from "@nestjs/common";
+import type { PrismaClient } from "@places/db";
+import type { Response } from "express";
+import { PRISMA } from "../database/database.module";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -31,8 +34,20 @@ body { margin: 0; font-family: "IBM Plex Sans Arabic", sans-serif; font-size: 12
 h1 { font-size: 18pt; margin: 0 0 12pt; } h2 { font-size: 14pt; margin: 16pt 0 8pt; }
 table { width: 100%; border-collapse: collapse; margin: 8pt 0; } th, td { border: 1px solid #d5dbe6; padding: 5pt 8pt; text-align: start; }
 th { background: #f1f4f9; font-weight: 700; } .num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+.seal { display: flex; justify-content: flex-end; gap: 24pt; margin-top: 24pt; break-inside: avoid; } .seal img { max-height: 90pt; max-width: 160pt; }
 </style></head><body>${body}</body></html>`;
 }
+
+/** A rendered PDF shown in the browser under its Arabic name. */
+export function sendPdf(res: Response, name: string, pdf: Buffer) {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+  res.end(pdf);
+}
+
+/** Where the Super Admin's stamp and signature live (system.Setting, 12.12): the ids of two uploaded images. */
+export const STAMP_KEY = "stamp";
+export interface StampSetting { stamp?: string | null; signature?: string | null; by?: string; at?: string }
 
 // Chromium's header and footer live outside the page: they don't see its fonts, so they carry their own copy.
 const HEADER = `<style>${FONT_CSS}</style><div style="width:100%;margin:0 14mm;display:flex;align-items:center;gap:6px;direction:rtl;font-family:'IBM Plex Sans Arabic';font-size:9pt;color:#0b1220">${LOGO}<b>Places</b><span style="color:#6b7489">· عقارات</span></div>`;
@@ -46,9 +61,22 @@ const footer = (printedAt: string) => `<style>${FONT_CSS}</style><div style="wid
 export class DocumentsService implements OnModuleDestroy {
   private browser: Promise<Browser> | null = null;
 
-  constructor(private readonly files: FilesService) {}
+  constructor(private readonly files: FilesService, @Inject(PRISMA) private readonly db: PrismaClient) {}
+
+  /**
+   * 12.12: the signature and the stamp go at the end of every PDF the system prints (vouchers, claims, receipts,
+   * statements, entries, employee papers), as inline images. None uploaded (or storage down) = the page as it is.
+   */
+  private async seal(): Promise<string> {
+    const s = (await this.db.setting.findUnique({ where: { key: STAMP_KEY } }))?.value as StampSetting | undefined;
+    const imgs = await Promise.all([s?.signature, s?.stamp].map((id) => (id ? this.files.dataUrl(id) : null)));
+    const tags = imgs.map((src, i) => (src ? `<img src="${esc(src)}" alt="${i ? "الختم" : "الإمضا"}">` : "")).filter(Boolean);
+    return tags.length ? `<div class="seal">${tags.join("")}</div>` : "";
+  }
 
   async pdf(html: string, now = new Date()): Promise<Buffer> {
+    const seal = await this.seal();
+    html = html.replace("</body>", () => `${seal}</body>`);
     this.browser ??= chromium.launch();
     const page = await (await this.browser).newPage();
     try {

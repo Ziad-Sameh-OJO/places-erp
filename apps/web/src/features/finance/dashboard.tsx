@@ -11,7 +11,7 @@ import { money, short } from "@/lib/format";
 import { useBills, useBudget, useCash, useIncome, usePayroll } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
 
-export type FinanceTab = "dash" | "cash" | "custody" | "journal" | "bills" | "pnl" | "bs" | "budget" | "payroll" | "tree";
+export type FinanceTab = "dash" | "cash" | "custody" | "journal" | "bills" | "claims" | "pnl" | "bs" | "budget" | "payroll" | "tree";
 interface Todo { tone: "warn" | "bad"; icon: IconName; title: string; sub: string; tab: FinanceTab; btn: string }
 
 /**

@@ -1181,6 +1181,7 @@ model TreasuryMove {
   createdById String
   createdAt   DateTime @default(now())
   purchase    Purchase?
+  claim       Claim?
 
   @@index([fromId])
   @@index([toId])
@@ -1273,5 +1274,67 @@ model AdvanceDeduction {
   at       DateTime @default(now())
 
   @@unique([userId, month])
+  @@schema("finance")
+}
+
+/// 12.12 · who claims and receipts go out under (Places · ذراين للدعاية والإعلان): the logo and the bank details printed on a claim.
+model Entity {
+  id          String   @id // places · zrain
+  name        String
+  logoFileId  String? // a system.File (0.9)
+  bank        String   @default("")
+  accountName String   @default("")
+  accountNo   String   @default("")
+  iban        String   @default("")
+  claims      Claim[]
+  updatedAt   DateTime @updatedAt
+
+  @@schema("system")
+}
+
+/// 12.12 · the admin's wording for a document; no row = the default in @places/domain (DOC_DEFAULTS).
+model DocTemplate {
+  kind      String   @id // claim · receipt
+  title     String
+  body      String
+  closing   String
+  updatedAt DateTime @updatedAt
+
+  @@schema("system")
+}
+
+/// M-07 9.17 · a claim to a company → the e-invoice → the cash receipt (from the templates, with the stamp).
+model Claim {
+  id             String        @id @default(cuid())
+  no             Int           @unique @default(autoincrement()) // CL-<no>
+  dealId         String? // the deal it comes from: deals (5.1/5.2) aren't built yet, so it stays empty for now
+  company        String // as it is written on the claim
+  unit           String
+  unitInfo       String
+  amount         Decimal       @db.Decimal(14, 2)
+  side           String // client · owner
+  kind           String // نوع العمولة, e.g. «عمولة تأجير»
+  entityId       String
+  entity         Entity        @relation(fields: [entityId], references: [id])
+  note           String?
+  status         String        @default("requested")
+  why            String? // the rejection's reason
+  requestedById  String
+  issuedById     String?
+  issuedAt       DateTime?
+  approvedAt     DateTime? // the client approved it
+  receiptAskedAt DateTime? // sales: the client paid, make the receipt
+  einvoiceNo     String?
+  einvoiceDate   DateTime?     @db.Date
+  moveId         String?       @unique // the receive voucher (9.11)
+  move           TreasuryMove? @relation(fields: [moveId], references: [id])
+  receiptNo      Int?          @unique // RC-<n>, serial
+  payMethod      String?
+  paidAt         DateTime?     @db.Date
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status])
+  @@index([requestedById])
   @@schema("finance")
 }
