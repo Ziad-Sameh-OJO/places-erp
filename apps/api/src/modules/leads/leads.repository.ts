@@ -23,7 +23,7 @@ export class LeadsRepository {
 
   /** The KPI tiles and saved views' counts over the whole scope (one round trip). */
   summary(scope: Prisma.LeadWhereInput, kind: "CLIENT" | "BROKER", weekAgo: Date, twoWeeksAgo: Date) {
-    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null, kind }, w] } });
+    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null, draft: null, kind }, w] } });
     return this.db.$transaction([
       count({}), count({ stage: "FRESH" }), count({ qualified: true }), count({ stage: "NO_ANSWER" }), count({ stage: "INTERESTED" }),
       count({ createdAt: { gte: weekAgo } }), count({ createdAt: { gte: twoWeeksAgo, lt: weekAgo } }),
@@ -224,6 +224,26 @@ export class LeadsRepository {
     return this.db.leadDuplicate.findMany({ where: { decidedAt: null, lead: { archivedAt: null } }, select: DUPLICATE_ROW, orderBy: { at: "asc" } });
   }
 
+  /** How many leads wait in a Draft tab (1.26 · 1.27). */
+  openDrafts(kind: string) {
+    return this.db.leadDraft.count({ where: { kind, decidedAt: null, lead: { archivedAt: null } } });
+  }
+
+  /** A Draft tab: every open stay with its lead, the newest first (demo), and the lead's last touch by a person. */
+  drafts(kind: string) {
+    return this.db.leadDraft.findMany({
+      where: { kind, decidedAt: null, lead: { archivedAt: null } }, orderBy: { at: "desc" },
+      select: { id: true, at: true, fromId: true, days: true, keptAt: true, lead: { select: {
+        id: true, code: true, name: true, stage: true, kind: true, area: true, assignedAt: true, createdAt: true, company: { select: { name: true } },
+        activities: { where: { byUserId: { not: null } }, select: { at: true }, orderBy: { at: "desc" }, take: 1 },
+      } } },
+    });
+  }
+
+  openDraft(tx: Prisma.TransactionClient, id: string) {
+    return tx.leadDraft.findFirst({ where: { id, decidedAt: null, lead: { archivedAt: null } }, select: { id: true, kind: true, fromId: true, keptAt: true, stage: true, lead: { select: { id: true, name: true, area: true } } } });
+  }
+
   /** New Leads from Telesales that Operations hasn't routed yet (1.17), oldest first. */
   pendingNewLeads() {
     return this.db.lead.findMany({
@@ -296,7 +316,8 @@ export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DU
 function leadWhere(scope: Prisma.LeadWhereInput, f: LeadFilters): Prisma.LeadWhereInput {
   const digits = f.q?.replace(/\D/g, "") ?? "";
   return {
-    AND: [scope, { archivedAt: null },
+    // a lead in a Draft tab shows only there (1.26, demo): not in the list, the board or the counts
+    AND: [scope, { archivedAt: null, draft: null },
       f.stage ? { stage: f.stage.toUpperCase().replace(/ /g, "_") as Prisma.LeadWhereInput["stage"] } : {},
       f.kind ? { kind: f.kind === "broker" ? "BROKER" : "CLIENT" } : {},
       f.area ? { area: f.area } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},

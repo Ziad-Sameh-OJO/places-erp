@@ -9,6 +9,7 @@ import { env } from "./env.ts";
 import { leadSlaTick } from "./processors/lead-sla.ts";
 import { noAnswerTick } from "./processors/no-answer.ts";
 import { noAnswerReminderTick } from "./processors/no-answer-reminder.ts";
+import { draftTick } from "./processors/draft.ts";
 import { visitAlarmTick } from "./processors/visit-alarm.ts";
 import { recurringBillsTick } from "./processors/recurring-bills.ts";
 import { payrollDueTick } from "./processors/payroll-due.ts";
@@ -37,6 +38,7 @@ const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "mail-outbox", pattern: "* * * * *", processor: () => mailOutboxTick(sendMail) }, // every minute: «الإيميل يتبعت خلال دقيقة» (M-14 2.4)
   { name: "no-answer", pattern: "*/5 * * * *", processor: () => noAnswerTick() }, // every 5 minutes: 24 hours after the mark (M-01 Q5 · 1.17)
   { name: "no-answer-reminder", pattern: "*/5 * * * *", processor: () => noAnswerReminderTick() }, // the «كلّم» Alarm every 4 working hours (M-01 Q5 · 1.18)
+  { name: "draft", pattern: "10 * * * *", processor: () => draftTick() }, // hourly: 7 days without a touch → the Draft (1.26)
   { name: "visit-alarm", pattern: "* * * * *", processor: () => visitAlarmTick() }, // every minute (M-01 3.3 · 1.9)
   { name: "recurring-bills", pattern: "0 11 * * *", processor: recurringBillsTick }, // daily at the start of work (M-07 9.16)
   { name: "payroll-due", pattern: "5 11 * * *", processor: payrollDueTick }, // daily: pay day reached and not paid (M-07 9.14)

@@ -180,3 +180,29 @@ test("1.18 the No Answer Alarm (M-01 Q5): every 4 working hours from the mark, a
   assert.equal(noAnswerReminderDue(thu, winter("2026-11-07T12:00:00"), { ...R, noAnswer: { ...R.noAnswer, remindH: 3 } }, none), true);
   assert.equal(noAnswerReminderDue({ naMarkedAt: null, lastCallAt: null, remindedAt: null }, winter("2026-11-20T12:00:00"), R, none), false);
 });
+
+test("1.26 the Draft (4 Nov meeting): 7 days without a touch → Draft; Hold: 10 days stays, 15 goes (14)", async () => {
+  const { draftStep } = await import("../src/lead-rules.ts");
+  const touched = winter("2026-11-01T12:00:00");
+  const after = (days: number) => new Date(touched.getTime() + days * 86_400_000);
+  assert.equal(draftStep({ stage: "Interested", lastTouch: touched }, after(6.99), R), null);
+  assert.equal(draftStep({ stage: "Interested", lastTouch: touched }, after(7), R), 7);
+  assert.equal(draftStep({ stage: "Hold", lastTouch: touched }, after(10), R), null);
+  assert.equal(draftStep({ stage: "Hold", lastTouch: touched }, after(15), R), 14);
+  for (const stage of ["Done Deal", "Cancellation", "Not Interested", "No Answer"] as const) assert.equal(draftStep({ stage, lastTouch: touched }, after(60), R), null);
+  // the days and the switch come from «قواعد الليدز»
+  assert.equal(draftStep({ stage: "Fresh", lastTouch: touched }, after(3), { ...R, draft: { ...R.draft, days: 3 } }), 3);
+  assert.equal(draftStep({ stage: "Fresh", lastTouch: touched }, after(60), { ...R, draft: { ...R.draft, on: false } }), null);
+});
+
+test("1.26 who sees the Draft: the people and roles the rule names, and the admin", async () => {
+  const { isNamedIn, draftMinutesLeft } = await import("../src/lead-rules.ts");
+  assert.equal(isNamedIn(R.draft.see, { userId: "u-heba", roles: ["ops"] }), true);
+  assert.equal(isNamedIn(R.draft.see, { userId: "u-mohsen", roles: ["sales"] }), false);
+  assert.equal(isNamedIn(R.draft.see, { userId: "u-ahmed", roles: ["admin"] }), true);
+  assert.equal(isNamedIn({ to: ["u-nancy"], ch: [] }, { userId: "u-nancy", roles: ["officemgr"] }), true);
+  // the decision clock: 24 hours by default (Heba's KPI item)
+  const at = winter("2026-11-05T12:00:00");
+  assert.equal(draftMinutesLeft(at, winter("2026-11-05T13:00:00")), 23 * 60);
+  assert.equal(draftMinutesLeft(at, winter("2026-11-06T14:00:00")), -120);
+});

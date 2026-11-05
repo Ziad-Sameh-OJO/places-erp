@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas, fromDecimal, type ClientNeed } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas, fromDecimal, type ClientNeed, isNamedIn } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -76,7 +76,9 @@ export class LeadsService {
       this.rules.get(), this.time.isHolidayToday(),
     ]);
     return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
-      noAnswerRules: { hours: rules.noAnswer.hours, remindH: rules.noAnswer.remindH } };
+      noAnswerRules: { hours: rules.noAnswer.hours, remindH: rules.noAnswer.remindH },
+      drafts: isNamedIn(rules.draft.see, { userId: me.id, roles: me.roles }) ? await this.repo.openDrafts("draft") : null,
+      draftRules: { days: rules.draft.days, holdDays: rules.draft.holdDays } };
   }
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
@@ -311,6 +313,16 @@ export class LeadsService {
     return { id: created.id, code: created.code, ownedByTelesales: created.ownedByTelesales, assignedTo: created.assignedTo };
   }
 
+  /**
+   * The area's rotation as a new lead gets it, for the queues that route by it (New Lead 1.17, Draft 1.26): without
+   * anyone switched off (1.13) or on approved leave today (1.15). Inside the caller's transaction.
+   */
+  async areaPool(tx: Prisma.TransactionClient, area: string): Promise<string[]> {
+    const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
+    const onLeave = await this.leaves.employeesOnLeave(localDate(new Date()), tx);
+    return (await this.repo.stillWorking(pools[area] ?? [], tx)).filter((e) => !onLeave.has(e));
+  }
+
   /** The lead rules' «ليد جديد اتوزع» for one lead and the salesperson it went to. */
   async notifyAssigned(leadId: string, name: string, area: string, employeeId: string) {
     const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(employeeId)]);
@@ -356,8 +368,10 @@ export class LeadsService {
       await tx.lead.update({
         where: { id },
         // a fresh start with the new salesperson: the SLA counts from now (demo: assignedAt, touched, alerted)
-        data: { assignedToId: to.id, assignedAt: new Date(), ownedByTelesales: false, touched: false, firstActionAt: null, slaWarnedAt: null },
+        data: { assignedToId: to.id, assignedAt: new Date(), ownedByTelesales: false, touched: false, firstActionAt: null, slaWarnedAt: null, draft: null },
       });
+      // handed out of a Draft tab this way too (1.26): that stay ends with this decision
+      await tx.leadDraft.updateMany({ where: { leadId: id, decidedAt: null }, data: { decidedAt: new Date(), decidedById: me.id, decision: "hand", toId: to.id } });
       const text = from ? `اتسحب يدوي من ${from.name} واتحوّل لـ ${to.name}` : `اتحوّل يدوي لـ ${to.name}`;
       await this.repo.addActivity(tx, id, "assign", text, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "reassign", userId: me.id,
