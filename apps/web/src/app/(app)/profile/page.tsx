@@ -5,8 +5,9 @@ import { useMe } from "@/lib/me";
 import { Card, Chip, Field, useAction } from "@/components/ui";
 import { MyLeavesCard } from "@/features/hr/leaves";
 import { MyExcusesCard } from "@/features/hr/excuses";
+import { PushCard } from "@/features/notifications/push";
 
-/** حسابي: who I am, my password, whether notifications also reach my email, and my leaves (7.5). */
+/** حسابي: who I am, my password, whether notifications also reach my email, push on this device (M-14 · 51), and my leaves (7.5). */
 export default function ProfilePage() {
   const qc = useQueryClient();
   const run = useAction();
@@ -24,6 +25,7 @@ export default function ProfilePage() {
           ابعتلي الإشعارات كمان على الإيميل
         </label>
       </Card>
+      <PushCard />
       <Card title="تغيير الباسورد" icon="lock" sub="هتخرج من كل الأجهزة التانية">
         <form className="form" action={(f) => {
           if (f.get("next") !== f.get("next2")) return void run(async () => { throw new Error("الباسوردين مش زي بعض"); });

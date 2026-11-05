@@ -4,6 +4,7 @@ import type { MailLogQuery, MailLogRow, Paged } from "@places/contracts";
 import { type Channel, NOTIFICATION_EVENTS, channelsFor, eventByKey, mailStatus } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
+import { PushService } from "./push.service";
 import { env } from "../../config/env";
 
 export interface Notify {
@@ -31,11 +32,12 @@ const MAIL_FILTER: Record<NonNullable<MailLogQuery["status"]> | "all", Prisma.Ma
 
 /**
  * M-14. Services say what happened; this decides who hears about it and how, from the rule (admin-editable,
- * defaults in @places/domain) and each person's email preference. Push is added with the PWA (VAPID keys).
+ * defaults in @places/domain) and each person's email preference: the bell, the email, and push to every device
+ * the person turned it on for (PushService).
  */
 @Injectable()
 export class NotificationsService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly mail: MailService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly mail: MailService, private readonly push: PushService) {}
 
   async rules() {
     const saved = new Map((await this.db.notificationRule.findMany()).map((r) => [r.event, r]));
@@ -60,11 +62,15 @@ export class NotificationsService {
       where: { status: "ACTIVE", OR: [{ id: { in: [...(n.userIds ?? []), ...(n.to ?? [])] } }, { roles: { some: { role: { key: { in: roles } } } } }] },
       select: { id: true, email: true, emailNotifications: true },
     });
+    const pushTo: string[] = [];
     for (const p of people) {
       const ch = channelsFor(n.channels ?? rule.channels, p, e.important);
       const inApp = ch.includes("app") ? await this.db.notification.create({ data: { userId: p.id, text: n.text, link: n.link ?? null, important: e.important } }) : null;
       if (ch.includes("email")) await this.mail.send({ to: p.email, subject: `${e.label} · Places ERP`, text: `${n.text}${n.link ? `\n${env.WEB_ORIGIN}${n.link}` : ""}`, notificationId: inApp?.id });
+      if (ch.includes("push")) pushTo.push(p.id);
     }
+    // the push is a copy on the phone: it goes out in the background, so a slow push service never slows the action down
+    void this.push.send(pushTo, { title: e.label, body: n.text, link: n.link }).catch(() => undefined);
     return people.length;
   }
 

@@ -17,6 +17,11 @@ test("the send log: sent, then «اتقرا» once its in-app copy is opened; fa
   assert.equal(mailStatus("queued", null), "queued");
 });
 
+test("push follows the rule, not the email preference (M-14 · 51)", () => {
+  assert.deepEqual(channelsFor(["app", "push", "email"], { emailNotifications: false }, false), ["app", "push"]);
+  assert.deepEqual(channelsFor(eventByKey("lead.assigned")!.channels, { emailNotifications: true }, false), ["app", "push"]);
+});
+
 test("the Super Admin hears of a failed email in the system only, never by email (M-14 7.1)", () => {
   const e = eventByKey("mail.failed")!;
   assert.deepEqual(e.toRoles, ["admin"]);
