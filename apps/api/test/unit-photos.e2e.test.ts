@@ -65,6 +65,9 @@ test("Manar adds three photos: in order, the first is the main one, sales see th
   const r = await add(manar, ids);
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.deepEqual(names(r), ["واجهة.png*", "ريسبشن.png", "مكتب.png"]);
+  // Q19: the PDF is made from the photos, so they wait for Manar's confirm before sales see them (2.8)
+  assert.equal((await photos(sales)).status, 404);
+  assert.equal((await call(`/inventory/units/${unitId}/pdf/confirm`, { method: "POST", cookie: manar })).status, 204);
   const seen = await photos(sales);
   assert.deepEqual(names(seen), ["واجهة.png*", "ريسبشن.png", "مكتب.png"]);
   const got = await fetch((seen.body as Array<{ url: string }>)[0]!.url);

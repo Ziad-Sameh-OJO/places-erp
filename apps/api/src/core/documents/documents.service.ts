@@ -74,15 +74,20 @@ export class DocumentsService implements OnModuleDestroy {
     return tags.length ? `<div class="seal">${tags.join("")}</div>` : "";
   }
 
-  async pdf(html: string, now = new Date()): Promise<Buffer> {
-    const seal = await this.seal();
-    html = html.replace("</body>", () => `${seal}</body>`);
+  /** A4 with the header and footer; `slide`: one 16:9 page (1280 × 720), edge to edge, nothing around it (M-03 unit slide). */
+  async pdf(html: string, now = new Date(), opts: { slide?: boolean } = {}): Promise<Buffer> {
+    // the signature and stamp go under a page of the company's papers; a slide is one picture, edge to edge
+    if (!opts.slide) {
+      const seal = await this.seal();
+      html = html.replace("</body>", () => `${seal}</body>`);
+    }
     this.browser ??= chromium.launch();
     const page = await (await this.browser).newPage();
     try {
       // a PDF never fetches anything (fonts and logo are inline): a value that slipped past esc() can't reach the network
       await page.route("**/*", (r) => r.abort());
       await page.setContent(html, { waitUntil: "load" });
+      if (opts.slide) return await page.pdf({ width: "1280px", height: "720px", printBackground: true, margin: { top: "0", bottom: "0", left: "0", right: "0" }, pageRanges: "1" });
       const printedAt = now.toLocaleString("ar-EG-u-nu-latn", { timeZone: "Africa/Cairo", dateStyle: "long", timeStyle: "short" });
       return await page.pdf({
         format: "A4", printBackground: true, displayHeaderFooter: true, headerTemplate: HEADER, footerTemplate: footer(printedAt),
