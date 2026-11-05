@@ -117,6 +117,16 @@ export function fingerprintDay(i: FingerprintDayInput): DayResult {
 /** The deduction in money: a day = salary ÷ 26 (piasters, rounded). */
 export const deductionAmount = (salaryPiasters: number, fraction: number): number => Math.round((salaryPiasters / 26) * fraction);
 
+/**
+ * The month's line on the payroll sheet (M-05 (32) · 6.2 · 7.9): attendance days (Excuses already in them) plus approved
+ * penalty days, each at salary ÷ 26, rounded once on the total (the demo's «أيام الخصم × يومية»). Never above the salary.
+ * The KPI bonus / deduction (11.6) is added here when 11.x lands.
+ */
+export function monthDeduction(i: { salary: number; attendanceDays: number; penaltyDays: number }): { days: number; amount: number } {
+  const days = i.attendanceDays + i.penaltyDays;
+  return { days, amount: Math.min(i.salary, deductionAmount(i.salary, days)) };
+}
+
 /* ---- penalties (7.7) and the 1-to-1 (7.8) ---- */
 /** A penalty's deduction in days: none, a quarter, a half, or whole days up to 3 (M-05 3.1). */
 export const penaltyDaysOk = (d: number): boolean => d >= 0 && d <= 3 && Number.isInteger(d * 4);

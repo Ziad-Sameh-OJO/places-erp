@@ -147,6 +147,20 @@ export class HrController {
     return this.leaves.balancesReport(me, q.month);
   }
 
+  /* ---- 7.9 · the month's deductions, approved by HR for payroll ---- */
+  @Get("deductions")
+  @Requires("hr", "view")
+  deductions(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
+    return this.attendance.deductions(me, q.month);
+  }
+
+  /** HR only (hr: edit + approve, scope all): the Super Admin and a Team Leader can't. */
+  @Post("deductions/approve")
+  @Requires("hr", "edit")
+  approveDeductions(@Me() me: CurrentUser) {
+    return this.attendance.approveDeductions(me, this.run);
+  }
+
   /* ---- 7.7 · penalties ---- */
   @Get("penalties")
   @Requires("hr", "view")

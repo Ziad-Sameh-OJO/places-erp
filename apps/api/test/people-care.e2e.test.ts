@@ -39,11 +39,10 @@ test("HR records a penalty: approved at once; a TL proposes for his team only an
   const prop = await call("/hr/penalties", { method: "POST", cookie: tl, body: { employeeId: mohsen, day: today(), text: `${P} مشاداة مع عميل`, deductionDays: 1 } });
   assert.equal(prop.body.status, "pending");
   assert.equal((await call(`/hr/penalties/${prop.body.id}/approve`, { method: "POST", cookie: tl })).status, 403);
-  let list = (await call("/hr/penalties", { cookie: basant })).body;
-  const before = list.totals.approved;
   assert.equal((await call(`/hr/penalties/${prop.body.id}/approve`, { method: "POST", cookie: basant })).body.status, "approved");
-  list = (await call("/hr/penalties", { cookie: basant })).body;
-  assert.equal(list.totals.approved, before + 1);
+  // by id, not the month's count: payroll.e2e records approved penalties at the same time (7.9)
+  const list = (await call("/hr/penalties", { cookie: basant })).body;
+  assert.equal(list.items.find((x: { id: string }) => x.id === prop.body.id).status, "approved");
   assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: nancy, day: today(), text: `${P} x`, deductionDays: 0.3 } })).status, 400);
   assert.equal((await call("/hr/penalties", { cookie: sales })).status, 403);
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Penalty", entityId: prop.body.id, action: "approve" } }));

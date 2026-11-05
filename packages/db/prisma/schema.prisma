@@ -257,6 +257,17 @@ model Penalty {
   @@schema("hr")
 }
 
+/// M-05 (32) · 7.9: HR approves the month's deductions once; payroll (9.14) reads these numbers, not the live ones.
+model DeductionApproval {
+  id           String   @id @default(cuid())
+  month        String   @unique // 2026-11
+  lines        Json     // [{ userId, employeeId, attendanceDays, penaltyDays, amount }] · amount as a decimal string
+  approvedById String
+  at           DateTime @default(now())
+
+  @@schema("hr")
+}
+
 model OneOnOne {
   id          String    @id @default(cuid())
   employeeId  String

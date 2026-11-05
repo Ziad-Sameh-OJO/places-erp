@@ -1,11 +1,12 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, FingerprintDone, FingerprintRow, WeeklyDelayView } from "@places/contracts";
-import { attendanceDay, dayStart, deductionAmount, fingerprintDay, minutesAfterStart, fromDecimal, isWorkingDay, localDate, normName, normTime, toDecimal, type DeductionTiers } from "@places/domain";
+import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView } from "@places/contracts";
+import { attendanceDay, dayStart, deductionAmount, fingerprintDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
+import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { ParsedSheet } from "../../core/http/import";
 import type { Tx } from "./hr.repository";
 import { LeavesService } from "./leaves.service";
@@ -16,6 +17,8 @@ const EMP = { id: true, name: true, department: true, salary: true, partTime: tr
 type Emp = Prisma.EmployeeGetPayload<{ select: typeof EMP }>;
 const asDay = (s: string) => new Date(`${s}T00:00:00Z`);
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+/** One approved line (7.9): what HR saw and approved, so payroll keeps reading it even if a day is corrected afterwards. */
+type DeductionLine = Omit<DeductionRowView, "net"> & { userId: string };
 /** «11:05» on a Cairo day → the instant. */
 const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5))) * 60_000);
 
@@ -26,7 +29,7 @@ const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Nu
  */
 @Injectable()
 export class AttendanceService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService, private readonly excuses: ExcusesService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly notifications: NotificationsService) {}
 
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
@@ -111,6 +114,56 @@ export class AttendanceService {
       return { employeeId: e.id, name: e.name, byDay: Object.fromEntries(mine.map((r) => [r.day, { late: r.lateMinutes, label: r.label }])), total: mine.reduce((s, r) => s + r.lateMinutes, 0) };
     }).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "ar"));
     return { days, people };
+  }
+
+  /** 7.9 · this month's live lines for everyone payroll pays: attendance days (Excuses already in them) + approved penalties. */
+  private async liveDeductions(month: string, tx: Tx | PrismaClient = this.db): Promise<DeductionLine[]> {
+    const within = { gte: asDay(`${month}-01`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) };
+    const [emps, days, pens] = await Promise.all([
+      tx.employee.findMany({ where: { user: { status: "ACTIVE" }, salary: { gt: 0 } }, select: { id: true, userId: true, name: true, salary: true }, orderBy: { name: "asc" } }),
+      tx.attendanceDay.groupBy({ by: ["employeeId"], where: { day: within }, _sum: { deduction: true, lateMinutes: true } }),
+      tx.penalty.groupBy({ by: ["employeeId"], where: { day: within, status: "approved" }, _sum: { deductionDays: true } }),
+    ]);
+    return emps.map((e) => {
+      const a = days.find((x) => x.employeeId === e.id)?._sum, p = pens.find((x) => x.employeeId === e.id)?._sum;
+      const salary = fromDecimal(e.salary.toFixed(2)), attendanceDays = Number(a?.deduction ?? 0), penaltyDays = Number(p?.deductionDays ?? 0);
+      return { employeeId: e.id, userId: e.userId, name: e.name, salary: toDecimal(salary), attendanceDays, penaltyDays, lateMinutes: a?.lateMinutes ?? 0,
+        amount: toDecimal(monthDeduction({ salary, attendanceDays, penaltyDays }).amount) };
+    });
+  }
+
+  /** «التوفير» (7.9): the month's deductions, live until HR approves them, then exactly what was approved. */
+  async deductions(me: CurrentUser, month = monthOf(localDate(new Date()))): Promise<DeductionsView> {
+    const [ok, mine] = await Promise.all([this.db.deductionApproval.findUnique({ where: { month } }), this.db.employee.findMany({ where: this.scope(me), select: { id: true } })]);
+    const ids = new Set(mine.map((e) => e.id));
+    const lines = (ok ? (ok.lines as DeductionLine[]) : await this.liveDeductions(month)).filter((l) => ids.has(l.employeeId));
+    const by = ok ? await this.db.employee.findUnique({ where: { userId: ok.approvedById }, select: { name: true } }) : null;
+    const rows = lines.map((l) => ({ employeeId: l.employeeId, name: l.name, salary: l.salary, attendanceDays: l.attendanceDays, penaltyDays: l.penaltyDays, lateMinutes: l.lateMinutes, amount: l.amount,
+      net: toDecimal(fromDecimal(l.salary) - fromDecimal(l.amount)) }));
+    const sum = (k: "salary" | "amount" | "net") => toDecimal(rows.reduce((s, r) => s + fromDecimal(r[k]), 0));
+    return { month, rows, totals: { salary: sum("salary"), amount: sum("amount"), net: sum("net"), people: rows.length }, approved: ok ? { by: by?.name ?? "", at: ok.at.toISOString() } : null };
+  }
+
+  /** «اعتمد الخصومات وابعتها للمالية» (7.9, M-05 (32)): once a month, by HR; payroll reads these numbers from then on. */
+  async approveDeductions(me: CurrentUser, run: Run): Promise<DeductionsView> {
+    if (me.grants.scope !== "all" || !me.grants.can("hr", "approve")) throw new ForbiddenException("اعتماد الخصومات للـ HR");
+    const month = monthOf(localDate(new Date()));
+    const total = await run(async (tx) => {
+      if (await tx.deductionApproval.findUnique({ where: { month } })) throw new BadRequestException("خصومات الشهر ده اتعتمدت قبل كده");
+      const lines = await this.liveDeductions(month, tx);
+      const r = await tx.deductionApproval.create({ data: { month, lines, approvedById: me.id } });
+      const total = lines.reduce((s, l) => s + fromDecimal(l.amount), 0);
+      await this.audit.record({ module: "hr", entity: "DeductionApproval", entityId: r.id, action: "approve", userId: me.id, after: { month, people: lines.length, total: toDecimal(total) } }, tx);
+      return total;
+    });
+    await this.notifications.notify({ event: "hr.deductions_approved", link: "/finance", text: `الـ HR اعتمدت خصومات ${month} (${formatEGP(total)}) · اترحّلت للمرتبات` });
+    return this.deductions(me, month);
+  }
+
+  /** For payroll (9.14): each person's approved deduction this month by account, or null while HR hasn't approved. */
+  async approvedDeductions(month: string, tx: Tx | PrismaClient = this.db): Promise<Map<string, number> | null> {
+    const ok = await tx.deductionApproval.findUnique({ where: { month } });
+    return ok ? new Map((ok.lines as DeductionLine[]).map((l) => [l.userId, fromDecimal(l.amount)])) : null;
   }
 
   /** 7.12 · the sheet: known names (and names HR linked before) are written; a day already there is kept; the rest wait for HR. */
