@@ -1,7 +1,7 @@
 /**
  * 3.6 · M-10 3.3 / 6.1 / 3.1 / 2.3 against the real database: the daily job moves a file Inactive after a year without
  * dealing (controlled time, working days only, twice = no harm), the owners-needing-an-update report, the marketing
- * consent, and the data-deletion request to management. Mohamed Mohsen is a salesperson, Manar keeps the inventory,
+ * consent, and the data-deletion request to management. Mohamed Mohsen is a salesperson, Randa (Resale) keeps the inventory,
  * the accountant (finance) reads only.
  */
 import { after, before, test } from "node:test";
@@ -14,7 +14,7 @@ const stamp = String(Date.now());
 const P = `E2E life ${stamp}`; // own prefix: the clients files start in the same millisecond
 const phone = (n: number) => `0156${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
 const DAY = 86_400_000;
-let mohsen: string, manar: string, finance: string;
+let mohsen: string, randa: string, finance: string;
 const ids: Record<string, string> = {};
 const leadIds: string[] = [];
 let unitId: string;
@@ -22,7 +22,7 @@ let unitId: string;
 const WED = new Date("2026-11-04T11:00:00Z"), FRI = new Date("2026-11-06T11:00:00Z");
 
 before(async () => {
-  [mohsen, manar, finance] = await Promise.all(["m.mohsen@places.com", "manar.ahmed@places.com", "ahmed.ashraf@places.com"].map((e) => session(e)));
+  [mohsen, randa, finance] = await Promise.all(["m.mohsen@places.com", "randa.mohamed@places.com", "ahmed.ashraf@places.com"].map((e) => session(e)));
   const emp = await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } });
   const mk = async (key: string, kind: "client" | "owner", n: number, lastContactAt: Date) =>
     (ids[key] = (await prisma.client.create({ data: { name: `${P} ${key}`, kind, lastContactAt, phones: { create: [{ phone: phone(n) }] } } })).id);
@@ -57,14 +57,14 @@ test("the job: nothing on a Friday; on a working day a year without dealing goes
 });
 
 test("dealing with them again makes the file Active; the list filters Inactive ones", async () => {
-  const inactive = await call(`/clients?status=inactive&q=${encodeURIComponent(P)}`, { cookie: manar });
+  const inactive = await call(`/clients?status=inactive&q=${encodeURIComponent(P)}`, { cookie: randa });
   assert.deepEqual(inactive.body.items.map((r: { id: string }) => r.id), [ids.old]);
   assert.equal((await call(`/clients/${ids.old}/interactions`, { method: "POST", cookie: mohsen, body: { kind: "مكالمة", text: `${P} رجع` } })).status, 201);
   assert.equal(await status("old"), "active");
 });
 
 test("the owners-needing-an-update report (M-10 6.1): owners with a unit over a month old", async () => {
-  const r = await call(`/clients?stale=true&q=${encodeURIComponent(P)}`, { cookie: manar });
+  const r = await call(`/clients?stale=true&q=${encodeURIComponent(P)}`, { cookie: randa });
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.items.map((x: { id: string }) => x.id), [ids.owner]);
 });
