@@ -78,6 +78,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   create: "إضافة", update: "تعديل", delete: "مسح", login: "دخول", locked: "اتقفل (5 محاولات غلط)", unlock: "فتح الحساب", disable: "إيقاف",
   enable: "تفعيل", activated: "فعّل حسابه", "password-reset": "غيّر الباسورد (لينك)", "password-changed": "غيّر الباسورد", permissions: "تعديل المصفوفة",
   "invite-resent": "إعادة إيميل التفعيل", "reset-sent": "إرسال لينك تغيير الباسورد", export: "تصدير", import: "استيراد",
+  "handover-asked": "طلب نقل شغل", "handover-approved": "موافقة على نقل شغل", "handover-rejected": "رفض نقل شغل", reassign: "نقل",
 };
 
 /** M-09 1.2 · 4.1: the role whose permission edits stop at his own team. */
@@ -105,3 +106,17 @@ export function teamUnder(managerId: string, people: readonly { id: string; mana
  */
 export const withinOwnPermissions = (mine: Grants, module: ModuleKey, before: readonly Action[], after: readonly Action[]): boolean =>
   [...before, ...after].every((a) => mine.can(module, a));
+
+/**
+ * M-09 2.2 · 7.1 «موظف مشي: الحساب يتقفل، والليدز بتاعته تتنقل بموافقة مديره»: why a request to move a leaver's
+ * open work can't be made, or null. The leaver is stopped (or has a last working day); the work goes to someone
+ * else whose account works; and there is a direct manager to approve it.
+ */
+export function handoverRefusal(h: { leaving: boolean; managerUserId: string | null; fromId: string; toId: string; toActive: boolean; pending: boolean }): string | null {
+  if (!h.leaving) return "الحساب لسه شغال · وقّفه أو حدد آخر يوم شغل الأول";
+  if (h.pending) return "فيه طلب نقل مستني موافقة المدير بالفعل";
+  if (!h.managerUserId) return "مفيش مدير مباشر للموظف ده يوافق على النقل";
+  if (h.toId === h.fromId) return "اختار حد تاني غير الموظف نفسه";
+  if (!h.toActive) return "اللي هيستلم الشغل لازم حسابه يكون شغال";
+  return null;
+}

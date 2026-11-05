@@ -22,6 +22,7 @@ export function UsersTab() {
   const [page, setPage] = useState(1);
   const [form, setForm] = useState<UserRow | "new" | null>(null);
   const [perms, setPerms] = useState<UserRow | null>(null);
+  const [handover, setHandover] = useState<UserRow | null>(null);
   const filters = { ...(q ? { q } : {}), ...(status ? { status } : {}), ...(dept ? { department: dept } : {}) };
   const qs = new URLSearchParams({ page: String(page), pageSize: "25", ...filters });
   const depts = useQuery({ queryKey: ["users", "departments"], queryFn: () => api.get<string[]>("/access/users/departments") });
@@ -64,6 +65,7 @@ export function UsersTab() {
               {edit && u.status === "LOCKED" && <button className="btn ghost sm" onClick={() => act(u, "unlock", "الحساب اتفتح")}>فتح</button>}
               {edit && u.status === "INVITED" && <button className="btn ghost sm" onClick={() => act(u, "invite", `اتبعت إيميل التفعيل على ${u.email}`)}>ابعت التفعيل تاني</button>}
               {edit && u.status === "ACTIVE" && <button className="btn ghost sm" onClick={() => act(u, "reset", `اتبعت لينك تغيير الباسورد على ${u.email}`)}>تغيير الباسورد</button>}
+              {stop && (u.status === "DISABLED" || u.endDate) && <button className="btn ghost sm" onClick={() => setHandover(u)}>نقل الشغل</button>}
               {u.id !== me?.id && (u.status === "DISABLED"
                 ? edit && <button className="btn ghost sm" onClick={() => act(u, "enable", "الحساب اتفعّل")}>تفعيل</button>
                 : stop && <button className="btn danger sm" onClick={() => confirm(`توقف حساب ${u.employee?.name}؟ هيخرج من كل الأجهزة فوراً.`) && act(u, "disable", "الحساب اتوقف")}>إيقاف</button>)}
@@ -72,6 +74,7 @@ export function UsersTab() {
         })} />
       {pages > 1 && <div className="row end"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button><span className="hint">{page} / {pages}</span><button className="btn ghost sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>التالي</button></div>}
       {form && <UserForm user={form === "new" ? null : form} onClose={() => setForm(null)} onSaved={async () => { setForm(null); await refresh(); }} />}
+      {handover && <Handover user={handover} onClose={() => setHandover(null)} />}
       {perms && <UserPermissions user={perms} onClose={() => { setPerms(null); refresh(); }} />}
       </section>
     </>
@@ -119,6 +122,26 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
           {!user && <span className="hint spacer">هيتعمل له فايل موظف في الـ HR، ويوصله إيميل تفعيل يعمل منه الباسورد.</span>}
           <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
           <button className="btn">{user ? "احفظ" : "اعمل الحساب وابعت التفعيل"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** M-09 2.2 · 7.1: the leaver's open leads and tasks go to someone, once their direct manager approves. */
+function Handover({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const run = useAction();
+  // shortcut: the first 100 working accounts (as the form's «المدير المباشر»), a search box once there are more
+  const active = useQuery({ queryKey: ["users", "active"], queryFn: () => api.get<Paged<UserRow>>("/access/users?status=ACTIVE&pageSize=100") });
+  const submit = (f: FormData) => run(async () => { await api.post(`/access/users/${user.id}/handover`, { to: f.get("to") }); onClose(); }, "الطلب اتبعت لمديره المباشر يوافق");
+  return (
+    <Modal title={`نقل شغل ${user.employee?.name ?? user.email}`} onClose={onClose}>
+      <form className="grid" action={submit}>
+        <Field label="الليدز والمهام المفتوحة تتنقل لـ" req><select name="to" required defaultValue=""><option value="" disabled>اختار</option>{active.data?.items.filter((t) => t.employee && t.id !== user.id).map((t) => <option key={t.id} value={t.id}>{t.employee!.name}</option>)}</select></Field>
+        <div className="row end wide">
+          <span className="hint spacer">مش هيتنقل حاجة غير لما مديره المباشر يوافق.</span>
+          <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
+          <button className="btn">ابعت للموافقة</button>
         </div>
       </form>
     </Modal>
