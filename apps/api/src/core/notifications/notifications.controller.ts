@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
 import { z } from "zod";
-import { Page, Preferences, RuleInput } from "@places/contracts";
+import { MailLogQuery, Page, Preferences, RuleInput } from "@places/contracts";
 import { ZodPipe } from "../http/zod.pipe";
 import { Requires, SignedIn } from "../authz/requires.decorator";
 import { Me, type CurrentUser } from "../auth/current-user.decorator";
@@ -26,6 +26,12 @@ export class NotificationsController {
   @SignedIn() @Put("preferences") @HttpCode(204)
   preferences(@Me() me: CurrentUser, @Body(new ZodPipe(Preferences)) b: z.infer<typeof Preferences>) {
     return this.n.setPreferences(me.id, b.emailNotifications);
+  }
+
+  /** The send log is the Super Admin's (M-14 2.3 · 6.1: «تقرير بالإيميلات اللي فشلت»): whoever sets the rules. */
+  @Requires("integrations", "edit") @Get("mail-log")
+  mailLog(@Query(new ZodPipe(MailLogQuery)) q: MailLogQuery) {
+    return this.n.mailLog(q);
   }
 
   @Requires("integrations", "view") @Get("rules")

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Page } from "./common.ts";
 
 /**
  * M-13: every setting the admin can change without a developer, with its shape. The API refuses unknown keys
@@ -101,3 +102,11 @@ export interface HolidayView { id: string; from: string; to: string; label: stri
 
 export const RuleInput = z.object({ channels: z.array(z.enum(["app", "push", "email"])).max(3) });
 export const Preferences = z.object({ emailNotifications: z.boolean() });
+
+/** M-14 3.3 · 6.1: the send log, filtered by state: مستني · اتبعت · اتقرا · الإيميل فشل. */
+export const MailLogQuery = Page.extend({ status: z.enum(["queued", "sent", "read", "failed"]).optional() });
+export type MailLogQuery = z.infer<typeof MailLogQuery>;
+export interface MailLogRow {
+  id: string; to: string; subject: string; status: "queued" | "sent" | "read" | "failed"; attempts: number; error: string | null;
+  createdAt: string; sentAt: string | null; readAt: string | null;
+}

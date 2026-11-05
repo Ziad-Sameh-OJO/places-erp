@@ -14,6 +14,7 @@ import { leaveChaseTick } from "./processors/leave-chase.ts";
 import { hrActionAlarmTick } from "./processors/hr-action-alarm.ts";
 import { ticketSlaTick } from "./processors/ticket-sla.ts";
 import { procurementReminderTick } from "./processors/procurement-reminder.ts";
+import { mailOutboxTick, mailSender } from "./processors/mail-outbox.ts";
 import { staleUploadsTick } from "./processors/stale-uploads.ts";
 import { scheduledReportsTick } from "./processors/scheduled-reports.ts";
 import { targetPaceTick } from "./processors/target-pace.ts";
@@ -24,9 +25,11 @@ import { clientsInactiveTick } from "./processors/clients-inactive.ts";
 import { installmentAlertsTick } from "./processors/installment-alerts.ts";
 
 const connection = { url: env.REDIS_URL };
+const sendMail = mailSender(env);
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: leadSlaTick }, // every minute (M-01 2.4)
+  { name: "mail-outbox", pattern: "* * * * *", processor: () => mailOutboxTick(sendMail) }, // every minute: «الإيميل يتبعت خلال دقيقة» (M-14 2.4)
   { name: "visit-alarm", pattern: "* * * * *", processor: () => visitAlarmTick() }, // every minute (M-01 3.3 · 1.9)
   { name: "recurring-bills", pattern: "0 11 * * *", processor: recurringBillsTick }, // daily at the start of work (M-07 9.16)
   { name: "payroll-due", pattern: "5 11 * * *", processor: payrollDueTick }, // daily: pay day reached and not paid (M-07 9.14)

@@ -88,7 +88,29 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   // M-09 6.1: the Super Admin hears of any permission change and of any strange sign-in
   { key: "access.permissions", label: "تغيير في الصلاحيات", to: "Super Admin", toRoles: ["admin"], channels: ["app", "email"], important: true },
   { key: "access.suspicious", label: "دخول غريب", to: "Super Admin", toRoles: ["admin"], channels: ["app", "push", "email"], important: true },
+  // M-14 2.3 · 7.1: an email that didn't go out; never by email (that's what's failing), the notification stays in the system
+  { key: "mail.failed", label: "إيميل مارجعش", to: "Super Admin", toRoles: ["admin"], channels: ["app"], important: true },
 ];
+
+/**
+ * M-14 2.4 · 3.3: the email queue. The worker sends within a minute; a failed send is tried again a few minutes later
+ * (SMTP hiccups pass), and after the last try it is «الإيميل فشل» and the Super Admin is told. The tries and the
+ * wait are technical, not a business rule.
+ */
+export const MAIL_MAX_ATTEMPTS = 3;
+export const MAIL_RETRY_MINUTES = 5;
+export type MailStatus = "queued" | "sent" | "read" | "failed";
+export const MAIL_STATUS_LABEL: Record<MailStatus, string> = { queued: "مستني", sent: "اتبعت", read: "اتقرا", failed: "الإيميل فشل" };
+
+/** After a send failed on try `attempts` (1, 2…): try again later, or give up and tell the Super Admin. */
+export function afterMailFailure(attempts: number, now: Date): { status: "queued"; nextAttemptAt: Date } | { status: "failed" } {
+  if (attempts >= MAIL_MAX_ATTEMPTS) return { status: "failed" };
+  return { status: "queued", nextAttemptAt: new Date(now.getTime() + MAIL_RETRY_MINUTES * 60_000) };
+}
+
+/** The send log's state (M-14 3.3): a sent email whose in-app copy was opened is «اتقرا». */
+export const mailStatus = (status: string, notificationReadAt: Date | null): MailStatus =>
+  status === "sent" && notificationReadAt ? "read" : (status as MailStatus);
 
 export const eventByKey = (key: string): NotificationEvent | undefined => NOTIFICATION_EVENTS.find((e) => e.key === key);
 
