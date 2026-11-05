@@ -1,6 +1,8 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
-import { AddComment, AssignLead, RecommendAnswers, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
+import type { Response } from "express";
+import { AddComment, AssignLead, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
+import { sendPdf } from "../../core/documents/documents.service";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { LeadsService } from "./leads.service";
@@ -91,6 +93,15 @@ export class LeadsController {
   @Requires("leads", "edit")
   setAnswers(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(RecommendAnswers)) body: RecommendAnswers) {
     return this.leads.setAnswers(me, id, body);
+  }
+
+  /** «ابعت للعميل وسجّل كومنت» (2.13): the PDF of the picked units; the comment is written on the lead. */
+  @Post(":id/unit-list")
+  @HttpCode(200)
+  @Requires("leads", "edit")
+  async unitList(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UnitListInput)) body: UnitListInput, @Res() res: Response) {
+    const { name, pdf } = await this.leads.sendUnitList(me, id, body);
+    sendPdf(res, name, pdf);
   }
 
   @Post(":id/calls")

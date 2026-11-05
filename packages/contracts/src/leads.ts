@@ -215,6 +215,13 @@ export const RecommendAnswers = z.object({
 }).strict();
 export type RecommendAnswers = z.infer<typeof RecommendAnswers>;
 
+/** «اعمل PDF list وابعتها» (2.13, M-01 6.1 · M-03 6.1): the units picked for the client, in the order picked. */
+export const UnitListInput = z.object({
+  unitIds: z.array(z.string().min(1).max(40), { required_error: "اختار وحدة واحدة على الأقل", invalid_type_error: "اختار وحدة واحدة على الأقل" })
+    .min(1, "اختار وحدة واحدة على الأقل").max(30, "30 وحدة بالكتير في اللستة").transform((u) => [...new Set(u)]),
+});
+export type UnitListInput = z.infer<typeof UnitListInput>;
+
 /** A suggested unit as the lead's «الوحدات» tab shows it (no owner details: those are Manar's). */
 export interface RecommendedUnit {
   id: string; code: string; type: string; project: string; area: string; floor: string | null; space: number; condition: string; parking: number;

@@ -58,6 +58,14 @@ export class InventoryRepository {
     });
   }
 
+  /** Of these ids, the open units a salesperson may see, with what the client's list shows (2.13). */
+  forClientList(ids: string[]) {
+    return this.db.unit.findMany({
+      where: { AND: [{ id: { in: ids } }, visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE] },
+      select: { id: true, code: true, type: true, project: true, area: true, floor: true, space: true, condition: true, parking: true, totalPrice: true },
+    });
+  }
+
   codes(ids: string[]) {
     return this.db.unit.findMany({ where: { id: { in: ids } }, select: { id: true, code: true } });
   }

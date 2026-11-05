@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import { RecommendAnswers, activeValues, type Recommendations } from "@places/contracts";
+import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
 import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas, fromDecimal, type ClientNeed } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -14,6 +14,8 @@ import { NotificationsService } from "../../core/notifications/notifications.ser
 import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { DocumentsService } from "../../core/documents/documents.service";
+import { unitListHtml, unitListLine } from "./unit-list";
 import { LeavesService } from "../hr/leaves.service";
 import { AttendanceService } from "../hr/attendance.service";
 import { RotationService } from "./rotation.service";
@@ -40,6 +42,7 @@ export class LeadsService {
     private readonly rules: LeadRulesService,
     private readonly notifications: NotificationsService,
     private readonly inventory: InventoryService,
+    private readonly documents: DocumentsService,
     private readonly leaves: LeavesService,
     private readonly attendance: AttendanceService, // 7.3: a marked Visit re-reads that day
     private readonly rotation: RotationService, // 1.23: today's order
@@ -181,7 +184,7 @@ export class LeadsService {
     if (!lead) throw new NotFoundException(NO_LEAD);
     const settings = await this.settings.all();
     const answers = storedAnswers(lead.answers);
-    const need: ClientNeed = { type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget ? fromDecimal(lead.budget.toFixed(2)) : null, area: lead.area };
+    const need = needOf(lead);
     const { items, projects } = await this.inventory.recommend(need, answers, settings.recommendTolerancePct);
     return {
       tolerancePct: settings.recommendTolerancePct,
@@ -200,6 +203,35 @@ export class LeadsService {
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "answers", userId: me.id, before, after: answers }, tx);
     });
     return this.recommendations(me, id);
+  }
+
+  /**
+   * «ابعت للعميل وسجّل كومنت» (2.13, M-01 6.1 · M-03 6.1): the PDF «List of options» of the picked units, and a comment
+   * on the lead with each unit's project and space. The PDF is made first, so a failed render records nothing; the
+   * units are kept as the lead's suggested units. It is an action on the lead (stops the SLA clock).
+   */
+  async sendUnitList(me: CurrentUser, id: string, input: UnitListInput): Promise<{ name: string; pdf: Buffer }> {
+    const lead = await this.repo.clientNeed(ownedBy(me) as never, id);
+    if (!lead) throw new NotFoundException(NO_LEAD);
+    const found = await this.inventory.forClientList(input.unitIds);
+    if (!found) throw new BadRequestException("فيه وحدة مش متاحة · اختار من الـ Recommendations");
+    // a big divisible unit suggested in part (Q20) goes on the list with the client's space and its price for it
+    const { recommendTolerancePct } = await this.settings.all();
+    const need = needOf(lead);
+    const parts = new Map((await this.inventory.recommend(need, {}, recommendTolerancePct)).items.filter((r) => r.split).map((r) => [r.id, r]));
+    const units = found.map((u) => { const p = parts.get(u.id); return p && need.space ? { ...u, space: need.space, splitOf: u.space, totalPrice: p.price } : u; });
+    const now = new Date();
+    const pdf = await this.documents.pdf(unitListHtml(lead.name, units, now), now);
+    await this.db.$transaction(async (tx) => {
+      if (!(await this.repo.findInScope(ownedBy(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
+      const text = unitListLine(units);
+      const activity = await this.repo.addActivity(tx, id, "comment", text, me.id);
+      await this.repo.markActed(tx, id, activity.at);
+      await this.repo.addSuggestedUnits(tx, id, units.map((u) => u.id), me.id);
+      await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "unit-list", userId: me.id,
+        after: { leadId: id, unitIds: input.unitIds, text } }, tx);
+    });
+    return { name: `List of options · ${lead.name}.pdf`, pdf };
   }
 
   /** The person's calls in their KPI period (Telesales today, sales / TLs the last 7 days). */
@@ -495,4 +527,9 @@ function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, peop
 function storedAnswers(v: unknown): RecommendAnswers {
   const parsed = RecommendAnswers.safeParse(v ?? {});
   return parsed.success ? parsed.data : {};
+}
+
+/** What the lead says the client wants, for the recommendations (M-03 3.2). */
+function needOf(lead: { type: string; space: number | null; condition: string | null; budget: Prisma.Decimal | null; area: string }): ClientNeed {
+  return { type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget ? fromDecimal(lead.budget.toFixed(2)) : null, area: lead.area };
 }
