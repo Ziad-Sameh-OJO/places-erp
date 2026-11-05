@@ -59,7 +59,7 @@ test("a unit saved with empty columns says what's missing until they are filled"
   const { id, code } = r.body as { id: string; code: string };
 
   const unit = (await call(`/inventory/units/${id}`, { cookie: manar })).body as { missing: string[] };
-  assert.deepEqual(unit.missing, ["Pic / info", "Maintenance", "Commission", "Location"]);
+  assert.deepEqual(unit.missing, ["Pic & Info", "Maintenance", "Commission", "Location"]);
   assert.deepEqual((await listed(manar, true)).map((u) => u.code), [code]);
   assert.deepEqual(await listed(manar, false), []);
   const summary = (await call("/inventory/units/summary", { cookie: manar })).body as { missing: number };
@@ -76,7 +76,7 @@ test("a unit saved with empty columns says what's missing until they are filled"
   // filled: only the photo folder is left, then a photo (put straight in: the upload needs file storage) clears it
   const put = await call(`/inventory/units/${id}`, { method: "PUT", cookie: manar, body: rent({ maintenance: "15 / م", commission: "شهر", location: "30.02, 31.48" }) });
   assert.equal(put.status, 200, JSON.stringify(put.body));
-  assert.deepEqual((put.body as { missing: string[] }).missing, ["Pic / info"]);
+  assert.deepEqual((put.body as { missing: string[] }).missing, ["Pic & Info"]);
   const manarUser = (await prisma.user.findUniqueOrThrow({ where: { email: "manar.ahmed@places.com" } })).id;
   const file = await prisma.file.create({ data: { key: `e2e/${P}.png`, name: `${P}.png`, mime: "image/png", size: 10, status: "READY", uploadedById: manarUser } });
   await prisma.unitPhoto.create({ data: { unitId: id, fileId: file.id, position: 0 } });

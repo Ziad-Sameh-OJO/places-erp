@@ -110,31 +110,20 @@ test("the system fills in the total (price per m² × area) and Income's rent an
   assert.equal(inc.pdfStatus, "draft");
 });
 
-test("each type's required columns (M-03 3.1), with Arabic messages", async () => {
+test("nothing is required (2.21), but a wrong value is refused in Arabic", async () => {
   const refused = async (body: object, word: string) => {
     const r = await call("/inventory/units", { method: "POST", cookie: manar, body });
     assert.equal(r.status, 400, JSON.stringify(r.body));
     assert.match(JSON.stringify(r.body), new RegExp(word), JSON.stringify(r.body));
   };
-  const noNumber: Record<string, unknown> = rent();
-  delete noNumber.ownerPhone;
-  await refused(noNumber, "الرقم");
-  await refused(rent({ ownerName: "" }), "Contact");
-  await refused(rent({ pricePerSqm: "" }), "المبلغ|Price");
   await refused(rent({ pricePerSqm: "0" }), "Price per sqm");
   await refused(rent({ pricePerSqm: "-5" }), "بالسالب");
-  await refused(rent({ space: 0 }), "المساحة");
+  await refused(rent({ space: -5 }), "المساحة");
   await refused(rent({ space: 12.5 }), "صحيح");
-  await refused(rent({ building: "" }), "رقم المبنى");
-  await refused(rent({ agentId: "" }), "Agent");
   await refused(rent({ condition: "مفروش" }), "التشطيب");
   await refused(rent({ ownerPhone: "12" }), "الرقم غلط");
   await refused(rent({ location: "مش لوكيشن" }), "اللوكيشن");
   await refused(rent({ divisible: true, minSplit: 95 }), "أصغر من مساحة الوحدة");
-  await refused(resale({ ownerName: "" }), "الأونر");
-  const noLease: Record<string, unknown> = income();
-  delete noLease.leasePerSqm;
-  await refused(noLease, "Lease");
   await refused(income({ startsOn: "2027-01-01", endsOn: "2026-01-01" }), "End date");
   await refused(income({ escalationPct: 150 }), "Escalation");
   await refused({ ...rent(), type: "Office" }, "type|Invalid");

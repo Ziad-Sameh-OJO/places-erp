@@ -9,26 +9,34 @@ export const TYPE_TONE: Record<UnitTypeName, "info" | "acc" | "ok" | "warn"> = {
 export const TypeChip = ({ type }: { type: UnitTypeName }) => <Chip tone={TYPE_TONE[type]}>{type}</Chip>;
 
 type Col = readonly [key: string, label: string];
+const RENT: readonly Col[] = [
+  ["project", "Project"], ["code", "Code"], ["photos", "Pic & Info"], ["space", "Area"], ["condition", "Conditions"], ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"],
+  ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["building", "Building Number"], ["parking", "Parking Slots"], ["location", "Location"],
+  ["layout", "Layout"], ["pic", "PIC"], ["resale", "Resale"], ["comment", "Comment"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["agent", "Agent"], ["lastUpdate", "Last update"],
+];
 /**
  * The demo's sheet columns per type (M-03 3.1: each type keeps its own sheet's columns and names); «all» is the
  * mixed list and the rented / sold sheet. «Pic / info» counts the unit's photos (2.4); the agreement comes later.
  */
 export const COLS: Record<UnitTypeName | "all" | "closed", readonly Col[]> = {
-  Rent: [["project", "Project"], ["code", "Code"], ["photos", "Pic / info"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["space", "Gross area"], ["condition", "Conditions"], ["pricePerSqm", "Price / sqm"], ["total", "Total price"], ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["agent", "Agent"], ["building", "Build num"], ["parking", "Parking"], ["location", "Location"], ["lastUpdate", "Last update"]],
+  // 2.21 · the client's Rent sheet (Book7) column for column, then the system's own columns
+  Rent: RENT,
   Resale: [["project", "اسم المبنى"], ["code", "الكود"], ["ownerName", "اسم الأونر"], ["ownerPhone", "الرقم"], ["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["paymentMethod", "طريقة الدفع"], ["agent", "Agent"], ["maintenance", "صيانة"], ["building", "رقم المبنى"], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
   Income: [["project", "اسم المبنى"], ["code", "الكود"], ["ownerName", "الاسم"], ["ownerPhone", "الرقم"], ["link", "اللينك"], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
   // Primary's own columns weren't sent yet: it shows the common ones
   Primary: [["code", "Code"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["condition", "Condition"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["floor", "Floor"], ["building", "Build num"], ["parking", "Parking"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
   // the rented / sold sheet (M-03 5.2): which side closed, when and by which deal
   closed: [["code", "Code"], ["closedAs", "اتقفلت"], ["closedAt", "التاريخ"], ["deal", "Done Deal"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["total", "Total"], ["agent", "Agent"], ["stillOpen", "لسه متاحة"]],
-  all: [["code", "Code"], ["type", "Type"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["condition", "Condition"], ["total", "Total"], ["divisible", "تتقسم؟"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
+  all: [RENT[0]!, RENT[1]!, ["type", "Type"], ...RENT.slice(2)],
 };
 const OWNER_KEYS = new Set(["ownerName", "ownerPhone", "deal"]);
 
 /** The columns this person sees: the owners' name and number only for the people who keep the inventory (API too). */
 export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boolean) => COLS[type].filter(([k]) => insider || !OWNER_KEYS.has(k));
 
-const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : String(v));
+// English values sit in <bdi> so «1,5 Month» keeps its order in the RTL table
+const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : <bdi>{String(v)}</bdi>);
+const yesNo = (v: boolean) => <Chip tone={v ? "ok" : ""}>{v ? "Yes" : "No"}</Chip>;
 
 /** One cell, as the demo's cell(): money grouped, late updates in red, the map link, Income's figures. */
 export function cell(u: UnitRow, key: string): ReactNode {
@@ -36,7 +44,11 @@ export function cell(u: UnitRow, key: string): ReactNode {
   switch (key) {
     case "code": return <><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <> <Chip tone="warn">PDF draft</Chip></>}{u.missing.length > 0 && <> <Chip tone="bad">ناقص {u.missing.length}</Chip></>}</>;
     case "type": return <TypeChip type={u.type} />;
-    case "space": return <span className="num">{num(u.space)}</span>;
+    case "space": return !u.space ? "—" : <bdi className="num">{u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)}` : num(u.space)}</bdi>;
+    case "layout": return yesNo(u.layout);
+    case "pic": return yesNo(u.photoCount > 0);
+    case "resale": return yesNo(u.type === "Resale" || u.alsoType === "Resale");
+    case "comment": return text(u.comment);
     case "pricePerSqm": case "leasePerSqm": return <span className="num">{amount(u[key])}</span>;
     case "total": return <span className="num">{moneyExact(u.totalPrice)}</span>;
     case "monthly": return <span className="num">{moneyExact(u.income?.monthlyRent ?? null)}</span>;

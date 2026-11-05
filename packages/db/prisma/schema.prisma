@@ -879,10 +879,11 @@ model Unit {
   alsoType          UnitType?   // available as a second type at the same time (M-03 Q17)
   status            UnitStatus  @default(available)
   alsoStatus        UnitStatus? // closing one side leaves the other open (Q17)
-  project           String      // Rent «project» · Resale / Income «اسم المبنى»
-  area              String
-  space             Int         // gross area, m²
-  condition         String      // Rent «conditions» · Resale «التشطيب»
+  // 2.21: no column is required (the client's sheet has gaps); empty = "" / 0 until filled (domain missingFields)
+  project           String      @default("") // Rent «project» · Resale / Income «اسم المبنى»
+  area              String      @default("")
+  space             Int         @default(0) // gross area, m²
+  condition         String      @default("") // Rent «conditions» · Resale «التشطيب»
   floor             String?
   building          String?     // «build num» / «رقم المبنى» (number and text)
   parking           Int         @default(0)
@@ -896,6 +897,8 @@ model Unit {
   maintenance       String?     // number and text
   commission        String?     // number and text
   paymentMethod     String?     // Resale / Income
+  layout            Boolean     @default(false) // «Layout» Yes / No (Book7, 2.21)
+  comment           String?     // «Comment» (Book7, 2.21)
   details           Json        @default("{}") // the columns only one type has (Resale delivery, Income contract…), checked by @places/contracts
   agentId           String?     // hr.Employee: who brought the unit → Seller on a deal (M-02), counted in their activity
   divisible         Boolean     @default(false)

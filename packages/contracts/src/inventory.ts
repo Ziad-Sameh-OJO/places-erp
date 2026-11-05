@@ -9,7 +9,8 @@ import type { ListItem } from "./settings.ts";
 const text = (max: number, tooLong: string) => z.string({ invalid_type_error: `${tooLong.split(" ")[0]} كلام` }).trim().max(max, tooLong);
 /** An empty field from the form is «not filled», not an empty string in the sheet. */
 const optional = <T extends z.ZodTypeAny>(s: T) => z.preprocess((v) => (v === "" || v === null ? undefined : v), s.optional());
-const required = (max: number, missing: string) => z.string({ required_error: missing, invalid_type_error: missing }).trim().min(1, missing).max(max, `${missing} · طويل`);
+/** 2.21 · nothing is required: an empty text column is stored as "" and counted as missing (domain missingFields). */
+const blank = (max: number, tooLong: string) => z.preprocess((v) => (v === null ? undefined : v), text(max, tooLong).default(""));
 /** The owner's number as they gave it: a mobile, a landline or a number abroad (7 to 15 digits). */
 const Phone = z.string({ required_error: "اكتب الرقم", invalid_type_error: "الرقم غلط" }).transform((s) => s.replace(/[\s\-()]/g, "")).pipe(z.string().regex(/^\+?\d{7,15}$/, "الرقم غلط"));
 /** A price per m²: up to 10 digits of pounds (a few extra zeros typed by mistake are refused, not stored). */
@@ -20,17 +21,21 @@ const Location = z.string().trim().regex(/^-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\
 
 /** What every type has (the demo's form top): the agent is who brought the unit → Seller on the deal (M-02). */
 const Common = {
-  project: required(160, "اكتب الـ Project / اسم المبنى"),
-  area: required(80, "اختار الـ Area"),
-  space: z.number({ required_error: "اكتب المساحة", invalid_type_error: "المساحة رقم" }).int("المساحة رقم صحيح").positive("المساحة لازم تبقى أكبر من صفر").max(1_000_000, "المساحة كبيرة أوي"),
-  condition: required(80, "اختار التشطيب"), // from «الإعدادات ← القوايم ← التشطيب» (12.7); the API checks it's on the list
+  project: blank(160, "الـ Project طويل"),
+  area: blank(80, "الـ Area طويلة"),
+  // 0 = not filled yet (2.21)
+  space: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.number({ invalid_type_error: "المساحة رقم" }).int("المساحة رقم صحيح").min(0, "المساحة مايبقاش بالسالب").max(1_000_000, "المساحة كبيرة أوي").default(0)),
+  condition: blank(80, "التشطيب طويل"), // from «الإعدادات ← القوايم ← التشطيب» (12.7); the API checks it's on the list
   floor: optional(text(40, "الدور طويل")),
-  building: required(40, "اكتب رقم المبنى"),
+  building: optional(text(40, "رقم المبنى طويل")),
   parking: z.number({ invalid_type_error: "الـ Parking رقم" }).int("الـ Parking رقم صحيح").min(0, "الـ Parking مايبقاش بالسالب").max(10_000, "الـ Parking كبير أوي").default(0),
-  agentId: z.string({ required_error: "اختار الـ Agent", invalid_type_error: "اختار الـ Agent" }).min(1, "اختار الـ Agent").max(40),
+  agentId: optional(z.string({ invalid_type_error: "اختار الـ Agent" }).max(40)),
   maintenance: optional(text(80, "الصيانة طويلة")),
   commission: optional(text(80, "الـ Commission طويل")),
   location: optional(Location),
+  /** Book7 «Layout» Yes / No and «Comment» (2.21) */
+  layout: z.boolean({ invalid_type_error: "الـ Layout اه أو لا" }).default(false),
+  comment: optional(text(2000, "الـ Comment طويل")),
   /** «last update» with the owner; today when it's left empty */
   lastOwnerUpdateAt: optional(CalendarDay),
   /** when it came from the owner / WhatsApp (KPI: entered within 24h) */
@@ -44,21 +49,28 @@ const Common = {
   alsoType: optional(z.enum(["Rent", "Resale"], { errorMap: () => ({ message: "النوع التاني Rent أو Resale" }) })),
 };
 
-/** RENT (M-03 3.1): contact, number, price per sqm and the agent are required. */
+/** RENT (Book7, 2.21): nothing required; the rent terms the client's PDF shows (stored in `details`). */
 const Rent = z.object({
   type: z.literal("Rent"),
   ...Common,
-  ownerName: required(120, "اكتب الـ Contact"),
-  ownerPhone: Phone,
-  pricePerSqm: Price("اكتب الـ Price per sqm"),
+  ownerName: optional(text(120, "الـ Contact طويل")),
+  ownerPhone: optional(Phone),
+  pricePerSqm: optional(Price("اكتب الـ Price per sqm")),
+  delivery: optional(text(40, "الـ Delivery date طويل")), // «Ready to move» or a date
+  upfront: optional(text(40, "الـ Upfront rent طويل")),
+  security: optional(text(40, "الـ Security deposit طويل")),
+  payment: optional(text(40, "الـ Payment طويل")), // «Quarterly»: how the rent is paid, not the sale payment plans list
+  term: optional(text(40, "الـ Term طويل")),
+  grace: optional(text(40, "الـ Grace period طويل")),
+  escalationPct: optional(z.number({ invalid_type_error: "الـ Annual increase رقم" }).min(0, "الـ Annual increase مايبقاش بالسالب").max(100, "الـ Annual increase نسبة لحد 100")),
 });
-/** RESALE: the demo's required fields (owner, number, price per m²). */
+/** RESALE: nothing required either (2.21). */
 const Resale = z.object({
   type: z.literal("Resale"),
   ...Common,
-  ownerName: required(120, "اكتب اسم الأونر"),
-  ownerPhone: Phone,
-  pricePerSqm: Price("اكتب السعر للمتر"),
+  ownerName: optional(text(120, "اسم الأونر طويل")),
+  ownerPhone: optional(Phone),
+  pricePerSqm: optional(Price("اكتب السعر للمتر")),
   paymentMethod: optional(text(80, "طريقة الدفع طويلة")),
   delivery: optional(text(40, "الـ Delivery date طويل")), // a date, or «فوري»
 });
@@ -66,10 +78,10 @@ const Resale = z.object({
 const Income = z.object({
   type: z.literal("Income"),
   ...Common,
-  ownerName: required(120, "اكتب الاسم"),
+  ownerName: optional(text(120, "الاسم طويل")),
   ownerPhone: optional(Phone),
-  pricePerSqm: Price("اكتب الـ Sale price per meter"),
-  leasePerSqm: Price("اكتب الـ Lease price per meter"),
+  pricePerSqm: optional(Price("اكتب الـ Sale price per meter")),
+  leasePerSqm: optional(Price("اكتب الـ Lease price per meter")),
   link: optional(text(300, "اللينك طويل")),
   contractDuration: optional(text(40, "مدة العقد طويلة")), // number and text («5 سنين»)
   startsOn: optional(CalendarDay),
@@ -93,10 +105,10 @@ const Primary = z.object({
 /** The unit form (create and edit send the whole sheet). */
 export const UnitInput = z.discriminatedUnion("type", [Rent, Resale, Income, Primary], { errorMap: () => ({ message: "اختار الـ Type: Rent أو Resale أو Income أو Primary" }) })
   .refine((u) => unitFiguresFit({
-    pricePerSqm: u.pricePerSqm ? fromDecimal(u.pricePerSqm) : null, leasePerSqm: u.type === "Income" ? fromDecimal(u.leasePerSqm) : null, area: u.space,
+    pricePerSqm: u.pricePerSqm ? fromDecimal(u.pricePerSqm) : null, leasePerSqm: u.type === "Income" && u.leasePerSqm ? fromDecimal(u.leasePerSqm) : null, area: u.space,
   }), { path: ["pricePerSqm"], message: "الإجمالي كبير أوي · راجع السعر والمساحة" })
   .refine((u) => u.alsoType !== u.type, { path: ["alsoType"], message: "النوع التاني لازم يبقى غير الـ Type" })
-  .refine((u) => !u.minSplit || u.minSplit < u.space, { path: ["minSplit"], message: "أقل مساحة للتقسيم لازم تبقى أصغر من مساحة الوحدة" })
+  .refine((u) => !u.minSplit || !u.space || u.minSplit < u.space, { path: ["minSplit"], message: "أقل مساحة للتقسيم لازم تبقى أصغر من مساحة الوحدة" })
   .refine((u) => u.type !== "Income" || !u.startsOn || !u.endsOn || u.startsOn <= u.endsOn, { path: ["endsOn"], message: "الـ End date قبل الـ Start date" });
 export type UnitInput = z.infer<typeof UnitInput>;
 
@@ -138,7 +150,7 @@ export interface UnitRow {
   project: string; area: string; space: number; condition: string; floor: string | null; building: string | null; parking: number;
   ownerName: string | null; ownerPhone: string | null;
   pricePerSqm: string | null; totalPrice: string | null; leasePerSqm: string | null;
-  maintenance: string | null; commission: string | null; paymentMethod: string | null;
+  maintenance: string | null; commission: string | null; paymentMethod: string | null; layout: boolean; comment: string | null;
   divisible: boolean; minSplit: number | null; location: string | null; areaTabId: string | null;
   agent: Person | null; lastOwnerUpdateAt: string; stale: boolean; pdfStatus: "draft" | "confirmed"; createdAt: string;
   /** the columns only one type has (Resale delivery, Income contract…) */

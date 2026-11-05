@@ -183,6 +183,9 @@ test("2.8 · the PDF / slide show the unit, never its owner, agent or commission
     for (const hidden of ["ownerName", "ownerPhone", "agent", "commission", "link", "tenant"]) assert.ok(!keys.includes(hidden), `${type} shows ${hidden}`);
     assert.ok(keys.includes("total") && keys.includes("space"));
   }
+  // 2.21 · Rent follows the client's slide, rent terms included
+  assert.deepEqual(UNIT_SHEET_FIELDS.Rent.slice(0, 5).map(([, l]) => l), ["Building", "Delivery date", "Gross area", "Hand over Condition", "Rent rate per meter"]);
+  for (const k of ["upfront", "security", "payment", "term", "grace", "escalationPct"]) assert.ok(UNIT_SHEET_FIELDS.Rent.some(([x]) => x === k), k);
   assert.equal(UNIT_SHEET_FIELDS.Resale.find(([k]) => k === "total")![1], "إجمالي السعر");
 });
 
@@ -213,10 +216,10 @@ test("2.4 · photo order: the same photos, each once, in the new order; the firs
   assert.deepEqual(photoOrder([], []), []);
 });
 
-test("2.20 · a Rent unit with the project only (the finishing list's first value picked) misses 9 columns", () => {
-  const miss = missingFields({ type: "Rent", photoCount: 0, project: "Mivida", condition: "Fully finished", parking: 0, floor: null });
-  assert.equal(miss.length, 9);
-  assert.deepEqual(miss, ["Pic / info", "Contact", "Number", "Gross area", "Price / sqm", "Maintenance", "Commission", "Build num", "Location"]);
+test("2.20 · 2.21 · a Rent unit saved with the project only misses 10 columns, in the client's sheet order", () => {
+  const miss = missingFields({ type: "Rent", photoCount: 0, project: "Mivida", area: "", space: 0, condition: "", parking: 0, floor: null, layout: false, comment: null });
+  assert.deepEqual(miss, ["Pic & Info", "Area", "Conditions", "Price/Sqm", "Maintenance", "Commission", "Building Number", "Location", "Contact", "Number"]);
+  assert.ok(missingFields({ type: "Rent", photoCount: 0, project: "" }).includes("Project"));
 });
 
 test("2.20 · optional and computed columns never count; a filled column drops off; the photos count by the folder", () => {
@@ -225,7 +228,7 @@ test("2.20 · optional and computed columns never count; a filled column drops o
     pricePerSqm: "1100.00", maintenance: "10%", commission: "1 month", building: "B12", location: "30.02, 31.48", floor: null, parking: 0, totalPrice: null,
   };
   assert.deepEqual(missingFields(full), []);
-  assert.deepEqual(missingFields({ ...full, photoCount: 0, maintenance: "" }), ["Pic / info", "Maintenance"]);
+  assert.deepEqual(missingFields({ ...full, photoCount: 0, maintenance: "" }), ["Pic & Info", "Maintenance"]);
   // Resale's delivery and Income's contract live in `details`
   assert.deepEqual(missingFields({ ...full, type: "Resale", paymentMethod: "Cash", details: {} }), ["Delivery date"]);
   const income = missingFields({ ...full, type: "Income", leasePerSqm: "270.00", details: { link: "x" } });

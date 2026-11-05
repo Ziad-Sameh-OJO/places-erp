@@ -200,10 +200,11 @@ export class InventoryService {
     let added = 0, duplicates = 0;
     const run = async (tx: Prisma.TransactionClient) => {
       for (const { line, data } of sheet.rows) {
-        const input = { ...data, agentId: agents.get(data.agentId.trim().toLowerCase()) ?? "" }; // the sheet has the agent's name
-        if (!input.agentId) { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
+        const name = data.agentId?.trim().toLowerCase();
+        const input = { ...data, agentId: name ? agents.get(name) ?? "" : undefined }; // the sheet has the agent's name (may be empty, 2.21)
+        if (input.agentId === "") { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
         try { await this.check(input, null); } catch (e) { errors.push({ line, column: "", message: (e as Error).message }); continue; }
-        const key = { project: input.project, space: input.space, floor: input.floor ?? null, building: input.building, ownerPhone: input.ownerPhone ?? null };
+        const key = { project: input.project, space: input.space, floor: input.floor ?? null, building: input.building ?? null, ownerPhone: input.ownerPhone ?? null };
         const id = JSON.stringify({ ...key, project: key.project.toLowerCase() });
         if (seen.has(id) || (await tx.unit.findFirst({ where: { ...key, project: { equals: key.project, mode: "insensitive" }, archivedAt: null }, select: { id: true } }))) { duplicates++; continue; }
         seen.add(id);
@@ -271,13 +272,13 @@ export class InventoryService {
    * day that happened.
    */
   private async check(input: UnitInput, before: UnitRecord | null) {
-    if (before?.agentId !== input.agentId && !(await this.repo.agents([input.agentId])).length) throw new BadRequestException("الـ Agent ده مش موجود");
+    if (input.agentId && before?.agentId !== input.agentId && !(await this.repo.agents([input.agentId])).length) throw new BadRequestException("الـ Agent ده مش موجود");
     if (input.lastOwnerUpdateAt && input.lastOwnerUpdateAt > localDate(new Date())) throw new BadRequestException("الـ Last update مايبقاش في المستقبل");
     if (input.areaTabId && !(await this.repo.areaTabs()).some((t) => t.id === input.areaTabId)) throw new BadRequestException("تاب المساحة ده اتشال · اختار تاب تاني");
     // the lists (12.7): a new value must be an active one; a unit keeps the value it has even if it was switched off since
     const lists = await this.settings.all();
-    if (!allowedValue(lists.areas, input.area, before?.area)) throw new BadRequestException("اختار Area من القايمة");
-    if (!allowedValue(lists.finishings, input.condition, before?.condition)) throw new BadRequestException("اختار التشطيب من القايمة");
+    if (input.area && !allowedValue(lists.areas, input.area, before?.area)) throw new BadRequestException("اختار Area من القايمة");
+    if (input.condition && !allowedValue(lists.finishings, input.condition, before?.condition)) throw new BadRequestException("اختار التشطيب من القايمة");
     const pay = "paymentMethod" in input ? input.paymentMethod : undefined;
     if (pay && !allowedValue(lists.paymentPlans, pay, before?.paymentMethod)) throw new BadRequestException("اختار طريقة الدفع من القايمة");
   }
@@ -289,7 +290,7 @@ export class InventoryService {
 
   private row(u: UnitRowRecord, s: UnitScope, agents: Map<string, string>, links: Map<string, string>): UnitRow {
     const money = (d: Prisma.Decimal | null) => (d ? d.toFixed(2) : null);
-    const income = u.type === "Income" && u.pricePerSqm && u.leasePerSqm
+    const income = u.type === "Income" && u.pricePerSqm && u.leasePerSqm && u.space > 0
       ? incomeFigures({ salePerSqm: fromDecimal(u.pricePerSqm.toFixed(2)), leasePerSqm: fromDecimal(u.leasePerSqm.toFixed(2)), area: u.space })
       : null;
     return {
@@ -297,7 +298,7 @@ export class InventoryService {
       project: u.project, area: u.area, space: u.space, condition: u.condition, floor: u.floor, building: u.building, parking: u.parking,
       ownerName: s.insider ? u.ownerName : null, ownerPhone: s.insider ? u.ownerPhone : null,
       pricePerSqm: money(u.pricePerSqm), totalPrice: money(u.totalPrice), leasePerSqm: money(u.leasePerSqm),
-      maintenance: u.maintenance, commission: u.commission, paymentMethod: u.paymentMethod,
+      maintenance: u.maintenance, commission: u.commission, paymentMethod: u.paymentMethod, layout: u.layout, comment: u.comment,
       divisible: u.divisible, minSplit: u.minSplit, location: u.location, areaTabId: u.areaTabId,
       agent: u.agentId ? { id: u.agentId, name: agents.get(u.agentId) ?? "" } : null,
       lastOwnerUpdateAt: u.lastOwnerUpdateAt.toISOString(), stale: isStale(u.lastOwnerUpdateAt, new Date()),
@@ -343,16 +344,20 @@ function toData(u: UnitInput) {
   const details: Record<string, string | number> = {};
   const put = (k: string, v: string | number | undefined) => { if (v !== undefined) details[k] = v; };
   if (u.type === "Resale") put("delivery", u.delivery);
+  if (u.type === "Rent") {
+    put("delivery", u.delivery); put("upfront", u.upfront); put("security", u.security); put("payment", u.payment); put("term", u.term); put("grace", u.grace);
+    put("escalationPct", u.escalationPct);
+  }
   if (u.type === "Income") {
     put("link", u.link); put("contractDuration", u.contractDuration); put("startsOn", u.startsOn); put("endsOn", u.endsOn);
     put("escalationPct", u.escalationPct); put("serviceChargeUsd", u.serviceChargeUsd && toDecimal(fromDecimal(u.serviceChargeUsd))); put("tenant", u.tenant); put("note", u.note);
   }
   return {
-    type: u.type, alsoType: u.alsoType ?? null, project: u.project, area: u.area, space: u.space, condition: u.condition, floor: u.floor ?? null, building: u.building,
-    parking: u.parking, agentId: u.agentId, ownerName: u.ownerName ?? null, ownerPhone: u.ownerPhone ?? null,
-    pricePerSqm: price ? toDecimal(fromDecimal(price)) : null, totalPrice: price ? toDecimal(unitTotal(fromDecimal(price), u.space)) : null,
-    leasePerSqm: u.type === "Income" ? toDecimal(fromDecimal(u.leasePerSqm)) : null,
-    maintenance: u.maintenance ?? null, commission: u.commission ?? null,
+    type: u.type, alsoType: u.alsoType ?? null, project: u.project, area: u.area, space: u.space, condition: u.condition, floor: u.floor ?? null, building: u.building ?? null,
+    parking: u.parking, agentId: u.agentId ?? null, ownerName: u.ownerName ?? null, ownerPhone: u.ownerPhone ?? null,
+    pricePerSqm: price ? toDecimal(fromDecimal(price)) : null, totalPrice: price && u.space ? toDecimal(unitTotal(fromDecimal(price), u.space)) : null,
+    leasePerSqm: u.type === "Income" && u.leasePerSqm ? toDecimal(fromDecimal(u.leasePerSqm)) : null,
+    maintenance: u.maintenance ?? null, commission: u.commission ?? null, layout: u.layout, comment: u.comment ?? null,
     paymentMethod: u.type === "Rent" ? null : (u.paymentMethod ?? null),
     details, location: u.location ?? null, areaTabId: u.areaTabId ?? null,
     divisible: u.divisible, minSplit: u.divisible ? (u.minSplit ?? null) : null, splitNote: u.divisible ? (u.splitNote ?? null) : null,

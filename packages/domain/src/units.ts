@@ -151,7 +151,9 @@ export const confirmsClose = (roles: readonly string[], type: UnitType): boolean
  * sales' sheet has no owners' numbers). Each type keeps its own sheet's names (3.1).
  */
 export const UNIT_SHEET_FIELDS: Record<UnitType, readonly (readonly [key: string, label: string])[]> = {
-  Rent: [["space", "Gross area"], ["floor", "Floor"], ["condition", "Conditions"], ["building", "Build num"], ["parking", "Parking slots"], ["pricePerSqm", "Price per sqm"], ["total", "Total price / شهر"], ["maintenance", "Maintenance"]],
+  // 2.21 · the client's slide (2026-11-05) row for row; its Commission row stays out (M-03 1.2, asked on the PR)
+  Rent: [["project", "Building"], ["delivery", "Delivery date"], ["space", "Gross area"], ["condition", "Hand over Condition"], ["pricePerSqm", "Rent rate per meter"], ["total", "Total price / شهر"],
+    ["maintenance", "Maintenance"], ["parking", "Parking slots"], ["upfront", "Upfront rent"], ["security", "Security deposit"], ["payment", "Payment"], ["term", "Term"], ["grace", "Grace period"], ["escalationPct", "Annual increase"]],
   Resale: [["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["building", "رقم المبنى"], ["parking", "Parking"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["paymentMethod", "طريقة الدفع"], ["delivery", "Delivery date"], ["maintenance", "الصيانة"]],
   Income: [["space", "Area"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Building number"], ["parking", "Parking"], ["pricePerSqm", "Sale price per meter"], ["total", "Sale price total"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contractDuration", "Contract duration"], ["endsOn", "End date"], ["escalationPct", "Escalation rate"], ["paymentMethod", "Payment method"]],
   Primary: [["space", "Space"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Build num"], ["parking", "Parking"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["paymentMethod", "طريقة الدفع"]],
@@ -200,12 +202,12 @@ export function carrySides(before: UnitSides, after: { type: UnitType; alsoType:
 /**
  * 2.20 · the columns a unit of each type counts as missing while empty (demo inventory.js `A.missingOf`): every column
  * of its sheet except the computed ones (Total · rent · Yield · PIC · Resale), the optional ones (Comment · Layout ·
- * Floor · Parking · Escalation · Note) and the system's (Code · Agent · Last update). Labels are the sheet's own.
- * Primary has no sheet of its own yet, so it is checked as Rent (the demo's fallback; needs-client).
+ * Floor · Parking · Escalation · Note) and the system's (Code · Agent · Last update). Labels are the sheet's own,
+ * Rent's in the client's order (Book7, 2.21). Primary has no sheet of its own yet, so it is checked as Rent (the demo's fallback; needs-client).
  */
 const RENT_MISSING: readonly (readonly [key: string, label: string])[] = [
-  ["project", "Project"], ["photos", "Pic / info"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["space", "Gross area"], ["condition", "Conditions"],
-  ["pricePerSqm", "Price / sqm"], ["maintenance", "Maintenance"], ["commission", "Commission"], ["building", "Build num"], ["location", "Location"],
+  ["project", "Project"], ["photos", "Pic & Info"], ["space", "Area"], ["condition", "Conditions"], ["pricePerSqm", "Price/Sqm"], ["maintenance", "Maintenance"],
+  ["commission", "Commission"], ["building", "Building Number"], ["location", "Location"], ["ownerName", "Contact"], ["ownerPhone", "Number"],
 ];
 export const MISSING_COLUMNS: Record<UnitType, readonly (readonly [key: string, label: string])[]> = {
   Rent: RENT_MISSING,

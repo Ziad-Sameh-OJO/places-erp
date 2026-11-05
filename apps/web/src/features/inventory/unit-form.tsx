@@ -12,32 +12,34 @@ type Key =
   | "type" | "project" | "area" | "space" | "condition" | "floor" | "building" | "parking" | "agentId" | "areaTabId" | "location"
   | "receivedAt" | "lastOwnerUpdateAt" | "divisible" | "minSplit" | "splitNote" | "ownerName" | "ownerPhone" | "pricePerSqm"
   | "leasePerSqm" | "maintenance" | "commission" | "paymentMethod" | "delivery" | "link" | "contractDuration" | "startsOn"
-  | "endsOn" | "escalationPct" | "serviceChargeUsd" | "tenant" | "note" | "alsoType";
+  | "endsOn" | "escalationPct" | "serviceChargeUsd" | "tenant" | "note" | "alsoType" | "layout" | "comment" | "upfront" | "security" | "payment" | "term" | "grace";
 type Form = Record<Key, string>;
 
-/** [field, label, input type, required]: the demo's TYPE_FIELDS, with the requirements' names (M-03 3.1). */
+/** [field, label, input type, required]: the demo's TYPE_FIELDS, with the requirements' names (M-03 3.1). Nothing is required (2.21). */
 type TypeField = readonly [Key, string, "text" | "tel" | "money" | "number" | "date", boolean];
 const TYPE_FIELDS: Record<UnitTypeName, readonly TypeField[]> = {
-  Rent: [["ownerName", "Contact", "text", true], ["ownerPhone", "Number", "tel", true], ["pricePerSqm", "Price per sqm", "money", true], ["maintenance", "Maintenance", "text", false], ["commission", "Commission", "text", false]],
-  Resale: [["ownerName", "اسم الأونر", "text", true], ["ownerPhone", "الرقم", "tel", true], ["pricePerSqm", "السعر للمتر", "money", true], ["paymentMethod", "طريقة الدفع", "text", false], ["delivery", "Delivery date", "date", false], ["maintenance", "صيانة", "text", false], ["commission", "Commission", "text", false]],
-  Income: [["ownerName", "الاسم", "text", true], ["ownerPhone", "الرقم", "tel", false], ["link", "اللينك", "text", false], ["pricePerSqm", "Sale price per meter", "money", true], ["leasePerSqm", "Lease price per meter", "money", true], ["contractDuration", "Contract duration", "text", false], ["startsOn", "Start date", "date", false], ["endsOn", "End date", "date", false], ["escalationPct", "Escalation rate %", "number", false], ["paymentMethod", "Payment method", "text", false], ["serviceChargeUsd", "Service charge / m (USD)", "money", false], ["tenant", "Tenant name", "text", false], ["commission", "Commission", "text", false], ["note", "Note", "text", false]],
+  Rent: [["ownerName", "Contact", "text", false], ["ownerPhone", "Number", "tel", false], ["pricePerSqm", "Price per sqm", "money", false], ["maintenance", "Maintenance", "text", false], ["commission", "Commission", "text", false],
+    ["comment", "Comment", "text", false], ["delivery", "Delivery date", "text", false], ["upfront", "Upfront rent", "text", false], ["security", "Security deposit", "text", false], ["payment", "Payment", "text", false],
+    ["term", "Term", "text", false], ["grace", "Grace period", "text", false], ["escalationPct", "Annual increase %", "number", false]],
+  Resale: [["ownerName", "اسم الأونر", "text", false], ["ownerPhone", "الرقم", "tel", false], ["pricePerSqm", "السعر للمتر", "money", false], ["paymentMethod", "طريقة الدفع", "text", false], ["delivery", "Delivery date", "date", false], ["maintenance", "صيانة", "text", false], ["commission", "Commission", "text", false]],
+  Income: [["ownerName", "الاسم", "text", false], ["ownerPhone", "الرقم", "tel", false], ["link", "اللينك", "text", false], ["pricePerSqm", "Sale price per meter", "money", false], ["leasePerSqm", "Lease price per meter", "money", false], ["contractDuration", "Contract duration", "text", false], ["startsOn", "Start date", "date", false], ["endsOn", "End date", "date", false], ["escalationPct", "Escalation rate %", "number", false], ["paymentMethod", "Payment method", "text", false], ["serviceChargeUsd", "Service charge / m (USD)", "money", false], ["tenant", "Tenant name", "text", false], ["commission", "Commission", "text", false], ["note", "Note", "text", false]],
   // Primary's own columns weren't sent yet (needs-client): the common ones, price optional
   Primary: [["ownerName", "الاسم", "text", false], ["ownerPhone", "الرقم", "tel", false], ["pricePerSqm", "السعر للمتر", "money", false], ["paymentMethod", "طريقة الدفع", "text", false]],
 };
 const NUMBERS: Key[] = ["space", "parking", "minSplit", "escalationPct"];
-const DETAIL_KEYS: Key[] = ["delivery", "link", "contractDuration", "startsOn", "endsOn", "escalationPct", "serviceChargeUsd", "tenant", "note"];
+const DETAIL_KEYS: Key[] = ["delivery", "upfront", "security", "payment", "term", "grace", "link", "contractDuration", "startsOn", "endsOn", "escalationPct", "serviceChargeUsd", "tenant", "note"];
 
 const cairoDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 /** «2026-11-04T21:05» for a datetime-local field, in the browser's time (Cairo for the team). */
 const localStamp = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
 const TEXT_KEYS: Key[] = ["project", "area", "space", "floor", "building", "agentId", "areaTabId", "location", "minSplit", "splitNote", "ownerName", "ownerPhone",
-  "pricePerSqm", "leasePerSqm", "maintenance", "commission", "paymentMethod", ...DETAIL_KEYS];
+  "pricePerSqm", "leasePerSqm", "maintenance", "commission", "paymentMethod", "comment", ...DETAIL_KEYS];
 
 /** A new unit: today's «last update», received now (the demo's defaults). */
 function empty(type: UnitTypeName): Form {
   const blank = Object.fromEntries(TEXT_KEYS.map((k) => [k, ""])) as Record<Key, string>;
-  return { ...blank, type, alsoType: "", condition: "", parking: "0", divisible: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
+  return { ...blank, type, alsoType: "", condition: "", parking: "0", divisible: "no", layout: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
 }
 
 /** An existing unit as the form's text fields (edit). */
@@ -50,13 +52,13 @@ function fromUnit(u: UnitDetail): Form {
     receivedAt: u.receivedAt ? localStamp(new Date(u.receivedAt)) : "", lastOwnerUpdateAt: cairoDay(new Date(u.lastOwnerUpdateAt)),
     divisible: u.divisible ? "yes" : "no", minSplit: s(u.minSplit), splitNote: s(u.splitNote), ownerName: s(u.ownerName), ownerPhone: s(u.ownerPhone),
     pricePerSqm: s(u.pricePerSqm), leasePerSqm: s(u.leasePerSqm), maintenance: s(u.maintenance), commission: s(u.commission),
-    paymentMethod: s(u.paymentMethod), ...Object.fromEntries(DETAIL_KEYS.map((k) => [k, s(u.details[k])])),
+    paymentMethod: s(u.paymentMethod), layout: u.layout ? "yes" : "no", comment: s(u.comment), ...Object.fromEntries(DETAIL_KEYS.map((k) => [k, s(u.details[k])])),
   };
 }
 
 /** The form's text → the API's sheet: numbers as numbers, empty = not filled. The API checks it all again. */
 function toBody(f: Form, sendReceived: boolean) {
-  const body: Record<string, unknown> = { type: f.type, divisible: f.divisible === "yes" };
+  const body: Record<string, unknown> = { type: f.type, divisible: f.divisible === "yes", layout: f.layout === "yes" };
   const keys: Key[] = ["alsoType", "project", "area", "space", "condition", "floor", "building", "parking", "agentId", "areaTabId", "location", "lastOwnerUpdateAt", "maintenance", "commission",
     ...TYPE_FIELDS[f.type as UnitTypeName].map(([k]) => k), ...(f.divisible === "yes" ? (["minSplit", "splitNote"] as Key[]) : [])];
   for (const k of new Set(keys)) {
@@ -90,7 +92,7 @@ function Figures({ f }: { f: Form }) {
 
 /**
  * «وحدة جديدة» / «تعديل» (2.7): the demo's form — the common columns on top, then the chosen type's own (M-03 3.1),
- * with the total / Income figures worked out while typing. Required fields can't be left empty (and the API refuses).
+ * with the total / Income figures worked out while typing. Nothing is required (2.21): what's left empty shows as «ناقص» (2.20).
  */
 /**
  * A unit entered from a Not Active row (2.15, M-03 1.1 «Done»): the owner's number from the sheet, saved through
@@ -144,12 +146,12 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
   };
 
   const input = ([k, label, kind, req]: TypeField): ReactNode => (
-    <Field key={k} label={label} req={req} wide={k === "note"}>
+    <Field key={k} label={label} req={req} wide={k === "note" || k === "comment"}>
       {k === "paymentMethod"
         ? <select name={k} required={req} value={f[k]} onChange={set(k)}><option value="">—</option>{choices(options?.paymentMethods, f[k]).map((p) => <option key={p}>{p}</option>)}</select>
         : kind === "money"
         ? <input name={k} inputMode="decimal" pattern="\d+(\.\d{1,2})?" title="رقم بالجنيه، ولحد قرشين بعد العلامة" required={req} value={f[k]} onChange={set(k)} />
-        : k === "note"
+        : k === "note" || k === "comment"
           ? <textarea name={k} value={f[k]} onChange={set(k)} maxLength={2000} />
           : <input name={k} type={kind} required={req} value={f[k]} onChange={set(k)} {...(kind === "number" ? { min: 0, max: 100, step: "any" } : {})} {...(kind === "tel" ? { dir: "ltr", inputMode: "tel" as const } : {})} />}
     </Field>
@@ -166,22 +168,22 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
             <option value="">لأ</option>{(["Rent", "Resale"] as const).filter((t) => t !== f.type).map((t) => <option key={t}>{t}</option>)}
           </select>
         </Field>
-        <Field label="Project / اسم المبنى" req><input name="project" required maxLength={160} value={f.project} onChange={set("project")} /></Field>
-        <Field label="Area" req>
-          <select name="area" required value={f.area} onChange={set("area")}>
+        <Field label="Project / اسم المبنى"><input name="project" maxLength={160} value={f.project} onChange={set("project")} /></Field>
+        <Field label="Area">
+          <select name="area" value={f.area} onChange={set("area")}>
             <option value="">اختار</option>
             {choices(options?.areas, f.area).map((a) => <option key={a}>{a}</option>)}
           </select>
         </Field>
-        <Field label="Gross area (م)" req><input name="space" type="number" min={1} step={1} required value={f.space} onChange={set("space")} /></Field>
-        <Field label="Condition / التشطيب" req>
-          <select name="condition" required value={f.condition} onChange={set("condition")}><option value="">اختار</option>{choices(options?.conditions, f.condition).map((c) => <option key={c}>{c}</option>)}</select>
+        <Field label="Gross area (م)"><input name="space" type="number" min={1} step={1} value={f.space} onChange={set("space")} /></Field>
+        <Field label="Condition / التشطيب">
+          <select name="condition" value={f.condition} onChange={set("condition")}><option value="">اختار</option>{choices(options?.conditions, f.condition).map((c) => <option key={c}>{c}</option>)}</select>
         </Field>
         <Field label="Floor"><input name="floor" maxLength={40} value={f.floor} onChange={set("floor")} /></Field>
-        <Field label="Build num" req><input name="building" required maxLength={40} value={f.building} onChange={set("building")} /></Field>
+        <Field label="Build num"><input name="building" maxLength={40} value={f.building} onChange={set("building")} /></Field>
         <Field label="Parking slots"><input name="parking" type="number" min={0} step={1} value={f.parking} onChange={set("parking")} /></Field>
-        <Field label="Agent (السيلز اللي جاب الوحدة)" req>
-          <select name="agentId" required value={f.agentId} onChange={set("agentId")}>
+        <Field label="Agent (السيلز اللي جاب الوحدة)">
+          <select name="agentId" value={f.agentId} onChange={set("agentId")}>
             <option value="">اختار</option>{agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </Field>
@@ -197,8 +199,11 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
             <a className="btn ghost sm" href={`https://maps.google.com/${f.location ? `?q=${encodeURIComponent(f.location)}` : ""}`} target="_blank" rel="noopener noreferrer"><Icon name="pin" />اختار</a>
           </div>
         </Field>
-        <Field label="Last update (ابديت مع المالك)" req><input name="lastOwnerUpdateAt" type="date" required value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>
+        <Field label="Last update (ابديت مع المالك)"><input name="lastOwnerUpdateAt" type="date" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>
         {TYPE_FIELDS[type].map(input)}
+        <Field label="Layout">
+          <select name="layout" value={f.layout} onChange={set("layout")}><option value="no">No</option><option value="yes">Yes</option></select>
+        </Field>
         <Field label="اتستلمت إمتى (من المالك / الواتساب)"><input name="receivedAt" type="datetime-local" value={f.receivedAt} onChange={set("receivedAt")} /></Field>
         <Field label="تنفع تتقسم؟">
           <select name="divisible" value={f.divisible} onChange={set("divisible")}><option value="no">لا</option><option value="yes">اه</option></select>
