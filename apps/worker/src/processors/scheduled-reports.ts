@@ -11,6 +11,7 @@ import {
   DEFAULT_LEAD_RULES, PLACES_CALENDAR, type LeadRules, type Schedule, type WorkCalendar, calendarOf, dayStart, dealRowOf, dueOf, handInStep, holidayDays,
   isOffPeriod, monthBounds, monthLabel, periodFigures, pickPeople, targetPercent, toDecimal, fromDecimal,
 } from "@places/domain";
+import { inventoryReportRun } from "./inventory-report.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const hm = (d: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
@@ -97,6 +98,11 @@ export async function scheduledReportsTick(now = new Date()): Promise<void> {
     const { period, due } = dueOf(s, now, cal);
     if (isOffPeriod(s, period, cal) || due <= r.createdAt) continue;
     const link = r.daily ? "/kpis" : "/reports";
+    if (r.kind === "auto" && r.content === "inventory") {
+      // M-03 3.1 · 2.18: counted now, sent to the recipients once whoever prepares it (Manar) approves it
+      if (now >= due) await inventoryReportRun(r, period, now, pickPeople(r.preparedBy, users), [...pickPeople(r.recipients, users), ...(r.money ? [] : watchers)]);
+      continue;
+    }
     if (r.kind === "auto") {
       if (now < due || r.content !== "performance" || (await prisma.reportRun.findUnique({ where: { reportId_period: { reportId: r.id, period } } }))) continue;
       const built = await performanceRows(s, period, cal);

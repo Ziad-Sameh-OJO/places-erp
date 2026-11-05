@@ -13,6 +13,7 @@ import { UnitForm } from "./unit-form";
 import { OldDataImport } from "../imports/old-data-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
+import { DailyReportModal } from "./daily-report";
 import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 
 const PAGE = 50;
@@ -31,9 +32,14 @@ export function InventoryList() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
   // a notification links to one unit (the close to confirm, Q16)
-  useEffect(() => { const unit = new URLSearchParams(window.location.search).get("unit"); if (unit) setOpen(unit); }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("unit")) setOpen(q.get("unit"));
+    if (q.get("report")) setReport(true); // «التقرير اليومي جاهز» (2.18)
+  }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   const [teamTask, setTeamTask] = useState(false);
+  const [report, setReport] = useState(false);
   const qc = useQueryClient();
   const run = useAction();
   // the rented / sold sheet keeps its own type and dates (M-03 5.2); the other tabs don't use them
@@ -81,6 +87,7 @@ export function InventoryList() {
         <Tabs value={tab} onChange={(t) => { setTab(t); setPage(1); }} items={types} />
         <span className="spacer" />
         {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
+        {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />التقرير اليومي</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />مهمة للفريق</button>}
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />وحدة جديدة</button>}
       </div>
@@ -144,6 +151,7 @@ export function InventoryList() {
         )} />}
       {form && <UnitForm unit={form === "edit" ? unit.data : undefined} options={options} tabs={areaTabs} onClose={() => setForm(null)}
         onSaved={(id) => { setForm(null); setOpen(id); }} />}
+      {report && <DailyReportModal onClose={() => setReport(false)} />}
       {teamTask && <TeamTaskModal units={list} onClose={() => setTeamTask(false)} />}
       {me.can("inventory", "create") && <Fab onClick={() => setForm("new")} label="وحدة جديدة" />}
     </>

@@ -936,6 +936,24 @@ model UnitPhoto {
   @@schema("inventory")
 }
 
+/// M-03 3.1 · 2.18 · the inventory's daily report: made by the reports engine (11.10, content «inventory») at its time,
+/// Manar approves it (the approval time is her KPI, M-12) and then its recipients get it.
+model InventoryReport {
+  id           String    @id @default(cuid())
+  reportId     String?   // kpi.ScheduledReport that made it (its time and people are set in «التقارير ومواعيدها»)
+  sendTo       String[]  // the report's recipients when it was made: told once Manar approves
+  day          DateTime  @unique @db.Date // the Cairo day it counts
+  newUnits     Int       // «جديد»: entered that day
+  updated      Int       // «متحدّث»: owner update that day
+  closed       Int       // «اتأجر / اتباع»: closes Manar / Randa confirmed that day
+  unconfirmed  Int       // «مش مؤكد»: open units a month without an update or with a PDF waiting, when it was counted
+  generatedAt  DateTime  @default(now())
+  approvedAt   DateTime?
+  approvedById String?
+
+  @@schema("inventory")
+}
+
 /// M-03 7.2 · the area tabs under the list (101 to 200 …): the inventory team adds, edits and removes them (12.8).
 model AreaTab {
   id        String   @id @default(cuid())

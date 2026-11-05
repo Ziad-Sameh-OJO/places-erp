@@ -16,7 +16,7 @@ export const ReportInput = z.object({
   day: z.number().int().min(0).max(31).default(0),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "الساعة مش صحيحة"),
   fmt: z.enum(["جوه السيستم", "PDF", "Excel"]).default("جوه السيستم"),
-  content: z.enum(["performance"]).nullable().default(null),
+  content: z.enum(["performance", "inventory"]).nullable().default(null), // inventory: M-03 3.1 daily report (2.18), approved by `preparedBy`
   preparedBy: names.default([]),
   recipients: names.min(1, "مين بيستلمه؟"),
   remindMin: z.number().int().min(0).max(10_080).default(60),
@@ -27,6 +27,7 @@ export const ReportInput = z.object({
 }).superRefine((r, ctx) => {
   if (r.kind === "handin" && !r.preparedBy.length) ctx.addIssue({ code: "custom", path: ["preparedBy"], message: "مين بيحضّره ويسلّمه؟" });
   if (r.kind === "auto" && !r.content) ctx.addIssue({ code: "custom", path: ["content"], message: "السيستم بيبعت إيه؟" });
+  if (r.kind === "auto" && r.content === "inventory" && !r.preparedBy.length) ctx.addIssue({ code: "custom", path: ["preparedBy"], message: "مين بيعتمده قبل ما يتبعت؟" });
   if (r.freq === "weekly" && r.day > 6) ctx.addIssue({ code: "custom", path: ["day"], message: "اختار يوم في الأسبوع" });
   if ((r.freq === "monthly" || r.freq === "quarterly") && r.day < 1) ctx.addIssue({ code: "custom", path: ["day"], message: "يوم كام في الشهر؟" });
 });

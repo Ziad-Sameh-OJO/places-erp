@@ -94,7 +94,7 @@ export class ReportsService {
     if (input.kpiItems.some((x) => !items.has(x))) throw new BadRequestException("فيه بند KPIs مش بيتسلّم بتقرير");
     const { kpiItems, ...data } = input;
     const handin = data.kind === "handin";
-    const row = { ...data, content: handin ? null : data.content, preparedBy: handin ? data.preparedBy : [], lateNotify: handin ? data.lateNotify : [], day: data.freq === "daily" ? 0 : data.day };
+    const row = { ...data, content: handin ? null : data.content, preparedBy: handin || data.content === "inventory" ? data.preparedBy : [], lateNotify: handin ? data.lateNotify : [], day: data.freq === "daily" ? 0 : data.day };
     const saved = await this.db.$transaction(async (tx) => {
       const r = id ? await tx.scheduledReport.update({ where: { id }, data: row }) : await tx.scheduledReport.create({ data: row });
       const links = handin ? kpiItems : [];

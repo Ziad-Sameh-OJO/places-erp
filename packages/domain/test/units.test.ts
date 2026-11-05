@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, fromDecimal, toDecimal } from "../src/money.ts";
-import { TEAM_TASKS_PER_DAY, UNIT_SHEET_FIELDS, carrySides, mediaOnTime, teamTaskRoom, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+import { TEAM_TASKS_PER_DAY, UNIT_SHEET_FIELDS, carrySides, inventoryReportText, mediaOnTime, teamTaskRoom, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
 
 // The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
 
@@ -184,6 +184,10 @@ test("2.8 · the PDF / slide show the unit, never its owner, agent or commission
     assert.ok(keys.includes("total") && keys.includes("space"));
   }
   assert.equal(UNIT_SHEET_FIELDS.Resale.find(([k]) => k === "total")![1], "إجمالي السعر");
+});
+
+test("2.18 · the daily report's line: new / updated / rented / unconfirmed, in the demo's words", () => {
+  assert.equal(inventoryReportText({ newUnits: 2, updated: 5, closed: 1, unconfirmed: 3 }), "التقرير اليومي للانفنتوري: جديد 2 · متحدّث 5 · اتأجر / اتباع 1 · مش مؤكد 3");
 });
 
 test("2.16 · Manar gives each one at most 30 tasks a day (M-03 3.1 KPI)", () => {
