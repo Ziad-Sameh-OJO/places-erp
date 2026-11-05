@@ -16,6 +16,12 @@ export class CommissionsController {
     return this.commissions.pay(me, body);
   }
 
+  @Get()
+  @Requires("finance", "view")
+  people() {
+    return this.commissions.people();
+  }
+
   @Get(":employeeId")
   @Requires("finance", "view")
   statement(@Param("employeeId") employeeId: string) {

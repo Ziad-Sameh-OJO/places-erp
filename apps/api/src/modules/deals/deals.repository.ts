@@ -184,6 +184,11 @@ export class DealsRepository {
     return tx.commissionPayout.create({ data, select: { id: true } });
   }
 
+  /** 9.15: every salesperson / TL with their own 21103 account (opened the first time commission was due). */
+  commissionAccounts() {
+    return this.db.account.findMany({ where: { partyType: "sales" }, select: { id: true, code: true, name: true, partyId: true }, orderBy: { code: "asc" } });
+  }
+
   employeeNames(ids: string[]) {
     return this.db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, userId: true } });
   }
