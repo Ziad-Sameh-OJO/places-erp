@@ -85,6 +85,14 @@ export class DealsRepository {
     return new Map(files.map((f) => [f.entityId!, { id: f.id, name: f.name }]));
   }
 
+  /** M-11: on-sheet deals in scope with no contract yet. */
+  contractable(scope: Prisma.DealWhereInput, onSheet: string[]) {
+    return this.db.deal.findMany({
+      where: { AND: [scope, { status: { in: onSheet as never }, contract: null }] },
+      select: { id: true, code: true, company: true, unit: { select: { code: true } } }, orderBy: { closedAt: "desc" }, take: 200,
+    });
+  }
+
   /** A salesperson's account and their TL's (who the lead rules' «owner» / «ownerTl» are). */
   account(employeeId: string) {
     return this.db.employee.findUnique({ where: { id: employeeId }, select: { userId: true, teamLeader: { select: { userId: true } } } });

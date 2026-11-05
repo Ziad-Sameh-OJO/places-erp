@@ -27,6 +27,22 @@ export class ContractsRepository {
     return this.db.contract.findFirst({ where: { AND: [scope, { id }] }, select: CONTRACT_ROW });
   }
 
+  /** Everything the summary counts, in scope (contracts are few: one per deal). */
+  forSummary(scope: Prisma.ContractWhereInput) {
+    return this.db.contract.findMany({ where: scope, select: CONTRACT_ROW });
+  }
+
+  /** The month's installments and contract ends (M-11 5.3 calendar). */
+  month(scope: Prisma.ContractWhereInput, from: Date, to: Date) {
+    return this.db.$transaction([
+      this.db.installment.findMany({
+        where: { dueOn: { gte: from, lte: to }, contract: scope },
+        select: { dueOn: true, amount: true, paid: true, contract: { select: { id: true, code: true, deal: { select: { company: true } } } } }, orderBy: { dueOn: "asc" },
+      }),
+      this.db.contract.findMany({ where: { AND: [scope, { endsOn: { gte: from, lte: to } }] }, select: { id: true, code: true, endsOn: true, deal: { select: { company: true } } } }),
+    ]);
+  }
+
   existsForDeal(dealId: string) {
     return this.db.contract.count({ where: { dealId } });
   }

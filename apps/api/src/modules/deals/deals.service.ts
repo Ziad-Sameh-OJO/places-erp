@@ -59,6 +59,12 @@ export class DealsService {
     return d && takesNote(label(d.status)) ? { id: d.id, code: d.code, company: d.company, unitId: d.unit.id, unitCode: d.unit.code } : null;
   }
 
+  /** «عقد جديد» (M-11): the caller's approved deals with no contract yet. */
+  async contractable(me: CurrentUser) {
+    const rows = await this.repo.contractable(this.scope(me), ["APPROVED", "PARTIALLY_COLLECTED", "FULLY_COLLECTED"]);
+    return rows.map((d) => ({ id: d.id, code: d.code, company: d.company, unitCode: d.unit.code }));
+  }
+
   /** «سجّل صفقة»: the caller's leads (with their company, 4 Nov meeting) and the salespeople for «حد معاك في الديل Buyer؟». */
   async form(me: CurrentUser): Promise<DealForm> {
     const [leads, salespeople] = await Promise.all([this.leads.dealLeads(me), this.repo.salespeople()]);

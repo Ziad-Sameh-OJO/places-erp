@@ -1,0 +1,160 @@
+"use client";
+import { useState } from "react";
+import type { ContractCalendar, ContractSummary } from "@places/contracts";
+import { Card, Chip, Icon, Table, Tabs } from "@/components/ui";
+import { Fab, KpiTile } from "@/components/blocks";
+import { useMe } from "@/lib/me";
+import { day, money, num } from "@/lib/format";
+import { useCalendar, useContracts, useSummary, statusChip } from "./use-contracts";
+import { ContractDrawer } from "./contract-drawer";
+import { ContractForm } from "./contract-form";
+
+type Tab = "list" | "calendar";
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+
+/** M-11 · the demo's contracts screen (clients.js V.contracts): tiles, renewals coming up, the contracts and the Aging, plus the calendar (5.3). */
+export function ContractsView() {
+  const { can } = useMe();
+  const s = useSummary();
+  const [tab, setTab] = useState<Tab>("list");
+  const [open, setOpen] = useState<string | null>(null);
+  const [form, setForm] = useState(false);
+  const uploader = can("contracts", "create");
+  return (
+    <>
+      {s.data && <Kpis s={s.data} />}
+      {s.data && s.data.renewals.length > 0 && <Renewals s={s.data} onOpen={setOpen} />}
+      <div className="row">
+        <Tabs items={[["list", "العقود"], ["calendar", "الكالندر"]]} value={tab} onChange={setTab} />
+        <span className="spacer" />
+        {uploader && <button className="btn" onClick={() => setForm(true)}><Icon name="plus" />عقد جديد</button>}
+      </div>
+      {tab === "list" ? <List aging={s.data?.aging} onOpen={setOpen} /> : <Calendar onOpen={setOpen} />}
+      {uploader && <Fab onClick={() => setForm(true)} label="عقد جديد" />}
+      {open && <ContractDrawer id={open} onClose={() => setOpen(null)} />}
+      {form && <ContractForm onClose={() => setForm(false)} onCreated={(id) => { setForm(false); setOpen(id); }} />}
+    </>
+  );
+}
+
+function Kpis({ s }: { s: ContractSummary }) {
+  return (
+    <div className="kpis">
+      <KpiTile label="عقود شغالة" value={num(s.active)} sub="إيجار وبيع" icon="file" />
+      <KpiTile label="قرّبت تخلص" value={num(s.endingSoon)} sub="خلال 90 يوم · فرصة تجديد" icon="clock" tone="warn" />
+      <KpiTile label="أقساط متأخرة" value={num(s.late.count)} sub={money(s.late.amount)} icon="alert" tone="bad" />
+      <KpiTile label="اتحصّل" value={money(s.paid)} sub="من كل العقود" icon="wallet" tone="ok" />
+    </div>
+  );
+}
+
+function Renewals({ s, onOpen }: { s: ContractSummary; onOpen: (id: string) => void }) {
+  return (
+    <Card title="تجديدات قرّبت" icon="bell" className="attn">
+      {s.renewals.map((c) => (
+        <div className="line-item" key={c.id}>
+          <span><b>{c.client}</b> · <span className="mono">{c.unitCode}</span> · ينتهي {day(c.endsOn)}</span>
+          <Chip tone={c.daysLeft <= 30 ? "bad" : c.daysLeft <= 60 ? "warn" : "info"}>باقي {c.daysLeft} يوم</Chip>
+          <button className="btn ghost sm" onClick={() => onOpen(c.id)}>افتح العقد</button>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+function List({ aging, onOpen }: { aging: ContractSummary["aging"] | undefined; onOpen: (id: string) => void }) {
+  const [q, setQ] = useState("");
+  const [ending, setEnding] = useState(false);
+  const [page, setPage] = useState(1);
+  const list = useContracts(q.trim(), ending, page);
+  const items = list.data?.items ?? [];
+  return (
+    <>
+      <div className="toolbar">
+        <label className="search"><Icon name="search" /><input type="search" placeholder="رقم العقد، العميل، الوحدة" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></label>
+        <label className="tog"><input type="checkbox" checked={ending} onChange={(e) => { setEnding(e.target.checked); setPage(1); }} /><span>قرّبت تخلص بس</span></label>
+      </div>
+      <div className="cols wide">
+        <div>
+          <Table head={["العقد", "العميل", "الوحدة", "البداية → النهاية", "القيمة", "اتحصّل", "الحالة"]} empty={list.isPending ? "بيحمّل…" : "مفيش عقود"} onRow={(i) => onOpen(items[i]!.id)}
+            rows={items.map((c) => {
+              const pct = Number(c.value) ? Math.round((Number(c.paid) / Number(c.value)) * 100) : 0;
+              const [tone, label] = statusChip(c);
+              return [
+                <span key="c" className="mono">{c.code}</span>, c.client, <span key="u" className="mono">{c.unitCode}</span>,
+                `${day(c.startsOn)} → ${day(c.endsOn)}`, <span key="v" className="n">{money(c.value)}</span>,
+                <div key="p" className="cell-bar"><span className="num">{pct}%</span><div className="bar"><i style={{ width: `${pct}%` }} /></div></div>,
+                <Chip key="s" tone={tone}>{label}</Chip>,
+              ];
+            })} />
+          {list.data && list.data.total > list.data.pageSize && (
+            <div className="row"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button><span className="hint">{page} من {Math.ceil(list.data.total / list.data.pageSize)}</span><button className="btn ghost sm" disabled={page * list.data.pageSize >= list.data.total} onClick={() => setPage(page + 1)}>اللي بعده</button></div>
+          )}
+        </div>
+        {aging && <Aging aging={aging} />}
+      </div>
+    </>
+  );
+}
+
+/** «أعمار المديونيات (Aging)»: what's owed on late installments, 0–30 / 31–60 / 61–90 / +90 days (M-11 6.1). */
+function Aging({ aging }: { aging: ContractSummary["aging"] }) {
+  const max = Math.max(1, ...aging.map(Number));
+  const rows: [string, string, string][] = [["0–30 يوم", aging[0], ""], ["31–60 يوم", aging[1], "warn"], ["61–90 يوم", aging[2], "bad"], ["+90 يوم", aging[3], "bad"]];
+  return (
+    <Card title="أعمار المديونيات (Aging)" icon="chart">
+      <div className="hbars">
+        {rows.map(([label, v, tone]) => (
+          <div className="hb" key={label}>
+            <span className="hb-l">{label}</span>
+            <div className={`bar ${tone}`}><i style={{ width: `${(Number(v) / max) * 100}%` }} /></div>
+            <span className="hb-v">{money(v)}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** M-11 5.3: «Calendar للأقساط والتجديدات» — the month's installments (by state) and contract ends. */
+function Calendar({ onOpen }: { onOpen: (id: string) => void }) {
+  const [month, setMonth] = useState(today().slice(0, 7));
+  const cal = useCalendar(month);
+  return (
+    <Card title="كالندر الأقساط والتجديدات" icon="calendar" sub="الأقساط بميعادها، ونهاية كل عقد"
+      extra={<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label="الشهر" style={{ width: "auto" }} />}>
+      <MonthGrid month={month} byDay={cal.data?.byDay ?? {}} onOpen={onOpen} />
+    </Card>
+  );
+}
+
+const TONE = { paid: "ok", partial: "warn", late: "warn", due: "" } as const;
+
+/** The demo's U.calendar: weeks start Saturday. */
+function MonthGrid({ month, byDay, onOpen }: { month: string; byDay: ContractCalendar["byDay"]; onOpen: (id: string) => void }) {
+  const y = Number(month.slice(0, 4)), m = Number(month.slice(5, 7));
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate(), lead = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 1) % 7, t = today();
+  return (
+    <div className="cal">
+      <div className="cal-head">{["سبت", "أحد", "اتنين", "تلات", "أربع", "خميس", "جمعة"].map((x) => <span key={x}>{x}</span>)}</div>
+      <div className="cal-grid">
+        {Array.from({ length: lead }, (_, i) => <div key={`o${i}`} className="cal-cell off" />)}
+        {Array.from({ length: days }, (_, i) => {
+          const iso = `${month}-${String(i + 1).padStart(2, "0")}`, items = byDay[iso] ?? [];
+          return (
+            <div key={iso} className={`cal-cell ${iso === t ? "today" : ""}`}>
+              <span className="cal-d">{i + 1}</span>
+              {items.slice(0, 3).map((x, j) => (
+                <button key={j} type="button" className={`cal-item ${x.kind === "end" ? "warn" : TONE[x.state!]}`} onClick={() => onOpen(x.contractId)}
+                  title={x.kind === "end" ? `${x.code} · ${x.client} · نهاية العقد` : `${x.code} · ${x.client} · قسط ${money(x.amount)}`}>
+                  {x.kind === "end" ? `نهاية ${x.code}` : `${x.client.split(" ")[0]} · ${money(x.amount)}`}
+                </button>
+              ))}
+              {items.length > 3 && <small>+{items.length - 3}</small>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

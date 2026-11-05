@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
-import { ContractFilters, CreateContract } from "@places/contracts";
+import { ContractFilters, ContractMonth, CreateContract } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -14,6 +14,25 @@ export class ContractsController {
   @Requires("contracts", "view")
   list(@Me() me: CurrentUser, @Query(new ZodPipe(ContractFilters)) f: ContractFilters) {
     return this.contracts.list(me, f);
+  }
+
+  // before ":id", so these aren't read as a contract id
+  @Get("summary")
+  @Requires("contracts", "view")
+  summary(@Me() me: CurrentUser) {
+    return this.contracts.summary(me);
+  }
+
+  @Get("calendar")
+  @Requires("contracts", "view")
+  calendar(@Me() me: CurrentUser, @Query(new ZodPipe(ContractMonth)) q: ContractMonth) {
+    return this.contracts.calendar(me, q.month);
+  }
+
+  @Get("form")
+  @Requires("contracts", "create")
+  form(@Me() me: CurrentUser) {
+    return this.contracts.form(me);
   }
 
   @Get(":id")

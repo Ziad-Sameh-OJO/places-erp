@@ -56,6 +56,14 @@ test("permissions: HR sees no contracts; the Office Manager views but doesn't up
   assert.equal((await create(nancy, body())).status, 403);
 });
 
+test("«عقد جديد» offers the salesperson's approved deals with no contract yet", async () => {
+  const form = await call("/contracts/form", { cookie: mohsen });
+  assert.equal(form.status, 200);
+  const mine = form.body.deals.filter((d: { code: string }) => d.code.startsWith(`D-K${stamp}`)).map((d: { id: string }) => d.id).sort();
+  assert.deepEqual(mine, [approved, approved2].sort()); // not the pending one
+  assert.equal((await call("/contracts/form", { cookie: nancy })).status, 403);
+});
+
 test("refusals: a deal not approved yet, a file that isn't a PDF, dates the wrong way, a table that doesn't add up", async () => {
   assert.equal((await create(mohsen, body({ dealId: pending }))).status, 404);
   assert.equal((await create(omar, body())).status, 404); // not his deal
@@ -129,4 +137,24 @@ test("scope (M-11 4.1): the salesperson his clients' contracts, Finance all, ano
   const url = await call(`/contracts/${contractId}/file`, { cookie: ashraf });
   assert.equal(url.status, 200);
   assert.match(url.body.url, /^https?:\/\//);
+});
+
+test("6.2: the tiles, the renewals card, the Aging and the calendar, in the caller's scope", async () => {
+  const sum = await call("/contracts/summary", { cookie: omar });
+  assert.equal(sum.status, 200);
+  assert.equal(sum.body.renewals.some((r: { id: string }) => r.id === endingId), false); // not his
+  const mine = (await call("/contracts/summary", { cookie: mohsen })).body;
+  assert.ok(mine.renewals.some((r: { id: string; daysLeft: number }) => r.id === endingId && r.daysLeft === 60));
+  assert.ok(mine.late.count >= 1); // the 20,000 due 300 days ago
+  assert.ok(Number(mine.aging[3]) >= 20_000);
+  assert.equal((await call("/contracts/summary", { cookie: hr })).status, 403);
+
+  const end = (await prisma.contract.findUniqueOrThrow({ where: { id: endingId } })).endsOn.toISOString().slice(0, 10);
+  const cal = await call(`/contracts/calendar?month=${end.slice(0, 7)}`, { cookie: mohsen });
+  assert.equal(cal.status, 200);
+  assert.ok(cal.body.byDay[end].some((x: { contractId: string; kind: string }) => x.contractId === endingId && x.kind === "end"));
+  const first = await call("/contracts/calendar?month=2026-11", { cookie: mohsen });
+  assert.ok(first.body.byDay["2026-11-01"].some((x: { contractId: string; amount: string }) => x.contractId === contractId && x.amount === "10000.00"));
+  assert.equal((await call("/contracts/calendar?month=2026-13", { cookie: mohsen })).status, 400);
+  assert.equal((await call("/contracts/form", { cookie: mohsen })).body.deals.some((d: { code: string }) => d.code.startsWith(`D-K${stamp}`)), false); // both have contracts now
 });
