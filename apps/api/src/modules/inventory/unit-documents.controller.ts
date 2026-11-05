@@ -4,7 +4,7 @@ import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { UnitDocumentsService } from "./unit-documents.service";
 
-/** 2.8 · the unit's PDF and slide (whoever sees the unit), and Manar's confirm (`approve`, Q15). */
+/** 2.8 · 2.23 · the unit's PDF and slide, each also as PowerPoint (whoever sees the unit), and Manar's confirm (`approve`, Q15). */
 @Controller("inventory/units/:id")
 export class UnitDocumentsController {
   constructor(private readonly docs: UnitDocumentsService) {}
@@ -21,6 +21,18 @@ export class UnitDocumentsController {
     return this.send(res, this.docs.render(me, id, "slide"));
   }
 
+  @Get("pdf/pptx")
+  @Requires("inventory", "view")
+  pdfPptx(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
+    return this.send(res, this.docs.render(me, id, "pdf", "pptx"));
+  }
+
+  @Get("slide/pptx")
+  @Requires("inventory", "view")
+  slidePptx(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
+    return this.send(res, this.docs.render(me, id, "slide", "pptx"));
+  }
+
   @Post("pdf/confirm")
   @HttpCode(204)
   @Requires("inventory", "approve")
@@ -28,10 +40,11 @@ export class UnitDocumentsController {
     return this.docs.confirm(me, id);
   }
 
-  private async send(res: Response, doc: Promise<{ name: string; body: Buffer }>) {
-    const { name, body } = await doc;
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+  /** The PDF opens in the browser; the PowerPoint downloads. */
+  private async send(res: Response, doc: Promise<{ name: string; mime: string; body: Buffer }>) {
+    const { name, mime, body } = await doc;
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Content-Disposition", `${mime === "application/pdf" ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(name)}`);
     res.end(body);
   }
 }

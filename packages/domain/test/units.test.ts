@@ -177,16 +177,17 @@ test("Q17: editing U-103's second type keeps each side's state, a new side start
   assert.deepEqual(carrySides({ type: "Rent", status: "available", alsoType: null, alsoStatus: null }, { type: "Rent", alsoType: "Resale" }), { status: "available", alsoStatus: "available" });
 });
 
-test("2.8 · the PDF / slide show the unit, never its owner, agent or commission (M-03 1.2); each type its own names", () => {
+test("2.8 · 2.23 · the PDF / slide show the unit, never its owner, agent or commission (M-03 1.2); each type its own rows", () => {
   for (const type of ["Rent", "Resale", "Income", "Primary"] as const) {
     const keys = UNIT_SHEET_FIELDS[type].map(([k]) => k);
-    for (const hidden of ["ownerName", "ownerPhone", "agent", "commission", "link", "tenant"]) assert.ok(!keys.includes(hidden), `${type} shows ${hidden}`);
-    assert.ok(keys.includes("total") && keys.includes("space"));
+    for (const hidden of ["ownerName", "ownerPhone", "agent", "commission", "link"]) assert.ok(!keys.includes(hidden), `${type} shows ${hidden}`);
+    assert.ok(keys.includes("space") && keys.includes("pricePerSqm"));
   }
-  // 2.21 · Rent follows the client's slide, rent terms included
-  assert.deepEqual(UNIT_SHEET_FIELDS.Rent.slice(0, 5).map(([, l]) => l), ["Building", "Delivery date", "Gross area", "Hand over Condition", "Rent rate per meter"]);
-  for (const k of ["upfront", "security", "payment", "term", "grace", "escalationPct"]) assert.ok(UNIT_SHEET_FIELDS.Rent.some(([x]) => x === k), k);
-  assert.equal(UNIT_SHEET_FIELDS.Resale.find(([k]) => k === "total")![1], "إجمالي السعر");
+  // the client's slide (P1901) without its Commission row: 13 rows, the rent rate per meter (no total)
+  assert.deepEqual(UNIT_SHEET_FIELDS.Rent.map(([, l]) => l), ["Building", "Delivery date", "Gross area", "Hand over Condition", "Rent rate per meter", "Maintenance", "Parking slots",
+    "Upfront rent", "Security deposit", "Payment", "Term", "Grace period", "Annual increase"]);
+  for (const k of ["total", "monthly", "annual", "yield", "tenant", "contractDuration"]) assert.ok(UNIT_SHEET_FIELDS.Income.some(([x]) => x === k), k);
+  assert.ok(UNIT_SHEET_FIELDS.Resale.some(([x]) => x === "total"));
 });
 
 test("2.18 · the daily report's line: new / updated / rented / unconfirmed, in the demo's words", () => {

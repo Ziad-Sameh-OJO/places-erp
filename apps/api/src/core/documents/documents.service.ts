@@ -74,9 +74,9 @@ export class DocumentsService implements OnModuleDestroy {
     return tags.length ? `<div class="seal">${tags.join("")}</div>` : "";
   }
 
-  /** A4 with the header and footer; `slide`: one 16:9 page (1280 × 720), edge to edge, nothing around it (M-03 unit slide). */
+  /** A4 with the header and footer; `slide`: 16:9 pages (1280 × 720), edge to edge, nothing around them (M-03 unit PDF and slide, 2.23). */
   async pdf(html: string, now = new Date(), opts: { slide?: boolean } = {}): Promise<Buffer> {
-    // the signature and stamp go under a page of the company's papers; a slide is one picture, edge to edge
+    // the signature and stamp go under a page of the company's papers; a 16:9 deck is pictures, edge to edge
     if (!opts.slide) {
       const seal = await this.seal();
       html = html.replace("</body>", () => `${seal}</body>`);
@@ -87,7 +87,7 @@ export class DocumentsService implements OnModuleDestroy {
       // a PDF never fetches anything (fonts and logo are inline): a value that slipped past esc() can't reach the network
       await page.route("**/*", (r) => r.abort());
       await page.setContent(html, { waitUntil: "load" });
-      if (opts.slide) return await page.pdf({ width: "1280px", height: "720px", printBackground: true, margin: { top: "0", bottom: "0", left: "0", right: "0" }, pageRanges: "1" });
+      if (opts.slide) return await page.pdf({ width: "1280px", height: "720px", printBackground: true, margin: { top: "0", bottom: "0", left: "0", right: "0" } });
       const printedAt = now.toLocaleString("ar-EG-u-nu-latn", { timeZone: "Africa/Cairo", dateStyle: "long", timeStyle: "short" });
       return await page.pdf({
         format: "A4", printBackground: true, displayHeaderFooter: true, headerTemplate: HEADER, footerTemplate: footer(printedAt),

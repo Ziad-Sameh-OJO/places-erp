@@ -1,65 +1,159 @@
 import type { UnitDetail } from "@places/contracts";
 import { UNIT_SHEET_FIELDS } from "@places/domain";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import PptxGenJS from "pptxgenjs";
 import { esc, layout } from "../../core/documents/documents.service";
+
+/**
+ * 2.23 · the unit's PDF and slide in the client's design (P1901 and slide.pptx, 2026-11-05; the demo's brochure.js): a
+ * fixed brand frame (red cover, dark photo pages, paper spec page, contacts, thank you) filled from the unit's sheet and
+ * its Pic & Info photos — the first photo is the building, the rest are inside. The same pages draw the 16:9 PDF
+ * (Chromium) and the PowerPoint (pptxgenjs).
+ */
 
 /** A photo inlined as a data URL (FilesService.dataUrl): a PDF never fetches anything. */
 export type Photo = string;
-const dataUrl = (p: Photo) => esc(p);
+type Bg = "red" | "paper" | "dark" | "contacts";
+/** a photo box: [photo or none, x, y, w, h] in % of the page */
+type Box = [Photo | null, number, number, number, number];
+type Row = [label: string, value: string, mark?: "area" | "rate"];
+interface Page { bg: Bg; cover?: { title: string; area: string; building: string; code: string }; photos?: Box[]; title?: string; table?: Row[]; thanks?: boolean }
 
-// only the number is left-to-right: «ج.م» inside an LTR run would come out as «م.ج»
-const num = (v: string | number) => `<span class="num">${esc(typeof v === "number" ? v.toLocaleString("en-US") : v)}</span>`;
-const money = (v: string | null) => (v ? `${num(Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 }))} ج.م` : "—");
-const GRADIENT: Record<string, string> = { Rent: "#0a1f8f, #2c5cff", Resale: "#3a1c8f, #6a3df0", Income: "#04533b, #08875c", Primary: "#7a4b00, #c98a12" };
+// the backgrounds come from the client's pptx (copied to the build by nest-cli.json), read once
+let bgs: Record<Bg, string> | undefined;
+const bg = (k: Bg) => (bgs ??= Object.fromEntries((["red", "paper", "dark", "contacts"] as const).map((b) =>
+  [b, `data:image/jpeg;base64,${readFileSync(join(__dirname, "brochure", b === "contacts" ? "contacts.jpg" : `bg-${b}.jpg`)).toString("base64")}`])) as Record<Bg, string>)[k];
 
-/** One value of the client-facing sheet (domain UNIT_SHEET_FIELDS), as the inventory list shows it. */
+const COND: Record<string, string> = { "متشطب": "Finished", "نص تشطيب": "Semi finished" };
+// the client's placeholder text until they send theirs (asked on the PR)
+const DISCLAIMER = "This presentation is for information only and does not form an offer or a contract. Areas, prices and terms are as provided by the owner on the date of issue and may change without notice.";
+const dash = (v: unknown) => (v == null || v === "" || v === 0 ? "—" : String(v));
+const n = (v: number) => v.toLocaleString("en-US");
+const egp = (v: string | null | undefined) => (v && Number(v) ? `EGP ${Number(v).toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "—");
+/** «20 SQM Up TO 690 SQM» for a unit that splits (2.21) */
+const areaText = (u: UnitDetail) => (!u.space ? "—" : u.divisible && u.minSplit ? `${n(u.minSplit)} SQM Up TO ${n(u.space)} SQM` : `${n(u.space)} SQM`);
+
+/** One value of the spec table (domain UNIT_SHEET_FIELDS); «—» when it's empty. */
 function value(u: UnitDetail, key: string): string {
   const d = u.details;
   switch (key) {
-    // the client's slide: «20 SQM Up TO 690 SQM» for a unit that splits (2.21)
-    case "space": return !u.space ? "—" : u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)} م` : `${num(u.space)} م`;
-    case "parking": return num(u.parking);
-    case "pricePerSqm": return money(u.pricePerSqm);
-    case "total": return money(u.totalPrice);
-    case "monthly": return money(u.income?.monthlyRent ?? null);
-    case "annual": return money(u.income?.annualRent ?? null);
-    case "yield": return u.income?.yieldPct != null ? `${num(u.income.yieldPct.toFixed(2))}%` : "—";
-    case "escalationPct": return d.escalationPct != null ? `${num(String(d.escalationPct))}%` : "—";
-    case "delivery": case "contractDuration": case "endsOn": case "upfront": case "security": case "payment": case "term": case "grace": return esc(d[key] ?? "—");
-    default: return esc((u as unknown as Record<string, unknown>)[key] || "—");
+    case "space": return areaText(u);
+    case "condition": return dash(COND[u.condition] ?? u.condition);
+    case "pricePerSqm": return egp(u.pricePerSqm);
+    case "total": return egp(u.totalPrice);
+    case "monthly": return egp(u.income?.monthlyRent);
+    case "annual": return egp(u.income?.annualRent);
+    case "yield": return u.income?.yieldPct != null ? `${u.income.yieldPct.toFixed(1)}%` : "—";
+    case "escalationPct": return d.escalationPct != null ? `${d.escalationPct}%` : "—";
+    default: return dash(key in d ? d[key] : (u as unknown as Record<string, unknown>)[key]);
   }
 }
 
-/** The headline the demo's slide shows: area · floor · space · finishing, and the total («/ شهر» for rent). */
-const headline = (u: UnitDetail) => `${esc(u.area)} · الدور ${esc(u.floor || "—")} · ${num(u.space)} م · ${esc(u.condition)}`;
-const price = (u: UnitDetail) => `${money(u.totalPrice)}${u.type === "Rent" ? " / شهر" : ""}`;
+const rows = (u: UnitDetail): Row[] => UNIT_SHEET_FIELDS[u.type].map(([k, label]) => [label, value(u, k), k === "space" ? "area" : k === "pricePerSqm" ? "rate" : undefined]);
+const headline = (u: UnitDetail) => (u.type === "Rent" ? "NEW OFFICE AVAILABLE FOR LEASING" : u.type === "Income" ? "INCOME PROPERTY FOR SALE" : "NEW OFFICE AVAILABLE FOR SALE");
 
-/** M-03 2.2 · the unit's PDF (A4): the slide's headline, the main photos and the type's sheet without the owner. */
-export function unitSheet(u: UnitDetail, photos: Photo[]): string {
-  const rows = UNIT_SHEET_FIELDS[u.type].map(([k, label]) => `<tr><th>${esc(label)}</th><td>${value(u, k)}</td></tr>`).join("");
-  const pics = photos.map((p) => `<img src="${dataUrl(p)}" alt="">`).join("");
-  return layout(`${u.code} · ${u.project}`, `
-    <style>.eyebrow{color:#2c5cff;font-size:10pt;letter-spacing:.04em}.price{font-size:16pt;font-weight:700}
-    .pics{display:grid;grid-template-columns:repeat(2,1fr);gap:6pt;margin:10pt 0}.pics img{width:100%;height:150pt;object-fit:cover;border-radius:6pt}
-    .pics img:first-child{grid-column:1/-1;height:230pt}</style>
-    <div class="eyebrow">PLACES · ${esc(u.type)} · <span class="num">${esc(u.code)}</span></div>
-    <h1>${esc(u.project)}</h1>
-    <p>${headline(u)}</p>
-    <p class="price">${price(u)}</p>
-    ${pics ? `<div class="pics">${pics}</div>` : ""}
-    <table><tbody>${rows}</tbody></table>
-    ${u.divisible ? `<p>تنفع تتقسم${u.minSplit ? ` · أقل مساحة ${num(u.minSplit)} م` : ""}${u.splitNote ? ` · ${esc(u.splitNote)}` : ""}</p>` : ""}`);
+/** «pdf» = cover · building · specs · one interior per page · contacts · thank you; «slide» = specs + «Interior picture» two a page. */
+function pages(u: UnitDetail, photos: Photo[], kind: "pdf" | "slide"): Page[] {
+  const [front = null, ...inside] = photos;
+  const spec: Page = { bg: "paper", photos: [[front, 3.3, 19, 44.2, 45.4]], table: rows(u) };
+  if (kind === "pdf") return [
+    { bg: "red", cover: { title: headline(u), area: areaText(u).toUpperCase(), building: `BUILDING NAME : ${dash(u.project).toUpperCase()}`, code: `CODE:${u.code}` } },
+    { bg: "dark", photos: [[front, 2.5, 4, 95, 84]] },
+    spec,
+    ...(inside.length ? inside : [null]).map((p): Page => ({ bg: "dark", photos: [[p, 2.5, 4, 95, 84]] })),
+    { bg: "contacts" }, { bg: "red", thanks: true },
+  ];
+  const two: (Photo | null)[] = inside.length ? inside : [null, null];
+  const P = [spec];
+  for (let i = 0; i < two.length; i += 2) {
+    P.push({ bg: "paper", title: "Interior picture", photos: [[two[i] ?? null, 3.1, 20.4, 44.4, 44.4], ...(i + 1 < two.length ? [[two[i + 1] ?? null, 51.2, 20.4, 44.4, 44.4] as Box] : [])] });
+  }
+  return P;
 }
 
-/** The demo's slide (`.slide`): the main photo on one side, the headline and the price on the other, 16:9. */
-export function unitSlide(u: UnitDetail, photo: Photo | null): string {
-  const img = photo ? `<img src="${dataUrl(photo)}" alt="">` : "";
-  return layout(`${u.code} · ${u.project}`, `
-    <style>@page{size:1280px 720px;margin:0}html,body{width:1280px;height:720px;overflow:hidden}
-    .slide{width:1280px;height:720px;display:grid;grid-template-columns:1.1fr 1fr;background:#0b1640;color:#fff}
-    .s-img{background:linear-gradient(135deg, ${GRADIENT[u.type] ?? GRADIENT.Rent});position:relative}.s-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-    .s-txt{padding:60px;display:flex;flex-direction:column;justify-content:center;gap:14px}.eyebrow{color:#9fb4ff;font-size:20px}
-    h3{font-size:46px;margin:0;line-height:1.25}p{margin:0;color:#c9d2ff;font-size:24px}b{font-size:40px}small{color:#9fb4ff;font-size:20px}</style>
-    <div class="slide"><div class="s-img">${img}</div><div class="s-txt">
-      <span class="eyebrow">PLACES · ${esc(u.type)}</span><h3>${esc(u.project)}</h3><p>${headline(u)}</p><b>${price(u)}</b><small><span class="num">${esc(u.code)}</span></small>
-    </div></div>`);
+/** The client's file name: «(P1901) Gate Way El Rehab 20M Up TO 690M»; the slide «P1901 slide». */
+export const deckName = (u: UnitDetail, kind: "pdf" | "slide") => (kind === "pdf" ? `(${u.code}) ${u.project} ${areaText(u).replace(/ SQM/g, "M")}` : `${u.code} slide`);
+
+/* ---------- the PDF (Chromium, 1280 × 720 pages) ---------- */
+const SANS = "Arial, Arimo, 'Liberation Sans', 'IBM Plex Sans Arabic', sans-serif", SERIF = "'Times New Roman', Tinos, 'Liberation Serif', 'IBM Plex Sans Arabic', serif";
+const CSS = `@page{size:1280px 720px;margin:0}
+  .b-pg{position:relative;width:1280px;height:720px;background-size:cover;background-position:center;overflow:hidden;font-family:${SANS};color:#fff;direction:ltr;text-align:left;line-height:1.2}
+  .b-pg+.b-pg{break-before:page}
+  .b-cover{position:absolute;left:1.9%;top:5.3%;right:4%}.b-cover h1{font:700 54px/1.02 ${SANS};margin:0;max-width:640px}.b-cover h2{font:700 44px/1.1 ${SANS};margin:6px 0 0}
+  .b-meta{position:absolute;top:255px;left:0;right:8%;display:flex;justify-content:space-between;font:700 18px ${SANS}}
+  .b-ph{position:absolute;overflow:hidden;background:rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center}.b-ph img{width:100%;height:100%;object-fit:cover;display:block}.b-ph span{font:italic 20px ${SERIF};color:#8a8579}
+  .b-tbl{position:absolute;left:50%;top:5.5%;width:47.5%;margin:0;border-collapse:collapse;font:22px/1.2 ${SERIF};color:#1d1d1b}
+  .b-tbl td{border:1.5px solid #9b9b9b;padding:0 14px;height:35px;background:rgba(232,229,224,.55);text-align:left}.b-tbl td:first-child{width:50%}
+  .b-tbl tr:nth-child(even) td{background:rgba(160,160,160,.5)}
+  .b-tbl tr.area td{background:#a7a7a7;color:#e5372b;font-weight:700}.b-tbl tr.rate td{background:#ee3a4f;color:#fff;font-weight:700}
+  .b-title{position:absolute;left:37.5%;top:4.6%;width:25%;margin:0;text-align:center;font:400 34px ${SERIF};color:#1d1d1b}
+  .b-thanks{position:absolute;left:1.8%;top:3.5%;font:60px 'Book Antiqua',Palatino,${SERIF}}
+  .b-site{position:absolute;left:49.4%;top:80.4%;font:20px 'Book Antiqua',Palatino,${SERIF}}.b-disc{position:absolute;left:49.4%;top:86.2%;width:46%;margin:0;font:8px/1.3 'Book Antiqua',Palatino,${SERIF};opacity:.9}`;
+
+const box = ([src, x, y, w, h]: Box) => `<div class="b-ph" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${src ? `<img src="${esc(src)}" alt="">` : "<span>Photos coming soon</span>"}</div>`;
+const pageHtml = (p: Page) => `<section class="b-pg" style="background-image:url('${esc(bg(p.bg))}')">
+  ${p.cover ? `<div class="b-cover"><h1>${esc(p.cover.title)}</h1><h2>${esc(p.cover.area)}</h2><div class="b-meta"><span>${esc(p.cover.building)}</span><span>${esc(p.cover.code)}</span></div></div>` : ""}
+  ${(p.photos ?? []).map(box).join("")}
+  ${p.title ? `<h3 class="b-title">${esc(p.title)}</h3>` : ""}
+  ${p.table ? `<table class="b-tbl">${p.table.map(([l, v, mark]) => `<tr class="${mark ?? ""}"><td>${esc(l)}</td><td>${esc(v)}</td></tr>`).join("")}</table>` : ""}
+  ${p.thanks ? `<div class="b-thanks">Thank you</div><div class="b-site">Places-egy.com</div><p class="b-disc">${esc(DISCLAIMER)}</p>` : ""}
+</section>`;
+
+/** The deck as HTML for DocumentsService.pdf(…, { slide: true }). */
+export const unitDeckHtml = (u: UnitDetail, photos: Photo[], kind: "pdf" | "slide") =>
+  layout(deckName(u, kind), `<style>${CSS}</style>${pages(u, photos, kind).map(pageHtml).join("")}`);
+
+/* ---------- PowerPoint (13.333 × 7.5 in) ---------- */
+
+/** A PNG's or JPEG's pixel size: PowerPoint crops a photo to its box only knowing it. Null = stretched into the box. */
+function pixels(src: Photo): { w: number; h: number } | null {
+  const b = Buffer.from(src.slice(src.indexOf(",") + 1), "base64");
+  if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47) return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+  // walk the JPEG's segments to its frame header (SOF0…SOF15, not DHT / JPG / DAC)
+  for (let i = 2; i + 9 < b.length && b[i] === 0xff; i += 2 + b.readUInt16BE(i + 2)) {
+    const m = b[i + 1]!;
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { w: b.readUInt16BE(i + 7), h: b.readUInt16BE(i + 5) };
+  }
+  return null;
+}
+
+/** The same pages as a .pptx (the demo's unitDeckPptx, server-side). */
+export async function unitDeckPptx(u: UnitDetail, photos: Photo[], kind: "pdf" | "slide"): Promise<Buffer> {
+  const X = (v: number) => (v * 13.333) / 100, Y = (v: number) => (v * 7.5) / 100;
+  const ppt = new PptxGenJS();
+  ppt.layout = "LAYOUT_WIDE";
+  ppt.title = deckName(u, kind);
+  for (const p of pages(u, photos, kind)) {
+    const s = ppt.addSlide();
+    s.background = { data: bg(p.bg) };
+    for (const [src, x, y, w, h] of p.photos ?? []) {
+      if (!src) {
+        s.addText("Photos coming soon", { x: X(x), y: Y(y), w: X(w), h: Y(h), align: "center", fontFace: "Times New Roman", italic: true, color: "8A8579", fill: { color: "E8E5E0" } });
+        continue;
+      }
+      const px = pixels(src);
+      // pptxgenjs crops «cover» from the w / h it's given, so they carry the photo's own proportions
+      s.addImage({ data: src, x: X(x), y: Y(y), w: X(w), h: px ? (X(w) * px.h) / px.w : Y(h), sizing: { type: "cover", w: X(w), h: Y(h) } });
+    }
+    if (p.cover) {
+      s.addText([{ text: p.cover.title, options: { fontSize: 54, breakLine: true } }, { text: p.cover.area, options: { fontSize: 44 } }], { x: X(1.9), y: Y(5.3), w: X(55), h: Y(44), fontFace: "Arial", bold: true, color: "FFFFFF", valign: "top", lineSpacingMultiple: 0.9 });
+      s.addText(p.cover.building, { x: X(1.9), y: Y(52), w: X(50), h: Y(6), fontFace: "Arial", bold: true, fontSize: 18, color: "FFFFFF" });
+      s.addText(p.cover.code, { x: X(55), y: Y(52), w: X(35), h: Y(6), fontFace: "Arial", bold: true, fontSize: 18, color: "FFFFFF" });
+    }
+    if (p.title) s.addText(p.title, { x: X(37.5), y: Y(4.6), w: X(25), h: Y(7.6), align: "center", fontFace: "Times New Roman", fontSize: 28, color: "1D1D1B" });
+    if (p.table) {
+      s.addTable(p.table.map(([l, v, mark], i) => [l, v].map((text) => ({ text, options: {
+        bold: !!mark, color: mark === "rate" ? "FFFFFF" : mark === "area" ? "E5372B" : "1D1D1B",
+        fill: { color: mark === "rate" ? "EE3A4F" : mark === "area" ? "A7A7A7" : i % 2 ? "C4C4C4" : "E8E5E0" },
+      } }))), { x: X(50), y: Y(5.5), w: X(47.5), colW: [X(23.75), X(23.75)], fontFace: "Times New Roman", fontSize: 14, border: { type: "solid", pt: 1, color: "9B9B9B" }, rowH: 0.36 });
+    }
+    if (p.thanks) {
+      s.addText("Thank you", { x: X(1.8), y: Y(3.5), w: X(40), h: Y(13.5), fontFace: "Book Antiqua", fontSize: 60, color: "FFFFFF" });
+      s.addText("Places-egy.com", { x: X(49.4), y: Y(80.4), w: X(30), h: Y(5.8), fontFace: "Book Antiqua", fontSize: 20, color: "FFFFFF" });
+      s.addText(DISCLAIMER, { x: X(49.4), y: Y(86.2), w: X(46), h: Y(8), fontFace: "Book Antiqua", fontSize: 7, color: "FFFFFF", valign: "top" });
+    }
+  }
+  return (await ppt.write({ outputType: "nodebuffer" })) as Buffer;
 }
