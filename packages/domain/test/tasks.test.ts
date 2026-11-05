@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isTaskLate, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
+import { followupRole, isTaskLate, needsFollowup, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
 
 const assignee: TaskActor = { assignee: true, manager: false, approver: false };
 const manar: TaskActor = { assignee: false, manager: true, approver: true };
@@ -48,6 +48,15 @@ test("the board's buttons follow the same rule", () => {
   assert.deepEqual(taskMovesFor("retouch", "uploaded", manar), ["todo", "done"]);
   assert.deepEqual(taskMovesFor("marketing", "done", assignee), ["todo"]);
   assert.deepEqual(taskMovesFor("photo", "todo", stranger), []);
+});
+
+test("M-03 2.4 · 2.17: a unit late on its owner update gets one follow-up — Randa for Resale, Manar for the rest", () => {
+  assert.equal(followupRole("Resale"), "resale");
+  assert.equal(followupRole("Rent"), "inventory");
+  assert.equal(followupRole("Income"), "inventory");
+  assert.equal(needsFollowup({ stale: true, openFollowup: false }), true);
+  assert.equal(needsFollowup({ stale: true, openFollowup: true }), false); // still one open: no second
+  assert.equal(needsFollowup({ stale: false, openFollowup: false }), false);
 });
 
 test("M-04 2.4: a daily task is late once its day has passed in Cairo, unless Done", () => {
