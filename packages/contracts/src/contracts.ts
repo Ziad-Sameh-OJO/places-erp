@@ -33,7 +33,19 @@ export interface ContractRow {
   startsOn: string; endsOn: string; value: string; escalation: number; status: ContractStatus;
   endingSoon: boolean; daysLeft: number; paid: string;
 }
-export interface InstallmentRow { id: string; dueOn: string; amount: string; paid: string; state: InstallmentState }
+/** A payment on an installment and its receipt number (C-501-1 = installment 1 of C-501, like the demo; /2 for a second payment). */
+export interface PaymentRow { id: string; amount: string; paidOn: string; receiptNo: string }
+export interface InstallmentRow { id: string; dueOn: string; amount: string; paid: string; state: InstallmentState; payments: PaymentRow[] }
+
+/** «سجّل دفعة» (M-11 2.1 step 4): Finance records what the client paid on an installment; part of it is allowed (2.3). */
+export const RecordPayment = z.object({ amount: Money, paidOn: CalendarDay.optional() });
+export type RecordPayment = z.infer<typeof RecordPayment>;
+
+/** «تقرير التحصيل» for a month: what fell due, what was collected (by payment), and the Aging now. */
+export interface CollectionReport {
+  month: string; due: string; collected: string; aging: [string, string, string, string];
+  items: Array<{ contractId: string; code: string; client: string; unitCode: string; dueOn: string; paidOn: string; amount: string; receiptNo: string; paymentId: string }>;
+}
 export interface ContractDetail extends ContractRow {
   nextYearValue: string; file: { id: string; name: string } | null; installments: InstallmentRow[]; createdAt: string;
 }

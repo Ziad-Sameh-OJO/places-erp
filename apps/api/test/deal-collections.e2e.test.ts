@@ -40,7 +40,8 @@ after(async () => {
   await prisma.employee.update({ where: { id: mohsenId }, data: { commissionPct: oldPct as number } });
   await prisma.tcr.deleteMany({ where: { dealId } }); // each collection's TCR (5.12)
   await prisma.payment.deleteMany({ where: { dealId } });
-  const entries = (await prisma.journalEntry.findMany({ where: { sourceId: dealId }, select: { id: true } })).map((e) => e.id);
+  const posted = (await prisma.journalEntry.findMany({ where: { sourceId: dealId }, select: { id: true } })).map((e) => e.id);
+  const entries = [...posted, ...(await prisma.journalEntry.findMany({ where: { source: "reversal", sourceId: { in: posted } }, select: { id: true } })).map((e) => e.id)];
   await prisma.auditLog.deleteMany({ where: { entityId: { in: entries } } });
   await prisma.journalEntry.deleteMany({ where: { id: { in: entries } } });
   const sales = (await prisma.account.findMany({ where: { partyType: "sales", createdAt: { gte: since } }, select: { id: true } })).map((a) => a.id);
@@ -107,4 +108,24 @@ test("5.3 · 9.12: the rest → Fully Collected; each salesperson's commission i
   // the only Buyer takes the Buyer half (50,000) at a 30% scheme; the Seller waits for Manar (5.5)
   assert.equal(await balance(ashraf, due.id), cents("15000"));
   assert.equal((await collect(ashraf, { side: "owner", toId: bankId, amount: "1" })).status, 400);
+});
+
+test("12 · 9.6: cancelling the collected deal reverses its revenue and commission once; the cash stays owed to the client", async () => {
+  const cancel = (cookie: string, reason = "العميل رجع في كلامه") => call(`/deals/${dealId}/cancel`, { method: "POST", cookie, body: { reason } });
+  assert.equal((await cancel(mohsen)).status, 403);
+  assert.equal((await cancel(ashraf)).status, 403);
+  assert.equal((await cancel(nancy, " ")).status, 400);
+  const r = await cancel(nancy);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.status, "Cancelled");
+  assert.equal(r.body.reversed.length, 2); // the revenue entry and the commission entry
+  const due = await prisma.account.findUniqueOrThrow({ where: { partyType_partyId: { partyType: "sales", partyId: mohsenId } } });
+  assert.equal(await balance(ashraf, revenueId), 0);
+  assert.equal(await balance(ashraf, due.id), 0);
+  assert.equal(await balance(ashraf, clientAccountId), -cents("100000")); // the collected cash is now owed back to the client
+  assert.equal(await balance(ashraf, bankId), cents("100000"));
+  assert.equal((await cancel(nancy)).status, 400); // once
+  const posted = (await prisma.journalEntry.findMany({ where: { sourceId: dealId }, select: { id: true } })).map((e) => e.id);
+  assert.equal(await prisma.journalEntry.count({ where: { source: "reversal", sourceId: { in: posted } } }), 2);
+  assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "cancel" } }));
 });

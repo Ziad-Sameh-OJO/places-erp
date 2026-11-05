@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { CollectDeal, CreateDeal, DealFilters, DealNote, DealUnitQuery, ReviewDeal } from "@places/contracts";
+import { CancelDeal, CollectDeal, CreateDeal, DealFilters, DealNote, DealUnitQuery, ReviewDeal } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -72,6 +72,14 @@ export class DealsController {
   async tcrPdf(@Me() me: CurrentUser, @Param("id") id: string, @Param("tcrId") tcrId: string, @Res() res: Response) {
     const { name, html } = await this.deals.tcrDocument(me, id, tcrId);
     sendPdf(res, name, await this.docs.pdf(html));
+  }
+
+  /** «الغي الصفقة» (M-02 2.3 (12) · 9.6), reversing its entries: «deals: delete» (Admin, Office Manager — Q43's one allowed user). */
+  @Post(":id/cancel")
+  @HttpCode(200)
+  @Requires("deals", "delete")
+  cancel(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(CancelDeal)) body: CancelDeal) {
+    return this.deals.cancel(me, id, body);
   }
 
   /** «note» (M-02 3.1): the Office Manager and Finance — «deals: edit» in the role matrix. */

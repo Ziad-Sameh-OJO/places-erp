@@ -99,7 +99,7 @@ function TemplateCard({ t, ed }: { t: DocTemplateView; ed: boolean }) {
   const run = useAction();
   const done = () => qc.invalidateQueries({ queryKey: ["settings", "documents"] });
   return (
-    <Card title={t.kind === "claim" ? "قالب المطالبة" : "قالب إيصال استلام النقدية"} icon="file" extra={t.custom ? <Chip tone="ok">متعدّل</Chip> : undefined}>
+    <Card title={{ claim: "قالب المطالبة", receipt: "قالب إيصال استلام النقدية", installment: "قالب إيصال قسط العقد" }[t.kind]} icon="file" extra={t.custom ? <Chip tone="ok">متعدّل</Chip> : undefined}>
       {/* key: a reset brings the default text back into the fields */}
       <form key={`${t.title}${t.body}${t.closing}`} className="grid" onSubmit={onFormSubmit((f) => run(async () => { await api.put(`/settings/templates/${t.kind}`, { title: f.get("title"), body: f.get("body"), closing: f.get("closing") }); await done(); }, "اتحفظ القالب"))}>
         <Field label="العنوان" wide><input name="title" defaultValue={t.title} disabled={!ed} required /></Field>

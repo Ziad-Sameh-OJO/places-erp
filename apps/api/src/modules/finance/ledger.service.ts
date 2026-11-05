@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { AccountLedger, AccountNode, ChartView, EntrySaved, EntryView, IncomeView, JournalFilters, JournalView, ManualEntry, MoveEffect, NewAccount, OpeningBalances, PeriodView } from "@places/contracts";
 import {
-  PERIOD_STATUS_LABEL, RETAINED_EARNINGS, incomeStatement, YEAR_RESULT, balanceOf, closedProblem, entryProblem, monthLabel, monthOf, periodStatus, fromDecimal, localDate, natureOf, nextChildCode, openingLines, rollUp,
+  PERIOD_STATUS_LABEL, RETAINED_EARNINGS, incomeStatement, YEAR_RESULT, balanceOf, closedProblem, entryProblem, monthLabel, monthOf, periodStatus, fromDecimal, localDate, natureOf, nextChildCode, openingLines, reversalLines, rollUp,
   toDecimal, type EntryLine, type Nature, type PeriodStatus, type Piasters,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
@@ -59,6 +59,20 @@ export class LedgerService {
     await this.audit.record({ module: "finance", entity: "JournalEntry", entityId: e.id, action: "post", userId: me.id,
       after: { no: e.no, date: input.date, nature: input.nature, memo: input.memo, lines: input.lines.map((l) => ({ accountId: l.accountId, debit: toDecimal(l.debit), credit: toDecimal(l.credit) })) } }, tx);
     return { id: e.id, no: entryNo(e.no, input.source) };
+  }
+
+  /**
+   * 9.6 · Q12: undo everything a source posted (a cancelled deal's revenue and commissions) with one reversing entry
+   * each, dated today. Idempotent: an entry that already has its reversal is skipped.
+   */
+  async reverse(me: CurrentUser, source: string, sourceId: string, memo: string, tx: Tx): Promise<string[]> {
+    const { entries, reversed } = await this.repo.posted(source, sourceId, tx);
+    const nos: string[] = [];
+    for (const e of entries.filter((x) => !reversed.has(x.id))) {
+      const lines = reversalLines(e.lines.map((l) => ({ accountId: l.accountId, debit: dec(l.debit), credit: dec(l.credit) })));
+      nos.push((await this.post(me, { date: localDate(new Date()), nature: `عكس ${e.nature}`, source: "reversal", sourceId: e.id, memo: `${memo} · عكس ${entryNo(e.no, e.source)}`, lines }, tx)).no);
+    }
+    return nos;
   }
 
   private async closed(tx?: Tx): Promise<Map<string, PeriodStatus>> {
