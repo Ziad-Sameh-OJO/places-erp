@@ -203,3 +203,24 @@ test("4.9 · Q26: marketing is told of the approved deal and sees only location,
   assert.match(url.body.url, /^https?:\/\//);
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "logo" } }));
 });
+
+test("5.5 · M-02 6.2: the approved deal locks its unit; Manar confirms and the unit is rented, out of the list and of new deals", async () => {
+  const lock = await prisma.unitLock.findFirst({ where: { unitId, dealId } });
+  assert.equal(lock!.status, "pending");
+  assert.equal(lock!.type, "Rent");
+  assert.equal((await prisma.unitLock.count({ where: { unitId: unit2Id } })), 0); // the rejected deal locks nothing
+  const manar = await session("manar.ahmed@places.com");
+  const ok = await call(`/inventory/units/${unitId}/locks/${dealId}/confirm`, { method: "POST", cookie: manar });
+  assert.ok(ok.status < 300, JSON.stringify(ok.body));
+  assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).status, "rented");
+  const units = await call(`/deals/units?q=${encodeURIComponent(`${C} مشروع`)}`, { cookie: mohsen });
+  assert.equal(units.body.some((u: { id: string }) => u.id === unitId), false);
+  assert.equal((await register(mohsen, dealBody({ withMe: [] }))).status, 400); // that unit is closed now
+});
+
+test("5.5 · 5.7: cancelling the approved, closed deal frees its unit again", async () => {
+  const r = await call(`/deals/${dealId}/cancel`, { method: "POST", cookie: nancy, body: { reason: `${C} العميل رجع في كلامه` } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).status, "available");
+  assert.equal(await prisma.unitLock.count({ where: { unitId } }), 0);
+});
