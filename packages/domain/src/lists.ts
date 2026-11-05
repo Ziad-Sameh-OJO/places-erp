@@ -46,3 +46,46 @@ export function canChangeList(rule: ListEditorsOf | undefined, action: ListActio
   if (!rule) return me.masterEdit;
   return rule[action].some((x) => x === me.id || me.roles.includes(x));
 }
+
+/** The Super Admin role: changes every setting (M-13 4.1), and is the only one for the money rules (M-13 2.2). */
+export const SUPER_ADMIN_ROLE = "admin";
+
+/**
+ * M-13 1.2 · 2.2 · 3.1 · 4.1: whose setting each one is. A department manager changes his own department's only
+ * (the HR: leave types and official holidays · the marketing: the channels and the WhatsApp limit · Manar's area
+ * tabs live in the inventory, under «inventory: edit»). The money rules and what the requirements give the Super
+ * Admin are his alone; «access» = whoever manages roles and permissions (#186 · 1.25). A key not in the map keeps
+ * «master: edit» until the client names its department.
+ */
+export type SettingOwner = readonly string[] | "super" | "access";
+export const SETTING_OWNERS: Readonly<Record<string, SettingOwner>> = {
+  leaveTypes: ["hr"],
+  holidays: ["hr"],
+  channels: ["marketing"],
+  whatsappDailyLimit: ["marketing"],
+  areas: "super", // 3.1: «المناطق · Super Admin»
+  notificationsFrom: "super", // M-14: «Super Admin (الإعداد)»
+  procurementBigApprovers: "super", // money: who approves above 50,000 (2.2 · M-08 Q44)
+  leadLogRoles: "access",
+  listEditors: "access",
+};
+
+export interface SettingEditor { readonly roles: readonly string[]; readonly masterEdit: boolean; readonly accessEdit: boolean }
+
+/** May this person change this setting? For a list, this is who changes it until its own editors are set up (#186). */
+export function canEditSetting(key: string, me: SettingEditor): boolean {
+  const owner = SETTING_OWNERS[key];
+  if (owner === "access") return me.accessEdit;
+  if (me.roles.includes(SUPER_ADMIN_ROLE)) return true;
+  if (owner === "super") return false;
+  if (owner) return me.masterEdit && me.roles.some((r) => owner.includes(r));
+  return me.masterEdit;
+}
+
+/** «مين يعدّل»'s starting point for a list not set up yet: its department and the Super Admin, else today's «master: edit» roles. */
+export function defaultListEditors(key: string, masterEditRoles: readonly string[]): string[] {
+  const owner = SETTING_OWNERS[key];
+  if (owner === "super") return [SUPER_ADMIN_ROLE];
+  if (typeof owner === "object") return [SUPER_ADMIN_ROLE, ...owner];
+  return [...masterEditRoles];
+}

@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import { LIST_DEFAULTS, LIST_GROUPS, LOCKED_VALUES, ListEditors, SETTINGS, type HolidayInput, type HolidayView, type ImportDone, type ListKey, type SettingKey, type Settings } from "@places/contracts";
-import { DEFAULT_RECOMMEND_TOLERANCE_PCT, LEAD_STAGES, asListValues, canChangeList, isQualifiedAfter, listActions, listChangeProblem } from "@places/domain";
+import { DEFAULT_RECOMMEND_TOLERANCE_PCT, LEAD_STAGES, SETTING_OWNERS, asListValues, canChangeList, canEditSetting, isQualifiedAfter, listActions, listChangeProblem, type SettingEditor } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -17,7 +17,7 @@ const DEFAULTS: Settings = {
   whatsappDailyLimit: 250,
   notificationsFrom: "notifications@places.com",
   leadLogRoles: [], // only the admin until the admin picks more (1.25)
-  listEditors: {}, // every list with «master: edit» until the admin sets it up (#186)
+  listEditors: {}, // every list with its department (or «master: edit») until the admin sets it up (#186 · M-13 4.1)
   procurementBigApprovers: [], // the seed writes the client's (M-08 Q44)
   recommendTolerancePct: DEFAULT_RECOMMEND_TOLERANCE_PCT, // the proposed ±20% until the client confirms (M-03 7.2)
 };
@@ -35,7 +35,8 @@ export class SettingsService {
 
   /**
    * The «الإعدادات» screens' save. A list: by the roles / people set for it and for what the save does (add, or
-   * switch off / back on), «master: edit» until it's set up (#186). Who those are: «access: edit». The rest: «master: edit».
+   * switch off / back on), its department until it's set up (#186). Who those are: «access: edit». The rest: by
+   * whose setting it is (M-13 4.1 · SETTING_OWNERS).
    */
   async change(me: CurrentUser, key: SettingKey, value: unknown) {
     if (key === "listEditors") {
@@ -46,15 +47,22 @@ export class SettingsService {
     if (isList(key)) {
       const s = await this.all();
       const after = SETTINGS[key].parse(value);
-      const who = { id: me.id, roles: me.roles, masterEdit: me.grants.can("master", "edit") };
+      const who = { id: me.id, roles: me.roles, masterEdit: canEditSetting(key, editorOf(me)) };
       const acts = listActions(s[key], after);
       const allowed = acts.length ? acts.every((a) => canChangeList(s.listEditors[key], a, who))
         : canChangeList(s.listEditors[key], "add", who) || canChangeList(s.listEditors[key], "off", who);
       if (!allowed) throw new ForbiddenException(`مش مسموحلك ${acts.includes("add") && !canChangeList(s.listEditors[key], "add", who) ? "تضيف في" : "توقّف أو ترجّع قيم في"} «${listLabel(key)}»`);
       return this.set(me, key, after);
     }
-    if (!me.grants.can("master", "edit")) throw new ForbiddenException("التعديل لـ Super Admin أو مدير القسم");
-    return this.set(me, key, value);
+    this.mustOwn(me, key);
+    return this.set(me, key, value, SETTING_OWNERS[key] === "access" ? "access" : "master");
+  }
+
+  /** M-13 4.1 · 2.2: a department manager changes his department's settings only; the money rules are the Super Admin's. */
+  mustOwn(me: CurrentUser, key: string) {
+    if (canEditSetting(key, editorOf(me))) return;
+    const owner = SETTING_OWNERS[key];
+    throw new ForbiddenException(owner === "super" ? "الإعداد ده لـ Super Admin بس" : owner === "access" ? "الإعداد ده بيتعدّل من الأدوار والصلاحيات" : "التعديل لـ Super Admin أو مدير القسم");
   }
 
   /**
@@ -106,8 +114,12 @@ export class SettingsService {
     return rows.map((h) => ({ id: h.id, from: isoDay(h.from), to: isoDay(h.to), label: h.label }));
   }
 
-  /** `module`: added from M-13 («master») or from «قواعد الليدز» («settings»), for the audit log. */
+  /**
+   * `module`: added from M-13 («master»: the HR's calendar, M-13 3.1) or from «قواعد الليدز» («settings», whose
+   * own permission guards it, 1.29), for the audit log.
+   */
   async addHoliday(me: CurrentUser, h: HolidayInput, module = "master"): Promise<HolidayView> {
+    if (module === "master") this.mustOwn(me, "holidays");
     const row = await this.db.$transaction(async (tx) => {
       const created = await tx.holiday.create({ data: { from: asDate(h.from), to: asDate(h.to), label: h.label } });
       await this.audit.record({ module, entity: "Holiday", entityId: created.id, action: "create", userId: me.id, after: h }, tx);
@@ -119,6 +131,7 @@ export class SettingsService {
 
   /** All or nothing: a sheet with errors is fixed and uploaded again, so half a calendar never goes in. The same range twice keeps one row. */
   async importHolidays(me: CurrentUser, sheet: ParsedSheet<{ from: string; to?: string | undefined; label: string }>): Promise<ImportDone> {
+    this.mustOwn(me, "holidays");
     if (sheet.errors.length) throw new BadRequestException(`الشيت فيه ${sheet.errors.length} خطأ · صلّحهم وارفعه تاني`);
     if (!sheet.rows.length) throw new BadRequestException("الشيت مفيهوش صفوف");
     await this.db.$transaction(async (tx) => {
@@ -135,6 +148,7 @@ export class SettingsService {
   }
 
   async removeHoliday(me: CurrentUser, id: string, module = "master") {
+    if (module === "master") this.mustOwn(me, "holidays");
     await this.db.$transaction(async (tx) => {
       const h = await tx.holiday.findUnique({ where: { id } });
       if (!h) throw new NotFoundException("الإجازة دي مش موجودة");
@@ -145,6 +159,7 @@ export class SettingsService {
   }
 }
 
+const editorOf = (me: CurrentUser): SettingEditor => ({ roles: me.roles, masterEdit: me.grants.can("master", "edit"), accessEdit: me.grants.can("access", "edit") });
 const asDate = (day: string) => new Date(`${day}T00:00:00Z`);
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
