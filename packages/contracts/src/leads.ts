@@ -200,7 +200,6 @@ export const AssignLead = z.object({ to: z.string({ required_error: "اختار 
 export type AssignLead = z.infer<typeof AssignLead>;
 
 /**
-<<<<<<< HEAD
  * The narrowing questions' answers (M-03 3.2, the requirements' proposed examples, as the demo asks them), kept on
  * the lead. An empty answer is «مش مهم».
  */
@@ -238,7 +237,9 @@ export interface Recommendations {
   answers: RecommendAnswers;
   projects: string[]; paymentMethods: string[];
   items: RecommendedUnit[];
-=======
+}
+
+/**
  * One line of «مهامي النهارده» (1.22, demo home.js) from the leads: a lead whose SLA clock is running out, or a
  * Visit / Meeting due today or late and not marked yet. `tone`: «bad» = late, "" = today.
  */
@@ -246,5 +247,4 @@ export interface LeadTodayItem {
   kind: "sla" | "visit"; tone: "bad" | "warn" | "";
   lead: { id: string; name: string }; salesperson: string | null;
   sla: LeadRow["sla"]; visit: { id: string; kind: "Visit" | "Meeting"; at: string } | null;
->>>>>>> e86a099 (feat(leads): «مهامي النهارده» home board for sales and the TL — SLA alarms and the day's visits (1.22))
 }

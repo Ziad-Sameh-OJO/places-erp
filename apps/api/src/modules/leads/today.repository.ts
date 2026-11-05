@@ -19,7 +19,8 @@ export class LeadsTodayRepository {
   /** Planned (not marked Done / معملتهاش yet) and dated before tomorrow, Cairo days. */
   dueVisits(scope: Prisma.LeadWhereInput, today: string) {
     return this.db.leadVisit.findMany({
-      where: { outcome: null, at: { lt: dayStart(nextDay(today)) }, lead: { AND: [scope, { archivedAt: null }] } },
+      // a postponement waiting for its decision or approved (1.24) takes it off: «لازم تدوس Done» no longer applies
+      where: { outcome: null, OR: [{ postponeStatus: null }, { postponeStatus: "rejected" }], at: { lt: dayStart(nextDay(today)) }, lead: { AND: [scope, { archivedAt: null }] } },
       select: { id: true, kind: true, at: true, lead: { select: { id: true, name: true, assignedToId: true } } },
       orderBy: { at: "asc" }, take: 100,
     });

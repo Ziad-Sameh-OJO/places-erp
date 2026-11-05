@@ -24,10 +24,7 @@ export * from "./office-assets.ts";
 export * from "./tickets.ts";
 export * from "./procurement.ts";
 export * from "./claims.ts";
-<<<<<<< HEAD
 export * from "./reports.ts";
 export * from "./targets.ts";
 export * from "./recommendations.ts";
-=======
 export * from "./my-day.ts";
->>>>>>> e86a099 (feat(leads): «مهامي النهارده» home board for sales and the TL — SLA alarms and the day's visits (1.22))
