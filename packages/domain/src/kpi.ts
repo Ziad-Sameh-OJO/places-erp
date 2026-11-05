@@ -252,6 +252,9 @@ export function onTimeShare(states: readonly Timeliness[], empty: number | null 
   return pct(counted.filter((s) => s === "ok").length, counted.length, empty);
 }
 
+/** 11.15 · the channels whose leads need no Second Call: the item's «excl» setting, «By Safwat» until it's set. */
+export const secondCallExcluded = (p: MetricParams): string[] => String(p.excl ?? "By Safwat").split(",").map((x) => x.trim()).filter(Boolean);
+
 /** 11.15 · a Second Call is due before the lead's Cairo day ends. */
 export function endOfLocalDay(at: Date, cal: WorkCalendar = PLACES_CALENDAR): Date {
   const next = new Date(Date.parse(`${localDate(at, cal)}T00:00:00Z`) + 24 * 60 * 60_000).toISOString().slice(0, 10);

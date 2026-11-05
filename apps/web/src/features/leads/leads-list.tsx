@@ -14,6 +14,7 @@ import { LeadDrawer } from "./lead-drawer";
 import { NewLead } from "./new-lead";
 import { OperationsQueue } from "./duplicates";
 import { BulkNew } from "./bulk";
+import { SecondCalls } from "./second-calls";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
 
@@ -54,6 +55,7 @@ export function LeadsList() {
     <>
       <div className="row"><Tabs value={kind} onChange={(k) => { setKind(k); setPage(1); }} items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker]]} /></div>
       <OperationsQueue />
+      <SecondCalls onOpen={setOpen} />
       {calls?.goal && (
         <Note>{calls.goal.period === "day"
           ? <>مكالماتك النهارده: <b>{num(calls.count)}</b> من {calls.goal.target} (بند في الـ KPIs بتاعتك).</>

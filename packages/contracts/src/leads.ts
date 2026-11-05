@@ -276,3 +276,13 @@ export interface BulkReview {
   id: string; at: string; by: { id: string; name: string }; channel: string; campaign: { id: string; name: string } | null;
   total: number; duplicates: number; fresh: number; people: BulkPerson[];
 }
+
+// ───────── 11.15 · Second Calls: Operations checks each of today's leads ─────────
+export const SecondCallDone = z.object({ called: z.boolean(), sent: z.boolean(), note: z.string().trim().min(1, "اكتب النوت").max(1000) });
+export type SecondCallDone = z.infer<typeof SecondCallDone>;
+export interface SecondCallRow {
+  id: string; code: string; name: string; channel: string; sales: string | null; createdAt: string;
+  /** from a past day and still not done */
+  late: boolean;
+  done: { called: boolean; sent: boolean; note: string; at: string } | null;
+}
