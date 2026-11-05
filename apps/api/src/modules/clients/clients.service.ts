@@ -117,6 +117,16 @@ export class ClientsService {
    * M-10 2.1 / 7.1: a lead reached Done Deal → its client file. A number that's already on a file joins that file
    * (an owner who rents becomes «both»); otherwise a new file. Runs in the caller's transaction.
    */
+  /**
+   * M-10 2.1 steps 3–4 (2.11): Manar or Randa enter a unit with its owner's number → the owner's file is made with that
+   * first unit, or the number's file is found (a client who brings a unit becomes «both»). Returns the file to link
+   * the unit to; null when what was typed isn't a phone number. Runs in the inventory's transaction.
+   */
+  joinAsOwner(tx: Prisma.TransactionClient, by: string, owner: { name: string | null; phone: string }): Promise<string | null> {
+    if (!normalizePhone(owner.phone)) return Promise.resolve(null);
+    return this.join(tx, by, "owner", { name: owner.name || owner.phone, company: null, phones: [owner.phone] });
+  }
+
   async joinAsClient(tx: Prisma.TransactionClient, by: string, lead: { id: string; name: string; phones: string[]; company: string | null }) {
     const clientId = await this.join(tx, by, "client", { name: lead.name, company: lead.company, phones: lead.phones });
     await tx.lead.update({ where: { id: lead.id }, data: { clientId } });

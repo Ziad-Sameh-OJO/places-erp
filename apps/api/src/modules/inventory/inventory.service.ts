@@ -13,6 +13,7 @@ import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
+import { ClientsService } from "../clients/clients.service";
 import { InventoryRepository, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
 
 const NO_UNIT = "الوحدة مش موجودة";
@@ -33,6 +34,7 @@ export class InventoryService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly settings: SettingsService,
+    private readonly clients: ClientsService, // M-10 2.1: every unit linked to its owner's file (2.11)
   ) {}
 
   /** For a lead's Visit / Meeting (1.9): open, confirmed units by code, project or space (4 Nov demo meeting). */
@@ -136,7 +138,9 @@ export class InventoryService {
     await this.check(input, null);
     const unit = await this.db.$transaction(async (tx) => {
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
-      const u = await tx.unit.create({ data: { code: `U-${n}`, ...toData(input), createdById: me.id, ...(input.receivedAt ? { receivedAt: new Date(input.receivedAt) } : {}) } });
+      // the owner comes with their first unit, or the unit joins the file their number is on (M-10 2.1, 2.11)
+      const ownerId = input.ownerPhone ? await this.clients.joinAsOwner(tx, me.id, { name: input.ownerName ?? null, phone: input.ownerPhone }) : null;
+      const u = await tx.unit.create({ data: { code: `U-${n}`, ...toData(input), ownerId, createdById: me.id, ...(input.receivedAt ? { receivedAt: new Date(input.receivedAt) } : {}) } });
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "create", userId: me.id, after: u }, tx);
       return u;
     });
@@ -157,7 +161,11 @@ export class InventoryService {
     if (receivedAt && before.receivedAt?.getTime() !== receivedAt.getTime()) changed.receivedAt = [before.receivedAt, receivedAt];
     if (!Object.keys(changed).length) return this.get(me, id);
     await this.db.$transaction(async (tx) => {
-      await tx.unit.update({ where: { id }, data: { ...data, ...(receivedAt ? { receivedAt } : {}), pdfStatus: "draft" } });
+      // a new owner number moves the unit to that number's file (made if new); a removed number unlinks it (2.11)
+      const owner = "ownerPhone" in changed
+        ? { ownerId: data.ownerPhone ? await this.clients.joinAsOwner(tx, me.id, { name: data.ownerName, phone: data.ownerPhone }) : null }
+        : {};
+      await tx.unit.update({ where: { id }, data: { ...data, ...owner, ...(receivedAt ? { receivedAt } : {}), pdfStatus: "draft" } });
       await this.audit.record({
         module: "inventory", entity: "Unit", entityId: id, action: "update", userId: me.id,
         before: Object.fromEntries(Object.entries(changed).map(([k, [b]]) => [k, b])),
