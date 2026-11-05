@@ -87,6 +87,13 @@ export interface LeaveCalendarView { month: string; byDay: Record<string, { name
 export interface LeaveBalancesView { month: string; types: string[]; rows: { employeeId: string; name: string; department: string; byType: Record<string, { total: number; used: number; month: number; left: number }> }[] }
 export const MonthQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/, "الشهر بالشكل 2026-11").optional() });
 
+/* ---- 7.9 · «التوفير»: the month's deductions HR approves for payroll ---- */
+export interface DeductionRowView { employeeId: string; name: string; salary: string; attendanceDays: number; penaltyDays: number; lateMinutes: number; amount: string; net: string }
+export interface DeductionsView {
+  month: string; rows: DeductionRowView[]; totals: { salary: string; amount: string; net: string; people: number };
+  approved: { by: string; at: string } | null;
+}
+
 /* ---- 7.7 · penalties · 7.8 · the 1-to-1 ---- */
 export const NewPenalty = z.object({
   employeeId: z.string().min(1), day: CalendarDay,

@@ -7,6 +7,7 @@ import { PayrollService } from "./payroll.service";
 import type { PrismaClient } from "@places/db";
 import { AdvancePlan, BudgetPatch, ClosePeriod, IncomeQuery, PayDay, PayrollRunInput, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
+import { DocumentsService, sendPdf } from "../../core/documents/documents.service";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -17,7 +18,7 @@ import type { Tx } from "./ledger.repository";
 /** HTTP only: validate input, check the permission, call the service. M-07 · the chart (9.1), the journal (9.5), vouchers (9.2 · 9.3 · 9.11) and the budget. */
 @Controller("finance")
 export class FinanceController {
-  constructor(private readonly ledger: LedgerService, private readonly vouchers: VouchersService, private readonly bills: BillsService, private readonly payroll: PayrollService, @Inject(PRISMA) private readonly db: PrismaClient) {}
+  constructor(private readonly ledger: LedgerService, private readonly vouchers: VouchersService, private readonly bills: BillsService, private readonly payroll: PayrollService, private readonly docs: DocumentsService, @Inject(PRISMA) private readonly db: PrismaClient) {}
 
   private readonly run = <T>(fn: (tx: Tx) => Promise<T>) => this.db.$transaction(fn);
 
@@ -80,6 +81,13 @@ export class FinanceController {
   @Requires("finance", "view")
   move(@Param("id") id: string) {
     return this.vouchers.get(id);
+  }
+
+  @Get("moves/:id/pdf")
+  @Requires("finance", "view")
+  async movePdf(@Param("id") id: string, @Res() res: Response) {
+    const { name, html } = await this.vouchers.pdf(id);
+    sendPdf(res, name, await this.docs.pdf(html));
   }
 
   @Post("moves")

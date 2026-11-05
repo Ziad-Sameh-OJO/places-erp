@@ -157,12 +157,18 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.2
         version: 19.3.0(@types/react@19.3.0)
+      playwright-core:
+        specifier: 1.64.0
+        version: 1.64.0
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
 
   apps/worker:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1151.0
+        version: 3.1151.0
       '@places/db':
         specifier: workspace:*
         version: link:../../packages/db

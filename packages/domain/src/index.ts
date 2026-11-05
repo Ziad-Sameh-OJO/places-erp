@@ -23,3 +23,4 @@ export * from "./notifications.ts";
 export * from "./office-assets.ts";
 export * from "./tickets.ts";
 export * from "./procurement.ts";
+export * from "./claims.ts";

@@ -167,11 +167,12 @@ model Employee {
   leaves          LeaveRequest[]
   penalties       Penalty[]
   oneOnOnes       OneOnOne[]
-  kpiCards        KpiCard[]       @relation("KpiOwner")
-  kpiFollowing    KpiCard[]       @relation("KpiFollower")
+  dealParts       DealParticipant[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
+  kpiCards        KpiCard[]       @relation("KpiOwner")
+  kpiFollowing    KpiCard[]       @relation("KpiFollower")
   @@schema("hr")
 }
 
@@ -236,6 +237,7 @@ model LeaveRequest {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  @@index([employeeId, createdAt]) // 13.3: an employee's leaves, newest first
   @@index([status])
   @@schema("hr")
 }
@@ -258,6 +260,17 @@ model Penalty {
   @@schema("hr")
 }
 
+/// M-05 (32) · 7.9: HR approves the month's deductions once; payroll (9.14) reads these numbers, not the live ones.
+model DeductionApproval {
+  id           String   @id @default(cuid())
+  month        String   @unique // 2026-11
+  lines        Json     // [{ userId, employeeId, attendanceDays, penaltyDays, amount }] · amount as a decimal string
+  approvedById String
+  at           DateTime @default(now())
+
+  @@schema("hr")
+}
+
 model OneOnOne {
   id          String    @id @default(cuid())
   employeeId  String
@@ -272,6 +285,7 @@ model OneOnOne {
   alarmedAt   DateTime?
   createdAt   DateTime  @default(now())
 
+  @@index([employeeId, heldOn]) // 13.3: an employee's 1:1 history
   @@schema("hr")
 }
 
@@ -504,6 +518,16 @@ enum DealStatus {
   @@schema("sales")
 }
 
+/// M-02 3.1 «type»: the four kinds of deal on the done-deals sheet.
+enum DealType {
+  Rent
+  Resale
+  Primary
+  Income
+
+  @@schema("sales")
+}
+
 model Deal {
   id               String            @id @default(cuid())
   code             String            @unique // D-301…
@@ -511,9 +535,11 @@ model Deal {
   lead             Lead?             @relation(fields: [leadId], references: [id])
   unitId           String
   unit             Unit              @relation(fields: [unitId], references: [id])
-  type             String
+  type             DealType
   space            Int
   location         String
+  company          String            // M-02 3.1 «company»: the client's company when the deal was registered (the lead's name if none)
+  source           String            // M-02 3.1 «source»: the lead's channel
   status           DealStatus        @default(PENDING_REVIEW)
   commissionOwner  Decimal           @db.Decimal(14, 2)
   commissionClient Decimal           @db.Decimal(14, 2)
@@ -525,6 +551,11 @@ model Deal {
   executedAt       DateTime?         @db.Date
   papersOk         Boolean?          // Finance's check of contract · mandate · registration
   papersNote       String?
+  reviewedById     String?           // the Office Manager who approved or rejected it (Q9)
+  reviewedAt       DateTime?
+  reviewNote       String?           // why it went back to the salesperson (Q9)
+  cancelledAt      DateTime?         // Q12: a cancelled deal drops out of revenue, targets and commissions
+  cancelNote       String?
   participants     DealParticipant[]
   payments         Payment[]
   tcrs             Tcr[]
@@ -533,6 +564,8 @@ model Deal {
   updatedAt        DateTime          @updatedAt
 
   @@index([status])
+  @@index([leadId])
+  @@index([unitId])
   @@schema("sales")
 }
 
@@ -549,8 +582,10 @@ model DealParticipant {
   side       DealSide
   approved   Boolean  @default(true) // the Seller waits for Manar's approval
   deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id])
 
   @@id([dealId, employeeId])
+  @@index([employeeId])
   @@schema("sales")
 }
 
@@ -851,6 +886,7 @@ model JournalLine {
   debit     Decimal      @default(0) @db.Decimal(14, 2)
   credit    Decimal      @default(0) @db.Decimal(14, 2)
 
+  @@index([entryId]) // 13.3: an entry's lines (journal, ledger, every voucher) - Postgres doesn't index FKs itself
   @@index([accountId])
   @@schema("finance")
 }
@@ -936,18 +972,6 @@ model Installment {
 
 // ───────────────────────────── M-12 · KPI cards ─────────────────────────────
 
-/// The quarters the KPI cards run in (11.1 · 11.11). The latest one is the current quarter; a new one starts from a copy
-/// of the last one's cards (same items and weights, nothing achieved) and the old cards keep their final results.
-model KpiQuarter {
-  id         String    @id // "2026-Q4"
-  status     String    @default("open") // open · closed
-  startedAt  DateTime  @default(now())
-  closedAt   DateTime?
-  closedById String?
-
-  @@schema("kpi")
-}
-
 /// One person's card for one quarter (M-12 3.1). followerId null = the owners follow it.
 model KpiCard {
   id          String    @id @default(cuid())
@@ -998,19 +1022,6 @@ model KpiItem {
   deliveries KpiDelivery[]
 
   @@unique([cardId, position])
-  @@schema("kpi")
-}
-
-/// A hand-in on a report item (11.2): a link or an uploaded file, and when.
-model KpiDelivery {
-  id     String   @id @default(cuid())
-  itemId String
-  item   KpiItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  at     DateTime @default(now())
-  byId   String
-  link   String?
-  fileId String?
-
   @@schema("kpi")
 }
 
@@ -1092,6 +1103,7 @@ model File {
   updatedAt    DateTime   @updatedAt
 
   @@index([entity, entityId])
+  @@index([status, createdAt]) // #209: the nightly sweep of PENDING uploads
   @@index([uploadedById])
   @@schema("system")
 }
@@ -1219,6 +1231,7 @@ model TreasuryMove {
   createdById String
   createdAt   DateTime @default(now())
   purchase    Purchase?
+  claim       Claim?
 
   @@index([fromId])
   @@index([toId])
@@ -1297,6 +1310,7 @@ model PayrollLine {
   advance    Decimal    @db.Decimal(14, 2)
   net        Decimal    @db.Decimal(14, 2)
 
+  @@index([runId])
   @@index([userId])
   @@schema("finance")
 }
@@ -1312,4 +1326,91 @@ model AdvanceDeduction {
 
   @@unique([userId, month])
   @@schema("finance")
+}
+
+/// 12.12 · who claims and receipts go out under (Places · ذراين للدعاية والإعلان): the logo and the bank details printed on a claim.
+model Entity {
+  id          String   @id // places · zrain
+  name        String
+  logoFileId  String? // a system.File (0.9)
+  bank        String   @default("")
+  accountName String   @default("")
+  accountNo   String   @default("")
+  iban        String   @default("")
+  claims      Claim[]
+  updatedAt   DateTime @updatedAt
+
+  @@schema("system")
+}
+
+/// 12.12 · the admin's wording for a document; no row = the default in @places/domain (DOC_DEFAULTS).
+model DocTemplate {
+  kind      String   @id // claim · receipt
+  title     String
+  body      String
+  closing   String
+  updatedAt DateTime @updatedAt
+
+  @@schema("system")
+}
+
+/// M-07 9.17 · a claim to a company → the e-invoice → the cash receipt (from the templates, with the stamp).
+model Claim {
+  id             String        @id @default(cuid())
+  no             Int           @unique @default(autoincrement()) // CL-<no>
+  dealId         String? // the deal it comes from: deals (5.1/5.2) aren't built yet, so it stays empty for now
+  company        String // as it is written on the claim
+  unit           String
+  unitInfo       String
+  amount         Decimal       @db.Decimal(14, 2)
+  side           String // client · owner
+  kind           String // نوع العمولة, e.g. «عمولة تأجير»
+  entityId       String
+  entity         Entity        @relation(fields: [entityId], references: [id])
+  note           String?
+  status         String        @default("requested")
+  why            String? // the rejection's reason
+  requestedById  String
+  issuedById     String?
+  issuedAt       DateTime?
+  approvedAt     DateTime? // the client approved it
+  receiptAskedAt DateTime? // sales: the client paid, make the receipt
+  einvoiceNo     String?
+  einvoiceDate   DateTime?     @db.Date
+  moveId         String?       @unique // the receive voucher (9.11)
+  move           TreasuryMove? @relation(fields: [moveId], references: [id])
+  receiptNo      Int?          @unique // RC-<n>, serial
+  payMethod      String?
+  paidAt         DateTime?     @db.Date
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status])
+  @@index([requestedById])
+  @@schema("finance")
+}
+
+/// The quarters the KPI cards run in (11.1 · 11.11). The latest one is the current quarter; a new one starts from a copy
+/// of the last one's cards (same items and weights, nothing achieved) and the old cards keep their final results.
+model KpiQuarter {
+  id         String    @id // "2026-Q4"
+  status     String    @default("open") // open · closed
+  startedAt  DateTime  @default(now())
+  closedAt   DateTime?
+  closedById String?
+
+  @@schema("kpi")
+}
+
+/// A hand-in on a report item (11.2): a link or an uploaded file, and when.
+model KpiDelivery {
+  id     String   @id @default(cuid())
+  itemId String
+  item   KpiItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  at     DateTime @default(now())
+  byId   String
+  link   String?
+  fileId String?
+
+  @@schema("kpi")
 }

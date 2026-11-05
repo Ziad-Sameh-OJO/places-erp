@@ -116,6 +116,27 @@ test("someone whose account was switched off since they were ticked is skipped (
   }
 });
 
+test("a salesperson on approved leave today is out of the rotation; a leave still waiting for the TL isn't (1.15, M-05 6.2)", async () => {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  const off = await prisma.user.create({ data: { email: `e2e-leave-${stamp}@places.test`, status: "ACTIVE", employee: { create: { name: `E2E إجازة ${stamp}`, jobTitle: "Sales", department: "Sales", salary: 0 } } }, include: { employee: true } });
+  const leave = await prisma.leaveRequest.create({ data: { employeeId: off.employee!.id, type: "سنوية", fromDay: new Date(`${today}T00:00:00Z`), toDay: new Date(`${today}T00:00:00Z`), days: 1, status: "APPROVED_BY_TL" } });
+  try {
+    for (const id of await pool()) await tick(admin, AREA, id, false);
+    await tick(admin, AREA, a, true);
+    await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([off.employee!.id, a])}::jsonb) WHERE "key" = 'areaRouting'`;
+    assert.equal(await newLead(31), a);
+    assert.equal(await newLead(32), a);
+    await prisma.leaveRequest.update({ where: { id: leave.id }, data: { status: "PENDING_TL" } });
+    assert.ok([await newLead(33), await newLead(34)].includes(off.employee!.id));
+  } finally {
+    await prisma.lead.deleteMany({ where: { id: { in: leads } } });
+    await prisma.notification.deleteMany({ where: { userId: off.id } });
+    await prisma.leaveRequest.delete({ where: { id: leave.id } });
+    await prisma.employee.delete({ where: { id: off.employee!.id } });
+    await prisma.user.delete({ where: { id: off.id } });
+  }
+});
+
 test("«ليد جديد اتوزع» reaches the salesperson and the Team Leaders (the rule's default), with a link to the lead (1.13)", async () => {
   for (const id of await pool()) await tick(admin, AREA, id, false);
   await tick(admin, AREA, a, true);

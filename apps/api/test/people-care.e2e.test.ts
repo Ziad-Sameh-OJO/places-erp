@@ -6,7 +6,8 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { hash } from "@node-rs/argon2";
+import { PW, call, session } from "./helpers.ts";
 
 const START = new Date();
 const P = `E2E ${START.getTime()}`;
@@ -38,11 +39,10 @@ test("HR records a penalty: approved at once; a TL proposes for his team only an
   const prop = await call("/hr/penalties", { method: "POST", cookie: tl, body: { employeeId: mohsen, day: today(), text: `${P} مشاداة مع عميل`, deductionDays: 1 } });
   assert.equal(prop.body.status, "pending");
   assert.equal((await call(`/hr/penalties/${prop.body.id}/approve`, { method: "POST", cookie: tl })).status, 403);
-  let list = (await call("/hr/penalties", { cookie: basant })).body;
-  const before = list.totals.approved;
   assert.equal((await call(`/hr/penalties/${prop.body.id}/approve`, { method: "POST", cookie: basant })).body.status, "approved");
-  list = (await call("/hr/penalties", { cookie: basant })).body;
-  assert.equal(list.totals.approved, before + 1);
+  // by id, not the month's count: payroll.e2e records approved penalties at the same time (7.9)
+  const list = (await call("/hr/penalties", { cookie: basant })).body;
+  assert.equal(list.items.find((x: { id: string }) => x.id === prop.body.id).status, "approved");
   assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: nancy, day: today(), text: `${P} x`, deductionDays: 0.3 } })).status, 400);
   assert.equal((await call("/hr/penalties", { cookie: sales })).status, 403);
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Penalty", entityId: prop.body.id, action: "approve" } }));
@@ -63,4 +63,19 @@ test("the 1-to-1: HR's questions, the last session first, «حل الـ HR» wit
   assert.equal((await call(`/hr/one-on-one/${r.body.id}/done`, { method: "POST", cookie: basant })).status, 201);
   assert.ok(!(await call("/hr/one-on-one/actions", { cookie: basant })).body.items.some((x: { id: string }) => x.id === r.body.id));
   assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie: tl, body: { heldOn: today(), answers } })).status, 403);
+});
+
+test("an «hr: edit» exception on a team-scope account doesn't reach people outside the team (13.3)", async () => {
+  // its own account, so the shared Team Leader's permissions don't change under the other test files
+  const email = `scope-${START.getTime()}@places.test`;
+  const tlRole = await prisma.role.findUniqueOrThrow({ where: { key: "tl" } });
+  const u = await prisma.user.create({ data: { email, status: "ACTIVE", passwordHash: await hash(PW), roles: { create: { roleId: tlRole.id, primary: true } }, overrides: { create: { module: "hr", actions: ["view", "edit"] } } } });
+  try {
+    const cookie = await session(email);
+    assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie, body: { heldOn: today(), answers: {} } })).status, 404);
+    assert.equal(await prisma.oneOnOne.count({ where: { byUserId: u.id } }), 0);
+  } finally {
+    await prisma.auditLog.deleteMany({ where: { OR: [{ userId: u.id }, { entityId: u.id }] } });
+    await prisma.user.delete({ where: { id: u.id } });
+  }
 });

@@ -6,7 +6,8 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:browser": "node --env-file=../../.env --test test/tour.test.ts"
   },
   "dependencies": {
     "@places/contracts": "workspace:*",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "playwright-core": "1.64.0",
     "typescript": "^6.0.3"
   }
 }

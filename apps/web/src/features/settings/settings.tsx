@@ -9,6 +9,7 @@ import { useMe } from "@/lib/me";
 import { Card, Chip, Icon, ImportDialog, Note, Table, Tabs, useAction } from "@/components/ui";
 
 import { ListsTab } from "./lists";
+import { StampTab, TemplatesTab } from "./documents";
 
 /** M-13 · الإعدادات: lists, lead stages, time rules, official holidays. Everyone reads; «master: edit» changes. */
 export function SettingsPage() {
@@ -16,7 +17,7 @@ export function SettingsPage() {
   const run = useAction();
   const { can } = useMe();
   const ed = can("master", "edit");
-  const [tab, setTab] = useState<"lists" | "stages" | "time" | "holidays">("lists");
+  const [tab, setTab] = useState<"lists" | "stages" | "time" | "holidays" | "tpl" | "brand">("lists");
   const [importing, setImporting] = useState(false);
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
   const holidays = useQuery({ queryKey: ["holidays"], queryFn: () => api.get<HolidayView[]>("/settings/holidays") });
@@ -28,11 +29,13 @@ export function SettingsPage() {
   const d = s.data;
   return (
     <>
-      <div className="row"><Tabs value={tab} onChange={setTab} items={[["lists", "القوايم"], ["stages", "مراحل الليد"], ["time", "المواعيد والقواعد"], ["holidays", "الإجازات الرسمية", holidays.data?.length]]} /></div>
+      <div className="row"><Tabs value={tab} onChange={setTab} items={[["lists", "القوايم"], ["stages", "مراحل الليد"], ["time", "المواعيد والقواعد"], ["holidays", "الإجازات الرسمية", holidays.data?.length], ["tpl", "قوالب المستندات"], ["brand", "الختم والإمضا"]]} /></div>
       {/* the lists have their own editors (#186): each card shows what this person may do */}
-      {!ed && tab !== "lists" && <Note>عرض بس · التعديل لـ Super Admin أو مدير القسم.</Note>}
+      {!ed && tab !== "lists" && tab !== "brand" && <Note>عرض بس · التعديل لـ Super Admin أو مدير القسم.</Note>}
 
       {tab === "lists" && <ListsTab settings={d} />}
+      {tab === "tpl" && <TemplatesTab />}
+      {tab === "brand" && <StampTab />}
 
       {tab === "stages" && <Card title="مراحل الليد" icon="layers" sub="الترتيب، وأنهي مرحلة بتخلّي الليد Qualified (من الركوايرمنتس)">
         <Table head={["#", "المرحلة", "Qualified؟"]} rows={(stages.data ?? []).map((x, i) => [i + 1, <b key="s">{x.stage}</b>, x.qualified ? <Chip tone="ok">اه · أوتوماتيك</Chip> : <Chip plain>لأ</Chip>])} />
