@@ -360,11 +360,14 @@ model Lead {
   visits         LeadVisit[]
   suggestedUnits LeadUnit[]
   deals          Deal[]
+  clientId       String?       // the client file it belongs to (M-10 2.1 / 2.3: Done Deal, or an old client's number)
+  client         Client?       @relation(fields: [clientId], references: [id])
   createdById    String
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   archivedAt     DateTime?
 
+  @@index([clientId])
   @@index([assignedToId, stage])
   @@index([kind])
   @@index([area])
@@ -638,6 +641,74 @@ model TcrSignature {
   @@schema("sales")
 }
 
+// ───────────────────────────── M-10 · clients & owners ─────────────────────────────
+
+/// M-10 3.1 «النوع»: set by the system — a Done Deal makes a client, a first unit makes an owner, both = the same person.
+enum ClientKind {
+  client
+  owner
+  both
+
+  @@schema("sales")
+}
+
+/// M-10 3.3: Active while we deal with them, Inactive after a year without any (the system moves it).
+enum ClientStatus {
+  active
+  inactive
+
+  @@schema("sales")
+}
+
+/// M-10: one file per client or owner, with their leads, units (→ deals → contracts) and every interaction.
+model Client {
+  id               String              @id @default(cuid())
+  name             String              // «الاسم / الشركة»
+  company          String?
+  kind             ClientKind
+  status           ClientStatus        @default(active)
+  preferredContact String?             // M-10 2.1 step 3: «طريقة التواصل المفضّلة»
+  lastContactAt    DateTime            @default(now()) // last interaction / deal / unit: a year before now = Inactive (M-10 3.3)
+  phones           ClientPhone[]
+  interactions     ClientInteraction[]
+  leads            Lead[]              // the leads they came as (a returning client's new lead joins the file, M-10 2.3)
+  units            Unit[]              // the units they own (deals on them and the contracts follow from the units / leads)
+  createdById      String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  archivedAt       DateTime?
+
+  @@index([kind])
+  @@index([name])
+  @@index([status, lastContactAt])
+  @@schema("sales")
+}
+
+/// A file's numbers, normalized (domain normalizePhone): one number belongs to one file only (M-10 3.1 «بتمنع التكرار»).
+model ClientPhone {
+  phone     String   @id
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@schema("sales")
+}
+
+/// M-10 2.1 step 5: a call, a visit, a complaint, a request… (kinds from the «أنواع التواصل مع العميل» list).
+model ClientInteraction {
+  id       String   @id @default(cuid())
+  clientId String
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind     String
+  text     String
+  byId     String   // access.User
+  at       DateTime @default(now())
+
+  @@index([clientId, at])
+  @@schema("sales")
+}
+
 // ───────────────────────────── M-03 · inventory & Not Active ─────────────────────────────
 
 /// M-03 3.1: the unit's sheet. Rent · Resale · Income each have their own columns (sources/inventory-unit-fields.md).
@@ -677,6 +748,8 @@ model Unit {
   parking           Int         @default(0)
   ownerName         String?     // Rent «contact» · Resale «اسم الأونر» · Income «الاسم»
   ownerPhone        String?     // «number»: the owner's number (Not Active sheets are compared by it, M-03 1.1)
+  ownerId           String?     // the owner's file (M-10 2.1 step 4: every unit linked to its owner)
+  owner             Client?     @relation(fields: [ownerId], references: [id])
   pricePerSqm       Decimal?    @db.Decimal(14, 2) // Rent: rent per m² · Resale / Income: sale price per m²
   totalPrice        Decimal?    @db.Decimal(14, 2) // pricePerSqm × space, written by the domain on every save (filters by price)
   leasePerSqm       Decimal?    @db.Decimal(14, 2) // Income: lease price per m²
@@ -711,6 +784,7 @@ model Unit {
   @@index([space])
   @@index([totalPrice])
   @@index([ownerPhone])
+  @@index([ownerId])
   @@index([areaTabId])
   @@schema("inventory")
 }
