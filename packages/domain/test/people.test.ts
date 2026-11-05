@@ -36,8 +36,8 @@ test("KPI items are proportional and may pass 100%", () => {
   assert.equal(achievement({ direction: "at-most", goal: 0 }, 2), 0.5);  // "zero" goal, 2 occurrences
   assert.equal(achievement({ direction: "at-most", goal: 0 }, 0), 1);
   const card = cardScore([
-    { title: "target", weight: 40, direction: "at-least", goal: 100, measurement: "auto", actual: 100 },
-    { title: "showings", weight: 60, direction: "at-least", goal: 30, measurement: "auto", actual: 15 },
+    { title: "target", weight: 40, direction: "at-least", goal: 100, method: "system", actual: 100 },
+    { title: "showings", weight: 60, direction: "at-least", goal: 30, method: "system", actual: 15 },
   ]);
   assert.equal(card, 70);
 });

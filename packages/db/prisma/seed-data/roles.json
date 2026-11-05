@@ -217,6 +217,15 @@
         "view",
         "create",
         "edit"
+      ],
+      "kpis": [
+        "view",
+        "create",
+        "edit",
+        "approve",
+        "delete",
+        "import",
+        "export"
       ]
     }
   },
@@ -277,6 +286,9 @@
       ],
       "integrations": [
         "view"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -331,6 +343,9 @@
         "create",
         "edit",
         "export"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -364,6 +379,9 @@
         "view"
       ],
       "reports": [
+        "view"
+      ],
+      "kpis": [
         "view"
       ]
     }
@@ -400,6 +418,9 @@
       "contracts": [
         "view",
         "create"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -422,6 +443,9 @@
         "view",
         "create",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -456,6 +480,9 @@
         "edit"
       ],
       "master": [
+        "view"
+      ],
+      "kpis": [
         "view"
       ]
     }
@@ -509,6 +536,9 @@
       ],
       "reports": [
         "view"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -540,6 +570,9 @@
         "view",
         "create",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -582,6 +615,9 @@
       "master": [
         "view",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -602,6 +638,9 @@
         "view",
         "create",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -622,6 +661,9 @@
         "view",
         "create",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -659,6 +701,9 @@
       "reports": [
         "view",
         "create"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -706,6 +751,9 @@
       "master": [
         "view",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -727,6 +775,9 @@
         "view",
         "create",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -747,6 +798,9 @@
         "view",
         "create",
         "edit"
+      ],
+      "kpis": [
+        "view"
       ]
     }
   },
@@ -764,6 +818,9 @@
         "approve"
       ],
       "finance": [
+        "view"
+      ],
+      "kpis": [
         "view"
       ]
     }

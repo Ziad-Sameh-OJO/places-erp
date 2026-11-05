@@ -3,7 +3,8 @@
  * Each item is scored proportionally and may pass 100% (recorded as is). The card score = Σ weight × achievement.
  * The money bands (salary or quarter bonus, per person) are the same for everyone and editable in settings.
  */
-export type Measurement = "auto" | "handed-in" | "manual";
+/** Where an item's number comes from (meeting 4 Nov): the system measures it, a report is handed in, or a person types it. */
+export type Method = "system" | "report" | "manual";
 export type Direction = "at-least" | "at-most";
 
 export interface KpiItem {
@@ -12,7 +13,7 @@ export interface KpiItem {
   readonly weight: number;
   readonly direction: Direction;
   readonly goal: number;
-  readonly measurement: Measurement;
+  readonly method: Method;
 }
 
 /**
@@ -69,4 +70,131 @@ export function payoutDelta(score: number, pay: PaySetup, b: Bands = DEFAULT_BAN
     case "cut": return -Math.round((B * b.cutPercent) / 100);
     case "threshold": return pay.base === "bonus" ? -(B + Math.round((pay.monthlySalary * b.cutPercent) / 100)) : -Math.round((B * b.cutPercent) / 100);
   }
+}
+
+/** The tier in words (demo kpis.js `band`). */
+export function bandLabel(score: number, b: Bands = DEFAULT_BANDS): string {
+  switch (bandOf(score, b)) {
+    case "reward": return `مكافأة ${b.rewardPercent}%`;
+    case "full": return "بونص كامل";
+    case "partial": return "بونص جزئي";
+    case "cut": return `خصم ${b.cutPercent}% + خطة تحسين`;
+    case "threshold": return `Threshold: البونص بيتلغي + خصم ${b.cutPercent}% من المرتب + إنذار`;
+  }
+}
+
+/** 11.14: the same tier without a word about money, for the KPI watcher. */
+export const levelLabel = (score: number, b: Bands = DEFAULT_BANDS): string =>
+  score >= b.full ? "محقق" : score >= b.partial ? "محتاج متابعة" : score >= b.low ? "ضعيف · خطة تحسين" : "تحت الحد";
+
+export const bandTone = (score: number, b: Bands = DEFAULT_BANDS): "ok" | "warn" | "bad" =>
+  score >= b.full ? "ok" : score >= b.partial ? "warn" : "bad";
+
+/** What one item counts toward its card: a report item is its hand-ins against the times required, the rest their value. */
+export function itemAchievement(it: { method: Method; direction: Direction; goal: number; value: number | null; required: number | null; delivered: number }): number {
+  return it.method === "report" ? achievement({ direction: "at-least", goal: it.required ?? 0 }, it.delivered) : achievement(it, it.value ?? 0);
+}
+
+/** "2026-Q4" → "2027-Q1" (11.11 «ابدأ ربع جديد»). */
+export function nextQuarter(q: string): string {
+  const [y, n] = q.split("-Q").map(Number) as [number, number];
+  return n === 4 ? `${y + 1}-Q1` : `${y}-Q${n + 1}`;
+}
+export const quarterLabel = (q: string): string => q.replace(/^(\d+)-Q(\d)$/, "Q$2 $1");
+
+/**
+ * Who types a manual item (meeting 4 Nov): the names it lists — "follower" (the card's follower, the default), a role
+ * key or a user id.
+ */
+export const canEnterManual = (enteredBy: readonly string[], who: { userId: string; roles: readonly string[]; isFollower: boolean }): boolean =>
+  (enteredBy.length ? enteredBy : ["follower"]).some((x) => (x === "follower" ? who.isFollower : x === who.userId || who.roles.includes(x)));
+
+// ───────── 11.11 · the catalog of system metrics (demo kpis.js `META`) ─────────
+
+export type MetricParam = "per" | "kind" | "avg" | "type" | "min" | "hours" | "excl" | "akind";
+export type MetricParams = Readonly<Partial<Record<MetricParam, string | number>>>;
+export interface MetricDef {
+  readonly group: string;
+  readonly label: string;
+  readonly unit: "%" | "#";
+  readonly params?: readonly MetricParam[];
+  /** exactly what it's calculated from, in one sentence */
+  readonly describe: (p: MetricParams) => string;
+}
+
+export const PERIODS = [["week", "آخر 7 أيام"], ["month", "الشهر ده"], ["quarter", "الربع ده"]] as const;
+const perName = (p: MetricParams) => (PERIODS.find((x) => x[0] === (p.per || "quarter")) ?? PERIODS[2])[1];
+const weekly = (p: MetricParams) => (p.avg === "week" ? " · متوسط في الأسبوع" : "");
+
+/** Each setting a metric can take: its label and options (null = a number, "text" = free text). */
+export const METRIC_PARAMS: Record<MetricParam, { label: string; options: readonly (readonly [string, string])[] | null | "text" }> = {
+  per: { label: "الفترة", options: PERIODS },
+  kind: { label: "النوع", options: [["", "الاتنين"], ["Visit", "Visit"], ["Meeting", "Meeting"]] },
+  avg: { label: "العدد", options: [["", "الإجمالي"], ["week", "متوسط في الأسبوع"]] },
+  type: { label: "نوع الوحدة", options: [["", "كل الأنواع"], ["Rent", "Rent"], ["Resale", "Resale"], ["Income", "Income"]] },
+  min: { label: "خلال كام دقيقة", options: null },
+  hours: { label: "خلال كام ساعة", options: null },
+  excl: { label: "Channels مش محسوبة (افصل بينها بفاصلة)", options: "text" },
+  akind: { label: "النشاط", options: [["", "الاتنين"], ["Farming", "Farming"], ["Approach", "Approach"]] },
+};
+
+export const METRICS: Readonly<Record<string, MetricDef>> = {
+  ownTarget: { group: "المبيعات", label: "تحقيق التارجت", unit: "%", describe: () => "نصيبه من الكوميشن في الصفقات اللي دخلت التارجت ÷ التارجت بتاعه" },
+  visitsDone: { group: "المبيعات", label: "Visits / Meetings اتعملت", unit: "#", params: ["kind", "per"], describe: (p) => `عدد الـ ${p.kind || "Visits والـ Meetings"} اللي اتعلّم عليها Done في ليدزه · ${perName(p)}` },
+  calls: { group: "المبيعات", label: "المكالمات", unit: "#", params: ["per", "avg"], describe: (p) => `عدد المكالمات اللي سجّلها بنفسه على الليدز · ${perName(p)}${weekly(p)}` },
+  unitsBrought: { group: "المبيعات", label: "وحدات جابها للانفنتوري", unit: "#", params: ["type", "per"], describe: (p) => `عدد الوحدات${p.type ? ` ${p.type}` : ""} اللي هو الـ Agent بتاعها ودخلت الانفنتوري · ${perName(p)}` },
+  broadcasts: { group: "المبيعات", label: "الـ Broadcasts اللي بعتها", unit: "#", describe: () => "عدد رسايل الـ Broadcast المعتمدة اللي علّم إنه بعتها" },
+  firstAction: { group: "المبيعات", label: "أول أكشن على الليد", unit: "%", params: ["min", "per"], describe: (p) => `% من ليدزه (${perName(p)}) اللي عمل عليها أول أكشن خلال ${p.min || 30} دقيقة من دخولها` },
+  qualifiedRate: { group: "المبيعات", label: "نسبة الـ Qualified", unit: "%", params: ["per"], describe: (p) => `% من ليدزه (${perName(p)}) اللي وصلت Interested أو بعدها` },
+  activitiesDone: { group: "المبيعات", label: "Farming / Approach اتعمل", unit: "#", params: ["akind", "per", "avg"], describe: (p) => `عدد نشاطات الـ ${p.akind || "Farming والـ Approach"} اللي سجّلها وعلّم إنه عملها · ${perName(p)}${weekly(p)}` },
+  dailySum: { group: "التقرير اليومي", label: "اللي بيكتبه في التقرير اليومي", unit: "#", params: ["per", "avg"], describe: (p) => `مجموع الرقم اللي بيكتبه للبند ده في تقريره اليومي · ${perName(p)}${weekly(p)}` },
+  dealsCount: { group: "المبيعات", label: "الصفقات", unit: "#", params: ["per"], describe: (p) => `عدد الصفقات اللي هو Buyer فيها (مش مرفوضة ولا ملغية) · ${perName(p)}` },
+  teamTarget: { group: "المبيعات", label: "تارجت الفريق", unit: "%", describe: () => "تحقيق تارجت الفريق اللي بيقوده (للـ Team Leader)" },
+  company: { group: "المبيعات", label: "تارجت الشركة", unit: "%", describe: () => "مجموع اللي حققه كل السيلز ÷ مجموع تارجتهم" },
+  newLeadRoute: { group: "الليدز", label: "توزيع الـ New Lead في ميعاده", unit: "%", params: ["min", "per"], describe: (p) => `% من الـ New Leads اللي Telesales بعتتها (${perName(p)}) واتبعتت للسيلز خلال ${p.min || 30} دقيقة من وصولها · اللي لسه مستني وعدّى الـ ${p.min || 30} دقيقة بيتحسب متأخر` },
+  secondCalls: { group: "الليدز", label: "مكالمات التحقق (Second Calls)", unit: "%", params: ["per", "excl"], describe: (p) => `% من ليدز كل يوم (${perName(p)}) اللي اتعملها Second Call Done بنوت في نفس اليوم · من غير الليدز اللي السيلز نزّلها بنفسه ولا Channel ${p.excl ?? "By Safwat"}` },
+  draftAction: { group: "الليدز", label: "قرارات الـ Draft في ميعادها", unit: "%", params: ["hours", "per"], describe: (p) => `% من الليدز اللي دخلت الـ Draft أو الـ Draft Admin (${perName(p)}) واتاخد عليها قرار (تفضل أو تتبعت لحد) خلال ${p.hours || 24} ساعة · اللي لسه مستني وعدّى الوقت بيتحسب متأخر` },
+  call30: { group: "الليدز", label: "أول أكشن خلال 30 دقيقة (كل الليدز)", unit: "%", describe: () => "% من كل الليدز اللي اتعمل عليها أول أكشن خلال 30 دقيقة" },
+  qualifiedN: { group: "الليدز", label: "عدد الـ Qualified (كل الليدز)", unit: "#", describe: () => "عدد كل الليدز اللي بقت Qualified" },
+  outbound: { group: "الليدز", label: "شركات Outbound", unit: "#", describe: () => "عدد الشركات اللي اتكلمت Outbound آخر 7 أيام" },
+  att: { group: "الحضور", label: "الحضور", unit: "%", describe: () => "% أيام الحضور من غير خصم (من البصمة)" },
+  attSales: { group: "الحضور", label: "الحضور (السيلز)", unit: "%", describe: () => "نص الوزن للغياب (لحد 5 أيام في الربع) ونص للتأخير (لحد 6 ساعات في الشهر)، واللي يزيد بيقل بالنسبة" },
+  team: { group: "الإدارة", label: "متوسط كروت فريقه", unit: "%", describe: () => "متوسط نتايج كروت الـ KPIs بتاعة الناس اللي بيتابعهم" },
+  dealExec: { group: "الصفقات", label: "تنفيذ الصفقات في ميعادها", unit: "%", describe: () => "قيمة الصفقات اللي اتنفّذت في ميعادها ÷ قيمة الصفقات اللي ميعادها جه" },
+  paperErrors: { group: "الصفقات", label: "أخطاء الورق", unit: "#", describe: () => "عدد الصفقات اللي المالية لقت في ورقها أخطاء" },
+  verified: { group: "الانفنتوري", label: "الوحدات المتحدّثة", unit: "%", describe: () => "% من الوحدات المتاحة اللي متحدّثة (مش قديمة)" },
+  resaleFresh: { group: "الانفنتوري", label: "وحدات الـ Resale المتحدّثة", unit: "%", describe: () => "% من وحدات الـ Resale المتاحة اللي متحدّثة" },
+  in24: { group: "الانفنتوري", label: "إدخال الوحدات خلال 24 ساعة", unit: "%", params: ["type"], describe: (p) => `% من الوحدات${p.type ? ` ${p.type}` : ""} اللي اتدخلت خلال 24 ساعة من استلامها` },
+  drive24: { group: "الانفنتوري", label: "رفع الصور خلال 24 ساعة", unit: "%", describe: () => "% من الوحدات اللي صورها اترفعت خلال 24 ساعة من دخولها" },
+  lists24: { group: "الانفنتوري", label: "الرد على الـ Lists خلال 24 ساعة", unit: "%", describe: () => "% من طلبات الـ List اللي اتردّ عليها خلال 24 ساعة" },
+  listsClean: { group: "الانفنتوري", label: "Lists من غير وحدات مش مؤكدة", unit: "%", describe: () => "% من الـ Lists اللي مافيهاش وحدات مش مؤكدة" },
+  webAds: { group: "التسويق", label: "إعلانات الموقع", unit: "#", describe: () => "متوسط إعلانات الموقع في اليوم آخر 7 أيام" },
+  tickets: { group: "التذاكر", label: "التذاكر في ميعادها", unit: "%", describe: () => "% من التذاكر اللي اتقفلت في ميعادها" },
+  disputes: { group: "التذاكر", label: "الشكاوى في ميعادها", unit: "%", describe: () => "% من الشكاوى اللي اتحلّت في ميعادها" },
+  proc48: { group: "المشتريات", label: "الدفع خلال 48 ساعة", unit: "%", describe: () => "% من طلبات الشراء اللي اتدفعت خلال 48 ساعة" },
+  pettyCap: { group: "المشتريات", label: "العهدة تحت الحد", unit: "%", describe: () => "رصيد العهدة تحت الحد = 100%، فوقه = 0%" },
+  receipts: { group: "المشتريات", label: "الفواتير", unit: "%", describe: () => "% من المشتريات فوق 10,000 اللي ليها فاتورة متعلّقة" },
+};
+
+/** Why a metric with its settings can't be saved, or null: an unknown metric, or a setting the metric doesn't take. */
+export function metricProblem(metric: string | null, params: MetricParams): string | null {
+  if (!metric) return Object.keys(params).length ? "الإعدادات من غير مقياس" : null;
+  const m = METRICS[metric];
+  if (!m) return "المقياس ده مش في الكتالوج";
+  const bad = Object.keys(params).find((k) => !(m.params ?? []).includes(k as MetricParam));
+  return bad ? `«${m.label}» مالوش إعداد ${bad}` : null;
+}
+
+/**
+ * The «بيتحسب: …» line under every item (11.11), in the card and the editor. `nameOf` turns an `enteredBy` entry (a user
+ * id or a role key) into a name; a system item without a metric yet says so.
+ */
+export function calcText(
+  it: { method: Method; metric: string | null; params: MetricParams; report: string | null; required: number | null; enteredBy: readonly string[]; source: string },
+  nameOf: (x: string) => string,
+): string {
+  if (it.method === "system") return it.metric && METRICS[it.metric] ? METRICS[it.metric]!.describe(it.params) : "لسه ماتحددش بيتحسب من إيه";
+  if (it.method === "report") return `${it.report ? `تسليم «${it.report}» في ميعاده` : "بيسلّمه بنفسه من الكارت"} · مطلوب ${it.required ?? 0} مرة في الربع`;
+  const by = (it.enteredBy.length ? it.enteredBy : ["follower"]).map((x) => (x === "follower" ? "المتابع" : nameOf(x)));
+  return `بيدخّله ${by.join(" أو ")} بإيده${it.source ? ` · من ${it.source}` : ""}`;
 }

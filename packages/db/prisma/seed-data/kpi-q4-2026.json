@@ -1,0 +1,1266 @@
+{
+  "quarter": "2026-Q4",
+  "cards": {
+    "u1": {
+      "follower": null,
+      "items": [
+        {
+          "title": "تحقيق تارجت الشركة الربعي",
+          "weight": 40,
+          "targetText": "≥70% في Q4 2026 · ≥80% من Q1 2027",
+          "source": "شيت التحصيل",
+          "method": "system",
+          "module": "M-02",
+          "direction": "at-least",
+          "goal": 70,
+          "metric": "company"
+        },
+        {
+          "title": "متابعة الصفقات والتنفيذ في الميعاد",
+          "weight": 15,
+          "targetText": "≥90% من قيمة الصفقات",
+          "source": "تقرير المالية الشهري",
+          "method": "system",
+          "module": "M-02",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": "dealExec"
+        },
+        {
+          "title": "متوسط تقييم القادة الأربعة + رحمة",
+          "weight": 15,
+          "targetText": "≥80%",
+          "source": "ملف الـ KPIs",
+          "method": "system",
+          "module": "M-12",
+          "direction": "at-least",
+          "goal": 80,
+          "metric": "team",
+          "params": {
+            "ids": [
+              "u4",
+              "u19",
+              "u23",
+              "u24",
+              "u11"
+            ]
+          }
+        },
+        {
+          "title": "الاجتماع الأسبوعي مع القادة ورحمة + One-to-One شهري",
+          "weight": 10,
+          "targetText": "الالتزام بالمواعيد اللي نانسي بتحددها",
+          "source": "تقرير نانسي الأسبوعي",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100,
+          "enteredBy": [
+            "u21"
+          ]
+        },
+        {
+          "title": "الميزانية",
+          "weight": 10,
+          "targetText": "الالتزام بالموازنة المعتمدة كل ربع",
+          "source": "تقرير المالية",
+          "method": "system",
+          "module": "M-07",
+          "direction": "at-most",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "مواضيع مبيعات وصلته من غير القائد",
+          "weight": 10,
+          "targetText": "صفر",
+          "source": "تقرير نانسي الأسبوعي",
+          "method": "manual",
+          "module": null,
+          "direction": "at-most",
+          "goal": 0,
+          "enteredBy": [
+            "u21"
+          ]
+        }
+      ]
+    },
+    "u2": {
+      "follower": null,
+      "items": [
+        {
+          "title": "نسبة الوحدات المتحقق منها خلال 30 يوم",
+          "weight": 25,
+          "targetText": "≥80%",
+          "source": "شيت الإنفنتوري",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 80,
+          "metric": "verified"
+        },
+        {
+          "title": "التزام الـ SLAs بين الإدارات",
+          "weight": 25,
+          "targetText": "≥90%",
+          "source": "نموذج الطلبات",
+          "method": "system",
+          "module": "M-06",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": "tickets"
+        },
+        {
+          "title": "نمو الوحدات النشطة (متاحة + متحقق منها)",
+          "weight": 20,
+          "targetText": "+10% كل ربع",
+          "source": "تقرير منار",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 10,
+          "metric": null
+        },
+        {
+          "title": "إقفال الديلات (الليدز المؤهلة) فوق 500 متر",
+          "weight": 15,
+          "targetText": "70% (خط الأساس من أكتوبر)",
+          "source": "الـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 70,
+          "metric": null
+        },
+        {
+          "title": "أورينتيشن لفريق المبيعات",
+          "weight": 15,
+          "targetText": "أول وتالت اتنين في الشهر",
+          "source": "تنسيق نانسي",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100,
+          "enteredBy": [
+            "u21"
+          ]
+        }
+      ]
+    },
+    "u21": {
+      "follower": "u2",
+      "items": [
+        {
+          "title": "التزام الإدارات الداعمة بالـ SLAs",
+          "weight": 20,
+          "targetText": "≥90%",
+          "source": "نموذج الطلبات",
+          "method": "system",
+          "module": "M-06",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": "tickets"
+        },
+        {
+          "title": "حسم النزاعات",
+          "weight": 15,
+          "targetText": "100% خلال 48 ساعة",
+          "source": "سجل النزاعات",
+          "method": "system",
+          "module": "M-06",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "disputes"
+        },
+        {
+          "title": "إصدار وإرسال ملف التارجت الفصلي (مع بنود المكافآت)",
+          "weight": 15,
+          "targetText": "100% في أول يوم عمل من الربع",
+          "source": "تاريخ الإرسال",
+          "method": "report",
+          "module": "M-12",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 1
+        },
+        {
+          "title": "دقة أوراق الصفقات (عقود، تفويضات، تسجيل)",
+          "weight": 15,
+          "targetText": "صفر أخطاء",
+          "source": "مراجعة المالية",
+          "method": "system",
+          "module": "M-02",
+          "direction": "at-most",
+          "goal": 0,
+          "metric": "paperErrors"
+        },
+        {
+          "title": "تنفيذ خطة الـ 90 يوم",
+          "weight": 15,
+          "targetText": "≥90% من البنود في ميعادها",
+          "source": "تقرير التقدم الأسبوعي",
+          "method": "report",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100,
+          "required": 8
+        },
+        {
+          "title": "متوسط KPIs فريقها (هبة، منار، مختار، بسنت)",
+          "weight": 10,
+          "targetText": "≥80%",
+          "source": "تقييماتهم",
+          "method": "system",
+          "module": "M-12",
+          "direction": "at-least",
+          "goal": 80,
+          "metric": "team"
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u18": {
+      "follower": "u1",
+      "items": [
+        {
+          "title": "صرف المرتبات في أول 5 أيام من الشهر",
+          "weight": 20,
+          "targetText": "100%",
+          "source": "كشف البنك",
+          "method": "system",
+          "module": "M-07",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "حساب العمولة في نفس يوم ظهور التحصيل",
+          "weight": 25,
+          "targetText": "100%",
+          "source": "كشف الحساب مقابل شيت العمولات",
+          "method": "system",
+          "module": "M-02",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "دقة حساب العمولات",
+          "weight": 15,
+          "targetText": "صفر تصحيحات بعد الاعتماد",
+          "source": "مراجعة نانسي",
+          "method": "system",
+          "module": "M-02",
+          "direction": "at-most",
+          "goal": 0,
+          "metric": null
+        },
+        {
+          "title": "التقرير المالي الشهري قبل يوم 5",
+          "weight": 10,
+          "targetText": "100%",
+          "source": "تاريخ التسليم",
+          "method": "report",
+          "module": "M-07",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 2
+        },
+        {
+          "title": "تسوية العهدة الأسبوعية",
+          "weight": 10,
+          "targetText": "كل أسبوع، صفر فروقات",
+          "source": "محضر التسوية",
+          "method": "report",
+          "module": "M-08",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 8
+        },
+        {
+          "title": "الفواتير الإلكترونية في مواعيدها",
+          "weight": 5,
+          "targetText": "100%",
+          "source": "تأكيد يدوي",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100
+        },
+        {
+          "title": "الحضور الثابت (الاتنين والخميس 17:00–19:00) والمواعيد",
+          "weight": 15,
+          "targetText": "100%",
+          "source": "سجل الحضور وسجل التسليمات",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        }
+      ]
+    },
+    "u14": {
+      "follower": "u21",
+      "items": [
+        {
+          "title": "تسجيل الحضور قبل 12 والجزاءات في نفس اليوم",
+          "weight": 20,
+          "targetText": "100%",
+          "source": "سجل المخالفات مقابل البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "شيت المرتبات للمالية يوم 30 + صندوق الخصومات",
+          "weight": 15,
+          "targetText": "100%",
+          "source": "مراجعة المالية",
+          "method": "report",
+          "module": "M-07",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 2
+        },
+        {
+          "title": "One-to-One meetings ومتابعة المواعيد الثابتة",
+          "weight": 10,
+          "targetText": "مع كل الموظفين مرة في الشهر",
+          "source": "ملف One-to-One feedback",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": null
+        },
+        {
+          "title": "تنفيذ خطة التدريب الربعية + الترفيه",
+          "weight": 15,
+          "targetText": "≥90% من الجلسات",
+          "source": "سجل التدريب",
+          "method": "report",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 6
+        },
+        {
+          "title": "تسجيل الإكسكيوز والإجازات يومياً",
+          "weight": 10,
+          "targetText": "100%",
+          "source": "سجل HR",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "تطبيق جزاءات التصرفات المهمة + التخطي",
+          "weight": 5,
+          "targetText": "100% في ميعادها",
+          "source": "شيت الخصومات",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "تحديث المسار الوظيفي",
+          "weight": 10,
+          "targetText": "100% في ميعاده الخميس",
+          "source": "ملف الموظفين + مراجعة نانسي",
+          "method": "report",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 8
+        },
+        {
+          "title": "HR Letters والتأمينات خلال 24 ساعة",
+          "weight": 5,
+          "targetText": "≥95%",
+          "source": "نموذج الطلبات",
+          "method": "system",
+          "module": "M-06",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": null
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u11": {
+      "follower": "u1",
+      "items": [
+        {
+          "title": "عدد الليدز المؤهلة (مش إجمالي الليدز)",
+          "weight": 20,
+          "targetText": "+15% كل ربع عن أكتوبر",
+          "source": "الـ CRM (بطاقات هدير)",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 15,
+          "metric": null
+        },
+        {
+          "title": "إعلانات الويبسايت",
+          "weight": 20,
+          "targetText": "25 إعلان يومياً",
+          "source": "الويبسايت (متربط بالسيستم)",
+          "method": "system",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 25,
+          "metric": "webAds"
+        },
+        {
+          "title": "الالتزام بالخطة الشهرية (محتوى + حملات) + Daily Report",
+          "weight": 20,
+          "targetText": "≥90%",
+          "source": "Content Calendar",
+          "method": "system",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": null
+        },
+        {
+          "title": "الـ Broadcast في مواعيده (يومين في الأسبوع) + Hot Inventory",
+          "weight": 10,
+          "targetText": "100%",
+          "source": "جروب السيلز",
+          "method": "system",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "تسجيل توقيت وصول كل ليد على واتساب الحملة",
+          "weight": 5,
+          "targetText": "100%",
+          "source": "واتساب الحملة مقابل الـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "التزام الـ SLA (تصميم 48 ساعة)",
+          "weight": 5,
+          "targetText": "≥90%",
+          "source": "نموذج الطلبات",
+          "method": "system",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": null
+        },
+        {
+          "title": "تقرير المنافسين الشهري",
+          "weight": 5,
+          "targetText": "كل شهر يوم 30",
+          "source": "شيت المنافسين",
+          "method": "report",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 2
+        },
+        {
+          "title": "متوسط KPIs فريقها (بيومي)",
+          "weight": 5,
+          "targetText": "≥80%",
+          "source": "تقييمه",
+          "method": "system",
+          "module": "M-12",
+          "direction": "at-least",
+          "goal": 80,
+          "metric": "team"
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u12": {
+      "follower": "u11",
+      "items": [
+        {
+          "title": "تصوير الوحدات الجديدة خلال 72 ساعة",
+          "weight": 35,
+          "targetText": "≥90%",
+          "source": "نموذج الطلبات",
+          "method": "system",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": null
+        },
+        {
+          "title": "تسليم المواد متعدّلة خلال 48 ساعة",
+          "weight": 25,
+          "targetText": "≥90%",
+          "source": "Drive",
+          "method": "system",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": null
+        },
+        {
+          "title": "تنفيذ خطة التصوير الأسبوعية",
+          "weight": 20,
+          "targetText": "100%",
+          "source": "مراجعة رحمة",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100
+        },
+        {
+          "title": "جودة المواد (اتقبلت من أول مرة)",
+          "weight": 10,
+          "targetText": "≥85%",
+          "source": "مراجعة رحمة",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 85
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u6": {
+      "follower": "u21",
+      "items": [
+        {
+          "title": "توزيع الليد المؤهل خلال 30 دقيقة",
+          "weight": 25,
+          "targetText": "≥95% من الليدز",
+          "source": "توقيتات الـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "newLeadRoute",
+          "params": {
+            "min": 30,
+            "per": "quarter"
+          }
+        },
+        {
+          "title": "التقرير اليومي للقادة قبل 11:30 + الأسبوعي الخميس",
+          "weight": 15,
+          "targetText": "≥95% من أيام الشغل",
+          "source": "جروب القادة",
+          "method": "report",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 40
+        },
+        {
+          "title": "سحب الليدز المخالفة أوتوماتيك حسب اللائحة",
+          "weight": 15,
+          "targetText": "قرار على كل ليد في الـ Draft والـ Draft Admin خلال يومه (100%)",
+          "source": "الـ Draft والـ Draft Admin",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "draftAction",
+          "params": {
+            "hours": 24,
+            "per": "quarter"
+          }
+        },
+        {
+          "title": "مكالمات التحقق (Second Calls)",
+          "weight": 15,
+          "targetText": "كل ليدز اليوم في نفس اليوم (100%)",
+          "source": "الليدز اللي دخلت النهارده",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "secondCalls",
+          "params": {
+            "per": "quarter",
+            "excl": "By Safwat"
+          }
+        },
+        {
+          "title": "دقة الأرقام المنشورة",
+          "weight": 10,
+          "targetText": "تقييم نانسي (100%)",
+          "source": "نانسي بتقيّم دقة الأرقام",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100,
+          "enteredBy": [
+            "u21"
+          ]
+        },
+        {
+          "title": "تسليم بيانات العرض الشهري",
+          "weight": 10,
+          "targetText": "تقييم نانسي (100%)",
+          "source": "نانسي بتقيّم التسليم (قبل الاجتماع بـ 48 ساعة)",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100,
+          "enteredBy": [
+            "u21"
+          ]
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u5": {
+      "follower": "u21",
+      "items": [
+        {
+          "title": "أول اتصال بالليد خلال 30 دقيقة",
+          "weight": 25,
+          "targetText": "≥90%",
+          "source": "واتساب الحملة مقابل الـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": "call30"
+        },
+        {
+          "title": "عدد المكالمات اليومية",
+          "weight": 15,
+          "targetText": "100 مكالمة في اليوم",
+          "source": "سجل المكالمات",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "ليدز مؤهلة متسلّمة",
+          "weight": 20,
+          "targetText": "يتحدد بعد قياس أكتوبر",
+          "source": "الـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 40,
+          "metric": "qualifiedN"
+        },
+        {
+          "title": "شيت الشركات متحدّث أسبوعياً",
+          "weight": 15,
+          "targetText": "100%",
+          "source": "مراجعة هبة",
+          "method": "manual",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 100
+        },
+        {
+          "title": "شركات جديدة Outbound + إنفنتوري",
+          "weight": 15,
+          "targetText": "15 شركة + 8 وحدات إنفنتوري أسبوعياً (في الأيام اللي مفيش فيها كامبين)",
+          "source": "شيت الشركات والـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 15,
+          "metric": "outbound"
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u7": {
+      "follower": "u21",
+      "items": [
+        {
+          "title": "نسبة الوحدات المتحقق منها خلال 30 يوم",
+          "weight": 25,
+          "targetText": "≥80%",
+          "source": "شيت الإنفنتوري",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 80,
+          "metric": "verified"
+        },
+        {
+          "title": "عدد الإنفنتوري الجديد في الربع",
+          "weight": 15,
+          "targetText": "100 وحدة في الربع",
+          "source": "شيت الإنفنتوري + تقرير هبة",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "إدخال الوحدات الجديدة خلال 24 ساعة",
+          "weight": 10,
+          "targetText": "≥95%",
+          "source": "تقرير هبة مقابل الشيت والواتساب",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "in24"
+        },
+        {
+          "title": "التزام فريقها بالـ SLAs (Lists، معاينات)",
+          "weight": 10,
+          "targetText": "≥90%",
+          "source": "نموذج الطلبات",
+          "method": "system",
+          "module": "M-06",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": null
+        },
+        {
+          "title": "التقرير اليومي (جديد / متحدّث / اتأجر / مش مؤكد)",
+          "weight": 10,
+          "targetText": "كل يوم في ميعاده",
+          "source": "تاريخ التسليم",
+          "method": "report",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 40
+        },
+        {
+          "title": "صفر تكرار في قاعدة البيانات",
+          "weight": 10,
+          "targetText": "≤1% سجلات مكررة",
+          "source": "مراجعة شهرية",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-most",
+          "goal": 1,
+          "metric": null
+        },
+        {
+          "title": "متوسط KPIs فريقها (رندا، سارة، مروة)",
+          "weight": 10,
+          "targetText": "≥80%",
+          "source": "تقييماتهم",
+          "method": "system",
+          "module": "M-12",
+          "direction": "at-least",
+          "goal": 80,
+          "metric": "team"
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u8": {
+      "follower": "u7",
+      "items": [
+        {
+          "title": "مفيش وحدة Resale / Primary تعدّي شهر من غير ابديت",
+          "weight": 30,
+          "targetText": "95% من وحداتها",
+          "source": "شيت الإنفنتوري (آخر تحديث)",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "resaleFresh"
+        },
+        {
+          "title": "عدد الإنفنتوري الجديد في الربع",
+          "weight": 15,
+          "targetText": "100 وحدة",
+          "source": "شيت الإنفنتوري",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "إدخال وحدات Resale / Primary خلال 24 ساعة + PDF",
+          "weight": 20,
+          "targetText": "≥95%",
+          "source": "توقيت الواتساب مقابل الشيت",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "in24"
+        },
+        {
+          "title": "جدولة المعاينات + صفر تكرار في الشيت",
+          "weight": 15,
+          "targetText": "100%",
+          "source": "نموذج الطلبات + مراجعة منار",
+          "method": "manual",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 100
+        },
+        {
+          "title": "تنسيق أماكن التصوير في نفس اليوم",
+          "weight": 10,
+          "targetText": "100% مع بيومي",
+          "source": "مهام التصوير",
+          "method": "system",
+          "module": "M-04",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": null
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u9": {
+      "follower": "u7",
+      "items": [
+        {
+          "title": "مهام منار اليومية (حد أقصى 30 في اليوم)",
+          "weight": 30,
+          "targetText": "≥95%",
+          "source": "شيت الإنفنتوري (اللينك + التوقيت)",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": null
+        },
+        {
+          "title": "الرفع على Drive خلال 24 ساعة من الإدخال",
+          "weight": 25,
+          "targetText": "≥95%",
+          "source": "Drive مقابل الشيت",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "drive24"
+        },
+        {
+          "title": "الجودة: صفر تكرار",
+          "weight": 15,
+          "targetText": "≤1% سجلات مكررة",
+          "source": "مراجعة منار الشهرية",
+          "method": "manual",
+          "module": "M-03",
+          "direction": "at-most",
+          "goal": 1
+        },
+        {
+          "title": "تحديث قالب الـ List يومياً",
+          "weight": 20,
+          "targetText": "يومياً خلال 24 ساعة",
+          "source": "تاريخ التسليم",
+          "method": "report",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 40
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u10": {
+      "follower": "u7",
+      "items": [
+        {
+          "title": "مهام منار اليومية (حد أقصى 30 في اليوم)",
+          "weight": 30,
+          "targetText": "≥95%",
+          "source": "توقيت الواتساب مقابل الشيت / Drive",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": null
+        },
+        {
+          "title": "طلبات الـ Team Leaders من الـ Lists خلال 24 ساعة",
+          "weight": 25,
+          "targetText": "≥90%",
+          "source": "Team Leaders",
+          "method": "system",
+          "module": "M-06",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": "lists24"
+        },
+        {
+          "title": "الجودة: صفر وحدات مش مؤكدة في أي List",
+          "weight": 20,
+          "targetText": "100%",
+          "source": "مراجعة منار",
+          "method": "system",
+          "module": "M-03",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "listsClean"
+        },
+        {
+          "title": "جلسة تغذية راجعة شهرية مع فريق المبيعات",
+          "weight": 15,
+          "targetText": "مرة في الشهر",
+          "source": "محضر الجلسة",
+          "method": "report",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100,
+          "required": 2
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "حسب اللائحة",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 95,
+          "metric": "att"
+        }
+      ]
+    },
+    "u16": {
+      "follower": "u21",
+      "items": [
+        {
+          "title": "تنفيذ طلبات الشراء والصيانة خلال 48 ساعة",
+          "weight": 30,
+          "targetText": "≥90%",
+          "source": "نموذج الطلبات",
+          "method": "system",
+          "module": "M-08",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": "proc48"
+        },
+        {
+          "title": "مصروفات بإيصال / عرضين أسعار فوق 10,000",
+          "weight": 25,
+          "targetText": "100%",
+          "source": "تسوية المالية",
+          "method": "system",
+          "module": "M-08",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "receipts"
+        },
+        {
+          "title": "الالتزام بسقف العهدة",
+          "weight": 10,
+          "targetText": "100%",
+          "source": "تسوية المالية",
+          "method": "system",
+          "module": "M-08",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "pettyCap"
+        },
+        {
+          "title": "جودة خدمات المكتب (جدول الـ Office Boys)",
+          "weight": 15,
+          "targetText": "≥90% التزام",
+          "source": "مراجعة نانسي",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 90
+        },
+        {
+          "title": "سجل أصول المكتب متحدّث",
+          "weight": 10,
+          "targetText": "مراجعة شهرية",
+          "source": "السجل",
+          "method": "report",
+          "module": "M-08",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 2
+        },
+        {
+          "title": "تنفيذ المهام اللي الإدارة بتديهاله",
+          "weight": 10,
+          "targetText": "حسب المهام",
+          "source": "تقرير نانسي",
+          "method": "manual",
+          "module": null,
+          "direction": "at-least",
+          "goal": 100
+        }
+      ]
+    }
+  },
+  "sales": {
+    "follower": "teamLeader",
+    "items": [
+      {
+        "title": "التارجت",
+        "weight": 40,
+        "targetText": "التارجت الخاص بكل بياع",
+        "source": "شيت التحصيل (نصيبه من الكوميشن)",
+        "method": "system",
+        "module": "M-02",
+        "direction": "at-least",
+        "goal": 100,
+        "metric": "ownTarget"
+      },
+      {
+        "title": "Showings (معاينات)",
+        "weight": 10,
+        "targetText": "30 في الربع",
+        "source": "الـ CRM (الزيارات اللي اتعملت)",
+        "method": "system",
+        "module": "M-01",
+        "direction": "at-least",
+        "goal": 30,
+        "metric": null
+      },
+      {
+        "title": "Meetings",
+        "weight": 10,
+        "targetText": "15 في الربع",
+        "source": "الـ CRM (مراحل الـ Meeting)",
+        "method": "system",
+        "module": "M-01",
+        "direction": "at-least",
+        "goal": 15,
+        "metric": null
+      },
+      {
+        "title": "Inventory (وحدات جابها)",
+        "weight": 10,
+        "targetText": "30 وحدة في الربع",
+        "source": "شيت الإنفنتوري (الـ Agent بتاع الوحدة)",
+        "method": "system",
+        "module": "M-03",
+        "direction": "at-least",
+        "goal": 30,
+        "metric": null
+      },
+      {
+        "title": "Farming",
+        "weight": 10,
+        "targetText": "1 أسبوعياً",
+        "source": "نشاطات الـ Farming اللي سجّلها واتعملت",
+        "method": "system",
+        "module": "M-01",
+        "direction": "at-least",
+        "goal": 1,
+        "metric": "activitiesDone",
+        "params": {
+          "akind": "Farming",
+          "per": "quarter",
+          "avg": "week"
+        }
+      },
+      {
+        "title": "Calls & Broadcast",
+        "weight": 10,
+        "targetText": "50 مكالمة أسبوعياً + Broadcast",
+        "source": "سجل المكالمات + الـ Broadcast",
+        "method": "system",
+        "module": "M-01",
+        "direction": "at-least",
+        "goal": 50,
+        "metric": null
+      },
+      {
+        "title": "الحضور (5% غياب + 5% تأخير)",
+        "weight": 10,
+        "targetText": "غياب لحد 5 أيام في الربع + تأخير لحد 6 ساعات في الشهر",
+        "source": "البصمة",
+        "method": "system",
+        "module": "M-05",
+        "direction": "at-least",
+        "goal": 100,
+        "metric": "attSales"
+      }
+    ]
+  },
+  "teamLeaders": {
+    "quarter": "2027-Q1",
+    "people": [
+      "u4",
+      "u19",
+      "u23",
+      "u24"
+    ],
+    "card": {
+      "follower": "u1",
+      "items": [
+        {
+          "title": "تحقيق تارجت الفريق",
+          "weight": 40,
+          "targetText": "100% من تارجت الفريق",
+          "source": "شيت التحصيل (مجموع تارجت سيلز الفريق)",
+          "method": "system",
+          "module": "M-02",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "teamTarget"
+        },
+        {
+          "title": "متوسط KPIs سيلز الفريق",
+          "weight": 20,
+          "targetText": "≥80%",
+          "source": "كروت السيلز",
+          "method": "system",
+          "module": "M-12",
+          "direction": "at-least",
+          "goal": 80,
+          "metric": "team"
+        },
+        {
+          "title": "التزام الفريق بالـ SLA (أول أكشن خلال ساعتين ونص)",
+          "weight": 10,
+          "targetText": "≥90% من الليدز",
+          "source": "الـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 90,
+          "metric": null
+        },
+        {
+          "title": "One-to-One شهري مع كل سيلز في الفريق",
+          "weight": 10,
+          "targetText": "مرة في الشهر لكل واحد",
+          "source": "ملف One-to-One feedback",
+          "method": "report",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "required": 3
+        },
+        {
+          "title": "Showings الفريق",
+          "weight": 10,
+          "targetText": "متوسط 30 لكل بياع في الربع",
+          "source": "الـ CRM",
+          "method": "system",
+          "module": "M-01",
+          "direction": "at-least",
+          "goal": 30,
+          "metric": null
+        },
+        {
+          "title": "الحضور (5% غياب + 5% تأخير)",
+          "weight": 10,
+          "targetText": "غياب لحد 5 أيام في الربع + تأخير لحد 6 ساعات في الشهر",
+          "source": "البصمة",
+          "method": "system",
+          "module": "M-05",
+          "direction": "at-least",
+          "goal": 100,
+          "metric": "attSales"
+        }
+      ]
+    }
+  }
+}

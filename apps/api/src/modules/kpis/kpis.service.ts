@@ -1,0 +1,465 @@
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import type { Prisma, PrismaClient } from "@places/db";
+import {
+  KpiWatch, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView, type KpiCompany, type KpiDeliveryInput, type KpiItemsInput,
+  type KpiLogEntry, type KpiPayInput, type KpiQuarterView,
+} from "@places/contracts";
+import {
+  type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, fromDecimal, itemAchievement, levelLabel,
+  metricProblem, nextQuarter, payoutDelta, quarterLabel, toDecimal,
+} from "@places/domain";
+import { PRISMA } from "../../core/database/database.module";
+import { AuditService } from "../../core/audit/audit.service";
+import { FilesService } from "../../core/files/files.service";
+import { NotificationsService } from "../../core/notifications/notifications.service";
+import type { CurrentUser } from "../../core/auth/current-user.decorator";
+import { type CardRecord, KpisRepository } from "./kpis.repository";
+
+const MODULE = "kpis";
+const LINK = "/kpis";
+/** Out of reach or gone: the same answer, so it doesn't tell whether the card exists. */
+const NO_CARD = "الكارت ده مش موجود أو مش من حقك تشوفه";
+const CLOSED = "الربع اتقفل · مفيش تعديل";
+/** 11.14: the watcher never sees these in the changes log. */
+const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose"];
+
+interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean }
+type Quarter = { id: string; status: string };
+
+const piasters = (d: Prisma.Decimal | null) => (d == null ? 0 : fromDecimal(d.toFixed(2)));
+const num = (d: Prisma.Decimal | null) => (d == null ? null : Number(d));
+const bandsOf = (b: { top: number; full: number; partial: number; low: number; rewardPct: number; cutPct: number }): Bands =>
+  ({ top: b.top, full: b.full, partial: b.partial, low: b.low, rewardPercent: b.rewardPct, cutPercent: b.cutPct });
+
+/**
+ * M-12 · KPI cards: my card (11.2), my team as the follower (11.3), the whole company's money and quarter (11.4), the
+ * item source editor and a new quarter (11.11), and the KPI watcher who runs it all without money (11.14).
+ * Who sees what is decided here per card (owner · follower · everyone for kpis approve/edit and the watcher).
+ */
+@Injectable()
+export class KpisService {
+  constructor(
+    @Inject(PRISMA) private readonly db: PrismaClient,
+    private readonly repo: KpisRepository,
+    private readonly audit: AuditService,
+    private readonly files: FilesService,
+    private readonly notifications: NotificationsService,
+  ) {}
+
+  private async watchers(): Promise<string[]> {
+    const w = KpiWatch.safeParse(await this.repo.watchers());
+    return w.success ? w.data : [];
+  }
+
+  private async who(me: CurrentUser): Promise<Who> {
+    const watcher = (await this.watchers()).includes(me.id);
+    const edit = me.grants.can("kpis", "edit"), approve = me.grants.can("kpis", "approve");
+    return { me, watcher, edit, approve, all: edit || approve || watcher, noMoney: watcher && !edit && !approve };
+  }
+
+  /** The follower approves and types the follower's manual items; «الملاك» (no follower) = a Super Admin who isn't the card's owner. */
+  private isFollower(w: Who, c: { followerId: string | null; employeeId: string }) {
+    return c.followerId ? c.followerId === w.me.employeeId : w.me.roles.includes("admin") && c.employeeId !== w.me.employeeId;
+  }
+
+  private canSee(w: Who, c: { followerId: string | null; employeeId: string }) {
+    return w.all || c.employeeId === w.me.employeeId || this.isFollower(w, c);
+  }
+
+  private async current(tx?: Prisma.TransactionClient): Promise<Quarter> {
+    const q = await this.repo.currentQuarter(tx);
+    if (!q) throw new NotFoundException("مفيش ربع شغال");
+    return q;
+  }
+
+  private qView(q: Quarter): KpiQuarterView {
+    return { id: q.id, label: quarterLabel(q.id), status: q.status === "closed" ? "closed" : "open" };
+  }
+
+  /** A card of the current quarter the person may see. */
+  private async visibleCard(w: Who, id: string) {
+    const [c, q] = await Promise.all([this.repo.card(id), this.current()]);
+    if (!c || c.quarter !== q.id || !this.canSee(w, c)) throw new NotFoundException(NO_CARD);
+    return { c, q };
+  }
+
+  private async openCard(w: Who, id: string) {
+    const r = await this.visibleCard(w, id);
+    if (r.q.status !== "open") throw new ConflictException(CLOSED);
+    return r;
+  }
+
+  /** The item list, weights, targets and sources: the follower, «kpis: edit», and the watcher (meeting 4 Nov). */
+  private canManage(w: Who, c: CardRecord) {
+    return this.isFollower(w, c) || w.edit || w.watcher;
+  }
+
+  private score(c: CardRecord) {
+    return c.items.reduce((s, it) => s + it.weight * this.ach(it), 0);
+  }
+
+  private ach(it: CardRecord["items"][number]) {
+    return itemAchievement({ method: it.method as Method, direction: it.direction as "at-least" | "at-most", goal: Number(it.goal), value: num(it.value), required: it.required, delivered: it.deliveries.length });
+  }
+
+  /** 11.4: reward (+) or deduction (−) on the salary or the bonus (the bonus defaults to one month's salary). */
+  private delta(c: CardRecord, score: number, b: Bands) {
+    const salary = piasters(c.employee.salary);
+    const amount = c.payBase === "salary" ? salary : c.payAmount == null ? salary : piasters(c.payAmount);
+    return payoutDelta(score, { base: c.payBase === "salary" ? "salary" : "bonus", amount, monthlySalary: salary }, b);
+  }
+
+  private summary(w: Who, c: CardRecord, b: Bands): KpiCardSummary {
+    const s = this.score(c);
+    return {
+      id: c.id, employeeId: c.employeeId, name: c.employee.name, title: c.employee.jobTitle, follower: c.follower?.name ?? "الملاك",
+      score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b),
+      below: c.items.filter((it) => this.ach(it) < 1).length, approved: !!c.approvedAt,
+      money: w.noMoney ? null : toDecimal(this.delta(c, s, b)),
+    };
+  }
+
+  /** «كارتي» · «فريقي» · «كل الشركة»: the scope goes into the query. */
+  async board(me: CurrentUser, scope: "me" | "team" | "all"): Promise<KpiBoard> {
+    const w = await this.who(me);
+    if (scope === "all" && !w.all) throw new ForbiddenException("كل الشركة للإدارة والـ Office Manager ومسؤول الـ KPIs");
+    const q = await this.current();
+    const mine: Prisma.KpiCardWhereInput = me.employeeId ? { followerId: me.employeeId } : { id: "-" };
+    // «الملاك» follow the cards with no follower: a Super Admin sees them under «فريقي», except his own
+    const team: Prisma.KpiCardWhereInput = me.roles.includes("admin") ? { OR: [mine, { followerId: null, employeeId: { not: me.employeeId ?? "-" } }] } : mine;
+    const where = scope === "me" ? { employeeId: me.employeeId ?? "-" } : scope === "team" ? team : {};
+    const [cards, bands] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands()]);
+    const b = bandsOf(bands);
+    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => x.score - y.score), seesMoney: !w.noMoney, seesAll: w.all };
+  }
+
+  async card(me: CurrentUser, id: string): Promise<KpiCardView> {
+    const w = await this.who(me);
+    const { c, q } = await this.visibleCard(w, id);
+    return this.view(w, c, q);
+  }
+
+  private async view(w: Who, c: CardRecord, q: Quarter): Promise<KpiCardView> {
+    const [bands, people, roles] = await Promise.all([this.repo.bands(), this.repo.people(), this.repo.roles()]);
+    const b = bandsOf(bands), s = this.score(c), open = q.status === "open";
+    const names = new Map<string, string>([...people.map((p) => [p.userId, p.name] as const), ...roles.map((r) => [r.key, r.label] as const)]);
+    const follower = this.isFollower(w, c), mine = c.employeeId === w.me.employeeId, manage = open && this.canManage(w, c);
+    const approver = c.approvedBy ? people.find((p) => p.userId === c.approvedBy)?.name ?? "" : "";
+    return {
+      id: c.id, quarter: this.qView(q), employee: { id: c.employeeId, name: c.employee.name, title: c.employee.jobTitle },
+      follower: { id: c.followerId, name: c.follower?.name ?? "الملاك" },
+      score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b), plan: c.plan,
+      approved: c.approvedAt ? { by: approver, at: c.approvedAt.toISOString() } : null,
+      pay: w.noMoney ? null : {
+        base: c.payBase === "salary" ? "salary" : "bonus", period: c.payPeriod === "month" ? "month" : "quarter",
+        amount: c.payAmount?.toFixed(2) ?? null, salary: c.employee.salary.toFixed(2), delta: toDecimal(this.delta(c, s, b)),
+      },
+      items: c.items.map((it) => {
+        const a = this.ach(it);
+        const params = (it.params ?? {}) as Record<string, string | number>;
+        return {
+          id: it.id, key: it.key, title: it.title, weight: it.weight, targetText: it.targetText, source: it.source,
+          method: it.method as Method, module: it.module, direction: it.direction as "at-least" | "at-most", goal: Number(it.goal),
+          metric: it.metric, params, enteredBy: it.enteredBy, report: it.report, required: it.required,
+          value: num(it.value), delivered: it.deliveries.length,
+          deliveries: it.deliveries.map((d) => ({ id: d.id, at: d.at.toISOString(), link: d.link, file: !!d.fileId })),
+          calc: calcText({ ...it, method: it.method as Method, params: params as MetricParams }, (x) => names.get(x) ?? x),
+          achievement: Math.round(a * 1000) / 10, contribution: Math.round(it.weight * a * 10) / 10,
+          canEnter: open && it.method === "manual" && canEnterManual(it.enteredBy, { userId: w.me.id, roles: w.me.roles, isFollower: follower }),
+          canDeliver: open && mine && it.method === "report" && !it.report && it.deliveries.length < (it.required ?? 0),
+        };
+      }),
+      can: { manage, approve: open && follower && !c.approvedAt, plan: open && follower, pay: open && w.edit, admin: open && (w.edit || w.watcher) },
+      options: manage ? { people: people.map((p) => ({ id: p.id, userId: p.userId, name: p.name })), roles } : null,
+    };
+  }
+
+  /** Watchers hear of every change but never of money (11.14); whoever made it doesn't need telling. */
+  private async tell(me: CurrentUser, text: string) {
+    const to = (await this.watchers()).filter((x) => x !== me.id);
+    if (to.length) await this.notifications.notify({ event: "kpi.changed", text, link: LINK, userIds: to });
+  }
+
+  /** 11.3 · 11.11: the editor saves the whole item list. Kept items keep their value, key and hand-ins. */
+  async saveItems(me: CurrentUser, id: string, input: KpiItemsInput) {
+    const w = await this.who(me);
+    const { c, q } = await this.openCard(w, id);
+    if (!this.canManage(w, c)) throw new ForbiddenException("البنود بيعدّلها المتابع أو مسؤول الـ KPIs");
+    const known = new Set([...(await this.repo.people()).map((p) => p.userId), ...(await this.repo.roles()).map((r) => r.key), "follower"]);
+    const items = input.items.map((it) => {
+      const system = it.method === "system";
+      const problem = system ? metricProblem(it.metric, it.params as MetricParams) : null;
+      if (problem) throw new BadRequestException(`«${it.title}»: ${problem}`);
+      if (it.method === "manual" && it.enteredBy.some((x) => !known.has(x))) throw new BadRequestException(`«${it.title}»: فيه شخص أو دور مش موجود`);
+      if (it.id && !c.items.some((x) => x.id === it.id)) throw new BadRequestException("فيه بند مش من الكارت ده");
+      return {
+        ...it, metric: system ? it.metric : null, params: system ? it.params : {},
+        enteredBy: it.method === "manual" ? it.enteredBy : ["follower"], required: it.method === "report" ? it.required : null,
+      };
+    });
+    await this.db.$transaction(async (tx) => {
+      const kept = new Set(items.flatMap((it) => (it.id ? [it.id] : [])));
+      await tx.kpiItem.deleteMany({ where: { cardId: id, id: { notIn: [...kept] } } });
+      // two passes: positions are unique per card, so move the kept ones out of the way first
+      for (const [i, itemId] of [...kept].entries()) await tx.kpiItem.update({ where: { id: itemId }, data: { position: -1 - i } });
+      for (const [position, { id: itemId, ...data }] of items.entries()) {
+        if (itemId) await tx.kpiItem.update({ where: { id: itemId }, data: { ...data, position } });
+        else await tx.kpiItem.create({ data: { ...data, position, cardId: id } });
+      }
+      await this.audit.record({ module: MODULE, entity: "KpiItems", entityId: id, action: "update", userId: me.id,
+        before: { items: c.items.map((it) => ({ ...it, deliveries: undefined })) }, after: { summary: `بنود كارت ${c.employee.name} اتعدّلت`, items } }, tx);
+    });
+    await this.tell(me, `${me.name} عدّل بنود كارت ${c.employee.name}`);
+    return this.view(w, (await this.repo.card(id))!, q);
+  }
+
+  /** 11.3: a manual item, typed by whoever the item names (the follower by default). */
+  async setValue(me: CurrentUser, id: string, itemId: string, value: number) {
+    const w = await this.who(me);
+    const { c } = await this.openCard(w, id);
+    const it = c.items.find((x) => x.id === itemId);
+    if (!it || it.method !== "manual") throw new NotFoundException("البند ده مش يدوي أو مش في الكارت");
+    if (!canEnterManual(it.enteredBy, { userId: me.id, roles: me.roles, isFollower: this.isFollower(w, c) })) throw new ForbiddenException("الرقم ده بيدخّله اللي البند بيحدده");
+    await this.db.$transaction(async (tx) => {
+      await tx.kpiItem.update({ where: { id: itemId }, data: { value } });
+      await this.audit.record({ module: MODULE, entity: "KpiItem", entityId: itemId, action: "update", userId: me.id,
+        before: { value: num(it.value) }, after: { value, summary: `${c.employee.name} · ${it.title}: ${value}` } }, tx);
+    });
+    await this.tell(me, `${me.name} دخّل ${value} في «${it.title}» · ${c.employee.name}`);
+  }
+
+  /** 11.2 «سلّمت»: the card's owner hands in an item that no report delivers, with a link or a file. */
+  async deliver(me: CurrentUser, id: string, itemId: string, input: KpiDeliveryInput) {
+    const w = await this.who(me);
+    const { c } = await this.openCard(w, id);
+    const it = c.items.find((x) => x.id === itemId);
+    if (c.employeeId !== me.employeeId) throw new ForbiddenException("التسليم بيعمله صاحب الكارت");
+    if (!it || it.method !== "report" || it.report) throw new BadRequestException("البند ده بيتسلّم من التقرير بتاعه مش من الكارت");
+    if (it.deliveries.length >= (it.required ?? 0)) throw new ConflictException("كل المرات المطلوبة اتسلّمت");
+    await this.db.$transaction(async (tx) => {
+      const d = await tx.kpiDelivery.create({ data: { itemId, byId: me.id, link: input.link ?? null, fileId: input.fileId ?? null } });
+      if (input.fileId) await this.files.attach(me, [input.fileId], "KpiDelivery", d.id, tx);
+      await this.audit.record({ module: MODULE, entity: "KpiDelivery", entityId: d.id, action: "create", userId: me.id,
+        after: { ...input, summary: `${c.employee.name} سلّم «${it.title}»` } }, tx);
+    });
+    await this.tell(me, `${me.name} سلّم «${it.title}»`);
+  }
+
+  async deliveryFile(me: CurrentUser, deliveryId: string) {
+    const d = await this.repo.delivery(deliveryId);
+    if (!d?.fileId) throw new NotFoundException("الملف مش موجود");
+    await this.visibleCard(await this.who(me), d.item.cardId);
+    return this.files.downloadUrl(d.fileId);
+  }
+
+  /** 11.4: whoever runs the KPIs moves a card to another follower (null = the owners). */
+  async setFollower(me: CurrentUser, id: string, followerId: string | null) {
+    const w = await this.who(me);
+    if (!w.edit && !w.watcher) throw new ForbiddenException("المتابع بيغيّره الأدمن أو مسؤول الـ KPIs");
+    const { c } = await this.openCard(w, id);
+    const f = followerId ? await this.repo.employee(followerId) : null;
+    if (followerId && (!f || followerId === c.employeeId)) throw new BadRequestException("اختار متابع تاني");
+    await this.db.$transaction(async (tx) => {
+      await tx.kpiCard.update({ where: { id }, data: { followerId } });
+      await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: id, action: "update", userId: me.id,
+        before: { followerId: c.followerId }, after: { followerId, summary: `${c.employee.name} بقى بيتابعه ${f?.name ?? "الملاك"}` } }, tx);
+    });
+    await this.tell(me, `${c.employee.name} بقى بيتابعه ${f?.name ?? "الملاك"}`);
+  }
+
+  /** 11.3: the improvement plan, written by the follower. */
+  async setPlan(me: CurrentUser, id: string, plan: string) {
+    const w = await this.who(me);
+    const { c } = await this.openCard(w, id);
+    if (!this.isFollower(w, c)) throw new ForbiddenException("خطة التحسين بيكتبها المتابع");
+    await this.db.$transaction(async (tx) => {
+      await tx.kpiCard.update({ where: { id }, data: { plan: plan || null } });
+      await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: id, action: "update", userId: me.id,
+        before: { plan: c.plan }, after: { plan, summary: `خطة تحسين لـ ${c.employee.name}` } }, tx);
+    });
+    await this.tell(me, `${me.name} كتب خطة تحسين لـ ${c.employee.name}`);
+  }
+
+  /** 11.3: the follower approves the card's result. */
+  async approve(me: CurrentUser, id: string) {
+    const w = await this.who(me);
+    const { c } = await this.openCard(w, id);
+    if (!this.isFollower(w, c)) throw new ForbiddenException("النتيجة بيعتمدها المتابع");
+    if (c.approvedAt) throw new ConflictException("النتيجة اتعتمدت قبل كده");
+    const score = Math.round(this.score(c));
+    await this.db.$transaction(async (tx) => {
+      await tx.kpiCard.update({ where: { id }, data: { approvedBy: me.id, approvedAt: new Date() } });
+      await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: id, action: "approve", userId: me.id, after: { summary: `اتعتمد KPI ${c.employee.name} · ${score}%` } }, tx);
+    });
+    await this.tell(me, `${me.name} اعتمد KPI ${c.employee.name} · ${score}%`);
+  }
+
+  /** 11.4: salary or quarter bonus, monthly or per quarter, and the bonus (null = one month's salary). Money: «kpis: edit». */
+  async setPay(me: CurrentUser, id: string, input: KpiPayInput) {
+    const w = await this.who(me);
+    const { c } = await this.openCard(w, id);
+    await this.db.$transaction(async (tx) => {
+      await tx.kpiCard.update({ where: { id }, data: { payBase: input.base, payPeriod: input.period, payAmount: input.amount } });
+      await this.audit.record({ module: MODULE, entity: "KpiPay", entityId: id, action: "update", userId: me.id,
+        before: { base: c.payBase, period: c.payPeriod, amount: c.payAmount?.toFixed(2) ?? null }, after: { ...input, summary: `فلوس KPI ${c.employee.name} اتعدّلت` } }, tx);
+    });
+  }
+
+  async bands() {
+    return this.repo.bands();
+  }
+
+  /** 11.4: one set of bands for everyone. */
+  async setBands(me: CurrentUser, input: KpiBandsInput) {
+    const data = { top: input.top, full: input.full, partial: input.partial, low: input.low, rewardPct: input.rewardPercent, cutPct: input.cutPercent };
+    await this.db.$transaction(async (tx) => {
+      const before = await this.repo.bands(tx);
+      await tx.kpiBands.update({ where: { id: "default" }, data });
+      await this.audit.record({ module: MODULE, entity: "KpiBands", entityId: "default", action: "update", userId: me.id, before, after: { ...data, summary: "شرايح الفلوس اتعدّلت" } }, tx);
+    });
+  }
+
+  /** 11.4 · 11.11: a card for someone who has none: empty, or with another card's items (nothing achieved). */
+  async createCard(me: CurrentUser, employeeId: string, copyFrom?: string) {
+    const w = await this.who(me);
+    if (!w.edit && !w.watcher) throw new ForbiddenException("الكروت بيعملها الأدمن أو مسؤول الـ KPIs");
+    const q = await this.current();
+    if (q.status !== "open") throw new ConflictException(CLOSED);
+    const emp = await this.repo.employee(employeeId);
+    if (!emp) throw new BadRequestException("الموظف مش موجود");
+    if (await this.repo.cardOf(q.id, employeeId)) throw new ConflictException(`${emp.name} عنده كارت`);
+    const from = copyFrom ? (await this.visibleCard(w, copyFrom)).c : null;
+    const card = await this.db.$transaction(async (tx) => {
+      const created = await tx.kpiCard.create({ data: {
+        quarter: q.id, employeeId, followerId: from?.followerId ?? null,
+        items: { create: (from?.items ?? []).map((it) => this.copyItem(it)) },
+      } });
+      await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: created.id, action: "create", userId: me.id,
+        after: { summary: `كارت KPIs جديد لـ ${emp.name}${from ? ` من بنود ${from.employee.name}` : ""}` } }, tx);
+      return created;
+    });
+    await this.tell(me, `كارت KPIs جديد لـ ${emp.name}`);
+    return { id: card.id };
+  }
+
+  /** 11.4 «انسخ البنود والأوزان دي لـ»: replaces the other person's items (or makes their card). */
+  async copyCard(me: CurrentUser, id: string, toEmployeeId: string) {
+    const w = await this.who(me);
+    if (!w.edit && !w.watcher) throw new ForbiddenException("النسخ للأدمن أو مسؤول الـ KPIs");
+    const { c, q } = await this.openCard(w, id);
+    if (toEmployeeId === c.employeeId) throw new BadRequestException("اختار موظف تاني");
+    const target = await this.repo.cardOf(q.id, toEmployeeId);
+    if (!target) return this.createCard(me, toEmployeeId, id);
+    await this.db.$transaction(async (tx) => {
+      await tx.kpiItem.deleteMany({ where: { cardId: target.id } });
+      await tx.kpiItem.createMany({ data: c.items.map((it) => ({ ...this.copyItem(it), cardId: target.id })) });
+      await this.audit.record({ module: MODULE, entity: "KpiItems", entityId: target.id, action: "update", userId: me.id,
+        before: { items: target.items.map((it) => ({ ...it, deliveries: undefined })) }, after: { summary: `بنود ${c.employee.name} اتنسخت لـ ${target.employee.name}` } }, tx);
+    });
+    await this.tell(me, `بنود ${c.employee.name} اتنسخت لـ ${target.employee.name}`);
+    return { id: target.id };
+  }
+
+  /** The same item with nothing achieved yet; `key` is kept so a new quarter's item stays the same item (11.12). */
+  private copyItem(it: CardRecord["items"][number], keepKey = false) {
+    return {
+      ...(keepKey ? { key: it.key } : {}), position: it.position, title: it.title, weight: it.weight, targetText: it.targetText, source: it.source,
+      method: it.method, module: it.module, direction: it.direction, goal: it.goal, metric: it.metric, params: it.params ?? {},
+      enteredBy: it.enteredBy, report: it.report, required: it.required, baseline: it.baseline,
+    };
+  }
+
+  /** 11.4: the Office Manager closes the quarter: every card's final score and amount are kept. */
+  async closeQuarter(me: CurrentUser) {
+    const q = await this.current();
+    if (q.status !== "open") throw new ConflictException("الربع ده اتقفل قبل كده");
+    const n = await this.db.$transaction(async (tx) => this.finish(me, q.id, tx, true));
+    await this.tell(me, `${quarterLabel(q.id)} اتقفل · ${n} كارت`);
+  }
+
+  /** Saves each card's result and closes the quarter. With money (the close) the amounts too. */
+  private async finish(me: CurrentUser, quarter: string, tx: Prisma.TransactionClient, money: boolean) {
+    const [cards, bands] = await Promise.all([this.repo.cards({ quarter }, tx), this.repo.bands(tx)]);
+    const b = bandsOf(bands);
+    for (const c of cards) {
+      const s = this.score(c);
+      await tx.kpiCard.update({ where: { id: c.id }, data: { finalScore: Math.round(s * 100) / 100, ...(money ? { finalAmount: toDecimal(this.delta(c, s, b)) } : {}) } });
+    }
+    await tx.kpiQuarter.update({ where: { id: quarter }, data: { status: "closed", closedAt: new Date(), closedById: me.id } });
+    await this.audit.record({ module: MODULE, entity: money ? "KpiQuarterClose" : "KpiQuarter", entityId: quarter, action: "update", userId: me.id,
+      after: { summary: `${quarterLabel(quarter)} اتقفل · النتايج اتحفظت`, cards: cards.length } }, tx);
+    return cards.length;
+  }
+
+  /**
+   * 11.11 «ابدأ ربع جديد»: the current quarter's results are kept and every card starts the next one with the same items
+   * and weights and nothing achieved. A card already set up for the next quarter (the TL draft) stays as it is.
+   */
+  async startQuarter(me: CurrentUser) {
+    const w = await this.who(me);
+    if (!w.edit && !w.watcher) throw new ForbiddenException("الربع الجديد بيبدأه الأدمن أو مسؤول الـ KPIs");
+    const q = await this.current();
+    const next = nextQuarter(q.id);
+    const n = await this.db.$transaction(async (tx) => {
+      if (q.status === "open") await this.finish(me, q.id, tx, false);
+      await tx.kpiQuarter.create({ data: { id: next } });
+      const ready = new Set((await tx.kpiCard.findMany({ where: { quarter: next }, select: { employeeId: true } })).map((c) => c.employeeId));
+      const cards = (await this.repo.cards({ quarter: q.id }, tx)).filter((c) => !ready.has(c.employeeId));
+      for (const c of cards) {
+        await tx.kpiCard.create({ data: { quarter: next, employeeId: c.employeeId, followerId: c.followerId, payBase: c.payBase, payPeriod: c.payPeriod, payAmount: c.payAmount,
+          items: { create: c.items.map((it) => this.copyItem(it, true)) } } });
+      }
+      await this.audit.record({ module: MODULE, entity: "KpiQuarter", entityId: next, action: "create", userId: me.id,
+        after: { summary: `بدأ ${quarterLabel(next)} بنسخة من كروت ${quarterLabel(q.id)}`, cards: cards.length } }, tx);
+      return cards.length;
+    });
+    await this.tell(me, `بدأ ${quarterLabel(next)} · ${n} كارت اتنسخ`);
+    return { quarter: next };
+  }
+
+  /** «كل الشركة»: the quarters, who has no card, the watchers, the bands (not for the watcher). */
+  async company(me: CurrentUser): Promise<KpiCompany> {
+    const w = await this.who(me);
+    if (!w.all) throw new ForbiddenException("كل الشركة للإدارة والـ Office Manager ومسؤول الـ KPIs");
+    const q = await this.current();
+    const [quarters, stats, people, cards, bands, watchers] = await Promise.all([
+      this.repo.quarters(), this.repo.quarterStats(), this.repo.people(), this.repo.cards({ quarter: q.id }), this.repo.bands(), this.watchers(),
+    ]);
+    const has = new Set(cards.map((c) => c.employeeId));
+    const b = bandsOf(bands);
+    return {
+      quarters: quarters.map((x) => {
+        const st = stats.find((s) => s.quarter === x.id);
+        return { id: x.id, label: quarterLabel(x.id), status: x.status, cards: st?._count._all ?? 0, avg: st?._avg.finalScore == null ? null : Math.round(Number(st._avg.finalScore)) };
+      }),
+      noCard: w.edit || w.watcher ? people.filter((p) => !has.has(p.id)).map((p) => ({ id: p.id, name: p.name, title: p.jobTitle })) : [],
+      watchers: people.filter((p) => watchers.includes(p.userId)).map((p) => ({ id: p.id, userId: p.userId, name: p.name })),
+      people: people.map((p) => ({ id: p.id, userId: p.userId, name: p.name })),
+      bands: w.noMoney ? null : { top: b.top, full: b.full, partial: b.partial, low: b.low, rewardPercent: b.rewardPercent, cutPercent: b.cutPercent },
+      can: { edit: w.edit, close: w.approve && q.status === "open" },
+    };
+  }
+
+  /** 11.14 «مسؤول الـ KPIs»: the Setting `kpiWatch`. */
+  async setWatchers(me: CurrentUser, userIds: string[]) {
+    const known = new Set((await this.repo.people()).map((p) => p.userId));
+    if (userIds.some((x) => !known.has(x))) throw new BadRequestException("فيه شخص مش موجود");
+    const before = await this.watchers();
+    await this.db.$transaction(async (tx) => {
+      await this.repo.setWatchers(userIds, tx);
+      await this.audit.record({ module: MODULE, entity: "Setting", entityId: "kpiWatch", action: "update", userId: me.id, before, after: { userIds, summary: "مسؤولين الـ KPIs اتغيّروا" } }, tx);
+    });
+  }
+
+  /** 11.14 «سجل التغييرات»: every KPI change, who and when; the money ones are left out for the watcher. */
+  async log(me: CurrentUser): Promise<KpiLogEntry[]> {
+    const w = await this.who(me);
+    if (!w.all) throw new ForbiddenException("السجل للإدارة ومسؤول الـ KPIs");
+    const rows = (await this.repo.log(80)).filter((r) => !(w.noMoney && MONEY_ENTITIES.includes(r.entity)));
+    const names = new Map((await this.repo.names(rows.flatMap((r) => (r.userId ? [r.userId] : [])))).map((n) => [n.userId, n.name]));
+    return rows.slice(0, 40).map((r) => {
+      const after = (r.after ?? {}) as { summary?: unknown };
+      return { at: r.at.toISOString(), by: (r.userId && names.get(r.userId)) || "السيستم", text: typeof after.summary === "string" ? after.summary : r.entity };
+    });
+  }
+}
