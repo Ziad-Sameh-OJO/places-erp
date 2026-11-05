@@ -112,7 +112,7 @@ export function InventoryList() {
         ? (list.length
           ? <div className="drive">{list.map((u) => (
             <article key={u.id} className="ucard" role="button" tabIndex={0} onClick={() => setOpen(u.id)} onKeyDown={(e) => e.key === "Enter" && setOpen(u.id)}>
-              <div className={`u-img u-${u.type}`}><Icon name="image" /><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <Chip tone="warn">PDF draft</Chip>}</div>
+              <div className={`u-img u-${u.type}`}>{u.photo ? <img src={u.photo} alt="" loading="lazy" /> : <Icon name="image" />}<span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <Chip tone="warn">PDF draft</Chip>}</div>
               <div className="u-body">
                 <b>{u.project}</b>
                 <small>{u.area} · الدور {u.floor || "—"}</small>
@@ -132,7 +132,7 @@ export function InventoryList() {
         </div>
       )}
       <p className="hint">التابات اللي تحت Customized: الفريق بيحدد الشرايح ويضيف أو يشيل. والوحدة اللي الـ last update بتاعها عدّى عليه أكتر من شهر بتظهر متأخرة، وبتتحسب في الـ activity بتاعة منار ورندا.</p>
-      {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)}
+      {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} editable={me.can("inventory", "edit")} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)}
         actions={unit.data && (me.can("inventory", "edit") || me.can("inventory", "delete")) && (
           <div className="row">
             {me.can("inventory", "edit") && <button className="btn ghost" onClick={() => setForm("edit")}>تعديل البيانات</button>}

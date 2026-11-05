@@ -12,6 +12,9 @@ export const UNIT_ROW = {
   divisible: true, minSplit: true, location: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
   // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
   locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
+  // the main photo (2.4) and how many there are
+  photos: { select: { fileId: true }, orderBy: { position: "asc" }, take: 1 },
+  _count: { select: { photos: true } },
 } satisfies Prisma.UnitSelect;
 export const UNIT_DETAIL = { ...UNIT_ROW, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true } satisfies Prisma.UnitSelect;
 export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
@@ -163,6 +166,11 @@ export class InventoryRepository {
 
   userName(userId: string) {
     return this.db.employee.findUnique({ where: { userId }, select: { name: true } });
+  }
+
+  /** A unit's photos in their order (2.4). */
+  photos(unitId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.unitPhoto.findMany({ where: { unitId }, orderBy: { position: "asc" }, select: { id: true, fileId: true } });
   }
 
   /** A unit's two sides, for closing one (Q16 · Q17). Archived units can't be closed. */

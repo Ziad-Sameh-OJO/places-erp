@@ -17,6 +17,7 @@ import { ClientsService } from "../clients/clients.service";
 import { InventoryRepository, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
 import { UnitsService } from "./units.service";
 import { IMPORT_TX, type ImportReport, type ParsedSheet } from "../../core/http/import";
+import { UnitPhotosService } from "./unit-photos.service";
 
 const NO_UNIT = "الوحدة مش موجودة";
 /** How many open units a recommendation reads at most, and how many it shows (best first). */
@@ -38,6 +39,7 @@ export class InventoryService {
     private readonly settings: SettingsService,
     private readonly clients: ClientsService, // M-10 2.1: every unit linked to its owner's file (2.11)
     private readonly units: UnitsService,
+    private readonly photos: UnitPhotosService,
   ) {}
 
   /** For a lead's Visit / Meeting (1.9): open, confirmed units by code, project or space (4 Nov demo meeting). */
@@ -131,8 +133,8 @@ export class InventoryService {
   async list(me: CurrentUser, f: UnitFilters): Promise<Paged<UnitRow>> {
     const s = this.scope(me);
     const [rows, total] = await this.repo.list(s, f, f.tabId ? await this.repo.areaTabs() : []);
-    const agents = await this.names(rows.map((r) => r.agentId));
-    return { items: rows.map((r) => this.row(r, s, agents)), total, page: f.page, pageSize: f.pageSize };
+    const [agents, links] = await Promise.all([this.names(rows.map((r) => r.agentId)), this.photos.links(rows.flatMap((r) => r.photos.map((p) => p.fileId)))]);
+    return { items: rows.map((r) => this.row(r, s, agents, links)), total, page: f.page, pageSize: f.pageSize };
   }
 
   async summary(me: CurrentUser): Promise<UnitSummary> {
@@ -156,11 +158,11 @@ export class InventoryService {
     const s = this.scope(me);
     const u = await this.repo.detail(s, id);
     if (!u) throw new NotFoundException(NO_UNIT);
-    const agents = await this.names([u.agentId]);
+    const [agents, links] = await Promise.all([this.names([u.agentId]), this.photos.links(u.photos.map((p) => p.fileId))]);
     const by = u.createdById ? await this.repo.userName(u.createdById) : null;
     const locks = s.insider ? await this.units.locks(me, id) : []; // the deals on it are the inventory team's business
     return {
-      ...this.row(u, s, agents), splitNote: u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
+      ...this.row(u, s, agents, links), splitNote: u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
       createdBy: u.createdById && by ? { id: u.createdById, name: by.name } : null, updatedAt: u.updatedAt.toISOString(), locks,
     };
   }
@@ -274,7 +276,7 @@ export class InventoryService {
     return new Map((known.length ? await this.repo.employeeNames(known) : []).map((e) => [e.id, e.name]));
   }
 
-  private row(u: UnitRowRecord, s: UnitScope, agents: Map<string, string>): UnitRow {
+  private row(u: UnitRowRecord, s: UnitScope, agents: Map<string, string>, links: Map<string, string>): UnitRow {
     const money = (d: Prisma.Decimal | null) => (d ? d.toFixed(2) : null);
     const income = u.type === "Income" && u.pricePerSqm && u.leasePerSqm
       ? incomeFigures({ salePerSqm: fromDecimal(u.pricePerSqm.toFixed(2)), leasePerSqm: fromDecimal(u.leasePerSqm.toFixed(2)), area: u.space })
@@ -291,6 +293,7 @@ export class InventoryService {
       pdfStatus: u.pdfStatus === "confirmed" ? "confirmed" : "draft", createdAt: u.createdAt.toISOString(),
       details: (u.details ?? {}) as UnitRow["details"],
       income: income ? { monthlyRent: toDecimal(income.monthlyRent), annualRent: toDecimal(income.annualRent), yieldPct: income.yieldPct } : null,
+      photo: u.photos[0] ? links.get(u.photos[0].fileId) ?? null : null, photoCount: u._count.photos,
       closings: u.locks.map((l) => ({ type: l.type, status: closedStatus(l.type), at: (l.lockedAt ?? u.createdAt).toISOString(), dealCode: s.insider ? l.deal.code : null })),
     };
   }

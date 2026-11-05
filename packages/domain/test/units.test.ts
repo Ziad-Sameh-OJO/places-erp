@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, fromDecimal, toDecimal } from "../src/money.ts";
-import { carrySides, closedStatus, confirmsClose, incomeFigures, isStale, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+import { carrySides, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
 
 // The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
 
@@ -175,4 +175,12 @@ test("Q17: editing U-103's second type keeps each side's state, a new side start
   assert.deepEqual(carrySides(rented, { type: "Resale", alsoType: "Rent" }), { status: "available", alsoStatus: "rented" });
   // a one-type unit gets a second type
   assert.deepEqual(carrySides({ type: "Rent", status: "available", alsoType: null, alsoStatus: null }, { type: "Rent", alsoType: "Resale" }), { status: "available", alsoStatus: "available" });
+});
+
+test("2.4 · photo order: the same photos, each once, in the new order; the first is the main one", () => {
+  assert.deepEqual(photoOrder(["a", "b", "c"], ["c", "a", "b"]), ["c", "a", "b"]);
+  assert.equal(photoOrder(["a", "b", "c"], ["c", "a"]), null, "one left out");
+  assert.equal(photoOrder(["a", "b"], ["a", "b", "x"]), null, "one that isn't the unit's");
+  assert.equal(photoOrder(["a", "b"], ["a", "a"]), null, "twice");
+  assert.deepEqual(photoOrder([], []), []);
 });
