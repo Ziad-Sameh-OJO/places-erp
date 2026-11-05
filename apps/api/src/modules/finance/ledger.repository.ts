@@ -25,6 +25,10 @@ export class LedgerRepository {
     return tx.account.findUnique({ where: { code }, select: ACCOUNT });
   }
 
+  childByName(parentId: string, name: string, tx: Tx) {
+    return tx.account.findFirst({ where: { parentId, name }, select: ACCOUNT });
+  }
+
   childCodes(parentId: string, tx: Tx | PrismaClient = this.db) {
     return tx.account.findMany({ where: { parentId }, select: { code: true } }).then((r) => r.map((x) => x.code));
   }

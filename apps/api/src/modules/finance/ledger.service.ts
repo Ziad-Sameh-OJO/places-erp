@@ -254,6 +254,14 @@ export class LedgerService {
     return account;
   }
 
+  /** 9.6: a system account found by its name under its parent, opened the first time (one at a time). */
+  async namedAccount(me: CurrentUser, parentCode: string, name: string, tx: Tx): Promise<AccountRow> {
+    await this.repo.lockChildren(parentCode, tx);
+    const parent = await this.repo.accountByCode(parentCode, tx);
+    if (!parent) throw new BadRequestException(NO_ACCOUNT);
+    return (await this.repo.childByName(parent.id, name, tx)) ?? this.subAccount(me, parentCode, name, tx);
+  }
+
   /**
    * 9.12 (4 Nov): a client's own account under 113 (113001…) or a salesperson's under 21103, opened by the system
    * the first time it's needed; the code is given once and kept, so the order follows the oldest deal.

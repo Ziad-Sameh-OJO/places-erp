@@ -14,12 +14,14 @@ import { DealSheetService } from "./deal-sheet.service";
 import { DealSheetRepository } from "./deal-sheet.repository";
 import { CommissionsController } from "./commissions.controller";
 import { CommissionsService } from "./commissions.service";
+import { CostCenterController } from "./cost-center.controller";
+import { CostCenterService } from "./cost-center.service";
 
 /** M-02 · الصفقات: the Done Deal and the Office Manager's review. Collections, TCR and commission come with their tasks. */
 @Module({
   imports: [LeadsModule, InventoryModule, FinanceModule, SettingsModule, KpisModule], // the deal's lead (moves to Done Deal), unit (open units, its agent = Seller), the ledger and vouchers (5.3 · 9.12), the TCR's letterhead (5.13 · 12.12), the TL's monthly figure (5.8), Achievements (5.10)
-  controllers: [DealMarketingController, DealSheetController, DealsController, CommissionsController], // first: «deals/marketing» and «deals/sheet» must win over «deals/:id»
-  providers: [DealsService, DealMarketingService, DealsRepository, DealSheetService, DealSheetRepository, CommissionsService],
+  controllers: [DealMarketingController, DealSheetController, DealsController, CommissionsController, CostCenterController], // first: «deals/marketing» and «deals/sheet» must win over «deals/:id»
+  providers: [DealsService, DealMarketingService, DealsRepository, DealSheetService, DealSheetRepository, CommissionsService, CostCenterService],
   exports: [DealsService],
 })
 export class DealsModule {}
