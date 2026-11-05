@@ -757,6 +757,9 @@
       ],
       "kpis": [
         "view"
+      ],
+      "clients": [
+        "view"
       ]
     }
   },
