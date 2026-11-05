@@ -102,6 +102,29 @@ export class DealsRepository {
     return (await this.db.employee.findUnique({ where: { userId }, select: { name: true } }))?.name ?? null;
   }
 
+  /** 5.3: one collection at a time per deal, so two at once can't both pass «not above what's left». */
+  lock(tx: Prisma.TransactionClient, id: string) {
+    return tx.$executeRaw`SELECT 1 FROM sales."Deal" WHERE id = ${id} FOR UPDATE`;
+  }
+
+  /** 9.12: the client file the deal's lead joined at Done Deal (M-10 2.1). */
+  async clientOf(tx: Prisma.TransactionClient, id: string) {
+    return (await tx.deal.findUnique({ where: { id }, select: { lead: { select: { clientId: true } } } }))?.lead?.clientId ?? null;
+  }
+
+  payments(tx: Prisma.TransactionClient, dealId: string) {
+    return tx.payment.findMany({ where: { dealId }, select: { side: true, amount: true } });
+  }
+
+  addPayment(tx: Prisma.TransactionClient, data: Prisma.PaymentUncheckedCreateInput) {
+    return tx.payment.create({ data, select: { id: true } });
+  }
+
+  /** Each salesperson's scheme % (M-02: their commission is that % of their share). */
+  schemes(ids: string[], tx: Prisma.TransactionClient) {
+    return tx.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, commissionPct: true } });
+  }
+
   employeeNames(ids: string[]) {
     return this.db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, userId: true } });
   }

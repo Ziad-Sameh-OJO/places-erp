@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
-import { CreateDeal, DealFilters, DealNote, DealUnitQuery, ReviewDeal } from "@places/contracts";
+import { CollectDeal, CreateDeal, DealFilters, DealNote, DealUnitQuery, ReviewDeal } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -47,6 +47,13 @@ export class DealsController {
   @Requires("deals", "approve")
   review(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(ReviewDeal)) body: ReviewDeal) {
     return this.deals.review(me, id, body);
+  }
+
+  /** «سجّل تحصيل» (5.3): Finance records collections, like the demo (`finance: create`). */
+  @Post(":id/collections")
+  @Requires("finance", "create")
+  collect(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(CollectDeal)) body: CollectDeal) {
+    return this.deals.collect(me, id, body);
   }
 
   /** «note» (M-02 3.1): the Office Manager and Finance — «deals: edit» in the role matrix. */

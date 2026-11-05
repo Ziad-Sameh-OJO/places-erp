@@ -6,7 +6,7 @@
  * - The Seller (the unit's agent) only counts once Manar has approved them.
  * - A «note» override (targetBase) changes the target figure only, never the commission.
  */
-import { type Piasters, allocate, percentOf } from "./money.ts";
+import { type Piasters, allocate, formatEGP, percentOf } from "./money.ts";
 
 export type DealSide = "buyer" | "seller";
 export type DealStatus = "Pending Review" | "Approved" | "Partially Collected" | "Fully Collected" | "Rejected" | "Cancelled";
@@ -52,6 +52,17 @@ export function collectionStatus(d: DealMoney): DealStatus {
   const c = collected(d);
   return c >= placesCommission(d) ? "Fully Collected" : c > 0 ? "Partially Collected" : "Approved";
 }
+
+/** 5.3: why a collection can't be recorded, or null — only on an approved deal not fully collected, never above what's left. */
+export function collectionProblem(d: DealMoney, amount: Piasters): string | null {
+  if (d.status !== "Approved" && d.status !== "Partially Collected") return "التحصيل بيتسجّل على صفقة اتوافق عليها ولسه متحصّلتش بالكامل";
+  if (!(amount > 0)) return "المبلغ لازم يبقى أكبر من صفر";
+  if (amount > remaining(d)) return `المبلغ أكبر من الباقي (${formatEGP(remaining(d))})`;
+  return null;
+}
+
+/** Q37–Q39: Places' whole commission is revenue from the first collection on (the rest is owed by the client, 113). */
+export const revenueOnCollection = (d: DealMoney): Piasters => (collected(d) === 0 ? placesCommission(d) : 0);
 
 export const buyersOf = (d: DealMoney): readonly string[] => d.buyers;
 export const sellersOf = (d: DealMoney): readonly string[] => (d.sellerApproved ? d.sellers : []);
