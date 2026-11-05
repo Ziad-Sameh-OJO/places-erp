@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createTransport, type Transporter } from "nodemailer";
 import { env } from "../../config/env";
 
-export interface Mail { to: string; subject: string; text: string }
+export interface Mail { to: string; subject: string; text: string; attachments?: { filename: string; content: Buffer }[] }
 
 /**
  * Outgoing email. With SMTP_URL (Mailpit locally, SES / SMTP in production) it really sends; without it, in
@@ -16,13 +16,15 @@ export class MailService {
 
   async send(m: Mail) {
     if (this.smtp) {
-      await this.smtp.sendMail({ from: env.MAIL_FROM, to: m.to, subject: m.subject, text: m.text });
+      await this.smtp.sendMail({ from: env.MAIL_FROM, to: m.to, subject: m.subject, text: m.text, attachments: m.attachments });
       return;
     }
     if (env.NODE_ENV === "production") throw new Error("SMTP_URL is required in production");
     const dir = "../../.local/outbox";
     mkdirSync(dir, { recursive: true });
-    writeFileSync(`${dir}/${Date.now()}-${m.to}.json`, JSON.stringify(m, null, 2));
+    // attachments by name and size only: the outbox is for reading
+    const attachments = m.attachments?.map((a) => ({ filename: a.filename, bytes: a.content.length }));
+    writeFileSync(`${dir}/${Date.now()}-${m.to}.json`, JSON.stringify({ ...m, attachments }, null, 2));
     this.log.log(`(dev outbox) ${m.to} · ${m.subject}`);
   }
 }

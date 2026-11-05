@@ -6,13 +6,14 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { API, call, lastMail, session } from "./helpers.ts";
+import { kpiMidQuarterTick } from "../../worker/src/processors/kpi-mid-quarter.ts";
 
 const start = new Date();
 const LINK = `https://e2e.test/${Date.now()}`;
 let admin: string, nancy: string, heba: string, mahmoud: string, youssef: string, mokhtar: string, hadeer: string;
-let watchBefore: unknown;
-const ids = { mahmoud: "", nancyUser: "", nancyEmp: "", hebaUser: "", testCard: "" };
+let watchBefore: unknown, salaryBefore: string | null = null;
+const ids = { mahmoud: "", nancyUser: "", nancyEmp: "", hebaUser: "", testCard: "", youssefEmp: "", youssefUser: "", basantUser: "" };
 const touched: string[] = []; // seeded cards whose value / plan / approval the file changes
 
 before(async () => {
@@ -20,8 +21,8 @@ before(async () => {
     "ahmed.islam@places.com", "nancy.islam@places.com", "heba.salah@places.com", "mahmoud.ali@places.com", "youssef.safwat@places.com",
     "mokhtar.gamal@places.com", "hadeer.tarek@places.com"].map((e) => session(e)));
   const emp = async (email: string) => prisma.employee.findFirstOrThrow({ where: { user: { email } }, select: { id: true, userId: true } });
-  const [m, n, h] = await Promise.all([emp("mahmoud.ali@places.com"), emp("nancy.islam@places.com"), emp("heba.salah@places.com")]);
-  Object.assign(ids, { mahmoud: m.id, nancyUser: n.userId, nancyEmp: n.id, hebaUser: h.userId });
+  const [m, n, h, y, b] = await Promise.all(["mahmoud.ali@places.com", "nancy.islam@places.com", "heba.salah@places.com", "youssef.safwat@places.com", "basant.elsawy@places.com"].map(emp));
+  Object.assign(ids, { mahmoud: m!.id, nancyUser: n!.userId, nancyEmp: n!.id, hebaUser: h!.userId, youssefEmp: y!.id, youssefUser: y!.userId, basantUser: b!.userId });
   watchBefore = (await prisma.setting.findUnique({ where: { key: "kpiWatch" } }))?.value ?? null;
 });
 
@@ -29,8 +30,10 @@ after(async () => {
   // the quarter: back to Q4 2026 open, without the copies the new quarter made (the TLs' seeded Q1 cards stay)
   await prisma.kpiCard.deleteMany({ where: { quarter: "2027-Q1", items: { none: { title: "تحقيق تارجت الفريق" } } } });
   await prisma.kpiQuarter.deleteMany({ where: { id: "2027-Q1" } });
-  await prisma.kpiQuarter.update({ where: { id: "2026-Q4" }, data: { status: "open", closedAt: null, closedById: null } });
-  await prisma.kpiCard.updateMany({ where: { quarter: "2026-Q4" }, data: { finalScore: null, finalAmount: null } });
+  await prisma.kpiQuarter.update({ where: { id: "2026-Q4" }, data: { status: "open", closedAt: null, closedById: null, sheetsAt: null, sheetsById: null } });
+  await prisma.kpiCard.updateMany({ where: { quarter: "2026-Q4" }, data: { finalScore: null, finalAmount: null, midAlertAt: null } });
+  await prisma.kpiCard.deleteMany({ where: { quarter: "2026-Q3" } }); // the past quarter the 11.6 test makes
+  if (salaryBefore != null) await prisma.employee.update({ where: { id: ids.youssefEmp }, data: { salary: salaryBefore } });
   if (ids.testCard) await prisma.kpiCard.deleteMany({ where: { id: ids.testCard } });
   await prisma.kpiCard.updateMany({ where: { id: { in: touched } }, data: { plan: null, approvedBy: null, approvedAt: null } });
   await prisma.kpiItem.updateMany({ where: { cardId: { in: touched }, method: "manual" }, data: { value: null } });
@@ -179,12 +182,66 @@ test("11.14 · the KPI watcher sees and edits every card, is told of changes, an
   assert.equal((await call("/kpis/log", { cookie: hadeer })).status, 403);
 });
 
-test("11.4 · 11.11 · Nancy closes the quarter, then a new quarter starts from a copy and keeps the TLs' draft", async () => {
+test("11.6 · mid-quarter: items under target are told to the owner and the follower once, on a working day from the 15th", async () => {
+  const told = () => prisma.notification.count({ where: { userId: ids.youssefUser, link: "/kpis", text: { startsWith: "نص Q4 2026" } } });
+  assert.equal(await kpiMidQuarterTick(new Date("2026-11-12T09:00:00Z")), 0); // before the middle of the quarter
+  assert.equal(await kpiMidQuarterTick(new Date("2026-11-20T09:00:00Z")), 0); // a Friday
+  assert.ok((await kpiMidQuarterTick(new Date("2026-11-16T09:00:00Z"))) >= 1);
+  assert.equal(await told(), 1);
+  const follower = (await prisma.employee.findUniqueOrThrow({ where: { id: ids.mahmoud } })).userId; // Youssef's Team Leader
+  assert.ok(await prisma.notification.count({ where: { userId: follower, link: "/kpis", text: { startsWith: "نص Q4 2026" } } }) >= 1);
+  assert.equal(await kpiMidQuarterTick(new Date("2026-11-17T09:00:00Z")), 0); // idempotent: once per card
+  assert.equal(await told(), 1);
+});
+
+test("11.4 · 11.6 · 11.7 · 11.11 · Nancy closes the quarter (alerts, payroll), approves the sheets, then a new quarter starts from a copy", async () => {
+  // Youssef was under 50% last quarter too: under 50% twice → HR review
+  await prisma.kpiCard.create({ data: { quarter: "2026-Q3", employeeId: ids.youssefEmp, finalScore: 30 } });
+  // the seed has no salaries: give Youssef one so his KPI amount and payroll line aren't zero (put back in `after`)
+  salaryBefore = (await prisma.employee.findUniqueOrThrow({ where: { id: ids.youssefEmp } })).salary.toFixed(2);
+  await prisma.employee.update({ where: { id: ids.youssefEmp }, data: { salary: 12_000 } });
   assert.equal((await call("/kpis/quarter/close", { method: "POST", cookie: heba })).status, 403);
   assert.equal((await call("/kpis/quarter/close", { method: "POST", cookie: nancy })).status, 204);
   assert.equal((await call(`/kpis/cards/${ids.testCard}/plan`, { method: "PATCH", cookie: admin, body: { plan: "x" } })).status, 409);
   const closed = await prisma.kpiCard.findUniqueOrThrow({ where: { id: ids.testCard } });
   assert.notEqual(closed.finalScore, null);
+
+  // 11.6 the result's alerts
+  const y = await prisma.kpiCard.findUniqueOrThrow({ where: { quarter_employeeId: { quarter: "2026-Q4", employeeId: ids.youssefEmp } } });
+  if (Number(y.finalScore) < 50) {
+    assert.ok(await prisma.notification.findFirst({ where: { userId: ids.youssefUser, link: "/kpis", text: { contains: "إنذار مكتوب" } } }));
+    assert.ok(await prisma.notification.findFirst({ where: { userId: ids.basantUser, link: "/kpis", text: { contains: "ربعين ورا بعض" } } }));
+  }
+  // 11.6 the amount reaches this month's payroll line (live until HR approves; the payroll test may have approved meanwhile)
+  const d = (await call("/hr/deductions", { cookie: await session("basant.elsawy@places.com") })).body;
+  if (!d.approved) {
+    const line = d.rows.find((r: { employeeId: string }) => r.employeeId === ids.youssefEmp);
+    assert.notEqual(Number(y.finalAmount), 0);
+    assert.equal(line.kpi, y.finalAmount!.toFixed(2));
+    // the line is the attendance deduction minus the KPI amount, never above the salary (12,000)
+    const p = (s: string) => Math.round(Number(s) * 100);
+    assert.equal(p(line.amount), Math.min(12_000_00, Math.min(12_000_00, Math.round((12_000_00 / 26) * (line.attendanceDays + line.penaltyDays))) - p(line.kpi)));
+  }
+
+  // 11.7 the sheet: before the approval only the KPI admins; the watcher never (money)
+  const card = (await board(youssef, "me")).body.cards[0].id;
+  assert.equal((await fetch(`${API}/kpis/cards/${card}/sheet`, { headers: { cookie: youssef } })).status, 403);
+  assert.equal((await fetch(`${API}/kpis/cards/${card}/sheet`, { headers: { cookie: heba } })).status, 403);
+  const pdf = await fetch(`${API}/kpis/cards/${card}/sheet`, { headers: { cookie: nancy } });
+  assert.equal(pdf.status, 200);
+  assert.ok(Buffer.from(await pdf.arrayBuffer()).toString("latin1").startsWith("%PDF-"));
+  assert.equal((await call("/kpis/quarter/sheets", { method: "POST", cookie: heba })).status, 403);
+  const since = Date.now();
+  const sent = await call("/kpis/quarter/sheets", { method: "POST", cookie: nancy });
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  assert.ok(sent.body.sent >= 32);
+  const mail = lastMail("youssef.safwat@places.com", since) as { subject: string; attachments?: { filename: string; bytes: number }[] };
+  assert.match(mail.subject, /Q4 2026/);
+  assert.ok(mail.attachments?.[0]?.filename.endsWith(".pdf") && mail.attachments[0].bytes > 1000);
+  assert.equal((await call("/kpis/quarter/sheets", { method: "POST", cookie: nancy })).status, 409);
+  assert.equal((await fetch(`${API}/kpis/cards/${card}/sheet`, { headers: { cookie: youssef } })).status, 200);
+  assert.ok(await prisma.auditLog.findFirst({ where: { entity: "KpiSheets", entityId: "2026-Q4", action: "approve" } }));
+
   assert.equal((await call("/kpis/quarter/next", { method: "POST", cookie: hadeer })).status, 403);
   const next = await call("/kpis/quarter/next", { method: "POST", cookie: heba });
   assert.equal(next.status, 201, JSON.stringify(next.body));

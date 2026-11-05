@@ -4,6 +4,7 @@ import { Tabs } from "@/components/ui";
 import { AttendanceHistory, AttendanceToday, WeeklyDelay } from "./attendance";
 import { Deductions } from "./deductions";
 import { Employees } from "./employees";
+import { IdealEmployee } from "./ideal";
 import { LeaveBalances, Leaves } from "./leaves";
 import { PeopleCare } from "./people-care";
 
@@ -15,7 +16,7 @@ export function HrView() {
   return (
     <>
       <Tabs<Tab> value={tab} onChange={setTab} items={[["att", "حضور النهارده"], ["history", "التاريخ"], ["delay", "Weekly Delay"], ["leaves", "الإجازات"], ["balances", "أرصدة الإجازات"], ["care", "الجزاءات و1-to-1"], ["saving", "التوفير"], ["emps", "الموظفين"]]} />
-      {tab === "att" ? <AttendanceToday /> : tab === "history" ? <AttendanceHistory /> : tab === "delay" ? <WeeklyDelay /> : tab === "leaves" ? <Leaves /> : tab === "balances" ? <LeaveBalances /> : tab === "care" ? <PeopleCare /> : tab === "saving" ? <Deductions /> : <Employees />}
+      {tab === "att" ? <AttendanceToday /> : tab === "history" ? <AttendanceHistory /> : tab === "delay" ? <WeeklyDelay /> : tab === "leaves" ? <Leaves /> : tab === "balances" ? <LeaveBalances /> : tab === "care" ? <PeopleCare /> : tab === "saving" ? <><Deductions /><IdealEmployee /></> : <Employees />}
     </>
   );
 }

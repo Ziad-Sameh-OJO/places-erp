@@ -989,6 +989,7 @@ model KpiCard {
   finalScore  Decimal?  @db.Decimal(6, 2) // saved when the quarter ends: the past quarters' results
   finalAmount Decimal?  @db.Decimal(14, 2)
   plan        String?   // improvement plan under 70%
+  midAlertAt  DateTime? // 11.6: the mid-quarter check ran for this card (once)
   items       KpiItem[]
 
   @@unique([quarter, employeeId])
@@ -1399,6 +1400,9 @@ model KpiQuarter {
   startedAt  DateTime  @default(now())
   closedAt   DateTime?
   closedById String?
+  /// 11.7: the Office Manager approved the quarterly sheets (PDF) and they were emailed
+  sheetsAt   DateTime?
+  sheetsById String?
 
   @@schema("kpi")
 }

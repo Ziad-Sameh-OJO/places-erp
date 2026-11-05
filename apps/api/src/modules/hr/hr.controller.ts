@@ -154,6 +154,13 @@ export class HrController {
     return this.attendance.deductions(me, q.month);
   }
 
+  /* ---- 7.11 · the ideal employee and the team fund ---- */
+  @Get("ideal")
+  @Requires("hr", "view")
+  ideal(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
+    return this.attendance.ideal(me, q.month);
+  }
+
   /** HR only (hr: edit + approve, scope all): the Super Admin and a Team Leader can't. */
   @Post("deductions/approve")
   @Requires("hr", "edit")

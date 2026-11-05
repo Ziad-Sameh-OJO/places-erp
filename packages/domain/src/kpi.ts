@@ -111,6 +111,27 @@ export const quarterLabel = (q: string): string => q.replace(/^(\d+)-Q(\d)$/, "Q
 export const canEnterManual = (enteredBy: readonly string[], who: { userId: string; roles: readonly string[]; isFollower: boolean }): boolean =>
   (enteredBy.length ? enteredBy : ["follower"]).some((x) => (x === "follower" ? who.isFollower : x === who.userId || who.roles.includes(x)));
 
+/** "2026-Q4" → "2026-Q3": the quarter before, for «ربعين ورا بعض». */
+export function previousQuarter(q: string): string {
+  const [y, n] = q.split("-Q").map(Number) as [number, number];
+  return n === 1 ? `${y - 1}-Q4` : `${y}-Q${n - 1}`;
+}
+/** 11.6 «نص الربع»: the 15th of the quarter's middle month ("2026-Q4" → "2026-11-15"). */
+export function quarterMidpoint(q: string): string {
+  const [y, n] = q.split("-Q").map(Number) as [number, number];
+  return `${y}-${String(n * 3 - 1).padStart(2, "0")}-15`;
+}
+
+/**
+ * 11.6 · what a closed quarter's result triggers (M-12 2.3): under `partial` the follower opens an improvement plan; under
+ * `low` (the Threshold) also a written warning; under `low` two quarters in a row → HR review.
+ */
+export function closeAlert(score: number, previous: number | null, b: Bands = DEFAULT_BANDS): "plan" | "warning" | "hr" | null {
+  if (score >= b.partial) return null;
+  if (score >= b.low) return "plan";
+  return previous != null && previous < b.low ? "hr" : "warning";
+}
+
 // ───────── 11.11 · the catalog of system metrics (demo kpis.js `META`) ─────────
 
 export type MetricParam = "per" | "kind" | "avg" | "type" | "min" | "hours" | "excl" | "akind";

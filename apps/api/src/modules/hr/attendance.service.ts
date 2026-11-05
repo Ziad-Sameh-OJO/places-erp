@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView } from "@places/contracts";
-import { attendanceDay, dayStart, deductionAmount, fingerprintDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers } from "@places/domain";
+import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, IdealView, WeeklyDelayView } from "@places/contracts";
+import { MIN_KPI_FOR_IDEAL, attendanceDay, dayStart, deductionAmount, fingerprintDay, formatEGP, idealEmployee, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers, type MemberMonth } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -11,6 +11,7 @@ import type { ParsedSheet } from "../../core/http/import";
 import type { Tx } from "./hr.repository";
 import { LeavesService } from "./leaves.service";
 import { ExcusesService } from "./excuses.service";
+import { KpisService } from "../kpis/kpis.service";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const EMP = { id: true, name: true, department: true, salary: true, partTime: true, partTimeDeductions: true, deductionTiers: true, fixedSchedule: true } as const;
@@ -18,7 +19,7 @@ type Emp = Prisma.EmployeeGetPayload<{ select: typeof EMP }>;
 const asDay = (s: string) => new Date(`${s}T00:00:00Z`);
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 /** One approved line (7.9): what HR saw and approved, so payroll keeps reading it even if a day is corrected afterwards. */
-type DeductionLine = Omit<DeductionRowView, "net"> & { userId: string };
+type DeductionLine = Omit<DeductionRowView, "net" | "kpi"> & { userId: string; kpi?: string }; // kpi: lines approved before 11.6 have none
 /** «11:05» on a Cairo day → the instant. */
 const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5))) * 60_000);
 
@@ -29,7 +30,7 @@ const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Nu
  */
 @Injectable()
 export class AttendanceService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly notifications: NotificationsService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly time: BusinessTimeService, private readonly audit: AuditService, private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly notifications: NotificationsService, private readonly kpis: KpisService) {}
 
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
@@ -116,19 +117,23 @@ export class AttendanceService {
     return { days, people };
   }
 
-  /** 7.9 · this month's live lines for everyone payroll pays: attendance days (Excuses already in them) + approved penalties. */
+  /**
+   * 7.9 · this month's live lines for everyone payroll pays: attendance days (Excuses already in them) + approved penalties,
+   * and (11.6) the KPI reward or deduction of a quarter closed this month.
+   */
   private async liveDeductions(month: string, tx: Tx | PrismaClient = this.db): Promise<DeductionLine[]> {
     const within = { gte: asDay(`${month}-01`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) };
-    const [emps, days, pens] = await Promise.all([
+    const [emps, days, pens, kpis] = await Promise.all([
       tx.employee.findMany({ where: { user: { status: "ACTIVE" }, salary: { gt: 0 } }, select: { id: true, userId: true, name: true, salary: true }, orderBy: { name: "asc" } }),
       tx.attendanceDay.groupBy({ by: ["employeeId"], where: { day: within }, _sum: { deduction: true, lateMinutes: true } }),
       tx.penalty.groupBy({ by: ["employeeId"], where: { day: within, status: "approved" }, _sum: { deductionDays: true } }),
+      this.kpis.payrollAmounts(month, tx),
     ]);
     return emps.map((e) => {
       const a = days.find((x) => x.employeeId === e.id)?._sum, p = pens.find((x) => x.employeeId === e.id)?._sum;
-      const salary = fromDecimal(e.salary.toFixed(2)), attendanceDays = Number(a?.deduction ?? 0), penaltyDays = Number(p?.deductionDays ?? 0);
-      return { employeeId: e.id, userId: e.userId, name: e.name, salary: toDecimal(salary), attendanceDays, penaltyDays, lateMinutes: a?.lateMinutes ?? 0,
-        amount: toDecimal(monthDeduction({ salary, attendanceDays, penaltyDays }).amount) };
+      const salary = fromDecimal(e.salary.toFixed(2)), attendanceDays = Number(a?.deduction ?? 0), penaltyDays = Number(p?.deductionDays ?? 0), kpi = kpis.get(e.id) ?? 0;
+      return { employeeId: e.id, userId: e.userId, name: e.name, salary: toDecimal(salary), attendanceDays, penaltyDays, lateMinutes: a?.lateMinutes ?? 0, kpi: toDecimal(kpi),
+        amount: toDecimal(monthDeduction({ salary, attendanceDays, penaltyDays, kpi }).amount) };
     });
   }
 
@@ -138,10 +143,52 @@ export class AttendanceService {
     const ids = new Set(mine.map((e) => e.id));
     const lines = (ok ? (ok.lines as DeductionLine[]) : await this.liveDeductions(month)).filter((l) => ids.has(l.employeeId));
     const by = ok ? await this.db.employee.findUnique({ where: { userId: ok.approvedById }, select: { name: true } }) : null;
-    const rows = lines.map((l) => ({ employeeId: l.employeeId, name: l.name, salary: l.salary, attendanceDays: l.attendanceDays, penaltyDays: l.penaltyDays, lateMinutes: l.lateMinutes, amount: l.amount,
+    const rows = lines.map((l) => ({ employeeId: l.employeeId, name: l.name, salary: l.salary, attendanceDays: l.attendanceDays, penaltyDays: l.penaltyDays, lateMinutes: l.lateMinutes, kpi: l.kpi ?? "0.00", amount: l.amount,
       net: toDecimal(fromDecimal(l.salary) - fromDecimal(l.amount)) }));
     const sum = (k: "salary" | "amount" | "net") => toDecimal(rows.reduce((s, r) => s + fromDecimal(r[k]), 0));
     return { month, rows, totals: { salary: sum("salary"), amount: sum("amount"), net: sum("net"), people: rows.length }, approved: ok ? { by: by?.name ?? "", at: ok.at.toISOString() } : null };
+  }
+
+  /**
+   * 7.11 · «الموظف المثالي وصندوق الفريق» (M-05, client sheet 28/10): a team = a Team Leader's sales team or the people a
+   * manager follows in the KPIs; idealEmployee() picks the winner and the fund. Only the people in my scope.
+   */
+  async ideal(me: CurrentUser, month = monthOf(localDate(new Date()))): Promise<IdealView> {
+    const within = { gte: asDay(`${month}-01`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) };
+    const [emps, names, cards, days, pens] = await Promise.all([
+      this.db.employee.findMany({ where: { AND: [this.scope(me), { user: { status: "ACTIVE" } }] }, select: { id: true, name: true, salary: true, teamLeaderId: true } }),
+      this.db.employee.findMany({ select: { id: true, name: true } }),
+      this.kpis.liveCards(),
+      this.db.attendanceDay.findMany({ where: { day: within }, select: { employeeId: true, day: true, checkInAt: true, kind: true, lateMinutes: true, deduction: true } }),
+      this.db.penalty.findMany({ where: { day: within, status: "approved" }, select: { employeeId: true } }),
+    ]);
+    const byId = new Map(emps.map((e) => [e.id, e])), nameOf = new Map(names.map((e) => [e.id, e.name])), score = new Map(cards.map((c) => [c.employeeId, c.score]));
+    const teams = new Map<string, Set<string>>();
+    const add = (lead: string | null, id: string) => { if (lead && byId.has(id)) { if (!teams.has(lead)) teams.set(lead, new Set()); teams.get(lead)!.add(id); } };
+    for (const e of emps) add(e.teamLeaderId, e.id);
+    for (const c of cards) add(c.followerId, c.employeeId);
+    const member = (id: string): MemberMonth => {
+      const mine = days.filter((d) => d.employeeId === id);
+      return {
+        id, earlyDays: mine.filter((d) => d.checkInAt && d.checkInAt < at(isoDay(d.day), "11:00")).length, // before the start of work
+        lateHours: mine.reduce((s, d) => s + d.lateMinutes, 0) / 60, absentDays: mine.filter((d) => d.kind === "ABSENT").length,
+        deductions: deductionAmount(fromDecimal(byId.get(id)!.salary.toFixed(2)), mine.reduce((s, d) => s + Number(d.deduction), 0)),
+        // shortcut: no achieved-target figure per person yet (deals 5.x), so a tie falls to the KPI score
+        kpiScore: score.get(id) ?? null, targetPercent: 0, hasPenalty: pens.some((p) => p.employeeId === id),
+      };
+    };
+    const out = [...teams].filter(([, ids]) => ids.size > 1).map(([lead, ids]) => {
+      const team = [...ids].map(member), r = idealEmployee(team);
+      return {
+        name: `فريق ${nameOf.get(lead) ?? ""}`, winner: r.winner ? { employeeId: r.winner, name: byId.get(r.winner)!.name } : null, fund: toDecimal(r.fund),
+        rows: team.map((m) => ({
+          employeeId: m.id, name: byId.get(m.id)!.name, earlyDays: m.earlyDays, lateHours: Math.round(m.lateHours * 10) / 10, absentDays: m.absentDays,
+          kpi: m.kpiScore == null ? null : Math.round(m.kpiScore), points: Math.round(r.points.get(m.id)! * 10) / 10,
+          status: m.id === r.winner ? "ideal" as const : m.hasPenalty ? "penalty" as const : m.kpiScore != null && m.kpiScore < MIN_KPI_FOR_IDEAL ? "kpi" as const : null,
+        })).sort((a, b) => b.points - a.points),
+      };
+    });
+    return { month, teams: out.sort((a, b) => a.name.localeCompare(b.name, "ar")) };
   }
 
   /** «اعتمد الخصومات وابعتها للمالية» (7.9, M-05 (32)): once a month, by HR; payroll reads these numbers from then on. */

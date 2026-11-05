@@ -92,7 +92,7 @@ export interface KpiCardView {
   /** null for whoever doesn't see money (11.14) */
   pay: { base: "salary" | "bonus"; period: "month" | "quarter"; amount: string | null; salary: string; delta: string } | null;
   items: KpiItemView[];
-  can: { manage: boolean; approve: boolean; plan: boolean; pay: boolean; admin: boolean };
+  can: { manage: boolean; approve: boolean; plan: boolean; pay: boolean; admin: boolean; sheet: boolean };
   /** for the editor's pickers, to whoever manages the card */
   options: { people: KpiPerson[]; roles: { key: string; label: string }[] } | null;
 }
@@ -103,7 +103,9 @@ export interface KpiCompany {
   people: KpiPerson[];
   /** null for the watcher (money) */
   bands: KpiBandsInput | null;
-  can: { edit: boolean; close: boolean };
+  can: { edit: boolean; close: boolean; sheets: boolean };
+  /** 11.7: when the Office Manager approved and emailed the current quarter's sheets */
+  sheets: { by: string; at: string } | null;
 }
 export interface KpiLogEntry { at: string; by: string; text: string }
 
