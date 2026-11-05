@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 export interface UnitQuery {
   q?: string; area?: string; condition?: string; agentId?: string; stale?: "true"; divisible?: "true"; tabId?: string | undefined;
   type?: "Rent" | "Resale" | "Income" | "Primary" | undefined; view?: "available" | "closed" | undefined;
+  closedFrom?: string; closedTo?: string; // the rented / sold sheet (M-03 5.2)
 }
 
 export function toParams(f: UnitQuery, page: number, pageSize: number) {

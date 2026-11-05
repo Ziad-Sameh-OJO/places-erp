@@ -33,7 +33,9 @@ export function InventoryList() {
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   const qc = useQueryClient();
   const run = useAction();
-  const query: UnitQuery = { ...f, ...(tab === "closed" ? { view: "closed" } : tab !== "all" ? { type: tab } : {}) };
+  // the rented / sold sheet keeps its own type and dates (M-03 5.2); the other tabs don't use them
+  const [closedBy, setClosedBy] = useState<Pick<UnitQuery, "type" | "closedFrom" | "closedTo">>({});
+  const query: UnitQuery = { ...f, ...(tab === "closed" ? { view: "closed", ...closedBy } : tab !== "all" ? { type: tab } : {}) };
   const units = useUnits(query, page, PAGE);
   const tabs = useUnitTabs(f).data;
   const s = useUnitSummary().data;
@@ -55,7 +57,8 @@ export function InventoryList() {
   const list = failed ? [] : units.data?.items ?? [];
   const total = failed ? 0 : units.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
-  const cols = columnsFor(tab === "all" || tab === "closed" ? "all" : tab, insider);
+  const cols = columnsFor(tab === "all" ? "all" : tab, insider);
+  const onClosed = (k: keyof typeof closedBy) => (e: { target: { value: string } }) => { setClosedBy({ ...closedBy, [k]: e.target.value || undefined }); setPage(1); };
   // Primary isn't confirmed by the client as a sheet yet: its tab shows once there are Primary units
   const types: [TypeTab, string, number | undefined][] = [
     ["all", "الكل", tabs?.all], ["Rent", "Rent", tabs?.Rent], ["Resale", "Resale", tabs?.Resale], ["Income", "Income", tabs?.Income],
@@ -87,6 +90,13 @@ export function InventoryList() {
         <select value={f.agentId ?? ""} onChange={on("agentId")} aria-label="Agent">
           <option value="">كل الـ agents</option>{options?.agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        {tab === "closed" && <>
+          <select value={closedBy.type ?? ""} onChange={onClosed("type")} aria-label="اتقفلت كـ">
+            <option value="">Rent و Resale و Income</option>{(["Rent", "Resale", "Income"] as const).map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <label className="date-f"><span>من</span><input type="date" value={closedBy.closedFrom ?? ""} max={closedBy.closedTo} onChange={onClosed("closedFrom")} aria-label="اتقفلت من" /></label>
+          <label className="date-f"><span>لحد</span><input type="date" value={closedBy.closedTo ?? ""} min={closedBy.closedFrom} onChange={onClosed("closedTo")} aria-label="اتقفلت لحد" /></label>
+        </>}
         <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={toggle("stale")} /><span>محتاجة ابديت</span></label>
         <label className="tog"><input type="checkbox" checked={!!f.divisible} onChange={toggle("divisible")} /><span>تنفع تتقسم</span></label>
         <span className="spacer" />
