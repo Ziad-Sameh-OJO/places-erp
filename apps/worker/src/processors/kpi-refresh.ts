@@ -8,7 +8,7 @@ import { prisma, type Prisma } from "@places/db";
 import {
   DEFAULT_LEAD_RULES, PLACES_CALENDAR, type DealMoney, type DealStatus, type LeadRules, type MetricParams, type Method, type WorkCalendar,
   calendarOf, closedInSla, endOfLocalDay, fromDecimal, holidayDays, isTicketLate, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
-  kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, timeliness,
+  kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, timedTasks, timeliness,
 } from "@places/domain";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -20,10 +20,10 @@ const STATUS: Record<string, DealStatus> = {
 };
 
 /**
- * Not measured here: no Broadcast log (4.x), New Lead requests (1.17), the Draft (1.26 / 1.27), the custody cap setting.
+ * Not measured here: no Broadcast log (4.x), the custody cap setting.
  * dailySum and webAds (the website ads count, 11.9: no website hook) are typed in the daily report, which writes them (11.12).
  */
-export const UNBUILT = ["broadcasts", "dailySum", "newLeadRoute", "draftAction", "pettyCap", "webAds"];
+export const UNBUILT = ["broadcasts", "dailySum", "pettyCap", "webAds"];
 
 interface Ctx { now: Date; quarter: string; qStart: Date; cal: WorkCalendar }
 interface Who { id: string; userId: string; target: Prisma.Decimal }
@@ -74,6 +74,20 @@ async function fresh(c: Ctx, where: Prisma.UnitWhereInput) {
   return pct(ok, all, 100);
 }
 
+/** 11.15 · the same rows the KPI card lists under the item (kpis.repository). */
+async function newLeadTasks(from: Date, userId: string) {
+  const l = await prisma.lead.findMany({
+    where: { archivedAt: null, newLeadRequestedAt: { gte: from }, OR: [{ newLeadRoutedById: null }, { newLeadRoutedById: userId }] },
+    select: { name: true, newLeadRequestedAt: true, newLeadRoutedAt: true },
+  });
+  return l.map((x) => ({ name: x.name, at: x.newLeadRequestedAt!, doneAt: x.newLeadRoutedAt }));
+}
+async function draftTasks(from: Date) {
+  const d = await prisma.leadDraft.findMany({ where: { at: { gte: from } }, select: { kind: true, at: true, keptAt: true, decidedAt: true, lead: { select: { name: true } } } });
+  // «يفضل» or sending it on, whichever came first, is the decision
+  return d.map((x) => ({ name: x.lead.name, tag: x.kind === "admin" ? "Draft Admin" : "Draft", at: x.at, doneAt: x.keptAt ?? x.decidedAt }));
+}
+
 /** One function per catalog metric; `from` is the item's period start. */
 const MEASURES: Record<string, Measure> = {
   // ── per person ──
@@ -119,6 +133,9 @@ const MEASURES: Record<string, Measure> = {
     });
     return onTimeShare(leads.map((l) => timeliness(verifiedAt(l.verification), endOfLocalDay(l.createdAt, c.cal), c.now)));
   },
+  // 11.15: the requests this person routed, and the ones still waiting (demo newLeadReqs)
+  newLeadRoute: async (c, p, from, who) => timedTasks(await newLeadTasks(from, who.userId), (Number(p.min) || 30) * MIN, c.now, "min").value,
+  draftAction: async (c, p, from) => timedTasks(await draftTasks(from), (Number(p.hours) || 24) * HOUR, c.now, "hour").value,
   call30: async (c) => {
     const leads = await prisma.lead.findMany({ where: { arrivedAt: { gte: c.qStart } }, select: { arrivedAt: true, firstCallAt: true } });
     return onTimeShare(leads.map((l) => timeliness(l.firstCallAt, new Date(l.arrivedAt.getTime() + 30 * MIN), c.now)));
@@ -168,7 +185,7 @@ const MEASURES: Record<string, Measure> = {
   },
 };
 /** Company-wide metrics are the same on every card: measured once per run and settings. */
-const PER_PERSON = new Set(["calls", "visitsDone", "unitsBrought", "firstAction", "qualifiedRate", "activitiesDone", "dealsCount", "ownTarget", "teamTarget", "att", "attSales"]);
+const PER_PERSON = new Set(["newLeadRoute", "calls", "visitsDone", "unitsBrought", "firstAction", "qualifiedRate", "activitiesDone", "dealsCount", "ownTarget", "teamTarget", "att", "attSales"]);
 
 /** `only`: write just these people's cards (a test, or re-running one person); everything is still measured for «team». */
 export async function kpiRefreshTick(now = new Date(), only?: readonly string[]): Promise<number> {

@@ -111,4 +111,19 @@ export class KpisRepository {
   names(userIds: string[]) {
     return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
   }
+
+  /** 11.15 · the New Lead requests this person routed, and the ones still waiting (same rows as the daily job). */
+  async newLeadTasks(from: Date, userId: string) {
+    const l = await this.db.lead.findMany({
+      where: { archivedAt: null, newLeadRequestedAt: { gte: from }, OR: [{ newLeadRoutedById: null }, { newLeadRoutedById: userId }] },
+      select: { name: true, newLeadRequestedAt: true, newLeadRoutedAt: true },
+    });
+    return l.map((x) => ({ name: x.name, at: x.newLeadRequestedAt!, doneAt: x.newLeadRoutedAt }));
+  }
+
+  /** 11.15 · every Draft / Draft Admin stay since `from`; «يفضل» or sending it on, whichever came first, is the decision. */
+  async draftTasks(from: Date) {
+    const d = await this.db.leadDraft.findMany({ where: { at: { gte: from } }, select: { kind: true, at: true, keptAt: true, decidedAt: true, lead: { select: { name: true } } } });
+    return d.map((x) => ({ name: x.lead.name, tag: x.kind === "admin" ? "Draft Admin" : "Draft", at: x.at, doneAt: x.keptAt ?? x.decidedAt }));
+  }
 }
