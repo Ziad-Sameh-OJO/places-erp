@@ -119,3 +119,30 @@ test("a marketing task from Rahma; reassigning is audited and tells the new assi
   assert.ok((await call(`/tasks?kind=marketing&toUserId=${rahmaId}`, { cookie: admin })).body.some((t: { id: string }) => t.id === id));
   assert.ok(!(await call(`/tasks?kind=photo`, { cookie: admin })).body.some((t: { id: string }) => t.id === id));
 });
+
+test("SLA (4.3 · M-12): a shoot 72 h from the unit's registration, a Retouch 48 h; the notices; the month's report", async () => {
+  await prisma.unit.update({ where: { id: unitId }, data: { enteredAt: new Date(Date.now() - 80 * 3_600_000) } }); // registered 80 h ago
+  const shoot = await give(manar, { kind: "photo", toUserId: bayoumiId, unitId });
+  const card = (await call(`/tasks/${shoot}`, { cookie: bayoumi })).body;
+  assert.ok(card.sla.hoursLeft <= -8 && card.sla.hoursLeft >= -9, JSON.stringify(card.sla)); // 8 h past the 72
+  assert.equal(card.sla.met, null);
+  assert.equal((await move(bayoumi, shoot, "done")).body.sla.met, false);
+  const heard = async (email: string, id: string, text: string) =>
+    prisma.notification.count({ where: { userId: await userId(email), link: { contains: id }, text: { contains: text } } });
+  assert.equal(await heard("rahma.hassan@places.com", shoot, "خلّص تصوير"), 1);
+
+  const retouch = await give(manar, { kind: "retouch", toUserId: bayoumiId, unitId });
+  const r = (await call(`/tasks/${retouch}`, { cookie: bayoumi })).body;
+  assert.ok(r.sla.hoursLeft >= 47 && r.sla.hoursLeft <= 48, JSON.stringify(r.sla));
+  await move(bayoumi, retouch, "uploaded");
+  assert.equal(await heard("manar.ahmed@places.com", retouch, "محتاجة موافقتك"), 1);
+  assert.equal((await move(manar, retouch, "done")).body.sla.met, true);
+  assert.equal(await heard("rahma.hassan@places.com", retouch, "اتوافق عليه"), 1);
+
+  const report = await call("/tasks/sla", { cookie: bayoumi });
+  assert.equal(report.status, 200, JSON.stringify(report.body));
+  assert.ok(report.body.photo.total >= 1 && report.body.photo.met < report.body.photo.total); // this month's late shoot counts against
+  assert.ok(report.body.retouch.met >= 1 && report.body.firstTime.met >= 1);
+  assert.equal((await call("/tasks/sla?month=2026-13", { cookie: bayoumi })).status, 400);
+  assert.equal((await call("/tasks/sla", { cookie: sales })).status, 403);
+});

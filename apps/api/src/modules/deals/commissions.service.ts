@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CommissionPaid, CommissionStatement, PayCommission } from "@places/contracts";
+import type { CommissionPaid, CommissionPerson, CommissionStatement, PayCommission } from "@places/contracts";
 import { formatEGP, fromDecimal, payoutDue, payoutProblem, payoutState, splitDeal, tcrCode, toDecimal, type Piasters } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -28,6 +28,12 @@ export class CommissionsService {
     private readonly vouchers: VouchersService,
   ) {}
 
+  /** «صرف عمولة سيلز»'s picker: everyone with a 21103 account and what's owed to them. */
+  async people(): Promise<CommissionPerson[]> {
+    const [accounts, { balance }] = await Promise.all([this.repo.commissionAccounts(), this.ledger.balances()]);
+    return accounts.map((a) => ({ employeeId: a.partyId!, name: a.name, code: a.code, balance: toDecimal(balance.get(a.id) ?? 0) }));
+  }
+
   async statement(employeeId: string): Promise<CommissionStatement> {
     const [emp] = await this.repo.employeeNames([employeeId]);
     if (!emp) throw new NotFoundException("الموظف مش موجود");
@@ -36,7 +42,7 @@ export class CommissionsService {
     return {
       employee: { id: emp.id, name: emp.name }, balance: toDecimal(balance), tlDue: toDecimal(Math.max(0, tlDue)),
       deals: rows.map(({ due, ...r }) => ({ ...r, due: toDecimal(due) })),
-      payouts: payouts.map((p, i) => ({ id: p.id, move: moves[i]!.no, date: moves[i]!.date, deal: p.deal?.code ?? null, tcr: p.tcr ? tcrCode(p.tcr.code) : null, amount: p.amount.toFixed(2) })),
+      payouts: payouts.map((p, i) => ({ id: p.id, moveId: p.moveId, move: moves[i]!.no, date: moves[i]!.date, deal: p.deal?.code ?? null, tcr: p.tcr ? tcrCode(p.tcr.code) : null, amount: p.amount.toFixed(2) })),
     };
   }
 
@@ -64,7 +70,7 @@ export class CommissionsService {
       const payout = await this.repo.addPayout(tx, { employeeId: emp.id, dealId: row?.dealId ?? null, tcrId: tcr?.id ?? null, amount: toDecimal(amount), moveId: move.id, createdById: me.id });
       await this.audit.record({ module: "deals", entity: "CommissionPayout", entityId: payout.id, action: "create", userId: me.id,
         after: { employeeId: emp.id, deal: row?.code ?? null, tcr: tcr?.code ?? null, amount: toDecimal(amount), move: move.no, entry: move.entry, summary: `صرف عمولة ${emp.name} ${what}` } }, tx);
-      return { userId: emp.userId, what, tcr, result: { move: move.no, entry: move.entry, due: toDecimal(due - amount), signed: tcr ? tcr.signed : null } };
+      return { userId: emp.userId, what, tcr, result: { moveId: move.id, move: move.no, entry: move.entry, due: toDecimal(due - amount), signed: tcr ? tcr.signed : null } };
     });
     const sign = out.tcr && !out.tcr.signed ? ` · امضي على ${out.tcr.code}` : "";
     await this.notifications.notify({ event: "finance.commission_paid", userIds: [out.userId], link: "/deals", text: `اتصرفتلك عمولة ${formatEGP(amount)} ${out.what} · ${out.result.move}${sign}` });
