@@ -11,6 +11,7 @@ export const CreateLead = z.object({
   name: z.string().trim().min(2, "الاسم قصير").max(120, "الاسم طويل"),
   kind: LeadKind.default("client"), // the form's «ده: Client / Broker»
   company: z.string().trim().max(160, "اسم الشركة طويل").optional(),
+  companyCategory: z.string().trim().max(80).optional(), // Telesales: «أضيفها لشيت الشركات» under this category (1.20)
   // the same mobile written twice is kept once
   phones: z.array(EgyptianMobile).min(1, "اكتب رقم موبايل").max(5, "5 أرقام بالكتير").transform((ps) => [...new Set(ps)]),
   area: z.string().min(1, "اختار الـ Area"),

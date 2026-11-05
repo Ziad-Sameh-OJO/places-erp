@@ -32,6 +32,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   const options = useLeadOptions();
   const [phones, setPhones] = useState("");
   const [channel, setChannel] = useState("");
+  const [company, setCompany] = useState("");
   const [busy, setBusy] = useState(false);
   const checked = phonesOf(useSettled(phones)).filter((p) => /^01[0-25]\d{8}$/.test(p));
   const dup = useQuery({
@@ -42,6 +43,10 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   const ownLead = me?.scope === "own" && !isTelesales;
   const byHand = can("leads", "approve") && !!options.data?.salespeople.length;
   const campaigns = (options.data?.campaigns ?? []).filter((c) => c.channel === channel);
+  // «اكتب أو اختار من شيت الشركات» (1.20): a name that isn't in the sheet is a new company
+  const typedCompany = useSettled(company.trim());
+  const sheetNames = useQuery({ queryKey: ["company-names", typedCompany], enabled: !!typedCompany, queryFn: () => api.get<string[]>(`/companies/names?q=${encodeURIComponent(typedCompany)}`) }).data;
+  const newCompany = !!typedCompany && !!sheetNames && !sheetNames.some((n) => n.toLowerCase() === typedCompany.toLowerCase());
 
   const save = async (f: FormData) => {
     const text = (k: string) => String(f.get(k) ?? "").trim();
@@ -50,7 +55,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
       ...(text("company") ? { company: text("company") } : {}), ...(text("space") ? { space: Number(text("space")) } : {}),
       ...(text("condition") ? { condition: text("condition") } : {}), ...(text("budget") ? { budget: text("budget") } : {}),
       ...(text("campaignId") ? { campaignId: text("campaignId") } : {}), ...(text("assignToId") ? { assignToId: text("assignToId") } : {}),
-      ...(isTelesales ? { keep: text("keep") === "keep" } : {}), ...(text("note") ? { note: text("note") } : {}),
+      ...(isTelesales ? { keep: text("keep") === "keep" } : {}), ...(f.get("addco") && text("company") ? { companyCategory: text("companyCategory") } : {}), ...(text("note") ? { note: text("note") } : {}),
     };
     setBusy(true);
     try {
@@ -73,7 +78,11 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
       <form className="grid" onSubmit={onFormSubmit(save)}>
         <Field label="ده" req><select name="kind" defaultValue={kind}><option value="client">Client (عميل)</option><option value="broker">Broker</option></select></Field>
         <Field label="الاسم" req><input name="name" required minLength={2} maxLength={120} /></Field>
-        <Field label="الشركة"><input name="company" maxLength={160} placeholder="اكتب أو اختار من شيت الشركات" /></Field>
+        <Field label="الشركة">
+          <input name="company" maxLength={160} placeholder="اكتب أو اختار من شيت الشركات" list="coList" value={company} onChange={(e) => setCompany(e.target.value)} />
+          <datalist id="coList">{(sheetNames ?? []).map((n) => <option key={n} value={n} />)}</datalist>
+        </Field>
+        {newCompany && <NewCompanyNote name={typedCompany} telesales={isTelesales} categories={activeValues(settings.data?.companyCategories ?? [])} />}
         <Field label="الموبايل (رقم في كل سطر)" req>
           <textarea name="phones" required placeholder="01xxxxxxxxx" value={phones} onChange={(e) => setPhones(e.target.value)} />
         </Field>
@@ -121,5 +130,19 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
         </div>
       </form>
     </Modal>
+  );
+}
+
+/** Demo: a company that isn't in the sheet — Telesales can add it here with its category; anyone else's goes to her (M-01 2.1). */
+function NewCompanyNote({ name, telesales, categories }: { name: string; telesales: boolean; categories: string[] }) {
+  if (!telesales) return <div className="wide"><Note>«{name}» شركة جديدة. هيروح إشعار لـ Telesales تضيفها لشيت الشركات.</Note></div>;
+  return (
+    <div className="wide">
+      <Note kind="warn">
+        <span className="spacer">«{name}» مش موجودة في شيت الشركات.</span>
+        <label className="row"><input type="checkbox" name="addco" /> أضيفها لشيت الشركات</label>
+        <select name="companyCategory" aria-label="الكاتيجوري" style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
+      </Note>
+    </div>
   );
 }

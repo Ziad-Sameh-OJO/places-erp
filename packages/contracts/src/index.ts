@@ -1,5 +1,6 @@
 export * from "./common.ts";
 export * from "./leads.ts";
+export * from "./companies.ts";
 export * from "./access.ts";
 export * from "./settings.ts";
 export * from "./files.ts";

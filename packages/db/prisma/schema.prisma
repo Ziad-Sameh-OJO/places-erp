@@ -374,6 +374,7 @@ model Lead {
   arrivals       LeadArrival[]
   calls          LeadCall[]
   duplicates     LeadDuplicate[]
+  companyRequests CompanyRequest[] // 1.20: its company isn't in the sheet yet
   visits         LeadVisit[]
   suggestedUnits LeadUnit[]
   deals          Deal[]
@@ -546,6 +547,8 @@ model Company {
   annualEscalation   Decimal?  @db.Decimal(5, 2)
   feedback           String?
   outbound           Boolean   @default(false) // added by Telesales herself (KPI)
+  contactedOn        DateTime? @db.Date // the sheet's «date»: the last contact or when it was added
+  createdById        String?   // who added it (the Outbound KPI counts Telesales' own, 1.20)
   leads              Lead[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -553,6 +556,22 @@ model Company {
   @@unique([name, number])
   @@schema("sales")
 }
+
+/// 1.20 · a company written on a lead that isn't in «شيت الشركات» (M-01 2.1, 6.1): Telesales adds it with its category.
+model CompanyRequest {
+  id        String   @id @default(cuid())
+  name      String
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  byUserId  String
+  status    String   @default("pending") // pending · added
+  companyId String?
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@schema("sales")
+}
+
 
 // ───────────────────────────── M-02 · deals, collections, TCR ─────────────────────────────
 
