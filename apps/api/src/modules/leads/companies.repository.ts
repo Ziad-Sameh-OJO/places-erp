@@ -10,15 +10,22 @@ type Tx = Prisma.TransactionClient | PrismaClient;
 export class CompaniesRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  page(f: CompanyFilters) {
-    const where: Prisma.CompanyWhereInput = {
-      ...(f.category ? { category: f.category } : {}),
-      ...(f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { number: { contains: f.q } }] } : {}),
-    };
+  page(f: CompanyFilters, ending?: Window) {
+    const where = companyWhere(f, ending);
     return this.db.$transaction([
-      this.db.company.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
+      this.db.company.findMany({ where, orderBy: ending ? [{ contractEnd: "asc" }, { id: "asc" }] : [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.company.count({ where }),
     ]);
+  }
+
+  /** The report's rows for Excel (1.21): the same filters, every row up to the export limit. */
+  all(f: CompanyFilters, ending: Window | undefined, limit: number) {
+    return this.db.company.findMany({ where: companyWhere(f, ending), orderBy: ending ? [{ contractEnd: "asc" }, { id: "asc" }] : [{ name: "asc" }], take: limit });
+  }
+
+  /** Every name in the sheet, in lower case: the archive import skips the ones already there. */
+  async allNames(tx: Tx) {
+    return new Set((await tx.company.findMany({ select: { name: true } })).map((c) => c.name.trim().toLowerCase()));
   }
 
   categoryCounts() {
@@ -52,4 +59,15 @@ export class CompaniesRepository {
   userNames(ids: string[]) {
     return this.db.employee.findMany({ where: { userId: { in: [...new Set(ids)] } }, select: { userId: true, name: true } });
   }
+}
+
+type Window = { from: string; to: string };
+const asDay = (d: string) => new Date(`${d}T00:00:00Z`);
+
+function companyWhere(f: CompanyFilters, ending?: Window): Prisma.CompanyWhereInput {
+  return {
+    ...(f.category ? { category: f.category } : {}),
+    ...(f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { number: { contains: f.q } }] } : {}),
+    ...(ending ? { contractEnd: { gte: asDay(ending.from), lte: asDay(ending.to) } } : {}),
+  };
 }

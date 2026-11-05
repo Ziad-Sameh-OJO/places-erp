@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { activeValues, type AddedCompany, type CompanyFilters, type CompanyRow, type CompanySheet, type NewCompany, type PendingCompany } from "@places/contracts";
-import { OUTBOUND_WINDOW_DAYS, keepsCompaniesSheet } from "@places/domain";
+import { OUTBOUND_WINDOW_DAYS, contractEndingWindow, keepsCompaniesSheet, localDate } from "@places/domain";
+import { EXPORT_LIMIT } from "../../core/http/excel";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -27,12 +28,19 @@ export class CompaniesService {
 
   async sheet(me: CurrentUser, f: CompanyFilters): Promise<CompanySheet> {
     const since = new Date(Date.now() - OUTBOUND_WINDOW_DAYS * 864e5);
-    const [[rows, total], counts, settings, outbound] = await Promise.all([this.repo.page(f), this.repo.categoryCounts(), this.settings.all(), this.repo.outboundSince(me.id, since)]);
+    const [[rows, total], counts, settings, outbound] = await Promise.all([this.repo.page(f, ending(f)), this.repo.categoryCounts(), this.settings.all(), this.repo.outboundSince(me.id, since)]);
     const byCat = new Map(counts.map((c) => [c.category, c._count._all]));
     return {
       items: rows.map(toRow), total, page: f.page, pageSize: f.pageSize, outboundThisWeek: outbound,
       categories: activeValues(settings.companyCategories).map((name) => ({ name, count: byCat.get(name) ?? 0 })),
     };
+  }
+
+  /** 1.21 · the report as Excel (M-01 6.1): the same filters as the screen, audited. */
+  async exportRows(me: CurrentUser, f: CompanyFilters) {
+    const rows = await this.repo.all(f, ending(f), EXPORT_LIMIT);
+    await this.audit.record({ module: "leads", entity: "Company", entityId: "report", action: "export", userId: me.id, after: { rows: rows.length, category: f.category ?? null, endingWithin: f.endingWithin ?? null } });
+    return rows.map(toRow);
   }
 
   names(q: string) {
@@ -112,3 +120,6 @@ function toRow(c: Prisma.CompanyGetPayload<object>): CompanyRow {
     date: (c.contactedOn ?? c.createdAt).toISOString().slice(0, 10),
   };
 }
+
+/** The report's window when asked for (1.21): today to today + N days, Cairo calendar days. */
+const ending = (f: CompanyFilters) => (f.endingWithin ? contractEndingWindow(localDate(new Date()), f.endingWithin) : undefined);

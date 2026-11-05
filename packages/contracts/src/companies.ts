@@ -9,6 +9,8 @@ import { Page } from "./common.ts";
 export const CompanyFilters = Page.extend({
   category: z.string().trim().max(80).optional(),
   q: z.string().trim().max(120).optional(),
+  /** 1.21 report: only companies whose current contract ends within this many days from today (the demo's 90) */
+  endingWithin: z.coerce.number().int().min(1).max(730).optional(),
 });
 export type CompanyFilters = z.infer<typeof CompanyFilters>;
 

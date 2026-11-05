@@ -3,7 +3,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import { CompanyImportRow, LeadImportRow, UnitImportRow, type ImportDone, type ImportPreview } from "@places/contracts";
 import { sendXlsx } from "../../core/http/excel";
-import { IMPORT_MAX_BYTES, parseSheet, type ImportColumns, type ImportReport, type ParsedSheet, type UploadedSheet } from "../../core/http/import";
+import { IMPORT_MAX_BYTES, parseBook, parseSheet, type ImportColumns, type ImportReport, type ParsedSheet, type UploadedSheet } from "../../core/http/import";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryService } from "../inventory/inventory.service";
@@ -24,6 +24,8 @@ const COMPANY_COLUMNS = {
   currentLocation: "المكان الحالي", currentSpace: "المساحة الحالية", contractStart: "بداية العقد", contractEnd: "نهاية العقد",
   averageRent: "متوسط الإيجار", annualEscalation: "الزيادة السنوية %", feedback: "الفيدباك",
 };
+/** The client's archive is one tab per category (1.21): a tab without «الكاتيجوري» takes its name from the tab. */
+const companiesBook = (file: UploadedSheet | undefined) => parseBook(file, COMPANY_COLUMNS, "category", CompanyImportRow);
 const sheet = FileInterceptor("file", { limits: { fileSize: IMPORT_MAX_BYTES, files: 1 } });
 
 const template = (res: Response, name: string, columns: ImportColumns<string>) =>
@@ -73,12 +75,12 @@ export class ImportsController {
 
   @Post("companies/preview") @Requires("leads", "import") @UseInterceptors(sheet) @HttpCode(200)
   async previewCompanies(@Me() me: CurrentUser, @UploadedFile() file?: UploadedSheet) {
-    const p = await parseSheet(file, COMPANY_COLUMNS, CompanyImportRow);
+    const p = await companiesBook(file);
     return previewOf(p, await this.leads.companies(me, p, false));
   }
 
   @Post("companies") @Requires("leads", "import") @UseInterceptors(sheet) @HttpCode(200)
   async importCompanies(@Me() me: CurrentUser, @UploadedFile() file?: UploadedSheet) {
-    return doneOf(await this.leads.companies(me, await parseSheet(file, COMPANY_COLUMNS, CompanyImportRow), true));
+    return doneOf(await this.leads.companies(me, await companiesBook(file), true));
   }
 }
