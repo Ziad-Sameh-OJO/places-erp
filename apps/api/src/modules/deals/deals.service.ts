@@ -53,6 +53,12 @@ export class DealsService {
     return toDetail(d, d.reviewedById ? await this.repo.userName(d.reviewedById) : null);
   }
 
+  /** M-11 2.1: the deal a contract is uploaded on — in the caller's scope and on the sheet (approved, collected or not). */
+  async forContract(me: CurrentUser, id: string) {
+    const d = await this.repo.detail(this.scope(me), id);
+    return d && takesNote(label(d.status)) ? { id: d.id, code: d.code, company: d.company, unitId: d.unit.id, unitCode: d.unit.code } : null;
+  }
+
   /** «سجّل صفقة»: the caller's leads (with their company, 4 Nov meeting) and the salespeople for «حد معاك في الديل Buyer؟». */
   async form(me: CurrentUser): Promise<DealForm> {
     const [leads, salespeople] = await Promise.all([this.leads.dealLeads(me), this.repo.salespeople()]);
