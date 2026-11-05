@@ -1,7 +1,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
-import { agingBuckets, addMonths, contractProblem, endingSoon, installmentPlan, installmentState, nextYearValue, renewalAlert } from "../src/contracts.ts";
+import { agingBuckets, addMonths, contractProblem, endingSoon, installmentAlerts, installmentPlan, installmentState, nextYearValue, paymentProblem, renewalAlert } from "../src/contracts.ts";
+
+test("M-11 2.3: a payment is more than zero, no more than what's left, not dated after today", () => {
+  const p = (amount: number, owed: number, on = "2026-11-05") => paymentProblem(egp(amount), egp(owed), on, "2026-11-05");
+  assert.equal(p(4_000, 10_000), null); // part of it: Partially Paid
+  assert.equal(p(10_000, 10_000), null);
+  assert.equal(p(10_000.01, 10_000), "المبلغ أكبر من الباقي على القسط");
+  assert.equal(p(0, 10_000), "المبلغ لازم يبقى أكبر من صفر");
+  assert.equal(p(1, 0), "القسط ده اتدفع بالكامل");
+  assert.equal(p(1, 10, "2026-11-06"), "مينفعش تاريخ بعد النهارده");
+});
+
+test("M-11 2.4 · 7.1: reminder 3 days before, late the day after, escalation at 7 days late; each once", () => {
+  const a = (due: string, sent: string[] = []) => installmentAlerts(due, "2026-11-05", sent);
+  assert.deepEqual(a("2026-11-09"), []); // 4 days ahead
+  assert.deepEqual(a("2026-11-08"), ["reminder"]);
+  assert.deepEqual(a("2026-11-05"), ["reminder"]); // due today: not late yet
+  assert.deepEqual(a("2026-11-08", ["reminder"]), []);
+  assert.deepEqual(a("2026-11-04", ["reminder"]), ["late"]);
+  assert.deepEqual(a("2026-11-04"), ["late"]); // the reminder missed (a Friday) isn't sent after the day
+  assert.deepEqual(a("2026-10-30", ["reminder", "late"]), []); // 6 days late
+  assert.deepEqual(a("2026-10-29", ["reminder", "late"]), ["escalated"]); // 7.1 «قسط اتأخر 7 أيام → تصعيد للإدارة»
+  assert.deepEqual(a("2026-10-01"), ["late", "escalated"]);
+  assert.deepEqual(a("2026-10-01", ["late", "escalated"]), []);
+});
 
 test("M-11 2.4 · 7.1: renewal alerts at 90, 60 and 30 days, each once; a late look sends only the nearest", () => {
   assert.equal(renewalAlert("2027-02-04", "2026-11-05", []), null); // 91 days left

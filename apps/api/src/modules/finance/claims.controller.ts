@@ -3,7 +3,7 @@ import type { Response } from "express";
 import { z } from "zod";
 import type { PrismaClient } from "@places/db";
 import { ClaimEinvoice, ClaimFilter, CollectClaim, Id, NewClaim, RejectClaim } from "@places/contracts";
-import { DOC_KINDS, type DocKind } from "@places/domain";
+import type { DocKind } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { DocumentsService, sendPdf } from "../../core/documents/documents.service";
 import { ZodPipe } from "../../core/http/zod.pipe";
@@ -12,7 +12,7 @@ import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { ClaimsService } from "./claims.service";
 import type { Tx } from "./ledger.repository";
 
-const DocQuery = z.object({ doc: z.enum(DOC_KINDS).default("claim") });
+const DocQuery = z.object({ doc: z.enum(["claim", "receipt"]).default("claim") }); // the installment receipt prints from contracts
 
 /**
  * HTTP only. M-07 9.17: sales asks for a claim and reports the client's approval / payment («deals: create»); the

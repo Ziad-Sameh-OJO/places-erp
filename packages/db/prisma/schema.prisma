@@ -1110,9 +1110,26 @@ model Installment {
   dueOn      DateTime  @db.Date
   amount     Decimal   @db.Decimal(14, 2)
   paid       Decimal   @default(0) @db.Decimal(14, 2)
+  alerts     String[]  @default([]) // which of reminder / late / escalated went out (M-11 2.4)
+  payments   InstallmentPayment[]
 
   @@index([contractId, dueOn])
   @@index([dueOn])
+  @@schema("finance")
+}
+
+/// M-11 2.1 step 4: a payment Finance records on an installment (part of it = Partially Paid, 2.3); each prints a receipt.
+model InstallmentPayment {
+  id            String      @id @default(cuid())
+  installmentId String
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  amount        Decimal     @db.Decimal(14, 2)
+  paidOn        DateTime    @db.Date
+  createdById   String
+  createdAt     DateTime    @default(now())
+
+  @@index([installmentId])
+  @@index([paidOn])
   @@schema("finance")
 }
 

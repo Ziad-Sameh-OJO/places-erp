@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { DocKind } from "@places/domain";
 import { CalendarDay, Id, Money } from "./common.ts";
 
 /** 12.12 · the stamp and signature, the entities (logo + bank) and the document templates (Settings). */
@@ -17,7 +18,7 @@ export const DocTemplateInput = z.object({
   closing: z.string().trim().max(1000),
 });
 export type DocTemplateInput = z.infer<typeof DocTemplateInput>;
-export interface DocTemplateView extends DocTemplateInput { kind: "claim" | "receipt"; custom: boolean }
+export interface DocTemplateView extends DocTemplateInput { kind: DocKind; custom: boolean }
 
 export const StampInput = z.object({ kind: z.enum(["stamp", "signature"]), fileId: Id.nullable() });
 export type StampInput = z.infer<typeof StampInput>;
