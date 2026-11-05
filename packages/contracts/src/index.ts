@@ -24,3 +24,4 @@ export * from "./imports.ts";
 // one file per module as it is built: deals.ts, inventory.ts, hr.ts, kpis.ts …
 export * from "./campaigns.ts";
 export * from "./posts.ts";
+export * from "./broadcasts.ts";

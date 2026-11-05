@@ -1000,6 +1000,34 @@ model Campaign {
   @@schema("marketing")
 }
 
+/// M-04 2.1 step 7: Rahma's Broadcast message (picture + text + logo, with the Hot Inventory units), sent to sales as a task.
+model Broadcast {
+  id          String          @id @default(cuid())
+  text        String
+  logo        Boolean         @default(true)
+  hotUnitIds  String[]        // the Hot Inventory in the message (KPI M-12: twice a week with it)
+  approved    Boolean         @default(true) // M-04 2.2: the marketing manager's review — false = waiting for it
+  createdById String
+  sends       BroadcastSend[]
+  createdAt   DateTime        @default(now())
+
+  @@index([createdAt])
+  @@schema("marketing")
+}
+
+/// M-04 2.1 step 8 · 2.3 (24): a salesperson's Done / share, and the other units they broadcast that Rahma sees.
+model BroadcastSend {
+  id          String    @id @default(cuid())
+  broadcastId String
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  userId      String
+  otherUnits  String[]  // unit codes they also broadcast on their own
+  doneAt      DateTime  @default(now())
+
+  @@unique([broadcastId, userId])
+  @@schema("marketing")
+}
+
 /// M-04 2.1 step 6 · 2.4: a post in the Content plan — its time, the Reminder at that time, the actual publish time.
 model Post {
   id             String    @id @default(cuid())
