@@ -5,10 +5,11 @@ import { Avatar, Card, Chip, Empty, Icon, Note, Tabs, Table, onFormSubmit, useAc
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { dayTime, money } from "@/lib/format";
+import { DailyBoard } from "@/features/reports/daily";
 import { KpiCardBody, KpiDrawer } from "./kpi-drawer";
 import { type Scope, useBoard, useCompany, useKpiLog, useRefreshKpis } from "./use-kpis";
 
-type Tab = Scope | "log";
+type Tab = Scope | "log" | "daily";
 const barTone = (t: string) => (t === "ok" ? "" : t);
 export const Bar = ({ pct, tone }: { pct: number; tone: string }) => <div className={`bar ${barTone(tone)}`}><i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} /></div>;
 export const moneyChip = (v: string | null) => (v && Number(v) ? <Chip tone={Number(v) > 0 ? "ok" : "bad"} plain>{Number(v) > 0 ? "+" : "−"}{money(v.replace("-", ""))}</Chip> : null);
@@ -21,7 +22,9 @@ export function KpisPage() {
   const tabs: [Tab, string, number?][] = [
     ...(mine ? [["me", "كارتي"] as [Tab, string]] : []),
     ...(team.data?.cards.length ? [["team", "فريقي", team.data.cards.length] as [Tab, string, number]] : []),
-    ...(all ? [["all", "كل الشركة"] as [Tab, string], ["log", "التقارير والتغييرات"] as [Tab, string]] : []),
+    ...(all ? [["all", "كل الشركة"] as [Tab, string]] : []),
+    ...(all || team.data?.cards.length ? [["daily", "التقارير اليومية"] as [Tab, string]] : []),
+    ...(all ? [["log", "التقارير والتغييرات"] as [Tab, string]] : []),
   ];
   const [pick, setPick] = useState<Tab | null>(null);
   const tab = tabs.find((t) => t[0] === pick)?.[0] ?? tabs[0]?.[0];
@@ -30,7 +33,7 @@ export function KpisPage() {
   return (
     <>
       <div className="row"><Tabs<Tab> items={tabs} value={tab} onChange={setPick} /></div>
-      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : <Log />}
+      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : <Log />}
     </>
   );
 }

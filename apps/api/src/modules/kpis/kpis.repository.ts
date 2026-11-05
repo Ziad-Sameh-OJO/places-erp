@@ -71,6 +71,11 @@ export class KpisRepository {
     return this.db.kpiDelivery.findUnique({ where: { id }, include: { item: { select: { cardId: true } } } });
   }
 
+  /** An item's `report` is a scheduled report's id (11.10): the card shows its name. */
+  reportNames() {
+    return this.db.scheduledReport.findMany({ select: { id: true, name: true } });
+  }
+
   log(take: number) {
     return this.db.auditLog.findMany({ where: { module: "kpis" }, orderBy: { at: "desc" }, take });
   }

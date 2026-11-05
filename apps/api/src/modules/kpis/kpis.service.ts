@@ -23,7 +23,7 @@ const CLOSED = "الربع اتقفل · مفيش تعديل";
 /** 11.14: the watcher never sees these in the changes log. */
 const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose"];
 
-interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean }
+export interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean }
 type Quarter = { id: string; status: string };
 
 const piasters = (d: Prisma.Decimal | null) => (d == null ? 0 : fromDecimal(d.toFixed(2)));
@@ -51,7 +51,7 @@ export class KpisService {
     return w.success ? w.data : [];
   }
 
-  private async who(me: CurrentUser): Promise<Who> {
+  async who(me: CurrentUser): Promise<Who> {
     const watcher = (await this.watchers()).includes(me.id);
     const edit = me.grants.can("kpis", "edit"), approve = me.grants.can("kpis", "approve");
     return { me, watcher, edit, approve, all: edit || approve || watcher, noMoney: watcher && !edit && !approve };
@@ -140,7 +140,7 @@ export class KpisService {
   }
 
   private async view(w: Who, c: CardRecord, q: Quarter): Promise<KpiCardView> {
-    const [bands, people, roles] = await Promise.all([this.repo.bands(), this.repo.people(), this.repo.roles()]);
+    const [bands, people, roles, reports] = await Promise.all([this.repo.bands(), this.repo.people(), this.repo.roles(), this.repo.reportNames()]);
     const b = bandsOf(bands), s = this.score(c), open = q.status === "open";
     const names = new Map<string, string>([...people.map((p) => [p.userId, p.name] as const), ...roles.map((r) => [r.key, r.label] as const)]);
     const follower = this.isFollower(w, c), mine = c.employeeId === w.me.employeeId, manage = open && this.canManage(w, c);
@@ -163,7 +163,7 @@ export class KpisService {
           metric: it.metric, params, enteredBy: it.enteredBy, report: it.report, required: it.required,
           value: num(it.value), delivered: it.deliveries.length,
           deliveries: it.deliveries.map((d) => ({ id: d.id, at: d.at.toISOString(), link: d.link, file: !!d.fileId })),
-          calc: calcText({ ...it, method: it.method as Method, params: params as MetricParams }, (x) => names.get(x) ?? x),
+          calc: calcText({ ...it, method: it.method as Method, params: params as MetricParams, report: it.report && (reports.find((r) => r.id === it.report)?.name ?? it.report) }, (x) => names.get(x) ?? x),
           achievement: Math.round(a * 1000) / 10, contribution: Math.round(it.weight * a * 10) / 10,
           canEnter: open && it.method === "manual" && canEnterManual(it.enteredBy, { userId: w.me.id, roles: w.me.roles, isFollower: follower }),
           canDeliver: open && mine && it.method === "report" && !it.report && it.deliveries.length < (it.required ?? 0),

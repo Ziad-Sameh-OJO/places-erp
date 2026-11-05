@@ -109,5 +109,15 @@
     "ahmed.islam@places.com",
     "m.safwat@places.com",
     "ahmed.ashraf@places.com"
+  ],
+  "tlTiers": [
+    {
+      "below": 70,
+      "percent": 4
+    },
+    {
+      "below": null,
+      "percent": 6
+    }
   ]
 }
