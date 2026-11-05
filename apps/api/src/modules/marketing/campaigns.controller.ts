@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
-import { CampaignInput } from "@places/contracts";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
+import { CampaignInput, DashboardQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -14,6 +14,13 @@ export class CampaignsController {
   @Requires("marketing", "view")
   list() {
     return this.campaigns.list();
+  }
+
+  /** M-04 3.2 · 6.1 · 4.1: the channel → campaign dashboard is marketing's (and the management's), not sales'. */
+  @Get("dashboard")
+  @Requires("marketing", "view")
+  dashboard(@Query(new ZodPipe(DashboardQuery)) q: DashboardQuery) {
+    return this.campaigns.dashboard(q);
   }
 
   @Get("channels")

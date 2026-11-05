@@ -25,6 +25,21 @@ export class CampaignsRepository {
     return new Map(all.map((r) => [r.campaignId!, { leads: r._count._all, qualified: q.get(r.campaignId) ?? 0 }]));
   }
 
+  /** The dashboard: every arrival in the filter (duplicates too, Q22), with its lead's Qualified mark and post. */
+  arrivals(where: Prisma.LeadArrivalWhereInput) {
+    return this.db.leadArrival.findMany({ where, select: { channel: true, campaignId: true, lead: { select: { qualified: true, post: true } } } });
+  }
+
+  /** Name, target and cost of these campaigns (archived ones too: their old leads still count). */
+  byIds(ids: string[]) {
+    return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, target: true, spent: true } });
+  }
+
+  /** The campaigns the filter covers, for «صرف الكامبينز». */
+  covered(where: Prisma.CampaignWhereInput) {
+    return this.db.campaign.findMany({ where: { AND: [where, { archivedAt: null }] }, select: { spent: true } });
+  }
+
   create(tx: Prisma.TransactionClient, data: Prisma.CampaignUncheckedCreateInput) {
     return tx.campaign.create({ data });
   }

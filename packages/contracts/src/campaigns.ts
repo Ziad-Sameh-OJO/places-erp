@@ -33,3 +33,27 @@ export interface CampaignRow {
   /** spent ÷ leads, null without leads */
   costPerLead: string | null;
 }
+
+/** M-04 3.2 · 6.1: the dashboard's filters — a period of Cairo days (day / week / month / dates), a channel, a campaign. */
+export const DashboardQuery = z.object({
+  from: CalendarDay.optional(),
+  to: CalendarDay.optional(),
+  channel: z.string().trim().max(60).optional(),
+  campaignId: z.string().max(40).optional(),
+}).refine((q) => !q.from || !q.to || q.from <= q.to, { message: "«من» لازم تبقى قبل «لحد»", path: ["to"] });
+export type DashboardQuery = z.infer<typeof DashboardQuery>;
+
+export interface SourceCountView { leads: number; qualified: number; rate: number | null }
+export interface MarketingDashboard {
+  total: SourceCountView;
+  /** what the campaigns in the filter cost, and per Qualified lead */
+  spent: string;
+  costPerQualified: string | null;
+  campaignCount: number;
+  channels: Array<SourceCountView & {
+    channel: string;
+    noCampaign: number;
+    campaigns: Array<SourceCountView & { id: string; name: string; target: string | null; costPerLead: string | null }>;
+  }>;
+  posts: Array<{ post: string; leads: number }>;
+}
