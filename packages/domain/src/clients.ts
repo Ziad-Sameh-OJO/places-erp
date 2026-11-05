@@ -35,6 +35,17 @@ export function normalizePhone(raw: string): string | null {
 export const seesOwnerNumbers = (g: Pick<Grants, "can">): boolean => keepsInventory(g) || g.can("clients", "approve");
 export const showsNumbers = (kind: ClientKind, g: Pick<Grants, "can">): boolean => kind === "client" || seesOwnerNumbers(g);
 
+/**
+ * M-10 3.3: a file goes Inactive after a year without dealing with them (no contact, deal or unit update since).
+ * The cut-off is the same calendar day a year back, so 5 Nov 2026 makes everything before 5 Nov 2025 Inactive.
+ */
+export function inactiveBefore(now: Date): Date {
+  const d = new Date(now);
+  d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d;
+}
+export const isInactive = (lastContactAt: Date, now: Date): boolean => lastContactAt < inactiveBefore(now);
+
 /** The file's kind after the person gets another role: a client who becomes an owner (or the reverse) is «both». */
 export function withRole(kind: ClientKind | null, role: ClientRole): ClientKind {
   if (kind === null || kind === role) return role;

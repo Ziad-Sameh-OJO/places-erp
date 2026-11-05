@@ -4,7 +4,7 @@ import type { ClientFile, ClientMergeRow, ClientRow, ClientSummary, Paged } from
 import { api } from "@/lib/api";
 
 /** The toolbar: the search and the demo's «الكل · عملاء · ملاك». Empty = not filtered. */
-export interface ClientQuery { q?: string; kind?: "client" | "owner" | undefined }
+export interface ClientQuery { q?: string; kind?: "client" | "owner" | undefined; stale?: "true" | undefined; status?: "active" | "inactive" | undefined }
 
 export function useClients(f: ClientQuery, page: number, pageSize: number) {
   const p = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });

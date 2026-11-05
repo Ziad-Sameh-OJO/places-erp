@@ -675,6 +675,10 @@ model Client {
   units            Unit[]              // the units they own (deals on them and the contracts follow from the units / leads)
   createdById      String?
   mergedIntoId     String?             // merged into another file by Operations (M-10 2.2); archived with it
+  marketingConsent Boolean?            // M-10 3.1 «موافقة على التواصل التسويقي»: اه / لا, null = not asked yet
+  deletionAskedAt  DateTime?           // M-10 2.3: the client asked to erase their data → to management (data protection)
+  deletionAskedBy  String?             // access.User who filed it
+  deletionReason   String?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   archivedAt       DateTime?
