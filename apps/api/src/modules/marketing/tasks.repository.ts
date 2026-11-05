@@ -5,7 +5,7 @@ import { PRISMA } from "../../core/database/database.module";
 const ROW = {
   id: true, kind: true, title: true, byUserId: true, toUserId: true, dueOn: true, status: true, returned: true, note: true,
   doneAt: true, createdAt: true,
-  unit: { select: { id: true, code: true, project: true, area: true, floor: true, building: true, ownerName: true, ownerPhone: true } },
+  unit: { select: { id: true, code: true, project: true, area: true, floor: true, building: true, ownerName: true, ownerPhone: true, enteredAt: true } },
 } satisfies Prisma.TaskSelect;
 export type TaskRecord = Prisma.TaskGetPayload<{ select: typeof ROW }>;
 
@@ -16,6 +16,14 @@ export class TasksRepository {
 
   list(where: Prisma.TaskWhereInput, take: number) {
     return this.db.task.findMany({ where, select: ROW, orderBy: [{ dueOn: "asc" }, { createdAt: "asc" }], take });
+  }
+
+  /** Shoots and Retouch Done in [from, to), in the scope: the SLA report (M-12). */
+  doneBetween(scope: Prisma.TaskWhereInput, from: Date, to: Date) {
+    return this.db.task.findMany({
+      where: { AND: [scope, { kind: { in: ["photo", "retouch"] }, status: "done", doneAt: { gte: from, lt: to } }] },
+      select: { kind: true, status: true, createdAt: true, doneAt: true, returned: true, unit: { select: { enteredAt: true } } },
+    });
   }
 
   find(scope: Prisma.TaskWhereInput, id: string) {
