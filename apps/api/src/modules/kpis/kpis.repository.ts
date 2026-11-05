@@ -84,6 +84,8 @@ export class KpisRepository {
     const quarters = await tx.kpiQuarter.findMany({ where: { status: "closed", closedAt: { gte: from, lt: to } }, select: { id: true } });
     if (!quarters.length) return [];
     return tx.kpiCard.findMany({ where: { quarter: { in: quarters.map((q) => q.id) }, finalAmount: { not: null } }, select: { employeeId: true, finalAmount: true } });
+  }
+
   /** 11.13: the person's latest Farming / Approach. */
   activities(employeeId: string) {
     return this.db.salesActivity.findMany({ where: { employeeId }, orderBy: { at: "desc" }, take: 6 });

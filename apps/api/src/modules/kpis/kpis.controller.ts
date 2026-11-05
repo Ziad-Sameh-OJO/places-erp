@@ -141,6 +141,8 @@ export class KpisController {
   async sheet(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
     const { name, pdf } = await this.kpis.sheet(me, id);
     sendPdf(res, name, pdf);
+  }
+
   /** 11.13 «نشاطاتي»: each person's own Farming / Approach. */
   @Get("activities")
   @SignedIn()
