@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { UnitFilters } from "@places/contracts";
-import { sortAreaTabs, type AreaRange, type UnitType } from "@places/domain";
+import { dayStart, sortAreaTabs, type AreaRange, type UnitType } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 
 /** What the list reads of a unit (no audit trail, no media keys). */
@@ -10,6 +10,8 @@ export const UNIT_ROW = {
   condition: true, floor: true, building: true, parking: true, ownerName: true, ownerPhone: true, pricePerSqm: true,
   totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, details: true,
   divisible: true, minSplit: true, location: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
+  // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
+  locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
 } satisfies Prisma.UnitSelect;
 export const UNIT_DETAIL = { ...UNIT_ROW, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true } satisfies Prisma.UnitSelect;
 export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
@@ -178,6 +180,7 @@ function openSearch(q: string | undefined, insider = false): Prisma.UnitWhereInp
   return { AND: [visible({ insider, staleBefore: new Date(0) }), AVAILABLE, search] };
 }
 const DEAL_UNIT = { id: true, code: true, project: true, space: true, type: true, agentId: true } satisfies Prisma.UnitSelect;
+const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
 const range = (t: AreaRange): Prisma.UnitWhereInput => ({ space: { gte: t.min, ...(t.max != null ? { lte: t.max } : {}) } });
 
@@ -194,10 +197,16 @@ function inTab(tabId: string, tabs: Tab[]): Prisma.UnitWhereInput {
 
 function unitWhere(s: UnitScope, f: Omit<UnitFilters, "page" | "pageSize">, tabs: Tab[]): Prisma.UnitWhereInput {
   const and: Prisma.UnitWhereInput[] = [visible(s), f.view === "closed" ? CLOSED : AVAILABLE];
-  // a unit is listed under a type when it's open as that type, or as its second type (Q17)
+  // a unit is listed under a type when it's open as that type, or as its second type (Q17); on the rented / sold
+  // sheet, when that type is the side that was closed
   if (f.type) and.push(f.view === "closed"
-    ? { OR: [{ type: f.type }, { alsoType: f.type }] }
+    ? { OR: [{ type: f.type, status: { not: "available" } }, { alsoType: f.type, alsoStatus: { in: ["rented", "sold"] } }] }
     : { OR: [{ type: f.type, status: "available" }, { alsoType: f.type, alsoStatus: "available" }] });
+  // M-03 5.2: closed between two Cairo days (the day Manar / Randa confirmed the close), on the chosen type's side
+  if (f.view === "closed" && (f.closedFrom || f.closedTo)) and.push({ locks: { some: {
+    status: "locked", ...(f.type ? { type: f.type } : {}),
+    lockedAt: { ...(f.closedFrom ? { gte: dayStart(f.closedFrom) } : {}), ...(f.closedTo ? { lt: dayStart(nextDay(f.closedTo)) } : {}) },
+  } } });
   if (f.area) and.push({ area: f.area });
   if (f.condition) and.push({ condition: f.condition });
   if (f.agentId) and.push({ agentId: f.agentId });
