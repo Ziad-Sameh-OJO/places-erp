@@ -83,6 +83,9 @@ importers:
       helmet:
         specifier: ^8.0.0
         version: 8.3.0
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
       playwright-core:
         specifier: 1.64.0
         version: 1.64.0
@@ -114,6 +117,9 @@ importers:
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
       '@types/web-push':
         specifier: 3.6.4
         version: 3.6.4

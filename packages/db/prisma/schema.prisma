@@ -1311,11 +1311,14 @@ model Notification {
   text      String
   link      String?
   important Boolean   @default(false) // stays until read
+  event     String? // its type (NOTIFICATION_EVENTS key), for the bell's filter (M-14 5.1 · 5.3)
   readAt    DateTime?
   createdAt DateTime  @default(now())
   mails     MailLog[]
 
+  // a database trigger announces every new row (pg_notify 'notification_created'): the bell updates at once (12.11)
   @@index([userId, readAt])
+  @@index([userId, event])
   @@schema("system")
 }
 

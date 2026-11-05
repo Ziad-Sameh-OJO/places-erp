@@ -35,7 +35,7 @@ export async function ticketSlaTick(now = new Date()): Promise<number> {
       await tx.ticketEvent.create({ data: { ticketId: t.id, kind: "escalate", byUserId: null, text: dispute ? `عدّت الـ ${type.slaHours} ساعة من غير ما يتحسم · اتبلّغت الـ Office Manager` : `اتأخرت · اتصعّدت لمدير قسم ${t.department}` } });
       await tx.auditLog.create({ data: { module: "tickets", entity: "Ticket", entityId: t.id, action: "escalate", after: { escalatedAt: now.toISOString(), to: to.map((u) => u.id) } } });
       // in-app only, like lead-sla.ts: the worker has no mail service yet
-      await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, text, link: `/tickets?id=${t.id}`, important: true })) });
+      await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, event: "ticket.late", text, link: `/tickets?id=${t.id}`, important: true })) });
       escalated++;
     });
   }

@@ -6,41 +6,30 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ModuleKey } from "@places/domain";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { NAV, SECTIONS } from "@/lib/nav";
 import { Avatar, Icon } from "./ui";
+import { BellPanel, useBell } from "./bell";
 
-interface Notif { id: string; text: string; link: string | null; important: boolean; readAt: string | null; createdAt: string }
 const BrandMark = () => (
   <span className="brand-mark" aria-hidden="true">
     <svg viewBox="0 0 32 32"><path d="M8 25V7h9a6 6 0 0 1 0 12h-9" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /><circle cx="24" cy="24" r="2.6" fill="currentColor" /></svg>
   </span>
 );
-const ago = (iso: string) => {
-  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  return m < 1 ? "دلوقتي" : m < 60 ? `من ${m} دقيقة` : m < 1440 ? `من ${Math.round(m / 60)} ساعة` : new Date(iso).toLocaleDateString("ar-EG");
-};
-
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
   const { me, can } = useMe();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [bellOpen, setBellOpen] = useState(false);
+  const bell = useBell();
   useEffect(() => setMenuOpen(false), [path]);
   // mobile.css keys the bottom tab bar off the body class, as in the demo
   useEffect(() => { document.body.classList.add("has-tabbar"); return () => document.body.classList.remove("has-tabbar"); }, []);
 
-  const notifs = useQuery({ queryKey: ["notifications"], queryFn: () => api.get<{ items: Notif[]; unread: number }>("/notifications?pageSize=30"), refetchInterval: 60_000 });
-  const unread = notifs.data?.unread ?? 0;
-  async function openBell() {
-    setBellOpen(true);
-    if (unread) { await api.post("/notifications/all/read"); qc.invalidateQueries({ queryKey: ["notifications"] }); }
-  }
   async function signOut() {
     await api.post("/auth/logout").catch(() => {});
     qc.clear();
@@ -91,8 +80,8 @@ export function Shell({ children }: { children: ReactNode }) {
             {page?.sub && <p>{page.sub}</p>}
           </div>
           <div className="top-actions">
-            <button className="round" onClick={openBell} aria-label={`الإشعارات${unread ? ` (${unread} جديد)` : ""}`}>
-              <Icon name="bell" />{unread > 0 && <b>{unread}</b>}
+            <button className="round" onClick={() => void bell.openBell()} aria-label={`الإشعارات${bell.unread ? ` (${bell.unread} جديد)` : ""}`}>
+              <Icon name="bell" />{bell.unread > 0 && <b>{bell.unread}</b>}
             </button>
           </div>
         </header>
@@ -100,20 +89,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <main id="view" key={path} className="view enter" tabIndex={-1}>{children}</main>
       </div>
 
-      {bellOpen && (
-        <>
-          <div className="panel" role="dialog" aria-label="الإشعارات">
-            <div className="panel-head"><strong>الإشعارات</strong><button className="icon-btn" onClick={() => setBellOpen(false)} aria-label="قفل">✕</button></div>
-            <div id="notifList">
-              {notifs.data?.items.length ? notifs.data.items.map((x) => (
-                <div key={x.id} className={`ntf ${x.readAt ? "" : "new"}`}>
-                  {x.link ? <Link href={x.link} onClick={() => setBellOpen(false)}>{x.text}</Link> : x.text}<small>{ago(x.createdAt)}</small>
-                </div>
-              )) : <p className="empty">مفيش إشعارات</p>}
-            </div>
-          </div>
-        </>
-      )}
+      {bell.open && <BellPanel bell={bell} />}
 
       <nav className="tabbar" aria-label="التنقل السريع">
         {keys.slice(0, 4).map((k) => (

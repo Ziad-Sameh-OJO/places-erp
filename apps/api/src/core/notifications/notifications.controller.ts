@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Sse, type MessageEvent } from "@nestjs/common";
+import type { Observable } from "rxjs";
 import { z } from "zod";
 import { MailLogQuery, Page, Preferences, PushEndpointInput, PushSubscriptionInput, RuleInput } from "@places/contracts";
 import { ZodPipe } from "../http/zod.pipe";
@@ -7,16 +8,24 @@ import { Me, type CurrentUser } from "../auth/current-user.decorator";
 import { AuditService } from "../audit/audit.service";
 import { NotificationsService } from "./notifications.service";
 import { PushService } from "./push.service";
+import { NotificationStreamService } from "./notification-stream.service";
 
-const MineQuery = Page.extend({ unread: z.coerce.boolean().default(false) });
+// M-14 5.3: the bell's filters: unread only, and one type (an event key)
+const MineQuery = Page.extend({ unread: z.coerce.boolean().default(false), event: z.string().trim().min(1).max(60).optional() });
 
 @Controller("notifications")
 export class NotificationsController {
-  constructor(private readonly n: NotificationsService, private readonly push: PushService, private readonly audit: AuditService) {}
+  constructor(private readonly n: NotificationsService, private readonly push: PushService, private readonly stream: NotificationStreamService, private readonly audit: AuditService) {}
 
   @SignedIn() @Get()
   mine(@Me() me: CurrentUser, @Query(new ZodPipe(MineQuery)) q: z.infer<typeof MineQuery>) {
-    return this.n.mine(me.id, q.page, q.pageSize, q.unread);
+    return this.n.mine(me.id, q);
+  }
+
+  /** 12.11 · M-14 5.1: my new notifications as they're written (Server-Sent Events), so the bell needs no refresh. */
+  @SignedIn() @Sse("stream")
+  live(@Me() me: CurrentUser): Observable<MessageEvent> {
+    return this.stream.forUser(me.id);
   }
 
   @SignedIn() @Post(":id/read") @HttpCode(204)

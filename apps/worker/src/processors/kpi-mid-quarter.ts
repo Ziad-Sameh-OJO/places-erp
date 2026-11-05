@@ -31,7 +31,7 @@ export async function kpiMidQuarterTick(now = new Date()): Promise<number> {
       const claimed = await tx.kpiCard.updateMany({ where: { id: c.id, midAlertAt: null }, data: { midAlertAt: now } });
       if (!claimed.count || !below.length) return;
       const text = `نص ${quarterLabel(q.id)}: ${below.length} بند تحت المستهدف في كارت ${c.employee.name} (${below.map((it) => it.title).slice(0, 3).join(" · ")}${below.length > 3 ? " …" : ""})`;
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link: "/kpis", important: true })) });
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: "kpi.mid_quarter", text, link: "/kpis", important: true })) });
       alerted++;
     });
   }

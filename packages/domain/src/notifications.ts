@@ -114,6 +114,9 @@ export const mailStatus = (status: string, notificationReadAt: Date | null): Mai
 
 export const eventByKey = (key: string): NotificationEvent | undefined => NOTIFICATION_EVENTS.find((e) => e.key === key);
 
+/** The bell's type filter (M-14 5.3): the event's name; one from before types were kept has none. */
+export const eventLabel = (key: string | null): string => (key && eventByKey(key)?.label) || "أخرى";
+
 /**
  * The channels one person actually gets for an event: the rule's channels, minus email when the person turned
  * email off — unless the notification is important (Alarm, pulled lead, the 5th excuse…).
