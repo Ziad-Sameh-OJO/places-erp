@@ -17,7 +17,7 @@ import { prisma } from "../src/index.ts";
 interface SeedRole { key: string; label: string; tier: string; scope: "own" | "team" | "dept" | "all"; permissions: Record<string, string[]> }
 interface SeedKpiItem {
   title: string; weight: number; targetText: string; source: string; method: string; module: string | null; direction: string; goal: number;
-  required?: number; metric?: string | null; params?: { ids?: string[] } & Record<string, string | number | string[]>; enteredBy?: string[];
+  required?: number; report?: string; metric?: string | null; params?: { ids?: string[] } & Record<string, string | number | string[]>; enteredBy?: string[];
 }
 interface SeedKpiCard { follower: string | null; items: SeedKpiItem[] }
 interface SeedKpis { quarter: string; cards: Record<string, SeedKpiCard>; sales: SeedKpiCard; teamLeaders: { quarter: string; people: string[]; card: SeedKpiCard } }
@@ -115,6 +115,9 @@ async function main() {
     { id: "sr-monthly-performance", name: "تقرير الأداء الشهري", kind: "auto", freq: "monthly", day: 1, time: "09:00", fmt: "Excel", content: "performance", recipients: ["admin", "officemgr", "salesdir", "tl"] },
     { id: "sr-daily", name: "التقرير اليومي", kind: "handin", freq: "daily", day: 0, time: "18:00", daily: true, remindMin: 60, recipients: ["ops", "follower"], lateNotify: ["follower"],
       preparedBy: ["sales", "telesales", "ops", "inventory", "inventory_staff", "resale", "marketing", "photographer", "designer", "hr", "accountant", "procurement", "officemgr", "tl"] },
+    // 11.9 · Rahma hands it in by the 30th (demo SR-7); on time it counts in her «تقرير المنافسين الشهري» item
+    { id: "sr-competitors", name: "تقرير المنافسين الشهري", kind: "handin", freq: "monthly", day: 30, time: "17:00", fmt: "PDF", remindMin: 1440,
+      preparedBy: [userIds.get("u11")!], recipients: [userIds.get("u1")!], lateNotify: [userIds.get("u1")!] },
   ];
   for (const r of reports) await prisma.scheduledReport.upsert({ where: { id: r.id }, create: r, update: {} });
   console.log(`seed: ${Object.keys(settings).length} settings · ${roles.length} roles · ${people.length} people · ${chart.length} accounts · ${kpiCards} new KPI cards · ${passwordHash ? "ACTIVE with the dev password" : "INVITED"}`);

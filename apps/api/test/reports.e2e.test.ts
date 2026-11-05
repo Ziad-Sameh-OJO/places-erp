@@ -13,8 +13,9 @@ import { scheduledReportsTick } from "../../worker/src/processors/scheduled-repo
 
 const RUN = `E2E-RPT-${Date.now()}`;
 const start = new Date();
-let admin: string, nancy: string, tlC: string, tlB: string, hosny: string, amr: string;
-const ids = { hosny: "", hosnyUser: "", amrUser: "", amrEmp: "", tlCEmp: "", tlCUser: "", adminUser: "", item: "", sumItem: "", sumKey: "", report: "", unit: "", deal: "" };
+let admin: string, nancy: string, tlC: string, tlB: string, hosny: string, amr: string, rahma: string;
+const ids = { hosny: "", hosnyUser: "", amrUser: "", amrEmp: "", tlCEmp: "", tlCUser: "", adminUser: "", item: "", sumItem: "", sumKey: "", adsItem: "", adsKey: "",
+  rahmaUser: "", report: "", unit: "", deal: "" };
 const today = localDate(new Date());
 const month = today.slice(0, 7);
 
@@ -31,6 +32,9 @@ before(async () => {
   ids.item = (await prisma.kpiItem.create({ data: { ...base, position: 901, title: `${RUN} تسليم`, method: "report", required: 5 } })).id;
   const sum = await prisma.kpiItem.create({ data: { ...base, position: 902, title: `${RUN} عدد الملاك`, method: "system", metric: "dailySum", params: {} } });
   Object.assign(ids, { sumItem: sum.id, sumKey: sum.key });
+  const ads = await prisma.kpiItem.create({ data: { ...base, position: 903, title: `${RUN} إعلانات الويبسايت`, method: "system", metric: "webAds", goal: 25 } });
+  Object.assign(ids, { adsItem: ads.id, adsKey: ads.key, rahmaUser: (await emp("rahma.hassan@places.com")).userId });
+  rahma = await session("rahma.hassan@places.com");
 });
 
 after(async () => {
@@ -38,6 +42,8 @@ after(async () => {
   await prisma.kpiItem.deleteMany({ where: { targetText: RUN } });
   await prisma.dailyReport.deleteMany({ where: { userId: ids.hosnyUser } });
   await prisma.reportHandIn.deleteMany({ where: { reportId: "sr-daily", userId: ids.hosnyUser } });
+  await prisma.reportHandIn.deleteMany({ where: { reportId: "sr-competitors", userId: ids.rahmaUser, at: { gte: start } } });
+  await prisma.kpiDelivery.deleteMany({ where: { item: { report: "sr-competitors" }, at: { gte: start } } });
   await prisma.dailyReportField.deleteMany({ where: { label: { startsWith: RUN } } });
   await prisma.salesTarget.deleteMany({ where: { employeeId: { in: [ids.hosny, ids.amrEmp] } } });
   if (ids.deal) await prisma.payment.deleteMany({ where: { dealId: ids.deal } });
@@ -83,6 +89,18 @@ test("11.10 · «سلّمت»: only the one it names, once per period; on time i
   assert.ok(!(await call("/reports/mine", { cookie: hosny })).body.some((x: { reportId: string }) => x.reportId === ids.report));
   // the follower (team C's TL) heard of it
   assert.equal(await prisma.notification.count({ where: { userId: ids.tlCUser, text: { contains: `سلّم «${RUN}` } } }), 1);
+});
+
+test("11.9 · the monthly competitors report: Rahma hands it in by the 30th and it counts in her KPI item; nobody else can", async () => {
+  const r = await prisma.scheduledReport.findUniqueOrThrow({ where: { id: "sr-competitors" } });
+  assert.deepEqual([r.freq, r.day, r.preparedBy], ["monthly", 30, [ids.rahmaUser]]);
+  const item = await prisma.kpiItem.findFirstOrThrow({ where: { report: r.id, card: { employee: { userId: ids.rahmaUser } } } });
+  assert.equal((await call(`/reports/scheduled/${r.id}/hand-in`, { method: "POST", cookie: hosny })).status, 403);
+  if (await prisma.reportHandIn.count({ where: { reportId: r.id, userId: ids.rahmaUser, at: { not: null }, period: { startsWith: month } } })) return; // already handed in this month
+  const before = await prisma.kpiDelivery.count({ where: { itemId: item.id } });
+  const ok = await call(`/reports/scheduled/${r.id}/hand-in`, { method: "POST", cookie: rahma });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  assert.equal(await prisma.kpiDelivery.count({ where: { itemId: item.id } }), before + (ok.body.counted ? 1 : 0));
 });
 
 test("11.10 · the job with a set clock: a reminder before the deadline, one late notice after it, an auto report built once", async () => {
@@ -133,13 +151,18 @@ test("11.12 · extra fields: the admin adds one, it shows in the form and in the
   }
   // two earlier days in this quarter, then today's report: the item's value is their sum, and it adds up by period
   const earlier = today.endsWith("-01") ? [] : [`${month}-01`];
-  for (const d of earlier) await prisma.dailyReport.create({ data: { userId: ids.hosnyUser, day: new Date(`${d}T00:00:00Z`), values: { [ids.sumKey]: 3 } } });
+  for (const d of earlier) await prisma.dailyReport.create({ data: { userId: ids.hosnyUser, day: new Date(`${d}T00:00:00Z`), values: { [ids.sumKey]: 3, [ids.adsKey]: 20 } } });
   assert.equal((await call("/reports/daily", { method: "POST", cookie: hosny, body: { values: { nope: 1 } } })).status, 400);
-  const sent = await call("/reports/daily", { method: "POST", cookie: hosny, body: { values: { [ids.sumKey]: 4, [f.body.id]: 2 }, note: `${RUN} زرت 3 ملاك` } });
+  // 11.9 · the website ads count is typed by whoever has the item: not by someone else
+  assert.equal((await call("/reports/daily", { method: "POST", cookie: amr, body: { values: { [ids.adsKey]: 30 } } })).status, 400);
+  const sent = await call("/reports/daily", { method: "POST", cookie: hosny, body: { values: { [ids.sumKey]: 4, [ids.adsKey]: 30, [f.body.id]: 2 }, note: `${RUN} زرت 3 ملاك` } });
   assert.equal(sent.status, 201, JSON.stringify(sent.body));
   assert.equal(sent.body.onTime, true);
   assert.equal((await call("/reports/daily", { method: "POST", cookie: hosny, body: { values: {} } })).status, 409);
   assert.equal(Number((await prisma.kpiItem.findUniqueOrThrow({ where: { id: ids.sumItem } })).value), 4 + 3 * earlier.length);
+  // the average a day of the last 7 days that have a number: today's 30, and the 1st's 20 if it is in the week
+  const inWeek = earlier.filter((d) => Date.parse(today) - Date.parse(d) <= 6 * 86_400_000).length;
+  assert.equal(Number((await prisma.kpiItem.findUniqueOrThrow({ where: { id: ids.adsItem } })).value), (30 + 20 * inWeek) / (1 + inWeek));
   const after = (await call(`/reports/daily/day?userId=${ids.hosnyUser}&day=${today}`, { cookie: tlC })).body;
   assert.equal(after.form.status, "onTime");
   assert.equal(after.form.saved.values[f.body.id], 2);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PLACES_CALENDAR } from "../src/business-time.ts";
-import { dailySumValue, dailyTotals, dayStatus, dueOf, handInStep, isOffPeriod, nextDue, pickPeople } from "../src/reports.ts";
+import { dailyAverage, dailySumValue, dailyTotals, dayStatus, dueOf, handInStep, isOffPeriod, nextDue, pickPeople } from "../src/reports.ts";
 import { behindPace, dealRowOf, monthBounds, periodFigures, ranked, targetPercent, tlTiersOf, type DealRow } from "../src/targets.ts";
 
 // Cairo is UTC+2 in November 2026
@@ -50,6 +50,12 @@ test("11.12 · the daily report adds up: day, last 7 days, month and quarter are
   assert.equal(dailySumValue(days, "2026-11-05", { per: "month" }), 8);
   // 36 days into the quarter = 6 weeks → 15 / 6
   assert.equal(dailySumValue(days, "2026-11-05", { avg: "week" }), 2.5);
+});
+
+test("11.9 · website ads: the average a day of the last 7 days that have a number", () => {
+  const days = [{ day: "2026-10-28", value: 100 }, { day: "2026-10-30", value: 20 }, { day: "2026-11-04", value: 27 }, { day: "2026-11-05", value: 28 }];
+  assert.equal(dailyAverage(days, "2026-11-05"), 25); // 10-28 is 8 days back: out
+  assert.equal(dailyAverage([], "2026-11-05"), 0);
 });
 
 test("11.12 · a day's report: on time, late, not handed in, a day off", () => {

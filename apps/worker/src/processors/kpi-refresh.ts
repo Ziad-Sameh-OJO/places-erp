@@ -20,8 +20,8 @@ const STATUS: Record<string, DealStatus> = {
 };
 
 /**
- * Not measurable yet: no Broadcast log (4.x), no daily report, New Lead requests (1.17), the Draft (1.26 / 1.27), the
- * custody cap setting, no website link for the ads count (11.9).
+ * Not measured here: no Broadcast log (4.x), New Lead requests (1.17), the Draft (1.26 / 1.27), the custody cap setting.
+ * dailySum and webAds (the website ads count, 11.9: no website hook) are typed in the daily report, which writes them (11.12).
  */
 export const UNBUILT = ["broadcasts", "dailySum", "newLeadRoute", "draftAction", "pettyCap", "webAds"];
 

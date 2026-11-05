@@ -4,7 +4,7 @@ import {
   KpiWatch, type DailyFieldInput, type DailyForm, type DailyInput, type DayReport, type MyHandIn, type ReportInput, type ReportsPage, type ScheduledReportView,
 } from "@places/contracts";
 import {
-  type MetricParams, type Method, type Schedule, type WorkCalendar, METRICS, calcText, dailySumValue, dailyTotals, dayStart, dayStatus, dueOf, isOffPeriod,
+  type MetricParams, type Method, type Schedule, type WorkCalendar, METRICS, calcText, dailyAverage, dailySumValue, dailyTotals, dayStart, dayStatus, dueOf, isOffPeriod,
   itemAchievement, localDate, nextDue, pickPeople,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -21,6 +21,9 @@ const LINK = "/reports";
 const DAILY_LINK = "/kpis";
 /** What the daily report fills by itself for the day (demo kpis.js DAY_AUTO, those the system can count today). */
 const AUTO = ["calls", "visitsDone", "dealsCount"];
+/** What the person types in it: any number (dailySum), and the website ads count (webAds, 11.9: no website hook yet). */
+const TYPED = ["dailySum", "webAds"];
+const typed = (metric: string | null) => TYPED.includes(metric ?? "");
 const NO_DAILY = "مفيش تقرير يومي شغال";
 
 type Report = Prisma.ScheduledReportGetPayload<object>;
@@ -182,7 +185,7 @@ export class ReportsService {
   /** The person's card items the daily report shows: the ones the system counts and the ones he types. */
   private async dayItems(employeeId: string | null, quarter: string | undefined) {
     const card = employeeId && quarter ? await this.kpiRepo.cardOf(quarter, employeeId) : null;
-    return { card, items: (card?.items ?? []).filter((it) => it.method === "system" && (it.metric === "dailySum" || AUTO.includes(it.metric ?? ""))) };
+    return { card, items: (card?.items ?? []).filter((it) => it.method === "system" && (typed(it.metric) || AUTO.includes(it.metric ?? ""))) };
   }
 
   private window(day: string, cal: WorkCalendar) {
@@ -197,7 +200,7 @@ export class ReportsService {
     return {
       day, due: due.toISOString(), status: dayStatus(rep?.at ?? null, due, now, isOffPeriod(schedule(r), day, cal)),
       items: await Promise.all(items.map(async (it) => {
-        const auto = it.metric !== "dailySum", v = auto ? await this.repo.count(it.metric!, p, w.from, w.to, it.params as Record<string, unknown>) : values[it.key];
+        const auto = !typed(it.metric), v = auto ? await this.repo.count(it.metric!, p, w.from, w.to, it.params as Record<string, unknown>) : values[it.key];
         return { key: it.key, title: it.title, target: it.targetText, auto, value: typeof v === "number" ? v : null };
       })),
       fields: fields.map((f) => ({ id: f.id, label: f.label, type: f.type === "text" ? "text" : "number" })),
@@ -225,8 +228,8 @@ export class ReportsService {
     const [r, cal, users] = await Promise.all([this.dailyReport(), this.time.calendar(), this.repo.users()]);
     const now = new Date(), today = localDate(now, cal), q = await this.quarter();
     const [{ items }, fields] = await Promise.all([this.dayItems(me.employeeId, q), this.repo.fields(me.id)]);
-    const typed = items.filter((it) => it.metric === "dailySum");
-    const kinds = new Map<string, string>([...typed.map((it) => [it.key, "number"] as const), ...fields.map((f) => [f.id, f.type] as const)]);
+    const mine = items.filter((it) => typed(it.metric));
+    const kinds = new Map<string, string>([...mine.map((it) => [it.key, "number"] as const), ...fields.map((f) => [f.id, f.type] as const)]);
     for (const [k, v] of Object.entries(input.values)) {
       const kind = kinds.get(k);
       if (!kind) throw new BadRequestException("فيه خانة مش في تقريرك");
@@ -238,9 +241,10 @@ export class ReportsService {
       await tx.dailyReport.create({ data: { userId: me.id, day: asDate(today), values: input.values, note: input.note, at: now } });
       const qStart = shift(today, -100); // covers the longest period an item adds up (a quarter); dailySumValue picks the days
       const days = (await this.repo.dailyReports(me.id, asDate(qStart), asDate(today), tx)).map((d) => ({ day: d.day.toISOString().slice(0, 10), values: d.values as Record<string, unknown> }));
-      for (const it of typed) {
-        const series = days.map((d) => ({ day: d.day, value: typeof d.values[it.key] === "number" ? (d.values[it.key] as number) : 0 }));
-        await tx.kpiItem.update({ where: { id: it.id }, data: { value: dailySumValue(series, today, it.params as MetricParams) } });
+      for (const it of mine) {
+        const series = days.flatMap((d) => (typeof d.values[it.key] === "number" ? [{ day: d.day, value: d.values[it.key] as number }] : []));
+        const value = it.metric === "webAds" ? dailyAverage(series, today) : dailySumValue(series, today, it.params as MetricParams);
+        await tx.kpiItem.update({ where: { id: it.id }, data: { value } });
       }
       return out;
     });
@@ -270,7 +274,7 @@ export class ReportsService {
     const rows = await Promise.all((card?.items ?? []).map(async (it) => {
       const params = (it.params ?? {}) as Record<string, unknown>;
       let t: { day: number; week: number; month: number; quarter: number } | null = null;
-      if (it.method === "system" && it.metric === "dailySum") {
+      if (it.method === "system" && typed(it.metric)) {
         t = dailyTotals(reps.map((x) => { const v = (x.values as Record<string, unknown>)[it.key]; return { day: x.day.toISOString().slice(0, 10), value: typeof v === "number" ? v : 0 }; }), d);
       } else if (it.method === "system" && AUTO.includes(it.metric ?? "")) {
         const end = dayStart(shift(d, 1), cal), from = (x: string) => dayStart(x, cal);

@@ -492,7 +492,8 @@
           "module": "M-04",
           "direction": "at-least",
           "goal": 100,
-          "required": 2
+          "required": 2,
+          "report": "sr-competitors"
         },
         {
           "title": "متوسط KPIs فريقها (بيومي)",
