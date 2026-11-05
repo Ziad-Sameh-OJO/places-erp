@@ -120,11 +120,12 @@ export const deductionAmount = (salaryPiasters: number, fraction: number): numbe
 /**
  * The month's line on the payroll sheet (M-05 (32) · 6.2 · 7.9): attendance days (Excuses already in them) plus approved
  * penalty days, each at salary ÷ 26, rounded once on the total (the demo's «أيام الخصم × يومية»). Never above the salary.
- * The KPI bonus / deduction (11.6) is added here when 11.x lands.
+ * 11.6: `kpi` is a closed quarter's KPI reward (+) or deduction (−) landing this month: a reward lowers the line (below
+ * zero = paid on top of the salary), a deduction raises it, still never above the salary.
  */
-export function monthDeduction(i: { salary: number; attendanceDays: number; penaltyDays: number }): { days: number; amount: number } {
+export function monthDeduction(i: { salary: number; attendanceDays: number; penaltyDays: number; kpi?: number }): { days: number; amount: number } {
   const days = i.attendanceDays + i.penaltyDays;
-  return { days, amount: Math.min(i.salary, deductionAmount(i.salary, days)) };
+  return { days, amount: Math.min(i.salary, Math.min(i.salary, deductionAmount(i.salary, days)) - (i.kpi ?? 0)) };
 }
 
 /* ---- penalties (7.7) and the 1-to-1 (7.8) ---- */
