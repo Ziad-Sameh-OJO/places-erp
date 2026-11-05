@@ -48,6 +48,8 @@ export interface TaskRow {
   doneAt: string | null;
   createdAt: string;
   late: boolean;
+  /** M-12: a shoot 72 h from the unit's registration, a Retouch 48 h from being given; null for other kinds */
+  sla: { due: string; hoursLeft: number; met: boolean | null } | null;
   /** the stages the caller may move it to, and whether they may reassign it (the server checks again) */
   can: { moves: (typeof TASK_STATUSES)[number][]; edit: boolean };
 }
@@ -63,3 +65,9 @@ export interface TaskOptions {
 export const TaskUnitQuery = z.object({ q: z.string().trim().max(60).optional() });
 export type TaskUnitQuery = z.infer<typeof TaskUnitQuery>;
 export interface TaskUnitOption { id: string; code: string; project: string; space: number }
+
+/** The SLA report (4.3 · M-12): the tasks Done in a month (Cairo). */
+export const TaskSlaQuery = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "الشهر لازم يبقى YYYY-MM").optional() });
+export type TaskSlaQuery = z.infer<typeof TaskSlaQuery>;
+export interface TaskSlaRate { total: number; met: number; percent: number | null }
+export interface TaskSlaReport { month: string; photo: TaskSlaRate; retouch: TaskSlaRate; firstTime: TaskSlaRate }

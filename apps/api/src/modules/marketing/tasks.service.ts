@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskUnitOption } from "@places/contracts";
-import { TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, isTaskLate, taskKind, taskMove, taskMovesFor } from "@places/domain";
+import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption } from "@places/contracts";
+import {
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+} from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -68,6 +70,15 @@ export class TasksService {
     return this.row(me, t, await this.repo.names([t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]), new Date());
   }
 
+  /** M-12 (Bayoumi 1-2, Rahma 6): shoots in 72 h, Retouch in 48 h, Retouch accepted the first time — of a month's Done tasks in the scope. */
+  async slaReport(me: CurrentUser, q: TaskSlaQuery, now = new Date()): Promise<TaskSlaReport> {
+    const month = q.month ?? localDate(now).slice(0, 7);
+    const [y, m] = month.split("-").map(Number) as [number, number];
+    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+    const done = await this.repo.doneBetween(await this.scope(me), dayStart(`${month}-01`), dayStart(`${next}-01`));
+    return { month, ...taskSlaReport(done.map((t) => ({ ...t, unitEnteredAt: t.unit?.enteredAt ?? null }))) };
+  }
+
   /** The kinds the caller may give (M-04 3.1: Manar / Randa the photo shoots, the marketing manager the rest), with who each goes to. */
   async options(me: CurrentUser): Promise<TaskOptions> {
     const kinds = TASK_KINDS.filter((k) => mayGive(me, k.key));
@@ -130,7 +141,23 @@ export class TasksService {
     });
     const what = m.undo ? "رجّعها للمهام (Undo)" : m.returned ? "رجّعها للتعديل" : `بقت ${TASK_STATUS_LABEL[input.status]}`;
     await this.tell(me, t, `${me.name}: مهمة ${label(t)} ${what}`);
+    await this.announce(me, t, input.status, m.returned);
     return this.get(me, id);
+  }
+
+  /**
+   * Who else hears (M-04 2.1 steps 5 · 2.2, the demo's notices): uploaded Retouch → inventory (Manar approves);
+   * approved Retouch → marketing; a shoot Done → inventory and marketing.
+   */
+  private async announce(me: CurrentUser, t: TaskRecord, to: TaskStatus, returned: boolean) {
+    const unit = t.unit?.code ?? "";
+    if (t.kind === "retouch" && to === "uploaded") {
+      await this.notifications.notify({ event: "task.review", text: `${me.name} رفع صور الـ Retouch لـ ${unit} · محتاجة موافقتك`, link: link(t.id) });
+    } else if (t.kind === "retouch" && to === "done" && !returned) {
+      await this.notifications.notify({ event: "task.delivered", text: `الـ Retouch لـ ${unit} اتوافق عليه`, link: link(t.id), to: ["marketing"] });
+    } else if (t.kind === "photo" && to === "done") {
+      await this.notifications.notify({ event: "task.delivered", text: `${me.name} خلّص تصوير ${unit}`, link: link(t.id) });
+    }
   }
 
   /** Reassign or move the day — whoever manages the task, while it isn't Done. */
@@ -184,8 +211,12 @@ export class TasksService {
   private row(me: CurrentUser, t: TaskRecord, names: Map<string, string>, now: Date): TaskRow {
     const a = actor(me, t);
     const status = t.status as TaskStatus;
+    const u = t.unit;
+    const sla = taskSla({ kind: t.kind, status, createdAt: t.createdAt, doneAt: t.doneAt, returned: t.returned, unitEnteredAt: u?.enteredAt ?? null }, now);
     return {
-      id: t.id, kind: t.kind, kindLabel: taskKind(t.kind)?.label ?? t.kind, title: t.title, unit: t.unit,
+      id: t.id, kind: t.kind, kindLabel: taskKind(t.kind)?.label ?? t.kind, title: t.title,
+      unit: u && { id: u.id, code: u.code, project: u.project, area: u.area, floor: u.floor, building: u.building, ownerName: u.ownerName, ownerPhone: u.ownerPhone },
+      sla: sla && { due: sla.due.toISOString(), hoursLeft: sla.hoursLeft, met: sla.met },
       by: t.byUserId ? { id: t.byUserId, name: names.get(t.byUserId) ?? "—" } : null,
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },
       dueOn: day(t.dueOn), status, returned: t.returned, note: t.note, doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),

@@ -9,6 +9,7 @@ import { money } from "@/lib/format";
 import { useCash, usePayroll, useRefreshFinance } from "./use-finance";
 import { VoucherById } from "./voucher";
 import { LedgerModal } from "./ledger-modal";
+import { Commissions } from "./commissions";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 
@@ -68,6 +69,7 @@ export function Payroll() {
       )}
       <Note kind={p.deductionsApproved ? "ok" : "warn"}>{p.deductionsApproved ? "الخصومات اتعتمدت من الـ HR واترحّلت. والمرتبات بعد الخصم بتتحمّل على المصروفات أوتوماتيك." : "خصومات الشهر لسه مستنية اعتماد الـ HR، فمش محسوبة هنا."}</Note>
       <Note>العمولات مش هنا: بتتصرف لوحدها لكل صفقة بالـ TCR. خصم السلفة الافتراضي = كل اللي عليه، والشهر الجاي بيبدأ بنفس اختيارك.</Note>
+      <Commissions />
       {paying && (
         <Modal title={`صرف مرتبات ${p.label}`} onClose={() => setPaying(false)}>
           <form className="grid" onSubmit={pay}>

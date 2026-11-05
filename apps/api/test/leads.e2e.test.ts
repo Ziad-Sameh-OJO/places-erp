@@ -550,7 +550,7 @@ test("a broker isn't in «الليدز»; the filters apply to both tabs and the
 /* ---------------- 1.11 the gaps: scope on writes, duplicates written differently, Qualified through the API ---------------- */
 
 const gapCode = (n: number) => `L-E2EG${stamp}${n}`;
-const gapPhone = (n: number) => `0105${stamp.slice(-6)}${n}`;
+const gapPhone = (n: number) => `0154${stamp.slice(-6)}${n}`; // not 010x/011x: `010${stamp.slice(-7)}` and P1 build the same number when that digit matches
 after(async () => {
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-E2EG${stamp}` } } }); // activities, arrivals, duplicates cascade
   await prisma.notification.deleteMany({ where: { text: { contains: `E2E-G ${stamp}` } } });
