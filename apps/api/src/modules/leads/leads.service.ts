@@ -90,7 +90,7 @@ export class LeadsService {
   }
 
   /** The SLA as the list shows it, with «قواعد الليدز» (1.29: its times, its working hours) and the official holidays. */
-  private async slaClock(now = new Date()): Promise<SlaClock> {
+  async slaClock(now = new Date()): Promise<SlaClock> {
     const [rules, calendar, holidayMode] = await Promise.all([this.rules.get(), this.time.calendar(), this.time.isHolidayToday(now)]);
     const slaRules = slaRulesOf(rules);
     return (r) => {

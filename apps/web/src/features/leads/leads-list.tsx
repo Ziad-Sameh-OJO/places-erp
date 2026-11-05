@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon, Note, Tabs } from "@/components/ui";
 import type { LeadKind } from "@places/contracts";
 import { useMe } from "@/lib/me";
@@ -27,6 +27,10 @@ export function LeadsList() {
   const [kind, setKind] = useState<LeadKind>("client"); // the tab; the filters stay when it changes (1.28)
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // links from the home board and the notifications: «/leads?open=<id>» opens the lead, «/leads?new=1» the form
+  const canCreate = can("leads", "create");
+  useEffect(() => { setOpen(new URLSearchParams(window.location.search).get("open")); }, []);
+  useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
   const summary = useLeadSummary(kind);
   const calls = useMyCalls().data;
   const options = useLeadOptions();
