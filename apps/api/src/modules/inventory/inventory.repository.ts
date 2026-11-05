@@ -150,6 +150,19 @@ export class InventoryRepository {
     return this.db.employee.findUnique({ where: { userId }, select: { name: true } });
   }
 
+  /** A unit's two sides, for closing one (Q16 · Q17). Archived units can't be closed. */
+  sides(unitId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.unit.findFirst({ where: { id: unitId, archivedAt: null }, select: { id: true, code: true, project: true, type: true, status: true, alsoType: true, alsoStatus: true } });
+  }
+
+  lockOf(unitId: string, dealId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.unitLock.findUnique({ where: { unitId_dealId: { unitId, dealId } } });
+  }
+
+  /** The Done Deals on a unit, with their codes (the drawer). */
+  locks(unitId: string) {
+    return this.db.unitLock.findMany({ where: { unitId }, include: { deal: { select: { code: true } } }, orderBy: { requestedAt: "asc" } });
+  }
 }
 
 const AVAILABLE: Prisma.UnitWhereInput = { OR: [{ status: "available" }, { alsoType: { not: null }, alsoStatus: "available" }] };

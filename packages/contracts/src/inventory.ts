@@ -40,6 +40,8 @@ const Common = {
   splitNote: optional(text(500, "كومنت التقسيم طويل")),
   /** the area tab Manar puts it in (M-03 3.2); empty = by its area */
   areaTabId: optional(z.string({ invalid_type_error: "اختار تاب المساحة" }).max(40)),
+  /** «متاحة كمان كـ (نوع تاني)» (Q17): on the Rent and the Resale sheet at once; empty = one type only */
+  alsoType: optional(z.enum(["Rent", "Resale"], { errorMap: () => ({ message: "النوع التاني Rent أو Resale" }) })),
 };
 
 /** RENT (M-03 3.1): contact, number, price per sqm and the agent are required. */
@@ -93,6 +95,7 @@ export const UnitInput = z.discriminatedUnion("type", [Rent, Resale, Income, Pri
   .refine((u) => unitFiguresFit({
     pricePerSqm: u.pricePerSqm ? fromDecimal(u.pricePerSqm) : null, leasePerSqm: u.type === "Income" ? fromDecimal(u.leasePerSqm) : null, area: u.space,
   }), { path: ["pricePerSqm"], message: "الإجمالي كبير أوي · راجع السعر والمساحة" })
+  .refine((u) => u.alsoType !== u.type, { path: ["alsoType"], message: "النوع التاني لازم يبقى غير الـ Type" })
   .refine((u) => !u.minSplit || u.minSplit < u.space, { path: ["minSplit"], message: "أقل مساحة للتقسيم لازم تبقى أصغر من مساحة الوحدة" })
   .refine((u) => u.type !== "Income" || !u.startsOn || !u.endsOn || u.startsOn <= u.endsOn, { path: ["endsOn"], message: "الـ End date قبل الـ Start date" });
 export type UnitInput = z.infer<typeof UnitInput>;
@@ -140,6 +143,13 @@ export interface UnitRow {
 }
 export interface UnitDetail extends UnitRow {
   splitNote: string | null; receivedAt: string | null; enteredAt: string; createdBy: Person | null; updatedAt: string;
+  /** the Done Deals on it (Q16): waiting for Manar / Randa to confirm, or closed by them */
+  locks: UnitLockView[];
+}
+
+/** A Done Deal on one side of a unit (Q16 · Q17). `canConfirm`: this person is the one who confirms it (Manar Rent, Randa the rest). */
+export interface UnitLockView {
+  dealId: string; dealCode: string; type: UnitType; status: "pending" | "locked"; requestedAt: string; lockedAt: string | null; canConfirm: boolean;
 }
 
 /** The demo's KPI tiles over the inventory the person can see. */

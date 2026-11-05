@@ -12,7 +12,7 @@ type Key =
   | "type" | "project" | "area" | "space" | "condition" | "floor" | "building" | "parking" | "agentId" | "areaTabId" | "location"
   | "receivedAt" | "lastOwnerUpdateAt" | "divisible" | "minSplit" | "splitNote" | "ownerName" | "ownerPhone" | "pricePerSqm"
   | "leasePerSqm" | "maintenance" | "commission" | "paymentMethod" | "delivery" | "link" | "contractDuration" | "startsOn"
-  | "endsOn" | "escalationPct" | "serviceChargeUsd" | "tenant" | "note";
+  | "endsOn" | "escalationPct" | "serviceChargeUsd" | "tenant" | "note" | "alsoType";
 type Form = Record<Key, string>;
 
 /** [field, label, input type, required]: the demo's TYPE_FIELDS, with the requirements' names (M-03 3.1). */
@@ -37,7 +37,7 @@ const TEXT_KEYS: Key[] = ["project", "area", "space", "floor", "building", "agen
 /** A new unit: today's «last update», received now (the demo's defaults). */
 function empty(type: UnitTypeName): Form {
   const blank = Object.fromEntries(TEXT_KEYS.map((k) => [k, ""])) as Record<Key, string>;
-  return { ...blank, type, condition: "", parking: "0", divisible: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
+  return { ...blank, type, alsoType: "", condition: "", parking: "0", divisible: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
 }
 
 /** An existing unit as the form's text fields (edit). */
@@ -45,7 +45,7 @@ function fromUnit(u: UnitDetail): Form {
   const s = (v: unknown) => (v == null ? "" : String(v));
   const f = empty(u.type);
   return {
-    ...f, project: u.project, area: u.area, space: s(u.space), condition: u.condition, floor: s(u.floor), building: s(u.building),
+    ...f, alsoType: u.alsoType ?? "", project: u.project, area: u.area, space: s(u.space), condition: u.condition, floor: s(u.floor), building: s(u.building),
     parking: s(u.parking), agentId: u.agent?.id ?? "", areaTabId: s(u.areaTabId), location: s(u.location),
     receivedAt: u.receivedAt ? localStamp(new Date(u.receivedAt)) : "", lastOwnerUpdateAt: cairoDay(new Date(u.lastOwnerUpdateAt)),
     divisible: u.divisible ? "yes" : "no", minSplit: s(u.minSplit), splitNote: s(u.splitNote), ownerName: s(u.ownerName), ownerPhone: s(u.ownerPhone),
@@ -57,11 +57,11 @@ function fromUnit(u: UnitDetail): Form {
 /** The form's text → the API's sheet: numbers as numbers, empty = not filled. The API checks it all again. */
 function toBody(f: Form, sendReceived: boolean) {
   const body: Record<string, unknown> = { type: f.type, divisible: f.divisible === "yes" };
-  const keys: Key[] = ["project", "area", "space", "condition", "floor", "building", "parking", "agentId", "areaTabId", "location", "lastOwnerUpdateAt", "maintenance", "commission",
+  const keys: Key[] = ["alsoType", "project", "area", "space", "condition", "floor", "building", "parking", "agentId", "areaTabId", "location", "lastOwnerUpdateAt", "maintenance", "commission",
     ...TYPE_FIELDS[f.type as UnitTypeName].map(([k]) => k), ...(f.divisible === "yes" ? (["minSplit", "splitNote"] as Key[]) : [])];
   for (const k of new Set(keys)) {
     const v = f[k].trim();
-    if (!v) continue;
+    if (!v || (k === "alsoType" && v === f.type)) continue;
     body[k] = NUMBERS.includes(k) ? Number(v) : v;
   }
   if (sendReceived && f.receivedAt) body.receivedAt = new Date(f.receivedAt).toISOString();
@@ -160,6 +160,11 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
       <form className="grid" onSubmit={submit}>
         <Field label="Type" req>
           <select name="type" value={f.type} onChange={set("type")}>{(["Rent", "Resale", "Income", "Primary"] as const).map((t) => <option key={t}>{t}</option>)}</select>
+        </Field>
+        <Field label="متاحة كمان كـ (نوع تاني)">
+          <select name="alsoType" value={f.alsoType === f.type ? "" : f.alsoType} onChange={set("alsoType")}>
+            <option value="">لأ</option>{(["Rent", "Resale"] as const).filter((t) => t !== f.type).map((t) => <option key={t}>{t}</option>)}
+          </select>
         </Field>
         <Field label="Project / اسم المبنى" req><input name="project" required maxLength={160} value={f.project} onChange={set("project")} /></Field>
         <Field label="Area" req>

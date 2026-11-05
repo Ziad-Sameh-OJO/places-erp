@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import type { UnitRow } from "@places/contracts";
+import type { UnitDetail, UnitRow } from "@places/contracts";
 import { Avatar, Chip, Icon } from "@/components/ui";
 import { amount, day, moneyExact, num } from "@/lib/format";
 
@@ -60,12 +60,13 @@ export function cell(u: UnitRow, key: string): ReactNode {
 }
 
 /** The demo's chips on a unit: type, open / closed, PDF, second type, divisible, late update. */
-export function UnitChips({ u }: { u: UnitRow }) {
+export function UnitChips({ u }: { u: UnitRow & Partial<Pick<UnitDetail, "locks">> }) {
   return (
     <>
       <TypeChip type={u.type} />
       {u.status !== "available" ? <Chip tone="bad">{u.status === "sold" ? "Sold" : "Rented"}</Chip> : <Chip tone="ok">متاحة</Chip>}
       {u.pdfStatus === "draft" ? <Chip tone="warn">PDF مستني Confirm</Chip> : <Chip tone="ok">PDF منشور للسيلز</Chip>}
+      {u.locks?.some((l) => l.status === "pending") && <Chip tone="warn">مستنية تأكيد القفل</Chip>}
       {u.alsoType && (u.alsoStatus && u.alsoStatus !== "available"
         ? <Chip tone="bad">{u.alsoType} اتقفلت</Chip>
         : <Chip tone="acc">متاحة كمان {u.alsoType}</Chip>)}
