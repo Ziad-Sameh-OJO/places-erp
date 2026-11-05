@@ -567,6 +567,7 @@ model Deal {
   participants     DealParticipant[]
   payments         Payment[]
   tcrs             Tcr[]
+  contract         Contract?
   createdById      String
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -957,17 +958,33 @@ model Purchase {
   @@schema("finance")
 }
 
-model Contract {
-  id           String        @id @default(cuid())
-  code         String        @unique
-  dealId       String        @unique
-  startsOn     DateTime      @db.Date
-  endsOn       DateTime      @db.Date
-  value        Decimal       @db.Decimal(14, 2)
-  escalation   Decimal       @default(0) @db.Decimal(5, 2)
-  status       String        @default("Active")
-  installments Installment[]
+/// M-11 3.3: Active → (قرّب يخلص is computed: 90 days or less left) → Renewed · Ended · Terminated.
+enum ContractStatus {
+  ACTIVE
+  RENEWED
+  ENDED
+  TERMINATED
 
+  @@schema("finance")
+}
+
+model Contract {
+  id           String         @id @default(cuid())
+  code         String         @unique // C-501… from finance.contract_code_seq (M-11 3.1: serial)
+  dealId       String         @unique
+  deal         Deal           @relation(fields: [dealId], references: [id])
+  startsOn     DateTime       @db.Date
+  endsOn       DateTime       @db.Date
+  value        Decimal        @db.Decimal(14, 2)
+  escalation   Decimal        @default(0) @db.Decimal(5, 2) // yearly increase %
+  status       ContractStatus @default(ACTIVE)
+  fileId       String?        // the signed contract PDF (system.File «Contract»)
+  installments Installment[]
+  createdById  String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([status, endsOn])
   @@schema("finance")
 }
 
@@ -979,6 +996,8 @@ model Installment {
   amount     Decimal   @db.Decimal(14, 2)
   paid       Decimal   @default(0) @db.Decimal(14, 2)
 
+  @@index([contractId, dueOn])
+  @@index([dueOn])
   @@schema("finance")
 }
 
