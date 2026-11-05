@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allowedValue, asListValues, listChangeProblem } from "../src/lists.ts";
+import { allowedValue, asListValues, canChangeList, listActions, listChangeProblem } from "../src/lists.ts";
 
 const on = (value: string) => ({ value, active: true });
 const off = (value: string) => ({ value, active: false });
@@ -35,4 +35,25 @@ test("a form stores an active value, or keeps the one the record already has aft
   assert.equal(allowedValue(list, "نص تشطيب"), false); // a new record can't pick it
   assert.equal(allowedValue(list, "نص تشطيب", "نص تشطيب"), true); // an old one keeps it
   assert.equal(allowedValue(list, "مفروش"), false);
+});
+
+test("what a save does: add, switch off / back on, both, or nothing (#186)", () => {
+  assert.deepEqual(listActions(areas, [...areas, on("المعادي")]), ["add"]);
+  assert.deepEqual(listActions(areas, [areas[0]!, off("الشيخ زايد"), areas[2]!]), ["off"]);
+  assert.deepEqual(listActions([off("أكتوبر")], [on("أكتوبر")]), ["off"]); // «رجّع» is the same right as «وقّف»
+  assert.deepEqual(listActions(areas, [off("التجمع الخامس"), areas[1]!, areas[2]!, on("المعادي")]).sort(), ["add", "off"]);
+  assert.deepEqual(listActions(areas, areas), []);
+});
+
+test("who changes a list: its own roles / people once set, «master: edit» until then (#186)", () => {
+  const hr = { id: "u-hr", roles: ["hr"], masterEdit: true };
+  const ops = { id: "u-ops", roles: ["ops"], masterEdit: false };
+  assert.equal(canChangeList(undefined, "add", hr), true);
+  assert.equal(canChangeList(undefined, "add", ops), false);
+  const rule = { add: ["ops"], off: ["u-hr"] };
+  assert.equal(canChangeList(rule, "add", ops), true); // the role, without «master: edit»
+  assert.equal(canChangeList(rule, "off", ops), false);
+  assert.equal(canChangeList(rule, "add", hr), false); // «master: edit» no longer enough once the list is set up
+  assert.equal(canChangeList(rule, "off", hr), true); // by name
+  assert.equal(canChangeList({ add: [], off: [] }, "add", hr), false);
 });

@@ -29,9 +29,10 @@ export function SettingsPage() {
   return (
     <>
       <div className="row"><Tabs value={tab} onChange={setTab} items={[["lists", "القوايم"], ["stages", "مراحل الليد"], ["time", "المواعيد والقواعد"], ["holidays", "الإجازات الرسمية", holidays.data?.length]]} /></div>
-      {!ed && <Note>عرض بس · التعديل لـ Super Admin أو مدير القسم.</Note>}
+      {/* the lists have their own editors (#186): each card shows what this person may do */}
+      {!ed && tab !== "lists" && <Note>عرض بس · التعديل لـ Super Admin أو مدير القسم.</Note>}
 
-      {tab === "lists" && <ListsTab settings={d} editable={ed} />}
+      {tab === "lists" && <ListsTab settings={d} />}
 
       {tab === "stages" && <Card title="مراحل الليد" icon="layers" sub="الترتيب، وأنهي مرحلة بتخلّي الليد Qualified (من الركوايرمنتس)">
         <Table head={["#", "المرحلة", "Qualified؟"]} rows={(stages.data ?? []).map((x, i) => [i + 1, <b key="s">{x.stage}</b>, x.qualified ? <Chip tone="ok">اه · أوتوماتيك</Chip> : <Chip plain>لأ</Chip>])} />

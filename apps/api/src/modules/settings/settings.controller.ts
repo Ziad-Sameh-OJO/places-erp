@@ -13,7 +13,7 @@ import { SettingsService } from "./settings.service";
 const HOLIDAY_COLUMNS = { from: "من", to: "لحد", label: "الإجازة" };
 const sheet = FileInterceptor("file", { limits: { fileSize: IMPORT_MAX_BYTES, files: 1 } });
 
-/** Everybody reads the lists (every form needs them); only «master: edit» changes them. */
+/** Everybody reads the lists (every form needs them); «master: edit» changes them, or per list whom the admin picks (#186). */
 @Controller("settings")
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
@@ -51,8 +51,12 @@ export class SettingsController {
   @Delete("holidays/:id") @Requires("master", "edit") @HttpCode(204)
   removeHoliday(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string) { return this.settings.removeHoliday(me, id); }
 
-  @Put(":key") @Requires("master", "edit")
+  @Get("list-editors/options") @Requires("access", "edit")
+  listEditorOptions() { return this.settings.listEditorOptions(); }
+
+  /** Who may save depends on the key and, for a list, on its own editors (#186): SettingsService.change decides, denying by default. */
+  @Put(":key") @SignedIn()
   set(@Me() me: CurrentUser, @Param("key", new ZodPipe(SettingKeyParam)) key: SettingKey, @Body() body: { value: unknown }) {
-    return this.settings.set(me, key, body?.value);
+    return this.settings.change(me, key, body?.value);
   }
 }
