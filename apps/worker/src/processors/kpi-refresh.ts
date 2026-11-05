@@ -7,7 +7,7 @@
 import { prisma, type Prisma } from "@places/db";
 import {
   DEFAULT_LEAD_RULES, PLACES_CALENDAR, type DealMoney, type DealStatus, type LeadRules, type MetricParams, type Method, type WorkCalendar,
-  calendarOf, closedInSla, endOfLocalDay, fromDecimal, holidayDays, isTicketLate, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek,
+  calendarOf, closedInSla, endOfLocalDay, fromDecimal, holidayDays, isTicketLate, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
   kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, timeliness,
 } from "@places/domain";
 
@@ -32,7 +32,6 @@ type Measure = (c: Ctx, p: MetricParams, from: Date, who: Who) => Promise<number
 /** A @db.Date column holds the Cairo day: compare it with that day, not the UTC instant. */
 const dateOnly = (at: Date, c: Ctx) => new Date(`${localDate(at, c.cal)}T00:00:00Z`);
 const avg = (p: MetricParams, n: number, from: Date, now: Date) => (p.avg === "week" ? perWeek(n, from, now) : n);
-const excluded = (p: MetricParams) => String(p.excl ?? "By Safwat").split(",").map((x) => x.trim()).filter(Boolean);
 const verifiedAt = (v: Prisma.JsonValue): Date | null => {
   const at = v && typeof v === "object" && !Array.isArray(v) ? (v as { at?: unknown }).at : null;
   return typeof at === "string" ? new Date(at) : null;
@@ -115,7 +114,7 @@ const MEASURES: Record<string, Measure> = {
   company: async (c) => targetShare(c, await prisma.employee.findMany({ where: { target: { gt: 0 } }, select: { id: true, target: true } })),
   secondCalls: async (c, p, from) => {
     const leads = await prisma.lead.findMany({
-      where: { createdAt: { gte: from }, archivedAt: null, selfEntered: false, ownedByTelesales: false, channel: { notIn: excluded(p) } },
+      where: { createdAt: { gte: from }, archivedAt: null, selfEntered: false, ownedByTelesales: false, channel: { notIn: secondCallExcluded(p) } },
       select: { createdAt: true, verification: true },
     });
     return onTimeShare(leads.map((l) => timeliness(verifiedAt(l.verification), endOfLocalDay(l.createdAt, c.cal), c.now)));

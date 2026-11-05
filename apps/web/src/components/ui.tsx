@@ -165,8 +165,9 @@ export function ExportButton({ module, path, query, filename, label = "تصدي�
  * The shared Excel import: upload → preview (first 50 rows) → errors by line and column → «تأكيد». The API reads the
  * file again on confirm and saves nothing if it has errors. `path` serves `/template`, `/preview` and the import itself.
  */
-export function ImportDialog<T extends Record<string, unknown>>({ title, path, columns, template, onDone, onClose }: {
-  title: string; path: string; columns: [keyof T & string, string][]; template: string; onDone: () => void; onClose: () => void;
+/** `skipErrors` (13.1 old data): rows with errors and duplicates are skipped and counted instead of stopping the import. */
+export function ImportDialog<T extends Record<string, unknown>>({ title, path, columns, template, onDone, onClose, skipErrors }: {
+  title: string; path: string; columns: [keyof T & string, string][]; template: string; onDone: () => void; onClose: () => void; skipErrors?: boolean;
 }) {
   const run = useAction();
   const toast = useToast();
@@ -177,7 +178,7 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
   const pick = (f: File | undefined) => { setFile(f ?? null); setP(null); if (f) step(async () => setP(await api.upload<ImportPreview<T>>(`${path}/preview`, f))); };
   const confirm = () => step(async () => {
     const r = await api.upload<ImportDone>(path, file!);
-    toast(`اتستورد ${r.imported} صف`);
+    toast(r.duplicates !== undefined ? `اتضاف ${r.imported} · متكرر ${r.duplicates} · أخطاء ${r.skipped ?? 0}` : `اتستورد ${r.imported} صف`);
     onDone();
   });
   return (
@@ -193,9 +194,9 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
       <p className="hint">الأعمدة: {columns.map(([, h]) => h).join("، ")} · أول صف هو العناوين.</p>
       {busy && !p && <p className="hint">بيقرا الشيت…</p>}
       {p && <>
-        <div className="row"><Chip plain>{p.total} صف</Chip><Chip tone="ok">{p.valid} سليم</Chip>{p.errors.length > 0 && <Chip tone="bad">{p.errors.length} خطأ</Chip>}</div>
+        <div className="row"><Chip plain>{p.total} صف</Chip><Chip tone="ok">{p.valid} {skipErrors ? "جديد" : "سليم"}</Chip>{p.duplicates !== undefined && <Chip tone="warn">{p.duplicates} متكرر</Chip>}{p.errors.length > 0 && <Chip tone="bad">{p.errors.length} خطأ</Chip>}</div>
         {p.errors.length > 0 && <>
-          <Note kind="warn">صلّح الأخطاء دي في الشيت وارفعه تاني · مفيش حاجة هتتحفظ قبل كده.</Note>
+          <Note kind="warn">{skipErrors ? "الصفوف دي مش هتتضاف · صلّحها وارفعها تاني لو عايزها. والمتكرر مش هيتضاف." : "صلّح الأخطاء دي في الشيت وارفعه تاني · مفيش حاجة هتتحفظ قبل كده."}</Note>
           <Table head={["المكان", "العمود", "المشكلة"]} rows={p.errors.slice(0, 100).map((e) => [`السطر ${e.line}`, e.column || "—", e.message])} />
         </>}
         {p.sample.length > 0 && <Table head={columns.map(([, h]) => h)} rows={p.sample.map((r) => columns.map(([k]) => String(r[k] ?? "")))} />}
@@ -203,7 +204,7 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
       </>}
       <div className="row end">
         <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
-        <button type="button" className="btn" disabled={!p || busy || p.errors.length > 0 || p.valid === 0} onClick={confirm}>{busy && p ? "بيحفظ…" : `تأكيد${p?.valid && !p.errors.length ? ` · ${p.valid} صف` : ""}`}</button>
+        <button type="button" className="btn" disabled={!p || busy || (!skipErrors && p.errors.length > 0) || p.valid === 0} onClick={confirm}>{busy && p ? "بيحفظ…" : `تأكيد${p?.valid && (skipErrors || !p.errors.length) ? ` · ${p.valid} صف` : ""}`}</button>
       </div>
     </Modal>
   );

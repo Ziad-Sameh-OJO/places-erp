@@ -76,9 +76,11 @@ export interface CommissionStatement {
     shares: Array<{ side: "buyer" | "seller"; schemePercent: number; share: string }>; commission: string; paid: string; due: string;
     tcrs: Array<{ id: string; code: string; amount: string; side: "owner" | "client"; signed: boolean }>;
   }>;
-  payouts: Array<{ id: string; move: string; date: string; deal: string | null; tcr: string | null; amount: string }>;
+  payouts: Array<{ id: string; moveId: string; move: string; date: string; deal: string | null; tcr: string | null; amount: string }>;
 }
-export interface CommissionPaid { move: string; entry: string; due: string; signed: boolean | null }
+/** One line of «صرف عمولة سيلز»'s picker: a salesperson / TL with their 21103 account and its balance. */
+export interface CommissionPerson { employeeId: string; name: string; code: string; balance: string }
+export interface CommissionPaid { moveId: string; move: string; entry: string; due: string; signed: boolean | null }
 
 /** 4.9: marketing attaches the client's logo (a finished upload, 0.9). */
 export const DealLogo = z.object({ fileId: Id });

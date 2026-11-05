@@ -14,6 +14,8 @@ import { LeadDrawer } from "./lead-drawer";
 import { NewLead } from "./new-lead";
 import { OperationsQueue } from "./duplicates";
 import { BulkNew } from "./bulk";
+import { OldDataImport } from "../imports/old-data-import";
+import { SecondCalls } from "./second-calls";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
 
@@ -54,6 +56,7 @@ export function LeadsList() {
     <>
       <div className="row"><Tabs value={kind} onChange={(k) => { setKind(k); setPage(1); }} items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker]]} /></div>
       <OperationsQueue />
+      <SecondCalls onOpen={setOpen} />
       {calls?.goal && (
         <Note>{calls.goal.period === "day"
           ? <>مكالماتك النهارده: <b>{num(calls.count)}</b> من {calls.goal.target} (بند في الـ KPIs بتاعتك).</>
@@ -70,6 +73,7 @@ export function LeadsList() {
         <span className="hint num">{num(total)} ليد</span>
         <span className="spacer" />
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />إدخال جماعي (Import)</button>}
+        {can("leads", "import") && <><OldDataImport kind="leads" /><OldDataImport kind="companies" /></>}{/* 13.1 */}
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />ليد جديد</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"

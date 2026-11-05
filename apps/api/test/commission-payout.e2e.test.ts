@@ -78,6 +78,7 @@ const transactions = async () => (await call(`/reports/transactions?from=${today
 
 test("9.15: «finance: view» sees the statement, only «finance: create» pays commission", async () => {
   assert.equal((await call(`/finance/commissions/${people.buyer.id}`, { cookie: mohsen })).status, 403);
+  assert.equal((await call("/finance/commissions", { cookie: mohsen })).status, 403);
   assert.equal((await call(`/finance/commissions/${people.buyer.id}`, { cookie: nancy })).status, 200); // the approver role views finance
   assert.equal((await pay({ employeeId: people.buyer.id, dealId, amount: "1" }, mohsen)).status, 403);
   assert.equal((await pay({ employeeId: people.buyer.id, dealId, amount: "1" }, nancy)).status, 403);
@@ -99,6 +100,8 @@ test("9.15: fully collected → the accountant is told; the Buyer's 15,000 is du
   assert.ok(await prisma.notification.findFirst({ where: { userId: accountant.id, text: { contains: `${code} اتحصّلت بالكامل` } } }));
   const s = await statement(people.buyer.id);
   assert.equal(s.balance, "15000.00");
+  const list = (await call("/finance/commissions", { cookie: ashraf })).body as Array<{ employeeId: string; balance: string }>;
+  assert.equal(list.find((p) => p.employeeId === people.buyer.id)?.balance, "15000.00");
   assert.deepEqual([s.deals[0].commission, s.deals[0].paid, s.deals[0].due, s.deals[0].state], ["15000.00", "0.00", "15000.00", "مستحقة · اتحصّلت بالكامل"]);
   assert.deepEqual(s.deals[0].shares, [{ side: "buyer", schemePercent: 30, share: "50000.00" }]);
   assert.equal(s.deals[0].tcrs.length, 2);
