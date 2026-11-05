@@ -14,6 +14,10 @@ export const VOUCHER_LABEL: Record<VoucherKind | "payroll", string> = {
 /** The chart's parents for a person's own account (docs/requirements/sources/chart-of-accounts.md): one sub-account per person. */
 export const ADVANCES_PARENT = "131"; // سلف موظفين
 export const CUSTODY_PARENT = "134"; // عهد
+/** 9.12 (4 Nov tree): a client's own account under «عملاء», a salesperson's under «عمولة مبيعات مستحقة», booked against «عمولة مبيعات». */
+export const CLIENTS_PARENT = "113";
+export const SALES_COMMISSION_PARENT = "21103";
+export const SALES_COMMISSION_EXPENSE = "5302";
 /** Where a receipt's other side may sit: «ايرادات اخري» (42) and its sub-accounts. */
 export const OTHER_REVENUE = "42";
 

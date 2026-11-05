@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateDeal, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { type DealStatus, type DealType, changes, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
+import type { CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
+import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, type DealMoney, type DealStatus, type DealType, type EntryLine, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -10,6 +10,8 @@ import { ownedBy } from "../../core/authz/scope";
 import { LeadsService } from "../leads/leads.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { LeadRulesService } from "../leads/lead-rules.service";
+import { LedgerService } from "../finance/ledger.service";
+import { VouchersService } from "../finance/vouchers.service";
 import { type DealRecord, type DealRowRecord, DealsRepository } from "./deals.repository";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the deal exists. */
@@ -34,6 +36,8 @@ export class DealsService {
     private readonly leads: LeadsService,
     private readonly inventory: InventoryService,
     private readonly rules: LeadRulesService,
+    private readonly ledger: LedgerService,
+    private readonly vouchers: VouchersService,
   ) {}
 
   /** M-02 4.1: a salesperson sees the deals they are on, a TL their team's, the managers all of them. */
@@ -141,6 +145,7 @@ export class DealsService {
       const { buyers, ...fields } = edits?.after ?? {};
       await this.repo.update(tx, id, { status: "APPROVED", ...reviewed, ...fields });
       if (buyers) await this.repo.setBuyers(tx, id, buyers as string[]);
+      await this.clientAccount(tx, me, d); // 9.12: the client's own account under 113 opens with the approval
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "approve", userId: me.id,
         before: { status: d.status, ...edits?.before }, after: { status: "APPROVED", ...edits?.after } }, tx);
       return d;
@@ -165,6 +170,65 @@ export class DealsService {
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "note", userId: me.id, ...diff }, tx);
     });
     return this.get(me, id);
+  }
+
+  /**
+   * «سجّل تحصيل» (5.3, the accountant's meeting 4 Nov): a receive voucher (9.11) into the chosen safe / bank against
+   * the client's account (113…). The first collection books Places' whole commission as revenue (Q37–Q39), so the
+   * client's account = commission − collected. Fully collected: each salesperson's commission becomes due under 21103.
+   */
+  async collect(me: CurrentUser, id: string, input: CollectDeal): Promise<DealCollected> {
+    const amount = fromDecimal(input.amount);
+    const lines = await this.vouchers.commissionLines();
+    return this.db.$transaction(async (tx) => {
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      if (!d) throw new NotFoundException(NO_DEAL);
+      await this.repo.lock(tx, id);
+      const money = toMoney(d, await this.repo.payments(tx, id));
+      const problem = collectionProblem(money, amount);
+      if (problem) throw new BadRequestException(problem);
+      const date = input.date ?? localDate(new Date());
+      const client = await this.clientAccount(tx, me, d);
+      const revenue = revenueOnCollection(money);
+      if (revenue) {
+        const line = lines.find((l) => l.id === input.revenueId);
+        if (!line) throw new BadRequestException("اختار نوع الإيراد (عمولات تسويق عقاري …) · أول تحصيل بيثبت العمولة كلها إيراد");
+        await this.ledger.post(me, { date, nature: "إثبات إيراد عمولة", source: "deal", sourceId: id, memo: `عمولة ${d.code} · ${d.company}`,
+          lines: [{ accountId: client.id, debit: revenue, credit: 0 }, { accountId: line.id, debit: 0, credit: revenue }] }, tx);
+      }
+      const from = input.side === "owner" ? "من الـ Owner" : "من الـ Client";
+      const saved = await this.vouchers.recordDealCollection(me, { toId: input.toId, clientAccountId: client.id, amount: input.amount, party: d.company, ref: d.code, memo: `تحصيل عمولة ${d.code} ${from}`, date }, tx);
+      const payment = await this.repo.addPayment(tx, { dealId: id, side: input.side, amount: toDecimal(amount), receivedAt: new Date(`${date}T00:00:00Z`), accountId: input.toId, recordedById: me.id });
+      const after: DealMoney = { ...money, payments: [...money.payments, { side: input.side, amount }] };
+      const status = collectionStatus(after);
+      await this.repo.update(tx, id, { status: toDb(status) as never });
+      await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "collect", userId: me.id,
+        before: { status: d.status, collected: toDecimal(collected(money)) },
+        after: { status: toDb(status), collected: toDecimal(collected(after)), side: input.side, amount: input.amount, payment: payment.id, move: saved.move.no } }, tx);
+      if (status === "Fully Collected") await this.commissionsDue(tx, me, d, after, date);
+      return { status, collected: toDecimal(collected(after)), remaining: toDecimal(remaining(after)), move: saved.move.no, entry: saved.move.entry.no };
+    });
+  }
+
+  /** 9.12: the client file's own account (the deal itself if its lead has none). */
+  private async clientAccount(tx: Prisma.TransactionClient, me: CurrentUser, d: DealRecord) {
+    return this.ledger.partyAccount(me, CLIENTS_PARENT, { type: "client", id: (await this.repo.clientOf(tx, d.id)) ?? d.id, name: d.company }, tx);
+  }
+
+  /** Fully collected (4 Nov): each salesperson's commission (scheme % × share, splitDeal) is due on their own 21103 account. */
+  private async commissionsDue(tx: Prisma.TransactionClient, me: CurrentUser, d: DealRecord, money: DealMoney, date: string) {
+    const people = new Map((await this.repo.schemes([...money.buyers, ...money.sellers], tx)).map((e) => [e.id, e]));
+    const shares = splitDeal(money, (sid) => Number(people.get(sid)?.commissionPct ?? 0)).filter((s) => s.commission > 0);
+    if (!shares.length) return;
+    const { accounts } = await this.ledger.balances(tx);
+    const expense = accounts.find((a) => a.code === SALES_COMMISSION_EXPENSE);
+    if (!expense) throw new BadRequestException("حساب «عمولة مبيعات» مش موجود في الشجرة");
+    const lines: EntryLine[] = [{ accountId: expense.id, debit: shares.reduce((s, x) => s + x.commission, 0), credit: 0 }];
+    for (const s of shares) {
+      const acc = await this.ledger.partyAccount(me, SALES_COMMISSION_PARENT, { type: "sales", id: s.salesId, name: people.get(s.salesId)!.name }, tx);
+      lines.push({ accountId: acc.id, debit: 0, credit: s.commission });
+    }
+    await this.ledger.post(me, { date, nature: "عمولة مبيعات مستحقة", source: "deal", sourceId: d.id, memo: `عمولة السيلز على ${d.code} · اتحصّلت بالكامل`, lines }, tx);
   }
 
   /** What the Office Manager changed before approving, old next to new; amounts as decimal strings, never floats. */
@@ -198,6 +262,16 @@ export class DealsService {
   private async names(ids: string[]) {
     return new Map((ids.length ? await this.repo.employeeNames([...new Set(ids)]) : []).map((e) => [e.id, e.name]));
   }
+}
+
+/** The deal as commission.ts reads it; the Seller counts once Manar approved them (5.5). */
+function toMoney(d: DealRecord, payments: Array<{ side: string; amount: { toFixed(n: number): string } }>): DealMoney {
+  const sellers = d.participants.filter((p) => p.side === "SELLER" && p.approved).map((p) => p.employee.id);
+  return {
+    status: label(d.status), commissionOwner: fromDecimal(d.commissionOwner.toFixed(2)), commissionClient: fromDecimal(d.commissionClient.toFixed(2)),
+    payments: payments.map((p) => ({ side: p.side as "owner" | "client", amount: fromDecimal(p.amount.toFixed(2)) })),
+    buyers: buyersOf(d).map((p) => p.id), sellers, sellerApproved: true, targetBase: d.targetBase ? fromDecimal(d.targetBase.toFixed(2)) : null, offTarget: d.offTarget,
+  };
 }
 
 const buyersOf = (d: DealRowRecord) => d.participants.filter((p) => p.side === "BUYER").map((p) => p.employee);

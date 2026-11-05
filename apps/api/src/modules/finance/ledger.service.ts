@@ -238,6 +238,21 @@ export class LedgerService {
     return account;
   }
 
+  /**
+   * 9.12 (4 Nov): a client's own account under 113 (113001…) or a salesperson's under 21103, opened by the system
+   * the first time it's needed; the code is given once and kept, so the order follows the oldest deal.
+   */
+  async partyAccount(me: CurrentUser, parentCode: string, party: { type: "client" | "sales"; id: string; name: string }, tx: Tx): Promise<AccountRow> {
+    const found = await this.repo.partyAccount(party.type, party.id, tx);
+    if (found) return found;
+    const parent = await this.repo.accountByCode(parentCode, tx);
+    if (!parent) throw new BadRequestException(NO_ACCOUNT);
+    const code = nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx), party.type === "client" ? 3 : 2);
+    const account = await this.repo.createAccount({ code, name: party.name, parentId: parent.id, nature: parent.nature, kind: null, partyType: party.type, partyId: party.id }, tx);
+    await this.audit.record({ module: "finance", entity: "Account", entityId: account.id, action: "create", userId: me.id, after: { code, name: account.name, parent: parent.code, party: party.type } }, tx);
+    return account;
+  }
+
   /** The petty-cash ceilings finance set on cash accounts (M-08 3.1 «سقف العهدة»), as decimal strings. */
   async caps(): Promise<Map<string, string>> {
     return new Map((await this.repo.caps()).map((a) => [a.id, a.cap!.toFixed(2)]));

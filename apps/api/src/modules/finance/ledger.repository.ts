@@ -39,8 +39,13 @@ export class LedgerRepository {
     return tx.journalLine.groupBy({ by: ["accountId"], _sum: { debit: true, credit: true } });
   }
 
-  createAccount(data: { code: string; name: string; parentId: string; nature: string; kind: string | null; holderId?: string }, tx: Tx) {
+  createAccount(data: { code: string; name: string; parentId: string; nature: string; kind: string | null; holderId?: string; partyType?: string; partyId?: string }, tx: Tx) {
     return tx.account.create({ data, select: ACCOUNT });
+  }
+
+  /** 9.12: a client's / salesperson's own account, if it was opened already. */
+  partyAccount(partyType: string, partyId: string, tx: Tx | PrismaClient = this.db) {
+    return tx.account.findUnique({ where: { partyType_partyId: { partyType, partyId } }, select: ACCOUNT });
   }
 
   /** A person's own sub-account under a parent (131 سلف · 134 عهد), if it was opened already. */
