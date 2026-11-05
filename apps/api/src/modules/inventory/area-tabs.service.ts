@@ -6,6 +6,7 @@ import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryRepository } from "./inventory.repository";
+import { withMissing } from "./inventory.service";
 
 const NO_TAB = "التاب ده مش موجود";
 
@@ -20,7 +21,8 @@ export class AreaTabsService {
   /** The tabs in order, each with the available units in it under the list's other filters. */
   async list(me: CurrentUser, f: UnitFilters): Promise<AreaTabView[]> {
     const tabs = await this.repo.areaTabs();
-    const counts = await this.repo.areaTabCounts({ insider: keepsInventory(me.grants), staleBefore: staleBefore(new Date()) }, f, tabs);
+    const s = { insider: keepsInventory(me.grants), staleBefore: staleBefore(new Date()) };
+    const counts = await this.repo.areaTabCounts(s, await withMissing(this.repo, s, f), tabs);
     return tabs.map((t, i) => ({ ...t, label: areaTabLabel(t), count: counts[i]! }));
   }
 

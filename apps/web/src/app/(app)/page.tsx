@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { inboxOrder, keepsCompaniesSheet, type ModuleKey } from "@places/domain";
+import { inboxOrder, keepsCompaniesSheet, keepsInventory, type ModuleKey } from "@places/domain";
 import { useMe } from "@/lib/me";
 import { NAV } from "@/lib/nav";
 import { Card, Chip, Icon } from "@/components/ui";
@@ -12,6 +12,7 @@ import { Inbox, type InboxLine } from "@/components/inbox";
 import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads/today";
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
 import { MyTeamTasks } from "@/features/inventory/team-tasks";
+import { useMissingUnitLines } from "@/features/inventory/today";
 
 /**
  * Home = «مهامي النهارده» (1.22, demo home.js): everything waiting for this person's action now, the late first.
@@ -22,9 +23,10 @@ export default function HomePage() {
   const leads = useLeadToday(!!me && can("leads"));
   const bulks = useBulkLines(!!me && can("leads", "approve"));
   const companies = useNewCompanyLines(keepsCompaniesSheet(me?.roles ?? []));
+  const missingUnits = useMissingUnitLines(!!me && keepsInventory({ can })); // 2.20 · the API keeps Manar's and Randa's apart
   const unread = useMyNotifications().data?.unread ?? 0;
   if (!me) return <p className="hint">بيحمّل…</p>;
-  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies]); // each module's lines, the late first
+  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
   const pages = (Object.keys(NAV) as ModuleKey[]).filter((k) => k !== "home" && can(k));
 

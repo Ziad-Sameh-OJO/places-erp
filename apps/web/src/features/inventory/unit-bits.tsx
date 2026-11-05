@@ -34,7 +34,7 @@ const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : String(
 export function cell(u: UnitRow, key: string): ReactNode {
   const d = u.details;
   switch (key) {
-    case "code": return <><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <> <Chip tone="warn">PDF draft</Chip></>}</>;
+    case "code": return <><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <> <Chip tone="warn">PDF draft</Chip></>}{u.missing.length > 0 && <> <Chip tone="bad">ناقص {u.missing.length}</Chip></>}</>;
     case "type": return <TypeChip type={u.type} />;
     case "space": return <span className="num">{num(u.space)}</span>;
     case "pricePerSqm": case "leasePerSqm": return <span className="num">{amount(u[key])}</span>;
