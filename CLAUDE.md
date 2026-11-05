@@ -59,9 +59,10 @@ Node 24 (`.nvmrc`), pnpm via `corepack enable`.
 pnpm install
 pnpm db:local          # Postgres without Docker (or: pnpm infra:up)
 pnpm files:local       # file storage: a MinIO you installed (or: pnpm infra:up)
+pnpm redis:local       # Redis for the worker's jobs without Docker (or: pnpm infra:up)
 (cd apps/api && npx playwright-core install --only-shell chromium)   # once: Chromium for PDFs
 pnpm db:migrate && pnpm db:seed
-pnpm dev               # web :3000 · api :4000
+pnpm dev               # web :3000 · api :4000 · worker
 ```
 Seeded accounts: the emails in `packages/db/prisma/seed-data/people.json`, password = `SEED_DEV_PASSWORD` in `.env`. Without `SMTP_URL`, every email the app sends (activation, reset, OTP) is written to `.local/outbox/`.
 

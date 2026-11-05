@@ -83,13 +83,18 @@ jobs:
           (cd apps/web && npx next start -p 3000 > ../../web.log 2>&1 &)
           for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:3000/login && break; sleep 1; done
           pnpm --filter @places/web test:browser
+      # boots next to the running API, registers every job in JOBS and is still alive a few seconds later
       - name: Worker starts and registers its jobs
         run: |
           (cd apps/worker && node src/main.ts > ../../worker.log 2>&1 &)
           for i in $(seq 1 30); do grep -q "worker: up" worker.log && break; sleep 1; done
+          sleep 5
           cat worker.log
-          grep -q "worker: up" worker.log
-          pkill -TERM -f "node src/main.ts" || true
+          n=$(sed -nE 's/.*worker: up · ([0-9]+) job.*/\1/p' worker.log)
+          test -n "$n" && test "$n" -eq "$(grep -c 'worker: registered' worker.log)"
+          test "$n" -eq "$(grep -cE '^\s*\{ name: "' apps/worker/src/main.ts)"
+          pgrep -f "node src/main.ts" > /dev/null || { echo "worker crashed after boot"; exit 1; }
+          pkill -TERM -f "node src/main.ts"
       - name: API log (on failure)
         if: failure()
         run: cat api.log web.log worker.log || true
