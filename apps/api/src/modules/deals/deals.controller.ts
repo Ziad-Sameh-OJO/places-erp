@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
-import { CreateDeal, DealFilters, DealUnitQuery, ReviewDeal } from "@places/contracts";
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
+import { CreateDeal, DealFilters, DealNote, DealUnitQuery, ReviewDeal } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -47,5 +47,12 @@ export class DealsController {
   @Requires("deals", "approve")
   review(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(ReviewDeal)) body: ReviewDeal) {
     return this.deals.review(me, id, body);
+  }
+
+  /** «note» (M-02 3.1): the Office Manager and Finance — «deals: edit» in the role matrix. */
+  @Put(":id/note")
+  @Requires("deals", "edit")
+  setNote(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(DealNote)) body: DealNote) {
+    return this.deals.setNote(me, id, body);
   }
 }

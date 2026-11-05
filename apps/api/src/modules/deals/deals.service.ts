@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateDeal, DealDetail, DealFilters, DealForm, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { type DealStatus, type DealType, changes, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, toDecimal } from "@places/domain";
+import type { CreateDeal, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
+import { type DealStatus, type DealType, changes, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -9,6 +9,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { LeadsService } from "../leads/leads.service";
 import { InventoryService } from "../inventory/inventory.service";
+import { LeadRulesService } from "../leads/lead-rules.service";
 import { type DealRecord, type DealRowRecord, DealsRepository } from "./deals.repository";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the deal exists. */
@@ -32,6 +33,7 @@ export class DealsService {
     private readonly notifications: NotificationsService,
     private readonly leads: LeadsService,
     private readonly inventory: InventoryService,
+    private readonly rules: LeadRulesService,
   ) {}
 
   /** M-02 4.1: a salesperson sees the deals they are on, a TL their team's, the managers all of them. */
@@ -79,13 +81,16 @@ export class DealsService {
     const { buyers, sellers } = dealSides(closer, input.withMe, unit.agentId);
     if ((await this.repo.salespeople(input.withMe)).length !== new Set(input.withMe).size) throw new BadRequestException(NOT_SALES);
     const company = lead.company?.name ?? lead.name;
+    const closedAt = new Date();
+    const { close } = await this.rules.get();
+    const offTarget = closedTooSoon(lead.createdAt, closedAt, close.alarmH); // Q13 · 5.6
 
     const created = await this.db.$transaction(async (tx) => {
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
       const code = dealCode(n);
       const data = {
         code, leadId: lead.id, unitId: unit.id, type: input.type, space: input.space, location: unit.project, company, source: lead.channel,
-        commissionOwner: toDecimal(owner), commissionClient: toDecimal(client), closedAt: new Date(), createdById: me.id,
+        commissionOwner: toDecimal(owner), commissionClient: toDecimal(client), closedAt, offTarget, createdById: me.id,
       };
       const deal = await this.repo.create(tx, {
         ...data,
@@ -95,7 +100,11 @@ export class DealsService {
       await this.leads.markDoneDeal(tx, me, lead, `اتسجّلت صفقة ${code} على ${unit.code}`);
       return { id: deal.id, code };
     });
-    await this.notifications.notify({ event: "deal.done", link: link(created.id), text: `Done Deal جديدة ${created.code} مستنية مراجعتك · ${company}` });
+    // who hears of a new Done Deal and on which channels is «قواعد الليدز ← الإقفال» (1.29), like the demo
+    const holder = await this.repo.account(closer);
+    const to = ruleRecipients(close.notify, { ownerUserId: holder?.userId ?? null, ownerTlUserId: holder?.teamLeader?.userId ?? null });
+    const alarm = offTarget ? `Alarm: اتسجّلت وقت القفل (اتعملت واتقفلت في خلال ${close.alarmH} ساعة) · متدخلش في التارجت · ` : "";
+    await this.notifications.notify({ event: "deal.done", link: link(created.id), to, channels: [...close.notify.ch], text: `${alarm}Done Deal جديدة ${created.code} مستنية مراجعتك · ${company}` });
     return this.get(me, created.id);
   }
 
@@ -125,6 +134,24 @@ export class DealsService {
       return d;
     });
     await this.announce(result, input);
+    return this.get(me, id);
+  }
+
+  /**
+   * «note» (M-02 3.1 · 2.3): the Office Manager or Finance write a special case on a deal on the sheet; a different
+   * amount (targetBase) changes what enters the targets only, never the commission (commission.ts splitDeal).
+   */
+  async setNote(me: CurrentUser, id: string, input: DealNote): Promise<DealDetail> {
+    await this.db.$transaction(async (tx) => {
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      if (!d) throw new NotFoundException(NO_DEAL);
+      if (!takesNote(label(d.status))) throw new BadRequestException("الـ note بتتكتب على صفقة اتوافق عليها بس");
+      const next = { note: input.note || null, targetBase: input.targetBase && toDecimal(fromDecimal(input.targetBase)) };
+      const diff = changes({ note: d.note, targetBase: d.targetBase?.toFixed(2) ?? null }, next);
+      if (!diff) return;
+      await this.repo.update(tx, id, next);
+      await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "note", userId: me.id, ...diff }, tx);
+    });
     return this.get(me, id);
   }
 
