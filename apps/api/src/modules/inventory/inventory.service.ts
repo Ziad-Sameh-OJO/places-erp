@@ -71,6 +71,16 @@ export class InventoryService {
     return ids.map((id) => { const u = rows.get(id)!; return { ...u, totalPrice: u.totalPrice?.toFixed(2) ?? null, splitOf: null }; });
   }
 
+  /** «سجّل صفقة» (M-02 2.1 step 1): open, confirmed units by code, project or space, with their agent (the Seller). */
+  forDeal(q?: string) {
+    return this.repo.forDeal(q, 30);
+  }
+
+  /** The unit a new deal names, if it is still open and confirmed; null otherwise. */
+  openForDeal(id: string) {
+    return this.repo.openForDeal(id);
+  }
+
   /** Codes for the units a Visit names (1.9), whatever their state now. */
   codes(ids: string[]) {
     return ids.length ? this.repo.codes(ids) : Promise.resolve([]);

@@ -13,6 +13,7 @@ export * from "./ledger.ts";
 export * from "./vouchers.ts";
 export * from "./lead-rules.ts";
 export * from "./commission.ts";
+export * from "./deals.ts";
 export * from "./team-leader.ts";
 export * from "./attendance.ts";
 export * from "./leaves.ts";

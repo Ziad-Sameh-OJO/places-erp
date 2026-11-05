@@ -14,4 +14,5 @@ export * from "./kpis.ts";
 export * from "./claims.ts";
 export * from "./reports.ts";
 export * from "./tasks.ts";
+export * from "./deals.ts";
 // one file per module as it is built: deals.ts, inventory.ts, hr.ts, kpis.ts …

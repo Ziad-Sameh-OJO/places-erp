@@ -133,6 +133,15 @@ export class LeadsRepository {
   }
 
   /** Activity is written by users; their display name lives on their HR file. */
+  /** «سجّل صفقة» (M-02): leads in scope that were ever Interested, with their company. */
+  dealLeads(scope: Prisma.LeadWhereInput, id?: string) {
+    return this.db.lead.findMany({
+      where: { AND: [scope, { archivedAt: null, qualified: true }, id ? { id } : {}] },
+      select: { id: true, code: true, name: true, channel: true, stage: true, qualified: true, assignedToId: true, createdAt: true, company: { select: { name: true } } },
+      orderBy: { updatedAt: "desc" }, take: 300,
+    });
+  }
+
   userNames(userIds: string[]) {
     return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
   }
