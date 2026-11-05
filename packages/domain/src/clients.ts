@@ -37,6 +37,28 @@ export function mergedKind(a: ClientKind, b: ClientKind): ClientKind {
   return a === b ? a : "both";
 }
 
+export interface MergeSide {
+  readonly kind: ClientKind;
+  readonly status: "active" | "inactive";
+  readonly company: string | null;
+  readonly preferredContact: string | null;
+  readonly lastContactAt: Date;
+}
+
+/**
+ * M-10 2.2: the file kept after Operations approves a merge. It keeps its own name; what it lacks it takes from the
+ * other file; both roles survive; it's Active if either was, and its last contact is the later of the two.
+ */
+export function mergedFile(keep: MergeSide, drop: MergeSide): MergeSide {
+  return {
+    kind: mergedKind(keep.kind, drop.kind),
+    status: keep.status === "active" || drop.status === "active" ? "active" : "inactive",
+    company: keep.company ?? drop.company,
+    preferredContact: keep.preferredContact ?? drop.preferredContact,
+    lastContactAt: keep.lastContactAt > drop.lastContactAt ? keep.lastContactAt : drop.lastContactAt,
+  };
+}
+
 /** A deal as one party sees it: what that party owes Places on it and what they paid (their side's collections). */
 export interface PartyDeal {
   readonly status: DealStatus;

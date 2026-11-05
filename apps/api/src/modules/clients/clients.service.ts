@@ -104,6 +104,11 @@ export class ClientsService {
     const now = new Date();
     const old = known[0]?.client;
     if (old) {
+      // the person's numbers are on more than one file: suggested to Operations as a merge (M-10 2.2)
+      for (const other of new Set(known.map((k) => k.client.id).filter((x) => x !== old.id))) {
+        const m = await this.repo.suggestMerge(tx, old.id, other, `نفس الشخص: ${p.name} · أرقامه على ملفين`);
+        if (m) await this.audit.record({ module: "clients", entity: "ClientMerge", entityId: m.id, action: "create", userId: by, after: m }, tx);
+      }
       // only numbers nobody has yet are added: a number on another file is for Operations' merge (M-10 2.2)
       const fresh = phones.filter((ph) => !known.some((k) => k.phone === ph));
       const kind = withRole(old.kind, role);
