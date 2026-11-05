@@ -195,6 +195,7 @@ model AttendanceDay {
   day              DateTime       @db.Date
   checkInAt        DateTime?
   checkOutAt       DateTime?
+  visitAt          DateTime?      // 7.3: the Visit that started a salesperson's day; HR sees it next to the real fingerprint
   kind             AttendanceKind @default(CHECKIN)
   deduction        Decimal        @default(0) @db.Decimal(3, 2) // 0 · 0.25 · 0.5 · 1
   lateMinutes      Int            @default(0)
@@ -381,6 +382,12 @@ model LeadVisit {
   extra     String?     // spaces that aren't in the inventory sheet yet («دور 4 في مبنى B6»)
   outcome   String?     // done · not_done (not done shows for HR in attendance, M-07); null = still planned
   alarmedAt DateTime?   // the salesperson got the Alarm at its time (the worker sends it once; editing the time sends it again)
+  // 1.24 «اتأجلت»: pending · approved · rejected; approved = that day without a deduction (7.3)
+  postponeStatus      String?
+  postponeReason      String?
+  postponeRequestedBy String?
+  postponeDecidedBy   String?
+  postponeDecidedAt   DateTime?
   units     VisitUnit[]
   byUserId  String
   createdAt DateTime    @default(now())

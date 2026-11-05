@@ -32,7 +32,9 @@ export type EmployeePatch = z.infer<typeof EmployeePatch>;
 
 /* ---- 7.2 · 7.10 · 7.12 · attendance ---- */
 export interface AttendanceRowView {
-  employeeId: string; name: string; department: string; day: string; checkIn: string | null; checkOut: string | null;
+  id: string; employeeId: string; name: string; department: string; day: string; checkIn: string | null; checkOut: string | null;
+  /** 7.3: the Visit that started the day (HR sees it and the real fingerprint); `confirmForgot` = «نسي البصمة» waiting for HR */
+  visitAt: string | null; confirmForgot: boolean;
   lateMinutes: number; deduction: number; deductionAmount: string; label: string; source: string; customTiers: boolean; fixedSchedule: string | null;
 }
 /** «حضور النهارده»: the day's rows, who didn't check in (a working day only), the unmatched names waiting for HR. */
@@ -54,7 +56,7 @@ const Hhmm = z.string().trim().regex(/^\d{1,2}[:.]?\d{2}(:\d{2})?$/, "الوقت
 export const FingerprintRow = z.object({
   name: z.string().trim().min(2, "الاسم ناقص").max(120),
   day: CalendarDay,
-  checkIn: Hhmm,
+  checkIn: Hhmm.optional(), // only a check-out = «نسي البصمة» (7.3)
   checkOut: Hhmm.optional(),
 });
 export type FingerprintRow = z.infer<typeof FingerprintRow>;

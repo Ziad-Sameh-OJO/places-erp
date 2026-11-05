@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -14,6 +14,8 @@ import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 import { InventoryService } from "../inventory/inventory.service";
 import { LeavesService } from "../hr/leaves.service";
+import { AttendanceService } from "../hr/attendance.service";
+import { RotationService } from "./rotation.service";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
 const NO_LEAD = "الليد ده مش موجود أو مبقاش معاك";
@@ -38,6 +40,8 @@ export class LeadsService {
     private readonly notifications: NotificationsService,
     private readonly inventory: InventoryService,
     private readonly leaves: LeavesService,
+    private readonly attendance: AttendanceService, // 7.3: a marked Visit re-reads that day
+    private readonly rotation: RotationService, // 1.23: today's order
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
@@ -106,7 +110,16 @@ export class LeadsService {
     const canSeeLogs = canSeeLeadLogs(me.roles, leadLogRoles);
     // the same lines the Logs tab lists: the lead's own records plus its audit trail
     const logCount = canSeeLogs ? lead.activities.length + (await this.repo.auditCount(id)) : null;
-    return { ...toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla), canSeeLogs, logCount };
+    const detail = toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla);
+    // 1.24: «وافق على التأجيل» only for whom the lead rules name (the salesperson's TL by default)
+    if (lead.assignedToId && detail.visits.some((v) => v.postpone?.status === "pending") && (await this.canDecidePostpone(me, lead.assignedToId))) for (const v of detail.visits) if (v.postpone) v.postpone.canDecide = v.postpone.status === "pending";
+    return { ...detail, canSeeLogs, logCount };
+  }
+
+  /** 1.24: whether this person approves postponing this salesperson's Visits (lead rules «visit.postpone»). */
+  async canDecidePostpone(me: CurrentUser, ownerId: string) {
+    const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(ownerId)]);
+    return !!owner && ruleHas(rules.visit.postpone, { ownerUserId: owner.userId, ownerTlUserId: owner.teamLeader?.userId ?? null }, me);
   }
 
   /** «مين يشوف الـ Logs» from the lead's Logs tab (demo): whoever manages access picks the roles; audited under «access». */
@@ -186,7 +199,7 @@ export class LeadsService {
     }
 
     const created = await this.db.$transaction(async (tx) => {
-      const state = await this.repo.lockRouting(tx); // first: leads created at the same moment take their turns one after the other
+      const state = routingForDay(await this.repo.lockRouting(tx), localDate(new Date())); // first: leads created at the same moment take their turns one after the other
       const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
       const router = new LeadRouter(state);
       const placement = placeNewLead(
@@ -196,7 +209,7 @@ export class LeadsService {
       if (placement.kind === "hand") router.assignedByHand(placement.to);
       // the area's rotation, without anyone whose account was switched off since they were ticked (1.13) or who is on approved leave today (1.15, M-05 6.2)
       const onLeave = placement.kind === "route" ? await this.leaves.employeesOnLeave(localDate(new Date()), tx) : new Set<string>();
-      const assignedToId = placement.kind === "route" ? router.next(input.area, (await this.repo.stillWorking(pools[input.area] ?? [], tx)).filter((id) => !onLeave.has(id))) : placement.to;
+      const assignedToId = placement.kind === "route" ? router.next(input.area, await this.rotation.order((await this.repo.stillWorking(pools[input.area] ?? [], tx)).filter((id) => !onLeave.has(id)), tx)) : placement.to;
       await this.repo.saveRouting(tx, router.snapshot());
 
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
@@ -338,7 +351,9 @@ export class LeadsService {
       if (!lead) throw new NotFoundException(NO_LEAD);
       const visit = await this.repo.findVisit(tx, id, visitId);
       if (!visit) throw new NotFoundException(NO_VISIT);
+      if (visit.postponeStatus === "pending" || visit.postponeStatus === "approved") throw new BadRequestException("الميعاد ده عليه تأجيل");
       if (!(await this.repo.markVisit(tx, visitId, input.outcome)).count) throw new BadRequestException("الميعاد اتعلّم خلاص");
+      if (lead.assignedToId) await this.attendance.refreshDay(lead.assignedToId, visit.at, tx); // 7.3: Done = the day starts at the Visit
       const kind = kindOf(visit.kind);
       await this.repo.addActivity(tx, id, kind === "Meeting" ? "meeting" : "visit",
         input.outcome === "done" ? `الـ ${kind} خلصت · اتحسبت في الـ activity` : `الـ ${kind} اتعلّمت إنها محصلتش`, me.id);
@@ -439,7 +454,8 @@ function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, peop
     })),
     visits: visits.map((v): VisitRow => ({
       id: v.id, kind: kindOf(v.kind), at: v.at.toISOString(), extra: v.extra, outcome: v.outcome === "done" || v.outcome === "not_done" ? v.outcome : null,
-      due: !v.outcome && v.at.getTime() <= now, units: v.units.map((u) => u.unit),
+      due: !v.outcome && v.postponeStatus !== "pending" && v.postponeStatus !== "approved" && v.at.getTime() <= now, units: v.units.map((u) => u.unit),
+      postpone: v.postponeStatus === "pending" || v.postponeStatus === "approved" || v.postponeStatus === "rejected" ? { status: v.postponeStatus, reason: v.postponeReason ?? "", canDecide: false } : null,
     })),
   };
 }

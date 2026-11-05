@@ -145,7 +145,7 @@ export class LeadsRepository {
   }
 
   findVisit(tx: Prisma.TransactionClient, leadId: string, visitId: string) {
-    return tx.leadVisit.findFirst({ where: { id: visitId, leadId }, select: { id: true, kind: true, at: true, extra: true, outcome: true, units: { select: { unitId: true } } } });
+    return tx.leadVisit.findFirst({ where: { id: visitId, leadId }, select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, units: { select: { unitId: true } } } });
   }
 
   /** «تعديل الميعاد»: a new time means a new Alarm. */
@@ -245,7 +245,7 @@ const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
-  visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },
+  visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, postponeReason: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;
 export type LeadDetailRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_DETAIL }>;
 

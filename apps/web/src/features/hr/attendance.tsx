@@ -61,10 +61,15 @@ export function AttendanceToday() {
         <Table head={["الموظف", "Check-in", "Check-out", "دقايق التأخير", "الحالة", "الخصم", ""]} empty="مفيش بصمات اليوم ده"
           rows={rows.map((r) => [
             <span key="n"><b>{r.name}</b><span className="sub">{r.department}{r.fixedSchedule ? ` · مواعيد خاصة: ${r.fixedSchedule}` : ""}{r.customTiers ? " · شرايح خاصة" : ""}</span></span>,
-            r.checkIn ?? "—", r.checkOut ?? "—", r.lateMinutes ? `${r.lateMinutes} د` : "—",
+            // 7.3: HR sees the Visit that started the day and the real fingerprint, both
+            r.visitAt ? <span key="i">Visit {r.visitAt}{r.checkIn && <span className="sub">بصم {r.checkIn}</span>}</span> : r.checkIn ?? "—",
+            r.checkOut ?? "—", r.lateMinutes ? `${r.lateMinutes} د` : "—",
             <Chip key="s" tone={tone(r.deduction, r.lateMinutes)}>{r.label}</Chip>,
-            r.deduction ? <span key="d">{r.deduction === 1 ? "يوم" : r.deduction === 0.5 ? "نص يوم" : "ربع يوم"}<span className="sub">{money(r.deductionAmount)}</span></span> : "—",
-            can("hr", "edit") ? <button key="e" className="btn ghost sm" onClick={() => setEntry({ employeeId: r.employeeId, name: r.name, ...(r.checkIn ? { checkIn: r.checkIn } : {}) })}>عدّل</button> : "",
+            r.deduction ? <span key="d">{r.deduction === 1 ? "يوم" : r.deduction === 0.5 ? "نص يوم" : "ربع يوم"}<span className="sub">{money(r.deductionAmount)}</span></span> : r.confirmForgot ? "يوم · مستني Confirmation" : "—",
+            <span key="e" className="row">
+              {r.confirmForgot && can("hr", "approve") && <button className="btn sm" onClick={() => void run(async () => { await api.post(`/hr/attendance/${r.id}/confirm-forgot`, {}); await refresh(); }, "اتأكد · اتخصم يوم")}>Confirm خصم يوم</button>}
+              {can("hr", "edit") && <button className="btn ghost sm" onClick={() => setEntry({ employeeId: r.employeeId, name: r.name, ...(r.checkIn ? { checkIn: r.checkIn } : {}) })}>عدّل</button>}
+            </span>,
           ])} />
         {d.missing.length > 0 && (
           <Card title="مبصموش" icon="alert" sub="لو الجهاز كان واقف، الـ HR تكمّل اليوم بإيدها">
