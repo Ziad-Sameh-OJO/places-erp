@@ -44,6 +44,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "unit.new", label: "وحدة جديدة (Live Alert)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-03 7.1
   { key: "task.new", label: "مهمة جديدة ليك", to: "المسؤول عن المهمة", toRoles: [], channels: ["app", "push"], important: false }, // M-04 2.1 step 4
   { key: "task.changed", label: "مهمة اتغيّرت (حالة / Undo / تعديل)", to: "المسؤول عن المهمة · اللي إدّاها", toRoles: [], channels: ["app"], important: false }, // 4.1
+  { key: "notactive.in_inventory", label: "رقم في شيت Not Active موجود في الانفنتوري", to: "مدير الانفنتوري", toRoles: ["inventory"], channels: ["app", "push"], important: true }, // M-03 1.1 · 2.3
+  { key: "notactive.task", label: "أرقام Not Active اتبعتتلك", to: "اللي اتبعتله", toRoles: [], channels: ["app", "push"], important: false }, // M-03 1.1
+  { key: "notactive.done", label: "وحدة جديدة من شيت Not Active", to: "مدير الانفنتوري", toRoles: ["inventory"], channels: ["app", "push"], important: true }, // M-03 1.1 · 7.1
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "finance.budget", label: "بند قرّب يخلص أو عدّى البادجت", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.2 / 9.9
   { key: "finance.bill_due", label: "ميعاد فاتورة ثابتة", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.16

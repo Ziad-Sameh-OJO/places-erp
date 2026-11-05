@@ -25,6 +25,7 @@ export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveShee
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState(sheets[0]?.name ?? "");
   const [column, setColumn] = useState("");
+  const [numberCol, setNumberCol] = useState("");
   const [p, setP] = useState<NotActivePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const step = async (fn: () => Promise<void>) => { setBusy(true); try { await run(fn); } finally { setBusy(false); } };
@@ -33,13 +34,14 @@ export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveShee
     // the column: the one picked if the file has it, else the sheet's own, else the file's first
     const col = r.headers.includes(c) ? c : r.sheet && r.headers.includes(r.sheet.dedupeBy) ? r.sheet.dedupeBy : r.headers[0] ?? "";
     setColumn(col);
+    setNumberCol((n) => (n && r.headers.includes(n) ? n : r.numberGuess ?? ""));
     setP(col !== c ? await api.post<NotActivePreview>("/not-active/preview", form(f, { name: n.trim(), dedupeBy: col })) : r);
   });
   const pick = (f: File | undefined) => { setFile(f ?? null); setP(null); if (f) void look(f, name, column); };
   const merge = () => step(async () => {
-    const r = await api.post<NotActiveImportDone>("/not-active/import", form(file!, { name: name.trim(), dedupeBy: column }));
+    const r = await api.post<NotActiveImportDone>("/not-active/import", form(file!, { name: name.trim(), dedupeBy: column, numberBy: numberCol }));
     await qc.invalidateQueries({ queryKey: ["not-active"] });
-    toast(`اتضاف ${num(r.added)} صف · اتساب ${num(r.duplicates)} مكرر${r.noKey ? ` · ${num(r.noKey)} من غير «${column}»` : ""}`);
+    toast(`اتضاف ${num(r.added)} صف · اتساب ${num(r.duplicates)} مكرر${r.noKey ? ` · ${num(r.noKey)} من غير «${column}»` : ""}${r.inInventory ? ` · ${num(r.inInventory)} موجود في الانفنتوري` : ""}`);
     onDone(r.sheetId);
   });
   return (
@@ -57,6 +59,13 @@ export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveShee
         </Field>
         {p && <Field label="منع التكرار بخانة" req>
           <select value={column} onChange={(e) => { setColumn(e.target.value); if (file) void look(file, name, e.target.value); }}>
+            {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
+          </select>
+        </Field>}
+        {/* M-03 1.1: the «Number» column is compared with the owners' numbers in the inventory */}
+        {p && <Field label="خانة الرقم (للمقارنة بالانفنتوري)">
+          <select value={numberCol} onChange={(e) => setNumberCol(e.target.value)}>
+            <option value="">من غير مقارنة</option>
             {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
           </select>
         </Field>}

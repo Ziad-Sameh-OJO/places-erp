@@ -56,3 +56,33 @@ export function mergeSheetRows(existing: readonly SheetRow[], incoming: readonly
 
 /** The sheet's columns after a merge: the ones it had, then any new header, in the file's order. */
 export const mergeColumns = (had: readonly string[], headers: readonly string[]): string[] => [...new Set([...had, ...headers])];
+
+/** Why a classification can't be saved (Arabic, shown as is), or null. M-03 2.3: Not True without a reason is refused. */
+export function classifyProblem(status: string, feedback: string | null | undefined): string | null {
+  if (!(NOT_ACTIVE_STATUSES as readonly string[]).includes(status)) return "اختار No Answer أو Not True أو Done";
+  if (status === "Not True" && !feedback?.trim()) return "Not True لازم يتكتب جنبه السبب (Feedback)";
+  return null;
+}
+
+/** A phone number as the sheets and the inventory write it, reduced to compare (0100…, +20 100…, 0100-…); "" if it isn't one. */
+export function phoneKey(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length < 7) return "";
+  return digits.length >= 12 && digits.startsWith("20") ? `0${digits.slice(2)}` : digits;
+}
+
+/** The header that holds the owner's number (M-03 1.1: «خانة الـ Number»), when the sheet names it plainly. */
+export const guessNumberColumn = (headers: readonly string[]): string | null =>
+  headers.find((h) => /^(number|phone|mobile|رقم|الرقم|رقم المالك|رقم التليفون|الموبايل|موبايل)$/i.test(h.trim())) ?? null;
+
+/**
+ * M-03 1.1 · 2.3: rows whose number is already an owner's number in the main inventory → that unit (Manar is told and
+ * decides the row's status; the row stays in the sheet).
+ */
+export function inventoryMatches<R extends { id: string; number: string | undefined }, U extends { ownerPhone: string | null }>(rows: readonly R[], units: readonly U[]): Map<string, U> {
+  const byPhone = new Map<string, U>();
+  for (const u of units) { const k = phoneKey(u.ownerPhone); if (k && !byPhone.has(k)) byPhone.set(k, u); }
+  const out = new Map<string, U>();
+  for (const r of rows) { const u = byPhone.get(phoneKey(r.number)); if (u) out.set(r.id, u); }
+  return out;
+}

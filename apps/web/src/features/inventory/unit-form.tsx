@@ -92,13 +92,20 @@ function Figures({ f }: { f: Form }) {
  * «وحدة جديدة» / «تعديل» (2.7): the demo's form — the common columns on top, then the chosen type's own (M-03 3.1),
  * with the total / Income figures worked out while typing. Required fields can't be left empty (and the API refuses).
  */
-export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
+/**
+ * A unit entered from a Not Active row (2.15, M-03 1.1 «Done»): the owner's number from the sheet, saved through
+ * that row so it's marked Done with it.
+ */
+export interface FromSheet { title: string; ownerPhone: string; save: (body: Record<string, unknown>) => Promise<CreatedUnit> }
+
+export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
   unit?: UnitDetail | undefined; options: UnitOptions | undefined; tabs: AreaTabView[]; onClose: () => void; onSaved: (id: string) => void;
+  fromSheet?: FromSheet | undefined;
 }) {
   const qc = useQueryClient();
   const run = useAction();
   const toast = useToast();
-  const [f, setF] = useState<Form>(() => (unit ? fromUnit(unit) : empty("Rent")));
+  const [f, setF] = useState<Form>(() => (unit ? fromUnit(unit) : { ...empty("Rent"), ownerPhone: fromSheet?.ownerPhone ?? "" }));
   // a new unit starts on the first active finishing, like the demo's select (the list comes from the settings, 12.7)
   useEffect(() => {
     const first = activeValues(options?.conditions ?? [])[0];
@@ -127,7 +134,7 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
           toast(saved.updatedAt !== unit.updatedAt ? "اتحفظ · الـ PDF مستني Confirm تاني" : "مفيش تغيير");
           onSaved(unit.id);
         } else {
-          const made = await api.post<CreatedUnit>("/inventory/units", body);
+          const made = fromSheet ? await fromSheet.save(body) : await api.post<CreatedUnit>("/inventory/units", body);
           toast(`${made.code} اتسجّلت · مستنية Confirm من منار قبل ما تظهر للسيلز`);
           onSaved(made.id);
         }
@@ -149,7 +156,7 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved }: {
   );
 
   return (
-    <Modal title={unit ? `تعديل ${unit.code}` : "وحدة جديدة"} onClose={onClose}>
+    <Modal title={unit ? `تعديل ${unit.code}` : fromSheet?.title ?? "وحدة جديدة"} onClose={onClose}>
       <form className="grid" onSubmit={submit}>
         <Field label="Type" req>
           <select name="type" value={f.type} onChange={set("type")}>{(["Rent", "Resale", "Income", "Primary"] as const).map((t) => <option key={t}>{t}</option>)}</select>
