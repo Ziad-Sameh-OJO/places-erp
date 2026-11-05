@@ -23,6 +23,14 @@ export type UnitRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_DETAIL }>;
 /** Who the list is for: drafts and owners' details are for the people who keep the inventory (domain keepsInventory). */
 export interface UnitScope { insider: boolean; staleBefore: Date }
 export type Tab = AreaRange & { id: string };
+/** The list's filters, with «ناقصها بيانات» (2.20) resolved to the units it names (the service works them out). */
+export type ListFilters = UnitFilters & { missingIds?: string[] };
+/** What the missing-data check (domain missingFields) reads of a unit. */
+const MISSING_CHECK = {
+  id: true, code: true, type: true, project: true, space: true, condition: true, building: true, ownerName: true, ownerPhone: true,
+  pricePerSqm: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, location: true, details: true,
+  _count: { select: { photos: true } },
+} satisfies Prisma.UnitSelect;
 
 /** Data access only. The visibility rule (Q15: no drafts for sales) is part of every query, never filtered afterwards. */
 @Injectable()
@@ -107,7 +115,12 @@ export class InventoryRepository {
     return this.db.unit.findMany({ where: { AND: [{ id: { in: ids } }, visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE] }, select: { id: true } });
   }
 
-  list(s: UnitScope, f: UnitFilters, tabs: Tab[]) {
+  /** Every unit the person can see that isn't archived, for the missing-data check (2.20), newest first. */
+  forMissingCheck(s: UnitScope) {
+    return this.db.unit.findMany({ where: visible(s), select: MISSING_CHECK, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+  }
+
+  list(s: UnitScope, f: ListFilters, tabs: Tab[]) {
     const where = unitWhere(s, f, tabs);
     return this.db.$transaction([
       this.db.unit.findMany({ where, select: UNIT_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
@@ -125,7 +138,7 @@ export class InventoryRepository {
   }
 
   /** The type tabs' counts under the current filters (the tab itself set aside). */
-  tabCounts(s: UnitScope, f: UnitFilters, types: readonly UnitType[], tabs: Tab[]) {
+  tabCounts(s: UnitScope, f: ListFilters, types: readonly UnitType[], tabs: Tab[]) {
     const count = (w: Prisma.UnitWhereInput) => this.db.unit.count({ where: w });
     const rest = { ...f, type: undefined };
     return this.db.$transaction([
@@ -136,7 +149,7 @@ export class InventoryRepository {
   }
 
   /** The area tabs' counts: available units in each, under the list's other filters (the area tab set aside). */
-  areaTabCounts(s: UnitScope, f: UnitFilters, tabs: Tab[]) {
+  areaTabCounts(s: UnitScope, f: ListFilters, tabs: Tab[]) {
     return this.db.$transaction(tabs.map((t) => this.db.unit.count({ where: unitWhere(s, { ...f, view: "available", tabId: t.id }, tabs) })));
   }
 
@@ -216,7 +229,7 @@ function inTab(tabId: string, tabs: Tab[]): Prisma.UnitWhereInput {
   return { OR: [{ areaTabId: tabId }, { AND: [{ areaTabId: null }, range(tabs[at]!), ...tabs.slice(0, at).map((e) => ({ NOT: range(e) }))] }] };
 }
 
-function unitWhere(s: UnitScope, f: Omit<UnitFilters, "page" | "pageSize">, tabs: Tab[]): Prisma.UnitWhereInput {
+function unitWhere(s: UnitScope, f: Omit<ListFilters, "page" | "pageSize">, tabs: Tab[]): Prisma.UnitWhereInput {
   const and: Prisma.UnitWhereInput[] = [visible(s), f.view === "closed" ? CLOSED : AVAILABLE];
   // a unit is listed under a type when it's open as that type, or as its second type (Q17); on the rented / sold
   // sheet, when that type is the side that was closed
@@ -237,6 +250,7 @@ function unitWhere(s: UnitScope, f: Omit<UnitFilters, "page" | "pageSize">, tabs
   if (f.stale === false) and.push({ lastOwnerUpdateAt: { gte: s.staleBefore } });
   if (f.divisible != null) and.push({ divisible: f.divisible });
   if (f.tabId) and.push(inTab(f.tabId, tabs));
+  if (f.missing != null) and.push(f.missing ? { id: { in: f.missingIds ?? [] } } : { id: { notIn: f.missingIds ?? [] } });
   if (f.q) {
     const q = { contains: f.q, mode: "insensitive" as const };
     const digits = f.q.replace(/\D/g, "");

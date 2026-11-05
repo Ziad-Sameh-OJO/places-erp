@@ -36,6 +36,7 @@ export function InventoryList() {
     const q = new URLSearchParams(window.location.search);
     if (q.get("unit")) setOpen(q.get("unit"));
     if (q.get("report")) setReport(true); // «التقرير اليومي جاهز» (2.18)
+    if (q.get("missing")) setF({ missing: "true" }); // «مهامي النهارده»: «N وحدة تانية ناقصها بيانات» (2.20)
   }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   const [teamTask, setTeamTask] = useState(false);
@@ -61,7 +62,7 @@ export function InventoryList() {
   };
   const filter = (next: UnitQuery) => { setF(next); setPage(1); };
   const on = (k: keyof UnitQuery) => (e: { target: { value: string } }) => filter({ ...f, [k]: e.target.value });
-  const toggle = (k: "stale" | "divisible") => (e: { target: { checked: boolean } }) => filter({ ...f, [k]: e.target.checked ? "true" : undefined });
+  const toggle = (k: "stale" | "divisible" | "missing") => (e: { target: { checked: boolean } }) => filter({ ...f, [k]: e.target.checked ? "true" : undefined });
   const failed = units.error?.message;
   const list = failed ? [] : units.data?.items ?? [];
   const total = failed ? 0 : units.data?.total ?? 0;
@@ -82,6 +83,7 @@ export function InventoryList() {
         {insider && <KpiTile label="PDF مستني Confirm" value={s ? num(s.pdfDraft) : "…"} sub="قبل ما يتنشر للسيلز" icon="file" tone="warn" />}
         <KpiTile label="محتاجة ابديت" value={s ? num(s.stale) : "…"} sub="last update أكتر من شهر" icon="clock" tone="bad" onClick={() => filter({ ...f, stale: "true" })} />
         <KpiTile label="تنفع تتقسم" value={s ? num(s.divisible) : "…"} sub="مساحات كبيرة" icon="layers" tone="ok" />
+        <KpiTile label="ناقصها بيانات" value={s ? num(s.missing) : "…"} sub="تتكمّل بعدين" icon="alert" tone="bad" onClick={() => filter({ ...f, missing: "true" })} />
       </div>
       <div className="row">
         <Tabs value={tab} onChange={(t) => { setTab(t); setPage(1); }} items={types} />
@@ -111,6 +113,7 @@ export function InventoryList() {
         </>}
         <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={toggle("stale")} /><span>محتاجة ابديت</span></label>
         <label className="tog"><input type="checkbox" checked={!!f.divisible} onChange={toggle("divisible")} /><span>تنفع تتقسم</span></label>
+        <label className="tog"><input type="checkbox" checked={!!f.missing} onChange={toggle("missing")} /><span>ناقصها بيانات</span></label>
         <span className="spacer" />
         <div className="seg" role="group" aria-label="طريقة العرض">
           <button aria-pressed={mode === "table"} title="شيت" onClick={() => setMode("table")}><Icon name="list" /><span>شيت</span></button>
@@ -143,6 +146,7 @@ export function InventoryList() {
       )}
       <p className="hint">التابات اللي تحت Customized: الفريق بيحدد الشرايح ويضيف أو يشيل. والوحدة اللي الـ last update بتاعها عدّى عليه أكتر من شهر بتظهر متأخرة، وبتتحسب في الـ activity بتاعة منار ورندا.</p>
       {open && <UnitDrawer ids={list.map((u) => u.id)} id={open} insider={insider} editable={me.can("inventory", "edit")} canConfirm={me.can("inventory", "approve")} unit={unit.data} error={unit.error} onGo={setOpen} onClose={() => setOpen(null)}
+        {...(me.can("inventory", "edit") ? { onComplete: () => setForm("edit") } : {})}
         actions={unit.data && (me.can("inventory", "edit") || me.can("inventory", "delete")) && (
           <div className="row">
             {me.can("inventory", "edit") && <button className="btn ghost" onClick={() => setForm("edit")}>تعديل البيانات</button>}
