@@ -15,6 +15,12 @@ import { hash } from "@node-rs/argon2";
 import { prisma } from "../src/index.ts";
 
 interface SeedRole { key: string; label: string; tier: string; scope: "own" | "team" | "dept" | "all"; permissions: Record<string, string[]> }
+interface SeedKpiItem {
+  title: string; weight: number; targetText: string; source: string; method: string; module: string | null; direction: string; goal: number;
+  required?: number; metric?: string | null; params?: { ids?: string[] } & Record<string, string | number | string[]>; enteredBy?: string[];
+}
+interface SeedKpiCard { follower: string | null; items: SeedKpiItem[] }
+interface SeedKpis { quarter: string; cards: Record<string, SeedKpiCard>; sales: SeedKpiCard; teamLeaders: { quarter: string; people: string[]; card: SeedKpiCard } }
 interface SeedAccount { code: string; name: string; kind?: string }
 interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; manager?: string; team?: string }
 
@@ -40,6 +46,7 @@ async function main() {
   }
 
   const employeeIds = new Map<string, string>();
+  const userIds = new Map<string, string>();
   for (const p of people) {
     const account = passwordHash ? { status: "ACTIVE" as const, passwordHash } : {};
     const known = await prisma.user.findUnique({ where: { email: p.email } });
@@ -54,6 +61,7 @@ async function main() {
       update: {},
     });
     employeeIds.set(p.ref, emp.id);
+    userIds.set(p.ref, user.id);
   }
   // second pass, the org structure (M-09 7.2, KPI file): a salesperson's TL, and everyone's direct manager —
   // `manager` in people.json, or the TL for salespeople. Only empty fields are filled: changes made in the app stay.
@@ -82,7 +90,26 @@ async function main() {
     });
     accountIds.set(a.code, row.id);
   }
-  console.log(`seed: ${Object.keys(settings).length} settings · ${roles.length} roles · ${people.length} people · ${chart.length} accounts · ${passwordHash ? "ACTIVE with the dev password" : "INVITED"}`);
+  // M-12 · the client's Q4 2026 KPI cards (11.1): the 14 from the file, the salespeople's card under their TL, and the TLs'
+  // draft from next quarter. A card that already exists is left as it is, so changes made in the app stay.
+  const kpi = load<SeedKpis>("kpi-q4-2026.json");
+  const kpiCard = async (quarter: string, who: string, c: SeedKpiCard) => {
+    const employeeId = employeeIds.get(who)!;
+    if (await prisma.kpiCard.findUnique({ where: { quarter_employeeId: { quarter, employeeId } } })) return 0;
+    const follower = c.follower === "teamLeader" ? people.find((p) => p.ref === who)!.teamLeader! : c.follower;
+    await prisma.kpiCard.create({ data: { quarter, employeeId, followerId: follower ? ref(follower) : null,
+      items: { create: c.items.map((it, position) => ({ ...it, position,
+        enteredBy: (it.enteredBy ?? ["follower"]).map((x) => userIds.get(x) ?? x),
+        params: it.params?.ids ? { ...it.params, ids: it.params.ids.map((x) => ref(x)) } : (it.params ?? {}) })) } } });
+    return 1;
+  };
+  let kpiCards = 0;
+  for (const [r, c] of Object.entries(kpi.cards)) kpiCards += await kpiCard(kpi.quarter, r, c);
+  for (const p of people.filter((x) => x.teamLeader)) kpiCards += await kpiCard(kpi.quarter, p.ref, kpi.sales);
+  for (const r of kpi.teamLeaders.people) kpiCards += await kpiCard(kpi.teamLeaders.quarter, r, kpi.teamLeaders.card);
+  await prisma.kpiQuarter.upsert({ where: { id: kpi.quarter }, create: { id: kpi.quarter }, update: {} });
+  await prisma.kpiBands.upsert({ where: { id: "default" }, create: {}, update: {} });
+  console.log(`seed: ${Object.keys(settings).length} settings · ${roles.length} roles · ${people.length} people · ${chart.length} accounts · ${kpiCards} new KPI cards · ${passwordHash ? "ACTIVE with the dev password" : "INVITED"}`);
 }
 
 main().finally(() => prisma.$disconnect());

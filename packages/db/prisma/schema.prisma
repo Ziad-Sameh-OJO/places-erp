@@ -171,6 +171,8 @@ model Employee {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
+  kpiCards        KpiCard[]       @relation("KpiOwner")
+  kpiFollowing    KpiCard[]       @relation("KpiFollower")
   @@schema("hr")
 }
 
@@ -970,43 +972,54 @@ model Installment {
 
 // ───────────────────────────── M-12 · KPI cards ─────────────────────────────
 
+/// One person's card for one quarter (M-12 3.1). followerId null = the owners follow it.
 model KpiCard {
   id          String    @id @default(cuid())
   quarter     String    // "2026-Q4"
   employeeId  String
-  followerId  String?   // null = the owners
+  employee    Employee  @relation("KpiOwner", fields: [employeeId], references: [id])
+  followerId  String?
+  follower    Employee? @relation("KpiFollower", fields: [followerId], references: [id])
   payBase     String    @default("bonus") // salary · bonus
-  payPeriod   String    @default("quarter")
-  payAmount   Decimal   @default(0) @db.Decimal(14, 2)
+  payPeriod   String    @default("quarter") // month · quarter
+  payAmount   Decimal?  @db.Decimal(14, 2) // the bonus; null = one month's salary (11.4)
   approvedBy  String?
   approvedAt  DateTime?
-  finalScore  Decimal?  @db.Decimal(6, 2)
+  finalScore  Decimal?  @db.Decimal(6, 2) // saved when the quarter ends: the past quarters' results
   finalAmount Decimal?  @db.Decimal(14, 2)
   plan        String?   // improvement plan under 70%
-  draft       Boolean   @default(false)
   items       KpiItem[]
 
   @@unique([quarter, employeeId])
   @@schema("kpi")
 }
 
+/// One item of a card. Exactly where its number comes from (meeting 4 Nov · 11.11): `method` system (a metric key from
+/// the catalog in @places/domain + its `params`: period, kind, minutes…), report (handed in: `report` names the report
+/// that delivers it, null = «سلّمت» on the card; `required` times in the quarter) or manual (typed by `enteredBy`:
+/// "follower", role keys or user ids). `key` stays when the item is renamed or copied to a new quarter (11.12).
 model KpiItem {
-  id          String  @id @default(cuid())
-  cardId      String
-  card        KpiCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  position    Int
-  title       String
-  weight      Int
-  targetText  String
-  source      String
-  measurement String  // auto · handed-in · manual
-  module      String?
-  direction   String  @default("at-least")
-  goal        Decimal @db.Decimal(14, 2)
-  metric      String? // key of the automatic measure
-  manualValue Decimal? @db.Decimal(14, 2)
-  required    Int?    // hand-in: times due
-  delivered   Int     @default(0)
+  id         String        @id @default(cuid())
+  key        String        @default(cuid())
+  cardId     String
+  card       KpiCard       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  position   Int
+  title      String
+  weight     Int
+  targetText String
+  source     String        @default("") // the client's «المصدر» column, as written
+  method     String        // system · report · manual
+  module     String?       // M-01…M-12, shown next to the method
+  direction  String        @default("at-least") // at-least · at-most
+  goal       Decimal       @db.Decimal(14, 2)
+  metric     String?
+  params     Json          @default("{}")
+  enteredBy  String[]      @default(["follower"])
+  report     String?
+  required   Int?
+  value      Decimal?      @db.Decimal(14, 2) // the manual entry, or the system's latest figure (the daily job, 11.5)
+  baseline   Decimal?      @db.Decimal(14, 2) // October 2026's measure for the growth items
+  deliveries KpiDelivery[]
 
   @@unique([cardId, position])
   @@schema("kpi")
@@ -1375,4 +1388,29 @@ model Claim {
   @@index([status])
   @@index([requestedById])
   @@schema("finance")
+}
+
+/// The quarters the KPI cards run in (11.1 · 11.11). The latest one is the current quarter; a new one starts from a copy
+/// of the last one's cards (same items and weights, nothing achieved) and the old cards keep their final results.
+model KpiQuarter {
+  id         String    @id // "2026-Q4"
+  status     String    @default("open") // open · closed
+  startedAt  DateTime  @default(now())
+  closedAt   DateTime?
+  closedById String?
+
+  @@schema("kpi")
+}
+
+/// A hand-in on a report item (11.2): a link or an uploaded file, and when.
+model KpiDelivery {
+  id     String   @id @default(cuid())
+  itemId String
+  item   KpiItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  at     DateTime @default(now())
+  byId   String
+  link   String?
+  fileId String?
+
+  @@schema("kpi")
 }
