@@ -61,6 +61,16 @@ export class InventoryService {
     return { items, projects };
   }
 
+  /**
+   * The units of a client's list (2.13, M-01 6.1 · M-03 6.1), in the order picked: open units a salesperson may see
+   * (confirmed by Manar, Q15). Null when one of them isn't (closed, a draft, archived or unknown).
+   */
+  async forClientList(ids: string[]): Promise<ClientListUnit[] | null> {
+    const rows = new Map((await this.repo.forClientList(ids)).map((u) => [u.id, u]));
+    if (ids.some((id) => !rows.has(id))) return null;
+    return ids.map((id) => { const u = rows.get(id)!; return { ...u, totalPrice: u.totalPrice?.toFixed(2) ?? null, splitOf: null }; });
+  }
+
   /** Codes for the units a Visit names (1.9), whatever their state now. */
   codes(ids: string[]) {
     return ids.length ? this.repo.codes(ids) : Promise.resolve([]);
@@ -198,6 +208,15 @@ export class InventoryService {
       income: income ? { monthlyRent: toDecimal(income.monthlyRent), annualRent: toDecimal(income.annualRent), yieldPct: income.yieldPct } : null,
     };
   }
+}
+
+/** A unit as the client's PDF list shows it (no owner details). */
+export interface ClientListUnit {
+  id: string; code: string; type: string; project: string; area: string; floor: string | null; space: number; condition: string; parking: number;
+  /** Rent: a month's rent · the others: the sale price */
+  totalPrice: string | null;
+  /** offered in part (Q20): the whole unit's space; `space` and `totalPrice` are then the client's part */
+  splitOf: number | null;
 }
 
 type UnitData = ReturnType<typeof toData>;

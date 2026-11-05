@@ -110,7 +110,12 @@ export class LeadsRepository {
 
   /** What the client wants and the narrowing answers (2.12), when the lead is in the caller's scope. */
   clientNeed(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
-    return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { type: true, space: true, condition: true, budget: true, area: true, answers: true } });
+    return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { name: true, type: true, space: true, condition: true, budget: true, area: true, answers: true } });
+  }
+
+  /** The units sent to the client (2.13): a unit sent again keeps its first time. */
+  addSuggestedUnits(tx: Prisma.TransactionClient, leadId: string, unitIds: string[], byUserId: string) {
+    return tx.leadUnit.createMany({ data: unitIds.map((unitId) => ({ leadId, unitId, byUserId })), skipDuplicates: true });
   }
 
   setAnswers(tx: Prisma.TransactionClient, id: string, answers: Prisma.InputJsonValue) {
@@ -119,7 +124,7 @@ export class LeadsRepository {
 
   /** The id when the lead exists and is inside the caller's scope — the same rule as reading it. */
   findInScope(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
-    return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { id: true, firstActionAt: true } });
+    return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { id: true, name: true, firstActionAt: true } });
   }
 
   /** Pass `tx` when called inside a transaction: a second connection there can starve the pool under load. */

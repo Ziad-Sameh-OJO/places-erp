@@ -19,10 +19,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-/** Downloads a file the API builds (Excel export, PDF) with the session cookie, and saves it under its own name. */
-async function download(path: string, fallbackName: string): Promise<void> {
-  const res = await fetch(`/api/v1${path}`, { credentials: "include" });
-  if (!res.ok) throw new Error(res.status >= 500 ? SERVER_ERROR : (await res.json().catch(() => ({}))).error ?? res.statusText);
+/**
+ * Downloads a file the API builds (Excel export, PDF) with the session cookie, and saves it under its own name.
+ * With a `body` it's a POST (a PDF that also records something, like a client's unit list).
+ */
+async function download(path: string, fallbackName: string, body?: unknown): Promise<void> {
+  const res = await fetch(`/api/v1${path}`, {
+    credentials: "include",
+    ...(body !== undefined ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+  }).catch(() => { throw new Error(OFFLINE); });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(res.status >= 500 ? SERVER_ERROR : e.issues?.[0]?.message ?? e.error ?? res.statusText);
+  }
   const cd = res.headers.get("Content-Disposition") ?? "";
   const name = decodeURIComponent(/filename\*=UTF-8''([^;]+)/.exec(cd)?.[1] ?? fallbackName);
   const url = URL.createObjectURL(await res.blob());

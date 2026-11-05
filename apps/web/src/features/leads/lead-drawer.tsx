@@ -48,7 +48,7 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
         ["overview", "نظرة عامة"], ["units", "الوحدات", recs.data?.items.length], ["visits", "الزيارات", l.visits.length], ["activity", "Activity", comments(l).length],
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
-      {tab === "overview" ? <Overview l={l} /> : tab === "units" ? <RecommendedUnits id={l.id} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
+      {tab === "overview" ? <Overview l={l} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
         : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
