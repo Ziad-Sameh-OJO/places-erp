@@ -11,11 +11,11 @@ import { call, session } from "./helpers.ts";
 const stamp = String(Date.now());
 const P = `E2E owners ${stamp}`; // own prefix: the clients files start in the same millisecond
 const phone = (n: number) => `0155${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
-let manar: string, sales: string, agentId: string, clientId: string;
+let manar: string, randa: string, sales: string, agentId: string, clientId: string;
 const unitIds: string[] = [];
 
 before(async () => {
-  [manar, sales] = await Promise.all(["manar.ahmed@places.com", "m.mohsen@places.com"].map((e) => session(e)));
+  [manar, randa, sales] = await Promise.all(["manar.ahmed@places.com", "randa.mohamed@places.com", "m.mohsen@places.com"].map((e) => session(e)));
   agentId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
   clientId = (await prisma.client.create({ data: { name: `${P} عميل قديم`, kind: "client", phones: { create: [{ phone: phone(3) }] } } })).id;
 });
@@ -52,7 +52,7 @@ test("the first unit makes the owner's file; the second unit (number written dif
   assert.ok(owner);
   const second = await add(rent({ space: 120, ownerPhone: `+2 ${phone(1).slice(0, 4)} ${phone(1).slice(4)}` }));
   assert.equal(await ownerOf(second), owner);
-  const file = (await call(`/clients/${owner}`, { cookie: manar })).body;
+  const file = (await call(`/clients/${owner}`, { cookie: randa })).body;
   assert.equal(file.kind, "owner");
   assert.equal(file.name, `${P} أ. سمير`);
   assert.deepEqual(file.phones, [phone(1)]);
@@ -63,7 +63,7 @@ test("the first unit makes the owner's file; the second unit (number written dif
 test("an old client who brings a unit becomes «عميل + مالك» on the same file", async () => {
   const u = await add(rent({ ownerPhone: phone(3), ownerName: "اسم تاني" }));
   assert.equal(await ownerOf(u), clientId);
-  const file = (await call(`/clients/${clientId}`, { cookie: manar })).body;
+  const file = (await call(`/clients/${clientId}`, { cookie: randa })).body;
   assert.equal(file.kind, "both");
   assert.equal(file.name, `${P} عميل قديم`); // the file keeps its name
 });

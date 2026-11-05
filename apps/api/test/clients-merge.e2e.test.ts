@@ -1,6 +1,6 @@
 /**
  * 3.4 · merging two files of the same person (M-10 2.2): suggested by number, approved by Operations, everything moves
- * into the kept file, audited before and after. Manar keeps the inventory (edits files), Heba is Operations (approves),
+ * into the kept file, audited before and after. Randa is Resale (edits files), Heba is Operations (approves),
  * Mohamed Mohsen is a salesperson (neither).
  */
 import { after, before, test } from "node:test";
@@ -11,7 +11,7 @@ import { call, session } from "./helpers.ts";
 const stamp = String(Date.now());
 const P = `E2E merge ${stamp}`; // own prefix: the clients files start in the same millisecond
 const phone = (n: number) => `0158${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
-let manar: string, heba: string, mohsen: string;
+let randa: string, heba: string, mohsen: string;
 const files: Record<string, string> = {};
 const leadIds: string[] = [];
 let unitId: string;
@@ -20,7 +20,7 @@ const file = (key: string, kind: "client" | "owner", n: number) =>
   prisma.client.create({ data: { name: `${P} ${key}`, kind, phones: { create: [{ phone: phone(n) }] } } }).then((c) => { files[key] = c.id; return c.id; });
 
 before(async () => {
-  [manar, heba, mohsen] = await Promise.all(["manar.ahmed@places.com", "heba.salah@places.com", "m.mohsen@places.com"].map((e) => session(e)));
+  [randa, heba, mohsen] = await Promise.all(["randa.mohamed@places.com", "heba.salah@places.com", "m.mohsen@places.com"].map((e) => session(e)));
   await file("A", "owner", 1);
   await file("B", "client", 2);
   await file("C", "owner", 3);
@@ -51,23 +51,23 @@ const decide = (cookie: string, id: string, decision: string) => call(`/clients/
 
 test("who: sales can't suggest; only Operations sees and decides merges", async () => {
   assert.equal((await suggest(mohsen, files.A!, phone(2))).status, 403);
-  assert.equal((await call("/clients/merges", { cookie: manar })).status, 403);
+  assert.equal((await call("/clients/merges", { cookie: randa })).status, 403);
   assert.equal((await call("/clients/merges", { cookie: heba })).status, 200);
 });
 
 test("suggest by the other file's number, written any way; a number of the same file, an unknown one and a second request are refused", async () => {
-  const r = await suggest(manar, files.A!, `+2 ${phone(2)}`);
+  const r = await suggest(randa, files.A!, `+2 ${phone(2)}`);
   assert.equal(r.status, 201, JSON.stringify(r.body));
-  assert.equal((await suggest(manar, files.A!, phone(2))).status, 400); // already waiting
-  assert.equal((await suggest(manar, files.B!, phone(1))).status, 400); // the same pair the other way round
-  assert.equal((await suggest(manar, files.A!, phone(1))).status, 400); // its own number
-  assert.equal((await suggest(manar, files.A!, "01234567890")).status, 400); // nobody's
+  assert.equal((await suggest(randa, files.A!, phone(2))).status, 400); // already waiting
+  assert.equal((await suggest(randa, files.B!, phone(1))).status, 400); // the same pair the other way round
+  assert.equal((await suggest(randa, files.A!, phone(1))).status, 400); // its own number
+  assert.equal((await suggest(randa, files.A!, "01234567890")).status, 400); // nobody's
   const queue = (await call("/clients/merges", { cookie: heba })).body;
   const row = queue.find((m: { id: string }) => m.id === r.body.id);
   assert.equal(row.keep.id, files.A);
   assert.equal(row.drop.id, files.B);
-  assert.equal(row.by, "منار أحمد");
-  assert.equal((await decide(manar, r.body.id, "approve")).status, 403);
+  assert.equal(row.by, "رندا محمد");
+  assert.equal((await decide(randa, r.body.id, "approve")).status, 403);
 });
 
 test("Operations approves: numbers, leads, units and the contact log move to the kept file; the other is archived; audited before / after", async () => {
@@ -90,7 +90,7 @@ test("Operations approves: numbers, leads, units and the contact log move to the
 });
 
 test("Operations rejects: both files stay as they were", async () => {
-  const r = await suggest(manar, files.C!, phone(4));
+  const r = await suggest(randa, files.C!, phone(4));
   assert.equal((await decide(heba, r.body.id, "reject")).status, 204);
   assert.equal((await prisma.clientMerge.findUniqueOrThrow({ where: { id: r.body.id } })).status, "rejected");
   assert.equal((await prisma.client.findUniqueOrThrow({ where: { id: files.D! } })).archivedAt, null);

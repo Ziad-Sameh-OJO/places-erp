@@ -523,11 +523,6 @@
         "edit",
         "approve"
       ],
-      "clients": [
-        "view",
-        "create",
-        "edit"
-      ],
       "tickets": [
         "view",
         "create",
@@ -794,6 +789,9 @@
     "scope": "own",
     "permissions": {
       "home": [
+        "view"
+      ],
+      "inventory": [
         "view"
       ],
       "notactive": [

@@ -1,6 +1,6 @@
 /**
  * 3.5 · M-10 4.1 against the real API: an owner's numbers never reach sales (the response itself, not just the
- * screen); finance reads every file and its balance but changes nothing. Mohamed Mohsen is a salesperson, Manar keeps
+ * screen); finance reads every file and its balance but changes nothing. Mohamed Mohsen is a salesperson, Randa (Resale) keeps
  * the inventory, Ahmed Ashraf is the accountant.
  */
 import { after, before, test } from "node:test";
@@ -11,12 +11,12 @@ import { call, session } from "./helpers.ts";
 const stamp = String(Date.now());
 const P = `E2E perm ${stamp}`; // own prefix: the clients files start in the same millisecond
 const phone = (n: number) => `0157${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
-let mohsen: string, manar: string, finance: string;
+let mohsen: string, randa: string, finance: string;
 let ownerFile: string, clientFile: string;
 const leadIds: string[] = [];
 
 before(async () => {
-  [mohsen, manar, finance] = await Promise.all(["m.mohsen@places.com", "manar.ahmed@places.com", "ahmed.ashraf@places.com"].map((e) => session(e)));
+  [mohsen, randa, finance] = await Promise.all(["m.mohsen@places.com", "randa.mohamed@places.com", "ahmed.ashraf@places.com"].map((e) => session(e)));
   const emp = await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } });
   ownerFile = (await prisma.client.create({ data: { name: `${P} مالك وعميل`, kind: "both", phones: { create: [{ phone: phone(1) }] } } })).id;
   clientFile = (await prisma.client.create({ data: { name: `${P} عميل`, kind: "client", phones: { create: [{ phone: phone(2) }] } } })).id;
@@ -44,7 +44,7 @@ test("sales: the owner's number isn't in the list or the file response at all; t
 });
 
 test("inventory sees the owner's number", async () => {
-  assert.deepEqual((await call(`/clients/${ownerFile}`, { cookie: manar })).body.phones, [phone(1)]);
+  assert.deepEqual((await call(`/clients/${ownerFile}`, { cookie: randa })).body.phones, [phone(1)]);
 });
 
 test("finance reads every file and its balance, read-only: no contact log, no merge; no owner numbers", async () => {

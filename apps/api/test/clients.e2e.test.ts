@@ -2,7 +2,7 @@
  * 3.2 · the client file (M-10) against the real API and database: a Done Deal makes the client's file, a number that's
  * already on a file joins it (M-10 2.1 · 7.1), a new lead with an old client's number is linked to the file (2.3),
  * paid and remaining (3.2), the contact log. Mohamed Mohsen is a salesperson (own scope), Mohamed Eid another one,
- * Manar keeps the inventory, Basant is HR (no clients).
+ * Randa is Resale (owners), Basant is HR (no clients).
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,12 +12,12 @@ import { call, session } from "./helpers.ts";
 const stamp = String(Date.now());
 const P = `E2E file ${stamp}`; // own prefix: the clients files start in the same millisecond
 const phone = (n: number) => `0159${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
-let mohsen: string, eid: string, manar: string, hr: string;
+let mohsen: string, eid: string, randa: string, hr: string;
 const leadIds: string[] = [];
 let unitId: string, ownerId: string;
 
 before(async () => {
-  [mohsen, eid, manar, hr] = await Promise.all(["m.mohsen@places.com", "m.eid@places.com", "manar.ahmed@places.com", "basant.elsawy@places.com"].map((e) => session(e)));
+  [mohsen, eid, randa, hr] = await Promise.all(["m.mohsen@places.com", "m.eid@places.com", "randa.mohamed@places.com", "basant.elsawy@places.com"].map((e) => session(e)));
   // an owner already on file with one unit (2.11 makes these from the inventory form; here by hand)
   const owner = await prisma.client.create({ data: { name: `${P} مالك`, kind: "owner", phones: { create: [{ phone: phone(9) }] } } });
   ownerId = owner.id;
@@ -72,7 +72,7 @@ test("an owner whose number closes a deal joins their old file: owner → both (
   assert.equal((await stage(mohsen, id, "Done Deal")).status, 200);
   const lead = await prisma.lead.findUniqueOrThrow({ where: { id }, select: { clientId: true } });
   assert.equal(lead.clientId, ownerId);
-  const file = (await call(`/clients/${ownerId}`, { cookie: manar })).body;
+  const file = (await call(`/clients/${ownerId}`, { cookie: randa })).body;
   assert.equal(file.kind, "both");
   assert.equal(file.units.length, 1);
   assert.equal(file.units[0].code, `U-C${stamp}`);
@@ -94,10 +94,10 @@ test("scope: a salesperson sees their own clients only; inventory sees owners", 
   assert.equal(other.body.total, 0);
   const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadIds[0]! }, select: { clientId: true } });
   assert.equal((await call(`/clients/${lead.clientId}`, { cookie: eid })).status, 404);
-  const owners = await call(`/clients?kind=owner&q=${encodeURIComponent(P)}`, { cookie: manar });
+  const owners = await call(`/clients?kind=owner&q=${encodeURIComponent(P)}`, { cookie: randa });
   assert.deepEqual(owners.body.items.map((r: { id: string }) => r.id), [ownerId]);
   // search by number, written any way
-  const byPhone = await call(`/clients?q=${encodeURIComponent(`+2${phone(9)}`)}`, { cookie: manar });
+  const byPhone = await call(`/clients?q=${encodeURIComponent(`+2${phone(9)}`)}`, { cookie: randa });
   assert.deepEqual(byPhone.body.items.map((r: { id: string }) => r.id), [ownerId]);
 });
 
@@ -110,7 +110,7 @@ test("paid and remaining (M-10 3.2): the client's commission against the client'
     payments: { create: [{ side: "client", amount: "5000", receivedAt: new Date(), accountId: account.id, recordedById: "e2e" }, { side: "owner", amount: "10000", receivedAt: new Date(), accountId: account.id, recordedById: "e2e" }] },
   } });
   // the owner (same person here: «both») is the client on this deal and the owner of its unit
-  const file = (await call(`/clients/${lead.clientId}`, { cookie: manar })).body;
+  const file = (await call(`/clients/${lead.clientId}`, { cookie: randa })).body;
   assert.equal(file.deals.length, 1);
   assert.equal(file.deals[0].side, "client");
   assert.equal(file.balance.paid, "5000.00");
@@ -130,10 +130,10 @@ test("the contact log: sales logs on their client, it shows in the timeline and 
 
 test("«ابديت مع المالك» is the owner's update: their units' last update is today (demo clients.js · M-10 2.4)", async () => {
   await prisma.unit.update({ where: { id: unitId }, data: { lastOwnerUpdateAt: new Date(Date.now() - 50 * 86_400_000) } });
-  assert.equal((await call(`/clients/${ownerId}`, { cookie: manar })).body.units[0].stale, true);
-  const r = await call(`/clients/${ownerId}/interactions`, { method: "POST", cookie: manar, body: { kind: "ابديت مع المالك", text: `${P} لسه متاحة بنفس السعر` } });
+  assert.equal((await call(`/clients/${ownerId}`, { cookie: randa })).body.units[0].stale, true);
+  const r = await call(`/clients/${ownerId}/interactions`, { method: "POST", cookie: randa, body: { kind: "ابديت مع المالك", text: `${P} لسه متاحة بنفس السعر` } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
-  assert.equal((await call(`/clients/${ownerId}`, { cookie: manar })).body.units[0].stale, false);
+  assert.equal((await call(`/clients/${ownerId}`, { cookie: randa })).body.units[0].stale, false);
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Unit", entityId: unitId, action: "update", userId: { not: null }, at: { gte: new Date(Number(stamp)) } } }));
   await prisma.auditLog.deleteMany({ where: { entity: "Unit", entityId: unitId } });
 });
