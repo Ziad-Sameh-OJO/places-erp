@@ -1,7 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
-import { addMonths, contractProblem, endingSoon, installmentPlan, installmentState, nextYearValue } from "../src/contracts.ts";
+import { addMonths, contractProblem, endingSoon, installmentPlan, installmentState, nextYearValue, renewalAlert } from "../src/contracts.ts";
+
+test("M-11 2.4 · 7.1: renewal alerts at 90, 60 and 30 days, each once; a late look sends only the nearest", () => {
+  assert.equal(renewalAlert("2027-02-04", "2026-11-05", []), null); // 91 days left
+  assert.deepEqual(renewalAlert("2027-02-03", "2026-11-05", []), { days: 90, mark: [90] });
+  assert.equal(renewalAlert("2027-02-03", "2026-11-05", [90]), null); // already told
+  assert.deepEqual(renewalAlert("2027-01-04", "2026-11-05", [90]), { days: 60, mark: [90, 60] });
+  assert.deepEqual(renewalAlert("2026-12-01", "2026-11-05", []), { days: 30, mark: [90, 60, 30] }); // uploaded late: one alert
+  assert.equal(renewalAlert("2026-11-04", "2026-11-05", []), null); // over
+});
 
 test("M-11 3.2: installment = value ÷ count, one every n months, adds back up to the value", () => {
   const plan = installmentPlan(egp(100_000), "2026-11-01", 3, 4);

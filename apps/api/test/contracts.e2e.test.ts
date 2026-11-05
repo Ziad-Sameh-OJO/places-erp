@@ -7,6 +7,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { localDate } from "@places/domain";
+import { contractRenewalTick } from "../../worker/src/processors/contract-renewal.ts";
 import { call, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
@@ -36,6 +37,9 @@ before(async () => {
 });
 
 after(async () => {
+  const renewals = (await prisma.contract.findMany({ where: { deal: { code: { startsWith: `D-K${stamp}` } } }, select: { renewalLeadId: true } })).map((c) => c.renewalLeadId).filter((x): x is string => !!x);
+  await prisma.notification.deleteMany({ where: { text: { contains: C } } });
+  await prisma.lead.deleteMany({ where: { id: { in: renewals } } });
   await prisma.contract.deleteMany({ where: { deal: { code: { startsWith: `D-K${stamp}` } } } });
   await prisma.deal.deleteMany({ where: { code: { startsWith: `D-K${stamp}` } } });
   await prisma.file.deleteMany({ where: { name: { startsWith: C } } });
@@ -92,6 +96,28 @@ test("a table written line by line, and «قرّبت تخلص» for an active co
   assert.deepEqual(r.body.installments.map((i: { amount: string; state: string }) => [i.amount, i.state]), [["20000.00", "late"], ["10000.50", "due"]]);
   const ending = await call(`/contracts?ending=true&q=${encodeURIComponent(C)}`, { cookie: ashraf });
   assert.deepEqual(ending.body.items.map((c: { id: string }) => c.id), [r.body.id]);
+  endingId = r.body.id;
+});
+
+let endingId: string;
+
+test("6.3 · M-11 2.4 · 7.1: 60 days left → one renewal alert to the salesperson and Finance, and a renewal lead with him; once", async () => {
+  const ashrafUser = (await prisma.user.findUniqueOrThrow({ where: { email: "ahmed.ashraf@places.com" } })).id;
+  const mine = (userId: string) => prisma.notification.findMany({ where: { userId, text: { contains: C } } });
+  await contractRenewalTick();
+  const c = await prisma.contract.findUniqueOrThrow({ where: { id: endingId } });
+  assert.deepEqual(c.renewalAlerts.sort(), [60, 90]); // the 90 passed unseen: one alert, not two
+  const lead = await prisma.lead.findUniqueOrThrow({ where: { id: c.renewalLeadId! } });
+  assert.equal(lead.assignedToId, mohsenEmp);
+  assert.equal(lead.budget!.toFixed(2), "30000.50"); // next year's value, no increase on this one
+  assert.equal(lead.stage, "FRESH");
+  const [told] = await mine(mohsenUser);
+  assert.match(told!.text, new RegExp(`بينتهي بعد 60 يوم .* اتعمل ليد تجديد ${lead.code}`));
+  assert.equal((await mine(ashrafUser)).length, 1);
+
+  await contractRenewalTick(); // again the same day: nothing new
+  assert.equal((await mine(mohsenUser)).length, 1);
+  assert.equal((await prisma.contract.findUniqueOrThrow({ where: { id: contractId } })).renewalAlerts.length, 0); // ends in a year
 });
 
 test("scope (M-11 4.1): the salesperson his clients' contracts, Finance all, another salesperson none", async () => {
