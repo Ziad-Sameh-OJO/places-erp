@@ -24,6 +24,28 @@ export type Tab = AreaRange & { id: string };
 export class InventoryRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
+  /**
+   * The Visit form's unit list (1.9): open units a salesperson may see, searched by code, project or space. The units
+   * already picked stay on the form itself, so a search never drops them.
+   */
+  forVisit(q: string | undefined, take: number) {
+    const space = q && /^\d+$/.test(q) ? [{ space: Number(q) }] : [];
+    const search: Prisma.UnitWhereInput = q ? { OR: [{ code: { contains: q, mode: "insensitive" } }, { project: { contains: q, mode: "insensitive" } }, ...space] } : {};
+    return this.db.unit.findMany({
+      where: { AND: [visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE, search] },
+      select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take,
+    });
+  }
+
+  codes(ids: string[]) {
+    return this.db.unit.findMany({ where: { id: { in: ids } }, select: { id: true, code: true } });
+  }
+
+  /** Of these ids, the open units a salesperson may see (a Visit can't name a draft, archived or closed unit). */
+  openForVisit(ids: string[]) {
+    return this.db.unit.findMany({ where: { AND: [{ id: { in: ids } }, visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE] }, select: { id: true } });
+  }
+
   list(s: UnitScope, f: UnitFilters, tabs: Tab[]) {
     const where = unitWhere(s, f, tabs);
     return this.db.$transaction([

@@ -3,14 +3,32 @@ import { type WorkCalendar, PLACES_CALENDAR, wallClockMinutesBetween, workingMin
 
 export const LEAD_STAGES = [
   "Fresh", "Interested", "Not Interested", "No Answer", "Follow up to Visit", "Visit", "Follow up after Visit",
-  "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold",
+  "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold",
 ] as const;
 export type LeadStage = (typeof LEAD_STAGES)[number];
 
+/** The pipeline, in order (demo PIPE); the side stages (Not Interested, No Answer, Cancellation, Hold) aren't on it. */
+export const LEAD_PIPELINE: readonly LeadStage[] = [
+  "Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal",
+];
+
 /** Reaching any of these marks the lead Qualified for good (M-01 2.7, M-04 2.7). */
 const QUALIFYING: ReadonlySet<LeadStage> = new Set([
-  "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal",
+  "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal",
 ]);
+
+export type VisitKind = "Visit" | "Meeting";
+
+/**
+ * Where a Visit / Meeting moves the lead by itself (4 Nov demo meeting · 1.9): booking it → «Follow up to …», marking it
+ * Done → «Visit» / «Meeting». Only forward along the pipeline: a lead already further on (Near to Close) stays where it
+ * is, and null means «no move». A lead on a side stage (No Answer, Hold…) joins the pipeline, as in the demo.
+ */
+export function visitStage(current: LeadStage, kind: VisitKind, event: "booked" | "done"): LeadStage | null {
+  const to: LeadStage = event === "booked" ? `Follow up to ${kind}` : kind;
+  const at = LEAD_PIPELINE.indexOf(current);
+  return at >= 0 && LEAD_PIPELINE.indexOf(to) <= at ? null : to;
+}
 
 /**
  * Qualified is sticky: once true it never goes back. Cancellation and Hold count only if the lead

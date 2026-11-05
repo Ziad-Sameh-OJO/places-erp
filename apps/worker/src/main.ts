@@ -7,6 +7,7 @@ import { Queue, Worker, type Processor } from "bullmq";
 import { prisma } from "@places/db";
 import { env } from "./env.ts";
 import { leadSlaTick } from "./processors/lead-sla.ts";
+import { visitAlarmTick } from "./processors/visit-alarm.ts";
 import { recurringBillsTick } from "./processors/recurring-bills.ts";
 import { payrollDueTick } from "./processors/payroll-due.ts";
 import { leaveChaseTick } from "./processors/leave-chase.ts";
@@ -18,6 +19,7 @@ const connection = { url: env.REDIS_URL };
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: leadSlaTick }, // every minute (M-01 2.4)
+  { name: "visit-alarm", pattern: "* * * * *", processor: () => visitAlarmTick() }, // every minute (M-01 3.3 · 1.9)
   { name: "recurring-bills", pattern: "0 11 * * *", processor: recurringBillsTick }, // daily at the start of work (M-07 9.16)
   { name: "payroll-due", pattern: "5 11 * * *", processor: payrollDueTick }, // daily: pay day reached and not paid (M-07 9.14)
   { name: "ticket-sla", pattern: "*/5 * * * *", processor: () => ticketSlaTick() }, // every 5 minutes: SLAs are hours long (M-06 2.4)

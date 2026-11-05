@@ -29,6 +29,21 @@ export class InventoryService {
     private readonly settings: SettingsService,
   ) {}
 
+  /** For a lead's Visit / Meeting (1.9): open, confirmed units by code, project or space (4 Nov demo meeting). */
+  forVisit(q?: string) {
+    return this.repo.forVisit(q, 30);
+  }
+
+  /** Codes for the units a Visit names (1.9), whatever their state now. */
+  codes(ids: string[]) {
+    return ids.length ? this.repo.codes(ids) : Promise.resolve([]);
+  }
+
+  /** The ids that are open units a salesperson may see (1.9). */
+  async openForVisit(ids: string[]): Promise<Set<string>> {
+    return new Set(ids.length ? (await this.repo.openForVisit(ids)).map((u) => u.id) : []);
+  }
+
   private scope(me: CurrentUser, now = new Date()): UnitScope {
     return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now) };
   }

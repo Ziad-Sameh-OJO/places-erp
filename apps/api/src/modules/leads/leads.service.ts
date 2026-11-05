@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
+import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -12,6 +12,7 @@ import { LeadRulesService } from "./lead-rules.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
+import { InventoryService } from "../inventory/inventory.service";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
 const NO_LEAD = "الليد ده مش موجود أو مبقاش معاك";
@@ -34,6 +35,7 @@ export class LeadsService {
     private readonly time: BusinessTimeService,
     private readonly rules: LeadRulesService,
     private readonly notifications: NotificationsService,
+    private readonly inventory: InventoryService,
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
@@ -279,6 +281,96 @@ export class LeadsService {
     });
   }
 
+  /** The Visit form's unit search (1.9): through the inventory's own rule of what a salesperson may see. */
+  visitUnits(q?: string) {
+    return this.inventory.forVisit(q);
+  }
+
+  /**
+   * «Visit / Meeting جديدة» (1.9, M-01 3.3): the time, units from the inventory and spaces not in the sheet. It is an
+   * action on the lead (stops the SLA clock) and moves it to «Follow up to Visit / Meeting», forward only (visitStage).
+   */
+  async addVisit(me: CurrentUser, id: string, input: VisitInput) {
+    const units = await this.visitUnitCodes(input.unitIds, []);
+    await this.db.$transaction(async (tx) => {
+      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] }, select: { stage: true, qualified: true } });
+      if (!lead) throw new NotFoundException(NO_LEAD);
+      const at = new Date(input.at);
+      const visit = await this.repo.addVisit(tx, id, { kind: input.kind.toLowerCase(), at, extra: input.extra ?? null, unitIds: input.unitIds }, me.id);
+      const activity = await this.repo.addActivity(tx, id, input.kind === "Meeting" ? "meeting" : "visit", visitText(input, at, units), me.id);
+      await this.repo.markActed(tx, id, activity.at);
+      await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visit.id, action: "create", userId: me.id,
+        after: { leadId: id, kind: input.kind, at: input.at, unitIds: input.unitIds, extra: input.extra ?? null } }, tx);
+      await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), input.kind, "booked"));
+    });
+    return this.get(me, id);
+  }
+
+  /** «تعديل» (demo): while the Visit isn't marked yet. A new time brings a new Alarm. */
+  async editVisit(me: CurrentUser, id: string, visitId: string, input: VisitInput) {
+    await this.db.$transaction(async (tx) => {
+      if (!(await this.repo.findInScope(ownedBy(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
+      const before = await this.repo.findVisit(tx, id, visitId);
+      if (!before) throw new NotFoundException(NO_VISIT);
+      if (before.outcome) throw new BadRequestException("الميعاد اتعلّم خلاص · مينفعش يتعدّل");
+      const kept = before.units.map((u) => u.unitId);
+      const units = await this.visitUnitCodes(input.unitIds, kept);
+      const at = new Date(input.at);
+      await this.repo.updateVisit(tx, visitId, { kind: input.kind.toLowerCase(), at, extra: input.extra ?? null, unitIds: input.unitIds }, at.getTime() !== before.at.getTime());
+      await this.repo.addActivity(tx, id, input.kind === "Meeting" ? "meeting" : "visit", `اتعدّل الـ ${visitText(input, at, units)}`, me.id);
+      await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: "update", userId: me.id,
+        before: { leadId: id, kind: kindOf(before.kind), at: before.at.toISOString(), unitIds: kept, extra: before.extra },
+        after: { leadId: id, kind: input.kind, at: input.at, unitIds: input.unitIds, extra: input.extra ?? null } }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  /**
+   * «Done» moves the lead to Visit / Meeting (forward only) and counts in the salesperson's activity (KPI Showings);
+   * «معملتهاش» shows for HR (M-05 Q28) and tells whom «قواعد الليدز» names (visit.notDone, default the HR).
+   */
+  async markVisit(me: CurrentUser, id: string, visitId: string, input: VisitOutcome) {
+    const marked = await this.db.$transaction(async (tx) => {
+      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] }, select: { name: true, stage: true, qualified: true, assignedToId: true } });
+      if (!lead) throw new NotFoundException(NO_LEAD);
+      const visit = await this.repo.findVisit(tx, id, visitId);
+      if (!visit) throw new NotFoundException(NO_VISIT);
+      if (!(await this.repo.markVisit(tx, visitId, input.outcome)).count) throw new BadRequestException("الميعاد اتعلّم خلاص");
+      const kind = kindOf(visit.kind);
+      await this.repo.addActivity(tx, id, kind === "Meeting" ? "meeting" : "visit",
+        input.outcome === "done" ? `الـ ${kind} خلصت · اتحسبت في الـ activity` : `الـ ${kind} اتعلّمت إنها محصلتش`, me.id);
+      await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: input.outcome === "done" ? "done" : "not-done", userId: me.id,
+        before: { leadId: id, outcome: null }, after: { leadId: id, outcome: input.outcome } }, tx);
+      if (input.outcome === "done") await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), kind, "done"));
+      return { kind, at: visit.at, name: lead.name, ownerId: lead.assignedToId };
+    });
+    if (input.outcome === "not_done" && marked.ownerId) {
+      const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(marked.ownerId)]);
+      if (owner) {
+        const to = ruleRecipients(rules.visit.notDone, { ownerUserId: owner.userId, ownerTlUserId: owner.teamLeader?.userId ?? null });
+        await this.notifications.notify({ event: "lead.visit_not_done", text: `${owner.name}: ${marked.kind} ${cairo(marked.at)} مع ${marked.name} اتعلّمت إنها محصلتش`,
+          link: `/leads?open=${id}`, to, channels: [...rules.visit.notDone.ch] });
+      }
+    }
+    return this.get(me, id);
+  }
+
+  /** The automatic stage move of a Visit / Meeting, recorded like the demo («المرحلة اتنقلت لوحدها لـ …») and audited. */
+  private async moveStage(tx: Prisma.TransactionClient, me: CurrentUser, id: string, lead: { stage: string; qualified: boolean }, to: LeadStage | null) {
+    if (!to) return;
+    await this.repo.setStage(tx, id, toDb(to), isQualifiedAfter(lead.qualified, to));
+    await this.repo.addActivity(tx, id, "stage", `المرحلة اتنقلت لوحدها لـ ${to}`, null);
+    await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id, before: { stage: lead.stage }, after: { stage: toDb(to) } }, tx);
+  }
+
+  /** The picked units' codes. New picks must be open units a salesperson may see; ones already on the visit may stay. */
+  private async visitUnitCodes(ids: string[], kept: string[]) {
+    const fresh = ids.filter((u) => !kept.includes(u));
+    const open = await this.inventory.openForVisit(fresh);
+    if (fresh.some((u) => !open.has(u))) throw new BadRequestException("فيه وحدة مش متاحة · اختار من القايمة");
+    return new Map((await this.inventory.codes(ids)).map((u) => [u.id, u.code]));
+  }
+
   /** The first line of the Activity, in the demo's words: who entered the lead and where it went. */
   private async createdText(tx: Prisma.TransactionClient, me: CurrentUser, placement: LeadPlacement, assignedToId: string | null) {
     const by = `اتعمل بواسطة ${me.name}`;
@@ -291,6 +383,14 @@ export class LeadsService {
 }
 
 const isId = (x: string | null): x is string => !!x;
+const NO_VISIT = "الميعاد ده مش موجود";
+const stageOf = (db: string) => (STAGE_LABEL.get(db) ?? db) as LeadStage;
+const kindOf = (db: string): VisitKind => (db === "meeting" ? "Meeting" : "Visit");
+/** A time as the Activity writes it, in Cairo. */
+const cairo = (d: Date) => d.toLocaleString("ar-EG-u-nu-latn", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" });
+/** Demo: «Visit 5 نوف 11:30 على: U-101، U-102 · دور 4 في مبنى B6». */
+const visitText = (v: VisitInput, at: Date, codes: Map<string, string>) =>
+  `${v.kind} ${cairo(at)} على: ${v.unitIds.map((u) => codes.get(u)).join("، ") || "—"}${v.extra ? ` · ${v.extra}` : ""}`;
 
 /** An audit entry as one readable line of the Logs tab. */
 function auditText(a: { entity: string; action: string; before: unknown; after: unknown }): string {
@@ -303,6 +403,10 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
     case "Lead:reassign": return field(a.before, "name") && field(a.before, "name") !== "null" ? `اتسحب يدوي من ${field(a.before, "name")} لـ ${field(a.after, "name")}` : `اتحوّل يدوي لـ ${field(a.after, "name")}`;
     case "LeadActivity:comment": return `كومنت: ${field(a.after, "text")}`;
     case "LeadCall:call": return "مكالمة اتسجّلت";
+    case "LeadVisit:create": return `اتحدد ${field(a.after, "kind")}`;
+    case "LeadVisit:update": return `اتعدّل ميعاد الـ ${field(a.after, "kind")}`;
+    case "LeadVisit:done": return "الميعاد اتعلّم Done";
+    case "LeadVisit:not-done": return "الميعاد اتعلّم «معملتهاش»";
     case "LeadDuplicate:create": return "حد دخّل العميل ده تاني · طلب تكرار للأوبريشن";
     default: return `${a.entity} · ${a.action}`;
   }
@@ -321,13 +425,18 @@ function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<stri
 }
 
 function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
-  const { activities, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
+  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, ...row } = lead;
+  const now = Date.now();
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation,
     company: company?.name ?? null, firstActionAt: iso(firstActionAt),
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,
+    })),
+    visits: visits.map((v): VisitRow => ({
+      id: v.id, kind: kindOf(v.kind), at: v.at.toISOString(), extra: v.extra, outcome: v.outcome === "done" || v.outcome === "not_done" ? v.outcome : null,
+      due: !v.outcome && v.at.getTime() <= now, units: v.units.map((u) => u.unit),
     })),
   };
 }

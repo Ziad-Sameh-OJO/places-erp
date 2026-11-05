@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LeadDetail, LeadLogRow } from "@places/contracts";
-import { LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
+import { LEAD_PIPELINE, LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { Chip, Empty, Icon, Tabs, useAction, useToast } from "@/components/ui";
 import type { Settings } from "@places/contracts";
@@ -12,17 +12,19 @@ import { api } from "@/lib/api";
 import { StageChip, Who, slaText, slaTone } from "./lead-bits";
 import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
 import { useLeadOptions } from "./use-leads";
+import { Visits } from "./visits";
 
 /** The pipeline the stepper shows (demo PIPE); the side stages (No Answer, Hold…) hide it. */
-const PIPE: readonly LeadStage[] = ["Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal"];
+const PIPE = LEAD_PIPELINE;
 
 /**
  * The demo's lead drawer: «نظرة عامة» (stepper, details, change the stage) and «Activity» (comment + timeline).
- * Prev / next walk the list the drawer was opened from. Units (2.12) and visits (1.9) come with their tasks.
+ * «الزيارات» (1.9). Prev / next walk the list the drawer was opened from. Units (2.12) come with their task.
  */
 export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: string; onGo: (id: string) => void; onClose: () => void }) {
   const lead = useLead(id);
-  const [tab, setTab] = useState<"overview" | "activity" | "logs">("overview");
+  const [tab, setTab] = useState<"overview" | "visits" | "activity" | "logs">("overview");
+  const [visitKind, setVisitKind] = useState<"Visit" | "Meeting">("Visit");
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   const l = lead.data;
@@ -41,10 +43,11 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
         {l.noAnswerCount > 0 && <Chip tone="warn">No Answer ×{l.noAnswerCount} · روتيشن {l.rotation}</Chip>}
       </>}>
       <Tabs value={tab} onChange={setTab} items={[
-        ["overview", "نظرة عامة"], ["activity", "Activity", comments(l).length],
+        ["overview", "نظرة عامة"], ["visits", "الزيارات", l.visits.length], ["activity", "Activity", comments(l).length],
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
-      {tab === "overview" ? <Overview l={l} /> : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} />}
+      {tab === "overview" ? <Overview l={l} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
+        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
 }
@@ -94,14 +97,14 @@ function Reassign({ l }: { l: LeadDetail }) {
   );
 }
 
-/** Demo «غيّر المرحلة». Visit needs a date and units first (1.9), so it only says so. */
-function StageCard({ l }: { l: LeadDetail }) {
+/** Demo «غيّر المرحلة». Visit / Meeting need a time and units first (1.9): they open «الزيارات» with that kind. */
+function StageCard({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void }) {
   const run = useAction();
   const toast = useToast();
   const refresh = useRefreshLead();
   const pick = (stage: LeadStage) => {
     if (stage === l.stage) return;
-    if (stage === "Visit") { toast("حدد ميعاد الـ Visit والوحدات"); return; }
+    if (stage === "Visit" || stage === "Meeting") { onVisit(stage); toast(`حدد ميعاد الـ ${stage} والوحدات`); return; }
     const qualifies = !l.qualified && isQualifiedAfter(false, stage);
     // refreshed even when refused (e.g. the lead was taken away meanwhile): the drawer then shows why
     void run(async () => { try { await api.patch(`/leads/${l.id}/stage`, { stage }); } finally { await refresh(l.id); } },
@@ -133,7 +136,7 @@ function CallButton({ id }: { id: string }) {
 /** People's comments only; what the system records goes to «Logs» (client meeting, 4 Nov · 1.25). */
 const comments = (l: LeadDetail) => l.activities.filter((a) => a.kind === "comment");
 
-function Activity({ l }: { l: LeadDetail }) {
+function Activity({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void }) {
   const { can } = useMe();
   const run = useAction();
   const add = useAddComment();
@@ -141,7 +144,7 @@ function Activity({ l }: { l: LeadDetail }) {
   const mine = comments(l);
   return (
     <>
-      {can("leads", "edit") && <StageCard l={l} />}
+      {can("leads", "edit") && <StageCard l={l} onVisit={onVisit} />}
       {can("leads", "edit") && (
         <form className="row" onSubmit={(e) => { e.preventDefault(); const t = text.trim(); if (t) void run(async () => { await add(l.id, t); setText(""); }); }}>
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب كومنت أو نتيجة مكالمة" required maxLength={2000} aria-label="كومنت" />

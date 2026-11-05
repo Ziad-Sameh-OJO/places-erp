@@ -87,7 +87,33 @@ export interface LeadDetail extends LeadRow {
   /** how many lines the Logs tab has (its label shows it, like the demo); null when the person can't see it */
   logCount: number | null;
   noAnswerCount: number; rotation: number; firstActionAt: string | null; activities: LeadActivityRow[];
+  /** «الزيارات» (1.9): every Visit / Meeting, newest time first */
+  visits: VisitRow[];
 }
+
+/** A unit as the Visit form lists it (demo: «U-101 · المشروع · 120 م»). */
+export interface VisitUnit { id: string; code: string; project: string; space: number }
+/** One Visit / Meeting: null outcome = not marked yet; `due` = its time came and nobody marked it (the Alarm). */
+export interface VisitRow {
+  id: string; kind: "Visit" | "Meeting"; at: string; extra: string | null; outcome: "done" | "not_done" | null; due: boolean; units: VisitUnit[];
+}
+
+/** «Visit / Meeting جديدة» and «تعديل الميعاد» (demo form, M-01 3.3): the kind, the time, units from the inventory, spaces not in the sheet. */
+export const VisitInput = z.object({
+  kind: z.enum(["Visit", "Meeting"], { required_error: "اختار النوع", invalid_type_error: "اختار النوع" }),
+  at: z.string({ required_error: "اختار الميعاد" }).datetime({ offset: true, message: "اختار الميعاد" }),
+  unitIds: z.array(z.string().min(1).max(40)).max(30, "30 وحدة بالكتير").default([]).transform((u) => [...new Set(u)]),
+  extra: z.string().trim().max(300, "300 حرف بالكتير").optional().transform((s) => s || undefined),
+});
+export type VisitInput = z.infer<typeof VisitInput>;
+
+/** «Done» or «معملتهاش». */
+export const VisitOutcome = z.object({ outcome: z.enum(["done", "not_done"], { required_error: "اختار", invalid_type_error: "اختار" }) });
+export type VisitOutcome = z.infer<typeof VisitOutcome>;
+
+/** The Visit form's unit search: by code, project or space (4 Nov demo meeting). */
+export const VisitUnitQuery = z.object({ q: z.string().trim().max(80).optional() });
+export type VisitUnitQuery = z.infer<typeof VisitUnitQuery>;
 
 /** Operations' decision on a duplicate: per field, «old» (default) keeps what the lead has, «new» takes the entry's. */
 const Side = z.enum(["old", "new"]).default("old");

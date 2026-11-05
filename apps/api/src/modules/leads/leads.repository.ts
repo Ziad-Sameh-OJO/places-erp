@@ -139,6 +139,32 @@ export class LeadsRepository {
     });
   }
 
+  /** A Visit / Meeting with the units picked (1.9). */
+  addVisit(tx: Prisma.TransactionClient, leadId: string, v: { kind: string; at: Date; extra: string | null; unitIds: string[] }, byUserId: string) {
+    return tx.leadVisit.create({ data: { leadId, kind: v.kind, at: v.at, extra: v.extra, byUserId, units: { create: v.unitIds.map((unitId) => ({ unitId })) } } });
+  }
+
+  findVisit(tx: Prisma.TransactionClient, leadId: string, visitId: string) {
+    return tx.leadVisit.findFirst({ where: { id: visitId, leadId }, select: { id: true, kind: true, at: true, extra: true, outcome: true, units: { select: { unitId: true } } } });
+  }
+
+  /** «تعديل الميعاد»: a new time means a new Alarm. */
+  updateVisit(tx: Prisma.TransactionClient, visitId: string, v: { kind: string; at: Date; extra: string | null; unitIds: string[] }, timeChanged: boolean) {
+    return tx.leadVisit.update({ where: { id: visitId }, data: {
+      kind: v.kind, at: v.at, extra: v.extra, ...(timeChanged ? { alarmedAt: null } : {}),
+      units: { deleteMany: {}, create: v.unitIds.map((unitId) => ({ unitId })) },
+    } });
+  }
+
+  /** Marked once: a second click (or two tabs) can't mark it again. */
+  markVisit(tx: Prisma.TransactionClient, visitId: string, outcome: "done" | "not_done") {
+    return tx.leadVisit.updateMany({ where: { id: visitId, outcome: null }, data: { outcome } });
+  }
+
+  setStage(tx: Prisma.TransactionClient, id: string, stage: string, qualified: boolean) {
+    return tx.lead.update({ where: { id }, data: { stage: stage as never, qualified } });
+  }
+
   addCall(tx: Prisma.TransactionClient, leadId: string, byUserId: string) {
     return tx.leadCall.create({ data: { leadId, byUserId } });
   }
@@ -219,6 +245,7 @@ const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   company: { select: { name: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
+  visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;
 export type LeadDetailRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_DETAIL }>;
 
