@@ -80,6 +80,15 @@ export function preview<T>(p: ParsedSheet<T>): ImportPreview<T> {
   return { total: p.total, valid: p.rows.length, errors: p.errors, sample: p.rows.slice(0, 50).map((r) => r.data) };
 }
 
+/** Every non-empty cell of the first sheet as text, whatever the columns (a sheet of mobiles has no fixed header, 1.19). */
+export async function sheetTexts(file: UploadedSheet): Promise<string[]> {
+  const sheet = await readFirstSheet(file);
+  const out: string[] = [];
+  sheet.eachRow((row) => row.eachCell((cell) => { const t = text(cell.value); if (t) out.push(t); }));
+  if (out.length > IMPORT_LIMIT * 10) throw new BadRequestException(`الشيت أكبر من ${IMPORT_LIMIT} صف · قسّمه`);
+  return out;
+}
+
 async function readFirstSheet(file: UploadedSheet) {
   const book = new ExcelJS.Workbook();
   try {

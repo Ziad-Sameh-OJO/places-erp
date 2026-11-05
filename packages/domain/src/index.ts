@@ -34,3 +34,4 @@ export * from "./my-day.ts";
 export * from "./tasks.ts";
 export * from "./not-active.ts";
 export * from "./clients.ts";
+export * from "./bulk.ts";
