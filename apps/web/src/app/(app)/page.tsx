@@ -7,6 +7,7 @@ import { Card, Chip, Icon } from "@/components/ui";
 import { MyHandIns } from "@/features/reports/daily";
 import { ActivitiesCard } from "@/features/kpis/activities-card";
 import { HandoversCard } from "@/features/access/handovers";
+import { MyBroadcasts } from "@/features/marketing/broadcast";
 import { Inbox, type InboxLine } from "@/components/inbox";
 import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads/today";
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
@@ -31,6 +32,7 @@ export default function HomePage() {
       <Hero name={me.name} total={lines.length} urgent={urgent} unread={unread} canCreateLead={can("leads", "create")} />
       <MyHandIns />
       <HandoversCard />
+      <MyBroadcasts />
       <ActivitiesCard />
       <div className="cols wide">
         <Card title="مهامي النهارده" icon="check" sub="مترتبة: المتأخر الأول" extra={<Chip tone={urgent ? "bad" : "ok"}>{urgent ? `${urgent} متأخر` : "كله في الميعاد"}</Chip>}>
