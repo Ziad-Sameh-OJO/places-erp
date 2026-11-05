@@ -21,9 +21,15 @@ before(async () => {
   rahmaId = (await prisma.user.findUniqueOrThrow({ where: { email: "rahma.hassan@places.com" } })).id;
 });
 after(async () => {
-  const ids = (await prisma.unit.findMany({ where: { project: { startsWith: P } }, select: { id: true } })).map((u) => u.id);
+  const units = await prisma.unit.findMany({ where: { project: { startsWith: P } }, select: { id: true, ownerId: true } });
+  const ids = units.map((u) => u.id);
   await prisma.auditLog.deleteMany({ where: { entity: "Unit", entityId: { in: ids } } });
   await prisma.unit.deleteMany({ where: { id: { in: ids } } });
+  // the owners' files these units made (2.11), once nothing else is in them
+  const owners = [...new Set(units.flatMap((u) => (u.ownerId ? [u.ownerId] : [])))];
+  const empty = await prisma.client.findMany({ where: { id: { in: owners }, units: { none: {} }, leads: { none: {} } }, select: { id: true } });
+  await prisma.auditLog.deleteMany({ where: { entity: "Client", entityId: { in: empty.map((c) => c.id) } } });
+  await prisma.client.deleteMany({ where: { id: { in: empty.map((c) => c.id) } } });
   await prisma.notification.deleteMany({ where: { text: { contains: P } } });
   await prisma.$disconnect();
 });
