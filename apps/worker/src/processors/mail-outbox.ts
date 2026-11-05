@@ -66,6 +66,6 @@ async function failed(m: { id: string; to: string; subject: string }, attempts: 
     if (!(rule?.channels ?? e.channels).includes("app")) return;
     const admins = await tx.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: rule?.toRoles ?? [...e.toRoles] } } } } }, select: { id: true } });
     // M-14 7.1 «إيميل موظف غلط»: the Super Admin hears of it; the person still has the notification in the bell
-    await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.id, text: `${e.label}: «${m.subject}» لـ ${m.to} · ${message}`, link: "/integrations", important: e.important })) });
+    await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.id, event: e.key, text: `${e.label}: «${m.subject}» لـ ${m.to} · ${message}`, link: "/integrations", important: e.important })) });
   });
 }

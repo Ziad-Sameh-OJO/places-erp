@@ -65,7 +65,7 @@ export class NotificationsService {
     const pushTo: string[] = [];
     for (const p of people) {
       const ch = channelsFor(n.channels ?? rule.channels, p, e.important);
-      const inApp = ch.includes("app") ? await this.db.notification.create({ data: { userId: p.id, text: n.text, link: n.link ?? null, important: e.important } }) : null;
+      const inApp = ch.includes("app") ? await this.db.notification.create({ data: { userId: p.id, text: n.text, link: n.link ?? null, important: e.important, event: e.key } }) : null;
       if (ch.includes("email")) await this.mail.send({ to: p.email, subject: `${e.label} · Places ERP`, text: `${n.text}${n.link ? `\n${env.WEB_ORIGIN}${n.link}` : ""}`, notificationId: inApp?.id });
       if (ch.includes("push")) pushTo.push(p.id);
     }
@@ -74,14 +74,16 @@ export class NotificationsService {
     return people.length;
   }
 
-  async mine(userId: string, page: number, pageSize: number, unreadOnly: boolean) {
-    const where = { userId, ...(unreadOnly ? { readAt: null } : {}) };
-    const [items, total, unread] = await this.db.$transaction([
-      this.db.notification.findMany({ where, orderBy: [{ readAt: { sort: "desc", nulls: "first" } }, { createdAt: "desc" }], skip: (page - 1) * pageSize, take: pageSize }),
+  /** The bell (M-14 5.1 · 5.3): mine, unread first, by type and read state; `types` = the types I have, for the filter. */
+  async mine(userId: string, q: { page: number; pageSize: number; unread: boolean; event?: string | undefined }) {
+    const where = { userId, ...(q.unread ? { readAt: null } : {}), ...(q.event ? { event: q.event } : {}) };
+    const [items, total, unread, types] = await this.db.$transaction([
+      this.db.notification.findMany({ where, orderBy: [{ readAt: { sort: "desc", nulls: "first" } }, { createdAt: "desc" }], skip: (q.page - 1) * q.pageSize, take: q.pageSize }),
       this.db.notification.count({ where }),
       this.db.notification.count({ where: { userId, readAt: null } }),
+      this.db.notification.findMany({ where: { userId, event: { not: null } }, distinct: ["event"], select: { event: true } }),
     ]);
-    return { items, total, page, pageSize, unread };
+    return { items, total, page: q.page, pageSize: q.pageSize, unread, types: types.map((t) => t.event!) };
   }
 
   /** Only the owner can mark their own notifications. */

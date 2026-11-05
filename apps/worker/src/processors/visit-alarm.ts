@@ -28,7 +28,7 @@ export async function visitAlarmTick(now = new Date()): Promise<void> {
       if (!claimed.count || !userId) return;
       const kind = v.kind === "meeting" ? "Meeting" : "Visit";
       // demo wording; important: an Alarm stays until read (M-14)
-      await tx.notification.create({ data: { userId, text: `Alarm: ميعاد الـ ${kind} مع ${v.lead.name} جه · دوس Done`, link: `/leads?open=${v.lead.id}`, important: true } });
+      await tx.notification.create({ data: { userId, event: "lead.visit_due", text: `Alarm: ميعاد الـ ${kind} مع ${v.lead.name} جه · دوس Done`, link: `/leads?open=${v.lead.id}`, important: true } });
     });
   }
 }

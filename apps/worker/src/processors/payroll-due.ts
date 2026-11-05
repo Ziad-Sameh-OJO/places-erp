@@ -22,6 +22,6 @@ export async function payrollDueTick(): Promise<void> {
   const to = await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: rule?.toRoles ?? [...event.toRoles] } } } } }, select: { id: true } });
   await prisma.$transaction(async (tx) => {
     await tx.setting.upsert({ where: { key: NOTIFIED }, create: { key: NOTIFIED, value: month }, update: { value: month } });
-    await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, text: `اصرف مرتبات ${monthLabel(month)} · ${people.length} موظف · إجمالي ${formatEGP(gross)}`, link: "/finance", important: event.important })) });
+    await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, event: "finance.payroll_due", text: `اصرف مرتبات ${monthLabel(month)} · ${people.length} موظف · إجمالي ${formatEGP(gross)}`, link: "/finance", important: event.important })) });
   });
 }

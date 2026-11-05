@@ -23,7 +23,7 @@ export async function procurementReminderTick(now = new Date()): Promise<number>
       const rule = await tx.notificationRule.findUnique({ where: { event: EVENT } });
       if (!(rule?.channels ?? event.channels).includes("app")) return;
       const people = await tx.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: [...(rule?.toRoles ?? event.toRoles)] } } } } }, select: { id: true } });
-      await tx.notification.createMany({ data: people.map((u) => ({ userId: u.id, text: `تذكير: طلب شراء PR-${p.no} (${p.item}) مستني موافقتك من يوم شغل`, link: "/procurement", important: event.important })) });
+      await tx.notification.createMany({ data: people.map((u) => ({ userId: u.id, event: "procurement.reminder", text: `تذكير: طلب شراء PR-${p.no} (${p.item}) مستني موافقتك من يوم شغل`, link: "/procurement", important: event.important })) });
       sent++;
     });
   }

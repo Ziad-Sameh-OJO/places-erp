@@ -18,7 +18,7 @@ export async function leaveChaseTick(): Promise<void> {
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.leaveRequest.updateMany({ where: { id: r.id, ...(step === "remind" ? { remindedAt: null } : { escalatedAt: null }) }, data: step === "remind" ? { remindedAt: now } : { escalatedAt: now } });
       if (!claimed.count || !to.length) return;
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link: "/hr", important: step === "escalate" })) });
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: step === "escalate" ? "hr.leave_escalated" : "hr.leave_request", text, link: "/hr", important: step === "escalate" })) });
     });
   }
 }

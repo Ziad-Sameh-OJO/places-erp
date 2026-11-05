@@ -16,7 +16,7 @@ export async function hrActionAlarmTick(): Promise<void> {
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.oneOnOne.updateMany({ where: { id: r.id, alarmedAt: null }, data: { alarmedAt: new Date() } });
       if (!claimed.count) return;
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text: `ميعاد حل الـ HR مع ${r.employee.name}: ${r.hrAction}`, link: "/hr", important: true })) });
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: "hr.action_due", text: `ميعاد حل الـ HR مع ${r.employee.name}: ${r.hrAction}`, link: "/hr", important: true })) });
     });
   }
 }

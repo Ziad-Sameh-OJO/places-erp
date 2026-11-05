@@ -20,7 +20,7 @@ export async function recurringBillsTick(): Promise<void> {
       // optimistic: another run already announced it this month
       const claimed = await tx.recurringBill.updateMany({ where: { id: b.id, OR: [{ notifiedFor: null }, { notifiedFor: { not: month } }] }, data: { notifiedFor: month } });
       if (!claimed.count) return;
-      await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, text: `ميعاد فاتورة ${b.name} · ${formatEGP(fromDecimal(b.amount.toFixed(2)))} · ${b.vendor} · مستنية موافقتك`, link: "/finance", important: event.important })) });
+      await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, event: "finance.bill_due", text: `ميعاد فاتورة ${b.name} · ${formatEGP(fromDecimal(b.amount.toFixed(2)))} · ${b.vendor} · مستنية موافقتك`, link: "/finance", important: event.important })) });
     });
   }
 }
