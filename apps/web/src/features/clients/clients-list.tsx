@@ -5,6 +5,7 @@ import { Icon, Note, Table } from "@/components/ui";
 import { ago, num } from "@/lib/format";
 import { ClientDrawer } from "./client-drawer";
 import { KindChips } from "./client-bits";
+import { MergeQueue } from "./merges";
 import { type ClientQuery, useClient, useClientSummary, useClients } from "./use-clients";
 
 const PAGE = 50;
@@ -35,6 +36,7 @@ export function ClientsList() {
         <KpiTile label="ملاك محتاجين ابديت" value={s ? num(s.ownersStale) : "…"} sub="last update أكتر من شهر" icon="clock" tone="bad" />
         <KpiTile label="عميل ومالك" value={s ? num(s.both) : "…"} sub="نفس الشخص" icon="users" tone="warn" />
       </div>
+      <MergeQueue />
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder="الاسم، الرقم، الشركة" value={f.q ?? ""} onChange={(e) => filter({ ...f, q: e.target.value })} aria-label="بحث في العملاء والملاك" /></label>
         <div className="seg" role="group" aria-label="النوع">

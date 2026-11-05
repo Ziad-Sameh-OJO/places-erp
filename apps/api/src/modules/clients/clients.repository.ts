@@ -77,6 +77,43 @@ export class ClientsRepository {
     return tx.clientPhone.findMany({ where: { phone: { in: phones } }, select: { phone: true, client: { select: { id: true, kind: true } } } });
   }
 
+  // ── merges (M-10 2.2) ──
+
+  pendingMerges() {
+    return this.db.clientMerge.findMany({ where: { status: "pending" }, orderBy: { createdAt: "asc" } });
+  }
+
+  mergeSides(ids: string[]) {
+    return this.db.client.findMany({ where: { id: { in: ids }, archivedAt: null }, select: { id: true, name: true, kind: true, phones: { select: { phone: true } } } });
+  }
+
+  /** A merge of these two files (either way round) already waiting. */
+  openMerge(tx: Tx, a: string, b: string) {
+    return tx.clientMerge.findFirst({ where: { status: "pending", OR: [{ keepId: a, dropId: b }, { keepId: b, dropId: a }] }, select: { id: true } });
+  }
+
+  /** A live file as the merge and its audit need it. */
+  snapshot(tx: Tx, id: string) {
+    return tx.client.findFirst({
+      where: { id, archivedAt: null },
+      select: { id: true, name: true, kind: true, status: true, company: true, preferredContact: true, lastContactAt: true, phones: { select: { phone: true } } },
+    });
+  }
+
+  /** Everything of the dropped file moves to the kept one: numbers, leads, units, contact log. */
+  async moveInto(tx: Tx, dropId: string, keepId: string) {
+    await tx.clientPhone.updateMany({ where: { clientId: dropId }, data: { clientId: keepId } });
+    await tx.lead.updateMany({ where: { clientId: dropId }, data: { clientId: keepId } });
+    await tx.unit.updateMany({ where: { ownerId: dropId }, data: { ownerId: keepId } });
+    await tx.clientInteraction.updateMany({ where: { clientId: dropId }, data: { clientId: keepId } });
+  }
+
+  /** The system's suggestion when one person's numbers are on two files (M-10 2.2), once per pair. */
+  async suggestMerge(tx: Tx, keepId: string, dropId: string, reason: string) {
+    if (await this.openMerge(tx, keepId, dropId)) return null;
+    return tx.clientMerge.create({ data: { keepId, dropId, reason } });
+  }
+
   /** The owner's units get this «last update»; returns them as they were (for the audit). */
   async touchOwnerUnits(tx: Tx, ownerId: string, at: Date) {
     const units = await tx.unit.findMany({ where: { ownerId, archivedAt: null }, select: { id: true, lastOwnerUpdateAt: true } });

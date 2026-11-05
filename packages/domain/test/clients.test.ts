@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergedKind, normalizePhone, partyBalance, withRole } from "../src/clients.ts";
+import { mergedFile, mergedKind, normalizePhone, partyBalance, withRole } from "../src/clients.ts";
+
+test("merge (M-10 2.2): the kept file keeps its name, fills what it lacks, both roles, active if either, latest contact", () => {
+  const jan = new Date("2026-01-10T10:00:00Z"), oct = new Date("2026-10-01T10:00:00Z");
+  const m = mergedFile(
+    { kind: "client", status: "inactive", company: null, preferredContact: "واتساب", lastContactAt: jan },
+    { kind: "owner", status: "active", company: "شركة النيل", preferredContact: "مكالمة", lastContactAt: oct },
+  );
+  assert.deepEqual(m, { kind: "both", status: "active", company: "شركة النيل", preferredContact: "واتساب", lastContactAt: oct });
+});
 import { egp } from "../src/money.ts";
 
 test("paid and remaining (M-10 3.2): each deal's due against what was paid on it; rejected / cancelled owe nothing", () => {

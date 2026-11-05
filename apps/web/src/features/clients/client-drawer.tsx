@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { day, dayTime, money, num } from "@/lib/format";
 import { KIND_WORD, KindChips } from "./client-bits";
+import { SuggestMergeForm } from "./merges";
 
 /**
  * The demo's file drawer (clients.js clDrawer): the details with what they owe, their units with the last update,
@@ -51,6 +52,7 @@ export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
         </Card>
       )}
       <LogForm file={p} />
+      <SuggestMergeForm file={p} />
       <h4 className="mini-h">التاريخ كله</h4>
       {p.timeline.length
         ? <div className="timeline">{p.timeline.map((x, i) => <div key={i}>{x.text}<small>{x.by ?? "السيستم"} · {dayTime(x.at)}</small></div>)}</div>

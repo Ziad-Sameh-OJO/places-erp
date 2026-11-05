@@ -249,7 +249,8 @@
       "clients": [
         "view",
         "create",
-        "edit"
+        "edit",
+        "approve"
       ],
       "contracts": [
         "view"
@@ -473,7 +474,8 @@
       "clients": [
         "view",
         "create",
-        "edit"
+        "edit",
+        "approve"
       ],
       "tickets": [
         "view",

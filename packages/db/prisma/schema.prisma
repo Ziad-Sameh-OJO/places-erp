@@ -674,6 +674,7 @@ model Client {
   leads            Lead[]              // the leads they came as (a returning client's new lead joins the file, M-10 2.3)
   units            Unit[]              // the units they own (deals on them and the contracts follow from the units / leads)
   createdById      String?
+  mergedIntoId     String?             // merged into another file by Operations (M-10 2.2); archived with it
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   archivedAt       DateTime?
@@ -681,6 +682,30 @@ model Client {
   @@index([kind])
   @@index([name])
   @@index([status, lastContactAt])
+  @@schema("sales")
+}
+
+/// M-10 2.2: merging two files of the same person waits for Operations' approval; the dropped file moves into the kept one.
+enum ClientMergeStatus {
+  pending
+  approved
+  rejected
+
+  @@schema("sales")
+}
+
+model ClientMerge {
+  id            String            @id @default(cuid())
+  keepId        String            // sales.Client that stays
+  dropId        String            // sales.Client that moves into it
+  status        ClientMergeStatus @default(pending)
+  reason        String            // why: the shared number, or who asked
+  suggestedById String?           // null = the system (a deal / unit whose numbers are on two files)
+  decidedById   String?
+  decidedAt     DateTime?
+  createdAt     DateTime          @default(now())
+
+  @@index([status])
   @@schema("sales")
 }
 

@@ -46,3 +46,15 @@ export interface ClientFile extends Omit<ClientRow, "units" | "deals"> {
   timeline: TimelineItem[];
   interactionKinds: string[];
 }
+
+/** M-10 2.2 «ادمج بالموبايل»: the other file is found by one of its numbers, written any way. */
+export const SuggestMerge = z.object({
+  phone: z.string({ required_error: "اكتب رقم الملف التاني" }).trim().min(7, "الرقم غلط").max(20, "الرقم غلط"),
+});
+export type SuggestMerge = z.infer<typeof SuggestMerge>;
+export const DecideMerge = z.object({ decision: z.enum(["approve", "reject"]) });
+export type DecideMerge = z.infer<typeof DecideMerge>;
+
+export interface MergeSideView { id: string; name: string; kind: ClientKind; phones: string[] }
+/** One merge waiting for Operations: the file kept, the file that moves into it, why, and who asked (null = the system). */
+export interface ClientMergeRow { id: string; keep: MergeSideView; drop: MergeSideView; reason: string; by: string | null; at: string }
