@@ -359,11 +359,7 @@ export class LeadsService {
       const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id, before: { stage: lead.stage }, after: { stage: next.stage } }, tx);
-      if (input.stage === "Done Deal") {
-        // M-10 2.1: the client's file is made (or found by number) with the Done Deal
-        const company = lead.companyId ? await tx.company.findUnique({ where: { id: lead.companyId }, select: { name: true } }) : null;
-        await this.clients.joinAsClient(tx, me.id, { id, name: lead.name, phones: lead.phones, company: company?.name ?? null });
-      }
+      if (input.stage === "Done Deal") await this.clientFile(tx, me, id);
       return next;
     });
   }
@@ -377,6 +373,13 @@ export class LeadsService {
   async markDoneDeal(tx: Prisma.TransactionClient, me: CurrentUser, lead: { id: string; stage: string; qualified: boolean }, text: string) {
     await this.repo.addActivity(tx, lead.id, "stage", text, me.id);
     if (lead.stage !== toDb("Done Deal")) await this.moveStage(tx, me, lead.id, lead, "Done Deal");
+    await this.clientFile(tx, me, lead.id);
+  }
+
+  /** M-10 2.1: the client's file is made (or found by number) with the Done Deal, in the same transaction. */
+  private async clientFile(tx: Prisma.TransactionClient, me: CurrentUser, id: string) {
+    const lead = await tx.lead.findUniqueOrThrow({ where: { id }, select: { name: true, phones: true, company: { select: { name: true } } } });
+    await this.clients.joinAsClient(tx, me.id, { id, name: lead.name, phones: lead.phones, company: lead.company?.name ?? null });
   }
 
   /** The Visit form's unit search (1.9): through the inventory's own rule of what a salesperson may see. */
