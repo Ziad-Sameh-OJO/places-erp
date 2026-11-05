@@ -991,10 +991,31 @@ model Campaign {
   leads     Lead[]
   arrivals  LeadArrival[]
   bulks     LeadBulk[]
+  posts     Post[]
   createdAt DateTime @default(now())
   archivedAt DateTime? // archived, never deleted: leads point at it
 
   @@index([archivedAt])
+  @@schema("marketing")
+}
+
+/// M-04 2.1 step 6 · 2.4: a post in the Content plan — its time, the Reminder at that time, the actual publish time.
+model Post {
+  id             String    @id @default(cuid())
+  title          String    // the design / video
+  channel        String
+  campaignId     String?
+  campaign       Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  at             DateTime  // when it is to be published (UTC)
+  description    String?
+  approved       Boolean   @default(true) // M-04 2.2: the manager's review is optional — false = waiting for it
+  publishedAt    DateTime? // the actual publish time (KPI: on time ÷ planned)
+  reminderSentAt DateTime? // the Reminder went out (once)
+  createdById    String
+  createdAt      DateTime  @default(now())
+  archivedAt     DateTime?
+
+  @@index([at])
   @@schema("marketing")
 }
 
