@@ -546,3 +546,78 @@ test("a broker isn't in «الليدز»; the filters apply to both tabs and the
   assert.deepEqual(Object.fromEntries(flags.map((f) => [f.id, f.selfEntered])), { [broker]: false, [client]: false, [own]: true });
   assert.equal((await call("/leads", { method: "POST", cookie: ops, body: { name: "x x", phones: ["01099990001"], area: "x", type: "Rent", channel: "Facebook", kind: "agent" } })).status, 400);
 });
+
+/* ---------------- 1.11 the gaps: scope on writes, duplicates written differently, Qualified through the API ---------------- */
+
+const gapCode = (n: number) => `L-E2EG${stamp}${n}`;
+const gapPhone = (n: number) => `0105${stamp.slice(-6)}${n}`;
+after(async () => {
+  await prisma.lead.deleteMany({ where: { code: { startsWith: `L-E2EG${stamp}` } } }); // activities, arrivals, duplicates cascade
+  await prisma.notification.deleteMany({ where: { text: { contains: `E2E-G ${stamp}` } } });
+});
+const ownerEmail = async (leaderEmail: string) => (await prisma.user.findFirstOrThrow({
+  where: { email: { not: "m.mohsen@places.com" }, employee: { teamLeader: { user: { email: leaderEmail } } } } })).email;
+const gapLead = async (n: number, email: string, extra: object = {}) => {
+  const owner = (await prisma.employee.findFirstOrThrow({ where: { user: { email } } })).id;
+  return (await prisma.lead.create({ data: { code: gapCode(n), name: `E2E-G ${stamp} ${n}`, phones: [gapPhone(n)], area: "التجمع الخامس",
+    type: "Rent", channel: "Facebook", assignedToId: owner, assignedAt: new Date(), createdById: "e2e", ...extra } })).id;
+};
+const stageTo = (id: string, cookie: string, stage: string) => call(`/leads/${id}/stage`, { method: "PATCH", cookie, body: { stage } });
+
+test("Qualified through the API (M-01 2.7, Q8): Cancellation / Hold before Interested don't qualify; once Interested it never goes back", async () => {
+  const id = await gapLead(1, "m.mohsen@places.com");
+  const qualified = async () => (await call(`/leads/${id}`, { cookie: mohsen })).body.qualified as boolean;
+  assert.equal((await stageTo(id, mohsen, "Cancellation")).status, 200);
+  assert.equal(await qualified(), false); // Q8: Cancellation counts only after Interested
+  assert.equal((await stageTo(id, mohsen, "Hold")).status, 200);
+  assert.equal(await qualified(), false);
+  assert.equal((await stageTo(id, mohsen, "Interested")).status, 200);
+  assert.equal(await qualified(), true);
+  for (const back of ["Not Interested", "No Answer", "Cancellation", "Fresh"]) {
+    assert.equal((await stageTo(id, mohsen, back)).status, 200);
+    assert.equal(await qualified(), true, `still Qualified after ${back}`);
+  }
+  // the list's Qualified filter follows the stored flag, not the current stage
+  const listed = (await call(`/leads?q=${gapCode(1)}&qualified=true`, { cookie: mohsen })).body;
+  assert.deepEqual([listed.total, listed.items[0]?.stage], [1, "Fresh"]);
+  // every move is audited with before / after
+  const audits = await prisma.auditLog.findMany({ where: { entityId: id, action: "stage" }, orderBy: { id: "asc" } });
+  assert.equal(audits.length, 7);
+  assert.deepEqual([audits[2]!.before, audits[2]!.after], [{ stage: "HOLD" }, { stage: "INTERESTED" }]);
+});
+
+test("scope on writes: outside it a stage change, a comment or a call is 404 and changes nothing; view-only is 403", async () => {
+  const otherTeam = await gapLead(2, await ownerEmail("mahmoud.ali@places.com"));
+  const teammate = await gapLead(3, await ownerEmail("abdallah.sleem@places.com"));
+  for (const [cookie, id] of [[mohsen, otherTeam], [mohsen, teammate], [tl, otherTeam], [hadeer, otherTeam]] as const) {
+    assert.equal((await stageTo(id, cookie, "Interested")).status, 404);
+    assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie, body: { text: "x" } })).status, 404);
+    assert.equal((await call(`/leads/${id}/calls`, { method: "POST", cookie })).status, 404);
+  }
+  const untouched = await prisma.lead.findUniqueOrThrow({ where: { id: otherTeam }, include: { _count: { select: { activities: true } } } });
+  assert.deepEqual([untouched.stage, untouched.qualified, untouched.touched, untouched._count.activities], ["FRESH", false, false, 0]);
+  assert.equal(await prisma.auditLog.count({ where: { entityId: otherTeam } }), 0);
+
+  assert.equal((await stageTo(teammate, tl, "No Answer")).status, 200); // the TL acts on his team's lead
+  assert.equal((await stageTo(otherTeam, ops, "Interested")).status, 200); // operations: all
+  assert.equal((await stageTo(teammate, nancy, "Interested")).status, 403); // leads: view only
+  assert.equal((await stageTo(teammate, hr, "Interested")).status, 403);
+  assert.equal((await stageTo(teammate, ops, "Somewhere")).status, 400);
+});
+
+test("a duplicate is found however the mobile is written, in any of the lead's mobiles; the same mobile twice in one form is kept once", async () => {
+  const id = await gapLead(4, "m.mohsen@places.com", { phones: [gapPhone(4), gapPhone(5)] });
+  const spaced = `${gapPhone(5).slice(0, 4)} ${gapPhone(5).slice(4, 7)}-${gapPhone(5).slice(7)}`;
+  const r = await call("/leads", { method: "POST", cookie: tl, body: { name: `E2E-G ${stamp} تاني`, phones: [spaced], area: "التجمع الخامس", type: "Rent", channel: "Instagram" } });
+  assert.equal(r.status, 409, JSON.stringify(r.body));
+  assert.equal(r.body.error, `العميل ده موجود (${gapCode(4)}) · اتبعت للأوبريشن تقرر`);
+  assert.equal(await prisma.lead.count({ where: { OR: [{ phones: { has: gapPhone(4) } }, { phones: { has: gapPhone(5) } }] } }), 1);
+  assert.deepEqual((await prisma.leadArrival.findMany({ where: { leadId: id } })).map((a) => [a.channel, a.duplicate]), [["Instagram", true]]);
+
+  const dashed = `${gapPhone(6).slice(0, 3)}-${gapPhone(6).slice(3)}`;
+  const twice = await call("/leads", { method: "POST", cookie: mohsen, body: { name: `E2E-G ${stamp} مرتين`, phones: [gapPhone(6), dashed], area: "التجمع الخامس", type: "Rent", channel: "Facebook" } });
+  assert.equal(twice.status, 201, JSON.stringify(twice.body));
+  await prisma.lead.update({ where: { id: twice.body.id }, data: { code: gapCode(6) } }); // so the cleanup finds it
+  assert.deepEqual((await prisma.lead.findUniqueOrThrow({ where: { id: twice.body.id } })).phones, [gapPhone(6)]);
+  assert.equal((await call("/leads", { method: "POST", cookie: mohsen, body: { name: `E2E-G ${stamp} غلط`, phones: ["0100123"], area: "x", type: "Rent", channel: "Facebook" } })).status, 400);
+});
