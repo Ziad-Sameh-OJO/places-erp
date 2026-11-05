@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
-import { AddComment, AssignLead, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
+import { AddComment, AssignLead, RecommendAnswers, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -77,6 +77,20 @@ export class LeadsController {
   @Requires("leads", "view") // plus the Logs rule in the service: the admin and the roles the admin picked
   logs(@Me() me: CurrentUser, @Param("id") id: string) {
     return this.leads.logs(me, id);
+  }
+
+  /** «الوحدات» (2.12): the units that suit the client, narrowed by the answers on the lead. */
+  @Get(":id/recommendations")
+  @Requires("leads", "view")
+  recommendations(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.leads.recommendations(me, id);
+  }
+
+  /** «جاوب عشان الـ Recommendations تقل» (M-03 3.2): the answers are saved on the lead. */
+  @Put(":id/answers")
+  @Requires("leads", "edit")
+  setAnswers(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(RecommendAnswers)) body: RecommendAnswers) {
+    return this.leads.setAnswers(me, id, body);
   }
 
   @Post(":id/calls")
