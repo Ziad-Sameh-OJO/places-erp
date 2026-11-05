@@ -128,7 +128,7 @@ export class FilesService implements OnModuleInit {
   }
 
   names(ids: string[]) {
-    return this.db.file.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+    return this.db.file.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, mime: true } });
   }
 
   /** The generic endpoint only serves your own uploads (the preview right after uploading). */

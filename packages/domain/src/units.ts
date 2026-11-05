@@ -145,6 +145,19 @@ export const closeConfirmer = (type: UnitType): "inventory" | "resale" => (type 
 /** Q16: Manar confirms a rent close, Randa a resale / income one; the Super Admin can stand in for either. */
 export const confirmsClose = (roles: readonly string[], type: UnitType): boolean => roles.includes("admin") || roles.includes(closeConfirmer(type));
 
+/** M-03 3.1 «pic or info»: how many photos one unit keeps (a Drive folder's worth; more is a mistake). */
+export const MAX_UNIT_PHOTOS = 40;
+
+/**
+ * The photos in the order Manar / Randa asked for (the first is the main one), or null when the order doesn't name
+ * exactly the unit's photos, each once (a stale screen, or a photo removed meanwhile).
+ */
+export function photoOrder(current: readonly string[], wanted: readonly string[]): string[] | null {
+  const have = new Set(current);
+  if (wanted.length !== have.size || new Set(wanted).size !== wanted.length || !wanted.every((id) => have.has(id))) return null;
+  return [...wanted];
+}
+
 /**
  * Q17: an edit can add, drop or swap the second type. Each type keeps the state it had (a rented Rent side stays
  * rented when Rent becomes the second type); a type new to the unit starts available.

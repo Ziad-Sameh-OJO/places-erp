@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UNIT_TYPES, areaRangeProblem, fromDecimal, unitFiguresFit, type UnitStatus, type UnitType } from "@places/domain";
+import { MAX_UNIT_PHOTOS, UNIT_TYPES, areaRangeProblem, fromDecimal, unitFiguresFit, type UnitStatus, type UnitType } from "@places/domain";
 import { CalendarDay, Id, Money, Page } from "./common.ts";
 import type { ListItem } from "./settings.ts";
 
@@ -144,6 +144,9 @@ export interface UnitRow {
   details: Record<string, string | number | null>;
   /** Income: monthly / annual rent and yield (2.3) */
   income: { monthlyRent: string; annualRent: string; yieldPct: number | null } | null;
+  /** the main photo (2.4): a short link, null when it has none; and how many it has («Pic / info») */
+  photo: string | null;
+  photoCount: number;
   /** its closed sides (Q16 · 2.9): which type, Rented / Sold, when; the deal's code for the inventory team only */
   closings: UnitClosing[];
 }
@@ -175,3 +178,14 @@ export const AreaTabInput = z.object({
 export type AreaTabInput = z.infer<typeof AreaTabInput>;
 /** A tab with its name («101 to 200») and how many available units are in it under the list's filters. */
 export interface AreaTabView { id: string; label: string; min: number; max: number | null; count: number }
+
+/** 2.4 · photos uploaded with core/files, added to a unit (appended after the ones it has). */
+export const UnitPhotosInput = z.object({
+  fileIds: z.array(Id, { required_error: "اختار الصور" }).min(1, "اختار الصور").max(MAX_UNIT_PHOTOS, `لحد ${MAX_UNIT_PHOTOS} صورة`),
+});
+export type UnitPhotosInput = z.infer<typeof UnitPhotosInput>;
+/** The unit's photos in the new order: the first one is the main photo. */
+export const UnitPhotoOrder = z.object({ fileIds: z.array(Id).max(MAX_UNIT_PHOTOS) });
+export type UnitPhotoOrder = z.infer<typeof UnitPhotoOrder>;
+/** One photo with a short link (5 minutes); `main` = the first one. */
+export interface UnitPhotoView { id: string; name: string; url: string; main: boolean }

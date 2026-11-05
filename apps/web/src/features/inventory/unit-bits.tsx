@@ -11,11 +11,11 @@ export const TypeChip = ({ type }: { type: UnitTypeName }) => <Chip tone={TYPE_T
 type Col = readonly [key: string, label: string];
 /**
  * The demo's sheet columns per type (M-03 3.1: each type keeps its own sheet's columns and names); «all» is the
- * mixed list and the rented / sold sheet. Pictures and the agreement come with the unit's files (2.4).
+ * mixed list and the rented / sold sheet. «Pic / info» counts the unit's photos (2.4); the agreement comes later.
  */
 export const COLS: Record<UnitTypeName | "all" | "closed", readonly Col[]> = {
-  Rent: [["project", "Project"], ["code", "Code"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["space", "Gross area"], ["condition", "Conditions"], ["pricePerSqm", "Price / sqm"], ["total", "Total price"], ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["agent", "Agent"], ["building", "Build num"], ["parking", "Parking"], ["location", "Location"], ["lastUpdate", "Last update"]],
-  Resale: [["project", "اسم المبنى"], ["code", "الكود"], ["ownerName", "اسم الأونر"], ["ownerPhone", "الرقم"], ["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["paymentMethod", "طريقة الدفع"], ["agent", "Agent"], ["maintenance", "صيانة"], ["building", "رقم المبنى"], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["lastUpdate", "Last update"]],
+  Rent: [["project", "Project"], ["code", "Code"], ["photos", "Pic / info"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["space", "Gross area"], ["condition", "Conditions"], ["pricePerSqm", "Price / sqm"], ["total", "Total price"], ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["agent", "Agent"], ["building", "Build num"], ["parking", "Parking"], ["location", "Location"], ["lastUpdate", "Last update"]],
+  Resale: [["project", "اسم المبنى"], ["code", "الكود"], ["ownerName", "اسم الأونر"], ["ownerPhone", "الرقم"], ["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["paymentMethod", "طريقة الدفع"], ["agent", "Agent"], ["maintenance", "صيانة"], ["building", "رقم المبنى"], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
   Income: [["project", "اسم المبنى"], ["code", "الكود"], ["ownerName", "الاسم"], ["ownerPhone", "الرقم"], ["link", "اللينك"], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
   // Primary's own columns weren't sent yet: it shows the common ones
   Primary: [["code", "Code"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["condition", "Condition"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["floor", "Floor"], ["building", "Build num"], ["parking", "Parking"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
@@ -56,6 +56,7 @@ export function cell(u: UnitRow, key: string): ReactNode {
     case "escalation": return d.escalationPct != null ? <span className="num">{d.escalationPct}%</span> : "—";
     case "serviceUsd": return d.serviceChargeUsd != null ? <span className="num">{amount(String(d.serviceChargeUsd))}</span> : "—";
     case "link": case "tenant": case "note": return text(d[key]);
+    case "photos": return u.photoCount ? <span className="lnk"><Icon name="image" />{num(u.photoCount)} صورة</span> : "—";
     case "ownerPhone": return u.ownerPhone ? <span className="mono">{u.ownerPhone}</span> : "—";
     case "closedAs": return closedSides(u).map((c) => <Chip key={c.type} tone="bad">{c.type} · {c.status === "sold" ? "Sold" : "Rented"}</Chip>);
     case "closedAt": return u.closings.length ? day(u.closings.at(-1)!.at) : "—";

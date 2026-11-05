@@ -882,6 +882,7 @@ model Unit {
   createdById       String?     // the user who entered it (Manar / Randa activity)
   deals             Deal[]
   locks             UnitLock[]
+  photos            UnitPhoto[]
   suggestedFor      LeadUnit[]
   shownInVisits     VisitUnit[]
   tasks             Task[]
@@ -918,6 +919,20 @@ model UnitLock {
   @@unique([unitId, dealId])
   @@unique([unitId, type]) // one Done Deal per side at a time: a second one waits until the first is released
   @@index([status, lockedAt])
+  @@schema("inventory")
+}
+
+/// M-03 1.2 · 3.1 «pic or info»: the unit's photos, uploaded into the system instead of the Drive (core/files), in the
+/// order Manar / Randa set; the first one is the main photo (the card, the PDF).
+model UnitPhoto {
+  id        String   @id @default(cuid())
+  unitId    String
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  fileId    String   @unique // system.File (entity "Unit")
+  position  Int      // 0 = the main photo
+  createdAt DateTime @default(now())
+
+  @@index([unitId, position])
   @@schema("inventory")
 }
 
