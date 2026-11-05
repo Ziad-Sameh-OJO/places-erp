@@ -5,11 +5,16 @@
   const ui = (k, v) => { if (v !== undefined) A.ui[k] = v; return A.ui[k]; };
   const canEdit = () => A.canDo("inventory", "edit") || (S().invAccess[A.me()] === "edit");
   const COLS = {
-    Rent: [["project", "Project"], ["code", "Code"], ["photos", "Pic / info"], ["contact", "Contact"], ["number", "Number"], ["space", "Gross area"], ["condition", "Conditions"], ["pricePerSqm", "Price / sqm"], ["total", "Total price"], ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["agent", "Agent"], ["building", "Build num"], ["parking", "Parking"], ["location", "Location"], ["lastUpdate", "Last update"]],
+    // Rent = the client's inventory sheet (Book7) column for column, then the system's own columns
+    Rent: [["project", "Project"], ["code", "Code"], ["photos", "Pic & Info"], ["space", "Area"], ["condition", "Conditions"], ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"], ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["building", "Building Number"], ["parking", "Parking Slots"], ["location", "Location"], ["layout", "Layout"], ["pic", "PIC"], ["resale", "Resale"], ["comment", "Comment"], ["contact", "Contact"], ["number", "Number"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
     Resale: [["project", "اسم المبنى"], ["code", "الكود"], ["owner", "اسم الأونر"], ["number", "الرقم"], ["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["payment", "طريقة الدفع"], ["agent", "Agent"], ["maintenance", "صيانة"], ["building", "رقم المبنى"], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
     Income: [["project", "اسم المبنى"], ["code", "الكود"], ["name", "الاسم"], ["number", "الرقم"], ["link", "اللينك"], ["space", "Area"], ["floor", "Floor"], ["salePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contractYears", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["payment", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["agreement", "Agreement"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
-    all: [["code", "Code"], ["type", "Type"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["condition", "Condition"], ["total", "Total"], ["divisible", "تتقسم؟"], ["agent", "Agent"], ["lastUpdate", "Last update"]]
+    all: null
   };
+  COLS.all = [COLS.Rent[0], COLS.Rent[1], ["type", "Type"], ...COLS.Rent.slice(2)];
+  const OPTIONAL = ["code", "type", "total", "monthly", "annual", "yield", "layout", "pic", "resale", "comment", "note", "agent", "lastUpdate", "parking", "escalation", "floor"];
+  A.missingOf = (u) => (COLS[u.type] || COLS.Rent).filter(([k]) => !OPTIONAL.includes(k) && !(k === "photos" && u.drive) && (u[k] == null || u[k] === "" || u[k] === 0)).map(([, l]) => l);
+  const yn = (v) => chip(v ? "ok" : "", v ? "Yes" : "No");
   function cell(u, k) {
     const ic = A.incomeCalc(u);
     const map = {
@@ -17,16 +22,20 @@
       yield: () => `<td class="n"><b>${ic.yieldPct.toFixed(1)}%</b></td>`, agent: () => `<td>${A.who(u.agent)}</td>`,
       lastUpdate: () => `<td>${A.stale(u) ? chip("bad", "متأخر · " + A.fmtDate(u.lastUpdate)) : A.fmtDate(u.lastUpdate)}</td>`,
       divisible: () => `<td>${u.divisible ? chip("info", `اه · من ${A.num(u.minSplit)} م`) : "—"}</td>`,
-      code: () => `<td class="mono">${u.code}${u.pdf === "draft" ? " " + chip("warn", "PDF draft") : ""}</td>`,
+      code: () => { const m = A.missingOf(u).length; return `<td class="mono">${u.code}${u.pdf === "draft" ? " " + chip("warn", "PDF draft") : ""}${m ? " " + chip("bad", `ناقص ${m}`) : ""}</td>`; },
       type: () => `<td>${chip(u.type === "Rent" ? "info" : u.type === "Resale" ? "acc" : "ok", u.type)}</td>`,
       location: () => `<td>${u.location ? `<a class="lnk" href="https://maps.google.com/?q=${encodeURIComponent(u.location)}" target="_blank" rel="noopener">${I("pin")}خريطة</a>` : "—"}</td>`,
       start: () => `<td>${A.fmtDate(u.start)}</td>`, end: () => `<td>${A.fmtDate(u.end)}</td>`, escalation: () => `<td class="n">${u.escalation || 0}%</td>`,
+      space: () => `<td class="n"><bdi>${u.divisible && u.minSplit ? `${A.num(u.minSplit)} UP TO ${A.num(u.space)}` : A.num(u.space)}</bdi></td>`,
+      photos: () => { const n = (u.photos || "").split("، ").filter(Boolean).length; return `<td><button class="lnk folder-lnk" data-act="unitFolder" data-code="${u.code}" title="فولدر صور الوحدة">${I("folder")}${n ? `${n} ملف` : "فاضي"}</button></td>`; },
+      layout: () => `<td>${yn(u.layout === "Yes")}</td>`, pic: () => `<td>${yn(!!(u.photos || u.drive))}</td>`,
+      resale: () => `<td>${yn(u.type === "Resale" || u.also === "Resale")}</td>`, comment: () => `<td class="wrap">${esc(u.comment || "—")}</td>`,
       contractYears: () => `<td class="n">${u.contractYears || "—"} سنين</td>`, delivery: () => `<td>${u.delivery && /\d{4}-/.test(u.delivery) ? A.fmtDate(u.delivery) : esc(u.delivery || "—")}</td>`
     };
     if (map[k]) return map[k]();
-    if (["space", "pricePerSqm", "salePerSqm", "leasePerSqm", "parking", "serviceUsd"].includes(k)) return `<td class="n">${A.num(u[k])}</td>`;
-    if (["photos", "link", "agreement"].includes(k)) return `<td>${u[k] ? `<span class="lnk">${I("image")}${esc(u[k])}</span>` : "—"}</td>`;
-    return `<td>${esc(u[k] == null || u[k] === "" ? "—" : u[k])}</td>`;
+    if (["pricePerSqm", "salePerSqm", "leasePerSqm", "parking", "serviceUsd"].includes(k)) return `<td class="n">${A.num(u[k])}</td>`;
+    if (["link", "agreement"].includes(k)) return `<td>${u[k] ? `<span class="lnk">${I("image")}${esc(u[k])}</span>` : "—"}</td>`;
+    return `<td><bdi>${esc(u[k] == null || u[k] === "" ? "—" : u[k])}</bdi></td>`;
   }
   function listUnits() {
     const st = S(), t = ui("invType") || "all", tab = ui("invTab"), f = ui("invF") || {};
@@ -37,6 +46,7 @@
     if (f.agent) list = list.filter((u) => u.agent === f.agent);
     if (f.stale) list = list.filter(A.stale);
     if (f.div) list = list.filter((u) => u.divisible);
+    if (f.miss) list = list.filter((u) => A.missingOf(u).length);
     if (f.q) { const q = f.q.toLowerCase(); list = list.filter((u) => JSON.stringify(u).toLowerCase().includes(q)); }
     return list;
   }
@@ -48,7 +58,7 @@
       if (r !== "admin" && !["inventory", "resale"].includes(r) && st.invAccess[A.me()] === "none") return U.empty("منار لسه مفعّلتش ليك صلاحية على الانفنتوري", "lock");
       const avail = st.units.filter(A.isAvailable), cols = COLS[t] || COLS.all, as = (x) => st.units.filter((u) => A.availableAs(u, x)).length;
       const types = [["all", "الكل", avail.length], ["Rent", "Rent", as("Rent")], ["Resale", "Resale", as("Resale")], ["Income", "Income", as("Income")], ["rented", "Rented / Sold", st.units.filter((u) => u.status !== "available" || u.alsoStatus === "closed").length]];
-      return `<div class="kpis">${U.kpi("وحدات متاحة", avail.length, "Rent · Resale · Income", "building")}${U.kpi("PDF مستني Confirm", st.units.filter((u) => u.pdf === "draft").length, "قبل ما يتنشر للسيلز", "file", "warn")}${U.kpi("محتاجة ابديت", st.units.filter(A.stale).length, "last update أكتر من شهر", "clock", "bad", "invStale")}${U.kpi("تنفع تتقسم", avail.filter((u) => u.divisible).length, "مساحات كبيرة", "layers", "ok")}</div>
+      return `<div class="kpis">${U.kpi("وحدات متاحة", avail.length, "Rent · Resale · Income", "building")}${U.kpi("PDF مستني Confirm", st.units.filter((u) => u.pdf === "draft").length, "قبل ما يتنشر للسيلز", "file", "warn")}${U.kpi("محتاجة ابديت", st.units.filter(A.stale).length, "last update أكتر من شهر", "clock", "bad", "invStale")}${U.kpi("ناقصها بيانات", st.units.filter((u) => !u.archived && A.missingOf(u).length).length, "تتكمّل بعدين", "alert", "bad", "invMissing")}</div>
         <div class="row">${U.tabs("invType", types, t)}<span class="spacer"></span>
           ${A.can("notactive") ? `<a class="btn ghost" href="#notactive">${I("layers")}Not Active Inventory</a>` : ""}${A.canDo("inventory", "import") ? `<button class="btn ghost" data-act="importNew">${I("upload")}استيراد Excel</button>` : ""}${A.canDo("inventory", "approve") ? `<button class="btn ghost" data-act="invReport">${I("file")}التقرير اليومي</button><button class="btn ghost" data-act="teamTask">${I("check")}مهمة للفريق</button>` : ""}${A.canDo("inventory", "approve") || A.role === "tl" ? `<button class="btn ghost" data-act="listReqs">${I("list")}طلبات الـ Lists</button>` : ""}${U.exportBtn("units", "الوحدات")}${A.canDo("inventory", "approve") ? `<button class="btn ghost" data-act="invAccess">${I("lock")}الصلاحيات</button>` : ""}${A.canDo("inventory", "create") || canEdit() ? `<button class="btn" data-act="unitNew">${I("plus")}وحدة جديدة</button>` : ""}</div>
         <div class="toolbar">
@@ -58,6 +68,7 @@
           <select id="if-g" data-change="invF" data-k="agent" aria-label="Agent">${opt("", "كل الـ agents", f.agent)}${A.sales().map((s) => opt(s.id, s.name, f.agent)).join("")}</select>
           <label class="tog"><input type="checkbox" ${f.stale ? "checked" : ""} data-change="invF" data-k="stale"><span>محتاجة ابديت</span></label>
           <label class="tog"><input type="checkbox" ${f.div ? "checked" : ""} data-change="invF" data-k="div"><span>تنفع تتقسم</span></label>
+          <label class="tog"><input type="checkbox" ${f.miss ? "checked" : ""} data-change="invF" data-k="miss"><span>ناقصها بيانات</span></label>
           <span class="spacer"></span>${U.seg("invMode", [["table", "شيت", "list"], ["drive", "فولدرات", "board"]], mode)}
         </div>
         ${mode === "drive" ? `<div class="drive">${list.map((u) => `<article class="ucard" data-act="unitOpen" data-code="${u.code}"><div class="u-img u-${u.type}">${I("image")}<span class="mono">${u.code}</span>${u.pdf === "draft" ? chip("warn", "PDF draft") : ""}</div><div class="u-body"><b>${esc(u.project)}</b><small>${esc(u.area)} · الدور ${esc(u.floor || "—")}</small><div class="row"><span class="num u-space">${A.num(u.space)} م</span><span class="spacer"></span><b class="num">${A.short(A.unitTotal(u))}</b></div><div class="row">${chip(u.type === "Rent" ? "info" : u.type === "Resale" ? "acc" : "ok", u.type)}${u.divisible ? chip("info", "تتقسم") : ""}${A.stale(u) ? chip("bad", "ابديت") : ""}</div></div></article>`).join("") || U.empty("مفيش وحدات في الفلتر ده", "building")}</div>`
@@ -73,6 +84,7 @@
   A.ACT.invType = (d) => { ui("invType", d.v); A.render(); };
   A.ACT.invTab = (d) => { ui("invTab", d.v === "" ? null : +d.v); A.render(); };
   A.ACT.invMode = (d) => { ui("invMode", d.v); A.render(); };
+  A.ACT.invMissing = () => { location.hash = "#inventory"; ui("invType", "all"); ui("invF", { miss: true }); A.render(); };
   A.ACT.invStale = () => { ui("invF", Object.assign({}, ui("invF"), { stale: true })); A.render(); };
   A.CHANGE.invF = (v, el) => { ui("invF", Object.assign({}, ui("invF"), { [el.dataset.k]: v })); A.render(); };
 
@@ -88,8 +100,8 @@
 
   /* unit form */
   const TYPE_FIELDS = {
-    Rent: [["contact", "Contact", "text", 1], ["number", "Number", "tel", 1], ["pricePerSqm", "Price per sqm", "number", 1], ["maintenance", "Maintenance"], ["commission", "Commission"], ["photos", "Pic or info (صور · ترفع على السيستم)", "file"]],
-    Resale: [["owner", "اسم الأونر", "text", 1], ["number", "الرقم", "tel", 1], ["pricePerSqm", "السعر للمتر", "number", 1], ["payment", "طريقة الدفع"], ["delivery", "Delivery date", "date"], ["maintenance", "صيانة"], ["commission", "Commission"], ["photos", "Pictures (صور · ترفع على السيستم)", "file"]],
+    Rent: [["contact", "Contact", "text", 1], ["number", "Number", "tel", 1], ["pricePerSqm", "Price per sqm", "number", 1], ["maintenance", "Maintenance"], ["commission", "Commission"], ["comment", "Comment"], ["delivery", "Delivery date"], ["upfront", "Upfront rent"], ["security", "Security deposit"], ["payment", "Payment"], ["term", "Term"], ["grace", "Grace period"], ["escalation", "Annual increase %", "number"], ["photos", "Pic & Info (صور الوحدة · بتتحط في فولدرها)", "file"]],
+    Resale: [["owner", "اسم الأونر", "text", 1], ["number", "الرقم", "tel", 1], ["pricePerSqm", "السعر للمتر", "number", 1], ["payment", "طريقة الدفع"], ["delivery", "Delivery date", "date"], ["maintenance", "صيانة"], ["commission", "Commission"], ["photos", "Pictures (صور الوحدة · بتتحط في فولدرها)", "file"]],
     Income: [["name", "الاسم", "text", 1], ["number", "الرقم", "tel"], ["link", "اللينك"], ["salePerSqm", "Sale price per meter", "number", 1], ["leasePerSqm", "Lease price per meter", "number", 1], ["contractYears", "Contract duration (سنين)", "number"], ["start", "Start date", "date"], ["end", "End date", "date"], ["escalation", "Escalation rate %", "number"], ["payment", "Payment method"], ["serviceUsd", "Service charge / m (USD)", "number"], ["tenant", "Tenant name"], ["agreement", "Agreement (ملف · يترفع على السيستم)", "file"], ["commission", "Commission"], ["note", "Note"]]
   };
   A.ACT.unitNew = () => unitForm("Rent");
@@ -97,9 +109,9 @@
     const st = S();
     A.openModal("وحدة جديدة", `<form data-form="unitNew" class="grid">
       ${field("Type", `<select name="type" id="un-type" data-change="unType">${S().unitPurposes.map((t) => opt(t, t, type)).join("")}</select>`, 1)}
-      ${field("Project / اسم المبنى", `<input name="project" id="un-proj" required>`, 1)}
+      ${field("Project / اسم المبنى", `<input name="project" id="un-proj">`)}
       ${field("Area", `<select name="area" id="un-area">${st.areas.map((a) => opt(a)).join("")}</select>`, 1)}
-      ${field("Gross area (م)", `<input name="space" id="un-space" type="number" required data-input="unSpace">`, 1)}
+      ${field("Gross area (م)", `<input name="space" id="un-space" type="number" data-input="unSpace">`)}
       ${field("Condition / التشطيب", `<select name="condition" id="un-cond">${S().finishings.map((t) => opt(t)).join("")}</select>`, 1)}
       ${field("Floor", `<input name="floor" id="un-floor">`)}
       ${field("Build num", `<input name="building" id="un-bld">`, 1)}
@@ -107,8 +119,9 @@
       ${field("Agent (السيلز اللي جاب الوحدة)", `<select name="agent" id="un-agent">${A.sales().map((s) => opt(s.id, s.name)).join("")}</select>`, 1)}
       ${field("تاب المساحة", `<select name="tab" id="un-tab">${opt("", "أوتوماتيك من المساحة")}${st.areaTabs.map((rg, i) => opt(i, rg.label)).join("")}</select>`)}
       ${field("Location (من الخريطة)", `<div class="row"><input name="location" id="un-loc" placeholder="30.02, 31.48"><button type="button" class="btn ghost sm" data-act="pickLoc">${I("pin")}اختار</button></div>`)}
-      ${TYPE_FIELDS[type].map(([k, l, t, req]) => field(l, `<input name="${k}" id="un-${k}" type="${t || "text"}" ${t === "file" ? 'multiple accept="image/*,application/pdf"' : ""} ${req ? "required" : ""}>`, req)).join("")}
+      ${TYPE_FIELDS[type].map(([k, l, t, req]) => field(l, `<input name="${k}" id="un-${k}" type="${t || "text"}" ${t === "file" ? 'multiple accept="image/*,application/pdf"' : ""}>`)).join("")}
       ${field("اتستلمت إمتى (من المالك / الواتساب)", `<input name="receivedAt" id="un-recv" type="datetime-local" value="${new Date(A.NOW() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16)}">`)}
+      ${field("Layout", `<select name="layout" id="un-layout">${opt("No")}${opt("Yes")}</select>`)}
       ${field("تنفع تتقسم؟", `<select name="divisible" id="un-div">${opt("no", "لا")}${opt("yes", "اه")}</select>`)}
       ${field("أقل مساحة ممكن تتقسم لها", `<input name="minSplit" id="un-min" type="number" value="0">`)}
       <div class="row end wide"><span class="hint spacer">الكود التسلسلي والـ total price والـ PDF والـ slide بيتعملوا أوتوماتيك.</span><button class="btn">حفظ الوحدة</button></div></form>`);
@@ -116,14 +129,15 @@
   A.CHANGE.unType = (v) => unitForm(v);
   A.CHANGE.unSpace = (v) => { const i = S().areaTabs.findIndex((r) => +v >= r.min && +v <= r.max), el = document.getElementById("un-tab"); if (el && i >= 0) el.value = String(i); };
   A.ACT.pickLoc = () => { const el = document.getElementById("un-loc"); el.value = `30.${(Math.random() * 9e4 + 1e4) | 0}, 31.${(Math.random() * 9e4 + 1e4) | 0}`; A.toast("في السيستم الحقيقي الخريطة بتفتح وتختار المكان"); };
-  A.FORM.unitNew = (f) => {
+  A.FORM.unitNew = (f, form) => {
     const st = S(), code = "U-" + st.unitSeq++, nums = ["space", "parking", "pricePerSqm", "salePerSqm", "leasePerSqm", "escalation", "contractYears", "serviceUsd", "minSplit"];
     const u = Object.assign({}, f, { code, divisible: f.divisible === "yes", tab: f.tab === "" ? null : +f.tab, status: "available", pdf: "draft", lastUpdate: A.today(), created: A.today(), enteredAt: A.nowIso(), receivedAt: f.receivedAt ? new Date(f.receivedAt).toISOString() : A.nowIso() });
-    nums.forEach((k) => (u[k] = +f[k] || 0));
+    nums.forEach((k) => (u[k] = +f[k] || 0)); u.photos = "";
     st.units.unshift(u); A.audit("inventory", `${code} اتسجّلت (${u.project})`);
     A.notify(["marketing"], `Live Alert: وحدة جديدة ${code} (${u.project}) اتضافت للانفنتوري`);
+    const pics = form && form.querySelector("[name=photos]"); if (pics && pics.files.length) A.unitFilesAdd(code, pics.files).then(() => A.render());
     if (A.afterUnitNew) A.afterUnitNew(u); // a unit Marwa brought in from a Not Active sheet marks that row Done
-    A.closeModal(); A.toast(`${code} اتسجّلت · الـ PDF والـ slide اتعملوا ومستنيين Confirm من منار`); A.render(); A.ACT.unitOpen({ code });
+    const miss = A.missingOf(u); A.closeModal(); A.toast(miss.length ? `${code} اتسجّلت · ناقصها ${miss.length} خانة، والتنبيه في «مهامي النهارده» لحد ما تتكمّل` : `${code} اتسجّلت · الـ PDF والـ slide اتعملوا ومستنيين Confirm من منار`); A.render(); A.ACT.unitOpen({ code });
   };
 
   /* unit drawer */
@@ -136,12 +150,15 @@
     // Q16: after the Office Manager approves the deal, Manar confirms rent units and Randa resale & income units
     const closeType = ((S().deals.find((x) => x.id === u.closeReq) || {}).type) || u.type, closer = A.canDo("inventory", "approve") && (r === "admin" || (closeType === "Rent" ? r === "inventory" : r === "resale")) || (r === "resale" && closeType !== "Rent" && A.canDo("inventory", "edit"));
     if (tab === "data" && u.closeReq) body += note(`<b>Done Deal ${esc(u.closeReq)} اتوافق عليها.</b> الوحدة بتتقفل بعد تأكيد ${u.type === "Rent" ? "منار" : "رندا"}. ${closer ? `<button class="btn sm" data-act="unitCloseConfirm" data-code="${u.code}">${I("check")}أكّد القفل (${u.type === "Resale" || u.type === "Income" ? "Sold" : "Rented"})</button>` : ""}`, "warn");
+    const miss = A.missingOf(u);
+    if (tab === "data" && miss.length) body += note(`<b>بيانات ناقصة (${miss.length}):</b> ${miss.map(esc).join("، ")}. الوحدة اتسجّلت عادي، وفيه تنبيه في «مهامي النهارده» لحد ما تتكمّل. ${edit ? `<button class="btn sm" data-act="unitEdit" data-code="${u.code}">كمّل البيانات</button>` : ""}`, "warn");
     if (tab === "data") body += `${kv((COLS[u.type] || COLS.all).map(([k, l]) => [l, cell(u, k).replace(/^<td[^>]*>|<\/td>$/g, "")]))}${A.invExtras ? A.invExtras(u) : ""}
       ${u.type === "Income" ? note(`Monthly = Lease/m × Area = ${A.money(ic.monthly)} · Annual = ×12 = ${A.money(ic.annual)} · Yield = Annual ÷ Sale total = <b>${ic.yieldPct.toFixed(2)}%</b>`) : note(`Total price = السعر للمتر × المساحة = ${A.num(u.pricePerSqm)} × ${A.num(u.space)} = <b>${A.money(A.unitTotal(u))}</b>`)}
+      <div class="row"><button class="btn ghost" data-act="unitFolder" data-code="${u.code}">${I("folder")}فولدر الصور (Pic & Info)</button></div>
       ${edit ? `<div class="row"><button class="btn ghost" data-act="unitEdit" data-code="${u.code}">تعديل البيانات</button>${A.canDo("inventory", "delete") ? `<button class="btn ghost" data-act="unitArchive" data-code="${u.code}">${I("x")}أرشفة</button>` : ""}<button class="btn ghost" data-act="unitUpdate" data-code="${u.code}">${I("clock")}ابديت مع المالك النهارده</button>${u.status === "available" ? `<button class="btn ghost" data-act="unitClose" data-code="${u.code}">${I("handshake")}اتأجّرت / اتباعت</button>` : ""}</div>` : ""}`;
-    if (tab === "pdf") body += `<div class="pdf-preview"><div class="slide"><div class="s-img u-${u.type}">${I("image")}</div><div class="s-txt"><span class="eyebrow">PLACES · ${esc(u.type)}</span><h3>${esc(u.project)}</h3><p>${esc(u.area)} · الدور ${esc(u.floor || "—")} · ${A.num(u.space)} م · ${esc(u.condition)}</p><b class="num">${A.money(A.unitTotal(u))}${u.type === "Rent" ? " / شهر" : ""}</b><small class="mono">${u.code}</small></div></div></div>
-      ${note("الـ PDF والـ slide بيتعملوا أوتوماتيك لما كل الخانات المطلوبة تتملا، ومن الصور. محدش يقدر يعدّل عليهم. أي تعديل في بيانات الوحدة بيعمل الـ PDF من تاني ويستنى Confirm منار. والوحدة مابتظهرش للسيلز غير بعد الـ Confirm.")}
-      ${u.pdf === "draft" && A.canDo("inventory", "approve") ? `<button class="btn" data-act="pdfConfirm" data-code="${u.code}">${I("check")}Confirm وانشره للسيلز</button>` : u.pdf === "draft" ? chip("warn", "مستني Confirm من منار") : chip("ok", "منشور للسيلز")}`;
+    if (tab === "pdf") { body += `${A.deckPreview(u)}<div class="row"><button class="btn" data-act="unitDeck" data-code="${u.code}" data-mode="pdf">${I("file")}افتح الـ PDF</button><button class="btn ghost" data-act="unitDeckPptx" data-code="${u.code}" data-mode="pdf">${I("download")}الـ PDF كـ PowerPoint</button><button class="btn ghost" data-act="unitDeck" data-code="${u.code}" data-mode="slide">${I("board")}افتح الـ slide</button><button class="btn ghost" data-act="unitDeckPptx" data-code="${u.code}" data-mode="slide">${I("download")}الـ slide كـ PowerPoint</button></div>
+      ${note("الـ PDF والـ slide بيتعملوا أوتوماتيك بنفس تصميم Places: الغلاف والجدول من بيانات الوحدة، والصور من فولدر Pic & Info (أول صورة هي صورة المبنى، والباقي صور من جوه). محدش بيعدّل عليهم بإيده: أي تعديل في البيانات أو الصور بيظهر فيهم على طول، والوحدة بترجع تستنى Confirm منار. والوحدة مابتظهرش للسيلز غير بعد الـ Confirm.")}
+      ${u.pdf === "draft" && A.canDo("inventory", "approve") ? `<button class="btn" data-act="pdfConfirm" data-code="${u.code}">${I("check")}Confirm وانشره للسيلز</button>` : u.pdf === "draft" ? chip("warn", "مستني Confirm من منار") : chip("ok", "منشور للسيلز")}`; setTimeout(() => A.deckPreviewFill(u.code), 0); }
     if (tab === "tasks") body += `${tasks.map((t) => `<div class="line-item"><span>${chip(t.status === "done" ? "ok" : t.status === "uploaded" ? "warn" : "", ({ photo: "تصوير", retouch: "Retouch", followup: "متابعة", toResale: "ابديت للبيع", marketing: "تسويق" })[t.kind])} ${A.who(t.to)} · ${A.fmtDate(t.due)}</span><span class="hint">${esc(t.status)}</span></div>`).join("") || `<p class="hint">مفيش مهام على الوحدة دي</p>`}
       ${edit ? `<div class="row"><button class="btn ghost" data-act="taskNew" data-kind="photo" data-code="${u.code}">${I("camera")}مهمة تصوير</button><button class="btn ghost" data-act="taskNew" data-kind="retouch" data-code="${u.code}">${I("image")}مهمة Retouch</button>${A.role !== "resale" && u.type === "Rent" ? `<button class="btn ghost" data-act="taskNew" data-kind="toResale" data-code="${u.code}">${I("send")}ابعتها لرندا (ابديت للبيع)</button>` : ""}</div>` : ""}`;
     if (tab === "loc") body += `<div class="map">${I("pin")}<b>${esc(u.project)}</b><small class="mono">${esc(u.location || "مفيش لوكيشن")}</small>${u.location ? `<a class="btn ghost sm" href="https://maps.google.com/?q=${encodeURIComponent(u.location)}" target="_blank" rel="noopener">افتح في Google Maps</a>` : ""}</div><p class="hint">في السيستم الحقيقي منار أو رندا بيفتحوا الخريطة ويختاروا اللوكيشن ويتسجّل.</p>`;
@@ -156,10 +173,12 @@
   A.autoFollowups = () => { const st = S(); st.units.filter(A.stale).forEach((u) => { if (!st.tasks.some((t) => t.kind === "followup" && t.unit === u.code && t.status !== "done")) st.tasks.push({ id: "T-" + (st.tasks.length + 1) + "f", kind: "followup", unit: u.code, by: "system", to: u.type === "Resale" ? "u8" : "u7", due: A.today(), status: "todo", note: "last update عدّى عليه أكتر من شهر · كلّم المالك" }); }); };
 
   A.ACT.unitEdit = (d) => {
-    const u = S().units.find((x) => x.code === d.code), F = [["project", "Project", "text"], ["space", "Gross area", "number"], ["floor", "Floor", "text"], ["building", "Build num", "text"], ["parking", "Parking", "number"], [u.type === "Income" ? "salePerSqm" : "pricePerSqm", u.type === "Income" ? "Sale price / m" : "Price per sqm", "number"], u.type === "Income" ? ["leasePerSqm", "Lease / m", "number"] : null, ["contact", "Contact / Owner", "text"], ["number", "Number", "tel"], ["minSplit", "أقل مساحة للتقسيم", "number"], ["alsoPricePerSqm", "سعر المتر في النوع التاني", "number"], ["photos", "ضيف صور (ترفع على السيستم)", "file"]].filter(Boolean);
-    A.openModal(`تعديل ${u.code}`, `<form data-form="unitEdit" class="grid"><input type="hidden" name="code" value="${u.code}">${F.map(([k, l, t]) => field(l, t === "file" ? `<input name="${k}" id="ue-${k}" type="file" multiple accept="image/*">` : `<input name="${k}" id="ue-${k}" type="${t}" value="${esc(u[k] == null ? "" : u[k])}">`)).join("")}${field("Condition", `<select name="condition" id="ue-c">${S().finishings.map((x) => opt(x, x, u.condition)).join("")}</select>`)}${field("متاحة كمان كـ (نوع تاني)", `<select name="also" id="ue-also">${opt("", "لأ", u.also || "")}${["Rent", "Resale"].filter((x) => x !== u.type).map((x) => opt(x, x, u.also || "")).join("")}</select>`)}${field("تنفع تتقسم؟", `<select name="divisible" id="ue-dv">${opt("no", "لا", u.divisible ? "yes" : "no")}${opt("yes", "اه", u.divisible ? "yes" : "no")}</select>`)}<div class="row end wide"><span class="hint spacer">التعديل بيتسجّل في الـ Audit Log، والـ PDF بيتعمل تاني ومستني Confirm.</span><button class="btn">حفظ</button></div></form>`);
+    const u = S().units.find((x) => x.code === d.code), F = [["project", "Project", "text"], ["space", "Gross area", "number"], ["floor", "Floor", "text"], ["building", "Build num", "text"], ["parking", "Parking", "number"], [u.type === "Income" ? "salePerSqm" : "pricePerSqm", u.type === "Income" ? "Sale price / m" : "Price per sqm", "number"], u.type === "Income" ? ["leasePerSqm", "Lease / m", "number"] : null, ["contact", "Contact / Owner", "text"], ["number", "Number", "tel"], ["minSplit", "أقل مساحة للتقسيم", "number"], ["alsoPricePerSqm", "سعر المتر في النوع التاني", "number"], ["maintenance", "Maintenance", "text"], ["commission", "Commission", "text"], ["comment", "Comment", "text"], ["location", "Location", "text"], ["photos", "ضيف صور لفولدر الوحدة", "file"]].filter(Boolean);
+    // every column of the unit's type is editable, so anything left empty at entry can be completed here
+    TYPE_FIELDS[u.type].forEach(([k, l, t]) => { if (!F.some((x) => x[0] === k)) F.splice(F.length - 1, 0, [k, l, t === "file" ? "text" : t || "text"]); });
+    A.openModal(`تعديل ${u.code}`, `<form data-form="unitEdit" class="grid"><input type="hidden" name="code" value="${u.code}">${F.map(([k, l, t]) => field(l, t === "file" ? `<input name="${k}" id="ue-${k}" type="file" multiple accept="image/*">` : `<input name="${k}" id="ue-${k}" type="${t}" value="${esc(u[k] == null ? "" : u[k])}">`)).join("")}${field("Condition", `<select name="condition" id="ue-c">${S().finishings.map((x) => opt(x, x, u.condition)).join("")}</select>`)}${field("Layout", `<select name="layout" id="ue-layout">${opt("No", "No", u.layout || "No")}${opt("Yes", "Yes", u.layout || "No")}</select>`)}${field("متاحة كمان كـ (نوع تاني)", `<select name="also" id="ue-also">${opt("", "لأ", u.also || "")}${["Rent", "Resale"].filter((x) => x !== u.type).map((x) => opt(x, x, u.also || "")).join("")}</select>`)}${field("تنفع تتقسم؟", `<select name="divisible" id="ue-dv">${opt("no", "لا", u.divisible ? "yes" : "no")}${opt("yes", "اه", u.divisible ? "yes" : "no")}</select>`)}<div class="row end wide"><span class="hint spacer">التعديل بيتسجّل في الـ Audit Log، والـ PDF بيتعمل تاني ومستني Confirm.</span><button class="btn">حفظ</button></div></form>`);
   };
-  A.FORM.unitEdit = (f) => { const u = S().units.find((x) => x.code === f.code), ch = []; if (f.also !== undefined && f.also !== (u.also || "")) { u.alsoStatus = f.also ? "available" : ""; } Object.keys(f).forEach((k) => { if (k === "code" || (k === "photos" && !f[k])) return; if (k === "photos") f[k] = (u.photos ? u.photos + "، " : "") + f[k]; let v = ["space", "parking", "pricePerSqm", "salePerSqm", "leasePerSqm", "minSplit", "alsoPricePerSqm"].includes(k) ? +f[k] : k === "divisible" ? f[k] === "yes" : f[k]; if (String(u[k]) !== String(v)) { ch.push(`${k}: ${u[k]} ← ${v}`); u[k] = v; } }); if (ch.length) { u.pdf = "draft"; u.lastUpdate = A.today(); A.audit("inventory", `${u.code}: ${ch.join(" · ")}`); } A.closeModal(); A.toast(ch.length ? "اتحفظ · الـ PDF مستني Confirm تاني" : "مفيش تغيير"); A.render(); };
+  A.FORM.unitEdit = (f, form) => { const u = S().units.find((x) => x.code === f.code), ch = []; const pics = form && form.querySelector("[name=photos]"); if (pics && pics.files.length) A.unitFilesAdd(u.code, pics.files).then(() => A.render()); delete f.photos; if (f.also !== undefined && f.also !== (u.also || "")) { u.alsoStatus = f.also ? "available" : ""; } Object.keys(f).forEach((k) => { if (k === "code") return; let v = ["space", "parking", "pricePerSqm", "salePerSqm", "leasePerSqm", "minSplit", "alsoPricePerSqm", "contractYears", "escalation", "serviceUsd"].includes(k) ? +f[k] : k === "divisible" ? f[k] === "yes" : f[k]; if (String(u[k] ?? "") !== String(v ?? "")) { ch.push(`${k}: ${u[k]} ← ${v}`); u[k] = v; } }); if (ch.length) { u.pdf = "draft"; u.lastUpdate = A.today(); A.audit("inventory", `${u.code}: ${ch.join(" · ")}`); } A.closeModal(); A.toast(ch.length ? "اتحفظ · الـ PDF مستني Confirm تاني" : "مفيش تغيير"); A.render(); };
   A.ACT.unitArchive = (d) => { const u = S().units.find((x) => x.code === d.code); u.archived = true; A.audit("inventory", `${u.code} اتأرشفت`); A.closeDrawer(); A.toast(`${u.code} اتأرشفت`, () => { u.archived = false; }); A.render(); };
 
   /* Excel import with duplicate check */

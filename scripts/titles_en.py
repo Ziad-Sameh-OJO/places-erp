@@ -56,6 +56,7 @@ TITLE_EN = {
  "2.17": "Job: units not updated for a month marked late + owner follow-up task",
  "2.18": "Daily inventory report (generated, approved by Manar)",
  "2.19": "TL List request as a ticket to Marwa (24h)",
+ "2.20": "Missing unit data: alerts until it is completed",
  "3.1": "Client/owner schema + links to leads, units, deals",
  "3.2": "Client file API: numbers, units, deals, contracts, contact log, paid and outstanding",
  "3.3": "Clients list and file UI",

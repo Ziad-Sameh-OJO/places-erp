@@ -40,12 +40,16 @@
     if (["officemgr", "admin"].includes(r)) st.deals.filter((d) => d.status === "Pending Review").forEach((d) => add(A.suspicious(d) ? "bad" : "warn", "handshake", `صفقة ${d.id} مستنية مراجعة`, `${d.client} · ${A.money(d.value)}${A.suspicious(d) ? " · Alarm: اتسجّلت وقت القفل" : ""}`, "dealOpen", { id: d.id }, "راجع"));
     if (r === "sales") st.broadcasts.filter((b) => b.approved && !b.sent.includes(m)).forEach((b) => add("", "megaphone", "رسالة Broadcast مستنياك", b.text, "bcDone", { id: b.id }, "بعتها · Done"));
     // tasks
-    st.tasks.filter((t) => t.status !== "done" && t.to === m).forEach((t) => add(t.due < A.today() ? "bad" : "", t.kind === "photo" ? "camera" : t.kind === "retouch" ? "image" : "check", `${({ photo: "تصوير", retouch: "Retouch", followup: "متابعة مع المالك", toResale: "ابديت للبيع", marketing: "مهمة تسويق" })[t.kind]}: ${t.title || t.unit}`, `ميعادها ${A.fmtDate(t.due)}${t.note ? " · " + t.note : ""}`, "goTasks", {}, "المهام"));
+    st.tasks.filter((t) => t.status !== "done" && t.to === m && t.kind !== "team").forEach((t) => add(t.due < A.today() ? "bad" : "", t.kind === "photo" ? "camera" : t.kind === "retouch" ? "image" : "check", `${({ photo: "تصوير", retouch: "Retouch", followup: "متابعة مع المالك", toResale: "ابديت للبيع", marketing: "مهمة تسويق" })[t.kind]}: ${t.title || t.unit}`, `ميعادها ${A.fmtDate(t.due)}${t.note ? " · " + t.note : ""}`, "goTasks", {}, "المهام"));
     if (r === "inventory") {
       st.tasks.filter((t) => t.status === "uploaded").forEach((t) => add("warn", "image", `Retouch ${t.unit} مستني موافقتك`, "المصمم رفع الصور على صفحة الوحدة", "goTasks", {}, "راجع"));
       st.units.filter((u) => u.pdf === "draft").forEach((u) => add("warn", "file", `PDF ${u.code} مستني Confirm`, u.project, "unitOpen", { code: u.code }, "راجع"));
       st.imports.filter((x) => x.status === "pending").forEach((x) => add("warn", "upload", `استيراد Excel: ${x.rows.length} صف`, `${x.rows.filter((r_) => r_.dupe).length} متكرر محتاج قرارك`, "importReview", { id: x.id }, "راجع"));
     }
+    // units saved with empty columns: Manar completes the Rent ones, Randa the Resale and Income ones
+    if (["inventory", "resale", "admin"].includes(r)) { const mine = st.units.filter((u) => !u.archived && A.missingOf(u).length && (r === "admin" || (u.type === "Rent") === (r === "inventory")));
+      mine.slice(0, 5).forEach((u) => { const m = A.missingOf(u); add("warn", "alert", `${u.code} ناقصها ${m.length} خانة`, m.slice(0, 4).join("، ") + (m.length > 4 ? "…" : ""), "unitOpen", { code: u.code }, "كمّل"); });
+      if (mine.length > 5) add("warn", "alert", `${mine.length - 5} وحدة تانية ناقصها بيانات`, "افتح الشيت بفلتر «ناقصها بيانات»", "invMissing", {}, "افتح"); }
     if (["inventory", "resale"].includes(r)) st.units.filter(A.stale).slice(0, 4).forEach((u) => add("bad", "clock", `${u.code} محتاجة ابديت مع المالك`, `آخر ابديت ${A.fmtDate(u.lastUpdate)}`, "unitOpen", { code: u.code }, "افتح"));
     if (r === "marketing") {
       st.posts.filter((p) => p.status !== "published" && p.at.slice(0, 10) === A.today()).forEach((p) => add("warn", "bell", `Reminder: ${p.title}`, `ميعاد النشر ${A.fmtTime(p.at)} · ${p.channel}`, "goMarketing", { tab: "content" }, "Content plan"));

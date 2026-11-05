@@ -61,7 +61,7 @@
     const review = d.status === "Pending Review" && A.canDo("deals", "approve"), live = !["Pending Review", "Rejected", "Cancelled"].includes(d.status);
     const sellerWait = (d.sellers || []).length && !d.sellerApproved, manar = A.canDo("inventory", "approve");
     const sales = A.sales(), others = sales.filter((s) => !(d.sellers || []).includes(s.id));
-    const body = `${A.suspicious(d) ? note("<b>Alarm للـ Office Manager:</b> الصفقة اتسجّلت وقت القفل بس (اتعملت واتقفلت في خلال ${A.dur(S().leadRules.close.alarmH * 60)})، يعني ممكن السيلز كان شغال عليها من غير ما يسجّلها. بتتحسب Done Deal عادي، بس متدخلش في تارجت السيلز.", "warn") : ""}
+    const body = `${A.suspicious(d) ? note(`<b>Alarm للـ Office Manager:</b> الصفقة اتسجّلت وقت القفل بس (اتعملت واتقفلت في خلال ${A.dur(S().leadRules.close.alarmH * 60)})، يعني ممكن السيلز كان شغال عليها من غير ما يسجّلها. بتتحسب Done Deal عادي، بس متدخلش في تارجت السيلز.`, "warn") : ""}
       ${d.status === "Cancelled" ? note(`<b>الصفقة اتلغت:</b> ${esc(d.cancelNote || "")} · الإيرادات والـ Achievements والعمولات اتخصمت أوتوماتيك.`, "warn") : ""}
       ${sellerWait ? note(`<b>الـ Seller:</b> ${esc(names(d.sellers))} (الـ Agent بتاع ${esc(d.unit)}) مستني موافقة منار قبل ما يتسجّل. ${manar ? `<button class="btn sm" data-act="sellerOk" data-id="${d.id}">${I("check")}وافقي على الـ Seller</button>` : ""}`, "warn") : ""}
       ${U.stepper(["Pending Review", "Approved", "Partially Collected", "Fully Collected"], A.dealStatus(d) === "Rejected" ? "Pending Review" : A.dealStatus(d))}

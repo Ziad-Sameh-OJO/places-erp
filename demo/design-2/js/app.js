@@ -1,6 +1,6 @@
 /* Core: state, roles, business rules from the requirements file, overlays and routing. */
 (function () {
-  const KEY = "places-erp-d2-v19"; // bump when the seed changes shape; older keys may hold mis-encoded data
+  const KEY = "places-erp-d2-v23"; // bump when the seed changes shape; older keys may hold mis-encoded data
   const clone = (o) => JSON.parse(JSON.stringify(o));
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
@@ -48,7 +48,7 @@
     procurement:  { label: "Procurement", user: "u16", nav: ["home", "procurement", "tickets"] },
     approver:     { label: "Approver", user: "", nav: ["home", "procurement", "finance"] },
     officemgr:    { label: "Office Manager", user: "u21", nav: ["home", "deals", "reports", "access"] },
-    inventory_staff: { label: "Inventory Specialist (مروة)", user: "u10", nav: ["home", "notactive", "tickets"] }
+    inventory_staff: { label: "Inventory Specialist", user: "u10", nav: ["home", "notactive", "tickets"] }
   };
   const NAV = {
     home: ["مهامي النهارده", "Today", "home", ""], leads: ["العملاء المحتملين", "M-01", "users", "المبيعات"], deals: ["الصفقات", "M-02", "handshake", "المبيعات"],
@@ -93,6 +93,8 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
     star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/>', upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
     file: '<path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>', bank: '<path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/>',
+    download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M5 20h14"/>',
+    folder: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H10l2 2.5h7.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"/>',
     layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>', sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',
     board: '<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/>',
     list: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
