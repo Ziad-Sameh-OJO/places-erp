@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
 import { type DealMoney, collectionProblem, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult } from "../src/team-leader.ts";
-import { changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, takesNote } from "../src/deals.ts";
+import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, takesNote } from "../src/deals.ts";
 
 const deal = (over: Partial<DealMoney> = {}): DealMoney => ({
   status: "Approved", commissionOwner: egp(50_000), commissionClient: egp(50_000),
@@ -110,4 +110,12 @@ test("5.3 · a collection: approved deals only, above zero, never above what's l
   assert.match(collectionProblem(deal({ status: "Pending Review", payments: [] }), egp(1))!, /اتوافق عليها/);
   assert.equal(revenueOnCollection(none), egp(100_000));
   assert.equal(revenueOnCollection(part), 0);
+});
+
+test("12 · 9.6: only a deal on the sheet is cancelled, once, with a reason", () => {
+  assert.equal(cancelProblem("Fully Collected", "العميل رجع في كلامه"), null);
+  assert.equal(cancelProblem("Approved", "x"), null);
+  assert.equal(cancelProblem("Cancelled", "x"), "الصفقة دي اتلغت قبل كده");
+  assert.equal(cancelProblem("Pending Review", "x"), "الإلغاء بيبقى على صفقة اتوافق عليها");
+  assert.equal(cancelProblem("Approved", "  "), "اكتب سبب الإلغاء");
 });

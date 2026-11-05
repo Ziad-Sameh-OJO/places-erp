@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
-import { balanceOf, entryProblem, entryTotals, natureOf, nextChildCode, openingLines, rollUp } from "../src/ledger.ts";
+import { balanceOf, entryProblem, entryTotals, natureOf, nextChildCode, openingLines, reversalLines, rollUp } from "../src/ledger.ts";
 
 // The numbers are the accountant's meeting example (M-07, 4 Nov): a 1,000 EGP buffet voucher from the main treasury,
 // and the accountant's chart of accounts (docs/requirements/sources/chart-of-accounts.md).
@@ -89,4 +89,11 @@ test("income statement stages: revenue − commissions − selling − admin −
   assert.equal(s.other, 12_000_00);
   assert.equal(s.net, 328_000_00);
   assert.equal(s.net, 520_000_00 - leaves.filter((l) => l.code.startsWith("5")).reduce((t, l) => t + l.value, 0)); // = 4 − 5 = account 34
+});
+
+test("9.6: a reversal swaps every line's sides and stays balanced", () => {
+  const lines = [{ accountId: "client", debit: egp(100_000), credit: 0 }, { accountId: "revenue", debit: 0, credit: egp(100_000) }];
+  const r = reversalLines(lines);
+  assert.deepEqual(r, [{ accountId: "client", debit: 0, credit: egp(100_000) }, { accountId: "revenue", debit: egp(100_000), credit: 0 }]);
+  assert.equal(entryProblem(r), null);
 });

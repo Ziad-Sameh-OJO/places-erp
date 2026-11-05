@@ -53,6 +53,13 @@ export const closedTooSoon = (requestCreatedAt: Date, closedAt: Date, alarmH: nu
 /** The note (Office Manager / Finance, 3.1) is written on a deal that is on the sheet: approved or being collected. */
 export const takesNote = (status: DealStatus): boolean => status === "Approved" || status === "Partially Collected" || status === "Fully Collected";
 
+/** M-02 2.3 (12) · 9.6: a deal on the sheet (approved or being collected) is cancelled once, with the reason written. */
+export function cancelProblem(status: DealStatus, reason: string): string | null {
+  if (!takesNote(status)) return status === "Cancelled" ? "الصفقة دي اتلغت قبل كده" : "الإلغاء بيبقى على صفقة اتوافق عليها";
+  if (!reason.trim()) return "اكتب سبب الإلغاء";
+  return null;
+}
+
 /** Only what really changed, old next to new (5.2: every amount change is audited with both values). */
 export function changes(before: Readonly<Record<string, unknown>>, after: Readonly<Record<string, unknown>>): { before: Record<string, unknown>; after: Record<string, unknown> } | null {
   const keys = Object.keys(after).filter((k) => after[k] !== undefined && JSON.stringify(before[k]) !== JSON.stringify(after[k]));

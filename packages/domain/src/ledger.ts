@@ -62,6 +62,9 @@ export function entryProblem(lines: readonly EntryLine[]): string | null {
   return debit === credit ? null : "القيد مش متوازن: المدين لازم يساوي الدائن";
 }
 
+/** 9.6 · Q12: the entry that undoes another one (a cancelled deal's revenue and commissions): every line's sides swapped. */
+export const reversalLines = (lines: readonly EntryLine[]): EntryLine[] => lines.map((l) => ({ accountId: l.accountId, debit: l.credit, credit: l.debit }));
+
 export function entryTotals(lines: readonly EntryLine[]): { debit: Piasters; credit: Piasters } {
   return lines.reduce((t, l) => ({ debit: t.debit + l.debit, credit: t.credit + l.credit }), { debit: 0, credit: 0 });
 }

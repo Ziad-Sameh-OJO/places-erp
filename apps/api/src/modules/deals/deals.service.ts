@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, type DealMoney, type DealStatus, type DealType, type EntryLine, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
+import type { CancelDeal, CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
+import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -207,6 +207,25 @@ export class DealsService {
         after: { status: toDb(status), collected: toDecimal(collected(after)), side: input.side, amount: input.amount, payment: payment.id, move: saved.move.no } }, tx);
       if (status === "Fully Collected") await this.commissionsDue(tx, me, d, after, date);
       return { status, collected: toDecimal(collected(after)), remaining: toDecimal(remaining(after)), move: saved.move.no, entry: saved.move.entry.no };
+    });
+  }
+
+  /**
+   * «الغي الصفقة» (M-02 2.3 (12) · 9.6): the deal drops out of targets and Transactions (commission.ts OFF_BOOKS) and
+   * every entry it posted — Places' revenue and the salespeople's due commission — is reversed. The collected cash
+   * stays on the client's account (113…) until finance pays it back or settles it.
+   */
+  async cancel(me: CurrentUser, id: string, input: CancelDeal) {
+    return this.db.$transaction(async (tx) => {
+      await this.repo.lock(tx, id); // read the status after the lock: a second cancel waits, then is refused
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      if (!d) throw new NotFoundException(NO_DEAL);
+      const problem = cancelProblem(label(d.status), input.reason);
+      if (problem) throw new BadRequestException(problem);
+      await this.repo.update(tx, id, { status: "CANCELLED" });
+      const reversed = await this.ledger.reverse(me, "deal", id, `إلغاء ${d.code} · ${d.company}`, tx);
+      await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "cancel", userId: me.id, before: { status: d.status }, after: { status: "CANCELLED", reason: input.reason, reversed } }, tx);
+      return { status: "Cancelled" as const, reversed };
     });
   }
 
