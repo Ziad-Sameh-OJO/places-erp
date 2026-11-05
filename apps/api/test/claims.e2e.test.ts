@@ -45,7 +45,7 @@ test("12.12 settings: everyone with «master» reads; only the Super Admin sets 
   const s = await call("/settings/documents", { cookie: acc });
   assert.equal(s.status, 200);
   assert.deepEqual(s.body.entities.map((e: { id: string }) => e.id), ["places", "zrain"]);
-  assert.deepEqual(s.body.templates.map((t: { kind: string }) => t.kind), ["claim", "receipt"]);
+  assert.deepEqual(s.body.templates.map((t: { kind: string }) => t.kind), ["claim", "receipt", "installment"]);
   assert.equal((await call("/settings/documents", { cookie: sales })).status, 403);
   // the accountant has «master: edit» but isn't the Super Admin
   assert.equal((await call("/settings/stamp", { method: "PUT", cookie: acc, body: { kind: "stamp", fileId: null } })).status, 403);

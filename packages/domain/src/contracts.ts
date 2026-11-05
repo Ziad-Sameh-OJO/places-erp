@@ -91,3 +91,29 @@ export function installmentState(i: { dueOn: string; amount: Piasters; paid: Pia
   if (i.paid > 0) return "partial";
   return i.dueOn < today ? "late" : "due";
 }
+
+/** M-11 2.3 «العميل دفع جزء من القسط»: what's wrong with a payment on an installment (Arabic, shown as is), or null. */
+export function paymentProblem(amount: Piasters, owed: Piasters, paidOn: string, today: string): string | null {
+  if (owed <= 0) return "القسط ده اتدفع بالكامل";
+  if (amount <= 0) return "المبلغ لازم يبقى أكبر من صفر";
+  if (amount > owed) return "المبلغ أكبر من الباقي على القسط";
+  if (paidOn > today) return "مينفعش تاريخ بعد النهارده";
+  return null;
+}
+
+/** M-11 2.1 step 3 · 2.4 · 7.1: 3 days before → reminder; past its day → late (sales + Finance); 7 days late → management. */
+export type InstallmentAlert = "reminder" | "late" | "escalated";
+export const INSTALLMENT_REMINDER_DAYS = 3;
+export const INSTALLMENT_ESCALATION_DAYS = 7;
+
+/**
+ * The alerts an unpaid installment is due today and hasn't had yet. A missed reminder is dropped once it's late (it
+ * would announce a day that passed), but a late alert and an escalation reached together both go: different people.
+ */
+export function installmentAlerts(dueOn: string, today: string, sent: readonly string[]): InstallmentAlert[] {
+  const late = daysBetween(dueOn, today);
+  const reached: InstallmentAlert[] = late >= 1
+    ? ["late", ...(late >= INSTALLMENT_ESCALATION_DAYS ? ["escalated" as const] : [])]
+    : -late <= INSTALLMENT_REMINDER_DAYS ? ["reminder"] : [];
+  return reached.filter((a) => !sent.includes(a));
+}

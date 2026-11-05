@@ -31,14 +31,15 @@ export function amountInWords(p: Piasters): string {
 }
 
 /** The words a template fills in by itself (12.12). */
-export const TEMPLATE_WORDS = ["الشركة", "الوحدة", "بيانات_الوحدة", "المبلغ", "المبلغ_بالحروف", "نوع_العمولة", "رقم_المطالبة", "التاريخ", "طريقة_الدفع"] as const;
+export const TEMPLATE_WORDS = ["الشركة", "الوحدة", "بيانات_الوحدة", "المبلغ", "المبلغ_بالحروف", "نوع_العمولة", "رقم_المطالبة", "التاريخ", "طريقة_الدفع", "رقم_العقد", "القسط"] as const;
 export type TemplateWord = (typeof TEMPLATE_WORDS)[number];
 
 /** {الشركة} → its value; an unknown word stays as written so a typo shows on the preview. */
 export const fillTemplate = (text: string, values: Partial<Record<TemplateWord, string>>): string =>
   text.replace(/\{([^}]+)\}/g, (m, k: string) => values[k as TemplateWord] ?? m);
 
-export const DOC_KINDS = ["claim", "receipt"] as const;
+/** The claim and its cash receipt (9.17), and the receipt of a contract installment's payment (M-11 2.1 step 4 · 6.7). */
+export const DOC_KINDS = ["claim", "receipt", "installment"] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 export interface DocText { title: string; body: string; closing: string }
 /** The demo's wording until the admin edits it («رجّع الافتراضي» goes back to this). */
@@ -51,6 +52,11 @@ export const DOC_DEFAULTS: Record<DocKind, DocText> = {
   receipt: {
     title: "إيصال استلام نقدية",
     body: "استلمنا من السادة / {الشركة} مبلغ {المبلغ} ({المبلغ_بالحروف})\nوذلك مقابل {نوع_العمولة} عن الوحدة {الوحدة} ({بيانات_الوحدة}).\nطريقة الدفع: {طريقة_الدفع} · بموجب المطالبة رقم {رقم_المطالبة}.",
+    closing: "وهذا إيصال منا بذلك،\nPlaces · الإدارة المالية",
+  },
+  installment: {
+    title: "إيصال استلام",
+    body: "استلمنا من السادة / {الشركة} مبلغ {المبلغ} ({المبلغ_بالحروف})\nوذلك من {القسط} من العقد رقم {رقم_العقد} عن الوحدة {الوحدة}.",
     closing: "وهذا إيصال منا بذلك،\nPlaces · الإدارة المالية",
   },
 };

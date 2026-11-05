@@ -6,8 +6,21 @@ import { PRISMA } from "../../core/database/database.module";
 export const CONTRACT_ROW = {
   id: true, code: true, startsOn: true, endsOn: true, value: true, escalation: true, status: true, fileId: true, createdAt: true,
   deal: { select: { id: true, code: true, company: true, unit: { select: { code: true } } } },
-  installments: { select: { id: true, dueOn: true, amount: true, paid: true }, orderBy: { dueOn: "asc" } },
+  installments: {
+    select: { id: true, dueOn: true, amount: true, paid: true, payments: { select: { id: true, amount: true, paidOn: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
+    orderBy: [{ dueOn: "asc" }, { id: "asc" }],
+  },
 } satisfies Prisma.ContractSelect;
+const PAYMENT = {
+  id: true, amount: true, paidOn: true,
+  installment: {
+    select: {
+      id: true, dueOn: true, payments: { select: { id: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      contract: { select: { id: true, code: true, installments: { select: { id: true }, orderBy: [{ dueOn: "asc" }, { id: "asc" }] }, deal: { select: { company: true, location: true, unit: { select: { code: true } } } } } },
+    },
+  },
+} satisfies Prisma.InstallmentPaymentSelect;
+export type PaymentRecord = Prisma.InstallmentPaymentGetPayload<{ select: typeof PAYMENT }>;
 export type ContractRecord = Prisma.ContractGetPayload<{ select: typeof CONTRACT_ROW }>;
 
 /** Prisma only (M-11). The data scope comes in as a `where` built by the service. */
@@ -53,6 +66,33 @@ export class ContractsRepository {
 
   create(tx: Prisma.TransactionClient, data: Prisma.ContractUncheckedCreateInput) {
     return tx.contract.create({ data, select: { id: true, code: true } });
+  }
+
+  /** An installment in scope, with what the payment and its audit need (read inside the payment's transaction). */
+  installment(tx: Prisma.TransactionClient, scope: Prisma.ContractWhereInput, id: string) {
+    return tx.installment.findFirst({ where: { id, contract: scope }, select: { id: true, dueOn: true, amount: true, paid: true, contractId: true } });
+  }
+
+  /** paid += amount, only if nobody paid meanwhile (two clicks never add the same payment twice). */
+  setPaid(tx: Prisma.TransactionClient, id: string, before: Prisma.Decimal, after: string) {
+    return tx.installment.updateMany({ where: { id, paid: before }, data: { paid: after } });
+  }
+
+  addPayment(tx: Prisma.TransactionClient, data: Prisma.InstallmentPaymentUncheckedCreateInput) {
+    return tx.installmentPayment.create({ data, select: { id: true } });
+  }
+
+  /** A payment in scope with its contract (the receipt). */
+  payment(scope: Prisma.ContractWhereInput, id: string) {
+    return this.db.installmentPayment.findFirst({ where: { id, installment: { contract: scope } }, select: PAYMENT });
+  }
+
+  /** The month's payments, and the installments that fell due in it (M-11 6.1 «تقرير التحصيل»). */
+  collections(scope: Prisma.ContractWhereInput, from: Date, to: Date) {
+    return this.db.$transaction([
+      this.db.installmentPayment.findMany({ where: { paidOn: { gte: from, lte: to }, installment: { contract: scope } }, select: PAYMENT, orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }] }),
+      this.db.installment.aggregate({ where: { dueOn: { gte: from, lte: to }, contract: scope }, _sum: { amount: true } }),
+    ]);
   }
 
   file(id: string) {

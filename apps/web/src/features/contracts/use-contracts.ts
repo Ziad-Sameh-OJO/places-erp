@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ContractCalendar, ContractDetail, ContractForm, ContractRow, ContractSummary, Paged } from "@places/contracts";
+import type { CollectionReport, ContractCalendar, ContractDetail, ContractForm, ContractRow, ContractSummary, Paged } from "@places/contracts";
 import type { InstallmentState } from "@places/domain";
 import { api } from "@/lib/api";
 
@@ -11,6 +11,7 @@ export const useContracts = (q: string, ending: boolean, page: number) => {
 export const useContract = (id: string | null) => useQuery({ queryKey: ["contracts", "one", id], queryFn: () => api.get<ContractDetail>(`/contracts/${id}`), enabled: !!id });
 export const useSummary = () => useQuery({ queryKey: ["contracts", "summary"], queryFn: () => api.get<ContractSummary>("/contracts/summary") });
 export const useCalendar = (month: string) => useQuery({ queryKey: ["contracts", "calendar", month], queryFn: () => api.get<ContractCalendar>(`/contracts/calendar?month=${month}`) });
+export const useCollections = (month: string) => useQuery({ queryKey: ["contracts", "collections", month], queryFn: () => api.get<CollectionReport>(`/contracts/collections?month=${month}`) });
 export const useContractForm = (on: boolean) => useQuery({ queryKey: ["contracts", "form"], queryFn: () => api.get<ContractForm>("/contracts/form"), enabled: on });
 
 export const useRefreshContracts = () => {
