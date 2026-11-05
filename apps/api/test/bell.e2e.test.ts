@@ -21,25 +21,30 @@ after(async () => {
   await prisma.$disconnect();
 });
 
-/** Opens the event stream and resolves with the first «notification» event, or null after `ms`. */
-async function nextEvent(cookie: string, ms: number, whileOpen: () => Promise<unknown>) {
+/**
+ * Opens the event stream, writes a notification, and tells whether that one (by id) arrived within `ms`. Other test
+ * files notify the same people at the same time, so only our own id counts.
+ */
+async function heard(cookie: string, ms: number, write: () => Promise<{ id: string }>): Promise<boolean> {
   const ctrl = new AbortController();
   const res = await fetch(`${API}/notifications/stream`, { headers: { cookie }, signal: ctrl.signal });
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type") ?? "", /text\/event-stream/);
   const reader = res.body!.getReader();
+  let id = "";
+  let text = "";
   const got = (async () => {
-    let text = "";
     for (;;) {
       const { value, done } = await reader.read().catch(() => ({ value: undefined, done: true }));
-      if (done) return null;
+      if (done) return false;
       text += new TextDecoder().decode(value);
-      if (/event: notification/.test(text)) return text;
+      if (id && text.includes(`"id":"${id}"`)) return true;
     }
   })();
   await new Promise((r) => setTimeout(r, 300)); // the stream is subscribed
-  await whileOpen();
-  const timer = new Promise<null>((r) => setTimeout(() => r(null), ms));
+  id = (await write()).id;
+  if (text.includes(`"id":"${id}"`)) { ctrl.abort(); return true; } // it came before the insert returned
+  const timer = new Promise<boolean>((r) => setTimeout(() => r(false), ms));
   const result = await Promise.race([got, timer]);
   ctrl.abort();
   return result;
@@ -49,11 +54,9 @@ test("the bell's stream: signed in only; a new notification reaches its owner at
   assert.equal((await fetch(`${API}/notifications/stream`)).status, 401);
   const write = () => prisma.notification.create({ data: { userId: salesId, text: `E2E ${stamp} لحظي`, event: "lead.visit_due" } });
   const started = Date.now();
-  const mine = await nextEvent(sales, 5_000, write);
-  assert.ok(mine, "the salesperson's open page heard of it");
+  assert.equal(await heard(sales, 5_000, write), true, "the salesperson's open page heard of it");
   assert.ok(Date.now() - started < 5_000);
-  const other = await nextEvent(hr, 1_500, write);
-  assert.equal(other, null, "HR's page heard nothing");
+  assert.equal(await heard(hr, 1_500, write), false, "HR's page heard nothing of it");
 });
 
 test("the bell filters by type and unread; the types I have are listed (M-14 5.3)", async () => {

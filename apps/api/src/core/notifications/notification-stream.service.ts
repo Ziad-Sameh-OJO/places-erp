@@ -10,14 +10,14 @@ const RECONNECT_MS = 5_000;
 
 /**
  * M-14 5.1 · 12.11: the bell updates the moment a notification is written. A database trigger announces every new
- * row (from the API or the worker) on `notification_created` with its user id; this listens once per API process and
+ * row (from the API or the worker) on `notification_created` as «userId:id»; this listens once per API process and
  * tells that person's open pages (Server-Sent Events), which then reload their own list. One-way is all the bell
  * needs, so SSE over the same HTTP and cookie instead of a WebSocket server.
  */
 @Injectable()
 export class NotificationStreamService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger("NotificationStream");
-  private readonly created = new Subject<string>();
+  private readonly created = new Subject<{ userId: string; id: string }>();
   private client: Client | null = null;
   private closing = false;
   private retrying = false;
@@ -34,7 +34,7 @@ export class NotificationStreamService implements OnModuleInit, OnModuleDestroy 
   /** The events for one person's page: «a new notification» and the keep-alive. */
   forUser(userId: string): Observable<MessageEvent> {
     return merge(
-      this.created.pipe(filter((id) => id === userId), map((): MessageEvent => ({ type: "notification", data: {} }))),
+      this.created.pipe(filter((n) => n.userId === userId), map((n): MessageEvent => ({ type: "notification", data: { id: n.id } }))),
       interval(KEEPALIVE_MS).pipe(map((): MessageEvent => ({ type: "ping", data: {} }))),
     );
   }
@@ -43,7 +43,10 @@ export class NotificationStreamService implements OnModuleInit, OnModuleDestroy 
     const url = new URL(env.DATABASE_URL);
     url.search = ""; // Prisma's own options (?schema=…) mean nothing to pg
     const client = new Client({ connectionString: url.toString() });
-    client.on("notification", (m) => { if (m.channel === CHANNEL && m.payload) this.created.next(m.payload); });
+    client.on("notification", (m) => {
+      const [userId, id] = (m.payload ?? "").split(":");
+      if (m.channel === CHANNEL && userId && id) this.created.next({ userId, id });
+    });
     client.on("error", (e) => this.retry(`lost: ${e.message}`));
     client.on("end", () => this.retry("ended"));
     try {
