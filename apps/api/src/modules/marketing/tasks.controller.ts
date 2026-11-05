@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
-import { CreateTask, EditTask, MoveTask, TaskFilters, TaskUnitQuery } from "@places/contracts";
+import { CreateTask, EditTask, MoveTask, TaskFilters, TaskSlaQuery, TaskUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -21,6 +21,13 @@ export class TasksController {
   @Requires("tasks", "create")
   options(@Me() me: CurrentUser) {
     return this.tasks.options(me);
+  }
+
+  /** M-12: the photo / Retouch SLA and «accepted the first time», of the caller's scope. */
+  @Get("sla")
+  @Requires("tasks", "view")
+  sla(@Me() me: CurrentUser, @Query(new ZodPipe(TaskSlaQuery)) q: TaskSlaQuery) {
+    return this.tasks.slaReport(me, q);
   }
 
   @Get("units")

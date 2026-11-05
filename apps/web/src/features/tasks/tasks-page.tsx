@@ -100,6 +100,7 @@ function TaskCard({ t, onMove }: { t: TaskRow; onMove: (status: string) => void 
           {u.area} · الدور {u.floor || "—"} · مبنى {u.building || "—"}{u.ownerName ? ` · ${u.ownerName}` : ""} {u.ownerPhone && <span className="mono">{u.ownerPhone}</span>}
         </span>
       )}
+      {t.sla && <SlaLine sla={t.sla} kind={t.kind} />}
       {t.note && <span className="hint">{t.note}</span>}
       {t.returned > 0 && <span className="hint warn-t">رجعت للتعديل {t.returned} مرة</span>}
       <div className="row">
@@ -113,6 +114,15 @@ function TaskCard({ t, onMove }: { t: TaskRow; onMove: (status: string) => void 
       )}
     </>
   );
+}
+
+/** M-12: the shoot's 72 h from the unit's registration, the Retouch's 48 h — met / missed once Done, else the hours left. */
+function SlaLine({ sla, kind }: { sla: NonNullable<TaskRow["sla"]>; kind: string }) {
+  const hours = kind === "photo" ? 72 : 48;
+  if (sla.met !== null) return <span className="row"><Chip tone={sla.met ? "ok" : "bad"}>{sla.met ? `خلصت في الـ ${hours} ساعة` : `خلصت بعد الـ ${hours} ساعة`}</Chip></span>;
+  return sla.hoursLeft >= 0
+    ? <span className={`hint ${sla.hoursLeft < 12 ? "warn-t" : ""}`}><Icon name="clock" />فاضل {sla.hoursLeft} ساعة من الـ {hours}</span>
+    : <span className="hint bad-t"><Icon name="clock" />متأخرة {-sla.hoursLeft} ساعة عن الـ {hours}</span>;
 }
 
 /** The demo's buttons: Retouch waiting → «موافقة» / «رجّعها»; Done → Undo; otherwise «ابدأ» / «Done». */
