@@ -112,6 +112,8 @@ async function main() {
   // M-12 · the scheduled reports from the demo meeting of 4 Nov (11.10 · 11.12); changes made in the app stay
   const reports = [
     { id: "sr-weekly-performance", name: "أداء السيلز الأسبوعي", kind: "auto", freq: "weekly", day: 0, time: "09:00", fmt: "Excel", content: "performance", recipients: ["tl", "admin"] },
+    // M-03 3.1 · 2.18: counted by the system at the end of the working day, approved by Manar, then sent to the management
+    { id: "sr-inventory-daily", name: "التقرير اليومي للانفنتوري", kind: "auto", freq: "daily", day: 0, time: "19:00", content: "inventory", preparedBy: ["inventory"], recipients: ["admin", "officemgr"] },
     { id: "sr-monthly-performance", name: "تقرير الأداء الشهري", kind: "auto", freq: "monthly", day: 1, time: "09:00", fmt: "Excel", content: "performance", recipients: ["admin", "officemgr", "salesdir", "tl"] },
     { id: "sr-daily", name: "التقرير اليومي", kind: "handin", freq: "daily", day: 0, time: "18:00", daily: true, remindMin: 60, recipients: ["ops", "follower"], lateNotify: ["follower"],
       preparedBy: ["sales", "telesales", "ops", "inventory", "inventory_staff", "resale", "marketing", "photographer", "designer", "hr", "accountant", "procurement", "officemgr", "tl"] },

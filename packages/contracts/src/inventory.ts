@@ -205,3 +205,11 @@ export interface TeamTaskView {
   id: string; title: string; unit: { id: string; code: string } | null; to: Person; by: Person;
   dueOn: string; status: "todo" | "done"; doneAt: string | null; createdAt: string;
 }
+
+/** 2.18 · a day's inventory report (M-03 3.1): the system's four numbers and Manar's approval. */
+export interface InventoryReportView {
+  day: string; newUnits: number; updated: number; closed: number; unconfirmed: number;
+  generatedAt: string; approvedAt: string | null; approvedBy: Person | null;
+}
+export const ReportDay = z.object({ day: CalendarDay.optional() });
+export type ReportDay = z.infer<typeof ReportDay>;

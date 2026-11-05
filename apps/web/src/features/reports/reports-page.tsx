@@ -203,7 +203,7 @@ function ReportCard({ r, d, onDone }: { r: ScheduledReportView; d: ReportsData; 
             {(x.freq === "weekly" ? WD.map((w, i) => [i, w] as const) : Array.from({ length: 31 }, (_, i) => [i + 1, String(i + 1)] as const)).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>}
           <Field label={hand ? "آخر ميعاد للتسليم" : "الساعة"}><input type="time" value={x.time} onChange={(e) => e.target.value && set("time", e.target.value)} aria-label="الساعة" /></Field>
           <Field label="الشكل"><select value={x.fmt} onChange={(e) => set("fmt", e.target.value as ReportInput["fmt"])}>{FMT.map((f) => <option key={f}>{f}</option>)}</select></Field>
-          {!hand && <Field label="السيستم بيبعت"><select value={x.content ?? "performance"} onChange={() => set("content", "performance")}><option value="performance">أداء كل سيلز وفريق + المقارنة بالفترة اللي قبلها</option></select></Field>}
+          {!hand && <Field label="السيستم بيبعت"><select value={x.content ?? "performance"} onChange={(e) => set("content", e.target.value as NonNullable<ReportInput["content"]>)}><option value="performance">أداء كل سيلز وفريق + المقارنة بالفترة اللي قبلها</option><option value="inventory">تقرير الانفنتوري اليومي (جديد / متحدّث / اتأجر / مش مؤكد) · اللي بيحضّره بيعتمده الأول</option></select></Field>}
           {hand && <Field label="التذكير قبل الميعاد بـ (دقيقة)"><input type="number" min="0" value={x.remindMin} onChange={(e) => set("remindMin", Math.max(0, Number(e.target.value) || 0))} aria-label="التذكير بالدقايق" /></Field>}
           {hand && o && <div className="field wide"><span>بيتحسب في بند KPIs</span><div className="row">
             {x.kpiItems.map((k) => <span key={k.id} className="chip plain">{k.label}<button className="icon-btn" onClick={() => set("kpiItems", x.kpiItems.filter((y) => y.id !== k.id))} aria-label={`شيل ${k.label}`}>✕</button></span>)}
@@ -211,7 +211,7 @@ function ReportCard({ r, d, onDone }: { r: ScheduledReportView; d: ReportsData; 
               <option value="">{x.kpiItems.length ? "ضيف بند…" : "مش مربوط"}</option>
               {o.items.filter((i) => !x.kpiItems.some((k) => k.id === i.id)).map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
             </select></div></div>}
-          {hand && who("preparedBy", "مين بيحضّره ويسلّمه", false)}
+          {(hand || x.content === "inventory") && who("preparedBy", hand ? "مين بيحضّره ويسلّمه" : "مين بيعتمده قبل ما يتبعت", false)}
           {who("recipients", "مين بيستلمه", hand)}
           {hand && who("lateNotify", "لو اتأخر يتبلّغ", true)}
           <label className="tog wide"><input type="checkbox" checked={x.money} onChange={(e) => set("money", e.target.checked)} /><span>فيه أرقام فلوس (مايظهرش لمسؤول الـ KPIs)</span></label>

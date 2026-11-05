@@ -157,6 +157,16 @@ export const UNIT_SHEET_FIELDS: Record<UnitType, readonly (readonly [key: string
   Primary: [["space", "Space"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Build num"], ["parking", "Parking"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["paymentMethod", "طريقة الدفع"]],
 };
 
+/**
+ * M-03 3.1 «التقرير اليومي للانفنتوري»: the system counts the day — units entered, owner updates, rented / sold, and the
+ * open units that aren't confirmed (a month without an update, or a PDF waiting for Manar) — and Manar approves it.
+ */
+export interface InventoryDayCounts { readonly newUnits: number; readonly updated: number; readonly closed: number; readonly unconfirmed: number }
+export const INVENTORY_REPORT_LABELS: Record<keyof InventoryDayCounts, string> = { newUnits: "جديد", updated: "متحدّث", closed: "اتأجر / اتباع", unconfirmed: "مش مؤكد" };
+/** «التقرير اليومي للانفنتوري: جديد 2 · متحدّث 5 · اتأجر / اتباع 1 · مش مؤكد 3» (the demo's message to the management). */
+export const inventoryReportText = (c: InventoryDayCounts): string =>
+  `التقرير اليومي للانفنتوري: ${(Object.keys(INVENTORY_REPORT_LABELS) as (keyof InventoryDayCounts)[]).map((k) => `${INVENTORY_REPORT_LABELS[k]} ${c[k]}`).join(" · ")}`;
+
 /** M-03 3.1 KPI «مهام منار اليومية للفريق»: at most 30 tasks a day for each person (Sara, Marwa, Randa). */
 export const TEAM_TASKS_PER_DAY = 30;
 export const teamTaskRoom = (givenToday: number): number => Math.max(0, TEAM_TASKS_PER_DAY - givenToday);

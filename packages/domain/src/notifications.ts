@@ -54,6 +54,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "notactive.done", label: "وحدة جديدة من شيت Not Active", to: "مدير الانفنتوري", toRoles: ["inventory"], channels: ["app", "push"], important: true }, // M-03 1.1 · 7.1
   { key: "unit.published", label: "وحدة اتنشرت للسيلز", to: "التسويق · السيلز", toRoles: ["marketing", "sales"], channels: ["app"], important: false }, // M-03 2.2 (15)
   { key: "inventory.team_task", label: "مهمة من منار", to: "اللي المهمة ليه", toRoles: [], channels: ["app", "push"], important: false }, // M-03 3.1 · 2.16
+  { key: "inventory.report_sent", label: "التقرير اليومي للانفنتوري", to: "اللي بيستلموه في «التقارير ومواعيدها»", toRoles: [], channels: ["app", "email"], important: false }, // M-03 3.1 · 2.18
   { key: "unit.close", label: "Done Deal على وحدة · أكّد القفل", to: "منار (Rent) · رندا (Resale / Income)", toRoles: ["inventory", "resale"], channels: ["app", "push"], important: true }, // M-03 Q16
   { key: "task.review", label: "Retouch اترفع · مستني موافقتك", to: "الانفنتوري (منار)", toRoles: ["inventory"], channels: ["app", "push"], important: false }, // M-04 2.2 · 4.3
   { key: "task.delivered", label: "تصوير خلص / Retouch اتوافق عليه", to: "الانفنتوري · التسويق", toRoles: ["inventory", "marketing"], channels: ["app"], important: false }, // 4.3
