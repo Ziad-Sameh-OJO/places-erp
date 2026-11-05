@@ -55,6 +55,13 @@ export function SettingsPage() {
             {ed && <button className="btn ghost sm">احفظ</button>}
           </form>
         </Card>
+        {/* M-03 7.2: «قريبة من» is proposed as ±20% and waits for the client, so it's editable here (2.12) */}
+        <Card title="ترشيح الوحدات للعميل" icon="building" sub="الوحدات «القريبة من» مساحة الكلاينت والبادجت بتاعه · مقترح ±20% لحد ما الكلاينت يأكد">
+          <form className="row" action={(f) => set("recommendTolerancePct", +f.get("tol")!)}>
+            <span className="hint">±</span><input name="tol" type="number" min={0} max={100} defaultValue={d.recommendTolerancePct} disabled={!ed} style={{ maxWidth: 90 }} aria-label="نسبة القرب" /><span className="hint">% من المساحة والبادجت</span>
+            {ed && <button className="btn ghost sm">احفظ</button>}
+          </form>
+        </Card>
       </div>}
 
       {tab === "holidays" && <Card title="كالندر الإجازات الرسمية" icon="calendar" sub="من يوم لـ يوم (زي العيد) · في أيامها الـ SLA بيمشي بمواعيد يوم الإجازة ومابتتحسبش في ساعات الشغل"

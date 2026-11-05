@@ -48,6 +48,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "kpi.mid_quarter", label: "بنود تحت المستهدف في نص الربع", to: "الموظف والمتابع", toRoles: [], channels: ["app", "push"], important: true },
   { key: "kpi.result", label: "نتيجة الربع: خطة تحسين أو إنذار", to: "الموظف والمتابع", toRoles: [], channels: ["app", "email"], important: true },
   { key: "kpi.hr_review", label: "KPI تحت الـ Threshold ربعين ورا بعض", to: "الـ HR", toRoles: ["hr"], channels: ["app", "email"], important: true },
+  { key: "kpi.activity", label: "نتيجة Farming / Approach", to: "المتابع · الأوبريشن", toRoles: ["ops"], channels: ["app"], important: false }, // 11.13
   { key: "access.changed", label: "تغيير في حسابك أو صلاحياتك", to: "صاحب الحساب", toRoles: [], channels: ["app", "email"], important: true },
   // M-09 6.1: the Super Admin hears of any permission change and of any strange sign-in
   { key: "access.permissions", label: "تغيير في الصلاحيات", to: "Super Admin", toRoles: ["admin"], channels: ["app", "email"], important: true },

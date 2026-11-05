@@ -84,6 +84,21 @@ export class KpisRepository {
     const quarters = await tx.kpiQuarter.findMany({ where: { status: "closed", closedAt: { gte: from, lt: to } }, select: { id: true } });
     if (!quarters.length) return [];
     return tx.kpiCard.findMany({ where: { quarter: { in: quarters.map((q) => q.id) }, finalAmount: { not: null } }, select: { employeeId: true, finalAmount: true } });
+  /** 11.13: the person's latest Farming / Approach. */
+  activities(employeeId: string) {
+    return this.db.salesActivity.findMany({ where: { employeeId }, orderBy: { at: "desc" }, take: 6 });
+  }
+
+  activity(id: string) {
+    return this.db.salesActivity.findUnique({ where: { id } });
+  }
+
+  /** Does the person's card this quarter count Farming / Approach, and who follows it. */
+  activityCard(quarter: string, employeeId: string) {
+    return this.db.kpiCard.findUnique({
+      where: { quarter_employeeId: { quarter, employeeId } },
+      select: { follower: { select: { userId: true } }, items: { where: { metric: "activitiesDone" }, select: { id: true } } },
+    });
   }
 
   names(userIds: string[]) {

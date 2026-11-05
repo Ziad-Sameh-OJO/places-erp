@@ -1,10 +1,13 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  type CreatedUnit, type Paged, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
+  type CreatedUnit, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
   type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
-import { UNIT_TYPES, allowedValue, dayStart, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, staleBefore, toDecimal, unitTotal } from "@places/domain";
+import {
+  UNIT_TYPES, allowedValue, dayStart, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, recommendUnits, spaceWindow, staleBefore, toDecimal, unitTotal,
+  type ClientNeed, type NarrowingAnswers, type UnitType,
+} from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -13,6 +16,9 @@ import { SettingsService } from "../settings/settings.service";
 import { InventoryRepository, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
 
 const NO_UNIT = "الوحدة مش موجودة";
+/** How many open units a recommendation reads at most, and how many it shows (best first). */
+const RECOMMEND_CANDIDATES = 2_000;
+const RECOMMEND_SHOWN = 100;
 
 /**
  * M-03 · the units: list (filters, tabs, tiles), one unit, add / edit / archive. Editing is for the people the role
@@ -32,6 +38,27 @@ export class InventoryService {
   /** For a lead's Visit / Meeting (1.9): open, confirmed units by code, project or space (4 Nov demo meeting). */
   forVisit(q?: string) {
     return this.repo.forVisit(q, 30);
+  }
+
+  /**
+   * M-03 3.2 · 7.1 (2.12): the units for a lead's client, best first (domain recommendUnits), and the projects the
+   * suggestions come from before the questions narrow them (the «المشروع» question's choices).
+   */
+  async recommend(need: ClientNeed, answers: NarrowingAnswers, tolerancePct: number): Promise<{ items: RecommendedUnit[]; projects: string[] }> {
+    if (!(UNIT_TYPES as readonly string[]).includes(need.type)) return { items: [], projects: [] };
+    const window = need.space == null ? null : { ...spaceWindow(need.space, tolerancePct), need: need.space };
+    const rows = await this.repo.forRecommendation(need.type as UnitType, need.condition, window, RECOMMEND_CANDIDATES);
+    const units = rows.map((u) => ({
+      ...u, pricePerSqm: u.pricePerSqm ? fromDecimal(u.pricePerSqm.toFixed(2)) : null,
+      delivery: typeof (u.details as Record<string, unknown> | null)?.delivery === "string" ? (u.details as Record<string, string>).delivery! : null,
+    }));
+    const projects = [...new Set(recommendUnits(need, units, {}, tolerancePct).map((r) => r.unit.project))].sort((a, b) => a.localeCompare(b, "ar"));
+    const items = recommendUnits(need, units, answers, tolerancePct).slice(0, RECOMMEND_SHOWN).map(({ unit: u, ...r }) => ({
+      id: u.id, code: u.code, type: u.type, project: u.project, area: u.area, floor: u.floor, space: u.space, condition: u.condition,
+      parking: u.parking, minSplit: u.minSplit, price: r.price == null ? null : toDecimal(r.price), monthly: need.type === "Rent",
+      split: r.split, sameArea: r.sameArea, match: r.match,
+    }));
+    return { items, projects };
   }
 
   /** Codes for the units a Visit names (1.9), whatever their state now. */

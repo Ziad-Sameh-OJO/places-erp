@@ -108,3 +108,27 @@ export interface KpiCompany {
   sheets: { by: string; at: string } | null;
 }
 export interface KpiLogEntry { at: string; by: string; text: string }
+
+/** 11.13 · «نشاط جديد»: Farming / Approach, where and when. */
+export const ActivityInput = z.object({
+  kind: z.enum(["Farming", "Approach"], { errorMap: () => ({ message: "اختار النوع" }) }),
+  place: text(200, "اكتب المكان"),
+  at: z.string({ required_error: "اختار الميعاد" }).datetime({ offset: true, message: "اختار الميعاد" }),
+});
+export type ActivityInput = z.infer<typeof ActivityInput>;
+
+/** «عملتها؟»: done with what came of it (Farming: got + note · Approach: the companies), or «ماعملتهاش». */
+export const ActivityResultInput = z.object({
+  done: z.boolean(),
+  got: z.boolean().default(false),
+  note: z.string().trim().max(1000, "النوت طويلة").default(""),
+  companies: z.array(z.string().trim().min(1).max(160)).max(50, "شركات كتير").default([]),
+});
+export type ActivityResultInput = z.infer<typeof ActivityResultInput>;
+
+export interface ActivityView {
+  id: string; kind: "Farming" | "Approach"; place: string; at: string; status: "planned" | "done" | "notDone";
+  got: boolean | null; note: string | null; companies: string[];
+}
+/** «نشاطاتي»: shown to sales and to anyone whose card counts these activities. */
+export interface MyActivities { show: boolean; items: ActivityView[] }

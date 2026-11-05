@@ -37,6 +37,27 @@ export class InventoryRepository {
     });
   }
 
+  /**
+   * The units that can be suggested to a client (2.12): open as their type, confirmed for sales (Q15), with their
+   * finishing, and either in the space window or divisible and bigger. The domain rule does the rest.
+   */
+  forRecommendation(type: UnitType, condition: string | null, window: { min: number; max: number; need: number } | null, take: number) {
+    const space: Prisma.UnitWhereInput = window
+      ? { OR: [{ space: { gte: window.min, lte: window.max } }, { divisible: true, space: { gt: window.need } }] } : {};
+    return this.db.unit.findMany({
+      where: { AND: [
+        visible({ insider: false, staleBefore: new Date(0) }),
+        { OR: [{ type, status: "available" }, { alsoType: type, alsoStatus: "available" }] },
+        condition ? { condition } : {}, space,
+      ] },
+      select: {
+        id: true, code: true, type: true, alsoType: true, status: true, alsoStatus: true, project: true, area: true, space: true, condition: true,
+        floor: true, parking: true, pricePerSqm: true, divisible: true, minSplit: true, paymentMethod: true, details: true,
+      },
+      orderBy: { code: "asc" }, take,
+    });
+  }
+
   codes(ids: string[]) {
     return this.db.unit.findMany({ where: { id: { in: ids } }, select: { id: true, code: true } });
   }
