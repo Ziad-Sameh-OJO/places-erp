@@ -91,6 +91,13 @@ export class LedgerRepository {
     return tx.journalEntry.create({ data: { ...data, lines: { create: lines } }, select: { id: true, no: true } });
   }
 
+  /** 9.6: what a source posted (a deal's revenue and commissions), with the ids of the entries that already reverse one of them. */
+  async posted(source: string, sourceId: string, tx: Tx) {
+    const entries = await tx.journalEntry.findMany({ where: { source, sourceId }, orderBy: { no: "asc" }, include: { lines: true } });
+    const reversed = await tx.journalEntry.findMany({ where: { source: "reversal", sourceId: { in: entries.map((e) => e.id) } }, select: { sourceId: true } });
+    return { entries, reversed: new Set(reversed.map((r) => r.sourceId)) };
+  }
+
   private entryWhere(f: { from?: string | undefined; to?: string | undefined; accountId?: string | undefined; q?: string | undefined }): Prisma.JournalEntryWhereInput {
     return {
       ...(f.from || f.to ? { date: { ...(f.from ? { gte: new Date(`${f.from}T00:00:00Z`) } : {}), ...(f.to ? { lte: new Date(`${f.to}T00:00:00Z`) } : {}) } } : {}),

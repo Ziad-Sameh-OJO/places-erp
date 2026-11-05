@@ -47,6 +47,9 @@ export const CollectDeal = z.object({
   date: CalendarDay.optional(),
 });
 export type CollectDeal = z.infer<typeof CollectDeal>;
+/** «الغي الصفقة» (M-02 2.3 (12) · 9.6): the reason is required; its revenue and commission entries are reversed. */
+export const CancelDeal = z.object({ reason: z.string().trim().min(1, "اكتب سبب الإلغاء").max(1000, "السبب طويل") });
+export type CancelDeal = z.infer<typeof CancelDeal>;
 /** A recorded collection: the deal's new status, what's left, and the voucher and entry numbers. */
 export interface DealCollected { status: DealStatus; collected: string; remaining: string; move: string; entry: string }
 
