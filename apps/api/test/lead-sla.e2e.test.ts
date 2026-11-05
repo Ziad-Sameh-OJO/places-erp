@@ -3,9 +3,9 @@
  * 2h30 of working time, the pull at 3h to the next salesperson of the area, the holiday times on an official holiday
  * range, nothing twice when the job runs again. The clock is set in January 2020 (Cairo +02:00, before any real
  * lead), so the job leaves the other test files’ leads alone, and every lead is created up front so the salespeople's
- * counts don't change under the other files. Ibrahim Samir and Mohamed Khaled are salespeople no other test uses; Heba is
- * Operations (told of a pull by default), Abdallah Sleem a Team Leader (warned by default). The rules are pinned to the
- * defaults: lead-rules.e2e changes the saved ones while this file runs.
+ * counts don't change under the other files. Ibrahim Samir, Mohamed Khaled and Abdelrahman Salah (on leave) are
+ * salespeople no other test uses; Heba is Operations (told of a pull by default), Abdallah Sleem a Team Leader (warned
+ * by default). The rules are pinned to the defaults: lead-rules.e2e changes the saved ones while this file runs.
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -17,17 +17,19 @@ import { call, session } from "./helpers.ts";
 const stamp = String(Date.now());
 const AREA = `E2E SLA ${stamp}`;
 const at = (iso: string) => new Date(`${iso}+02:00`);
-let sales1: { id: string; userId: string }, sales2: { id: string; userId: string }, heba: string, abdallah: string;
+let sales1: { id: string; userId: string }, sales2: { id: string; userId: string }, away: { id: string }, heba: string, abdallah: string;
 let cookie1: string, cookie2: string;
 const L: Record<"main" | "touched" | "interested" | "telesales" | "evening" | "eid", { id: string; code: string; name: string }> = {} as never;
 
 before(async () => {
   const emp = (email: string) => prisma.employee.findFirstOrThrow({ where: { user: { email } }, select: { id: true, userId: true } });
-  [sales1, sales2] = await Promise.all([emp("ibrahim.samir@places.com"), emp("m.khaled@places.com")]);
+  [sales1, sales2, away] = await Promise.all([emp("ibrahim.samir@places.com"), emp("m.khaled@places.com"), emp("abdelrahman.salah@places.com")]);
+  // the third salesperson of the area is on approved leave all January: the rotation must skip him (1.15)
+  await prisma.leaveRequest.create({ data: { employeeId: away.id, type: "annual", fromDay: new Date("2020-01-01"), toDay: new Date("2020-01-31"), days: 26, status: "CLOSED_BY_HR", reason: `E2E SLA ${stamp}` } });
   [heba, abdallah] = (await Promise.all([emp("heba.salah@places.com"), emp("abdallah.sleem@places.com")])).map((e) => e.userId);
   [cookie1, cookie2] = await Promise.all([session("ibrahim.samir@places.com"), session("m.khaled@places.com")]);
   await prisma.setting.upsert({ where: { key: "areaRouting" }, update: {}, create: { key: "areaRouting", value: {} } });
-  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([sales1.id, sales2.id])}::jsonb) WHERE "key" = 'areaRouting'`;
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([sales1.id, away.id, sales2.id])}::jsonb) WHERE "key" = 'areaRouting'`;
   L.main = await lead(at("2020-01-05T11:00:00")); // a Sunday
   L.touched = await lead(at("2020-01-05T11:00:00"), { touched: true });
   L.interested = await lead(at("2020-01-05T11:00:00"), { stage: "INTERESTED" });
@@ -43,6 +45,7 @@ after(async () => {
   await prisma.notification.deleteMany({ where: { text: { contains: `E2E ${stamp}` } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-S${stamp}` } } });
   await prisma.holiday.deleteMany({ where: { label: `E2E SLA ${stamp}` } });
+  await prisma.leaveRequest.deleteMany({ where: { reason: `E2E SLA ${stamp}` } });
   await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = "value" - ${AREA} WHERE "key" = 'areaRouting'`;
   await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", '{cursor}', ("value"->'cursor') - ${AREA}) WHERE "key" = 'routing'`;
   await prisma.$disconnect();
