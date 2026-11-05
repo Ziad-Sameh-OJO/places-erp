@@ -7,6 +7,7 @@ import { Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction }
 import { api } from "@/lib/api";
 import { day, money } from "@/lib/format";
 import { useMe } from "@/lib/me";
+import { NewClaim } from "@/components/new-claim";
 import { useCash, useRefreshFinance } from "./use-finance";
 import { VoucherById } from "./voucher";
 
@@ -98,32 +99,6 @@ function Collect({ c, incomes, onSave, onClose }: { c: ClaimView; incomes: Claim
         <Field label="بند الإيراد" req><select name="accountId" required defaultValue=""><option value="" disabled>اختار</option>{incomes.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select></Field>
         <Field label="التاريخ" req><input name="date" type="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
         <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>إلغاء</button><button className="btn"><Icon name="check" />سجّل واعمل الإيصال</button></div>
-      </form>
-    </Modal>
-  );
-}
-
-/** «اطلب مطالبة» (demo `claimNew`); the deal it belongs to comes with deals (5.1/5.2). */
-function NewClaim({ entities, onClose }: { entities: ClaimsView["entities"]; onClose: () => void }) {
-  const run = useAction();
-  const refresh = useRefreshFinance();
-  const save = onFormSubmit((d) => run(async () => {
-    await api.post("/claims", Object.fromEntries(["company", "unit", "unitInfo", "amount", "side", "kind", "entityId", "note"].map((k) => [k, String(d.get(k) ?? "")])));
-    await refresh(); onClose();
-  }, "اتبعتت للمالية"));
-  return (
-    <Modal title="اطلب مطالبة" onClose={onClose}>
-      <form className="grid" onSubmit={save}>
-        <Note>المطالبة بتروح للمالية تعتمدها، وبتتعمل أوتوماتيك على القالب. المبلغ مش شرط يبقى نفس العمولة.</Note>
-        <Field label="اسم الشركة (زي ما هيتكتب في المطالبة)" req wide><input name="company" required /></Field>
-        <Field label="الوحدة" req><input name="unit" required /></Field>
-        <Field label="المطالبة على" req><select name="side" defaultValue="client"><option value="client">الـ Client</option><option value="owner">الـ Owner</option></select></Field>
-        <Field label="بيانات الوحدة" req wide><input name="unitInfo" required placeholder="المشروع · المبنى · الدور · المساحة · التشطيب · المنطقة" /></Field>
-        <Field label="المطالبة باسم" req><select name="entityId" defaultValue="places">{entities.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></Field>
-        <Field label="المبلغ" req><input name="amount" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required /></Field>
-        <Field label="نوع العمولة" req><input name="kind" required placeholder="مثلاً: عمولة تأجير" /></Field>
-        <Field label="ملاحظة للمالية" wide><input name="note" placeholder="اختياري" /></Field>
-        <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>إلغاء</button><button className="btn"><Icon name="send" />ابعت للمالية</button></div>
       </form>
     </Modal>
   );
