@@ -77,3 +77,11 @@ export const taskMovesFor = (kind: string, from: TaskStatus, actor: TaskActor): 
 
 /** M-04 2.4: «المهام اليومية لازم تخلص في يومها» — late once its day (Cairo) has passed and it isn't Done. */
 export const isTaskLate = (t: { status: string; dueOn: string }, now: Date): boolean => t.status !== "done" && t.dueOn < localDate(now);
+
+/**
+ * M-03 2.4 · (21) · 2.17: a unit whose «last update» is over a month old gets a follow-up with its owner, unless one is
+ * still open. Who calls the owner (2.1 step 10 «منار / رندا: ابديت دوري مع المالك»; the demo's split): Randa (resale)
+ * for a Resale unit, Manar (inventory) for the rest.
+ */
+export const followupRole = (unitType: string): string => (unitType === "Resale" ? "resale" : "inventory");
+export const needsFollowup = (u: { stale: boolean; openFollowup: boolean }): boolean => u.stale && !u.openFollowup;
