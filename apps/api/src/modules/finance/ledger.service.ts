@@ -245,12 +245,22 @@ export class LedgerService {
   async partyAccount(me: CurrentUser, parentCode: string, party: { type: "client" | "sales"; id: string; name: string }, tx: Tx): Promise<AccountRow> {
     const found = await this.repo.partyAccount(party.type, party.id, tx);
     if (found) return found;
+    // two deals collected at once would both take the next free code (or open the same person twice): one at a time
+    await this.repo.lockChildren(parentCode, tx);
+    const opened = await this.repo.partyAccount(party.type, party.id, tx);
+    if (opened) return opened;
     const parent = await this.repo.accountByCode(parentCode, tx);
     if (!parent) throw new BadRequestException(NO_ACCOUNT);
     const code = nextChildCode(parent.code, await this.repo.childCodes(parent.id, tx), party.type === "client" ? 3 : 2);
     const account = await this.repo.createAccount({ code, name: party.name, parentId: parent.id, nature: parent.nature, kind: null, partyType: party.type, partyId: party.id }, tx);
     await this.audit.record({ module: "finance", entity: "Account", entityId: account.id, action: "create", userId: me.id, after: { code, name: account.name, parent: parent.code, party: party.type } }, tx);
     return account;
+  }
+
+  /** What entries from one source already put on an account, credit − debit (5.8: the TL's commission posted for a month). */
+  async creditedBy(accountId: string, source: string, sourceId: string, tx: Tx): Promise<Piasters> {
+    const s = await this.repo.sourceSums(accountId, source, sourceId, tx);
+    return dec(s._sum.credit) - dec(s._sum.debit);
   }
 
   /** The petty-cash ceilings finance set on cash accounts (M-08 3.1 «سقف العهدة»), as decimal strings. */

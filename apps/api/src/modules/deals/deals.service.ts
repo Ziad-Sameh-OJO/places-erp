@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, type DealMoney, type DealStatus, type DealType, type EntryLine, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
+import { CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, takesNote, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -12,6 +12,7 @@ import { InventoryService } from "../inventory/inventory.service";
 import { LeadRulesService } from "../leads/lead-rules.service";
 import { LedgerService } from "../finance/ledger.service";
 import { VouchersService } from "../finance/vouchers.service";
+import { TargetsService } from "../kpis/targets.service";
 import { type DealRecord, type DealRowRecord, DealsRepository } from "./deals.repository";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the deal exists. */
@@ -38,6 +39,7 @@ export class DealsService {
     private readonly rules: LeadRulesService,
     private readonly ledger: LedgerService,
     private readonly vouchers: VouchersService,
+    private readonly targets: TargetsService,
   ) {}
 
   /** M-02 4.1: a salesperson sees the deals they are on, a TL their team's, the managers all of them. */
@@ -206,6 +208,7 @@ export class DealsService {
         before: { status: d.status, collected: toDecimal(collected(money)) },
         after: { status: toDb(status), collected: toDecimal(collected(after)), side: input.side, amount: input.amount, payment: payment.id, move: saved.move.no } }, tx);
       if (status === "Fully Collected") await this.commissionsDue(tx, me, d, after, date);
+      await this.tlDue(tx, me, [...after.buyers, ...after.sellers], [date.slice(0, 7)], date); // 5.8: from every collection
       return { status, collected: toDecimal(collected(after)), remaining: toDecimal(remaining(after)), move: saved.move.no, entry: saved.move.entry.no };
     });
   }
@@ -215,10 +218,60 @@ export class DealsService {
     return this.ledger.partyAccount(me, CLIENTS_PARENT, { type: "client", id: (await this.repo.clientOf(tx, d.id)) ?? d.id, name: d.company }, tx);
   }
 
+  /**
+   * M-02 2.1 step 9 · 3.1 (5.4): Manar approves the Seller (the unit's agent) before they count. On a deal already fully
+   * collected their commission wasn't posted with the last collection, so it becomes due now; their TL's figure for
+   * the months of its collections is worked out again (their share now counts in the team).
+   */
+  async approveSeller(me: CurrentUser, id: string): Promise<DealDetail> {
+    const { code, sellers } = await this.db.$transaction(async (tx) => {
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      if (!d) throw new NotFoundException(NO_DEAL);
+      await this.repo.lock(tx, id);
+      const waiting = d.participants.filter((p) => p.side === "SELLER" && !p.approved).map((p) => p.employee);
+      if (!waiting.length) throw new BadRequestException("مفيش Seller مستني موافقة على الصفقة دي");
+      await this.repo.approveSellers(tx, id);
+      await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "approve-seller", userId: me.id,
+        before: { sellersWaiting: waiting.map((s) => s.id) }, after: { sellersApproved: waiting.map((s) => s.id), summary: `${d.code}: منار وافقت على الـ Seller ${waiting.map((s) => s.name).join("، ")}` } }, tx);
+      const payments = await this.repo.payments(tx, id);
+      const today = localDate(new Date()), ids = waiting.map((s) => s.id);
+      if (d.status === "FULLY_COLLECTED") {
+        const approved = { ...d, participants: d.participants.map((p) => ({ ...p, approved: true })) };
+        await this.commissionsDue(tx, me, d, toMoney(approved, payments), today, ids);
+      }
+      await this.tlDue(tx, me, ids, [...new Set(payments.map((p) => p.receivedAt.toISOString().slice(0, 7)))], today);
+      return { code: d.code, sellers: waiting };
+    });
+    const userIds = (await this.repo.employeeNames(sellers.map((s) => s.id))).map((e) => e.userId);
+    await this.notifications.notify({ event: "deal.seller", userIds, link: link(id), text: `اتسجّلت Seller في الصفقة ${code} بعد موافقة منار` });
+    return this.get(me, id);
+  }
+
+  /**
+   * 5.8 (4 Nov): each TL's commission for a month (TargetsService, the TL report's figure) is a balance on their own
+   * account under 21103; whatever changed since it was last posted is booked against «عمولة تيم ليدر» (5305).
+   */
+  private async tlDue(tx: Prisma.TransactionClient, me: CurrentUser, salesIds: string[], months: string[], date: string) {
+    const tls = await this.repo.teamLeaders(salesIds, tx);
+    if (!tls.length || !months.length) return;
+    const { accounts } = await this.ledger.balances(tx);
+    const expense = accounts.find((a) => a.code === TL_COMMISSION_EXPENSE);
+    if (!expense) throw new BadRequestException("حساب «عمولة تيم ليدر» مش موجود في الشجرة");
+    for (const month of months) {
+      for (const tlId of tls) await this.repo.lockKey(tx, `tl-commission:${tlId}:${month}`);
+      for (const tl of await this.targets.tlCommissions(tls, month, tx)) {
+        const acc = await this.ledger.partyAccount(me, SALES_COMMISSION_PARENT, { type: "sales", id: tl.tlId, name: tl.name }, tx);
+        const key = `${tl.tlId}:${month}`;
+        const lines = tlAdjustment(tl.commission, await this.ledger.creditedBy(acc.id, "tl-commission", key, tx), expense.id, acc.id);
+        if (lines) await this.ledger.post(me, { date, nature: "عمولة تيم ليدر مستحقة", source: "tl-commission", sourceId: key, memo: `عمولة ${tl.name} (Team Leader) · ${month} · شريحة تحقيق الفريق`, lines }, tx);
+      }
+    }
+  }
+
   /** Fully collected (4 Nov): each salesperson's commission (scheme % × share, splitDeal) is due on their own 21103 account. */
-  private async commissionsDue(tx: Prisma.TransactionClient, me: CurrentUser, d: DealRecord, money: DealMoney, date: string) {
+  private async commissionsDue(tx: Prisma.TransactionClient, me: CurrentUser, d: DealRecord, money: DealMoney, date: string, only?: string[]) {
     const people = new Map((await this.repo.schemes([...money.buyers, ...money.sellers], tx)).map((e) => [e.id, e]));
-    const shares = splitDeal(money, (sid) => Number(people.get(sid)?.commissionPct ?? 0)).filter((s) => s.commission > 0);
+    const shares = splitDeal(money, (sid) => Number(people.get(sid)?.commissionPct ?? 0)).filter((s) => s.commission > 0 && (!only || only.includes(s.salesId)));
     if (!shares.length) return;
     const { accounts } = await this.ledger.balances(tx);
     const expense = accounts.find((a) => a.code === SALES_COMMISSION_EXPENSE);
@@ -264,7 +317,7 @@ export class DealsService {
   }
 }
 
-/** The deal as commission.ts reads it; the Seller counts once Manar approved them (5.5). */
+/** The deal as commission.ts reads it; the Seller counts once Manar approved them (5.4). */
 function toMoney(d: DealRecord, payments: Array<{ side: string; amount: { toFixed(n: number): string } }>): DealMoney {
   const sellers = d.participants.filter((p) => p.side === "SELLER" && p.approved).map((p) => p.employee.id);
   return {

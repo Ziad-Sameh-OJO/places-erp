@@ -56,6 +56,14 @@ export class DealsController {
     return this.deals.collect(me, id, body);
   }
 
+  /** «وافقي على الـ Seller» (5.4): Manar, like the demo (`inventory: approve`). */
+  @Post(":id/seller")
+  @HttpCode(200)
+  @Requires("inventory", "approve")
+  approveSeller(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.deals.approveSeller(me, id);
+  }
+
   /** «note» (M-02 3.1): the Office Manager and Finance — «deals: edit» in the role matrix. */
   @Put(":id/note")
   @Requires("deals", "edit")

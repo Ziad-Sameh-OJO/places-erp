@@ -20,6 +20,7 @@ const DEFAULTS: Settings = {
   listEditors: {}, // every list with its department (or «master: edit») until the admin sets it up (#186 · M-13 4.1)
   procurementBigApprovers: [], // the seed writes the client's (M-08 Q44)
   recommendTolerancePct: DEFAULT_RECOMMEND_TOLERANCE_PCT, // the proposed ±20% until the client confirms (M-03 7.2)
+  tlTiers: [{ below: 70, percent: 4 }, { below: null, percent: 6 }], // the client's example (voice note 6)
 };
 
 /** M-13: the lists and rules the system is built on, editable without a developer. Every change is audited. */

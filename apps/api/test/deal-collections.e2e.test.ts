@@ -39,10 +39,12 @@ before(async () => {
 after(async () => {
   await prisma.employee.update({ where: { id: mohsenId }, data: { commissionPct: oldPct as number } });
   await prisma.payment.deleteMany({ where: { dealId } });
-  const entries = (await prisma.journalEntry.findMany({ where: { sourceId: dealId }, select: { id: true } })).map((e) => e.id);
+  const tl = (await prisma.employee.findUniqueOrThrow({ where: { id: mohsenId } })).teamLeaderId ?? "-";
+  // 5.8: the TL's share posted by these collections too
+  const entries = (await prisma.journalEntry.findMany({ where: { OR: [{ sourceId: dealId }, { source: "tl-commission", sourceId: { startsWith: `${tl}:` }, createdAt: { gte: since } }] }, select: { id: true } })).map((e) => e.id);
   await prisma.auditLog.deleteMany({ where: { entityId: { in: entries } } });
   await prisma.journalEntry.deleteMany({ where: { id: { in: entries } } });
-  const sales = (await prisma.account.findMany({ where: { partyType: "sales", createdAt: { gte: since } }, select: { id: true } })).map((a) => a.id);
+  const sales = (await prisma.account.findMany({ where: { partyType: "sales", partyId: { in: [mohsenId, tl] }, createdAt: { gte: since } }, select: { id: true } })).map((a) => a.id);
   await prisma.auditLog.deleteMany({ where: { entityId: { in: sales } } });
   await prisma.account.deleteMany({ where: { id: { in: sales } } });
   await cleanFinance(C, since);

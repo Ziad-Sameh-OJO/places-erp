@@ -113,7 +113,23 @@ export class DealsRepository {
   }
 
   payments(tx: Prisma.TransactionClient, dealId: string) {
-    return tx.payment.findMany({ where: { dealId }, select: { side: true, amount: true } });
+    return tx.payment.findMany({ where: { dealId }, select: { side: true, amount: true, receivedAt: true } });
+  }
+
+  /** 5.4: Manar's approval puts the waiting Seller on the deal. */
+  approveSellers(tx: Prisma.TransactionClient, dealId: string) {
+    return tx.dealParticipant.updateMany({ where: { dealId, side: "SELLER", approved: false }, data: { approved: true } });
+  }
+
+  /** 5.8: the TLs of these salespeople. */
+  async teamLeaders(ids: string[], tx: Prisma.TransactionClient) {
+    const rows = await tx.employee.findMany({ where: { id: { in: ids }, teamLeaderId: { not: null } }, select: { teamLeaderId: true } });
+    return [...new Set(rows.map((r) => r.teamLeaderId!))];
+  }
+
+  /** 5.8: one TL month worked out at a time, so two collections at once can't both book the same difference. */
+  lockKey(tx: Prisma.TransactionClient, key: string) {
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
   }
 
   addPayment(tx: Prisma.TransactionClient, data: Prisma.PaymentUncheckedCreateInput) {

@@ -66,6 +66,7 @@ export const SETTING_OWNERS: Readonly<Record<string, SettingOwner>> = {
   areas: "super", // 3.1: «المناطق · Super Admin»
   notificationsFrom: "super", // M-14: «Super Admin (الإعداد)»
   procurementBigApprovers: "super", // money: who approves above 50,000 (2.2 · M-08 Q44)
+  tlTiers: "super", // money: the TL's commission tiers (M-12 2.1 step 5 «الإدارة»)
   leadLogRoles: "access",
   listEditors: "access",
 };
