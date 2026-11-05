@@ -13,13 +13,11 @@ const stamp = String(Date.now());
 const P = `E2E ${stamp}`;
 const phone = (n: number) => `0159${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
 let mohsen: string, eid: string, manar: string, hr: string;
-let mohsenEmp: string;
 const leadIds: string[] = [];
 let unitId: string, ownerId: string;
 
 before(async () => {
   [mohsen, eid, manar, hr] = await Promise.all(["m.mohsen@places.com", "m.eid@places.com", "manar.ahmed@places.com", "basant.elsawy@places.com"].map((e) => session(e)));
-  mohsenEmp = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
   // an owner already on file with one unit (2.11 makes these from the inventory form; here by hand)
   const owner = await prisma.client.create({ data: { name: `${P} مالك`, kind: "owner", phones: { create: [{ phone: phone(9) }] } } });
   ownerId = owner.id;
