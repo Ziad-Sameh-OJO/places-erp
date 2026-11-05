@@ -730,6 +730,7 @@ model NotActiveSheet {
   id        String         @id @default(cuid())
   name      String         @unique // e.g. CFC
   dedupeBy  String         // column used to merge without duplicates
+  columns   String[]       @default([]) // the sheet's own headers, in order (its columns aren't fixed yet, M-03 3.1)
   rows      NotActiveRow[]
   createdAt DateTime       @default(now())
 
@@ -746,6 +747,7 @@ model NotActiveRow {
   feedback   String?        // required for Not True
   assignedTo String?
   unitId     String?        // the unit created when Done
+  createdAt  DateTime       @default(now()) // rows are listed in the order they came in
 
   @@unique([sheetId, dedupeKey])
   @@schema("inventory")

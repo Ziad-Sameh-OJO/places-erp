@@ -5,12 +5,15 @@ import { InventoryService } from "./inventory.service";
 import { InventoryRepository } from "./inventory.repository";
 import { AreaTabsController } from "./area-tabs.controller";
 import { AreaTabsService } from "./area-tabs.service";
+import { NotActiveController } from "./not-active.controller";
+import { NotActiveService } from "./not-active.service";
+import { NotActiveRepository } from "./not-active.repository";
 
-/** M-03 · مخزون الوحدات: the units (2.1–2.7). PDF, closing, Not Active and the team's work come with their tasks. */
+/** M-03 · مخزون الوحدات: the units (2.1–2.7). Not Active sheets (2.14); PDF, closing and the team's work come with their tasks. */
 @Module({
   imports: [SettingsModule], // the areas list (M-13)
-  controllers: [AreaTabsController, InventoryController],
-  providers: [InventoryService, AreaTabsService, InventoryRepository],
+  controllers: [AreaTabsController, InventoryController, NotActiveController],
+  providers: [InventoryService, AreaTabsService, InventoryRepository, NotActiveService, NotActiveRepository],
   exports: [InventoryService],
 })
 export class InventoryModule {}
