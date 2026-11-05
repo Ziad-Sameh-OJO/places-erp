@@ -238,3 +238,13 @@ export interface Recommendations {
   projects: string[]; paymentMethods: string[];
   items: RecommendedUnit[];
 }
+
+/**
+ * One line of «مهامي النهارده» (1.22, demo home.js) from the leads: a lead whose SLA clock is running out, or a
+ * Visit / Meeting due today or late and not marked yet. `tone`: «bad» = late, "" = today.
+ */
+export interface LeadTodayItem {
+  kind: "sla" | "visit"; tone: "bad" | "warn" | "";
+  lead: { id: string; name: string }; salesperson: string | null;
+  sla: LeadRow["sla"]; visit: { id: string; kind: "Visit" | "Meeting"; at: string } | null;
+}
