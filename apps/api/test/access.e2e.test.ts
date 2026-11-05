@@ -245,6 +245,36 @@ test("who changes which list (#186): its own roles / people, add apart from swit
   }
 });
 
+test("each department's settings for its manager only, the money rules for the Super Admin only (12.8 · M-13 4.1 · 2.2)", async () => {
+  const [hr, marketing, manar] = await Promise.all([session("basant.elsawy@places.com"), session("rahma.hassan@places.com"), session("manar.ahmed@places.com")]);
+  const s = (await call("/settings", { cookie: sales })).body;
+  // saving today's value back: the permission is what's tested, nothing other tests read changes
+  const put = (key: string, cookie: string, value: unknown = s[key]) => call(`/settings/${key}`, { method: "PUT", cookie, body: { value } });
+  assert.equal((await put("leaveTypes", hr)).status, 200);
+  assert.equal((await put("whatsappDailyLimit", marketing)).status, 200);
+  assert.equal((await put("leaveTypes", marketing)).status, 403); // another department's
+  assert.equal((await put("whatsappDailyLimit", hr)).status, 403);
+  assert.equal((await put("leaveTypes", nancy)).status, 403); // «master: edit» alone isn't the HR
+  assert.equal((await put("whatsappDailyLimit", manar)).status, 403);
+  // the money rule and the sending address: the Super Admin only
+  const money = await put("procurementBigApprovers", nancy);
+  assert.equal(money.status, 403);
+  assert.match(money.body.error, /Super Admin بس/);
+  assert.equal((await put("notificationsFrom", hr)).status, 403);
+  assert.equal((await put("procurementBigApprovers", admin)).status, 200);
+  assert.equal((await put("leaveTypes", admin)).status, 200);
+  // the channels list (not set up in «مين يعدّل»): the marketing, not the HR
+  assert.equal((await put("channels", hr)).status, 403);
+  assert.equal((await put("channels", marketing)).status, 200);
+  // the calendar from «الإعدادات» is the HR's: the marketing manager can't add a holiday there
+  assert.equal((await call("/settings/holidays", { method: "POST", cookie: marketing, body: { from: "2027-04-01", to: "2027-04-01", label: "E2E-ACC x" } })).status, 403);
+  const h = await call("/settings/holidays", { method: "POST", cookie: hr, body: { from: "2027-04-01", to: "2027-04-01", label: "E2E-ACC شم النسيم" } });
+  assert.equal(h.status, 201);
+  assert.equal((await call(`/settings/holidays/${h.body.id}`, { method: "DELETE", cookie: marketing })).status, 403);
+  assert.equal((await call(`/settings/holidays/${h.body.id}`, { method: "DELETE", cookie: hr })).status, 204);
+  assert.ok(await prisma.auditLog.findFirst({ where: { module: "master", entity: "Setting", entityId: "whatsappDailyLimit" } }));
+});
+
 test("holidays «من … لحد …» (1.29): add and remove, both audited; a backwards range is refused", async () => {
   const made = await call("/settings/holidays", { method: "POST", cookie: admin, body: { from: "2027-03-09", to: "2027-03-12", label: "E2E-ACC عيد" } });
   assert.equal(made.status, 201, JSON.stringify(made.body));

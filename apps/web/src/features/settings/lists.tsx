@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LIST_GROUPS, LOCKED_VALUES, type ListEditors, type ListItem, type ListKey, type Settings } from "@places/contracts";
-import { UNIT_TYPES, canChangeList, type ListAction, type ListEditorsOf } from "@places/domain";
+import { UNIT_TYPES, canChangeList, defaultListEditors, type ListAction, type ListEditorsOf } from "@places/domain";
 import { Card, Chip, Icon, Note, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
@@ -15,9 +15,9 @@ interface EditorOptions { roles: { key: string; label: string }[]; people: { id:
  * Switched-off values are listed under each list with «رجّع» (the requirements' «موقوف» state; the demo only removes).
  */
 export function ListsTab({ settings }: { settings: Settings }) {
-  const { me, can } = useMe();
-  // who may add / switch off in each list (#186); the API checks the same rule on every save
-  const may = (key: ListKey, a: ListAction) => !!me && canChangeList(settings.listEditors[key], a, { id: me.id, roles: me.roles, masterEdit: can("master", "edit") });
+  const { me, can, canSet } = useMe();
+  // who may add / switch off in each list (#186), its department until it's set up (M-13 4.1); the API checks the same rule
+  const may = (key: ListKey, a: ListAction) => !!me && canChangeList(settings.listEditors[key], a, { id: me.id, roles: me.roles, masterEdit: canSet(key) });
   return (
     <>
       <Note>أي قايمة بتظهر في الشاشات بتتعدّل من هنا: اللي بتضيفه بيظهر في الفورمز على طول، واللي بتشيله بيختفي من الجديد بس والبيانات القديمة زي ما هي. البنود اللي عليها قفل السيستم بيحسب عليها فمابتتشالش.</Note>
@@ -109,14 +109,16 @@ function ListCard({ listKey, label, items, canAdd, canOff, editors }: { listKey:
 
 /**
  * «مين يعدّل» (#186, for whoever has «access: edit»): the roles / people who add to this list and the ones who switch
- * its values off or back on. A list not set up yet starts from the roles with «master: edit» (who has it today).
+ * its values off or back on. A list not set up yet starts from its department and the Super Admin (M-13 4.1), or
+ * the roles with «master: edit» for a list no department owns.
  */
 function WhoEdits({ listKey, editors }: { listKey: ListKey; editors: ListEditors }) {
   const qc = useQueryClient();
   const run = useAction();
   const o = useQuery({ queryKey: ["list-editors-options"], queryFn: () => api.get<EditorOptions>("/settings/list-editors/options"), staleTime: 60_000 }).data;
   if (!o) return <p className="hint">بيحمّل…</p>;
-  const rule: ListEditorsOf = editors[listKey] ?? { add: o.masterEdit, off: o.masterEdit };
+  const start = defaultListEditors(listKey, o.masterEdit);
+  const rule: ListEditorsOf = editors[listKey] ?? { add: start, off: start };
   const name = (x: string) => o.roles.find((r) => r.key === x)?.label ?? o.people.find((p) => p.id === x)?.name ?? x;
   const save = (a: ListAction, to: string[]) => run(async () => {
     await api.put("/settings/listEditors", { value: { ...editors, [listKey]: { ...rule, [a]: to } } });
