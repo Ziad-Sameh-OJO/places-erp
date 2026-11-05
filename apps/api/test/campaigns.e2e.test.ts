@@ -48,7 +48,7 @@ test("Rahma adds a campaign → leads and Qualified per campaign, every arrival 
   campaigns.push(id);
   // two leads from it, one Qualified; the second one came twice (a duplicate counts again, Q22)
   for (const [n, qualified, times] of [[1, true, 1], [2, false, 2]] as const) {
-    const lead = await prisma.lead.create({ data: { code: `L-C${stamp}${n}`, name: `E2E ${stamp} ${n}`, phones: [`0102${stamp.slice(-7)}${n}`], area: "التجمع الخامس", type: "Rent", channel, campaignId: id, qualified } });
+    const lead = await prisma.lead.create({ data: { code: `L-C${stamp}${n}`, name: `E2E ${stamp} ${n}`, phones: [`0102${stamp.slice(-7)}${n}`], area: "التجمع الخامس", type: "Rent", channel, campaignId: id, qualified, createdById: "e2e" } });
     for (let i = 0; i < times; i++) await prisma.leadArrival.create({ data: { leadId: lead.id, channel, campaignId: id, duplicate: i > 0 } });
   }
   const row = async () => (await call("/marketing/campaigns", { cookie: rahma })).body.find((c: { id: string }) => c.id === id);
