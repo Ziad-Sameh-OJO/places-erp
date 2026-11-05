@@ -18,6 +18,8 @@ export const CUSTODY_PARENT = "134"; // عهد
 export const CLIENTS_PARENT = "113";
 export const SALES_COMMISSION_PARENT = "21103";
 export const SALES_COMMISSION_EXPENSE = "5302";
+/** 5.8 (4 Nov): a Team Leader's commission is due on their own account under 21103 too, booked against «عمولة تيم ليدر». */
+export const TL_COMMISSION_EXPENSE = "5305";
 /** Where a receipt's other side may sit: «ايرادات اخري» (42) and its sub-accounts. */
 export const OTHER_REVENUE = "42";
 

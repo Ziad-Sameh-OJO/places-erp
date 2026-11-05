@@ -9,10 +9,17 @@ export const DEAL_ROW = {
   closedAt: true, offTarget: true, note: true, targetBase: true,
   unit: { select: { id: true, code: true } },
   participants: { select: { side: true, approved: true, employee: PERSON }, orderBy: { employee: { name: "asc" } } },
+  payments: { select: { receivedAt: true }, orderBy: { receivedAt: "asc" }, take: 1 }, // 3.2 «Date» = the first collection's month
+  tcrs: { select: { code: true }, orderBy: { code: "asc" } },
 } satisfies Prisma.DealSelect;
+const TCR = {
+  id: true, code: true, payment: { select: { side: true, amount: true, receivedAt: true } },
+  signatures: { select: { employeeId: true, signedAt: true } },
+} satisfies Prisma.TcrSelect;
 const DEAL_DETAIL = {
   ...DEAL_ROW, leadId: true, source: true, reviewNote: true, reviewedById: true, reviewedAt: true, createdAt: true, createdById: true,
   lead: { select: { code: true, name: true } },
+  tcrs: { select: TCR, orderBy: { code: "asc" } },
 } satisfies Prisma.DealSelect;
 export type DealRowRecord = Prisma.DealGetPayload<{ select: typeof DEAL_ROW }>;
 export type DealRecord = Prisma.DealGetPayload<{ select: typeof DEAL_DETAIL }>;
@@ -113,11 +120,47 @@ export class DealsRepository {
   }
 
   payments(tx: Prisma.TransactionClient, dealId: string) {
-    return tx.payment.findMany({ where: { dealId }, select: { side: true, amount: true } });
+    return tx.payment.findMany({ where: { dealId }, select: { side: true, amount: true, receivedAt: true } });
+  }
+
+  /** 5.4: Manar's approval puts the waiting Seller on the deal. */
+  approveSellers(tx: Prisma.TransactionClient, dealId: string) {
+    return tx.dealParticipant.updateMany({ where: { dealId, side: "SELLER", approved: false }, data: { approved: true } });
+  }
+
+  /** 5.8: the TLs of these salespeople. */
+  async teamLeaders(ids: string[], tx: Prisma.TransactionClient) {
+    const rows = await tx.employee.findMany({ where: { id: { in: ids }, teamLeaderId: { not: null } }, select: { teamLeaderId: true } });
+    return [...new Set(rows.map((r) => r.teamLeaderId!))];
+  }
+
+  /** 5.8: one TL month worked out at a time, so two collections at once can't both book the same difference. */
+  lockKey(tx: Prisma.TransactionClient, key: string) {
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
   }
 
   addPayment(tx: Prisma.TransactionClient, data: Prisma.PaymentUncheckedCreateInput) {
     return tx.payment.create({ data, select: { id: true } });
+  }
+
+  nextTcr(tx: Prisma.TransactionClient) {
+    return tx.$queryRaw<Array<{ n: bigint }>>`SELECT nextval('sales.tcr_code_seq') AS n`; // created by the 5.12 migration
+  }
+
+  /** 5.12: the collection's TCR, with an unsigned line for each salesperson on the deal. */
+  addTcr(tx: Prisma.TransactionClient, data: { code: number; dealId: string; paymentId: string; signers: string[] }) {
+    const { signers, ...tcr } = data;
+    return tx.tcr.create({ data: { ...tcr, signatures: { create: signers.map((employeeId) => ({ employeeId })) } }, select: { id: true } });
+  }
+
+  /** A TCR of a deal in the caller's scope. */
+  tcr(scope: Prisma.DealWhereInput, dealId: string, id: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.tcr.findFirst({ where: { id, deal: { AND: [scope, { id: dealId }] } }, select: TCR });
+  }
+
+  /** Only an unsigned line: two clicks at once sign once. */
+  sign(tx: Prisma.TransactionClient, tcrId: string, employeeId: string, signedAt: Date) {
+    return tx.tcrSignature.updateMany({ where: { tcrId, employeeId, signedAt: null }, data: { signedAt } });
   }
 
   /** Each salesperson's scheme % (M-02: their commission is that % of their share). */

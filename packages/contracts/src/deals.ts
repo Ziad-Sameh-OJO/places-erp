@@ -50,8 +50,8 @@ export type CollectDeal = z.infer<typeof CollectDeal>;
 /** «الغي الصفقة» (M-02 2.3 (12) · 9.6): the reason is required; its revenue and commission entries are reversed. */
 export const CancelDeal = z.object({ reason: z.string().trim().min(1, "اكتب سبب الإلغاء").max(1000, "السبب طويل") });
 export type CancelDeal = z.infer<typeof CancelDeal>;
-/** A recorded collection: the deal's new status, what's left, and the voucher and entry numbers. */
-export interface DealCollected { status: DealStatus; collected: string; remaining: string; move: string; entry: string }
+/** A recorded collection: the deal's new status, what's left, the voucher and entry numbers, and its TCR (5.12). */
+export interface DealCollected { status: DealStatus; collected: string; remaining: string; move: string; entry: string; tcr: string }
 
 /** 4.9: marketing attaches the client's logo (a finished upload, 0.9). */
 export const DealLogo = z.object({ fileId: Id });
@@ -74,10 +74,18 @@ export interface DealRow {
   status: DealStatus; commissionOwner: string; commissionClient: string;
   buyers: DealPerson[]; sellers: Array<DealPerson & { approved: boolean }>;
   closedAt: string; offTarget: boolean; note: string | null; targetBase: string | null;
+  /** M-02 3.2 «Date»: the month of the deal's first collection (YYYY-MM), and its TCR codes («tcr»). */
+  month: string | null; tcrs: string[];
 }
-export interface DealDetail extends DealRow {
+/** 5.12: the TCR made by one collection, with each salesperson on the deal and whether they signed. */
+export interface DealTcr {
+  id: string; code: string; date: string; side: "owner" | "client"; amount: string;
+  signatures: Array<DealPerson & { side: "buyer" | "seller"; signedAt: string | null }>;
+}
+export interface DealDetail extends Omit<DealRow, "tcrs"> {
   leadId: string | null; leadCode: string | null; source: string; unitId: string;
   reviewNote: string | null; reviewedBy: string | null; reviewedAt: string | null; createdAt: string;
+  tcrs: DealTcr[];
 }
 /** What «سجّل صفقة» offers: the caller's leads (with their company) and the salespeople for «حد معاك». */
 export interface DealForm {

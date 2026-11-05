@@ -65,6 +65,14 @@ export class LedgerRepository {
     return tx.journalEntry.update({ where: { id: entryId }, data: { sourceId } });
   }
 
+  lockChildren(parentCode: string, tx: Tx) {
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-children:${parentCode}`}))`;
+  }
+
+  sourceSums(accountId: string, source: string, sourceId: string, tx: Tx) {
+    return tx.journalLine.aggregate({ where: { accountId, entry: { source, sourceId } }, _sum: { debit: true, credit: true } });
+  }
+
   closedMonths(tx: Tx | PrismaClient = this.db) {
     return tx.financePeriod.findMany({ select: { month: true, status: true } });
   }

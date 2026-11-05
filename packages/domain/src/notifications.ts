@@ -29,6 +29,8 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "deal.approved", label: "صفقة اتوافق عليها · حصّل عمولة", to: "المحاسب · سيلز الصفقة", toRoles: ["accountant"], channels: ["app", "push"], important: false },
   { key: "deal.marketing", label: "Done Deal للتسويق (الخانات المسموحة)", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false }, // M-02 2.1 (7) · Q26
   { key: "deal.rejected", label: "صفقة اترفضت", to: "سيلز الصفقة", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "deal.seller", label: "اتسجّلت Seller في الصفقة", to: "الـ Seller", toRoles: [], channels: ["app", "push"], important: false }, // M-02 2.1 (9): after Manar's approval
+  { key: "deal.tcr", label: "ورقة TCR اتعملت بعد تحصيل · امضي عليها", to: "سيلز الصفقة", toRoles: [], channels: ["app", "push"], important: false }, // M-02 2.3 · 5.12
   { key: "hr.excuse", label: "Excuse / الخامس", to: "الـ HR · الإدارة", toRoles: ["hr", "admin"], channels: ["app", "push", "email"], important: true },
   { key: "hr.forgot_fingerprint", label: "نسي البصمة", to: "الـ HR", toRoles: ["hr"], channels: ["app"], important: false }, // M-05 · 7.3
   { key: "hr.leave_request", label: "طلب إجازة", to: "الـ Team Leader ثم الـ HR", toRoles: [], channels: ["app", "push"], important: false }, // M-05 7.5
@@ -47,6 +49,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "notactive.in_inventory", label: "رقم في شيت Not Active موجود في الانفنتوري", to: "مدير الانفنتوري", toRoles: ["inventory"], channels: ["app", "push"], important: true }, // M-03 1.1 · 2.3
   { key: "notactive.task", label: "أرقام Not Active اتبعتتلك", to: "اللي اتبعتله", toRoles: [], channels: ["app", "push"], important: false }, // M-03 1.1
   { key: "notactive.done", label: "وحدة جديدة من شيت Not Active", to: "مدير الانفنتوري", toRoles: ["inventory"], channels: ["app", "push"], important: true }, // M-03 1.1 · 7.1
+  { key: "unit.close", label: "Done Deal على وحدة · أكّد القفل", to: "منار (Rent) · رندا (Resale / Income)", toRoles: ["inventory", "resale"], channels: ["app", "push"], important: true }, // M-03 Q16
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "finance.budget", label: "بند قرّب يخلص أو عدّى البادجت", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.2 / 9.9
   { key: "finance.bill_due", label: "ميعاد فاتورة ثابتة", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.16

@@ -5,7 +5,7 @@ import {
   type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, dayStart, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, recommendUnits, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, dayStart, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, recommendUnits, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -15,6 +15,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
 import { ClientsService } from "../clients/clients.service";
 import { InventoryRepository, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
+import { UnitsService } from "./units.service";
 
 const NO_UNIT = "الوحدة مش موجودة";
 /** How many open units a recommendation reads at most, and how many it shows (best first). */
@@ -35,6 +36,7 @@ export class InventoryService {
     private readonly notifications: NotificationsService,
     private readonly settings: SettingsService,
     private readonly clients: ClientsService, // M-10 2.1: every unit linked to its owner's file (2.11)
+    private readonly units: UnitsService,
   ) {}
 
   /** For a lead's Visit / Meeting (1.9): open, confirmed units by code, project or space (4 Nov demo meeting). */
@@ -137,9 +139,10 @@ export class InventoryService {
     if (!u) throw new NotFoundException(NO_UNIT);
     const agents = await this.names([u.agentId]);
     const by = u.createdById ? await this.repo.userName(u.createdById) : null;
+    const locks = s.insider ? await this.units.locks(me, id) : []; // the deals on it are the inventory team's business
     return {
       ...this.row(u, s, agents), splitNote: u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
-      createdBy: u.createdById && by ? { id: u.createdById, name: by.name } : null, updatedAt: u.updatedAt.toISOString(),
+      createdBy: u.createdById && by ? { id: u.createdById, name: by.name } : null, updatedAt: u.updatedAt.toISOString(), locks,
     };
   }
 
@@ -150,7 +153,7 @@ export class InventoryService {
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
       // the owner comes with their first unit, or the unit joins the file their number is on (M-10 2.1, 2.11)
       const ownerId = input.ownerPhone ? await this.clients.joinAsOwner(tx, me.id, { name: input.ownerName ?? null, phone: input.ownerPhone }) : null;
-      const u = await tx.unit.create({ data: { code: `U-${n}`, ...toData(input), ownerId, createdById: me.id, ...(input.receivedAt ? { receivedAt: new Date(input.receivedAt) } : {}) } });
+      const u = await tx.unit.create({ data: { code: `U-${n}`, ...toData(input), alsoStatus: input.alsoType ? "available" : null, ownerId, createdById: me.id, ...(input.receivedAt ? { receivedAt: new Date(input.receivedAt) } : {}) } });
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "create", userId: me.id, after: u }, tx);
       return u;
     });
@@ -165,7 +168,10 @@ export class InventoryService {
     const before = await this.repo.detail(s, id);
     if (!before) throw new NotFoundException(NO_UNIT);
     await this.check(input, before);
-    const data = toData(input);
+    const blocked = await this.units.editBlocked(id, { type: input.type, alsoType: input.alsoType ?? null });
+    if (blocked) throw new BadRequestException(blocked);
+    // Q17: each type keeps its own state (rented / sold) through the edit
+    const data = { ...toData(input), ...carrySides(before, { type: input.type, alsoType: input.alsoType ?? null }) };
     const changed = diff(before, data);
     const receivedAt = input.receivedAt ? new Date(input.receivedAt) : undefined;
     if (receivedAt && before.receivedAt?.getTime() !== receivedAt.getTime()) changed.receivedAt = [before.receivedAt, receivedAt];
@@ -260,7 +266,7 @@ function toData(u: UnitInput) {
     put("escalationPct", u.escalationPct); put("serviceChargeUsd", u.serviceChargeUsd && toDecimal(fromDecimal(u.serviceChargeUsd))); put("tenant", u.tenant); put("note", u.note);
   }
   return {
-    type: u.type, project: u.project, area: u.area, space: u.space, condition: u.condition, floor: u.floor ?? null, building: u.building,
+    type: u.type, alsoType: u.alsoType ?? null, project: u.project, area: u.area, space: u.space, condition: u.condition, floor: u.floor ?? null, building: u.building,
     parking: u.parking, agentId: u.agentId, ownerName: u.ownerName ?? null, ownerPhone: u.ownerPhone ?? null,
     pricePerSqm: price ? toDecimal(fromDecimal(price)) : null, totalPrice: price ? toDecimal(unitTotal(fromDecimal(price), u.space)) : null,
     leasePerSqm: u.type === "Income" ? toDecimal(fromDecimal(u.leasePerSqm)) : null,

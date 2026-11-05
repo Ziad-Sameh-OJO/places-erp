@@ -18,6 +18,7 @@ const Head = ({ icon, title, sub, extra }: { icon: "users" | "check" | "file" | 
 export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => void }) {
   const { can } = useMe();
   const detail = useDeal(d.id).data;
+  const mine = useAchievements().data?.mine; // the caller's employee id: their own line on a TCR
   const run = useAction();
   const refresh = useRefreshDeals();
   const post = (path: string, body: unknown, ok: string, method: "post" | "put" = "post") => run(async () => { await api[method](`/deals/${d.id}/${path}`, body); await refresh(); }, ok);
@@ -34,7 +35,7 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
       chips={<><Chip tone={ST_TONE[d.status]}>{d.status}</Chip>{d.offTarget && <Chip tone="warn">خارج التارجت</Chip>}</>}>
       {d.offTarget && <Note kind="warn"><b>Alarm للـ Office Manager:</b> الصفقة اتسجّلت وقت القفل بس، يعني ممكن السيلز كان شغال عليها من غير ما يسجّلها. بتتحسب Done Deal عادي، بس متدخلش في تارجت السيلز.</Note>}
       {d.status === "Cancelled" && <Note kind="warn"><b>الصفقة اتلغت:</b> الإيرادات والـ Achievements والعمولات اتخصمت أوتوماتيك.</Note>}
-      {sellerWait && <Note kind="warn"><b>الـ Seller:</b> {names(d.sellers.filter((s) => !s.approved))} (الـ Agent بتاع {d.unitCode}) مستني موافقة منار قبل ما يتسجّل.</Note>}
+      {sellerWait && <Note kind="warn"><b>الـ Seller:</b> {names(d.sellers.filter((s) => !s.approved))} (الـ Agent بتاع {d.unitCode}) مستني موافقة منار قبل ما يتسجّل. {can("inventory", "approve") && <button className="btn sm" onClick={() => void post("seller", {}, "الـ Seller اتسجّل في الصفقة")}><Icon name="check" />وافقي على الـ Seller</button>}</Note>}
       <Stepper stages={LANES} current={d.status === "Rejected" ? "Pending Review" : d.status} />
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {(d.note || d.targetBase) && <Note><b>note:</b> {d.note}{d.targetBase && <> · التارجت بيتحسب بـ {money(d.targetBase)} بدل {money(d.collected)}</>}</Note>}
@@ -59,8 +60,24 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
       )}
       <Claims d={d} />
       <section className="card flat">
-        <Head icon="wallet" title="التحصيل" extra={onSheet(d.status) ? <Chip tone={Number(d.remaining) > 0 ? "warn" : "ok"}>{Number(d.remaining) > 0 ? `باقي ${money(d.remaining)}` : "اتحصّلت بالكامل"}</Chip> : undefined} />
-        {d.payments.length ? d.payments.map((p, i) => (
+        <Head icon="wallet" title="التحصيل والـ TCR" extra={onSheet(d.status) ? <Chip tone={Number(d.remaining) > 0 ? "warn" : "ok"}>{Number(d.remaining) > 0 ? `باقي ${money(d.remaining)}` : "اتحصّلت بالكامل"}</Chip> : undefined} />
+        {detail?.tcrs.length ? detail.tcrs.map((x) => {
+          const left = x.signatures.filter((s) => !s.signedAt).length;
+          const mineOpen = x.signatures.some((s) => s.id === mine && !s.signedAt);
+          return (
+            <div key={x.id} className="line-item">
+              <span>
+                <b className="mono">{x.code}</b> · {day(x.date)} · {x.side === "owner" ? "من الـ Owner" : "من الـ Client"} · <b className="num">{money(x.amount)}</b>
+                <span className="sub">{x.signatures.map((s) => `${s.name} ${s.signedAt ? "✓" : "· لسه"}`).join(" · ")}</span>
+              </span>
+              <span className="row">
+                {left ? <Chip tone="warn">مستني إمضاء {left}</Chip> : <Chip tone="ok">اتمضت</Chip>}
+                <a className="btn ghost sm" href={`/api/v1/deals/${d.id}/tcrs/${x.id}/pdf`} target="_blank" rel="noreferrer"><Icon name="file" />TCR</a>
+                {mineOpen && <button className="btn sm" onClick={() => void post(`tcrs/${x.id}/sign`, {}, `مضيت على ${x.code}`)}>امضي</button>}
+              </span>
+            </div>
+          );
+        }) : d.payments.length ? d.payments.map((p, i) => (
           <div key={i} className="line-item"><span>{day(p.at)} · {p.side === "owner" ? "من الـ Owner" : "من الـ Client"}</span><b className="num">{money(p.amount)}</b></div>
         )) : <p className="hint">مفيش تحصيل لسه · المالية هي اللي بتسجّل التحصيل</p>}
         {live(d.status) && Number(d.remaining) > 0 && can("finance", "create") && <Collect d={d} onDone={refresh} />}

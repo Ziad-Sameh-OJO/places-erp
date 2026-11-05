@@ -2,8 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
 import { type DealMoney, collectionProblem, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
-import { teamResult } from "../src/team-leader.ts";
-import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, takesNote } from "../src/deals.ts";
+import { teamResult, tlAdjustment } from "../src/team-leader.ts";
+import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
+
+test("5.12: the TCR code comes from one sequence (T180…), and each salesperson on it signs once", () => {
+  assert.equal(tcrCode(181n), "T181");
+  const sigs = [{ employeeId: "ahmed", signedAt: null }, { employeeId: "mohamed", signedAt: new Date("2026-11-05T10:00:00Z") }];
+  assert.equal(signProblem(sigs, "ahmed"), null);
+  assert.equal(signProblem(sigs, "mohamed"), "مضيت عليها قبل كده");
+  assert.equal(signProblem(sigs, "ziad"), "الـ TCR دي مش عليك");
+  assert.equal(signProblem(sigs, null), "الـ TCR دي مش عليك");
+});
 
 const deal = (over: Partial<DealMoney> = {}): DealMoney => ({
   status: "Approved", commissionOwner: egp(50_000), commissionClient: egp(50_000),
@@ -54,6 +63,21 @@ test("Team Leader: 4 × 1,000,000 targets = 4,000,000; the tier comes from the t
   assert.equal(low.tier.percent, 4);
   assert.equal(low.commission, egp(80_000)); // 4% of 2,000,000
   assert.equal(teamResult([m(800_000), m(800_000), m(800_000), m(800_000)], tiers).tier.percent, 6);
+});
+
+test("5.8: the TL's balance follows the month's figure; only the difference is booked", () => {
+  // 80,000 posted at 4%; the team reaches 70% → 6% of 2,800,000 = 168,000 → 88,000 more
+  assert.deepEqual(tlAdjustment(egp(168_000), egp(80_000), "5305", "tl"), [{ accountId: "5305", debit: egp(88_000), credit: 0 }, { accountId: "tl", debit: 0, credit: egp(88_000) }]);
+  assert.equal(tlAdjustment(egp(80_000), egp(80_000), "5305", "tl"), null);
+  assert.deepEqual(tlAdjustment(egp(70_000), egp(80_000), "5305", "tl"), [{ accountId: "tl", debit: egp(10_000), credit: 0 }, { accountId: "5305", debit: 0, credit: egp(10_000) }]);
+});
+
+test("5.4: a Seller counts only once approved; their half then goes to them", () => {
+  const scheme = () => 20;
+  assert.deepEqual(splitDeal(deal({ sellerApproved: false }), scheme).map((s) => s.side), ["buyer", "buyer"]);
+  const seller = splitDeal(deal(), scheme).find((s) => s.side === "seller")!;
+  assert.equal(seller.share, egp(50_000));
+  assert.equal(seller.commission, egp(10_000));
 });
 
 // ── registering and reviewing a Done Deal (M-02 2.1 · Q9) ──

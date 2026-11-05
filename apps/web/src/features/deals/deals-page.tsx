@@ -72,7 +72,7 @@ export function DealsPage() {
   );
 }
 
-/** The client's «admin done deal 2026» sheet, column for column (the TCR column comes with 5.12). */
+/** The client's «admin done deal 2026» sheet, column for column. */
 function Sheet({ rows, q, setQ, onOpen }: { rows: DealSheetRow[]; q: string; setQ: (v: string) => void; onOpen: (id: string) => void }) {
   const needle = q.trim().toLowerCase();
   const shown = needle ? rows.filter((d) => [d.company, d.code, d.unitCode, d.location, names(d.buyers), names(d.sellers)].join(" ").toLowerCase().includes(needle)) : rows;
@@ -83,13 +83,13 @@ function Sheet({ rows, q, setQ, onOpen }: { rows: DealSheetRow[]; q: string; set
         <label className="search"><Icon name="search" /><input type="search" placeholder="الشركة، الوحدة، السيلز" value={q} onChange={(e) => setQ(e.target.value)} aria-label="بحث في الشيت" /></label>
         <span className="hint">بتظهر هنا بعد موافقة الـ Office Manager</span>
       </div>
-      <Table head={["Date", "company", "space", "type", "location", "buyer", "seller", "source", "owner side", "client side", "net commission", "buyer %", "buyer commission", "seller %", "seller commission", "note", "deal date"]}
+      <Table head={["Date", "company", "space", "type", "location", "buyer", "seller", "source", "owner side", "client side", "net commission", "buyer %", "buyer commission", "seller %", "seller commission", "tcr", "note", "deal date"]}
         empty="مفيش صفقات في الشيت" onRow={(i) => onOpen(shown[i]!.id)}
         rows={shown.map((d) => [
           monthOf(d.firstPaidAt), <span key="c"><b>{d.company}</b><span className="sub mono">{d.code}</span></span>, `${num(d.space)} م`, d.type, d.location, names(d.buyers),
           <span key="s">{names(d.sellers)}{d.sellers.some((s) => !s.approved) && <span className="sub"><Chip tone="warn">مستني منار</Chip></span>}</span>, d.source,
           money(d.collectedOwner), money(d.collectedClient), <b key="n">{money(d.collected)}</b>,
-          side(d, "buyer", (x) => `${x.schemePercent}%`), side(d, "buyer", (x) => short(x.commission)), side(d, "seller", (x) => `${x.schemePercent}%`), side(d, "seller", (x) => short(x.commission)),
+          side(d, "buyer", (x) => `${x.schemePercent}%`), side(d, "buyer", (x) => short(x.commission)), side(d, "seller", (x) => `${x.schemePercent}%`), side(d, "seller", (x) => short(x.commission)), <span key="t" className="mono">{d.tcrs.join(" · ") || "—"}</span>,
           <span key="no" className="wrap">{d.note}{d.targetBase && <span className="sub">التارجت بـ {money(d.targetBase)}</span>}</span>, day(d.closedAt),
         ])} />
     </>
