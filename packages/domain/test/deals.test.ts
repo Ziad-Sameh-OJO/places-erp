@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
 import { type DealMoney, collectionStatus, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult } from "../src/team-leader.ts";
-import { changes, dealCode, dealSides, expectsCommission, reviewProblem } from "../src/deals.ts";
+import { changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, takesNote } from "../src/deals.ts";
 
 const deal = (over: Partial<DealMoney> = {}): DealMoney => ({
   status: "Approved", commissionOwner: egp(50_000), commissionClient: egp(50_000),
@@ -83,4 +83,19 @@ test("5.2: only the amounts and fields that changed are audited, old next to new
   const before = { space: 400, commissionOwner: "50000.00", commissionClient: "0.00", type: "Rent" };
   assert.deepEqual(changes(before, { space: 400, commissionOwner: "45000.00", type: undefined }), { before: { commissionOwner: "50000.00" }, after: { commissionOwner: "45000.00" } });
   assert.equal(changes(before, { space: 400 }), null);
+});
+
+test("Q13 · 5.6: created today and closed tomorrow (within 24 hours) → Alarm, out of the target", () => {
+  const created = new Date("2026-11-04T15:00:00Z");
+  assert.equal(closedTooSoon(created, new Date("2026-11-05T10:00:00Z"), 24), true); // the next day, 19 hours later
+  assert.equal(closedTooSoon(created, new Date("2026-11-05T15:00:00Z"), 24), true); // exactly 24 hours
+  assert.equal(closedTooSoon(created, new Date("2026-11-05T15:01:00Z"), 24), false);
+  assert.equal(closedTooSoon(created, new Date("2026-11-05T10:00:00Z"), 12), false); // the admin set 12 hours in the lead rules
+});
+
+test("the note goes on a deal that is on the sheet only", () => {
+  assert.equal(takesNote("Approved"), true);
+  assert.equal(takesNote("Fully Collected"), true);
+  assert.equal(takesNote("Pending Review"), false);
+  assert.equal(takesNote("Cancelled"), false);
 });

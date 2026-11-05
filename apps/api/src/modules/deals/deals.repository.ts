@@ -63,6 +63,11 @@ export class DealsRepository {
     });
   }
 
+  /** A salesperson's account and their TL's (who the lead rules' «owner» / «ownerTl» are). */
+  account(employeeId: string) {
+    return this.db.employee.findUnique({ where: { id: employeeId }, select: { userId: true, teamLeader: { select: { userId: true } } } });
+  }
+
   async userName(userId: string) {
     return (await this.db.employee.findUnique({ where: { userId }, select: { name: true } }))?.name ?? null;
   }

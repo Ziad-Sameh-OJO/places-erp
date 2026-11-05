@@ -28,6 +28,13 @@ export const ReviewDeal = z.object({
 });
 export type ReviewDeal = z.infer<typeof ReviewDeal>;
 
+/** «note» (M-02 3.1): the Office Manager or Finance; a different amount here changes the target only. */
+export const DealNote = z.object({
+  note: z.string().trim().max(1000, "الملاحظة طويلة"),
+  targetBase: Money.refine((m) => !m.startsWith("-"), "المبلغ مايبقاش بالسالب").nullable(),
+});
+export type DealNote = z.infer<typeof DealNote>;
+
 export const DealFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
   status: z.enum(DEAL_STATUSES as [DealStatus, ...DealStatus[]]).optional(),

@@ -40,6 +40,19 @@ export function reviewProblem(status: DealStatus, decision: ReviewDecision, reas
   return null;
 }
 
+const HOUR_MS = 3_600_000;
+
+/**
+ * Q13 (M-02 2.3): a deal recorded only at closing — the request was created and the deal closed within `alarmH`
+ * hours (24 by default, «قواعد الليدز ← الإقفال», 1.29) — raises an Alarm and stays out of the salespeople's target;
+ * it is still a Done Deal (commission.ts countsInTarget).
+ */
+export const closedTooSoon = (requestCreatedAt: Date, closedAt: Date, alarmH: number): boolean =>
+  closedAt.getTime() - requestCreatedAt.getTime() <= alarmH * HOUR_MS;
+
+/** The note (Office Manager / Finance, 3.1) is written on a deal that is on the sheet: approved or being collected. */
+export const takesNote = (status: DealStatus): boolean => status === "Approved" || status === "Partially Collected" || status === "Fully Collected";
+
 /** Only what really changed, old next to new (5.2: every amount change is audited with both values). */
 export function changes(before: Readonly<Record<string, unknown>>, after: Readonly<Record<string, unknown>>): { before: Record<string, unknown>; after: Record<string, unknown> } | null {
   const keys = Object.keys(after).filter((k) => after[k] !== undefined && JSON.stringify(before[k]) !== JSON.stringify(after[k]));

@@ -13,7 +13,7 @@ const stamp = String(Date.now());
 const C = `E2E ${stamp}`;
 let mohsen: string, nancy: string, ashraf: string, omar: string, sleem: string, hr: string;
 const emp: Record<string, { id: string; userId: string }> = {};
-let leadId: string, unitId: string, unit2Id: string, draftUnitId: string, companyId: string;
+let leadId: string, freshLeadId: string, unit4Id: string, unitId: string, unit2Id: string, draftUnitId: string, companyId: string;
 
 before(async () => {
   [mohsen, nancy, ashraf, omar, sleem, hr] = await Promise.all([
@@ -27,6 +27,11 @@ before(async () => {
   leadId = (await prisma.lead.create({ data: {
     code: `L-D${stamp}`, name: `${C} عميل`, companyId, phones: [`0102${stamp.slice(-8)}`], area: "التجمع الخامس", type: "Rent",
     channel: "Facebook", assignedToId: emp.mohsen!.id, assignedAt: new Date(), createdById: "e2e", stage: "NEAR_TO_CLOSE", qualified: true,
+    createdAt: new Date(Date.now() - 3 * 24 * 3_600_000), // worked on for days: an ordinary deal
+  } })).id;
+  freshLeadId = (await prisma.lead.create({ data: { // came in today and closes today: Q13
+    code: `L-D${stamp}2`, name: `${C} عميل جديد`, phones: [`0103${stamp.slice(-8)}`], area: "التجمع الخامس", type: "Rent",
+    channel: "WhatsApp", assignedToId: emp.mohsen!.id, assignedAt: new Date(), createdById: "e2e", stage: "INTERESTED", qualified: true,
   } })).id;
   const unit = (n: number, pdfStatus: string) => prisma.unit.create({ data: {
     code: `U-D${stamp}${n}`, type: "Rent", project: `${C} مشروع ${n}`, area: "التجمع الخامس", space: 400 + n, condition: "Finished", pdfStatus, agentId: emp.ali!.id,
@@ -34,12 +39,13 @@ before(async () => {
   unitId = (await unit(1, "confirmed")).id;
   unit2Id = (await unit(2, "confirmed")).id;
   draftUnitId = (await unit(3, "draft")).id;
+  unit4Id = (await unit(4, "confirmed")).id;
 });
 
 after(async () => {
   await prisma.deal.deleteMany({ where: { company: { startsWith: C } } });
   await prisma.notification.deleteMany({ where: { text: { contains: C } } });
-  await prisma.lead.deleteMany({ where: { code: `L-D${stamp}` } });
+  await prisma.lead.deleteMany({ where: { code: { startsWith: `L-D${stamp}` } } });
   await prisma.unit.deleteMany({ where: { code: { startsWith: `U-D${stamp}` } } });
   await prisma.company.deleteMany({ where: { id: companyId } });
   await prisma.$disconnect();
@@ -60,7 +66,7 @@ test("«سجّل صفقة»: the salesperson's own leads with their company, ope
 
   const units = await call(`/deals/units?q=${encodeURIComponent(`${C} مشروع`)}`, { cookie: mohsen });
   assert.equal(units.status, 200);
-  assert.deepEqual(units.body.map((u: { id: string }) => u.id).sort(), [unitId, unit2Id].sort()); // the draft isn't offered
+  assert.deepEqual(units.body.map((u: { id: string }) => u.id).sort(), [unitId, unit2Id, unit4Id].sort()); // the draft isn't offered
   assert.equal(units.body[0].agent.id, emp.ali!.id);
 
   assert.equal((await call("/deals/form", { cookie: hr })).status, 403);
@@ -83,6 +89,7 @@ test("Done Deal: Pending Review, company and source from the lead, the agent as 
   ({ id: dealId, code } = r.body);
   assert.match(code, /^D-\d+$/);
   assert.equal(r.body.status, "Pending Review");
+  assert.equal(r.body.offTarget, false);
   assert.equal(r.body.company, `${C} شركة`);
   assert.equal(r.body.source, "Facebook");
   assert.equal(r.body.location, `${C} مشروع 1`);
@@ -135,4 +142,29 @@ test("Q9: a rejection goes back to the salespeople with its reason", async () =>
   assert.equal(rej.body.reviewNote, `${C} المساحة غلط`);
   assert.ok((await unread(emp.mohsen!.userId)).some((n) => n.text.includes(r.body.code) && n.text.includes("اترفضت")));
   assert.equal((await review(nancy, r.body.id, { decision: "approve" })).status, 400);
+});
+
+test("Q13 · 5.6: a lead created and closed within 24 hours → Alarm to the Office Manager, out of the target", async () => {
+  const r = await register(mohsen, { leadId: freshLeadId, unitId: unit4Id, space: 404, type: "Rent", commissionOwner: "0", commissionClient: "30000", withMe: [] });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(r.body.offTarget, true);
+  const alarm = (await unread(emp.nancy!.userId)).find((n) => n.text.includes(r.body.code));
+  assert.match(alarm!.text, /^Alarm: اتسجّلت وقت القفل/);
+});
+
+test("the note (Office Manager / Finance) on an approved deal: target only, audited; not before approval, not for sales", async () => {
+  const body = { note: `${C} التارجت بمبلغ تاني`, targetBase: "60000" };
+  assert.equal((await call(`/deals/${dealId}/note`, { method: "PUT", cookie: mohsen, body })).status, 403);
+  const r = await call(`/deals/${dealId}/note`, { method: "PUT", cookie: ashraf, body }); // Finance
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.note, body.note);
+  assert.equal(r.body.targetBase, "60000.00");
+  assert.equal(r.body.commissionOwner, "45000.50"); // the commission doesn't move
+  const audit = await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "note" } });
+  assert.deepEqual(audit!.after, { note: body.note, targetBase: "60000.00" });
+
+  const cleared = await call(`/deals/${dealId}/note`, { method: "PUT", cookie: nancy, body: { note: "", targetBase: null } });
+  assert.equal(cleared.body.targetBase, null);
+  const pending = (await call(`/deals?q=${encodeURIComponent(C)}&status=Pending%20Review`, { cookie: nancy })).body.items[0];
+  assert.equal((await call(`/deals/${pending.id}/note`, { method: "PUT", cookie: nancy, body })).status, 400);
 });
