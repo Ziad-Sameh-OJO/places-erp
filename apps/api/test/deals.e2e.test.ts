@@ -46,7 +46,12 @@ after(async () => {
   await prisma.file.deleteMany({ where: { name: { startsWith: C } } });
   await prisma.deal.deleteMany({ where: { company: { startsWith: C } } });
   await prisma.notification.deleteMany({ where: { text: { contains: C } } });
+  // a registered deal makes the lead's client file (M-10 2.1): gone with the leads, once nothing else is in it
+  const files = (await prisma.lead.findMany({ where: { code: { startsWith: `L-D${stamp}` }, clientId: { not: null } }, select: { clientId: true } })).map((l) => l.clientId!);
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-D${stamp}` } } });
+  const empty = (await prisma.client.findMany({ where: { id: { in: files }, leads: { none: {} }, units: { none: {} } }, select: { id: true } })).map((c) => c.id);
+  await prisma.auditLog.deleteMany({ where: { entity: "Client", entityId: { in: empty } } });
+  await prisma.client.deleteMany({ where: { id: { in: empty } } });
   await prisma.unit.deleteMany({ where: { code: { startsWith: `U-D${stamp}` } } });
   await prisma.company.deleteMany({ where: { id: companyId } });
   await prisma.$disconnect();
