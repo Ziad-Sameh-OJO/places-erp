@@ -300,10 +300,10 @@ test("notification rules: the admin turns email off for an event; my own email p
 });
 
 test("change my password: the old one stops working", async () => {
-  const cookie = await session("m.eid@places.com");
+  const cookie = await session("ahmed.medhat@places.com");
   assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: "wrong", next: "Changed12345" } })).status, 400);
   assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: PW, next: "Changed12345" } })).status, 204);
-  assert.equal((await login("m.eid@places.com")).status, 401);
+  assert.equal((await login("ahmed.medhat@places.com")).status, 401);
   await call("/auth/password", { method: "POST", cookie, body: { current: "Changed12345", next: PW } }); // put it back
 });
 
