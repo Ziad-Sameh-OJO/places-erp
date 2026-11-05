@@ -6,6 +6,7 @@ import { dayTime } from "@/lib/format";
 import type { InboxLine } from "@/components/inbox";
 import { slaText } from "./lead-bits";
 import { useBulkPending } from "./bulk";
+import { usePendingCompanies } from "./companies";
 
 /** «مهامي النهارده» from the leads (1.22): SLA alarms and the day's visits, in the demo's words (home.js). */
 export function useLeadToday(enabled: boolean) {
@@ -30,4 +31,10 @@ function toLine(x: LeadTodayItem): InboxLine {
 export function useBulkLines(enabled: boolean): InboxLine[] {
   return (useBulkPending(enabled).data ?? []).map((b) => ({ key: `bulk-${b.id}`, tone: "warn", icon: "upload", title: `إدخال جماعي: ${b.total} رقم`,
     sub: "مستني موافقتك على التوزيع", href: "/leads", button: "راجع" }));
+}
+
+/** Telesales: each company from a lead waiting to be added (1.20, demo «شركة جديدة: … · محتاجة تتضاف لشيت الشركات بكاتيجوري»). */
+export function useNewCompanyLines(enabled: boolean): InboxLine[] {
+  return (usePendingCompanies(enabled).data ?? []).map((p) => ({ key: `co-${p.id}`, tone: "warn", icon: "building", title: `شركة جديدة: ${p.name}`,
+    sub: "محتاجة تتضاف لشيت الشركات بكاتيجوري", href: "/leads?companies=1", button: "شيت الشركات" }));
 }

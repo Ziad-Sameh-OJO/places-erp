@@ -4,7 +4,7 @@ import { Icon, Note, Tabs } from "@/components/ui";
 import type { LeadKind } from "@places/contracts";
 import { useMe } from "@/lib/me";
 import { num } from "@/lib/format";
-import { durationText } from "@places/domain";
+import { durationText, keepsCompaniesSheet } from "@places/domain";
 import type { LeadQuery } from "./filters";
 import { useSavedViews } from "./filters";
 import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
@@ -16,6 +16,7 @@ import { OperationsQueue } from "./duplicates";
 import { BulkNew } from "./bulk";
 import { OldDataImport } from "../imports/old-data-import";
 import { SecondCalls } from "./second-calls";
+import { CompaniesSheet, usePendingCompanies } from "./companies";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
 
@@ -23,7 +24,9 @@ const PAGE = 50;
 
 /** M-01 · the leads list (demo «العملاء المحتملين»): the tabs, Operations' queue, tiles, saved views, filters, list or Kanban, the SLA note. */
 export function LeadsList() {
-  const { can } = useMe();
+  const { me, can } = useMe();
+  const keepsSheet = keepsCompaniesSheet(me?.roles ?? []); // comfort only: the API decides (M-01 2.1)
+  const newCompanies = usePendingCompanies(keepsSheet).data ?? [];
   const [f, setF] = useState<LeadQuery>({});
   const [mode, setMode] = useState<"list" | "board">("list");
   const [page, setPage] = useState(1);
@@ -31,9 +34,14 @@ export function LeadsList() {
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [bulk, setBulk] = useState(false);
+  const [companies, setCompanies] = useState(false);
   // links from the home board and the notifications: «/leads?open=<id>» opens the lead, «/leads?new=1» the form
   const canCreate = can("leads", "create");
-  useEffect(() => { setOpen(new URLSearchParams(window.location.search).get("open")); }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    setOpen(q.get("open"));
+    if (q.get("companies") === "1") setCompanies(true); // the new-company notification's link (1.20)
+  }, []);
   useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
   const summary = useLeadSummary(kind);
   const calls = useMyCalls().data;
@@ -57,6 +65,7 @@ export function LeadsList() {
       <div className="row"><Tabs value={kind} onChange={(k) => { setKind(k); setPage(1); }} items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker]]} /></div>
       <OperationsQueue />
       <SecondCalls onOpen={setOpen} />
+      {newCompanies.length > 0 && <Note kind="warn">فيه {newCompanies.length} شركة جديدة محتاجة تتضاف لشيت الشركات. <button className="btn sm" onClick={() => setCompanies(true)}>افتح شيت الشركات</button></Note>}
       {calls?.goal && (
         <Note>{calls.goal.period === "day"
           ? <>مكالماتك النهارده: <b>{num(calls.count)}</b> من {calls.goal.target} (بند في الـ KPIs بتاعتك).</>
@@ -72,6 +81,7 @@ export function LeadsList() {
         </div>
         <span className="hint num">{num(total)} ليد</span>
         <span className="spacer" />
+        {(keepsSheet || can("leads", "import")) && <button className="btn ghost" onClick={() => setCompanies(true)}><Icon name="building" />شيت الشركات</button>}
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />إدخال جماعي (Import)</button>}
         {can("leads", "import") && <><OldDataImport kind="leads" /><OldDataImport kind="companies" /></>}{/* 13.1 */}
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />ليد جديد</button>}
@@ -80,6 +90,7 @@ export function LeadsList() {
         ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
         : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
+      {companies && <CompaniesSheet onClose={() => setCompanies(false)} />}
       {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}
       {can("leads", "create") && <Fab onClick={() => setCreating(true)} label="ليد جديد" />}
       {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
