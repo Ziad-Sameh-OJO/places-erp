@@ -1,5 +1,5 @@
 # documents
-PDF from HTML with Playwright (ADR-0005: correct Arabic shaping and RTL): TCR, unit PDF & slide, the quarterly
+PDF from HTML with Playwright (ADR-0005: correct Arabic shaping and RTL): TCR, unit PDF & slide (16:9, `pdf(html, now, { slide: true })`), the quarterly
 employee sheet, invoices/receipts. Excel in and out lives in `core/http` (`excel.ts`, `import.ts`).
 
 - `layout(title, body)`: the base A4 page (RTL, IBM Plex Sans Arabic inlined, table styles). Build `body` with `esc()`

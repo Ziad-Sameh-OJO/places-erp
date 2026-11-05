@@ -148,15 +148,17 @@ export const confirmsClose = (roles: readonly string[], type: UnitType): boolean
 /**
  * M-03 2.2 · 3.2: the unit's PDF and slide are made by the system from its sheet and photos, and go to the sales and
  * their clients — so they carry the unit, never the owner (name, number), the agent or the commission (M-03 1.2: the
- * sales' sheet has no owners' numbers). Each type keeps its own sheet's names (3.1).
+ * sales' sheet has no owners' numbers). 2.23 · the spec table of the client's files (2026-11-05), in English, per type.
  */
 export const UNIT_SHEET_FIELDS: Record<UnitType, readonly (readonly [key: string, label: string])[]> = {
-  // 2.21 · the client's slide (2026-11-05) row for row; its Commission row stays out (M-03 1.2, asked on the PR)
-  Rent: [["project", "Building"], ["delivery", "Delivery date"], ["space", "Gross area"], ["condition", "Hand over Condition"], ["pricePerSqm", "Rent rate per meter"], ["total", "Total price / شهر"],
+  // the client's slide row for row; its Commission row stays out (M-03 1.2, asked on the PR)
+  Rent: [["project", "Building"], ["delivery", "Delivery date"], ["space", "Gross area"], ["condition", "Hand over Condition"], ["pricePerSqm", "Rent rate per meter"],
     ["maintenance", "Maintenance"], ["parking", "Parking slots"], ["upfront", "Upfront rent"], ["security", "Security deposit"], ["payment", "Payment"], ["term", "Term"], ["grace", "Grace period"], ["escalationPct", "Annual increase"]],
-  Resale: [["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["building", "رقم المبنى"], ["parking", "Parking"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["paymentMethod", "طريقة الدفع"], ["delivery", "Delivery date"], ["maintenance", "الصيانة"]],
-  Income: [["space", "Area"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Building number"], ["parking", "Parking"], ["pricePerSqm", "Sale price per meter"], ["total", "Sale price total"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contractDuration", "Contract duration"], ["endsOn", "End date"], ["escalationPct", "Escalation rate"], ["paymentMethod", "Payment method"]],
-  Primary: [["space", "Space"], ["floor", "Floor"], ["condition", "Condition"], ["building", "Build num"], ["parking", "Parking"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["paymentMethod", "طريقة الدفع"]],
+  Resale: [["project", "Building"], ["delivery", "Delivery date"], ["space", "Gross area"], ["condition", "Hand over Condition"], ["pricePerSqm", "Price per meter"], ["total", "Total price"],
+    ["maintenance", "Maintenance"], ["parking", "Parking slots"], ["paymentMethod", "Payment"]],
+  Income: [["project", "Building"], ["space", "Gross area"], ["pricePerSqm", "Sale price per meter"], ["total", "Total price"], ["monthly", "Monthly rent"], ["annual", "Annual rent"],
+    ["yield", "Yield"], ["tenant", "Tenant"], ["contractDuration", "Contract"], ["escalationPct", "Annual increase"], ["paymentMethod", "Payment"]],
+  Primary: [["project", "Building"], ["space", "Gross area"], ["condition", "Hand over Condition"], ["pricePerSqm", "Price per meter"], ["total", "Total price"], ["parking", "Parking slots"], ["paymentMethod", "Payment"]],
 };
 
 /**
