@@ -32,6 +32,11 @@ export class InventoryRepository {
     return this.db.unit.findMany({ where: openSearch(q), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
   }
 
+  /** A task's unit (M-04 4.2): open units, drafts too — a new unit's shoot is given before Manar confirms its PDF (M-03 2.1 steps 4-5). */
+  forTasks(q: string | undefined, take: number) {
+    return this.db.unit.findMany({ where: openSearch(q, true), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
+  }
+
   /** «سجّل صفقة» (M-02): the same open, confirmed units, with what the deal takes from them (type, agent = Seller). */
   forDeal(q: string | undefined, take: number) {
     return this.db.unit.findMany({ where: openSearch(q), select: DEAL_UNIT, orderBy: { code: "asc" }, take });
@@ -149,10 +154,10 @@ const CLOSED: Prisma.UnitWhereInput = { OR: [{ status: { not: "available" } }, {
 const visible = (s: UnitScope): Prisma.UnitWhereInput => ({ archivedAt: null, ...(s.insider ? {} : { pdfStatus: "confirmed" }) });
 
 /** Open units a salesperson may see, searched by code, project or space (a Visit or a deal can't name any other). */
-function openSearch(q: string | undefined): Prisma.UnitWhereInput {
+function openSearch(q: string | undefined, insider = false): Prisma.UnitWhereInput {
   const space = q && /^\d+$/.test(q) ? [{ space: Number(q) }] : [];
   const search: Prisma.UnitWhereInput = q ? { OR: [{ code: { contains: q, mode: "insensitive" } }, { project: { contains: q, mode: "insensitive" } }, ...space] } : {};
-  return { AND: [visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE, search] };
+  return { AND: [visible({ insider, staleBefore: new Date(0) }), AVAILABLE, search] };
 }
 const DEAL_UNIT = { id: true, code: true, project: true, space: true, type: true, agentId: true } satisfies Prisma.UnitSelect;
 

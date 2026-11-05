@@ -83,6 +83,11 @@ export class InventoryService {
     return this.repo.openForDeal(id);
   }
 
+  /** For a task (M-04 4.2): open units, drafts included, by code, project or space. */
+  forTasks(q?: string) {
+    return this.repo.forTasks(q, 30);
+  }
+
   /** Codes for the units a Visit names (1.9), whatever their state now. */
   codes(ids: string[]) {
     return ids.length ? this.repo.codes(ids) : Promise.resolve([]);

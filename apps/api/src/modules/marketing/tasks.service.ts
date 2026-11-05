@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow } from "@places/contracts";
+import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskUnitOption } from "@places/contracts";
 import { TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, isTaskLate, taskKind, taskMove, taskMovesFor } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -76,6 +76,11 @@ export class TasksService {
       kinds: await Promise.all(kinds.map(async (k) => ({ key: k.key, label: k.label, assignees: await this.repo.withRoles(k.assigneeRoles) }))),
       marketingTypes: settings.mkTaskTypes.filter((t) => t.active).map((t) => t.value),
     };
+  }
+
+  /** The units a task can be about (the new-task form), drafts too: a new unit is shot before its PDF is confirmed. */
+  units(q?: string): Promise<TaskUnitOption[]> {
+    return this.inventory.forTasks(q);
   }
 
   /** M-04 2.1 step 4: give a task; the assignee is told, with the unit's data. */
