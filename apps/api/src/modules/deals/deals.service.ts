@@ -158,6 +158,8 @@ export class DealsService {
       await this.repo.update(tx, id, { status: "APPROVED", ...reviewed, ...fields });
       if (buyers) await this.repo.setBuyers(tx, id, buyers as string[]);
       await this.clientAccount(tx, me, d); // 9.12: the client's own account under 113 opens with the approval
+      // 5.5 · M-02 6.2 · Q16: the approved deal locks its unit's side; Manar (Rent) / Randa (Resale, Income) confirm the close
+      await this.unitLocks.lock(d.unit.id, id, { type: (input.type ?? d.type) as DealType, userId: me.id }, tx);
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "approve", userId: me.id,
         before: { status: d.status, ...edits?.before }, after: { status: "APPROVED", ...edits?.after } }, tx);
       return d;
