@@ -90,11 +90,16 @@ export interface LeaveBalancesView { month: string; types: string[]; rows: { emp
 export const MonthQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/, "الشهر بالشكل 2026-11").optional() });
 
 /* ---- 7.9 · «التوفير»: the month's deductions HR approves for payroll ---- */
-export interface DeductionRowView { employeeId: string; name: string; salary: string; attendanceDays: number; penaltyDays: number; lateMinutes: number; amount: string; net: string }
+export interface DeductionRowView { employeeId: string; name: string; salary: string; attendanceDays: number; penaltyDays: number; lateMinutes: number; /** 11.6: a closed quarter's KPI reward (+) or deduction (−), already inside `amount` */ kpi: string; amount: string; net: string }
 export interface DeductionsView {
   month: string; rows: DeductionRowView[]; totals: { salary: string; amount: string; net: string; people: number };
   approved: { by: string; at: string } | null;
 }
+
+/* ---- 7.11 · the ideal employee and the team fund (M-05, client sheet 28/10) ---- */
+export interface IdealRowView { employeeId: string; name: string; earlyDays: number; lateHours: number; absentDays: number; kpi: number | null; points: number; status: "ideal" | "penalty" | "kpi" | null }
+export interface IdealTeamView { name: string; winner: { employeeId: string; name: string } | null; fund: string; rows: IdealRowView[] }
+export interface IdealView { month: string; teams: IdealTeamView[] }
 
 /* ---- 7.7 · penalties · 7.8 · the 1-to-1 ---- */
 export const NewPenalty = z.object({

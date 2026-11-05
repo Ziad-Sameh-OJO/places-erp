@@ -108,6 +108,15 @@ export class LeadsRepository {
     return this.db.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: LEAD_DETAIL });
   }
 
+  /** What the client wants and the narrowing answers (2.12), when the lead is in the caller's scope. */
+  clientNeed(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { type: true, space: true, condition: true, budget: true, area: true, answers: true } });
+  }
+
+  setAnswers(tx: Prisma.TransactionClient, id: string, answers: Prisma.InputJsonValue) {
+    return tx.lead.update({ where: { id }, data: { answers } });
+  }
+
   /** The id when the lead exists and is inside the caller's scope — the same rule as reading it. */
   findInScope(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
     return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { id: true, firstActionAt: true } });

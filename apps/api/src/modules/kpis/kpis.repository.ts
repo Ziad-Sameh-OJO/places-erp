@@ -4,8 +4,8 @@ import { PRISMA } from "../../core/database/database.module";
 
 export const CARD = {
   include: {
-    employee: { select: { id: true, name: true, jobTitle: true, salary: true, userId: true } },
-    follower: { select: { id: true, name: true } },
+    employee: { select: { id: true, name: true, jobTitle: true, salary: true, userId: true, user: { select: { email: true } } } },
+    follower: { select: { id: true, name: true, userId: true } },
     items: { orderBy: { position: "asc" }, include: { deliveries: { orderBy: { at: "asc" } } } },
   },
 } as const satisfies Prisma.KpiCardDefaultArgs;
@@ -73,6 +73,34 @@ export class KpisRepository {
 
   log(take: number) {
     return this.db.auditLog.findMany({ where: { module: "kpis" }, orderBy: { at: "desc" }, take });
+  }
+
+  finalScores(quarter: string) {
+    return this.db.kpiCard.findMany({ where: { quarter, finalScore: { not: null } }, select: { employeeId: true, finalScore: true } });
+  }
+
+  /** 11.6: the KPI amounts of the quarters closed in [from, to), for that month's payroll line. */
+  async closedAmounts(from: Date, to: Date, tx: Tx = this.db) {
+    const quarters = await tx.kpiQuarter.findMany({ where: { status: "closed", closedAt: { gte: from, lt: to } }, select: { id: true } });
+    if (!quarters.length) return [];
+    return tx.kpiCard.findMany({ where: { quarter: { in: quarters.map((q) => q.id) }, finalAmount: { not: null } }, select: { employeeId: true, finalAmount: true } });
+  }
+
+  /** 11.13: the person's latest Farming / Approach. */
+  activities(employeeId: string) {
+    return this.db.salesActivity.findMany({ where: { employeeId }, orderBy: { at: "desc" }, take: 6 });
+  }
+
+  activity(id: string) {
+    return this.db.salesActivity.findUnique({ where: { id } });
+  }
+
+  /** Does the person's card this quarter count Farming / Approach, and who follows it. */
+  activityCard(quarter: string, employeeId: string) {
+    return this.db.kpiCard.findUnique({
+      where: { quarter_employeeId: { quarter, employeeId } },
+      select: { follower: { select: { userId: true } }, items: { where: { metric: "activitiesDone" }, select: { id: true } } },
+    });
   }
 
   names(userIds: string[]) {

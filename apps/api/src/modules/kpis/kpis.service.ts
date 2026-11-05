@@ -1,17 +1,18 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  KpiWatch, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView, type KpiCompany, type KpiDeliveryInput, type KpiItemsInput,
-  type KpiLogEntry, type KpiPayInput, type KpiQuarterView,
+  KpiWatch, type ActivityInput, type ActivityResultInput, type ActivityView, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView,
+  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
 } from "@places/contracts";
 import {
-  type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, fromDecimal, itemAchievement, levelLabel,
-  metricProblem, nextQuarter, payoutDelta, quarterLabel, toDecimal,
+  type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, toDecimal, type ActivityKind,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { FilesService } from "../../core/files/files.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
+import { DocumentsService, esc, layout } from "../../core/documents/documents.service";
+import { MailService } from "../../core/mail/mail.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { type CardRecord, KpisRepository } from "./kpis.repository";
 
@@ -24,7 +25,7 @@ const CLOSED = "الربع اتقفل · مفيش تعديل";
 const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose"];
 
 interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean }
-type Quarter = { id: string; status: string };
+type Quarter = { id: string; status: string; sheetsAt?: Date | null; sheetsById?: string | null };
 
 const piasters = (d: Prisma.Decimal | null) => (d == null ? 0 : fromDecimal(d.toFixed(2)));
 const num = (d: Prisma.Decimal | null) => (d == null ? null : Number(d));
@@ -44,6 +45,8 @@ export class KpisService {
     private readonly audit: AuditService,
     private readonly files: FilesService,
     private readonly notifications: NotificationsService,
+    private readonly docs: DocumentsService,
+    private readonly mail: MailService,
   ) {}
 
   private async watchers(): Promise<string[]> {
@@ -169,7 +172,7 @@ export class KpisService {
           canDeliver: open && mine && it.method === "report" && !it.report && it.deliveries.length < (it.required ?? 0),
         };
       }),
-      can: { manage, approve: open && follower && !c.approvedAt, plan: open && follower, pay: open && w.edit, admin: open && (w.edit || w.watcher) },
+      can: { manage, approve: open && follower && !c.approvedAt, plan: open && follower, pay: open && w.edit, admin: open && (w.edit || w.watcher), sheet: this.canSheet(w, q) },
       options: manage ? { people: people.map((p) => ({ id: p.id, userId: p.userId, name: p.name })), roles } : null,
     };
   }
@@ -373,8 +376,9 @@ export class KpisService {
   async closeQuarter(me: CurrentUser) {
     const q = await this.current();
     if (q.status !== "open") throw new ConflictException("الربع ده اتقفل قبل كده");
-    const n = await this.db.$transaction(async (tx) => this.finish(me, q.id, tx, true));
-    await this.tell(me, `${quarterLabel(q.id)} اتقفل · ${n} كارت`);
+    const { cards, b } = await this.db.$transaction(async (tx) => this.finish(me, q.id, tx, true));
+    await this.tell(me, `${quarterLabel(q.id)} اتقفل · ${cards.length} كارت`);
+    await this.closeAlerts(q.id, cards, b);
   }
 
   /** Saves each card's result and closes the quarter. With money (the close) the amounts too. */
@@ -388,7 +392,88 @@ export class KpisService {
     await tx.kpiQuarter.update({ where: { id: quarter }, data: { status: "closed", closedAt: new Date(), closedById: me.id } });
     await this.audit.record({ module: MODULE, entity: money ? "KpiQuarterClose" : "KpiQuarter", entityId: quarter, action: "update", userId: me.id,
       after: { summary: `${quarterLabel(quarter)} اتقفل · النتايج اتحفظت`, cards: cards.length } }, tx);
-    return cards.length;
+    return { cards, b };
+  }
+
+  /**
+   * 11.6 (M-12 2.3): after the close, under 70% the employee and the follower hear «خصم + خطة تحسين» (the follower opens
+   * it), under 50% also the written warning, and under 50% two quarters in a row HR is told to review.
+   */
+  private async closeAlerts(quarter: string, cards: CardRecord[], b: Bands) {
+    const prev = new Map((await this.repo.finalScores(previousQuarter(quarter))).map((x) => [x.employeeId, Number(x.finalScore)]));
+    const label = quarterLabel(quarter);
+    for (const c of cards) {
+      const s = this.score(c), r = Math.round(s), alert = closeAlert(s, prev.get(c.employeeId) ?? null, b);
+      if (!alert) continue;
+      const text = alert === "plan"
+        ? `نتيجة KPI ${c.employee.name} في ${label}: ${r}% · خصم ${b.cutPercent}% + خطة تحسين يفتحها المتابع`
+        : `نتيجة KPI ${c.employee.name} في ${label}: ${r}% تحت الـ Threshold · البونص اتلغى + خصم ${b.cutPercent}% من المرتب + إنذار مكتوب + خطة تحسين`;
+      // «الملاك» (no follower) = the Super Admins
+      await this.notifications.notify({ event: "kpi.result", text, link: LINK, to: [c.employee.userId, c.follower?.userId ?? "admin"] });
+      if (alert === "hr") await this.notifications.notify({ event: "kpi.hr_review", link: LINK,
+        text: `KPI ${c.employee.name} تحت ${b.low}% ربعين ورا بعض (${Math.round(prev.get(c.employeeId)!)}% ثم ${r}%) · محتاج مراجعة الـ HR` });
+    }
+  }
+
+  /** 11.6: the KPI amount of each card whose quarter closed in this month (`2026-12`), for that month's payroll line. */
+  async payrollAmounts(month: string, tx?: Prisma.TransactionClient | PrismaClient): Promise<Map<string, number>> {
+    const next = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)).toISOString().slice(0, 10);
+    const from = dayStart(`${month}-01`), to = dayStart(next); // Cairo month
+    return new Map((await this.repo.closedAmounts(from, to, tx)).map((c) => [c.employeeId, piasters(c.finalAmount)]));
+  }
+
+  /** 7.11: the current quarter's cards: who follows whom (a team) and the live score (the ideal employee needs ≥ 80%). */
+  async liveCards(): Promise<{ employeeId: string; followerId: string | null; score: number }[]> {
+    const q = await this.repo.currentQuarter();
+    return q ? (await this.repo.cards({ quarter: q.id })).map((c) => ({ employeeId: c.employeeId, followerId: c.followerId, score: this.score(c) })) : [];
+  }
+
+  /** 11.7: the sheet of a closed quarter, before the Office Manager's approval only for the KPI admins. */
+  private canSheet(w: Who, q: Quarter) {
+    return q.status === "closed" && !w.noMoney && (!!q.sheetsAt || w.approve || w.edit);
+  }
+
+  /** 11.7: the employee's quarterly sheet: the result, its tier and amount, and every item. */
+  private async sheetHtml(c: CardRecord, quarter: string) {
+    const b = bandsOf(await this.repo.bands());
+    const s = c.finalScore != null ? Number(c.finalScore) : this.score(c);
+    const amount = c.finalAmount != null ? piasters(c.finalAmount) : this.delta(c, s, b);
+    const money = `${amount > 0 ? "مكافأة" : amount < 0 ? "خصم" : "—"} <span class="num">${toDecimal(Math.abs(amount))}</span> ج.م`;
+    const pct = (n: number) => `<span class="num">${Math.round(n * 10) / 10}%</span>`;
+    const rows = c.items.map((it) => { const a = this.ach(it); return `<tr><td>${esc(it.title)}</td><td>${pct(it.weight)}</td><td>${esc(it.targetText)}</td><td>${pct(a * 100)}</td><td>${pct(it.weight * a)}</td></tr>`; }).join("");
+    const title = `ورقة ${quarterLabel(quarter)} · ${c.employee.name}`;
+    return { name: `${title}.pdf`, html: layout(title, `<h1>${esc(title)}</h1>
+<table><tr><th>الموظف</th><td>${esc(c.employee.name)} · ${esc(c.employee.jobTitle)}</td></tr><tr><th>المتابع</th><td>${esc(c.follower?.name ?? "الملاك")}</td></tr>
+<tr><th>نتيجة الربع</th><td>${pct(s)} · ${esc(bandLabel(s, b))}</td></tr><tr><th>المكافأة / الخصم</th><td>${money}</td></tr>
+${c.plan ? `<tr><th>خطة التحسين</th><td>${esc(c.plan)}</td></tr>` : ""}</table>
+<h2>البنود</h2><table><tr><th>البند</th><th>الوزن</th><th>المستهدف</th><th>التحقيق</th><th>في النتيجة</th></tr>${rows}</table>`) };
+  }
+
+  async sheet(me: CurrentUser, id: string) {
+    const w = await this.who(me);
+    const { c, q } = await this.visibleCard(w, id);
+    if (!this.canSheet(w, q)) throw new ForbiddenException("ورقة الربع بتطلع بعد قفل الربع وموافقة الـ Office Manager");
+    const { name, html } = await this.sheetHtml(c, q.id);
+    return { name, pdf: await this.docs.pdf(html) };
+  }
+
+  /** 11.7: the Office Manager approves the closed quarter's sheets; each employee gets theirs by email, only then. */
+  async approveSheets(me: CurrentUser) {
+    const q = await this.current();
+    if (q.status !== "closed") throw new ConflictException("ورق الربع بيتبعت بعد قفل الربع");
+    const cards = await this.repo.cards({ quarter: q.id });
+    await this.db.$transaction(async (tx) => {
+      const ok = await tx.kpiQuarter.updateMany({ where: { id: q.id, sheetsAt: null }, data: { sheetsAt: new Date(), sheetsById: me.id } });
+      if (!ok.count) throw new ConflictException("ورق الربع ده اتبعت قبل كده");
+      await this.audit.record({ module: MODULE, entity: "KpiSheets", entityId: q.id, action: "approve", userId: me.id,
+        after: { summary: `ورق ${quarterLabel(q.id)} اتوافق عليه واتبعت لـ ${cards.length} موظف`, cards: cards.length } }, tx);
+    });
+    for (const c of cards) {
+      const { name, html } = await this.sheetHtml(c, q.id);
+      await this.mail.send({ to: c.employee.user.email, subject: `ورقة ${quarterLabel(q.id)} · Places ERP`,
+        text: `أهلاً ${c.employee.name}،\nمرفق ورقة نتيجة الـ KPIs بتاعتك عن ${quarterLabel(q.id)} بعد موافقة الـ Office Manager.`, attachments: [{ filename: name, content: await this.docs.pdf(html) }] });
+    }
+    return { sent: cards.length };
   }
 
   /**
@@ -436,7 +521,8 @@ export class KpisService {
       watchers: people.filter((p) => watchers.includes(p.userId)).map((p) => ({ id: p.id, userId: p.userId, name: p.name })),
       people: people.map((p) => ({ id: p.id, userId: p.userId, name: p.name })),
       bands: w.noMoney ? null : { top: b.top, full: b.full, partial: b.partial, low: b.low, rewardPercent: b.rewardPercent, cutPercent: b.cutPercent },
-      can: { edit: w.edit, close: w.approve && q.status === "open" },
+      can: { edit: w.edit, close: w.approve && q.status === "open", sheets: w.approve && q.status === "closed" && !q.sheetsAt },
+      sheets: q.sheetsAt ? { by: people.find((p) => p.userId === q.sheetsById)?.name ?? "", at: q.sheetsAt.toISOString() } : null,
     };
   }
 
@@ -452,6 +538,60 @@ export class KpisService {
   }
 
   /** 11.14 «سجل التغييرات»: every KPI change, who and when; the money ones are left out for the watcher. */
+  // ───────── 11.13 · Farming / Approach (demo kpis.js `actCard`) ─────────
+
+  private async activityCard(employeeId: string) {
+    const q = await this.repo.currentQuarter();
+    return q ? this.repo.activityCard(q.id, employeeId) : null;
+  }
+
+  /** «نشاطاتي»: for sales, and for anyone whose card this quarter counts these activities. */
+  async activities(me: CurrentUser): Promise<MyActivities> {
+    if (!me.employeeId) return { show: false, items: [] };
+    const [rows, card] = await Promise.all([this.repo.activities(me.employeeId), this.activityCard(me.employeeId)]);
+    return {
+      show: me.roles.includes("sales") || !!card?.items.length || rows.length > 0,
+      items: rows.map((a) => ({
+        id: a.id, kind: a.kind as ActivityKind, place: a.place, at: a.at.toISOString(), status: a.status as ActivityView["status"],
+        got: a.got, note: a.note, companies: a.companies,
+      })),
+    };
+  }
+
+  async addActivity(me: CurrentUser, input: ActivityInput) {
+    if (!me.employeeId) throw new ForbiddenException("النشاطات للموظفين بس");
+    const employeeId = me.employeeId;
+    await this.db.$transaction(async (tx) => {
+      const a = await tx.salesActivity.create({ data: { employeeId, kind: input.kind, place: input.place, at: new Date(input.at) } });
+      await this.audit.record({ module: MODULE, entity: "SalesActivity", entityId: a.id, action: "create", userId: me.id,
+        after: { ...input, summary: `${me.name} سجّل ${input.kind} في ${input.place}` } }, tx);
+    });
+  }
+
+  /** «عملتها؟» after its time: done (with what came of it) or not. The follower and Operations hear of it. */
+  async activityResult(me: CurrentUser, id: string, input: ActivityResultInput) {
+    const a = await this.repo.activity(id);
+    if (!a || a.employeeId !== me.employeeId) throw new NotFoundException("النشاط ده مش موجود");
+    if (a.status !== "planned") throw new ConflictException("النشاط ده اتسجّلت نتيجته قبل كده");
+    const now = new Date();
+    if (a.at > now) throw new BadRequestException("لسه ميعاده ماجاش");
+    const approach = a.kind === "Approach";
+    if (input.done && approach && !input.companies.length) throw new BadRequestException("اكتب الشركات");
+    const data = !input.done ? { status: "notDone" }
+      : { status: "done", doneAt: now, ...(approach ? { companies: input.companies } : { got: input.got, note: input.note || null }) };
+    const what = !input.done ? `ماعملش الـ ${a.kind} في ${a.place}`
+      : `عمل ${a.kind} في ${a.place} · ${approach ? `شركات: ${input.companies.join("، ")}` : `${input.got ? "جاب حاجة" : "مجابش حاجة"}${input.note ? `: ${input.note}` : ""}`}`;
+    await this.db.$transaction(async (tx) => {
+      // only if no other tab answered it meanwhile
+      const done = await tx.salesActivity.updateMany({ where: { id, status: "planned" }, data });
+      if (done.count === 0) throw new ConflictException("النشاط ده اتسجّلت نتيجته قبل كده");
+      await this.audit.record({ module: MODULE, entity: "SalesActivity", entityId: id, action: "update", userId: me.id,
+        before: { status: a.status }, after: { ...data, summary: `${me.name} ${what}` } }, tx);
+    });
+    const follower = (await this.activityCard(a.employeeId))?.follower?.userId;
+    await this.notifications.notify({ event: "kpi.activity", text: `${me.name} ${what}`, link: LINK, userIds: follower && follower !== me.id ? [follower] : [] });
+  }
+
   async log(me: CurrentUser): Promise<KpiLogEntry[]> {
     const w = await this.who(me);
     if (!w.all) throw new ForbiddenException("السجل للإدارة ومسؤول الـ KPIs");

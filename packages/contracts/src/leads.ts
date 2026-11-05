@@ -198,3 +198,36 @@ export interface RoutingView { areas: string[]; salespeople: { id: string; name:
 /** «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand a lead to a salesperson. */
 export const AssignLead = z.object({ to: z.string({ required_error: "اختار السيلز", invalid_type_error: "اختار السيلز" }).min(1, "اختار السيلز").max(40) });
 export type AssignLead = z.infer<typeof AssignLead>;
+
+/**
+ * The narrowing questions' answers (M-03 3.2, the requirements' proposed examples, as the demo asks them), kept on
+ * the lead. An empty answer is «مش مهم».
+ */
+const blank = (v: unknown) => (v === "" || v === null ? undefined : v);
+export const RecommendAnswers = z.object({
+  project: z.preprocess(blank, z.string().trim().max(160).optional()),
+  floor: z.preprocess(blank, z.literal("ground").optional()),
+  parking: z.preprocess(blank, z.coerce.number().int().min(1, "الـ Parking من 1").max(20, "الـ Parking كبير أوي").optional()),
+  area: z.preprocess(blank, z.literal("same").optional()),
+  split: z.preprocess(blank, z.literal("no").optional()),
+  payment: z.preprocess(blank, z.string().trim().max(80).optional()),
+  deliveryBy: z.preprocess(blank, CalendarDay.optional()),
+}).strict();
+export type RecommendAnswers = z.infer<typeof RecommendAnswers>;
+
+/** A suggested unit as the lead's «الوحدات» tab shows it (no owner details: those are Manar's). */
+export interface RecommendedUnit {
+  id: string; code: string; type: string; project: string; area: string; floor: string | null; space: number; condition: string; parking: number;
+  minSplit: number | null;
+  /** the client's price: a month's rent (Rent) or the total; null when the unit has none for this type */
+  price: string | null; monthly: boolean;
+  split: boolean; sameArea: boolean; match: number;
+}
+/** The tab: what the client wants, the ± tolerance (a setting), the answers, the choices for the questions, the units. */
+export interface Recommendations {
+  tolerancePct: number;
+  client: { type: string; space: number | null; condition: string | null; budget: string | null; area: string };
+  answers: RecommendAnswers;
+  projects: string[]; paymentMethods: string[];
+  items: RecommendedUnit[];
+}

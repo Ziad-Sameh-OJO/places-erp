@@ -82,7 +82,8 @@ test("7.9: HR approves the month's deductions once; payroll reads exactly those;
   const live = (await call("/hr/deductions", { cookie: basant })).body;
   const line = live.rows.find((r: { employeeId: string }) => r.employeeId === mokhtar.id);
   assert.ok(line.penaltyDays >= 1);
-  assert.equal(Math.round(Number(line.amount) * 100), Math.min(12_000_00, Math.round((12_000_00 / 26) * (line.attendanceDays + line.penaltyDays))));
+  // (+ a closed KPI quarter's amount, 11.6: the KPI test may close one meanwhile)
+  assert.equal(Math.round(Number(line.amount) * 100), Math.min(12_000_00, Math.min(12_000_00, Math.round((12_000_00 / 26) * (line.attendanceDays + line.penaltyDays))) - Math.round(Number(line.kpi) * 100)));
   assert.equal(live.approved, null);
 
   for (const cookie of [tl, admin, sales]) assert.equal((await call("/hr/deductions/approve", { method: "POST", cookie })).status, 403);

@@ -173,6 +173,7 @@ model Employee {
 
   kpiCards        KpiCard[]       @relation("KpiOwner")
   kpiFollowing    KpiCard[]       @relation("KpiFollower")
+  salesActivities SalesActivity[]
   @@schema("hr")
 }
 
@@ -995,6 +996,7 @@ model KpiCard {
   finalScore  Decimal?  @db.Decimal(6, 2) // saved when the quarter ends: the past quarters' results
   finalAmount Decimal?  @db.Decimal(14, 2)
   plan        String?   // improvement plan under 70%
+  midAlertAt  DateTime? // 11.6: the mid-quarter check ran for this card (once)
   items       KpiItem[]
 
   @@unique([quarter, employeeId])
@@ -1405,7 +1407,31 @@ model KpiQuarter {
   startedAt  DateTime  @default(now())
   closedAt   DateTime?
   closedById String?
+  /// 11.7: the Office Manager approved the quarterly sheets (PDF) and they were emailed
+  sheetsAt   DateTime?
+  sheetsById String?
 
+  @@schema("kpi")
+}
+
+/// 11.13 · a Farming / Approach a salesperson plans (where, when); after its time he says whether he did it and what
+/// came of it (Farming: brought something new + a note · Approach: the companies). The Farming item counts the done
+/// ones on the day they happened (`at`).
+model SalesActivity {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  kind       String    // Farming · Approach
+  place      String
+  at         DateTime
+  status     String    @default("planned") // planned · done · notDone
+  got        Boolean?
+  note       String?
+  companies  String[]  @default([])
+  doneAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, at])
   @@schema("kpi")
 }
 

@@ -45,6 +45,7 @@ export function KpiCardBody({ id, startEditing }: { id: string; startEditing?: b
         {c.can.manage && !editing && <button className="btn ghost" onClick={() => setEditing(true)}>عدّل البنود</button>}
         {c.can.approve && <button className="btn" onClick={approve}><Icon name="check" />اعتمد النتيجة</button>}
         {c.approved && <Chip tone="ok">اتعتمد من {c.approved.by}</Chip>}
+        {c.can.sheet && <a className="btn ghost" href={`/api/v1/kpis/cards/${id}/sheet`} target="_blank" rel="noreferrer"><Icon name="file" />ورقة الربع PDF</a>}
       </div>
     </>
   );

@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
+import { RecommendAnswers, activeValues, type Recommendations } from "@places/contracts";
 import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas, fromDecimal, type ClientNeed } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -169,6 +170,36 @@ export class LeadsService {
       await this.audit.record({ module: "leads", entity: "LeadCall", entityId: call.id, action: "call", userId: me.id, after: { leadId: id } }, tx);
     });
     return this.get(me, id);
+  }
+
+  /**
+   * The lead's «الوحدات» tab (2.12, M-03 3.2 · 7.1): the units that suit the client, narrowed by the answers kept on
+   * the lead, with the ± tolerance from the settings (proposed ±20%, needs-client).
+   */
+  async recommendations(me: CurrentUser, id: string): Promise<Recommendations> {
+    const lead = await this.repo.clientNeed(ownedBy(me) as never, id);
+    if (!lead) throw new NotFoundException(NO_LEAD);
+    const settings = await this.settings.all();
+    const answers = storedAnswers(lead.answers);
+    const need: ClientNeed = { type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget ? fromDecimal(lead.budget.toFixed(2)) : null, area: lead.area };
+    const { items, projects } = await this.inventory.recommend(need, answers, settings.recommendTolerancePct);
+    return {
+      tolerancePct: settings.recommendTolerancePct,
+      client: { type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, area: lead.area },
+      answers, projects, paymentMethods: activeValues(settings.paymentPlans), items,
+    };
+  }
+
+  /** The narrowing answers are part of the lead (M-03 3.2: «إجاباتها تتسجّل على الليد»): saved and audited. */
+  async setAnswers(me: CurrentUser, id: string, answers: RecommendAnswers): Promise<Recommendations> {
+    await this.db.$transaction(async (tx) => {
+      const lead = await this.repo.clientNeed(ownedBy(me) as never, id, tx);
+      if (!lead) throw new NotFoundException(NO_LEAD);
+      const before = storedAnswers(lead.answers);
+      await this.repo.setAnswers(tx, id, answers as Prisma.InputJsonValue);
+      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "answers", userId: me.id, before, after: answers }, tx);
+    });
+    return this.recommendations(me, id);
   }
 
   /** The person's calls in their KPI period (Telesales today, sales / TLs the last 7 days). */
@@ -458,4 +489,10 @@ function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, peop
       postpone: v.postponeStatus === "pending" || v.postponeStatus === "approved" || v.postponeStatus === "rejected" ? { status: v.postponeStatus, reason: v.postponeReason ?? "", canDecide: false } : null,
     })),
   };
+}
+
+/** The answers kept on the lead; anything unreadable counts as unanswered. */
+function storedAnswers(v: unknown): RecommendAnswers {
+  const parsed = RecommendAnswers.safeParse(v ?? {});
+  return parsed.success ? parsed.data : {};
 }
