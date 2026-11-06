@@ -4,7 +4,7 @@
  * worker's side of LeadRulesService and NotificationsService.
  */
 import { prisma, type Prisma } from "@places/db";
-import { type LeadRules, type RoutingState, type RuleWho, eventByKey, holidayDays, ruleRecipients, withRuleDefaults } from "@places/domain";
+import { type LeadRules, type RuleWho, eventByKey, holidayDays, ruleRecipients, withRuleDefaults } from "@places/domain";
 import { pushOnChannels } from "./push.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -18,34 +18,7 @@ export async function officialHolidays(): Promise<Set<string>> {
   return holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: day(h.from), to: day(h.to) })));
 }
 
-/** Leave that keeps someone out of the rotation: approved by the TL or closed by HR (leaves.service COUNTED, 1.15). */
-const ON_LEAVE = ["APPROVED_BY_TL", "CLOSED_BY_HR"] as const;
-
-/** The rotation, locked like the API does when it creates a lead: a pull and a new lead at once both keep their turn. */
-export async function lockRouting(tx: Prisma.TransactionClient): Promise<RoutingState> {
-  await tx.$executeRaw`INSERT INTO "system"."Setting" ("key", "value", "updatedAt") VALUES ('routing', '{"cursor":{},"skipTurns":{}}'::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
-  const [row] = await tx.$queryRaw<Array<{ value: RoutingState }>>`SELECT "value" FROM "system"."Setting" WHERE "key" = 'routing' FOR UPDATE`;
-  return { cursor: {}, skipTurns: {}, ...row?.value };
-}
-
-export function saveRouting(tx: Prisma.TransactionClient, state: RoutingState) {
-  return tx.setting.update({ where: { key: "routing" }, data: { value: state as never } });
-}
-
-/**
- * Who may get a lead of `area` now, in rotation order, like the API's new lead: the area's salespeople minus `except`
- * (the one it leaves), anyone whose account was switched off (1.13) and anyone on approved leave today (1.15).
- */
-export async function routingPool(tx: Prisma.TransactionClient, area: string, except: string | null, today: string): Promise<string[]> {
-  const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
-  const ids = (pools[area] ?? []).filter((id) => id !== except);
-  const [active, away] = await Promise.all([
-    tx.employee.findMany({ where: { id: { in: ids }, user: { status: { not: "DISABLED" } } }, select: { id: true } }),
-    tx.leaveRequest.findMany({ where: { employeeId: { in: ids }, status: { in: [...ON_LEAVE] }, fromDay: { lte: new Date(`${today}T00:00:00Z`) }, toDay: { gte: new Date(`${today}T00:00:00Z`) } }, select: { employeeId: true } }),
-  ]);
-  const ok = new Set(active.map((e) => e.id)), off = new Set(away.map((r) => r.employeeId));
-  return ids.filter((id) => ok.has(id) && !off.has(id));
-}
+// The rotation (lockRouting, areaPool in the day's order, 1.23) is shared with the API: @places/db routing.ts.
 
 export interface LeadOwner { readonly name: string; readonly userId: string; readonly tlUserId: string | null }
 

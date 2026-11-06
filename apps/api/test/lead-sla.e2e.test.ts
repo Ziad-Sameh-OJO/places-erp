@@ -131,3 +131,35 @@ test("on an official holiday range the holiday times apply: warn at 22 hours, pu
   assert.equal(moved.assignedToId, sales2.id);
   assert.match((await prisma.leadActivity.findFirstOrThrow({ where: { leadId: l.id } })).text, /بعد 24 ساعة من غير أكشن/);
 });
+
+// Last in this file: its clock (Sunday 19 January, after every tick above) also reaches the leads above, already checked.
+test("1.23 the pull follows the day's rotation order like a new lead: who fingerprinted first, then Operations' order by hand", async () => {
+  const DAY = "2020-01-19", ORDER = `rotationOrder:${DAY}`;
+  const third = await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.samy@places.com" } }, select: { id: true } });
+  const areas = [`E2E DAY ${stamp}`, `E2E HAND ${stamp}`];
+  // saved order: sales1 (holds the lead), sales2, then the third; today the third fingerprinted 10:50, sales2 11:20
+  for (const a of areas) await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${a}], ${JSON.stringify([sales1.id, sales2.id, third.id])}::jsonb) WHERE "key" = 'areaRouting'`;
+  await prisma.attendanceDay.createMany({ data: [
+    { employeeId: third.id, day: new Date(DAY), checkInAt: at(`${DAY}T10:50:00`), source: "system" },
+    { employeeId: sales2.id, day: new Date(DAY), checkInAt: at(`${DAY}T11:20:00`), source: "system" },
+  ] });
+  try {
+    const byPrint = await lead(at(`${DAY}T11:00:00`), { area: areas[0] });
+    await leadSlaTick(at(`${DAY}T14:00:00`), RULES);
+    assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: byPrint.id } })).assignedToId, third.id, "the saved order would have given sales2");
+    assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Lead", entityId: byPrint.id, action: "auto-pull", after: { path: ["assignedToId"], equals: third.id } } }));
+
+    // Operations put sales2 first for that day («ترتيب الروتيشن النهارده» by hand): it wins over the fingerprint
+    await prisma.setting.create({ data: { key: ORDER, value: [sales2.id] } });
+    const byHand = await lead(at(`${DAY}T15:00:00`), { area: areas[1] });
+    await leadSlaTick(at(`${DAY}T18:00:00`), RULES);
+    assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: byHand.id } })).assignedToId, sales2.id);
+  } finally {
+    await prisma.setting.deleteMany({ where: { key: ORDER } });
+    await prisma.attendanceDay.deleteMany({ where: { day: new Date(DAY), employeeId: { in: [third.id, sales2.id] } } });
+    for (const a of areas) {
+      await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = "value" - ${a} WHERE "key" = 'areaRouting'`;
+      await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", '{cursor}', ("value"->'cursor') - ${a}) WHERE "key" = 'routing'`;
+    }
+  }
+});

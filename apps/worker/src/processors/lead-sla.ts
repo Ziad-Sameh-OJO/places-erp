@@ -5,9 +5,9 @@
  * Idempotent: the warning is claimed with slaWarnedAt and the pull with the lead's assignment (assignedToId +
  * assignedAt), each in the same transaction as what it sends, so a rerun or a parallel action never repeats them.
  */
-import { prisma } from "@places/db";
+import { areaPool, lockRouting, prisma, saveRouting } from "@places/db";
 import { LeadRouter, type LeadRules, durationText, isHolidayNow, localDate, slaStep } from "@places/domain";
-import { type Told, leadRules, lockRouting, officialHolidays, ownerOf, routingPool, saveRouting, tellRule } from "../leads.ts";
+import { type Told, leadRules, officialHolidays, ownerOf, tellRule } from "../leads.ts";
 
 interface Lead { id: string; code: string; name: string; area: string; assignedToId: string | null; assignedAt: Date }
 
@@ -50,8 +50,9 @@ async function warn(lead: Lead, rules: LeadRules, now: Date): Promise<Told | nul
  */
 async function pull(lead: Lead, rules: LeadRules, now: Date, holiday: boolean): Promise<Told | null> {
   return prisma.$transaction(async (tx) => {
-    const router = new LeadRouter(await lockRouting(tx));
-    const next = router.next(lead.area, await routingPool(tx, lead.area, lead.assignedToId, localDate(now)));
+    // the day's rotation order (1.23), the same one a new lead takes
+    const router = new LeadRouter(await lockRouting(tx, localDate(now)));
+    const next = router.next(lead.area, await areaPool(tx, lead.area, localDate(now), lead.assignedToId));
     if (!next) return null;
     // optimistic: a salesperson's action or a hand reassignment meanwhile wins, and the rotation keeps its turn
     const moved = await tx.lead.updateMany({ where: untouched(lead), data: { assignedToId: next, assignedAt: now, slaWarnedAt: null } });

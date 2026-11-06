@@ -112,8 +112,11 @@ export function slaView(
  */
 export interface RoutingState { cursor: Record<string, number>; skipTurns: Record<string, number>; day?: string }
 
-/** 1.23: each day's rotation starts from the top of that day's order («أول واحد بصم بياخد أول ليد»); skipped turns carry over. */
-export const routingForDay = (s: RoutingState, day: string): RoutingState => (s.day === day ? s : { ...s, cursor: {}, day });
+/**
+ * 1.23: each day's rotation starts from the top of that day's order («أول واحد بصم بياخد أول ليد»); skipped turns carry
+ * over. Never back a day: a job whose clock is behind (a tick that started before midnight) keeps the newer day's turns.
+ */
+export const routingForDay = (s: RoutingState, day: string): RoutingState => (s.day !== undefined && s.day >= day ? s : { ...s, cursor: {}, day });
 
 export class LeadRouter {
   readonly #state: RoutingState;

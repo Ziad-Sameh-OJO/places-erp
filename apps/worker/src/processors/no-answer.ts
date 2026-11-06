@@ -5,9 +5,9 @@
  * in @places/domain. Idempotent: the move is claimed on the same mark (stage, salesperson, naMarkedAt) in the same
  * transaction as its Activity, audit and notification, so a rerun or the salesperson acting meanwhile wins.
  */
-import { prisma, type Prisma } from "@places/db";
+import { areaPool, lockRouting, prisma, saveRouting, type Prisma } from "@places/db";
 import { LeadRouter, type LeadRules, OWNER, durationText, localDate, noAnswerStep } from "@places/domain";
-import { type Told, leadRules, lockRouting, ownerOf, routingPool, saveRouting, tellRule } from "../leads.ts";
+import { type Told, leadRules, ownerOf, tellRule } from "../leads.ts";
 
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
 
@@ -35,8 +35,9 @@ export async function noAnswerTick(now = new Date(), pinned?: LeadRules): Promis
 /** Demo: «No Answer: عدّى 24 ساعة عند فلان وراح لـ فلان (رجع Fresh)», and the new salesperson is told. */
 async function toNextSalesperson(lead: Lead, rules: LeadRules, now: Date): Promise<Told | null> {
   return prisma.$transaction(async (tx) => {
-    const router = new LeadRouter(await lockRouting(tx));
-    const next = router.next(lead.area, await routingPool(tx, lead.area, lead.assignedToId, localDate(now)));
+    // the day's rotation order (1.23), the same one a new lead takes
+    const router = new LeadRouter(await lockRouting(tx, localDate(now)));
+    const next = router.next(lead.area, await areaPool(tx, lead.area, localDate(now), lead.assignedToId));
     if (!next) return null; // nobody else covers the area: it waits with its salesperson
     if (!(await move(tx, lead, { assignedToId: next, ownedByTelesales: false }, now))) return null;
     await saveRouting(tx, router.snapshot());

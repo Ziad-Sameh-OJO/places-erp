@@ -23,6 +23,7 @@ let c1: string, c2: string, cHadeer: string, cHeba: string, cHr: string;
 let rules: LeadRules;
 let skipTurnsBefore: number | undefined;
 const L: Record<"rotate" | "pick" | "other" | "remind", string> = {} as never;
+const more: string[] = []; // the clock test's leads
 
 let n = 0;
 const lead = async (extra: object) => (await prisma.lead.create({ data: {
@@ -47,7 +48,7 @@ before(async () => {
 });
 
 after(async () => {
-  const ids = Object.values(L);
+  const ids = [...Object.values(L), ...more];
   await prisma.auditLog.deleteMany({ where: { entity: "Lead", entityId: { in: ids } } });
   await prisma.notification.deleteMany({ where: { text: { contains: `E2E ${stamp}` } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-N${stamp}` } } });
@@ -152,6 +153,37 @@ test("Operations picks a salesperson by hand: the lead goes to them and their ne
   assert.equal(after, before + 1);
   const activity = await prisma.leadActivity.findFirstOrThrow({ where: { leadId: L.pick }, orderBy: { at: "desc" } });
   assert.match(activity.text, /^الأوبريشن بعتت الليد كـ New Lead لـ .+ · بعد \d+ دقيقة من استلامه$/);
+});
+
+// Here, not in a file of its own: this file's queue check above expects the 30 minutes, and tests in one file run in turn.
+// 40 minutes / 26 hours leave kpi-ops.e2e's in-time and late rows as they are while it runs.
+test("4 Nov meeting: the New Lead and Draft clocks follow Operations' KPI items (11.15), not a number in the code", async () => {
+  // every quarter's: kpis.e2e may start the next quarter (a copy of these cards) while this runs
+  const items = await prisma.kpiItem.findMany({ where: { card: { employeeId: heba.id }, metric: { in: ["newLeadRoute", "draftAction"] } }, select: { id: true, metric: true, params: true } });
+  assert.ok(items.length >= 2);
+  const MIN = 60_000;
+  try {
+    for (const it of items) await prisma.kpiItem.update({ where: { id: it.id }, data: { params: { ...(it.params as object), ...(it.metric === "newLeadRoute" ? { min: 40 } : { hours: 26 }) } } });
+    // a request 35 minutes old: late at 30, still in time at 40
+    const req = await lead({ assignedToId: hadeer.id, ownedByTelesales: true, stage: "INTERESTED", rotation: 3, newLeadRequestedAt: new Date(Date.now() - 35 * MIN), newLeadRequestedById: hadeer.userId });
+    more.push(req);
+    assert.equal((await call("/leads/new-leads", { cookie: c1 })).status, 403);
+    const row = (await call("/leads/new-leads", { cookie: cHeba })).body.find((r: { id: string }) => r.id === req);
+    assert.ok(row && row.minutesLeft <= 5 && row.minutesLeft >= 4, JSON.stringify(row));
+    assert.equal((await call(`/leads/new-leads/${req}/route`, { method: "POST", cookie: cHeba, body: { to: "rotation" } })).status, 201);
+    const routed = await prisma.leadActivity.findFirstOrThrow({ where: { leadId: req, text: { startsWith: "الأوبريشن بعتت" } } });
+    assert.doesNotMatch(routed.text, /اتأخر/);
+
+    // a Draft that came an hour ago: 25 hours left of 26
+    const drafted = await lead({ draft: "draft", assignedToId: null, stage: "INTERESTED" });
+    more.push(drafted);
+    await prisma.leadDraft.create({ data: { leadId: drafted, kind: "draft", at: new Date(Date.now() - 60 * MIN), fromId: s1.id, stage: "INTERESTED" } });
+    assert.equal((await call("/leads/drafts?kind=draft", { cookie: c1 })).status, 403);
+    const d = (await call("/leads/drafts?kind=draft", { cookie: cHeba })).body.find((r: { lead: { id: string } }) => r.lead.id === drafted);
+    assert.ok(d && d.minutesLeft <= 25 * 60 && d.minutesLeft >= 25 * 60 - 1, JSON.stringify(d));
+  } finally {
+    for (const it of items) await prisma.kpiItem.update({ where: { id: it.id }, data: { params: it.params as object } });
+  }
 });
 
 test("a No Answer someone else marked doesn't move the lead: the salesperson who has it must try first", async () => {

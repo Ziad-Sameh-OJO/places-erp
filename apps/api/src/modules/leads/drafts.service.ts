@@ -9,6 +9,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { LeadsRepository } from "./leads.repository";
 import { LeadsService } from "./leads.service";
 import { LeadRulesService } from "./lead-rules.service";
+import { KpisService } from "../kpis/kpis.service";
 
 const STAGE = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
 const TAB: Record<DraftKind, string> = { draft: "الـ Draft", admin: "الـ Draft Admin" };
@@ -28,6 +29,7 @@ export class DraftsService {
     private readonly notifications: NotificationsService,
     private readonly rules: LeadRulesService,
     private readonly leads: LeadsService,
+    private readonly kpis: KpisService, // the decision clock's hours: the KPI item that measures it (11.15)
   ) {}
 
   /** The rule's people and the admin; everyone else gets 403, like a missing permission. */
@@ -40,7 +42,7 @@ export class DraftsService {
 
   async list(me: CurrentUser, kind: DraftKind, now = new Date()): Promise<DraftRow[]> {
     await this.mustSee(me, kind);
-    const rows = await this.repo.drafts(kind);
+    const [rows, { draftHours }] = await Promise.all([this.repo.drafts(kind), this.kpis.leadClocks()]);
     const names = new Map((await this.repo.employeeNames([...new Set(rows.map((r) => r.fromId).filter((x): x is string => !!x))])).map((e) => [e.id, e.name]));
     return rows.map((r) => {
       const l = r.lead;
@@ -49,7 +51,7 @@ export class DraftsService {
         id: r.id, at: r.at.toISOString(), days: r.days, kept: !!r.keptAt, lastAction: lastAction.toISOString(),
         lead: { id: l.id, code: l.code, name: l.name, company: l.company?.name ?? null, stage: STAGE.get(l.stage) ?? l.stage, kind: l.kind === "BROKER" ? "broker" : "client", area: l.area },
         from: r.fromId ? { id: r.fromId, name: names.get(r.fromId) ?? "" } : null,
-        minutesLeft: r.keptAt ? 0 : draftMinutesLeft(r.at, now),
+        minutesLeft: r.keptAt ? 0 : draftMinutesLeft(r.at, now, draftHours),
       };
     });
   }
