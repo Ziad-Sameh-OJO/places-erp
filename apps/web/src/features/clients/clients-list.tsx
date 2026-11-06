@@ -1,12 +1,12 @@
 "use client";
 import { useState } from "react";
 import { KpiTile } from "@/components/blocks";
-import { Chip, Icon, Note, Table } from "@/components/ui";
+import { Chip, ExportButton, Icon, Note, Table } from "@/components/ui";
 import { ago, num } from "@/lib/format";
 import { ClientDrawer } from "./client-drawer";
 import { KindChips } from "./client-bits";
 import { MergeQueue } from "./merges";
-import { type ClientQuery, useClient, useClientSummary, useClients } from "./use-clients";
+import { type ClientQuery, filterQuery, useClient, useClientSummary, useClients } from "./use-clients";
 
 const PAGE = 50;
 
@@ -45,6 +45,8 @@ export function ClientsList() {
         {/* M-10 6.1 the owners needing an update · M-10 3.3 a year without dealing */}
         <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={(e) => filter({ ...f, stale: e.target.checked ? "true" : undefined })} /><span>ملاك محتاجين ابديت</span></label>
         <label className="tog"><input type="checkbox" checked={f.status === "inactive"} onChange={(e) => filter({ ...f, status: e.target.checked ? "inactive" : undefined })} /><span>Inactive</span></label>
+        <span className="spacer" />
+        <ExportButton module="clients" path="/clients/export" query={filterQuery(f)} filename="العملاء والملاك.xlsx" label="تصدير العملاء والملاك" />
       </div>
       <div className="row"><span className="hint num">{num(total)} ملف</span></div>
       {failed ? <Note kind="warn">{failed}</Note> : (

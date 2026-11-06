@@ -44,6 +44,9 @@ export interface AttendanceDayView {
   totals: { present: number; late: number; deductions: string };
 }
 export const AttendanceDayQuery = z.object({ day: CalendarDay.optional() });
+/** «تصدير الحضور»: the day on the screen, with its name search. */
+export const AttendanceExport = AttendanceDayQuery.extend({ q: z.string().trim().max(80).optional() });
+export type AttendanceExport = z.infer<typeof AttendanceExport>;
 export const AttendanceRange = z.object({ from: CalendarDay, to: CalendarDay, employeeId: z.string().min(1).optional() });
 export type AttendanceRange = z.infer<typeof AttendanceRange>;
 export interface AttendanceHistoryView { employee: { id: string; name: string } | null; rows: AttendanceRowView[]; totals: { late: number; deductionDays: number; deductions: string } }

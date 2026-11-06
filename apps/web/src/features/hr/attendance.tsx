@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AttendanceDayView, AttendanceHistoryView, EmployeesView, FingerprintRow, WeeklyDelayView } from "@places/contracts";
-import { Card, Chip, Empty, Field, Icon, ImportDialog, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { Card, Chip, Empty, ExportButton, Field, Icon, ImportDialog, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
@@ -49,6 +49,7 @@ export function AttendanceToday() {
         <KpiTile label="خصومات اليوم" value={money(d.totals.deductions)} sub="المرتب ÷ 26 × الخصم" icon="wallet" />
       </div>}
       <div className="toolbar">
+        <ExportButton module="hr" path="/hr/attendance/export" query={new URLSearchParams(q ? { day, q } : { day })} filename={`الحضور ${day}.xlsx`} label="تصدير الحضور" />
         <button className="btn ghost sm" onClick={() => setDay(shift(day, -1))} aria-label="اليوم اللي قبله">‹</button>
         <label className="date-f"><span>اليوم</span><input type="date" value={day} max={today()} onChange={(e) => e.target.value && setDay(e.target.value)} /></label>
         <button className="btn ghost sm" onClick={() => setDay(shift(day, 1))} disabled={day >= today()} aria-label="اليوم اللي بعده">›</button>
