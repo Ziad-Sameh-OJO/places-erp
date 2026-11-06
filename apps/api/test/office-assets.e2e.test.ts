@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
 
-const P = `E2E ${Date.now()}`;
+const P = `E2E assets ${Date.now()}`; // own word: files start in the same millisecond
 let mokhtar: string, nancy: string, hr: string;
 const reviewIds: string[] = [];
 
