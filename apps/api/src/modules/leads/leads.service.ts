@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
-import type { UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import type { LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
 import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
+import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
@@ -95,9 +96,13 @@ export class LeadsService {
   async options(me: CurrentUser): Promise<LeadOptions> {
     const scope = me.grants.scope;
     const people = scope === "own" ? Promise.resolve([]) : this.repo.salespeople(scope === "team" ? { id: { in: me.teamIds } } : {});
-    const [campaigns, salespeople, assignable] = await Promise.all([
+    const [campaigns, holders, assignable] = await Promise.all([
       this.repo.campaigns(), people, me.grants.can("leads", "approve") ? this.repo.routingPeople() : Promise.resolve([]),
     ]);
+    // demo leads.js «Sales» filter: the salespeople, then Telesales as «<name> (Telesales)»
+    const tele = (p: { roles: string[] }) => p.roles.includes(TELESALES) && !p.roles.some((r) => r === "sales" || r === "tl");
+    const salespeople = [...holders.filter((p) => !tele(p)), ...holders.filter(tele).map((p) => ({ ...p, name: `${p.name} (Telesales)` }))]
+      .map(({ id, name }) => ({ id, name }));
     return { campaigns, salespeople, assignable };
   }
 
@@ -434,6 +439,52 @@ export class LeadsService {
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "archive", userId: me.id, before: { archivedAt: null }, after: { archivedAt: at.toISOString() } }, tx);
     });
     return { id, archived: true };
+  }
+
+  /**
+   * The list's bulk bar (demo shell.js bulkApply): each picked lead goes through the same use case as one lead —
+   * «حوّل لسيلز…» is «اسحب الليد وحوّله» (1.14: «leads: approve», that salesperson's next turn is used up, Q2) and
+   * «غيّر المرحلة…» is the stage change — so each one is checked against the caller's scope and audited on its own.
+   * A lead already with that salesperson / in that stage is left as it is (demo). What failed is reported, not hidden.
+   */
+  async batch(me: CurrentUser, input: LeadBatch): Promise<LeadBatchResult> {
+    if (input.to && !me.grants.can("leads", "approve")) throw new ForbiddenException("التحويل لسيلز للأوبريشن ومدير المبيعات والإدارة بس");
+    const now = await this.repo.batchState(ownedBy(me) as never, input.ids);
+    return this.eachLead(input.ids, async (id) => {
+      const lead = now.get(id);
+      if (!lead) throw new NotFoundException(NO_LEAD);
+      if (input.to && lead.assignedToId !== input.to) await this.assign(me, id, { to: input.to });
+      if (input.stage && STAGE_LABEL.get(lead.stage) !== input.stage) await this.changeStage(me, id, { stage: input.stage });
+    });
+  }
+
+  /** «أرشفة» on the picked leads (demo shell.js bulkArchive): each one as «أرشفة» on one lead, audited on its own. */
+  batchArchive(me: CurrentUser, ids: string[]): Promise<LeadBatchResult> {
+    return this.eachLead(ids, (id) => this.archive(me, id));
+  }
+
+  private async eachLead(ids: string[], fn: (id: string) => Promise<unknown>): Promise<LeadBatchResult> {
+    const failed: LeadBatchResult["failed"] = [];
+    for (const id of [...new Set(ids)]) {
+      try { await fn(id); } catch (e) { failed.push({ id, error: e instanceof Error ? e.message : "حصل خطأ" }); }
+    }
+    return { done: new Set(ids).size - failed.length, failed };
+  }
+
+  /**
+   * «تصدير الليدز» (M-12: «أي جدول في السيستم يتصدّر Excel»; demo U.exportBtn behind «leads: export»): the list as it
+   * is filtered, in the caller's scope, with the demo's columns. Audited (who exported what).
+   */
+  async exportRows(me: CurrentUser, f: LeadFilters) {
+    const rows = await this.repo.exportRows(ownedBy(me) as never, f, EXPORT_LIMIT);
+    const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
+    await this.audit.record({ module: "leads", entity: "Lead", entityId: "export", action: "export", userId: me.id,
+      after: { rows: rows.length, filters: Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== undefined && k !== "page" && k !== "pageSize")) } });
+    return rows.map((r) => ({
+      code: r.code, name: r.name, company: r.company?.name ?? "", phones: r.phones.join(" / "), area: r.area, type: r.type, space: r.space,
+      budget: r.budget?.toFixed(2) ?? "", channel: r.channel, campaign: r.campaign?.name ?? "", sales: r.assignedToId ? names.get(r.assignedToId) ?? "" : "",
+      stage: STAGE_LABEL.get(r.stage) ?? r.stage, qualified: r.qualified ? "Yes" : "No", createdAt: r.createdAt,
+    }));
   }
 
   /**

@@ -34,8 +34,19 @@ export class LeadsRepository {
   salespeople(where: Prisma.EmployeeWhereInput) {
     return this.db.employee.findMany({
       where: { AND: [where, { user: { status: { not: "DISABLED" }, roles: { some: { role: { key: { in: [...LEAD_HOLDERS] } } } } } }] },
-      select: { id: true, name: true }, orderBy: { name: "asc" },
-    });
+      select: { id: true, name: true, user: { select: { roles: { select: { role: { select: { key: true } } } } } } }, orderBy: { name: "asc" },
+    }).then((rows) => rows.map((r) => ({ id: r.id, name: r.name, roles: r.user.roles.map((x) => x.role.key) })));
+  }
+
+  /** The picked leads the caller may act on, with what the bulk bar compares (scope in the query). */
+  batchState(scope: Prisma.LeadWhereInput, ids: string[]) {
+    return this.db.lead.findMany({ where: { AND: [scope, { id: { in: ids }, archivedAt: null }] }, select: { id: true, stage: true, assignedToId: true } })
+      .then((rows) => new Map(rows.map((r) => [r.id, r])));
+  }
+
+  /** «تصدير الليدز»: the list under the same scope and filters, newest first, up to `limit` rows. */
+  exportRows(scope: Prisma.LeadWhereInput, f: LeadFilters, limit: number) {
+    return this.db.lead.findMany({ where: leadWhere(scope, f), select: { ...LEAD_ROW, company: { select: { name: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit });
   }
 
   /**

@@ -1,11 +1,22 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { AddComment, AssignLead, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, UpdateLead, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
+import { AddComment, AssignLead, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, UpdateLead, LeadBatch, LeadBatchIds, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendPdf } from "../../core/documents/documents.service";
+import { sendXlsx, type ExcelColumn } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { LeadsService } from "./leads.service";
+
+type ExportRow = Awaited<ReturnType<LeadsService["exportRows"]>>[number];
+/** The demo's export columns (ui.js cols.leads). */
+const EXPORT: ExcelColumn<ExportRow>[] = [
+  { header: "الكود", value: (r) => r.code }, { header: "الاسم", value: (r) => r.name, width: 24 }, { header: "الشركة", value: (r) => r.company, width: 20 },
+  { header: "الموبايل", value: (r) => r.phones, width: 26 }, { header: "Area", value: (r) => r.area, width: 18 }, { header: "Type", value: (r) => r.type },
+  { header: "Space", value: (r) => r.space }, { header: "Budget", value: (r) => r.budget }, { header: "Channel", value: (r) => r.channel },
+  { header: "Campaign", value: (r) => r.campaign, width: 20 }, { header: "Sales", value: (r) => r.sales, width: 20 }, { header: "Stage", value: (r) => r.stage, width: 20 },
+  { header: "Qualified", value: (r) => r.qualified }, { header: "Created", value: (r) => r.createdAt, width: 20 },
+];
 
 /** HTTP only: validate input, check the permission, call the service. No business logic here. */
 @Controller("leads")
@@ -67,6 +78,29 @@ export class LeadsController {
   @Requires("access", "edit")
   setLogRoles(@Me() me: CurrentUser, @Body(new ZodPipe(LogRoles)) body: LogRoles) {
     return this.leads.setLogRoles(me, body);
+  }
+
+  /** «تصدير الليدز» (demo U.exportBtn · M-12): the filtered list as Excel. */
+  @Get("export")
+  @Requires("leads", "export")
+  async export(@Me() me: CurrentUser, @Query(new ZodPipe(LeadFilters)) f: LeadFilters, @Res() res: Response) {
+    await sendXlsx(res, "الليدز.xlsx", EXPORT, await this.leads.exportRows(me, f), "الليدز");
+  }
+
+  /** The list's bulk bar: «حوّل لسيلز…» (also needs «leads: approve», checked in the service) and / or «غيّر المرحلة…». */
+  @Post("batch")
+  @HttpCode(200)
+  @Requires("leads", "edit")
+  batch(@Me() me: CurrentUser, @Body(new ZodPipe(LeadBatch)) body: LeadBatch) {
+    return this.leads.batch(me, body);
+  }
+
+  /** The bulk bar's «أرشفة». */
+  @Post("batch/archive")
+  @HttpCode(200)
+  @Requires("leads", "delete")
+  batchArchive(@Me() me: CurrentUser, @Body(new ZodPipe(LeadBatchIds)) body: LeadBatchIds) {
+    return this.leads.batchArchive(me, body.ids);
   }
 
   @Get(":id")

@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Icon, Note, Tabs } from "@/components/ui";
+import { ExportButton, Icon, Note, Tabs } from "@/components/ui";
 import type { DraftKind, LeadKind } from "@places/contracts";
 import { useMe } from "@/lib/me";
 import { num } from "@/lib/format";
 import { durationText, keepsCompaniesSheet } from "@places/domain";
 import type { LeadQuery } from "./filters";
-import { useSavedViews } from "./filters";
+import { toParams, useSavedViews } from "./filters";
+import { BulkBar } from "./bulk-bar";
 import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
 import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
@@ -45,6 +46,10 @@ export function LeadsList() {
   }, []);
   useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
   const [draftTab, setDraftTab] = useState<DraftKind | null>(null);
+  // the bulk bar's picks (demo shell.js): whoever may change leads or hand them out; cleared when the list changes
+  const [picked, setPicked] = useState<string[]>([]);
+  const canPick = can("leads", "edit") || can("leads", "approve");
+  useEffect(() => setPicked([]), [f, page, kind, mode]);
   const summary = useLeadSummary(kind);
   const calls = useMyCalls().data;
   const options = useLeadOptions();
@@ -102,11 +107,13 @@ export function LeadsList() {
         {(keepsSheet || can("leads", "import")) && <button className="btn ghost" onClick={() => setCompanies(true)}><Icon name="building" />شيت الشركات</button>}
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />إدخال جماعي (Import)</button>}
         {can("leads", "import") && <><OldDataImport kind="leads" /><OldDataImport kind="companies" /></>}{/* 13.1 */}
+        <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind }, 1, 100)} filename="الليدز.xlsx" label="تصدير الليدز" />
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />ليد جديد</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
         ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
-        : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} />}
+        : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} {...(canPick ? { picked, onPick: setPicked } : {})} />}
+      {mode === "list" && picked.length > 0 && <BulkBar ids={picked} onDone={() => setPicked([])} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
       {companies && <CompaniesSheet onClose={() => setCompanies(false)} />}
       {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}

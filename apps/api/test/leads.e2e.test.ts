@@ -374,7 +374,7 @@ test("filter choices: sales get no salespeople, a TL his team only, operations e
   const otherTeamMember = (await prisma.employee.findFirstOrThrow({ where: { teamLeader: { user: { email: "mahmoud.ali@places.com" } } } })).name;
   assert.ok(!team.includes(otherTeamMember));
   const all = await names(ops);
-  assert.ok(all.includes("محمد محسن") && all.includes(otherTeamMember) && all.includes("هدير طارق"));
+  assert.ok(all.includes("محمد محسن") && all.includes(otherTeamMember) && all.includes("هدير طارق (Telesales)")); // demo: Telesales by name with «(Telesales)»
   assert.ok(!all.includes("بسنت الصاوي")); // HR doesn't hold leads
   assert.ok(Array.isArray((await call("/leads/options", { cookie: ops })).body.campaigns));
   assert.equal((await call("/leads/options", { cookie: hr })).status, 403);
