@@ -328,6 +328,7 @@ kbd { font: 500 11px var(--f-mono); background: var(--sunken); border: 1px solid
 .bad-t { color: var(--bad); }
 .lnk { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-text); text-decoration: none; font-size: 12.5px; }
 .lnk svg.i { width: 14px; height: 14px; }
+button.lnk { background: none; border: 0; padding: 0; }
 .tab-n { font: 600 10.5px var(--f-mono); background: var(--surface-2); border-radius: 8px; padding: 0 6px; color: var(--ink-3); }
 .tabs button[aria-selected="true"] .tab-n { background: var(--accent-soft); color: var(--accent-text); }
 .card.flat { box-shadow: none; background: var(--surface-2); }
