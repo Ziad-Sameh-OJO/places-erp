@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, localDate, routingForDay, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -16,10 +16,8 @@ import { BusinessTimeService } from "../../core/business-time/business-time.serv
 import { InventoryService } from "../inventory/inventory.service";
 import { DocumentsService } from "../../core/documents/documents.service";
 import { unitListHtml, unitListLine } from "./unit-list";
-import { LeavesService } from "../hr/leaves.service";
 import { CompaniesService } from "./companies.service";
 import { AttendanceService } from "../hr/attendance.service";
-import { RotationService } from "./rotation.service";
 import { ClientsService } from "../clients/clients.service";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
@@ -46,10 +44,8 @@ export class LeadsService {
     private readonly notifications: NotificationsService,
     private readonly inventory: InventoryService,
     private readonly documents: DocumentsService,
-    private readonly leaves: LeavesService,
     private readonly companies: CompaniesService,
     private readonly attendance: AttendanceService, // 7.3: a marked Visit re-reads that day
-    private readonly rotation: RotationService, // 1.23: today's order
     private readonly clients: ClientsService, // M-10: Done Deal makes the client's file; an old client's number joins it
   ) {}
 
@@ -278,17 +274,14 @@ export class LeadsService {
     }
 
     const created = await this.db.$transaction(async (tx) => {
-      const state = routingForDay(await this.repo.lockRouting(tx), localDate(new Date())); // first: leads created at the same moment take their turns one after the other
-      const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
-      const router = new LeadRouter(state);
+      const router = new LeadRouter(await this.repo.lockRouting(tx)); // first: leads created at the same moment take their turns one after the other
       const placement = placeNewLead(
         { employeeId: me.employeeId, isTelesales: me.roles.includes(TELESALES), ownScope: me.grants.scope === "own" },
         { assignToId: input.assignToId, keep: input.keep },
       );
       if (placement.kind === "hand") router.assignedByHand(placement.to);
-      // the area's rotation, without anyone whose account was switched off since they were ticked (1.13) or who is on approved leave today (1.15, M-05 6.2)
-      const onLeave = placement.kind === "route" ? await this.leaves.employeesOnLeave(localDate(new Date()), tx) : new Set<string>();
-      const assignedToId = placement.kind === "route" ? router.next(input.area, await this.rotation.order((await this.repo.stillWorking(pools[input.area] ?? [], tx)).filter((id) => !onLeave.has(id)), tx)) : placement.to;
+      // the area's rotation in today's order (1.23), without anyone whose account was switched off since they were ticked (1.13) or who is on approved leave today (1.15, M-05 6.2)
+      const assignedToId = placement.kind === "route" ? router.next(input.area, await this.repo.areaPool(tx, input.area)) : placement.to;
       await this.repo.saveRouting(tx, router.snapshot());
 
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
@@ -323,12 +316,10 @@ export class LeadsService {
 
   /**
    * The area's rotation as a new lead gets it, for the queues that route by it (New Lead 1.17, Draft 1.26): without
-   * anyone switched off (1.13) or on approved leave today (1.15). Inside the caller's transaction.
+   * anyone switched off (1.13) or on approved leave today (1.15), in today's order (1.23). Inside the caller's transaction.
    */
-  async areaPool(tx: Prisma.TransactionClient, area: string): Promise<string[]> {
-    const pools = ((await tx.setting.findUnique({ where: { key: "areaRouting" } }))?.value ?? {}) as Record<string, string[]>;
-    const onLeave = await this.leaves.employeesOnLeave(localDate(new Date()), tx);
-    return (await this.repo.stillWorking(pools[area] ?? [], tx)).filter((e) => !onLeave.has(e));
+  areaPool(tx: Prisma.TransactionClient, area: string): Promise<string[]> {
+    return this.repo.areaPool(tx, area);
   }
 
   /** The lead rules' «ليد جديد اتوزع» for one lead and the salesperson it went to. */

@@ -157,6 +157,24 @@ test("1.17 the New Lead clock: 30 minutes by default (Heba's KPI item), negative
   assert.equal(newLeadMinutesLeft(at, winter("2026-11-05T12:45:00")), -15);
 });
 
+test("4 Nov meeting: the New Lead (30 min) and Draft (24 h) clocks come from Heba's KPI items (11.15), not the code", async () => {
+  const { leadClocks, newLeadMinutesLeft, draftMinutesLeft } = await import("../src/lead-rules.ts");
+  // the client's card (seed-data kpi-q4-2026, u6): «توزيع الليد المؤهل خلال 30 دقيقة», «قرار … خلال يومه» 24 hours
+  const heba = [{ metric: "newLeadRoute", params: { min: 30, per: "quarter" } }, { metric: null, params: {} }, { metric: "draftAction", params: { hours: 24, per: "quarter" } }];
+  assert.deepEqual(leadClocks(heba), { newLeadMin: 30, draftHours: 24 });
+  // changed on the card: the queue's countdown follows
+  const changed = leadClocks([{ metric: "newLeadRoute", params: { min: 45 } }, { metric: "draftAction", params: { hours: 48 } }]);
+  assert.deepEqual(changed, { newLeadMin: 45, draftHours: 48 });
+  const at = winter("2026-11-05T12:00:00");
+  assert.equal(newLeadMinutesLeft(at, winter("2026-11-05T12:40:00"), changed.newLeadMin), 5);
+  assert.equal(draftMinutesLeft(at, winter("2026-11-06T13:00:00"), changed.draftHours), 23 * 60);
+  // no item, or no positive number on it: the demo's default
+  assert.deepEqual(leadClocks([]), { newLeadMin: 30, draftHours: 24 });
+  assert.deepEqual(leadClocks([{ metric: "newLeadRoute", params: { min: 0 } }, { metric: "draftAction", params: null }]), { newLeadMin: 30, draftHours: 24 });
+  // the first item counts, like the demo
+  assert.equal(leadClocks([{ metric: "newLeadRoute", params: { min: 20 } }, { metric: "newLeadRoute", params: { min: 60 } }]).newLeadMin, 20);
+});
+
 test("1.18 the No Answer Alarm (M-01 Q5): every 4 working hours from the mark, a logged call or the last Alarm", async () => {
   const { noAnswerReminderDue } = await import("../src/lead-rules.ts");
   const none = new Set<string>();

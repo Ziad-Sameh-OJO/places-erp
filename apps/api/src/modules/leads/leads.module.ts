@@ -13,6 +13,7 @@ import { LeadRulesController } from "./lead-rules.controller";
 import { AccessModule } from "../access/access.module";
 import { InventoryModule } from "../inventory/inventory.module";
 import { HrModule } from "../hr/hr.module";
+import { KpisModule } from "../kpis/kpis.module";
 import { RotationController } from "./rotation.controller";
 import { RotationService } from "./rotation.service";
 import { VisitPostponeController } from "./visit-postpone.controller";
@@ -37,7 +38,7 @@ import { DraftsService } from "./drafts.service";
 
 /** M-01 · العملاء المحتملين والتوزيع. The reference module: copy its shape for every other module. */
 @Module({
-  imports: [SettingsModule, AccessModule, InventoryModule, HrModule, ClientsModule], // ClientsModule: the client file on Done Deal (M-10) · // HrModule: who is on approved leave today (1.15) · // InventoryModule: the units a Visit lists (1.9) · // the lists and holidays (M-13); the roles for «مين يتبلّغ» (1.29) // the SLA rules (M-13) for the list's SLA column
+  imports: [SettingsModule, AccessModule, InventoryModule, HrModule, ClientsModule, KpisModule], // KpisModule: the New Lead / Draft clocks live on their KPI items (11.15) · ClientsModule: the client file on Done Deal (M-10) · // HrModule: who is on approved leave today (1.15) · // InventoryModule: the units a Visit lists (1.9) · // the lists and holidays (M-13); the roles for «مين يتبلّغ» (1.29) // the SLA rules (M-13) for the list's SLA column
   controllers: [LeadDuplicatesController, NewLeadsController, DraftsController, LeadBulkController, SecondCallsController, RoutingController, RotationController, LeadRulesController, VisitPostponeController, LeadsController, LeadsTodayController, CompaniesController], // first: «leads/duplicates», «leads/new-leads», «leads/drafts», «leads/routing» must win over «leads/:id»
   providers: [LeadsService, LeadDuplicatesService, NewLeadsService, DraftsService, RoutingService, LeadRulesService, LeadsRepository, RotationService, VisitPostponeService, LeadsTodayService, LeadsTodayRepository, LeadBulkService, LeadBulkRepository, SecondCallsService, SecondCallsRepository, LeadImportService, CompaniesService, CompaniesRepository], // 1.23 · 1.24 · 1.22
   exports: [LeadsService, LeadRulesService, LeadImportService], // LeadImportService: 13.1

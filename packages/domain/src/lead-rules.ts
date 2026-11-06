@@ -178,7 +178,8 @@ export function noAnswerReminderDue(
 
 /**
  * Minutes Operations has to route a New Lead from Telesales (demo: Heba's KPI item «توزيع الـ New Lead في ميعاده»,
- * 30 minutes by default · 11.15). The queue shows «باقي X د», or «اتأخر X د» once it's negative.
+ * 30 minutes by default · 11.15; the item's own minutes through leadClocks). The queue shows «باقي X د», or «اتأخر X د»
+ * once it's negative.
  */
 export const NEW_LEAD_ROUTE_MIN = 30;
 export function newLeadMinutesLeft(requestedAt: Date, now: Date, limit = NEW_LEAD_ROUTE_MIN): number {
@@ -202,11 +203,29 @@ export function draftStep(lead: { readonly stage: LeadStage; readonly lastTouch:
 
 /**
  * Hours Operations has to decide on a Draft / Draft Admin lead (demo: Heba's KPI item «قرارات الـ Draft في ميعادها»,
- * 24 hours by default · 11.15): «باقي X س», or «اتأخر X س» once negative.
+ * 24 hours by default · 11.15; the item's own hours through leadClocks): «باقي X س», or «اتأخر X س» once negative.
  */
 export const DRAFT_DECIDE_HOURS = 24;
 export function draftMinutesLeft(at: Date, now: Date, hours = DRAFT_DECIDE_HOURS): number {
   return hours * 60 - Math.floor((now.getTime() - at.getTime()) / 60_000);
+}
+
+/** Operations' two clocks: minutes to route a New Lead, hours to decide on a Draft / Draft Admin lead. */
+export interface LeadClocks { readonly newLeadMin: number; readonly draftHours: number }
+
+/**
+ * 4 Nov meeting: no timing is a number in the code. These two live on the KPI items that measure them (11.15, Heba's
+ * card: «توزيع الـ New Lead في ميعاده» min, «قرارات الـ Draft في ميعادها» hours), so the countdown and the KPI never
+ * disagree; the first such item of the quarter's cards counts, like the demo (A.newLeadMins, A.draftClock). No item,
+ * or no positive number on it → the demo's default (30 minutes, 24 hours).
+ */
+export function leadClocks(items: readonly { readonly metric: string | null; readonly params: unknown }[]): LeadClocks {
+  const param = (metric: string, key: string) => {
+    const p = items.find((i) => i.metric === metric)?.params;
+    const n = p && typeof p === "object" ? Number((p as Record<string, unknown>)[key]) : NaN;
+    return n > 0 ? n : null;
+  };
+  return { newLeadMin: param("newLeadRoute", "min") ?? NEW_LEAD_ROUTE_MIN, draftHours: param("draftAction", "hours") ?? DRAFT_DECIDE_HOURS };
 }
 
 /** The stages that send a lead to the Draft Admin (1.27). */

@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma, PrismaClient } from "@places/db";
+import { type Prisma, type PrismaClient, clockOn, dayVisits } from "@places/db";
 import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView, IdealView } from "@places/contracts";
-import { attendanceDay, dayStart, dayStartTime, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, type MemberMonth } from "@places/domain";
+import { attendanceDay, dayStart, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, type MemberMonth } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -42,9 +42,7 @@ export class AttendanceService {
   }
 
   private hhmm(d: Date | null, day: string): string | null {
-    if (!d) return null;
-    const min = Math.round((d.getTime() - dayStart(day).getTime()) / 60_000);
-    return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+    return clockOn(d, day);
   }
 
   private row(e: Emp, a: { id: string; day: Date; checkInAt: Date | null; checkOutAt: Date | null; visitAt: Date | null; lateMinutes: number; deduction: Prisma.Decimal; source: string; kind: string; hrConfirmed: boolean }): AttendanceRowView {
@@ -58,15 +56,9 @@ export class AttendanceService {
       deductionAmount: toDecimal(deductionAmount(fromDecimal(e.salary.toFixed(2)), ded)), label, source: a.source, customTiers: e.deductionTiers != null, fixedSchedule: e.fixedSchedule };
   }
 
-  /** 7.3 · each salesperson's Visits that day (the lead's owner). Meetings stay out until the client says they count (open question). */
-  private async visitsOn(ids: string[], day: string, tx: Tx | PrismaClient = this.db): Promise<Map<string, DayVisit[]>> {
-    const from = dayStart(day);
-    const rows = await tx.leadVisit.findMany({ where: { kind: "visit", at: { gte: from, lt: new Date(from.getTime() + 86_400_000) }, lead: { assignedToId: { in: ids } } },
-      select: { at: true, outcome: true, postponeStatus: true, lead: { select: { assignedToId: true } } } });
-    const out = new Map<string, DayVisit[]>();
-    for (const v of rows) out.set(v.lead.assignedToId!, [...(out.get(v.lead.assignedToId!) ?? []),
-      { at: this.hhmm(v.at, day)!, outcome: v.outcome === "done" || v.outcome === "not_done" ? v.outcome : null, postponed: v.postponeStatus === "approved" }]);
-    return out;
+  /** 7.3 · each salesperson's Visits that day: the same reading the day's rotation order uses (1.23, @places/db). */
+  private visitsOn(ids: string[], day: string, tx: Tx | PrismaClient = this.db): Promise<Map<string, DayVisit[]>> {
+    return dayVisits(tx, ids, day);
   }
 
   /**
@@ -125,15 +117,6 @@ export class AttendanceService {
       await this.audit.record({ module: "hr", entity: "AttendanceDay", entityId: id, action: "confirm-forgot", userId: me.id, before: { deduction: Number(a.deduction) }, after: { day: isoDay(a.day), deduction: r.deduction } }, tx);
       return this.row(a.employee, out);
     });
-  }
-
-  /** 1.23 · when each of these people started the day: the fingerprint, or the Visit time (7.3); the Visit itself for the card. */
-  async dayStarts(ids: string[], day: string, tx: Tx | PrismaClient = this.db): Promise<Map<string, { start: string | null; visit: string | null }>> {
-    const [rows, visits] = await Promise.all([tx.attendanceDay.findMany({ where: { employeeId: { in: ids }, day: asDay(day) }, select: { employeeId: true, checkInAt: true } }), this.visitsOn(ids, day, tx)]);
-    return new Map(ids.map((id) => {
-      const v = pickDayVisit(visits.get(id) ?? []), counted = v && v.outcome !== "not_done" ? v : null;
-      return [id, { start: dayStartTime(this.hhmm(rows.find((r) => r.employeeId === id)?.checkInAt ?? null, day), counted), visit: counted?.at ?? null }];
-    }));
   }
 
   async day(me: CurrentUser, day = localDate(new Date())): Promise<AttendanceDayView> {

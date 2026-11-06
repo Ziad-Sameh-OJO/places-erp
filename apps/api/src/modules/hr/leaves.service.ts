@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma, PrismaClient } from "@places/db";
+import { type Prisma, type PrismaClient, onLeave } from "@places/db";
 import type { LeaveAsk, LeaveBalance, LeaveBalancesView, LeaveCalendarView, LeaveStatusKey, LeaveView, MyLeaves } from "@places/contracts";
 import { afterReturn, daysWithin, isOutsideRequest, leaveDays, leaveProblem, localDate, OUTSIDE_REQUESTS } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -161,6 +161,6 @@ export class LeavesService {
   /** Approved leave days (used by attendance: a person on leave isn't «مبصمش»). */
   async employeesOnLeave(dayIso: string, tx: Tx | PrismaClient = this.db): Promise<Set<string>> {
     // `tx`: a caller holding a transaction (lead routing) must not wait for a second pooled connection
-    return new Set((await tx.leaveRequest.findMany({ where: { status: { in: COUNTED }, fromDay: { lte: day(dayIso) }, toDay: { gte: day(dayIso) } }, select: { employeeId: true } })).map((r) => r.employeeId));
+    return onLeave(tx, dayIso); // the same reading the day's rotation uses (@places/db, 1.15 · 1.23)
   }
 }

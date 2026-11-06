@@ -5,7 +5,7 @@ import {
   type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
 } from "@places/contracts";
 import {
-  type Bands, type MetricParams, type Method, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
+  type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -52,6 +52,11 @@ export class KpisService {
   private async watchers(): Promise<string[]> {
     const w = KpiWatch.safeParse(await this.repo.watchers());
     return w.success ? w.data : [];
+  }
+
+  /** Operations' New Lead and Draft clocks, from the KPI items that measure them (11.15 · 4 Nov meeting: no timing in the code). */
+  async leadClocks(): Promise<LeadClocks> {
+    return leadClocks(await this.repo.leadClockItems());
   }
 
   async who(me: CurrentUser): Promise<Who> {

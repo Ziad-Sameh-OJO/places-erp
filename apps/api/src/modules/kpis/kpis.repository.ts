@@ -26,6 +26,14 @@ export class KpisRepository {
     return this.db.kpiQuarter.findMany({ orderBy: { id: "desc" } });
   }
 
+  /** The current quarter's «أوتوماتيك» items that hold Operations' clocks (11.15), in a stable order. */
+  async leadClockItems() {
+    const q = await this.currentQuarter();
+    if (!q) return [];
+    return this.db.kpiItem.findMany({ where: { method: "system", metric: { in: ["newLeadRoute", "draftAction"] }, card: { quarter: q.id } },
+      select: { metric: true, params: true }, orderBy: [{ card: { employee: { name: "asc" } } }, { position: "asc" }] });
+  }
+
   quarterStats() {
     return this.db.kpiCard.groupBy({ by: ["quarter"], _count: { _all: true }, _avg: { finalScore: true } });
   }
