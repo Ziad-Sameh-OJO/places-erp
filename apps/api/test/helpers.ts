@@ -6,6 +6,8 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { after } from "node:test";
 import { prisma } from "@places/db";
+import type { LeadRules } from "@places/domain";
+import { workingDay } from "../../worker/src/calendar.ts";
 
 export const API = (process.env.API_URL ?? "http://localhost:4000") + "/api/v1";
 export const PW = process.env.SEED_DEV_PASSWORD!;
@@ -120,3 +122,11 @@ export function lastMail(to: string, since: number): { subject: string; text: st
   return JSON.parse(readFileSync(`${OUTBOX}/${f}`, "utf8"));
 }
 export const tokenIn = (text: string) => text.match(/token=([\w-]+)/)![1]!;
+
+/**
+ * Now, or the same time on the next working day when today is a day off (Friday, a holiday, a configured day off):
+ * the daily jobs rest on days off, so a test that runs «today's» job runs it on a day it works.
+ */
+export async function workingNow(rules?: LeadRules): Promise<Date> {
+  for (let t = Date.now(); ; t += 86_400_000) if (await workingDay(new Date(t), rules)) return new Date(t);
+}

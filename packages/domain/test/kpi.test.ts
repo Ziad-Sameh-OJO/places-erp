@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness } from "../src/kpi.ts";
+import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness } from "../src/kpi.ts";
 import { monthDeduction } from "../src/attendance.ts";
 
 test("11.6 · the client's bands reach payroll: 102% on a 10,000 bonus → +1,500, 65% on a 12,000 salary → −1,800", () => {
@@ -134,4 +134,11 @@ test("«الحضور (السيلز)»: half for absence up to 5 days, half for l
   assert.equal(salesAttendance(5, 6), 100);
   assert.equal(salesAttendance(10, 3), 75);
   assert.equal(salesAttendance(5, 12), 75);
+});
+
+test("M-08 3.1 · «الالتزام بسقف العهدة»: Mokhtar's safe at or under its 50,000 ceiling = 100%, over it = 0%, no ceiling = not measured", () => {
+  assert.equal(pettyCapScore([{ balance: 50_000_00, cap: 50_000_00 }]), 100);
+  assert.equal(pettyCapScore([{ balance: 50_000_01, cap: 50_000_00 }]), 0);
+  assert.equal(pettyCapScore([{ balance: 12_000_00, cap: 50_000_00 }, { balance: 9_000_00, cap: 5_000_00 }]), 0); // one safe over is enough
+  assert.equal(pettyCapScore([]), null);
 });

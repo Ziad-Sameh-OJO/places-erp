@@ -27,7 +27,7 @@ export async function noAnswerReminderTick(now = new Date(), pinned?: LeadRules)
       const owner = await ownerOf(l.assignedToId, tx);
       if (!claimed.count || !owner) return null;
       // demo (home «كلّم … (No Answer)»): the salesperson calls, logs the call, and the clock restarts
-      await tx.notification.create({ data: { userId: owner.userId, text, link, important } });
+      await tx.notification.create({ data: { userId: owner.userId, event: "lead.no_answer", text, link, important } });
       sent++;
       return owner.userId;
     });

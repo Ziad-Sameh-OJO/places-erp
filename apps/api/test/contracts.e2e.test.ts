@@ -9,7 +9,7 @@ import { prisma } from "@places/db";
 import { localDate } from "@places/domain";
 import { contractRenewalTick } from "../../worker/src/processors/contract-renewal.ts";
 import { contractExpiryTick } from "../../worker/src/processors/contract-expiry.ts";
-import { call, mark, session } from "./helpers.ts";
+import { call, mark, session, workingNow } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E ${stamp} عقد`;
@@ -116,7 +116,8 @@ let endingId: string;
 test("6.3 · M-11 2.4 · 7.1: 60 days left → one renewal alert to the salesperson and Finance, and a renewal lead with him; once", async () => {
   const ashrafUser = (await prisma.user.findUniqueOrThrow({ where: { email: "ahmed.ashraf@places.com" } })).id;
   const mine = (userId: string) => prisma.notification.findMany({ where: { userId, text: { contains: C } } });
-  await contractRenewalTick();
+  const workday = await workingNow(); // the job rests on days off (a Friday run of the suite)
+  await contractRenewalTick(workday);
   const c = await prisma.contract.findUniqueOrThrow({ where: { id: endingId } });
   assert.deepEqual(c.renewalAlerts.sort(), [60, 90]); // the 90 passed unseen: one alert, not two
   const lead = await prisma.lead.findUniqueOrThrow({ where: { id: c.renewalLeadId! } });
@@ -131,7 +132,7 @@ test("6.3 · M-11 2.4 · 7.1: 60 days left → one renewal alert to the salesper
   const audited = () => prisma.auditLog.count({ where: { entity: "Lead", entityId: lead.id, action: "create", userId: null } });
   assert.equal(await audited(), 1);
 
-  await contractRenewalTick(); // again the same day: nothing new
+  await contractRenewalTick(workday); // again the same day: nothing new
   assert.equal((await mine(mohsenUser)).length, 1);
   assert.equal(await audited(), 1);
   assert.equal((await prisma.contract.findUniqueOrThrow({ where: { id: contractId } })).renewalAlerts.length, 0); // ends in a year

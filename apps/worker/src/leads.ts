@@ -49,7 +49,7 @@ export async function tellRule(tx: Prisma.TransactionClient, who: RuleWho, owner
     where: { status: "ACTIVE", OR: [{ id: { in: to } }, { roles: { some: { role: { key: { in: to } } } } }] },
     select: { id: true, email: true, emailNotifications: true },
   });
-  if (who.ch.includes("app")) await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, text: n.text, link: n.link, important: n.important })) });
+  if (who.ch.includes("app")) await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, event: n.event ?? null, text: n.text, link: n.link, important: n.important })) });
   const mail = who.ch.includes("email") ? people.filter((p) => p.emailNotifications || n.important) : [];
   if (mail.length) await tx.mailLog.createMany({ data: mail.map((p) => ({ to: p.email, subject: `${n.subject ?? "الليدز"} · Places ERP`, text: `${n.text}\n${process.env.WEB_ORIGIN ?? ""}${n.link}` })) });
   return told(people.map((p) => p.id));
