@@ -27,7 +27,10 @@ before(async () => {
   stampBefore = (await prisma.setting.findUnique({ where: { key: "stamp" } }))?.value;
 });
 after(async () => {
-  const claims = (await prisma.claim.findMany({ where: { company: { startsWith: P } }, select: { id: true } })).map((c) => c.id);
+  const made = await prisma.claim.findMany({ where: { company: { startsWith: P } }, select: { id: true, no: true } });
+  const claims = made.map((c) => c.id);
+  // «الفاتورة الإلكترونية للمطالبة CL-1 اترفعت» names the claim by its number only
+  await prisma.notification.deleteMany({ where: { createdAt: { gte: START }, OR: made.map((c) => ({ text: { contains: `CL-${c.no} ` } })) } });
   await prisma.auditLog.deleteMany({ where: { entityId: { in: claims } } });
   await prisma.claim.deleteMany({ where: { id: { in: claims } } });
   await cleanFinance(P, START);

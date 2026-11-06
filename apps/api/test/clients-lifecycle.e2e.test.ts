@@ -8,10 +8,11 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { clientsInactiveTick } from "../../worker/src/processors/clients-inactive.ts";
-import { call, session } from "./helpers.ts";
+import { call, mark, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const P = `E2E life ${stamp}`; // own prefix: the clients files start in the same millisecond
+mark(P); // a deletion request is mailed to the owners too
 const phone = (n: number) => `0156${stamp.slice(-6)}${n}`; // own prefix: other e2e files use 010 / 011 / 012 + the same stamp
 const DAY = 86_400_000;
 let mohsen: string, randa: string, finance: string;

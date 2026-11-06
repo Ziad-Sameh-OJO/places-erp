@@ -8,7 +8,7 @@ import "reflect-metadata";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { call, removeOwners, session } from "./helpers.ts";
 
 interface Units {
   lock(unitId: string, dealId: string, by: { type: string; userId: string }): Promise<{ status: string }>;
@@ -16,7 +16,8 @@ interface Units {
 }
 interface Ctx { get<T>(token: unknown): T; close(): Promise<void> }
 
-const stamp = String(Date.now());
+const START = new Date();
+const stamp = String(START.getTime());
 const P = `E2E ${stamp} قفل`;
 let manar: string, randa: string, sales: string, manarId: string, randaId: string, agentId: string;
 let ctx: Ctx, units: Units;
@@ -54,8 +55,11 @@ after(async () => {
   await prisma.unitLock.deleteMany({ where: { unitId } });
   await prisma.deal.deleteMany({ where: { code: { startsWith: `D-L${stamp}` } } });
   await prisma.auditLog.deleteMany({ where: { entity: "Unit", entityId: unitId } });
+  const owner = (await prisma.unit.findUnique({ where: { id: unitId }, select: { ownerId: true } }))?.ownerId;
   await prisma.unit.deleteMany({ where: { id: unitId } });
-  await prisma.notification.deleteMany({ where: { text: { contains: code } } });
+  if (owner) await removeOwners([owner], START);
+  // «U-126» is also the start of «U-1260»: only what was said since this file started
+  if (code) await prisma.notification.deleteMany({ where: { text: { contains: code }, createdAt: { gte: START } } });
   await prisma.$disconnect();
 });
 

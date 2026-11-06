@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { call, mark, session } from "./helpers.ts";
 
 const stamp = Date.now();
 let nancy: string, boss: string, sales: string, bossId: string;
@@ -34,8 +34,10 @@ before(async () => {
   ] });
 });
 
+mark("E2E نقل"); // «نانسي إسلام طالب نقل … E2E نقل leaver» to the manager, and his answer
 after(async () => {
   const ids = [leaver.userId, heir.userId];
+  await prisma.notification.deleteMany({ where: { userId: { in: ids } } });
   await prisma.leadActivity.deleteMany({ where: { lead: { code: { startsWith: `L-HO${stamp}` } } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-HO${stamp}` } } });
   await prisma.task.deleteMany({ where: { toUserId: { in: ids } } });

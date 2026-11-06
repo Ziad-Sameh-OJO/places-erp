@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import ExcelJS from "exceljs";
 import { hash } from "@node-rs/argon2";
-import { API, PW, call, lastMail, login, session, tokenIn } from "./helpers.ts";
+import { API, PW, call, lastMail, login, mark, session, tokenIn } from "./helpers.ts";
 
 const NEW_PW = "NewPass12345x";
 const stamp = Date.now();
@@ -19,10 +19,14 @@ before(async () => {
   tlEmployeeId = (await prisma.employee.findFirstOrThrow({ where: { name: "محمود علي" } })).id;
 });
 
+// what was said about this file's accounts and role (to the admins too), and the mails to its addresses
+mark(String(stamp), "تجربة E2E", "E2E Sales Plus");
 after(async () => {
-  const users = await prisma.user.findMany({ where: { email: { endsWith: "@places.test" } }, select: { id: true } });
-  await prisma.employee.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
-  await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
+  // only this file's accounts: other files make @places.test people too and may still be running
+  const users = (await prisma.user.findMany({ where: { email: { endsWith: `${stamp}@places.test` } }, select: { id: true } })).map((u) => u.id);
+  await prisma.notification.deleteMany({ where: { userId: { in: users } } });
+  await prisma.employee.deleteMany({ where: { userId: { in: users } } });
+  await prisma.user.deleteMany({ where: { id: { in: users } } });
   await prisma.role.deleteMany({ where: { key: { startsWith: "custom-" }, label: { startsWith: "E2E" } } });
   await prisma.holiday.deleteMany({ where: { label: { startsWith: "E2E-ACC" } } }) // its own prefix: lead-rules adds «E2E إجازة» at the same time;
   await prisma.$disconnect();
@@ -99,11 +103,12 @@ test("changing someone's roles applies at once and notifies them", async () => {
   assert.equal(r.status, 200, JSON.stringify(r.body));
   const cookie = await session(email, NEW_PW);
   assert.deepEqual((await call("/auth/me", { cookie })).body.permissions.leads, ["view", "create", "edit", "import"]);
+  // only this one: a Broadcast sent by another file at the same time reaches every salesperson, this one too
   const n = await call("/notifications", { cookie });
-  assert.equal(n.body.unread, 1);
-  assert.match(n.body.items[0].text, /أدوارك اتغيرت/);
-  assert.equal((await call(`/notifications/${n.body.items[0].id}/read`, { method: "POST", cookie })).status, 204);
-  assert.equal((await call("/notifications", { cookie })).body.unread, 0);
+  const roles = (n.body.items as { id: string; text: string }[]).filter((x) => /أدوارك اتغيرت/.test(x.text));
+  assert.equal(roles.length, 1);
+  assert.equal((await call(`/notifications/${roles[0]!.id}/read`, { method: "POST", cookie })).status, 204);
+  assert.ok((await prisma.notification.findUniqueOrThrow({ where: { id: roles[0]!.id } })).readAt);
 });
 
 test("per-person exception: open finance for one person, then drop it", async () => {
@@ -310,11 +315,17 @@ test("notification rules: the admin turns email off for an event; my own email p
   assert.ok(rules.some((r: { key: string }) => r.key === "lead.pulled"));
   assert.equal((await call("/notifications/rules/hr.excuse", { method: "PUT", cookie: sales, body: { channels: ["app"] } })).status, 403);
   const since = new Date();
-  assert.equal((await call("/notifications/rules/procurement.request", { method: "PUT", cookie: admin, body: { channels: ["app", "push"] } })).status, 200);
-  await call("/notifications/rules/procurement.request", { method: "PUT", cookie: admin, body: { channels: ["app", "push", "email"] } });
-  // audited with what it was, in the same transaction as the change
-  const trail = await prisma.auditLog.findMany({ where: { entity: "NotificationRule", entityId: "procurement.request", at: { gte: since } }, orderBy: { at: "asc" } });
-  assert.deepEqual(trail.map((a) => [a.before, a.after]).at(-1), [{ channels: ["app", "push"] }, { channels: ["app", "push", "email"] }]);
+  const saved = await prisma.notificationRule.findUnique({ where: { event: "procurement.request" } });
+  try {
+    assert.equal((await call("/notifications/rules/procurement.request", { method: "PUT", cookie: admin, body: { channels: ["app", "push"] } })).status, 200);
+    await call("/notifications/rules/procurement.request", { method: "PUT", cookie: admin, body: { channels: ["app", "push", "email"] } });
+    // audited with what it was, in the same transaction as the change
+    const trail = await prisma.auditLog.findMany({ where: { entity: "NotificationRule", entityId: "procurement.request", at: { gte: since } }, orderBy: { at: "asc" } });
+    assert.deepEqual(trail.map((a) => [a.before, a.after]).at(-1), [{ channels: ["app", "push"] }, { channels: ["app", "push", "email"] }]);
+  } finally { // the rule as it was: no row means the default
+    if (saved) await prisma.notificationRule.update({ where: { event: saved.event }, data: saved });
+    else await prisma.notificationRule.deleteMany({ where: { event: "procurement.request" } });
+  }
   assert.equal((await call("/notifications/preferences", { method: "PUT", cookie: sales, body: { emailNotifications: false } })).status, 204);
   await call("/notifications/preferences", { method: "PUT", cookie: sales, body: { emailNotifications: true } });
 });

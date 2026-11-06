@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { hash } from "@node-rs/argon2";
 import { prisma } from "@places/db";
-import { API, PW, call, login } from "./helpers.ts";
+import { API, PW, call, login, mark } from "./helpers.ts";
 
 test("behind the web app's /api proxy the client's IP is used (rate limit, audit), not the proxy's (13.3)", async () => {
   const ip = `198.51.100.${1 + Math.floor(Math.random() * 254)}`;
@@ -66,6 +66,7 @@ test("logout ends the session at once", async () => {
 
 test("5 wrong passwords lock the account, even the right one is refused after that", async () => {
   const email = `lock-test-${Date.now()}@places.test`;
+  mark(email); // the Super Admin's «دخول غريب» alert names it
   const u = await prisma.user.create({ data: { email, status: "ACTIVE", passwordHash: await hash(PW) } });
   try {
     for (let i = 0; i < 5; i++) assert.equal((await login(email, "wrong-password-1")).status, 401);

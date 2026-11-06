@@ -7,7 +7,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { API, call, session } from "./helpers.ts";
+import { API, call, cleanLeaveNotices, session } from "./helpers.ts";
 
 const START = new Date();
 let mohsen: string, tlA: string, tlB: string, basant: string;
@@ -24,7 +24,7 @@ after(async () => {
   const ids = (await prisma.leaveRequest.findMany({ where: { employeeId, createdAt: { gte: START } }, select: { id: true } })).map((r) => r.id);
   await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } });
   await prisma.leaveRequest.deleteMany({ where: { id: { in: ids } } });
-  await prisma.notification.deleteMany({ where: { text: { contains: "إجازة" }, createdAt: { gte: START } } });
+  await cleanLeaveNotices(employeeId, START);
   await prisma.$disconnect();
 });
 

@@ -27,7 +27,7 @@ before(async () => {
 after(async () => {
   await prisma.lead.deleteMany({ where: { OR: [{ id: existingLead }, { phones: { hasSome: [...Array(30).keys()].map(num) } }] } });
   await prisma.leadBulk.deleteMany({ where: { id: { in: bulkIds } } });
-  await prisma.notification.deleteMany({ where: { createdAt: { gte: START }, OR: [{ text: { contains: "إدخال جماعي" } }, { text: { contains: "الأوبريشن وافقت" } }] } });
+  await prisma.notification.deleteMany({ where: { createdAt: { gte: START }, OR: [{ text: { contains: "إدخال جماعي" } }, { text: { contains: "الإدخال الجماعي" } }, { text: { contains: "الأوبريشن وافقت" } }] } });
   await prisma.$disconnect();
 });
 

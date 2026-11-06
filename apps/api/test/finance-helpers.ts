@@ -43,5 +43,6 @@ export async function cleanFinance(prefix: string, since: Date, holders: string[
   await prisma.journalEntry.deleteMany({ where: { id: { in: entries } } });
   await prisma.budgetLine.deleteMany({ where: { id: { in: budgets } } });
   await prisma.account.deleteMany({ where: { id: { in: accounts } } });
+  await prisma.mailLog.deleteMany({ where: { text: { contains: prefix }, createdAt: { gte: since } } });
   await prisma.notification.deleteMany({ where: { text: { contains: prefix }, createdAt: { gte: since } } });
 }

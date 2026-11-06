@@ -9,11 +9,12 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { call, mark, session } from "./helpers.ts";
 import { procurementReminderTick } from "../../worker/src/processors/procurement-reminder.ts";
 
 const START = new Date();
 const P = `E2E procurement ${START.getTime()}`; // own word: files start in the same millisecond
+mark(P); // the requests are mailed to the approvers too
 let mokhtar: string, nancy: string, ashraf: string, admin: string, sales: string, mokhtarId: string;
 const ids = { purchases: [] as string[], files: [] as string[], moves: [] as string[], budgets: [] as string[] };
 interface Node { id: string; code: string; balance: string; children: Node[] }

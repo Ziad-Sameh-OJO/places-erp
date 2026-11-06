@@ -30,6 +30,7 @@ after(async () => {
 
 test("the send log is the Super Admin's: sales 403; an email the API sends shows as «اتبعت»", async () => {
   assert.equal((await call("/notifications/mail-log", { cookie: sales })).status, 403);
+  const since = new Date(Date.now() - 2_000);
   assert.equal((await call("/auth/forgot", { method: "POST", body: { email: "m.mohsen@places.com" } })).status, 204);
   const log = await call("/notifications/mail-log?status=sent&pageSize=100", { cookie: admin });
   assert.equal(log.status, 200);
@@ -37,6 +38,9 @@ test("the send log is the Super Admin's: sales 403; an email the API sends shows
   assert.ok(row, "the reset email is in the log");
   assert.equal(row.status, "sent");
   assert.equal((await call("/notifications/mail-log?status=nonsense", { cookie: admin })).status, 400);
+  // a real person's reset link: not left behind (the token still works for 30 minutes)
+  await prisma.authToken.deleteMany({ where: { kind: "RESET", user: { email: "m.mohsen@places.com" }, createdAt: { gte: since } } });
+  await prisma.mailLog.deleteMany({ where: { to: "m.mohsen@places.com", subject: { startsWith: "تغيير الباسورد" }, createdAt: { gte: since } } });
 });
 
 test("«اتقرا»: a sent email whose in-app copy was opened (M-14 3.1 · 3.3)", async () => {

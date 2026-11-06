@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { call, mark, session } from "./helpers.ts";
 
 const P = `E2E rent sheet ${Date.now()}`;
 let manar: string, sales: string;
@@ -37,6 +37,7 @@ test("a Rent unit saves with the project only, and with nothing at all", async (
   assert.deepEqual(u.missing, ["Pic & Info", "Area", "Conditions", "Price/Sqm", "Maintenance", "Commission", "Building Number", "Location", "Contact", "Number"]);
   const bare = await call("/inventory/units", { method: "POST", cookie: manar, body: { type: "Rent" } });
   assert.equal(bare.status, 201, JSON.stringify(bare.body));
+  mark(`وحدة جديدة ${(bare.body as { code: string }).code} (`); // its Live Alert has no project to find it by
   await prisma.unit.update({ where: { id: (bare.body as { id: string }).id }, data: { project: `${P} bare` } }); // so after() finds it
 });
 

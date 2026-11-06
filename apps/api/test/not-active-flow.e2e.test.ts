@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { API, call, session } from "./helpers.ts";
+import { API, call, removeOwners, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const NAME = `E2E NA ${stamp}`;
@@ -41,7 +41,9 @@ after(async () => {
   await prisma.auditLog.deleteMany({ where: { entityId: { in: [sheetId, ...Object.values(rowOf), ...units, knownUnit] } } });
   await prisma.notification.deleteMany({ where: { text: { contains: stamp } } });
   await prisma.notActiveSheet.deleteMany({ where: { id: sheetId } });
+  const owners = (await prisma.unit.findMany({ where: { id: { in: units }, ownerId: { not: null } }, select: { ownerId: true } })).map((u) => u.ownerId!);
   await prisma.unit.deleteMany({ where: { id: { in: [...units, knownUnit] } } });
+  await removeOwners(owners, new Date(Number(stamp)));
   await prisma.$disconnect();
 });
 

@@ -41,6 +41,10 @@ after(async () => {
   if (watchBefore == null) await prisma.setting.deleteMany({ where: { key: "kpiWatch" } });
   else await prisma.setting.update({ where: { key: "kpiWatch" }, data: { value: watchBefore as never } });
   await prisma.auditLog.deleteMany({ where: { module: "kpis", at: { gte: start } } });
+  // the quarter's results and sheets were mailed to everyone too (with or without an in-app copy)
+  await prisma.mailLog.deleteMany({ where: { createdAt: { gte: start }, OR: [
+    { notification: { link: "/kpis", createdAt: { gte: start } } }, { subject: { startsWith: "ورقة Q" } }, { subject: { startsWith: "نتيجة الربع" } }, { subject: { startsWith: "KPI تحت الـ Threshold" } },
+  ] } });
   await prisma.notification.deleteMany({ where: { link: "/kpis", createdAt: { gte: start } } });
   await prisma.$disconnect();
 });

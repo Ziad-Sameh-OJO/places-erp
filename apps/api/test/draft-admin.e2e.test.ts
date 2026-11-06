@@ -76,12 +76,21 @@ test("Not Interested / Cancellation → gone from the salesperson and Telesales,
 });
 
 test("the daily Alarm: once a day, to Operations, with how many wait and how many came today", async () => {
-  await prisma.setting.upsert({ where: { key: "draftAdminAlarm" }, update: { value: "" }, create: { key: "draftAdminAlarm", value: "" } });
-  assert.ok((await draftAdminAlarmTick(new Date(), DEFAULT_LEAD_RULES)) >= 1);
-  assert.equal(await draftAdminAlarmTick(new Date(), DEFAULT_LEAD_RULES), 0); // the same day: nothing more
-  const alarm = await prisma.notification.findFirstOrThrow({ where: { userId: heba.userId, text: { startsWith: "Alarm: " }, important: true }, orderBy: { createdAt: "desc" } });
-  assert.match(alarm.text, /^Alarm: \d+ Not Interested \/ Cancellation مستنيين قرارك · \d+ النهارده$/);
-  await prisma.notification.delete({ where: { id: alarm.id } });
+  const saved = await prisma.setting.findUnique({ where: { key: "draftAdminAlarm" } });
+  const since = new Date(Date.now() - 2_000);
+  try {
+    await prisma.setting.upsert({ where: { key: "draftAdminAlarm" }, update: { value: "" }, create: { key: "draftAdminAlarm", value: "" } });
+    assert.ok((await draftAdminAlarmTick(new Date(), DEFAULT_LEAD_RULES)) >= 1);
+    assert.equal(await draftAdminAlarmTick(new Date(), DEFAULT_LEAD_RULES), 0); // the same day: nothing more
+    const alarm = await prisma.notification.findFirstOrThrow({ where: { userId: heba.userId, text: { startsWith: "Alarm: " }, important: true }, orderBy: { createdAt: "desc" } });
+    assert.match(alarm.text, /^Alarm: \d+ Not Interested \/ Cancellation مستنيين قرارك · \d+ النهارده$/);
+  } finally { // the job's day as it was (today's real Alarm still goes out), and the Alarm it sent to every Operations person
+    if (saved) await prisma.setting.update({ where: { key: "draftAdminAlarm" }, data: { value: saved.value as never } });
+    else await prisma.setting.deleteMany({ where: { key: "draftAdminAlarm" } });
+    const told = { createdAt: { gte: since }, text: { startsWith: "Alarm: " }, AND: { text: { contains: "مستنيين قرارك" } } };
+    await prisma.mailLog.deleteMany({ where: { notification: told } });
+    await prisma.notification.deleteMany({ where: told });
+  }
 });
 
 test("Operations decides: Telesales · a salesperson (Fresh again) · keep; the decision closes the Alarm", async () => {
