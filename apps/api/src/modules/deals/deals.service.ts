@@ -1,7 +1,7 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CancelDeal, CollectDeal, CreateDeal, DealCollected, DealDetail, DealFilters, DealForm, DealNote, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, expectsCommission, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
+import type { CancelDeal, CollectDeal, CreateDeal, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
+import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
 import { esc, layout } from "../../core/documents/documents.service";
 import { DocumentsSetupService } from "../settings/documents-setup.service";
 import { SettingsService } from "../settings/settings.service";
@@ -29,6 +29,13 @@ const egp = (p: Piasters) => `<span class="num">${(p / 100).toLocaleString("en-U
 const toDb = (s: DealStatus) => s.toUpperCase().replace(/ /g, "_");
 const label = (s: string) => s.split("_").map((w) => w[0] + w.slice(1).toLowerCase()).join(" ") as DealStatus;
 const link = (id: string) => `/deals?open=${id}`;
+/** A @db.Date column as its calendar day. */
+const day = (d: Date | null) => d?.toISOString().slice(0, 10) ?? null;
+/**
+ * «note» (M-02 3.1): the Office Manager (her review right, «deals: approve») or Finance («finance: edit») — not whoever
+ * else holds «deals: edit», like the Sales Director (4.1: «يتابع ويراجع»).
+ */
+export const writesNote = (me: CurrentUser) => me.grants.can("deals", "approve") || me.grants.can("finance", "edit");
 
 /**
  * M-02 · the Done Deal from the salesperson's registration to the Office Manager's approval (2.1 steps 1 · 5 · 6, Q9).
@@ -173,6 +180,8 @@ export class DealsService {
    * amount (targetBase) changes what enters the targets only, never the commission (commission.ts splitDeal).
    */
   async setNote(me: CurrentUser, id: string, input: DealNote): Promise<DealDetail> {
+    // M-02 3.1 names the Office Manager and Finance; the Sales Director holds «deals: edit» but only «يتابع ويراجع» (4.1)
+    if (!writesNote(me)) throw new ForbiddenException("الـ note بيكتبها الـ Office Manager أو المالية بس");
     await this.db.$transaction(async (tx) => {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
@@ -183,6 +192,52 @@ export class DealsService {
       await this.repo.update(tx, id, next);
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "note", userId: me.id, ...diff }, tx);
     });
+    return this.get(me, id);
+  }
+
+  /**
+   * M-02 3.1 «ميعاد تنفيذ الصفقة» (Office Manager) for KPI 2202 (the worker's dealExec): the due date, and «اتنفذت»
+   * recorded once as today's Cairo date. Both audited old → new.
+   */
+  async setExecution(me: CurrentUser, id: string, input: DealExecution): Promise<DealDetail> {
+    await this.db.$transaction(async (tx) => {
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      if (!d) throw new NotFoundException(NO_DEAL);
+      if (input.executed) {
+        const problem = executeProblem(label(d.status), !!d.executedAt);
+        if (problem) throw new BadRequestException(problem);
+      } else if (!takesNote(label(d.status))) throw new BadRequestException("ميعاد التنفيذ بيتحدد على صفقة اتوافق عليها بس");
+      const now = { execDueAt: day(d.execDueAt), executedAt: day(d.executedAt) };
+      const next = { execDueAt: input.execDueAt, executedAt: input.executed ? localDate(new Date()) : undefined };
+      const diff = changes(now, next);
+      if (!diff) return;
+      await this.repo.update(tx, id, {
+        ...(next.execDueAt ? { execDueAt: new Date(`${next.execDueAt}T00:00:00Z`) } : {}),
+        ...(next.executedAt ? { executedAt: new Date(`${next.executedAt}T00:00:00Z`) } : {}),
+      });
+      await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "execution", userId: me.id, ...diff }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  /**
+   * M-02 3.1 «مراجعة أوراق الصفقة (عقد، تفويض، تسجيل)» (Finance) for KPI «صفر أخطاء» (the worker's paperErrors).
+   * A later review replaces the earlier one (audited); an error tells the Office Manager, like the demo.
+   */
+  async setPapers(me: CurrentUser, id: string, input: DealPapers): Promise<DealDetail> {
+    const d = await this.db.$transaction(async (tx) => {
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      if (!d) throw new NotFoundException(NO_DEAL);
+      const problem = papersProblem(label(d.status), input.ok, input.note);
+      if (problem) throw new BadRequestException(problem);
+      const next = { papersOk: input.ok, papersNote: input.ok ? null : input.note!.trim() };
+      const diff = changes({ papersOk: d.papersOk, papersNote: d.papersNote }, next);
+      if (!diff) return null;
+      await this.repo.update(tx, id, next);
+      await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "papers", userId: me.id, ...diff }, tx);
+      return d;
+    });
+    if (d && !input.ok) await this.notifications.notify({ event: "deal.papers", link: link(id), text: `أوراق ${d.code} فيها خطأ: ${input.note!.trim()}` });
     return this.get(me, id);
   }
 
@@ -446,6 +501,7 @@ export function toRow(d: DealRowRecord): DealRow {
     buyers: buyersOf(d), sellers: d.participants.filter((p) => p.side === "SELLER").map((p) => ({ ...p.employee, approved: p.approved })),
     closedAt: d.closedAt.toISOString(), offTarget: d.offTarget, note: d.note, targetBase: d.targetBase?.toFixed(2) ?? null,
     month: d.payments[0]?.receivedAt.toISOString().slice(0, 7) ?? null, tcrs: d.tcrs.map((t) => tcrCode(t.code)),
+    execDueAt: day(d.execDueAt), executedAt: day(d.executedAt), papersOk: d.papersOk, papersNote: d.papersNote,
   };
 }
 

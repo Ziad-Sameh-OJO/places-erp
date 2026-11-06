@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@places/db";
-import type { DealSheet, DealSheetRow, DealsToCollect } from "@places/contracts";
+import type { DealExportQuery, DealSheet, DealSheetRow, DealsToCollect } from "@places/contracts";
 import { awaitsCollection, collected, collectedFrom, countsAsRevenue, countsInTarget, dealRowOf, placesCommission, remaining, revenueBoard, splitDeal, toDecimal } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -14,6 +14,9 @@ const money = (d: DealSheetRecord) => dealRowOf({
   ...d, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), targetBase: d.targetBase?.toFixed(2) ?? null,
   payments: d.payments.map((p) => ({ ...p, amount: p.amount.toFixed(2) })),
 });
+
+/** «لما توافق عليها تبان وتتسجل في الشيت» (the web's onSheet): everything but Pending Review and Rejected. */
+const ON_SHEET = ["APPROVED", "PARTIALLY_COLLECTED", "FULLY_COLLECTED", "CANCELLED"];
 
 /**
  * M-02 · what the deals screen reads (5.9–5.11): the sheet with each deal's collections and its split per salesperson,
@@ -34,8 +37,8 @@ export class DealSheetService {
     return Object.keys(own).length ? { participants: { some: own } } : {};
   }
 
-  async sheet(me: CurrentUser): Promise<DealSheet> {
-    const rows = await this.repo.sheet(this.scope(me));
+  async sheet(me: CurrentUser, f: { q?: string | undefined; statuses?: string[] | undefined } = {}): Promise<DealSheet> {
+    const rows = await this.repo.sheet(this.scope(me), f);
     const people = new Map(rows.flatMap((d) => d.participants.map((p) => [p.employeeId, p.employee] as const)));
     const scheme = (id: string) => Number(people.get(id)?.commissionPct ?? 0);
     const deals = rows.map(money);
@@ -62,6 +65,16 @@ export class DealSheetService {
     const rows = (await this.sheet(me)).items.flatMap((d) => d.shares.map((s) => ({ d, s })));
     await this.audit.record({ module: "deals", entity: "Deal", entityId: "split-export", action: "export", userId: me.id, after: { rows: rows.length } });
     return rows;
+  }
+
+  /**
+   * «تصدير الصفقات» (M-12 «أي جدول في السيستم يتصدّر Excel», demo U.exportBtn): the deals in the caller's scope as the
+   * screen filters them — every deal on the board, or «شيت الـ Done Deals» (approved onwards) with its search.
+   */
+  async exportRows(me: CurrentUser, f: DealExportQuery) {
+    const { items } = await this.sheet(me, { q: f.q, statuses: f.sheet ? ON_SHEET : undefined });
+    await this.audit.record({ module: "deals", entity: "Deal", entityId: "export", action: "export", userId: me.id, after: { rows: items.length, q: f.q ?? null, sheet: !!f.sheet } });
+    return items;
   }
 
   achievements(me: CurrentUser, month?: string) {

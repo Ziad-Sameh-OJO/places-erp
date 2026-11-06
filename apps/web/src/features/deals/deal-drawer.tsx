@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, type ReactNode } from "react";
 import type { DealCollected, DealSheetRow } from "@places/contracts";
-import { DEAL_TYPES, localDate } from "@places/domain";
+import { DEAL_TYPES, execState, localDate } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { NewClaim } from "@/components/new-claim";
 import { Chip, Field, Icon, Note, onFormSubmit, useAction } from "@/components/ui";
@@ -48,7 +48,8 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
       </section>
       {d.status === "Rejected" && detail?.reviewNote && <Note kind="warn">سبب الرفض: {detail.reviewNote}</Note>}
       {d.status === "Pending Review" && (can("deals", "approve") ? <Review d={d} post={post} /> : <Note>مستنية مراجعة الـ Office Manager.</Note>)}
-      {live(d.status) && can("deals", "edit") && (
+      {live(d.status) && <ExecPapers d={d} post={post} />}
+      {live(d.status) && (can("deals", "approve") || can("finance", "edit")) && (
         <form className="card flat" onSubmit={onFormSubmit((f) => post("note", { note: String(f.get("note") ?? ""), targetBase: String(f.get("targetBase") ?? "") || null }, "اتحفظت · بتغيّر التارجت بس", "put"))}>
           <Head icon="file" title="note (Office Manager / المالية)" sub="بيغيّر اللي متحدد فيها بس" />
           <div className="grid">
@@ -89,6 +90,41 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
         </form>
       )}
     </Drawer>
+  );
+}
+
+const EXEC_CHIP = { "on-time": ["ok", "اتنفذت في ميعادها"], late: ["warn", "اتنفذت متأخر"], overdue: ["bad", "متأخرة عن ميعاد التنفيذ"] } as const;
+
+/**
+ * «التنفيذ والأوراق» (demo deals.js execPapers · M-02 3.1, KPIs in M-12): the Office Manager sets when the deal is due to
+ * be carried out and marks it done; Finance checks its papers (contract · mandate · registration). Others only see them.
+ */
+function ExecPapers({ d, post }: { d: DealSheetRow; post: (path: string, body: unknown, ok: string, method?: "post" | "put") => Promise<void> }) {
+  const { can } = useMe();
+  const om = can("deals", "approve"), fin = can("finance", "edit");
+  const state = execState(d.execDueAt, d.executedAt, localDate(new Date()));
+  const papers = (ok: boolean) => {
+    const note = ok ? "" : (window.prompt("الخطأ إيه؟") ?? "").trim();
+    if (!ok && !note) return;
+    void post("papers", ok ? { ok } : { ok, note }, "المراجعة اتسجّلت", "put");
+  };
+  return (
+    <section className="card flat">
+      <Head icon="check" title="التنفيذ والأوراق" extra={state ? <Chip tone={EXEC_CHIP[state][0]}>{EXEC_CHIP[state][1]}</Chip> : undefined} />
+      <div className="row">
+        {om ? (
+          <>
+            <label className="row hint">ميعاد التنفيذ <input type="date" defaultValue={d.execDueAt ?? ""} onBlur={(e) => { if (e.target.value && e.target.value !== d.execDueAt) void post("execution", { execDueAt: e.target.value }, "اتحفظ ميعاد التنفيذ", "put"); }} /></label>
+            {d.executedAt ? <span className="hint">اتنفذت {day(d.executedAt)}</span> : <button className="btn ghost sm" onClick={() => void post("execution", { executed: true }, "اتسجّل التنفيذ", "put")}><Icon name="check" />اتنفذت</button>}
+          </>
+        ) : <span className="hint">ميعاد التنفيذ: {day(d.execDueAt)}{d.executedAt && ` · اتنفذت ${day(d.executedAt)}`}</span>}
+      </div>
+      <div className="row">
+        <span className="hint">أوراق الصفقة (عقد · تفويض · تسجيل):</span>
+        {d.papersOk == null ? <Chip plain>لسه ماتراجعتش</Chip> : <><Chip tone={d.papersOk ? "ok" : "bad"}>{d.papersOk ? "سليمة" : "فيها خطأ"}</Chip>{d.papersNote && <small className="hint">{d.papersNote}</small>}</>}
+        {fin && <><button className="btn ghost sm" onClick={() => papers(true)}>سليمة</button><button className="btn ghost sm" onClick={() => papers(false)}>فيها خطأ</button></>}
+      </div>
+    </section>
   );
 }
 

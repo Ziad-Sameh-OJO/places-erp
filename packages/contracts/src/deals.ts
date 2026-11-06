@@ -37,6 +37,28 @@ export const DealNote = z.object({
 });
 export type DealNote = z.infer<typeof DealNote>;
 
+/** M-02 3.1 «ميعاد تنفيذ الصفقة» (Office Manager): the due date, and/or «اتنفذت» (recorded as today, Cairo). */
+export const DealExecution = z.object({
+  execDueAt: CalendarDay.optional(),
+  executed: z.literal(true).optional(),
+}).refine((x) => x.execDueAt || x.executed, "اختار ميعاد التنفيذ");
+export type DealExecution = z.infer<typeof DealExecution>;
+
+/** M-02 3.1 «مراجعة أوراق الصفقة (عقد، تفويض، تسجيل)» (Finance): سليمة / فيها خطأ + what's wrong. */
+export const DealPapers = z.object({
+  ok: z.boolean(),
+  note: z.string().trim().max(1000, "الكلام طويل").optional(),
+});
+export type DealPapers = z.infer<typeof DealPapers>;
+
+/** «تصدير الصفقات» (M-12: any table exports to Excel): the list as filtered on the screen. */
+export const DealExportQuery = z.object({
+  q: z.string().trim().max(80).optional(),
+  /** «شيت الـ Done Deals»: only the deals on the sheet (approved onwards) */
+  sheet: z.enum(["1"]).optional(),
+});
+export type DealExportQuery = z.infer<typeof DealExportQuery>;
+
 /**
  * «سجّل تحصيل» (5.3, 4 Nov): a receive voucher (9.11) into a safe / bank against the client's account (113…).
  * The first collection also books the whole commission as revenue, so it needs the revenue line (41…).
@@ -109,6 +131,8 @@ export interface DealRow {
   closedAt: string; offTarget: boolean; note: string | null; targetBase: string | null;
   /** M-02 3.2 «Date»: the month of the deal's first collection (YYYY-MM), and its TCR codes («tcr»). */
   month: string | null; tcrs: string[];
+  /** M-02 3.1 · KPI 2202: execution due / done (YYYY-MM-DD), and Finance's check of the papers (null = not reviewed yet). */
+  execDueAt: string | null; executedAt: string | null; papersOk: boolean | null; papersNote: string | null;
 }
 /** 5.12: the TCR made by one collection, with each salesperson on the deal and whether they signed. */
 export interface DealTcr {

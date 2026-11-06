@@ -53,6 +53,29 @@ export const closedTooSoon = (requestCreatedAt: Date, closedAt: Date, alarmH: nu
 /** The note (Office Manager / Finance, 3.1) is written on a deal that is on the sheet: approved or being collected. */
 export const takesNote = (status: DealStatus): boolean => status === "Approved" || status === "Partially Collected" || status === "Fully Collected";
 
+/**
+ * M-02 3.1 «ميعاد تنفيذ الصفقة» (Office Manager) · KPI 2202 «≥90% من قيمة الصفقات اتنفذت في ميعادها»: the chip the
+ * demo shows on the deal (deals.js execPapers). Days are Cairo calendar days, YYYY-MM-DD. Executed with no due date
+ * counts as on time, like the demo.
+ */
+export type ExecState = "on-time" | "late" | "overdue";
+export function execState(due: string | null, executed: string | null, today: string): ExecState | null {
+  if (executed) return !due || executed <= due ? "on-time" : "late";
+  return due && due < today ? "overdue" : null;
+}
+
+/** «اتنفذت» is recorded once, on a deal on the sheet. */
+export function executeProblem(status: DealStatus, executed: boolean): string | null {
+  if (!takesNote(status)) return "التنفيذ بيتسجّل على صفقة اتوافق عليها بس";
+  return executed ? "اتسجّل التنفيذ قبل كده" : null;
+}
+
+/** M-02 3.1 «مراجعة أوراق الصفقة» (Finance): «سليم» or «فيه خطأ + كلام» — an error needs what's wrong (KPI: zero errors). */
+export function papersProblem(status: DealStatus, ok: boolean, note: string | undefined): string | null {
+  if (!takesNote(status)) return "مراجعة الأوراق بتبقى على صفقة اتوافق عليها بس";
+  return !ok && !note?.trim() ? "اكتب الخطأ إيه" : null;
+}
+
 /** M-02 2.3 (12) · 9.6: a deal on the sheet (approved or being collected) is cancelled once, with the reason written. */
 export function cancelProblem(status: DealStatus, reason: string): string | null {
   if (!takesNote(status)) return status === "Cancelled" ? "الصفقة دي اتلغت قبل كده" : "الإلغاء بيبقى على صفقة اتوافق عليها";
