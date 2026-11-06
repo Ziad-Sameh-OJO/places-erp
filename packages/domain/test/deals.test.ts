@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, formatEGP } from "../src/money.ts";
-import { type DealMoney, collectionProblem, payoutDue, payoutProblem, payoutState, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
+import { type DealMoney, awaitsCollection, collectionProblem, payoutDue, payoutProblem, payoutState, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult, tlAdjustment } from "../src/team-leader.ts";
 import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
 
@@ -134,6 +134,15 @@ test("5.3 · a collection: approved deals only, above zero, never above what's l
   assert.match(collectionProblem(deal({ status: "Pending Review", payments: [] }), egp(1))!, /اتوافق عليها/);
   assert.equal(revenueOnCollection(none), egp(100_000));
   assert.equal(revenueOnCollection(part), 0);
+});
+
+test("M-02 · «حصّل عمولة» waits on the accountant from the approval until the deal is fully collected", () => {
+  assert.equal(awaitsCollection(deal({ payments: [] })), true);
+  assert.equal(awaitsCollection(deal({ status: "Partially Collected", payments: [{ side: "client", amount: egp(30_000) }] })), true);
+  assert.equal(awaitsCollection(deal({ status: "Fully Collected" })), false);
+  assert.equal(awaitsCollection(deal({ status: "Pending Review", payments: [] })), false);
+  assert.equal(awaitsCollection(deal({ status: "Cancelled", payments: [] })), false);
+  assert.equal(awaitsCollection(deal({ payments: [], commissionOwner: 0, commissionClient: 0 })), false);
 });
 
 test("12 · 9.6: only a deal on the sheet is cancelled, once, with a reason", () => {

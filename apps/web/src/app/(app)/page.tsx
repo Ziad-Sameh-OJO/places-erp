@@ -13,6 +13,7 @@ import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
 import { MyTeamTasks } from "@/features/inventory/team-tasks";
 import { useMissingUnitLines } from "@/features/inventory/today";
+import { useCollectLines } from "@/features/finance/today";
 
 /**
  * Home = «مهامي النهارده» (1.22, demo home.js): everything waiting for this person's action now, the late first.
@@ -24,9 +25,10 @@ export default function HomePage() {
   const bulks = useBulkLines(!!me && can("leads", "approve"));
   const companies = useNewCompanyLines(keepsCompaniesSheet(me?.roles ?? []));
   const missingUnits = useMissingUnitLines(!!me && keepsInventory({ can })); // 2.20 · the API keeps Manar's and Randa's apart
+  const collect = useCollectLines(!!me && can("finance", "create")); // M-02 · the accountant's «حصّل عمولة»
   const unread = useMyNotifications().data?.unread ?? 0;
   if (!me) return <p className="hint">بيحمّل…</p>;
-  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits]); // each module's lines, the late first
+  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
   const pages = (Object.keys(NAV) as ModuleKey[]).filter((k) => k !== "home" && can(k));
 

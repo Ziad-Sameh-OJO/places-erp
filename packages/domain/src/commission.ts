@@ -62,6 +62,12 @@ export function collectionProblem(d: DealMoney, amount: Piasters): string | null
   return null;
 }
 
+/**
+ * M-02 «محسوم في ميتنج 4 نوفمبر»: once the Office Manager approves, the accountant gets «حصّل عمولة» (demo finance.js
+ * financeInbox) and keeps it while the deal still takes a collection (the same rule as `collectionProblem`).
+ */
+export const awaitsCollection = (d: DealMoney): boolean => (d.status === "Approved" || d.status === "Partially Collected") && remaining(d) > 0;
+
 /** Q37–Q39: Places' whole commission is revenue from the first collection on (the rest is owed by the client, 113). */
 export const revenueOnCollection = (d: DealMoney): Piasters => (collected(d) === 0 ? placesCommission(d) : 0);
 
