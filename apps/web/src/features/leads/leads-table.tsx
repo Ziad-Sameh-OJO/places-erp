@@ -1,21 +1,56 @@
 "use client";
+import type { ReactNode } from "react";
 import type { LeadRow } from "@places/contracts";
-import { Chip, Table } from "@/components/ui";
+import { Chip, Empty } from "@/components/ui";
 import { ago, money, num } from "@/lib/format";
 import { SlaBar, StageChip, Who } from "./lead-bits";
 
-/** The demo's list: one row per lead, on phones a card per lead (Table does that). */
-export function LeadsTable({ leads, onOpen }: { leads: LeadRow[]; onOpen: (id: string) => void }) {
+const HEAD = ["الليد", "Area · Type", "Budget", "Channel · Campaign", "Sales", "Stage", "SLA"];
+
+/**
+ * The demo's list (leads.js listView): one row per lead, on phones a card per lead. With `picked`, a checkbox per row
+ * and «حدد الكل» for the bulk bar (demo: whoever may edit or hand out leads).
+ */
+export function LeadsTable({ leads, onOpen, picked, onPick }: {
+  leads: LeadRow[]; onOpen: (id: string) => void; picked?: string[]; onPick?: (ids: string[]) => void;
+}) {
+  const pick = !!picked && !!onPick;
+  const all = pick && leads.length > 0 && leads.every((l) => picked.includes(l.id));
+  const toggle = (id: string, on: boolean) => onPick?.(on ? [...picked!.filter((x) => x !== id), id] : picked!.filter((x) => x !== id));
+  const cells = (l: LeadRow): ReactNode[] => [
+    <span key="l"><b>{l.name}</b><span className="sub"><span className="mono">{l.code}</span></span><span className="sub mono">{l.phones.join(" · ")}</span></span>,
+    <span key="a">{l.area || "—"}<span className="sub">{l.type}{l.space != null && <> · <span className="num">{num(l.space)}</span> م</>}</span></span>,
+    <span key="b" className="n">{money(l.budget)}</span>,
+    <span key="c">{l.channel}<span className="sub">{l.campaign?.name ?? "—"}</span></span>,
+    <span key="s"><Who person={l.assignedTo} />{l.ownedByTelesales && <span className="sub">مع Telesales</span>}</span>,
+    <div key="st" className="row"><StageChip stage={l.stage} />{l.qualified && <Chip tone="ok">Qualified</Chip>}</div>,
+    l.sla ? <SlaBar key="sla" sla={l.sla} /> : <span key="sla" className="hint">{ago(l.createdAt)}</span>,
+  ];
   return (
-    <Table onRow={(i) => onOpen(leads[i]!.id)} head={["الليد", "Area · Type", "Budget", "Channel · Campaign", "Sales", "Stage", "SLA"]} empty="مفيش بيانات تطابق الفلتر"
-      rows={leads.map((l) => [
-        <span key="l"><b>{l.name}</b><span className="sub"><span className="mono">{l.code}</span></span><span className="sub mono">{l.phones.join(" · ")}</span></span>,
-        <span key="a">{l.area || "—"}<span className="sub">{l.type}{l.space != null && <> · <span className="num">{num(l.space)}</span> م</>}</span></span>,
-        <span key="b" className="n">{money(l.budget)}</span>,
-        <span key="c">{l.channel}<span className="sub">{l.campaign?.name ?? "—"}</span></span>,
-        <span key="s"><Who person={l.assignedTo} />{l.ownedByTelesales && <span className="sub">مع Telesales</span>}</span>,
-        <div key="st" className="row"><StageChip stage={l.stage} />{l.qualified && <Chip tone="ok">Qualified</Chip>}</div>,
-        l.sla ? <SlaBar key="sla" sla={l.sla} /> : <span key="sla" className="hint">{ago(l.createdAt)}</span>,
-      ])} />
+    <div className="tbl-wrap">
+      <table className="cardable">
+        <thead>
+          <tr>
+            {pick && <th className="pick"><input type="checkbox" checked={all} aria-label="حدد الكل" onChange={(e) => onPick(e.target.checked ? leads.map((l) => l.id) : [])} /></th>}
+            {HEAD.map((h) => <th key={h}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {leads.length ? leads.map((l) => {
+            const on = pick && picked.includes(l.id);
+            return (
+              <tr key={l.id} className={`click ${on ? "selected" : ""}`} onClick={() => onOpen(l.id)}>
+                {pick && (
+                  <td className="pick" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={on} aria-label={`حدد ${l.name}`} onChange={(e) => toggle(l.id, e.target.checked)} />
+                  </td>
+                )}
+                {cells(l).map((c, j) => <td key={j} data-label={HEAD[j]}>{c}</td>)}
+              </tr>
+            );
+          }) : <tr><td colSpan={HEAD.length + (pick ? 1 : 0)}><Empty text="مفيش بيانات تطابق الفلتر" /></td></tr>}
+        </tbody>
+      </table>
+    </div>
   );
 }

@@ -216,6 +216,21 @@ export type RoutingCell = z.infer<typeof RoutingCell>;
 export interface RoutingView { areas: string[]; salespeople: { id: string; name: string }[]; routing: Record<string, string[]> }
 
 /** «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand a lead to a salesperson. */
+/**
+ * The list's bulk bar (demo shell.js renderBulk): the picked leads go to one salesperson («حوّل لسيلز…», the same rule
+ * as «اسحب الليد وحوّله» 1.14) and / or one stage («غيّر المرحلة…»; Visit / Meeting need a time and units, so not here).
+ */
+export const LeadBatch = z.object({
+  ids: z.array(z.string().min(1).max(40)).min(1, "اختار ليد واحد على الأقل").max(100, "100 ليد بالكتير في المرة"),
+  to: z.string().min(1).max(40).optional(),
+  stage: z.enum(LEAD_STAGES).refine((s) => s !== "Visit" && s !== "Meeting", "الـ Visit / Meeting محتاجة ميعاد ووحدات · من درج الليد").optional(),
+}).refine((b) => b.to || b.stage, { message: "اختار سيلز أو مرحلة" });
+export type LeadBatch = z.infer<typeof LeadBatch>;
+export const LeadBatchIds = z.object({ ids: LeadBatch.innerType().shape.ids });
+export type LeadBatchIds = z.infer<typeof LeadBatchIds>;
+/** How a bulk action went: the leads it was applied to, and each one it wasn't with why (out of scope, already there…). */
+export interface LeadBatchResult { done: number; failed: Array<{ id: string; error: string }> }
+
 export const AssignLead = z.object({ to: z.string({ required_error: "اختار السيلز", invalid_type_error: "اختار السيلز" }).min(1, "اختار السيلز").max(40) });
 export type AssignLead = z.infer<typeof AssignLead>;
 
