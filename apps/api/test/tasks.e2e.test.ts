@@ -149,3 +149,22 @@ test("SLA (4.3 · M-12): a shoot 72 h from the unit's registration, a Retouch 48
   assert.equal((await call("/tasks/sla?month=2026-13", { cookie: bayoumi })).status, 400);
   assert.equal((await call("/tasks/sla", { cookie: sales })).status, 403);
 });
+
+test("M-04 2.1 step 4 «وحدة في اليوم»: Randa's second shoot for Bayoumi the same day is sent with the demo's warning", async () => {
+  // a day nobody else uses, so other files' shoots don't count
+  const day = new Date(Date.UTC(2031, 0, 1) + (Date.now() % 1000) * 86_400_000).toISOString().slice(0, 10);
+  const send = async (body: Record<string, unknown>) => {
+    const r = await call("/tasks", { method: "POST", cookie: randa, body: { kind: "photo", toUserId: bayoumiId, dueOn: day, unitId, ...body } });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    tasks.push(r.body.id);
+    return r.body as { id: string; warning: string | null };
+  };
+  const first = await send({});
+  assert.equal(first.warning, null);
+  assert.equal((await send({})).warning, "تنبيه: إنت مدياه وحدة النهارده قبل كده (وحدة في اليوم)");
+  assert.equal((await send({ kind: "retouch" })).warning, null); // the rule is the shoots'
+  // Manar's one for the day is hers: «كل واحدة بتديله وحدة»
+  const manars = await call("/tasks", { method: "POST", cookie: manar, body: { kind: "photo", toUserId: bayoumiId, dueOn: day, unitId } });
+  tasks.push(manars.body.id);
+  assert.equal(manars.body.warning, null);
+});

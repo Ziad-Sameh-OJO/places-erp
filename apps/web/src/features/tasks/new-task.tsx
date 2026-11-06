@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { TaskOptions } from "@places/contracts";
 import { taskKind } from "@places/domain";
-import { Field, Icon, Modal, onFormSubmit, useAction } from "@/components/ui";
+import { Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { useTaskActions, useTaskUnits } from "./use-tasks";
 
 /** The demo's titles of the form, per kind (tasks.js `taskNew`). */
@@ -15,6 +15,7 @@ const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/C
 /** Give a task (M-04 2.1 step 4): the unit (its data reaches the assignee), or the marketing task's type; who; the day. */
 export function NewTask({ kind, options, onClose }: { kind: string; options: TaskOptions | undefined; onClose: () => void }) {
   const run = useAction();
+  const toast = useToast();
   const { create } = useTaskActions();
   const [q, setQ] = useState("");
   const withUnit = taskKind(kind)?.withUnit ?? false;
@@ -24,13 +25,16 @@ export function NewTask({ kind, options, onClose }: { kind: string; options: Tas
     <Modal title={TITLE[kind] ?? "مهمة"} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
         const text = (k: string) => String(f.get(k) ?? "").trim();
-        await create({
+        const r = await create({
           kind, toUserId: text("toUserId"), dueOn: text("dueOn"),
           ...(withUnit ? { unitId: text("unitId") } : { title: text("title") }),
           ...(text("note") ? { note: text("note") } : {}),
         });
         onClose();
-      }, DONE[kind] ?? "المهمة اتبعتت"))}>
+        // M-04 2.1 step 4 «وحدة في اليوم»: the demo warns on a second photo task for the day but still sends it
+        const done = DONE[kind] ?? "المهمة اتبعتت";
+        toast(r.warning ? `${r.warning} · ${done}` : done);
+      }))}>
         {withUnit ? (
           <Field label="الوحدة" req wide>
             <input type="search" placeholder="دوّر بالكود أو البروجكت" value={q} onChange={(e) => setQ(e.target.value)} aria-label="دوّر على الوحدة" />

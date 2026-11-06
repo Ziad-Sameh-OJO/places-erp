@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common"
 import type { Request, Response } from "express";
 import { Throttle } from "@nestjs/throttler";
 import { z } from "zod";
-import { ChangePassword, Forgot, Login, Otp, SetPassword } from "@places/contracts";
+import { ChangePassword, Forgot, Login, Logout, Otp, SetPassword } from "@places/contracts";
 import { MODULES } from "@places/domain";
 import { ZodPipe } from "../http/zod.pipe";
 import { SignedIn } from "../authz/requires.decorator";
@@ -70,8 +70,8 @@ export class AuthController {
   }
 
   @SignedIn() @Post("logout") @HttpCode(204)
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    await this.auth.logout(req.cookies?.[SESSION_COOKIE]);
+  async logout(@Me() me: CurrentUser, @Body(new ZodPipe(Logout)) b: Logout, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.auth.logout(req.cookies?.[SESSION_COOKIE], me.id, b.endpoint);
     res.clearCookie(SESSION_COOKIE, { path: "/" });
   }
 }

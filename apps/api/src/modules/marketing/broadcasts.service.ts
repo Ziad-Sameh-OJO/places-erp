@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { BroadcastBoard, BroadcastDone, BroadcastInput, MyBroadcast } from "@places/contracts";
 import { BROADCASTS_PER_WEEK, broadcastsThisWeek } from "@places/domain";
@@ -66,9 +66,11 @@ export class BroadcastsService {
   async approve(me: CurrentUser, id: string) {
     const b = await this.db.broadcast.findUnique({ where: { id } });
     if (!b) throw new NotFoundException(NO_BROADCAST);
-    if (b.approved) throw new BadRequestException("الـ Broadcast ده اتوافق عليه قبل كده");
+    if (b.approved) throw new ConflictException("الـ Broadcast ده اتوافق عليه قبل كده");
     await this.db.$transaction(async (tx) => {
-      await tx.broadcast.update({ where: { id }, data: { approved: true } });
+      // conditional on the old state: of two clicks at once only one approves, so sales get «Broadcast جديد» once
+      const won = await tx.broadcast.updateMany({ where: { id, approved: false }, data: { approved: true } });
+      if (!won.count) throw new ConflictException("الـ Broadcast ده اتوافق عليه قبل كده");
       await this.audit.record({ module: "marketing", entity: "Broadcast", entityId: id, action: "approve", userId: me.id, before: { approved: false }, after: { approved: true } }, tx);
     });
     await this.tellSales();

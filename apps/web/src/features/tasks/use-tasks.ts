@@ -15,6 +15,6 @@ export function useTaskActions() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["tasks"] });
   return {
     move: async (id: string, status: string) => { await api.post(`/tasks/${id}/status`, { status }); await refresh(); },
-    create: async (body: CreateTask) => { const r = await api.post<{ id: string }>("/tasks", body); await refresh(); return r; },
+    create: async (body: CreateTask) => { const r = await api.post<{ id: string; warning: string | null }>("/tasks", body); await refresh(); return r; },
   };
 }

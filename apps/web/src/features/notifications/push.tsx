@@ -14,6 +14,12 @@ function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
 
 const supported = () => typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 
+/** This device's push subscription, if push was turned on here. */
+export async function pushSubscription(): Promise<PushSubscription | null> {
+  if (!supported()) return null;
+  return (await (await navigator.serviceWorker.getRegistration("/sw.js"))?.pushManager.getSubscription()) ?? null;
+}
+
 /**
  * «حسابي» · M-14 (51): turn push notifications on for this phone / computer. Each device is turned on by itself;
  * the events and channels come from «قواعد الإشعارات».
@@ -43,7 +49,7 @@ export function PushCard() {
   }, "الإشعارات اتفعّلت على الجهاز ده");
 
   const turnOff = () => run(async () => {
-    const sub = await (await navigator.serviceWorker.getRegistration("/sw.js"))?.pushManager.getSubscription();
+    const sub = await pushSubscription();
     if (sub) {
       await api.del("/notifications/push/subscriptions", { endpoint: sub.endpoint });
       await sub.unsubscribe();

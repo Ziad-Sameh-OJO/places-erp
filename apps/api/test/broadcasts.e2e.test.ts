@@ -77,3 +77,13 @@ test("M-04 2.2: a Broadcast from someone who can't approve waits — sales don't
   assert.equal((await call(`/marketing/broadcasts/${id}/approve`, { method: "POST", cookie: rahma })).status, 204);
   assert.ok((await call("/marketing/broadcasts/mine", { cookie: anas })).body.some((b: { id: string }) => b.id === id));
 });
+
+test("two approve clicks at once: one approves (204), the other gets 409, and sales hear «Broadcast جديد» once", async () => {
+  const id = await send(writer);
+  const t0 = new Date();
+  const codes = (await Promise.all([1, 2].map(() => call(`/marketing/broadcasts/${id}/approve`, { method: "POST", cookie: rahma })))).map((r) => r.status).sort();
+  assert.deepEqual(codes, [204, 409]);
+  assert.equal(await prisma.notification.count({ where: { userId: anasId, event: "marketing.broadcast", createdAt: { gte: t0 } } }), 1);
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Broadcast", entityId: id, action: "approve" } }), 1);
+  assert.equal((await call(`/marketing/broadcasts/${id}/approve`, { method: "POST", cookie: rahma })).status, 409);
+});

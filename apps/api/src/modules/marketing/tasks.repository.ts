@@ -52,6 +52,11 @@ export class TasksRepository {
     return new Map(rows.map((u) => [u.id, u.employee?.name ?? u.email]));
   }
 
+  /** Open tasks of one kind from one person to another for one day (M-04 2.1 step 4 «وحدة في اليوم»). */
+  openSameDay(kind: string, byUserId: string, toUserId: string, dueOn: Date) {
+    return this.db.task.count({ where: { kind, byUserId, toUserId, dueOn, status: { not: "done" } } });
+  }
+
   create(tx: Prisma.TransactionClient, data: Prisma.TaskUncheckedCreateInput) {
     return tx.task.create({ data, select: { id: true } });
   }

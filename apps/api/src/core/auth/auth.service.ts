@@ -6,6 +6,7 @@ import { PRISMA } from "../database/database.module";
 import { AuditService } from "../audit/audit.service";
 import { MailService } from "../mail/mail.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { PushService } from "../notifications/push.service";
 import { env } from "../../config/env";
 import { hashPassword, verifyPassword } from "./password";
 import { TokensService, sha256 } from "./tokens.service";
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly tokens: TokensService,
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
+    private readonly push: PushService,
   ) {}
 
   /** Step 1. Without OTP it opens the session; with OTP it emails a 6-digit code and returns no session. */
@@ -98,8 +100,10 @@ export class AuthService {
     return s.user;
   }
 
-  logout(token: string) {
-    return this.db.session.deleteMany({ where: { id: sha256(token) } });
+  /** Ends this session, and drops this device's push (12.10): the next person on a shared phone doesn't get mine. */
+  async logout(token: string, userId: string, pushEndpoint?: string) {
+    if (pushEndpoint) await this.push.unsubscribe(userId, pushEndpoint);
+    await this.db.session.deleteMany({ where: { id: sha256(token) } });
   }
 
   /** Activation link (new account) and reset link (forgot / admin) both end here: set the password, sign in fresh. */
