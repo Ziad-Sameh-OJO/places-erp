@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
-import type { VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules } from "@places/domain";
+import type { UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -386,6 +386,57 @@ export class LeadsService {
   }
 
   /**
+   * «تعديل البيانات» (demo leads.js leadEdit · «leads: edit»): the lead's details, in the caller's scope. A mobile
+   * added here that another lead already has is refused with that lead's code: the same number never becomes two
+   * leads, and duplicates are Operations' call (M-01 Q7) — the same check as a new lead. A company that isn't in the
+   * sheet goes the way it does from the new-lead form (1.20). Audited old → new, with a line in the Activity (demo).
+   */
+  async update(me: CurrentUser, id: string, input: UpdateLead) {
+    const saved = await this.db.$transaction(async (tx) => {
+      const lead = await this.repo.editable(ownedBy(me) as never, id, tx);
+      if (!lead) throw new NotFoundException(NO_LEAD);
+      const added = input.phones.filter((p) => !lead.phones.includes(p));
+      const dup = added.length ? await this.repo.findByPhone(added, id) : null;
+      if (dup) throw new ConflictException(`الرقم ده موجود في ليد تاني (${dup.code}) · العميل ده مكرر والأوبريشن هي اللي تقرر`);
+      const company = input.company || null;
+      const before = { name: lead.name, kind: lead.kind === "BROKER" ? "broker" : "client", company: lead.company?.name ?? null, phones: lead.phones, area: lead.area,
+        type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note };
+      const after = { name: input.name, kind: input.kind, company, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
+        condition: input.condition || null, budget: input.budget ? toDecimal(fromDecimal(input.budget)) : null, note: input.note || null };
+      const diff = changes(before, after);
+      if (!diff) return null;
+      const inSheet = company ? await this.repo.companyByName(tx, company) : null;
+      const companyChanged = "company" in diff.after;
+      await this.repo.updateLead(tx, id, {
+        name: after.name, kind: after.kind === "broker" ? "BROKER" : "CLIENT", phones: after.phones, area: after.area, type: after.type,
+        space: after.space, condition: after.condition, budget: after.budget, note: after.note, ...(companyChanged ? { companyId: inSheet?.id ?? null } : {}),
+      });
+      const newCompany = companyChanged && company && !inSheet ? await this.companies.fromLead(tx, me, { id, code: lead.code }, company, undefined) : null;
+      if (newCompany?.companyId) await this.repo.updateLead(tx, id, { companyId: newCompany.companyId });
+      await this.repo.addActivity(tx, id, "edit", "اتعدّلت بيانات الليد", me.id); // a system line (Logs), not a comment
+      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "update", userId: me.id, ...diff }, tx);
+      return newCompany?.notify ? { company: company!, code: lead.code } : null;
+    });
+    if (saved) await this.companies.notifyNew(saved.company, saved.code);
+    return this.get(me, id);
+  }
+
+  /**
+   * «أرشفة» (demo leads.js leadArchive · «leads: delete» = «يأرشف / يمسح»): the lead leaves every list, the board and
+   * the counts but is never deleted (archivedAt); audited. Only a lead in the caller's scope.
+   */
+  async archive(me: CurrentUser, id: string) {
+    await this.db.$transaction(async (tx) => {
+      const lead = await this.repo.findInScope(ownedBy(me) as never, id, tx);
+      if (!lead) throw new NotFoundException(NO_LEAD);
+      const at = new Date();
+      if (!(await tx.lead.updateMany({ where: { id, archivedAt: null }, data: { archivedAt: at } })).count) throw new NotFoundException(NO_LEAD);
+      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "archive", userId: me.id, before: { archivedAt: null }, after: { archivedAt: at.toISOString() } }, tx);
+    });
+    return { id, archived: true };
+  }
+
+  /**
    * Stage change: Qualified is sticky (isQualifiedAfter), the SLA clock stops on the first action. No Answer records
    * who marked it and when: the No Answer job moves it 24 hours later, only if it was the salesperson's own mark (1.17).
    */
@@ -589,6 +640,8 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
   const stage = (v: unknown) => STAGE_LABEL.get(field(v, "stage")) ?? field(v, "stage");
   switch (`${a.entity}:${a.action}`) {
     case "Lead:create": return "اتعمل الليد";
+    case "Lead:update": return "اتعدّلت بيانات الليد";
+    case "Lead:archive": return "الليد اتأرشف";
     case "Lead:stage": return `المرحلة اتغيرت من ${stage(a.before)} لـ ${stage(a.after)}`; // words, not an arrow: RTL flips «←» between two English names
     case "Lead:duplicate-decision": return "قرار الأوبريشن في التكرار";
     case "Lead:reassign": return field(a.before, "name") && field(a.before, "name") !== "null" ? `اتسحب يدوي من ${field(a.before, "name")} لـ ${field(a.after, "name")}` : `اتحوّل يدوي لـ ${field(a.after, "name")}`;
@@ -616,11 +669,11 @@ function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<stri
 }
 
 function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
-  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, ...row } = lead;
+  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, ...row } = lead;
   const now = Date.now();
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
-    company: company?.name ?? null, firstActionAt: iso(firstActionAt),
+    company: company?.name ?? null, hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,

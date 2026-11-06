@@ -16,6 +16,8 @@ import { WhatsAppQuestion } from "./whatsapp-question";
 import { useLeadOptions } from "./use-leads";
 import { Visits } from "./visits";
 import { RecommendedUnits, useRecommendations } from "./recommendations";
+import { EditLead } from "./edit-lead";
+import { DealForm } from "../deals/deal-form";
 
 /** The pipeline the stepper shows (demo PIPE); the side stages (No Answer, Hold…) hide it. */
 const PIPE = LEAD_PIPELINE;
@@ -29,6 +31,11 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
   const [tab, setTab] = useState<"overview" | "units" | "visits" | "activity" | "logs">("overview");
   const recs = useRecommendations(id);
   const [visitKind, setVisitKind] = useState<"Visit" | "Meeting">("Visit");
+  const [dealFor, setDealFor] = useState<string | null>(null); // «سجّل الصفقة» open on this lead
+  const qc = useQueryClient();
+  const refresh = useRefreshLead();
+  // the form's lead list changes with the lead's stage: read it again when the form opens from here
+  const openDeal = (leadId: string) => { void qc.invalidateQueries({ queryKey: ["deals", "form"] }); setDealFor(leadId); };
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   const l = lead.data;
@@ -50,13 +57,14 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
         ["overview", "نظرة عامة"], ["units", "الوحدات", recs.data?.items.length], ["visits", "الزيارات", l.visits.length], ["activity", "Activity", comments(l).length],
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
-      {tab === "overview" ? <Overview l={l} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
-        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
+      {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
+      {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
+        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
 }
 
-function Overview({ l }: { l: LeadDetail }) {
+function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: string) => void; onArchived: () => void }) {
   const { can } = useMe();
   const onPipe = PIPE.includes(l.stage as LeadStage);
   const kv: [string, React.ReactNode][] = [
@@ -71,7 +79,7 @@ function Overview({ l }: { l: LeadDetail }) {
       {onPipe && <Stepper stages={PIPE} current={l.stage} />}
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {l.note && <div className="quote">{l.note}</div>}
-      {can("leads", "edit") && <CallButton id={l.id} />}
+      <LeadActions l={l} onDeal={onDeal} onArchived={onArchived} />
       <NewLeadAction l={l} />
       {can("leads", "approve") && <Reassign key={l.id} l={l} />}
     </>
@@ -103,7 +111,8 @@ function Reassign({ l }: { l: LeadDetail }) {
 }
 
 /** Demo «غيّر المرحلة». Visit / Meeting need a time and units first (1.9): they open «الزيارات» with that kind. */
-function StageCard({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void }) {
+function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void }) {
+  const { can } = useMe();
   const run = useAction();
   const toast = useToast();
   const refresh = useRefreshLead();
@@ -114,7 +123,11 @@ function StageCard({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meet
     const qualifies = !l.qualified && isQualifiedAfter(false, stage);
     // refreshed even when refused (e.g. the lead was taken away meanwhile): the drawer then shows why
     void run(async () => {
-      try { await api.patch(`/leads/${l.id}/stage`, { stage }); if (stage === "No Answer") setAsk(true); } finally { await refresh(l.id); }
+      try {
+        await api.patch(`/leads/${l.id}/stage`, { stage });
+        if (stage === "No Answer") setAsk(true);
+        if (stage === "Done Deal" && !l.hasDeal && can("deals", "create")) onDeal(l.id); // demo: Done Deal opens «سجّل صفقة»
+      } finally { await refresh(l.id); }
     }, qualifies ? `${stage} · واتعلّم Qualified في الكامبين والـ channel` : `المرحلة بقت ${stage}`);
   };
   return (
@@ -129,13 +142,31 @@ function StageCard({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meet
   );
 }
 
-/** Demo «سجّل مكالمة» (1.10). */
-function CallButton({ id }: { id: string }) {
+/**
+ * The overview's buttons (demo leads.js leadDrawer): «سجّل مكالمة» (1.10) · «تعديل البيانات» («leads: edit»; Telesales
+ * only on a lead she holds) · «أرشفة» («leads: delete») · «سجّل الصفقة» on a Done Deal with no deal yet.
+ */
+function LeadActions({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: string) => void; onArchived: () => void }) {
+  const { me, can } = useMe();
   const run = useAction();
   const logCall = useLogCall();
+  const refresh = useRefreshLead();
+  const [editing, setEditing] = useState(false);
+  const telesales = !!me?.roles.includes("telesales");
+  const qc = useQueryClient();
+  // gone from every list: the leads, the tiles and Operations' second calls
+  const archive = () => void run(async () => {
+    await api.post(`/leads/${l.id}/archive`);
+    onArchived();
+    await Promise.all([refresh(l.id), qc.invalidateQueries({ queryKey: ["lead-second-calls"] })]);
+  }, `${l.name} اتأرشف`);
   return (
     <div className="row">
-      <button className="btn ghost" onClick={() => void run(() => logCall(id), "المكالمة اتسجّلت · الـ SLA وقف")}><Icon name="phone" />سجّل مكالمة</button>
+      {editing && <EditLead l={l} onClose={() => setEditing(false)} />}
+      {can("leads", "edit") && <button className="btn ghost" onClick={() => void run(() => logCall(l.id), "المكالمة اتسجّلت · الـ SLA وقف")}><Icon name="phone" />سجّل مكالمة</button>}
+      {can("leads", "edit") && (!telesales || l.ownedByTelesales) && <button className="btn ghost" onClick={() => setEditing(true)}>تعديل البيانات</button>}
+      {can("leads", "delete") && <button className="btn ghost" onClick={archive}><Icon name="x" />أرشفة</button>}
+      {l.stage === "Done Deal" && !l.hasDeal && can("deals", "create") && <button className="btn" onClick={() => onDeal(l.id)}><Icon name="handshake" />سجّل الصفقة</button>}
     </div>
   );
 }
@@ -161,7 +192,7 @@ function NewLeadAction({ l }: { l: LeadDetail }) {
 /** People's comments only; what the system records goes to «Logs» (client meeting, 4 Nov · 1.25). */
 const comments = (l: LeadDetail) => l.activities.filter((a) => a.kind === "comment");
 
-function Activity({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void }) {
+function Activity({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void }) {
   const { can } = useMe();
   const run = useAction();
   const add = useAddComment();
@@ -169,7 +200,7 @@ function Activity({ l, onVisit }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeti
   const mine = comments(l);
   return (
     <>
-      {can("leads", "edit") && <StageCard l={l} onVisit={onVisit} />}
+      {can("leads", "edit") && <StageCard l={l} onVisit={onVisit} onDeal={onDeal} />}
       {can("leads", "edit") && (
         <form className="row" onSubmit={(e) => { e.preventDefault(); const t = text.trim(); if (t) void run(async () => { await add(l.id, t); setText(""); }); }}>
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب كومنت أو نتيجة مكالمة" required maxLength={2000} aria-label="كومنت" />
