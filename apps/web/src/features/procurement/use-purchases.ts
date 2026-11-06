@@ -6,8 +6,10 @@ import { api } from "@/lib/api";
 
 export interface PurchaseFilter { status?: string; accountId?: string; group?: string; vendor?: string; from?: string; to?: string }
 
+/** The toolbar's filters as a query string (the export sends the same). */
+export const filterQuery = (f: PurchaseFilter) => new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([, v]) => v)));
 export const usePurchases = (f: PurchaseFilter, page: number) => {
-  const qs = new URLSearchParams({ page: String(page), pageSize: "50", ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)) });
+  const qs = new URLSearchParams({ page: String(page), pageSize: "50", ...Object.fromEntries(filterQuery(f)) });
   return useQuery({ queryKey: ["procurement", "list", f, page], queryFn: () => api.get<PurchasesView>(`/procurement/purchases?${qs}`) });
 };
 export const usePurchase = (id: string | null) => useQuery({ queryKey: ["procurement", "one", id], queryFn: () => api.get<PurchaseView>(`/procurement/purchases/${id}`), enabled: !!id });

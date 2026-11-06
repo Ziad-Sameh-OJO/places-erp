@@ -1,11 +1,11 @@
 "use client";
 import { useState } from "react";
 import { PURCHASE_STATUS, type ProcurementOverview } from "@places/contracts";
-import { Card, Chip, Icon, Table } from "@/components/ui";
+import { Card, Chip, ExportButton, Icon, Table } from "@/components/ui";
 import { Fab, KpiTile } from "@/components/blocks";
 import { useMe } from "@/lib/me";
 import { ago, money, short } from "@/lib/format";
-import { STATUS, useOverview, usePurchases, useVendors, type PurchaseFilter } from "./use-purchases";
+import { STATUS, filterQuery, useOverview, usePurchases, useVendors, type PurchaseFilter } from "./use-purchases";
 import { PurchaseDrawer } from "./purchase-drawer";
 import { PurchaseForm } from "./purchase-form";
 
@@ -72,6 +72,7 @@ function Toolbar({ f, o, onChange, onNew }: { f: PurchaseFilter; o: ProcurementO
       <label className="date-f"><span>من</span><input type="date" value={f.from ?? ""} onChange={on("from")} /></label>
       <label className="date-f"><span>لحد</span><input type="date" value={f.to ?? ""} onChange={on("to")} /></label>
       <span className="spacer" />
+      <ExportButton module="procurement" path="/procurement/purchases/export" query={filterQuery(f)} filename="الطلبات.xlsx" label="تصدير الطلبات" />
       {onNew && <button className="btn" onClick={onNew}><Icon name="plus" />طلب شراء / دفع</button>}
     </div>
   );

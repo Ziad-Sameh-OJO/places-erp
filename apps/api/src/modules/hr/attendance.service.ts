@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Prisma, type PrismaClient, clockOn, dayVisits } from "@places/db";
-import type { AttendanceDayView, AttendanceEntry, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView, IdealView } from "@places/contracts";
+import type { AttendanceDayView, AttendanceEntry, AttendanceExport, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView, IdealView } from "@places/contracts";
 import { attendanceDay, dayStart, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, type MemberMonth } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -139,6 +139,15 @@ export class AttendanceService {
       unmatched: unmatched.map((u) => ({ id: u.id, name: u.name, day: isoDay(u.day), checkIn: u.checkIn })),
       totals: { present: view.length, late: view.filter((r) => r.lateMinutes > 0).length, deductions: toDecimal(view.reduce((s, r) => s + fromDecimal(r.deductionAmount), 0)) },
     };
+  }
+
+  /** «تصدير الحضور» (demo hr.js · M-12 0.11): the day's rows as on the screen (same scope, same name search). */
+  async exportDay(me: CurrentUser, f: AttendanceExport): Promise<{ day: string; rows: AttendanceRowView[] }> {
+    const v = await this.day(me, f.day);
+    const q = f.q ?? "";
+    const rows = v.rows.filter((r) => r.name.includes(q));
+    await this.audit.record({ module: "hr", entity: "AttendanceDay", entityId: "export", action: "export", userId: me.id, after: { day: v.day, q: f.q ?? null, rows: rows.length } });
+    return { day: v.day, rows };
   }
 
   async history(me: CurrentUser, f: AttendanceRange): Promise<AttendanceHistoryView> {

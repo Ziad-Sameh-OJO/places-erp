@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Pu
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import type { PrismaClient } from "@places/db";
-import { ExcuseAsk, NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
+import { ExcuseAsk, NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceExport, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
 import { sendXlsx } from "../../core/http/excel";
 import { IMPORT_MAX_BYTES, parseSheet, preview, type UploadedSheet } from "../../core/http/import";
 import { AttendanceService } from "./attendance.service";
@@ -49,6 +49,26 @@ export class HrController {
   @Requires("hr", "view")
   attendanceDay(@Me() me: CurrentUser, @Query(new ZodPipe(AttendanceDayQuery)) q: { day?: string }) {
     return this.attendance.day(me, q.day);
+  }
+
+  /** «تصدير الحضور» (demo hr.js · M-12 0.11): the day on the screen, with the demo's columns. */
+  @Get("attendance/export")
+  @Requires("hr", "export")
+  async exportAttendance(@Me() me: CurrentUser, @Query(new ZodPipe(AttendanceExport)) f: AttendanceExport, @Res() res: Response) {
+    const { day, rows } = await this.attendance.exportDay(me, f);
+    const DEDUCTION: Record<number, string> = { 1: "يوم", 0.5: "نص يوم", 0.25: "ربع يوم" };
+    await sendXlsx(res, `الحضور ${day}.xlsx`, [
+      { header: "اليوم", value: (a) => a.day },
+      { header: "الموظف", value: (a) => a.name, width: 24 },
+      { header: "القسم", value: (a) => a.department, width: 16 },
+      { header: "Check-in", value: (a) => a.checkIn },
+      { header: "Check-out", value: (a) => a.checkOut },
+      { header: "Visit", value: (a) => a.visitAt },
+      { header: "الحالة", value: (a) => a.label, width: 26 },
+      { header: "دقايق", value: (a) => a.lateMinutes },
+      { header: "الخصم", value: (a) => (a.deduction ? DEDUCTION[a.deduction] ?? a.deduction : a.confirmForgot ? "يوم · مستني Confirmation" : "") },
+      { header: "مبلغ الخصم", value: (a) => Number(a.deductionAmount) },
+    ], rows, "الحضور");
   }
 
   @Get("attendance/history")

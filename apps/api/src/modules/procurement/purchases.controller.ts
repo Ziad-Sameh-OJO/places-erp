@@ -1,9 +1,14 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
-import { CustodyCap, NewPurchase, PostPurchase, PurchaseDecision, PurchaseFilters, SettlePurchase } from "@places/contracts";
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
+import type { Response } from "express";
+import { CustodyCap, NewPurchase, PostPurchase, PurchaseDecision, PurchaseFilters, SettlePurchase, type PurchaseStatusKey } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
+import { sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { PurchasesService } from "./purchases.service";
+
+/** The screen's status words (web use-purchases STATUS). */
+const STATUS: Record<PurchaseStatusKey, string> = { Pending: "Pending", Approved: "Approved", Rejected: "Rejected", Settled: "اتسوّى · مستني المالية", Posted: "اترحّل في المالية" };
 
 /**
  * HTTP only. M-08 4.1: procurement creates and settles (create · edit), the approvers decide (approve), finance posts
@@ -24,6 +29,23 @@ export class PurchasesController {
   @Requires("procurement", "view")
   list(@Me() me: CurrentUser, @Query(new ZodPipe(PurchaseFilters)) f: PurchaseFilters) {
     return this.purchases.list(me, f);
+  }
+
+  /** «تصدير الطلبات» (demo procurement.js · M-12 0.11): the filtered requests. Before purchases/:id. */
+  @Get("purchases/export")
+  @Requires("procurement", "export")
+  async export(@Me() me: CurrentUser, @Query(new ZodPipe(PurchaseFilters)) f: PurchaseFilters, @Res() res: Response) {
+    await sendXlsx(res, "الطلبات.xlsx", [
+      { header: "الطلب", value: (p) => p.no },
+      { header: "الحاجة", value: (p) => p.item, width: 30 },
+      { header: "المبلغ", value: (p) => Number(p.amount) },
+      { header: "البند", value: (p) => p.account.name, width: 24 },
+      { header: "المورد", value: (p) => p.vendor, width: 20 },
+      { header: "الحالة", value: (p) => STATUS[p.status], width: 22 },
+      { header: "طلبه", value: (p) => p.createdBy.name, width: 22 },
+      { header: "اتطلب", value: (p) => new Date(p.createdAt), width: 18 },
+      { header: "وافق / رفض", value: (p) => p.decidedBy, width: 22 },
+    ], await this.purchases.exportRows(me, f), "الطلبات");
   }
 
   /** «طلبات مشتريات مستنية الصرف» on finance's cash tab. */

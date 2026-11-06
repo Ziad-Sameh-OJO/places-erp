@@ -6,6 +6,7 @@ import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { ownedBy } from "../../core/authz/scope";
+import { EXPORT_LIMIT } from "../../core/http/excel";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
 import { ClientsRepository, type ClientRowRecord, type FileDealRecord } from "./clients.repository";
@@ -33,6 +34,17 @@ export class ClientsService {
     const [rows, total] = await this.repo.list(visibleTo(me), f, staleBefore(new Date()), seesOwnerNumbers(me.grants));
     const deals = await this.repo.dealsOf(rows.map((r) => r.id));
     return { items: rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /**
+   * M-12 «أي جدول في السيستم يتصدّر Excel» (0.11): the list as filtered on the screen, every page, read through the same
+   * scope and the same owner-number rule as the screen (M-10 4.1), so the file never holds a number the reader can't see.
+   */
+  async exportRows(me: CurrentUser, f: ClientFilters): Promise<ClientRow[]> {
+    const [rows] = await this.repo.list(visibleTo(me), { ...f, page: 1, pageSize: EXPORT_LIMIT }, staleBefore(new Date()), seesOwnerNumbers(me.grants));
+    const deals = await this.repo.dealsOf(rows.map((r) => r.id));
+    await this.audit.record({ module: "clients", entity: "Client", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
+    return rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me));
   }
 
   async summary(me: CurrentUser): Promise<ClientSummary> {

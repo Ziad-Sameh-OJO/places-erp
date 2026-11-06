@@ -8,6 +8,7 @@ import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { FilesService } from "../../core/files/files.service";
+import { EXPORT_LIMIT } from "../../core/http/excel";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { LedgerService } from "../finance/ledger.service";
 import { VouchersService } from "../finance/vouchers.service";
@@ -83,6 +84,13 @@ export class PurchasesService {
   async list(me: CurrentUser, f: PurchaseFilters): Promise<PurchasesView> {
     const [[rows, total], who, left] = await Promise.all([this.repo.list(f, this.scope(me)), this.approver(me), this.budgetLeft()]);
     return { items: await this.views(rows, who, left), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** «تصدير الطلبات» (demo procurement.js · M-12 0.11): every request the filters match, in the reader's scope (4.1). */
+  async exportRows(me: CurrentUser, f: PurchaseFilters): Promise<PurchaseView[]> {
+    const [rows] = await this.repo.list({ ...f, page: 1, pageSize: EXPORT_LIMIT }, this.scope(me));
+    await this.audit.record({ module: MODULE, entity: "Purchase", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
+    return this.views(rows, null, new Map());
   }
 
   async get(me: CurrentUser, id: string): Promise<PurchaseView> {
