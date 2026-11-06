@@ -51,6 +51,7 @@ after(async () => {
   if (ids.unit) await prisma.unit.deleteMany({ where: { id: ids.unit } });
   await prisma.notification.deleteMany({ where: { OR: [{ text: { contains: RUN } }, { link: { in: ["/reports", "/kpis"] }, createdAt: { gte: start }, text: { contains: "سلّم" } }] } });
   await prisma.auditLog.deleteMany({ where: { module: "reports", at: { gte: start } } });
+  await prisma.auditLog.deleteMany({ where: { entity: "KpiItem", entityId: { in: [ids.sumItem, ids.adsItem].filter(Boolean) } } });
   await prisma.$disconnect();
 });
 
@@ -157,6 +158,10 @@ test("11.12 · extra fields: the admin adds one, it shows in the form and in the
   assert.equal((await call("/reports/daily", { method: "POST", cookie: amr, body: { values: { [ids.adsKey]: 30 } } })).status, 400);
   const sent = await call("/reports/daily", { method: "POST", cookie: hosny, body: { values: { [ids.sumKey]: 4, [ids.adsKey]: 30, [f.body.id]: 2 }, note: `${RUN} زرت 3 ملاك` } });
   assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  // the typed totals drive the KPI reward / deduction in payroll: each change is audited with its old and new value (Q50)
+  const trail = await prisma.auditLog.findFirstOrThrow({ where: { entity: "KpiItem", entityId: ids.sumItem, action: "update", userId: ids.hosnyUser } });
+  assert.deepEqual([(trail.before as { value: unknown }).value, (trail.after as { value: unknown }).value], [null, 4 + 3 * earlier.length]);
+  assert.equal(await prisma.auditLog.count({ where: { entity: "KpiItem", entityId: ids.adsItem, userId: ids.hosnyUser } }), 1);
   // handed after the daily report's time (CI late in the Cairo day): late, so nothing counts in the KPI and the rest needs on time
   if (!sent.body.onTime) return;
   assert.equal((await call("/reports/daily", { method: "POST", cookie: hosny, body: { values: {} } })).status, 409);

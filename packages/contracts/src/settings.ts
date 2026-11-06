@@ -119,6 +119,9 @@ export const PushSubscriptionInput = z.object({
 });
 export type PushSubscriptionInput = z.infer<typeof PushSubscriptionInput>;
 export const PushEndpointInput = z.object({ endpoint: PushEndpoint });
+/** «خروج» (M-14 51 · 12.10): this device's push address, so a shared phone stops getting the last person's notifications. */
+export const Logout = z.object({ endpoint: PushEndpoint.optional() }).default({});
+export type Logout = z.infer<typeof Logout>;
 
 /** M-14 3.3 · 6.1: the send log, filtered by state: مستني · اتبعت · اتقرا · الإيميل فشل. */
 export const MailLogQuery = Page.extend({ status: z.enum(["queued", "sent", "read", "failed"]).optional() });

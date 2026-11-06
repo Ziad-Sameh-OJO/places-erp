@@ -77,6 +77,14 @@ export function taskMove(kind: string, from: TaskStatus, to: TaskStatus, actor: 
 export const taskMovesFor = (kind: string, from: TaskStatus, actor: TaskActor): TaskStatus[] =>
   TASK_STATUSES.filter((to) => taskMove(kind, from, to, actor).ok);
 
+/**
+ * M-04 2.1 step 4 «كل واحدة بتديله وحدة في اليوم»: a second photo task from the same person to the same photographer
+ * for the same day, while the first isn't Done, gets the demo's warning (tasks.js `taskNew`). A warning, not a block:
+ * the demo still sends it. `sameDayOpen` = their open photo tasks for that day before this one.
+ */
+export const photoDayWarning = (kind: string, sameDayOpen: number): string | null =>
+  kind === "photo" && sameDayOpen > 0 ? "تنبيه: إنت مدياه وحدة النهارده قبل كده (وحدة في اليوم)" : null;
+
 /** M-04 2.4: «المهام اليومية لازم تخلص في يومها» — late once its day (Cairo) has passed and it isn't Done. */
 export const isTaskLate = (t: { status: string; dueOn: string }, now: Date): boolean => t.status !== "done" && t.dueOn < localDate(now);
 

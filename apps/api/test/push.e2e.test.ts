@@ -59,3 +59,18 @@ test("push: a salesperson turns it on for his device (audited), only he turns it
   assert.equal(await prisma.pushSubscription.count({ where: { endpoint } }), 0);
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "PushSubscription", entityId: rows[0]!.id, action: "delete" } }));
 });
+
+test("12.10 «خروج» on a shared phone: signing out drops this device's push with the session; someone else's sign-out can't", async () => {
+  const phone = `${endpoint}-shared`;
+  const [mine, other] = await Promise.all([session("m.mohsen@places.com"), session("basant.elsawy@places.com")]);
+  assert.equal((await call("/notifications/push/subscriptions", { method: "POST", cookie: mine, body: { endpoint: phone, keys } })).status, 204);
+  // HR signing out naming his device: her session ends, his device stays
+  assert.equal((await call("/auth/logout", { method: "POST", cookie: other, body: { endpoint: phone } })).status, 204);
+  assert.equal(await prisma.pushSubscription.count({ where: { endpoint: phone, userId: salesId } }), 1);
+  assert.equal((await call("/auth/logout", { method: "POST", cookie: mine, body: { endpoint: "http://10.0.0.1/inside" } })).status, 400);
+  assert.equal((await call("/auth/logout", { method: "POST", cookie: mine, body: { endpoint: phone } })).status, 204);
+  assert.equal(await prisma.pushSubscription.count({ where: { endpoint: phone } }), 0);
+  assert.equal((await call("/auth/me", { cookie: mine })).status, 401);
+  // a sign-out without push (no body) still works
+  assert.equal((await call("/auth/logout", { method: "POST", cookie: await session("basant.elsawy@places.com") })).status, 204);
+});

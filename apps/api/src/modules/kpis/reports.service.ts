@@ -245,6 +245,9 @@ export class ReportsService {
         const series = days.flatMap((d) => (typeof d.values[it.key] === "number" ? [{ day: d.day, value: d.values[it.key] as number }] : []));
         const value = it.metric === "webAds" ? dailyAverage(series, today) : dailySumValue(series, today, it.params as MetricParams);
         await tx.kpiItem.update({ where: { id: it.id }, data: { value } });
+        // the value drives the KPI reward / deduction in payroll (M-11), so it carries its trail like any money input (Q50)
+        await this.audit.record({ module: "kpis", entity: "KpiItem", entityId: it.id, action: "update", userId: me.id,
+          before: { value: it.value == null ? null : Number(it.value) }, after: { value, summary: `${me.name} · ${it.title}: ${value} (التقرير اليومي)` } }, tx);
       }
       return out;
     });

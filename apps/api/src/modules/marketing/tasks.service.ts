@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, photoDayWarning, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -95,7 +95,7 @@ export class TasksService {
   }
 
   /** M-04 2.1 step 4: give a task; the assignee is told, with the unit's data. */
-  async create(me: CurrentUser, input: CreateTask): Promise<{ id: string }> {
+  async create(me: CurrentUser, input: CreateTask): Promise<{ id: string; warning: string | null }> {
     const kind = taskKind(input.kind)!; // the contract refused unknown and system-only kinds
     if (!mayGive(me, kind.key)) throw new ForbiddenException(`مش من حقك تدّي مهمة ${kind.label}`);
     await this.checkAssignee(kind.key, input.toUserId);
@@ -113,6 +113,7 @@ export class TasksService {
       kind: kind.key, toUserId: input.toUserId, byUserId: me.id, dueOn: dayStartUtc(input.dueOn),
       unitId: kind.withUnit ? input.unitId! : null, title: kind.key === "marketing" ? input.title! : null, note: input.note ?? null,
     };
+    const warning = kind.key === "photo" ? photoDayWarning(kind.key, await this.repo.openSameDay(kind.key, me.id, input.toUserId, data.dueOn)) : null;
     const created = await this.db.$transaction(async (tx) => {
       const t = await this.repo.create(tx, data);
       await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: "create", userId: me.id, after: { ...data, dueOn: input.dueOn } }, tx);
@@ -121,7 +122,7 @@ export class TasksService {
     if (input.toUserId !== me.id) {
       await this.notifications.notify({ event: "task.new", text: `مهمة ${kind.label} جديدة: ${unitCode ?? input.title} من ${me.name}`, link: link(created.id), userIds: [input.toUserId] });
     }
-    return created;
+    return { id: created.id, warning };
   }
 
   /** M-04 3.3: To Do → In Progress → Done, Undo (7.1), and the Retouch's upload → Manar approves or sends it back (2.2). */

@@ -13,6 +13,7 @@ import { useMe } from "@/lib/me";
 import { NAV, SECTIONS } from "@/lib/nav";
 import { Avatar, Icon } from "./ui";
 import { BellPanel, useBell } from "./bell";
+import { pushSubscription } from "@/features/notifications/push";
 
 const BrandMark = () => (
   <span className="brand-mark" aria-hidden="true">
@@ -31,7 +32,11 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => { document.body.classList.add("has-tabbar"); return () => document.body.classList.remove("has-tabbar"); }, []);
 
   async function signOut() {
-    await api.post("/auth/logout").catch(() => {});
+    // 12.10: a shared phone must stop getting this person's notifications. The API drops the device's push with the
+    // session; the browser forgets it too. Never blocks signing out.
+    const sub = await pushSubscription().catch(() => null);
+    await api.post("/auth/logout", sub ? { endpoint: sub.endpoint } : {}).catch(() => {});
+    await sub?.unsubscribe().catch(() => false);
     qc.clear();
     router.replace("/login");
   }
