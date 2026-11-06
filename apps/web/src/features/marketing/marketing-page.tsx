@@ -5,26 +5,28 @@ import { Broadcast, useBroadcasts } from "./broadcast";
 import { Campaigns } from "./campaigns";
 import { ContentPlan } from "./content-plan";
 import { Dashboard } from "./dashboard";
+import { DoneDeals, useMarketingDeals } from "./done-deals";
 import { NewUnits, useNewUnits } from "./new-units";
 import { useCampaigns } from "./use-campaigns";
 
-type Tab = "dash" | "camps" | "content" | "broadcast" | "units";
-const TABS: readonly Tab[] = ["dash", "camps", "content", "broadcast", "units"];
+type Tab = "dash" | "camps" | "content" | "broadcast" | "units" | "deals";
+const TABS: readonly Tab[] = ["dash", "camps", "content", "broadcast", "units", "deals"];
 
-/** M-04 · التسويق (demo marketing.js): dashboard (4.6), campaigns (4.5), Content plan (4.7), Broadcast (4.8), new units (4.4). */
+/** M-04 · التسويق (demo marketing.js): dashboard (4.6), campaigns (4.5), Content plan (4.7), Broadcast (4.8), new units (4.4), Done Deals (4.9). */
 export function MarketingPage() {
   const [tab, setTab] = useState<Tab>("dash");
   const campaigns = useCampaigns().data;
   const units = useNewUnits().data;
   const broadcasts = useBroadcasts().data;
-  // a Reminder links to /marketing?tab=content, a Live Alert to ?tab=units
+  const deals = useMarketingDeals().data;
+  // a Reminder links to /marketing?tab=content, a Live Alert to ?tab=units, a Done Deal alarm to ?tab=deals
   useEffect(() => { const t = new URLSearchParams(window.location.search).get("tab"); if (TABS.includes(t as Tab)) setTab(t as Tab); }, []);
   return (
     <>
       <div className="row">
         <Tabs value={tab} onChange={setTab} items={[
           ["dash", "Dashboard"], ["camps", "الكامبينز", campaigns?.length], ["content", "Content plan"],
-          ["broadcast", "Broadcast", broadcasts?.items.length], ["units", "وحدات جديدة", units?.length],
+          ["broadcast", "Broadcast", broadcasts?.items.length], ["units", "وحدات جديدة", units?.length], ["deals", "الصفقات", deals?.total],
         ]} />
       </div>
       {tab === "dash" && <Dashboard />}
@@ -32,6 +34,7 @@ export function MarketingPage() {
       {tab === "content" && <ContentPlan />}
       {tab === "broadcast" && <Broadcast />}
       {tab === "units" && <NewUnits />}
+      {tab === "deals" && <DoneDeals />}
     </>
   );
 }
