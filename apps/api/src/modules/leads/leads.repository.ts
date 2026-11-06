@@ -210,8 +210,15 @@ export class LeadsRepository {
     return tx.lead.updateMany({ where: { id, firstActionAt: null }, data: { firstActionAt: at, touched: true } });
   }
 
-  findByPhone(phones: string[]) {
-    return this.db.lead.findFirst({ where: { phones: { hasSome: phones }, archivedAt: null }, select: { id: true, code: true } });
+  /** `except`: the lead being edited — its own mobiles aren't a duplicate of itself. */
+  findByPhone(phones: string[], except?: string) {
+    return this.db.lead.findFirst({ where: { phones: { hasSome: phones }, archivedAt: null, ...(except ? { id: { not: except } } : {}) }, select: { id: true, code: true } });
+  }
+
+  /** What «تعديل البيانات» changes, when the lead is in the caller's scope (M-01 «تعديل البيانات»). */
+  editable(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient) {
+    return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] },
+      select: { id: true, code: true, name: true, kind: true, phones: true, area: true, type: true, space: true, condition: true, budget: true, note: true, company: { select: { name: true } } } });
   }
 
   /** Every arrival counts for its channel / campaign, the duplicate ones too (M-04 Q22). */
@@ -310,14 +317,14 @@ export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   newLeadRequestedAt: true, newLeadRoutedAt: true,
-  company: { select: { name: true } },
+  company: { select: { name: true } }, _count: { select: { deals: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
   visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, postponeReason: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },
 } satisfies Prisma.LeadSelect;
 export type LeadDetailRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_DETAIL }>;
 
 /** What a line of Activity is about (the column is text; these are the kinds the flows write). */
-export type ActivityKind = "comment" | "stage" | "assign" | "call" | "visit" | "meeting" | "whatsapp" | "duplicate";
+export type ActivityKind = "comment" | "stage" | "assign" | "call" | "visit" | "meeting" | "whatsapp" | "duplicate" | "edit";
 
 const DUPLICATE_ROW = {
   id: true, at: true, byUserId: true, data: true, decidedAt: true,

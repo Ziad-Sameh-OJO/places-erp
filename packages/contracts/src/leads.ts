@@ -27,6 +27,13 @@ export const CreateLead = z.object({
 });
 export type CreateLead = z.infer<typeof CreateLead>;
 
+/**
+ * «تعديل البيانات» (demo leads.js leadEdit): the whole form again; a field left empty is cleared. The mobiles go
+ * through the same duplicate check as a new lead (M-01 Q7).
+ */
+export const UpdateLead = CreateLead.pick({ name: true, kind: true, company: true, phones: true, area: true, type: true, space: true, condition: true, budget: true, note: true });
+export type UpdateLead = z.infer<typeof UpdateLead>;
+
 export const ChangeStage = z.object({ stage: z.enum(LEAD_STAGES), note: z.string().max(2000).optional() });
 export type ChangeStage = z.infer<typeof ChangeStage>;
 
@@ -80,6 +87,8 @@ export interface LeadActivityRow {
 /** The lead drawer (M-01): the list row plus the details and the Activity, newest first. */
 export interface LeadDetail extends LeadRow {
   company: string | null; condition: string | null; note: string | null;
+  /** a deal is registered on it already: the drawer's «سجّل الصفقة» hides (demo) */
+  hasDeal: boolean;
   post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
   /** the first logged call, and whether it came within 30 minutes of arrival (KPI; null until someone calls) */
   firstCallAt: string | null; firstCallOnTime: boolean | null;

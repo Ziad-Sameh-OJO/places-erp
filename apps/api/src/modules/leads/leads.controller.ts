@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { AddComment, AssignLead, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
+import { AddComment, AssignLead, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, UpdateLead, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendPdf } from "../../core/documents/documents.service";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -149,6 +149,21 @@ export class LeadsController {
   @Requires("leads", "approve")
   assign(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(AssignLead)) body: AssignLead) {
     return this.leads.assign(me, id, body);
+  }
+
+  /** «تعديل البيانات» (demo leads.js leadEdit). */
+  @Put(":id")
+  @Requires("leads", "edit")
+  update(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UpdateLead)) body: UpdateLead) {
+    return this.leads.update(me, id, body);
+  }
+
+  /** «أرشفة» (demo leads.js leadArchive): «leads: delete» is «يأرشف / يمسح» in the permission matrix. */
+  @Post(":id/archive")
+  @HttpCode(200)
+  @Requires("leads", "delete")
+  archive(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.leads.archive(me, id);
   }
 
   @Patch(":id/stage")

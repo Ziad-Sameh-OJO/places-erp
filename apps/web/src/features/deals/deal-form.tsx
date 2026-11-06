@@ -13,9 +13,13 @@ const leadOption = (l: DealFormData["leads"][number]) => (
   <option key={l.id} value={l.id}>{withCo(l)} · {l.code}{l.draft?.from ? ` · كان عند ${l.draft.from}` : ""}</option>
 );
 
-/** «سجّل صفقة» (demo deals.js `dealNew`): the company and source come from the lead, the location and Seller from the unit. */
-export function DealForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: string) => void }) {
+/**
+ * «سجّل صفقة» (demo deals.js `dealNew`): the company and source come from the lead, the location and Seller from the unit.
+ * `leadId`: opened from a lead's drawer («سجّل الصفقة», or the stage set to Done Deal) — that lead is picked.
+ */
+export function DealForm({ onClose, onSaved, leadId }: { onClose: () => void; onSaved: (id: string) => void; leadId?: string }) {
   const form = useDealForm().data;
+  const picked = form?.leads.find((l) => l.id === leadId);
   const units = useDealUnits().data ?? [];
   const run = useAction();
   const refresh = useRefreshDeals();
@@ -34,10 +38,10 @@ export function DealForm({ onClose, onSaved }: { onClose: () => void; onSaved: (
     onSaved(r.id);
   }, "اتسجّلت ومستنية مراجعة الـ Office Manager"));
   return (
-    <Modal title="سجّل صفقة" onClose={onClose}>
+    <Modal title={picked ? `سجّل صفقة · ${withCo(picked)}` : "سجّل صفقة"} onClose={onClose}>
       <form className="grid" onSubmit={save}>
         <Field label="العميل (من الليدز)" req wide>
-          <select name="leadId" required defaultValue="">
+          <select key={form ? "ready" : "loading"} name="leadId" required defaultValue={picked?.id ?? ""}>
             <option value="" disabled>{form ? (form.leads.length ? "اختار" : "مفيش ليدز تقدر تقفل عليها") : "بيحمّل…"}</option>
             {drafted.length ? (
               <>
