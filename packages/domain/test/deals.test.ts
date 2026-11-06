@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { egp, formatEGP } from "../src/money.ts";
 import { type DealMoney, awaitsCollection, collectionProblem, payoutDue, payoutProblem, payoutState, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult, tlAdjustment } from "../src/team-leader.ts";
-import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, expectsCommission, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
+import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, execState, executeProblem, expectsCommission, papersProblem, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
 
 test("5.12: the TCR code comes from one sequence (T180…), and each salesperson on it signs once", () => {
   assert.equal(tcrCode(181n), "T181");
@@ -167,4 +167,23 @@ test("9.15: commission is payable once fully collected, less what was paid; neve
   assert.equal(payoutProblem(0, egp(20_000), egp(1)), "مفيش عمولة مستحقة هنا");
   assert.equal(payoutProblem(egp(5_000), egp(2_000), egp(5_000)), `رصيد حسابه في العمولات المستحقة ${formatEGP(egp(2_000))} بس`);
   assert.equal(payoutProblem(egp(5_000), egp(20_000), 0), "المبلغ لازم يبقى أكبر من صفر");
+});
+
+test("M-02 3.1 · KPI 2202: the execution chip — on time, late, or past its date and not done", () => {
+  assert.equal(execState(null, null, "2026-11-06"), null);
+  assert.equal(execState("2026-11-10", null, "2026-11-06"), null); // still in time
+  assert.equal(execState("2026-11-05", null, "2026-11-06"), "overdue"); // «متأخرة عن ميعاد التنفيذ»
+  assert.equal(execState("2026-11-06", "2026-11-06", "2026-11-06"), "on-time"); // the due day itself is on time
+  assert.equal(execState("2026-11-05", "2026-11-06", "2026-11-06"), "late"); // «اتنفذت متأخر»
+  assert.equal(execState(null, "2026-11-06", "2026-11-06"), "on-time"); // no date set: the demo counts it on time
+  assert.equal(executeProblem("Approved", false), null);
+  assert.equal(executeProblem("Fully Collected", true), "اتسجّل التنفيذ قبل كده");
+  assert.equal(executeProblem("Pending Review", false), "التنفيذ بيتسجّل على صفقة اتوافق عليها بس");
+});
+
+test("M-02 3.1: Finance marks the papers «سليمة», or «فيها خطأ» with what's wrong, on a deal on the sheet", () => {
+  assert.equal(papersProblem("Approved", true, undefined), null);
+  assert.equal(papersProblem("Partially Collected", false, "التفويض ناقص إمضاء"), null);
+  assert.equal(papersProblem("Approved", false, "  "), "اكتب الخطأ إيه");
+  assert.equal(papersProblem("Cancelled", true, undefined), "مراجعة الأوراق بتبقى على صفقة اتوافق عليها بس");
 });

@@ -6,7 +6,7 @@ import { PRISMA } from "../../core/database/database.module";
 const PERSON = { select: { id: true, name: true } } as const;
 export const DEAL_ROW = {
   id: true, code: true, company: true, location: true, space: true, type: true, status: true, commissionOwner: true, commissionClient: true,
-  closedAt: true, offTarget: true, note: true, targetBase: true,
+  closedAt: true, offTarget: true, note: true, targetBase: true, execDueAt: true, executedAt: true, papersOk: true, papersNote: true,
   unit: { select: { id: true, code: true } },
   participants: { select: { side: true, approved: true, employee: PERSON }, orderBy: { employee: { name: "asc" } } },
   payments: { select: { receivedAt: true }, orderBy: { receivedAt: "asc" }, take: 1 }, // 3.2 «Date» = the first collection's month
@@ -225,7 +225,7 @@ export class DealsRepository {
 }
 
 /** Search the sheet by company, deal code, unit code or a salesperson's name (M-02 5.2). */
-function search(q: string | undefined): Prisma.DealWhereInput {
+export function search(q: string | undefined): Prisma.DealWhereInput {
   if (!q) return {};
   const has = { contains: q, mode: "insensitive" } as const;
   return { OR: [{ company: has }, { code: has }, { location: has }, { unit: { code: has } }, { participants: { some: { employee: { name: has } } } }] };

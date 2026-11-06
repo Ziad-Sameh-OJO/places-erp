@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { CancelDeal, CollectDeal, CreateDeal, DealFilters, DealNote, DealUnitQuery, ReviewDeal } from "@places/contracts";
+import { CancelDeal, CollectDeal, CreateDeal, DealExecution, DealFilters, DealNote, DealPapers, DealUnitQuery, ReviewDeal } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -90,10 +90,24 @@ export class DealsController {
     return this.deals.cancel(me, id, body);
   }
 
-  /** «note» (M-02 3.1): the Office Manager and Finance — «deals: edit» in the role matrix. */
+  /** «note» (M-02 3.1): «deals: edit», and the service narrows it to the Office Manager and Finance (writesNote). */
   @Put(":id/note")
   @Requires("deals", "edit")
   setNote(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(DealNote)) body: DealNote) {
     return this.deals.setNote(me, id, body);
+  }
+
+  /** «ميعاد تنفيذ الصفقة» (M-02 3.1): the Office Manager — «deals: approve», her review right. */
+  @Put(":id/execution")
+  @Requires("deals", "approve")
+  setExecution(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(DealExecution)) body: DealExecution) {
+    return this.deals.setExecution(me, id, body);
+  }
+
+  /** «مراجعة أوراق الصفقة» (M-02 3.1): Finance — «finance: edit». */
+  @Put(":id/papers")
+  @Requires("finance", "edit")
+  setPapers(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(DealPapers)) body: DealPapers) {
+    return this.deals.setPapers(me, id, body);
   }
 }
