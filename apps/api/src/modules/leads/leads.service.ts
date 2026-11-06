@@ -426,7 +426,35 @@ export class LeadsService {
 
   /** «سجّل صفقة» (M-02 2.1 step 1): the caller's leads that were ever Interested; one of them when `id` is given. */
   dealLeads(me: CurrentUser, id?: string) {
-    return this.repo.dealLeads(ownedBy(me) as never, id);
+    return this.repo.dealLeads(ownedBy(me) as never, ownedBy(me, "fromId") as never, id);
+  }
+
+  /**
+   * A deal on a lead in the Draft brings it back to the salesperson it was pulled from (demo deals.js «رجع من الـ Draft
+   * لـ … بصفقة …»), in the deal's own transaction: the stay ends with decision «deal». Claimed on draft = "draft", so a
+   * decision by Operations at the same moment can't also apply.
+   */
+  async backFromDraft(tx: Prisma.TransactionClient, me: CurrentUser, lead: { id: string; drafts: Array<{ id: string; fromId: string | null }> }, dealCode: string) {
+    const stay = lead.drafts[0];
+    if (!stay?.fromId) return null;
+    const now = new Date();
+    const moved = await tx.lead.updateMany({ where: { id: lead.id, draft: "draft" }, data: { draft: null, assignedToId: stay.fromId, assignedAt: now, slaWarnedAt: null } });
+    if (!moved.count) throw new ConflictException("الليد ده اتحرّك من الـ Draft دلوقتي · جرّب تاني");
+    await tx.leadDraft.update({ where: { id: stay.id }, data: { decidedAt: now, decidedById: me.id, decision: "deal", toId: stay.fromId } });
+    const [from] = await this.repo.employeeNames([stay.fromId], tx);
+    await this.repo.addActivity(tx, lead.id, "assign", `رجع من الـ Draft لـ ${from?.name ?? "—"} بصفقة ${dealCode}`, me.id);
+    await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "draft-route", userId: me.id,
+      before: { draft: "draft", assignedToId: null, from: stay.fromId }, after: { draft: null, assignedToId: stay.fromId, decision: "deal", deal: dealCode } }, tx);
+    return { fromId: stay.fromId, fromName: from?.name ?? "—" };
+  }
+
+  /** Demo: «فلان فتح صفقة D-… على … من الـ Draft · الليد رجعله», to the people of draft.notify (1.26). */
+  async notifyBackFromDraft(lead: { id: string; name: string }, back: { fromId: string; fromName: string }, dealCode: string) {
+    const rules = await this.rules.get();
+    const owner = await this.repo.ownerAccounts(back.fromId);
+    const to = ruleRecipients(rules.draft.notify, { ownerUserId: owner?.userId ?? null, ownerTlUserId: owner?.teamLeader?.userId ?? null });
+    await this.notifications.notify({ event: "lead.assigned", text: `${back.fromName} فتح صفقة ${dealCode} على ${lead.name} من الـ Draft · الليد رجعله`,
+      link: `/leads?open=${lead.id}`, to, channels: [...rules.draft.notify.ch] });
   }
 
   /** A deal was registered on the lead (M-02): it moves to Done Deal in the deal's own transaction, with a line in its Activity. */

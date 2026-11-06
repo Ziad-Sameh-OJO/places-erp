@@ -130,12 +130,18 @@ export class LeadsRepository {
     return tx.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
-  /** Activity is written by users; their display name lives on their HR file. */
-  /** «سجّل صفقة» (M-02): leads in scope that were ever Interested, with their company. */
-  dealLeads(scope: Prisma.LeadWhereInput, id?: string) {
+  /**
+   * «سجّل صفقة» (M-02): leads in scope that were ever Interested, with their company — and the leads pulled to the
+   * Draft from someone in scope (`draftScope` on the stay's fromId), with that open stay (M-01 «السيلز يقدر يفتح صفقة
+   * على ليده اللي في الـ Draft», 4 Nov meeting).
+   */
+  dealLeads(scope: Prisma.LeadWhereInput, draftScope: Prisma.LeadDraftWhereInput, id?: string) {
+    const openDraft = { kind: "draft", decidedAt: null } satisfies Prisma.LeadDraftWhereInput;
     return this.db.lead.findMany({
-      where: { AND: [scope, { archivedAt: null, qualified: true }, id ? { id } : {}] },
-      select: { id: true, code: true, name: true, channel: true, stage: true, qualified: true, assignedToId: true, createdAt: true, company: { select: { name: true } } },
+      where: { AND: [{ archivedAt: null, qualified: true }, id ? { id } : {},
+        { OR: [scope, { draft: "draft", drafts: { some: { AND: [openDraft, { fromId: { not: null } }, draftScope] } } }] }] },
+      select: { id: true, code: true, name: true, channel: true, stage: true, qualified: true, assignedToId: true, createdAt: true, draft: true, company: { select: { name: true } },
+        drafts: { where: openDraft, select: { id: true, fromId: true }, take: 1 } },
       orderBy: { updatedAt: "desc" }, take: 300,
     });
   }

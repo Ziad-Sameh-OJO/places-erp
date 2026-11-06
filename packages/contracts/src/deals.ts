@@ -146,7 +146,8 @@ export interface DealDetail extends Omit<DealRow, "tcrs"> {
 }
 /** What «سجّل صفقة» offers: the caller's leads (with their company) and the salespeople for «حد معاك». */
 export interface DealForm {
-  leads: Array<{ id: string; code: string; name: string; company: string | null }>;
+  /** `draft`: pulled to the Draft from its salesperson (`from` = their name when it isn't the caller's own lead). */
+  leads: Array<{ id: string; code: string; name: string; company: string | null; draft: { from: string | null } | null }>;
   salespeople: DealPerson[];
 }
 export interface DealUnit { id: string; code: string; project: string; space: number; type: DealType; agent: DealPerson | null }

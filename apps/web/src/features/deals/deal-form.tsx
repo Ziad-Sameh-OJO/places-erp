@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { DealDetail } from "@places/contracts";
+import type { DealDetail, DealForm as DealFormData } from "@places/contracts";
 import { DEAL_TYPES } from "@places/domain";
 import { Field, Modal, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -9,6 +9,10 @@ import { useDealForm, useDealUnits, useRefreshDeals } from "./use-deals";
 /** The company always shows next to the lead's name (demo meeting, 4 Nov). */
 const withCo = (l: { name: string; company: string | null }) => `${l.name} · ${l.company ?? "من غير شركة"}`;
 
+const leadOption = (l: DealFormData["leads"][number]) => (
+  <option key={l.id} value={l.id}>{withCo(l)} · {l.code}{l.draft?.from ? ` · كان عند ${l.draft.from}` : ""}</option>
+);
+
 /** «سجّل صفقة» (demo deals.js `dealNew`): the company and source come from the lead, the location and Seller from the unit. */
 export function DealForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: string) => void }) {
   const form = useDealForm().data;
@@ -16,6 +20,10 @@ export function DealForm({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const run = useAction();
   const refresh = useRefreshDeals();
   const [unitId, setUnitId] = useState("");
+  // M-01 / M-02: a salesperson can still close a deal on their own lead that was pulled to the Draft (demo dealNew)
+  const held = form?.leads.filter((l) => !l.draft) ?? [];
+  const drafted = form?.leads.filter((l) => l.draft) ?? [];
+  const mine = drafted.every((l) => !l.draft?.from);
   const unit = units.find((u) => u.id === unitId) ?? units[0];
   const save = onFormSubmit((d) => run(async () => {
     const r = await api.post<DealDetail>("/deals", {
@@ -31,7 +39,12 @@ export function DealForm({ onClose, onSaved }: { onClose: () => void; onSaved: (
         <Field label="العميل (من الليدز)" req wide>
           <select name="leadId" required defaultValue="">
             <option value="" disabled>{form ? (form.leads.length ? "اختار" : "مفيش ليدز تقدر تقفل عليها") : "بيحمّل…"}</option>
-            {form?.leads.map((l) => <option key={l.id} value={l.id}>{withCo(l)} · {l.code}</option>)}
+            {drafted.length ? (
+              <>
+                <optgroup label={mine ? "ليدزك" : "الليدز"}>{held.map(leadOption)}</optgroup>
+                <optgroup label="من الـ Draft (اتسحبت من غير أكشن)">{drafted.map(leadOption)}</optgroup>
+              </>
+            ) : held.map(leadOption)}
           </select>
         </Field>
         <Field label="الوحدة (من الانفنتوري)" req wide>

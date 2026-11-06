@@ -91,7 +91,13 @@ export class DealsService {
   /** «سجّل صفقة»: the caller's leads (with their company, 4 Nov meeting) and the salespeople for «حد معاك في الديل Buyer؟». */
   async form(me: CurrentUser): Promise<DealForm> {
     const [leads, salespeople] = await Promise.all([this.leads.dealLeads(me), this.repo.salespeople()]);
-    return { leads: leads.map((l) => ({ id: l.id, code: l.code, name: l.name, company: l.company?.name ?? null })), salespeople };
+    // a lead pulled to the Draft shows in its own group; «كان عند …» only when it wasn't the caller's (demo deals.js dealNew)
+    const from = await this.names(leads.map((l) => l.drafts[0]?.fromId).filter((x): x is string => !!x && x !== me.employeeId));
+    return { leads: leads.map((l) => {
+      const stay = l.draft === "draft" ? l.drafts[0] : undefined;
+      return { id: l.id, code: l.code, name: l.name, company: l.company?.name ?? null,
+        draft: stay ? { from: stay.fromId && stay.fromId !== me.employeeId ? from.get(stay.fromId) ?? null : null } : null };
+    }), salespeople };
   }
 
   async units(q?: string): Promise<DealUnit[]> {
@@ -111,7 +117,9 @@ export class DealsService {
     if (!lead) throw new NotFoundException("الليد ده مش موجود أو مبقاش معاك");
     const unit = await this.inventory.openForDeal(input.unitId);
     if (!unit) throw new BadRequestException("الوحدة دي مش متاحة · اختار من القايمة");
-    const closer = lead.assignedToId ?? me.employeeId;
+    const stay = lead.draft === "draft" ? lead.drafts[0] : undefined;
+    // a lead in the Draft is closed by the salesperson it was pulled from (demo: «me = l.draft.from»)
+    const closer = stay?.fromId ?? lead.assignedToId ?? me.employeeId;
     if (!closer) throw new BadRequestException("الليد ده مش مع سيلز");
     const { buyers, sellers } = dealSides(closer, input.withMe, unit.agentId);
     if ((await this.repo.salespeople(input.withMe)).length !== new Set(input.withMe).size) throw new BadRequestException(NOT_SALES);
@@ -132,9 +140,11 @@ export class DealsService {
         participants: { create: [...buyers.map((employeeId) => ({ employeeId, side: "BUYER" as const })), ...sellers.map((employeeId) => ({ employeeId, side: "SELLER" as const, approved: false }))] },
       });
       await this.audit.record({ module: "deals", entity: "Deal", entityId: deal.id, action: "create", userId: me.id, after: { ...data, buyers, sellers } }, tx);
+      const back = stay ? await this.leads.backFromDraft(tx, me, lead, code) : null;
       await this.leads.markDoneDeal(tx, me, lead, `اتسجّلت صفقة ${code} على ${unit.code}`);
-      return { id: deal.id, code };
+      return { id: deal.id, code, back };
     });
+    if (created.back) await this.leads.notifyBackFromDraft(lead, created.back, created.code);
     // who hears of a new Done Deal and on which channels is «قواعد الليدز ← الإقفال» (1.29), like the demo
     const holder = await this.repo.account(closer);
     const to = ruleRecipients(close.notify, { ownerUserId: holder?.userId ?? null, ownerTlUserId: holder?.teamLeader?.userId ?? null });
