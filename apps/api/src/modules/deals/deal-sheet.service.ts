@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@places/db";
-import type { DealSheet, DealSheetRow } from "@places/contracts";
-import { collected, collectedFrom, countsAsRevenue, countsInTarget, dealRowOf, remaining, revenueBoard, splitDeal, toDecimal } from "@places/domain";
+import type { DealSheet, DealSheetRow, DealsToCollect } from "@places/contracts";
+import { awaitsCollection, collected, collectedFrom, countsAsRevenue, countsInTarget, dealRowOf, placesCommission, remaining, revenueBoard, splitDeal, toDecimal } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
@@ -70,5 +70,15 @@ export class DealSheetService {
 
   async collectForm() {
     return { incomes: await this.vouchers.commissionLines() };
+  }
+
+  /**
+   * M-02 «محسوم في ميتنج 4 نوفمبر»: «حصّل عمولة» on the accountant's «مهامي النهارده» and the finance dashboard
+   * (demo finance.js financeInbox) — every approved deal still to collect, the oldest first.
+   */
+  async toCollect(me: CurrentUser): Promise<DealsToCollect> {
+    const rows = await this.repo.sheet({ AND: [this.scope(me), { status: { in: ["APPROVED", "PARTIALLY_COLLECTED"] } }] });
+    const items = rows.map((d) => ({ d, m: money(d) })).filter((x) => awaitsCollection(x.m)).reverse();
+    return { items: items.map(({ d, m }) => ({ id: d.id, code: d.code, company: d.company, commission: toDecimal(placesCommission(m)), remaining: toDecimal(remaining(m)) })) };
   }
 }

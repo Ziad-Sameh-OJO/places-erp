@@ -54,6 +54,8 @@ export const CancelDeal = z.object({ reason: z.string().trim().min(1, "اكتب 
 export type CancelDeal = z.infer<typeof CancelDeal>;
 /** A recorded collection: the deal's new status, what's left, the voucher and entry numbers, and its TCR (5.12). */
 export interface DealCollected { status: DealStatus; collected: string; remaining: string; move: string; entry: string; tcr: string }
+/** «صفقة اتقفلت · حصّل عمولة» (M-02, meeting 4 Nov · demo finance.js financeInbox): approved deals still to collect. */
+export interface DealsToCollect { items: Array<{ id: string; code: string; company: string; commission: string; remaining: string }> }
 
 /** 9.15 «صرف عمولة سيلز»: on one deal and its TCR; without a deal it is a Team Leader's commission (5.8). */
 export const PayCommission = z.object({

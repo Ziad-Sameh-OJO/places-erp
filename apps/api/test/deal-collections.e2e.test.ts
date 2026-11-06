@@ -61,14 +61,28 @@ after(async () => {
 });
 
 const collect = (cookie: string, body: object) => call(`/deals/${dealId}/collections`, { method: "POST", cookie, body });
+/** «صفقة اتقفلت · حصّل عمولة» (M-02, meeting 4 Nov): this deal's line on the caller's «مهامي النهارده», or undefined. */
+const task = async (cookie: string) => {
+  const r = await call("/home/collect", { cookie });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  return (r.body.items as Array<{ id: string; code: string; company: string; commission: string; remaining: string }>).find((x) => x.id === dealId);
+};
 
 test("9.12: the Office Manager's approval opens the client's own account under 113 (113001…), once", async () => {
   assert.equal((await collect(ashraf, { side: "client", toId: bankId, amount: "1000", revenueId })).status, 400); // not approved yet
+  assert.equal(await task(ashraf), undefined); // «حصّل عمولة» comes with the approval, not before
   const r = await call(`/deals/${dealId}/review`, { method: "POST", cookie: nancy, body: { decision: "approve" } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   const acc = await prisma.account.findFirstOrThrow({ where: { name: `${C} عميل`, partyType: "client" } });
   assert.match(acc.code, /^113\d{3}$/);
   clientAccountId = acc.id;
+  const line = await task(ashraf);
+  assert.equal(line?.commission, "100000.00");
+  assert.equal(line?.remaining, "100000.00");
+  assert.equal(line?.code, r.body.code);
+  // M-02: the task is the accountant's; the salesperson on the deal and the Office Manager don't get it
+  assert.equal((await call("/home/collect", { cookie: mohsen })).status, 403);
+  assert.equal((await call("/home/collect", { cookie: nancy })).status, 403);
   assert.equal(await prisma.auditLog.count({ where: { module: "finance", entity: "Account", entityId: acc.id, action: "create" } }), 1);
 });
 
@@ -86,6 +100,7 @@ test("5.3 · 9.12: collecting 30,000 → Partially Collected, the client's accou
   assert.equal(r.body.status, "Partially Collected");
   assert.equal(r.body.collected, "30000.00");
   assert.equal(r.body.remaining, "70000.00");
+  assert.equal((await task(ashraf))?.remaining, "70000.00"); // still waiting for the rest
   assert.match(r.body.move, /^MV-\d+$/);
   assert.equal(await balance(ashraf, bankId), cents("30000"));
   assert.equal(await balance(ashraf, revenueId), cents("100000")); // Q37–Q39: the whole commission from the first collection
@@ -103,6 +118,7 @@ test("5.3 · 9.12: the rest → Fully Collected; each salesperson's commission i
   const r = await collect(ashraf, { side: "owner", toId: bankId, amount: "70000" });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.equal(r.body.status, "Fully Collected");
+  assert.equal(await task(ashraf), undefined); // collected → off the accountant's list
   assert.equal(await balance(ashraf, clientAccountId), 0);
   assert.equal(await balance(ashraf, revenueId), cents("100000")); // revenue booked once
   const due = await prisma.account.findUniqueOrThrow({ where: { partyType_partyId: { partyType: "sales", partyId: mohsenId } } });
