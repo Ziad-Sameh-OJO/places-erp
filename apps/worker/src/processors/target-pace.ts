@@ -5,6 +5,7 @@
 import { prisma } from "@places/db";
 import { behindPace, isWorkingDay, localDate, monthBounds, targetPercent } from "@places/domain";
 import { salesFigures, workCalendar } from "./scheduled-reports.ts";
+import { pushEvent } from "../push.ts";
 
 const DONE = "targets.paceNotifiedFor";
 
@@ -20,4 +21,5 @@ export async function targetPaceTick(now = new Date()): Promise<void> {
     await tx.setting.upsert({ where: { key: DONE }, create: { key: DONE, value: today }, update: { value: today } });
     if (byTl.size) await tx.notification.createMany({ data: [...byTl].map(([userId, names]) => ({ userId, text: `تحت معدل التارجت: ${names.join("، ")}`, link: "/reports" })) });
   });
+  for (const [userId, names] of byTl) await pushEvent("target.behind", { userIds: [userId], text: `تحت معدل التارجت: ${names.join("، ")}`, link: "/reports" });
 }

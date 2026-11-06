@@ -1,10 +1,11 @@
 /**
  * What the lead jobs (SLA 1.16, No Answer 1.17, Draft 1.26…) share: «قواعد الليدز» (1.29) with their defaults, the
  * official holidays as days, and telling the people a rule names. The worker has no Nest services, so this is the
- * worker's side of LeadRulesService and NotificationsService (in-app only: the worker has no mail service yet).
+ * worker's side of LeadRulesService and NotificationsService.
  */
 import { prisma, type Prisma } from "@places/db";
-import { type LeadRules, type RoutingState, type RuleWho, holidayDays, ruleRecipients, withRuleDefaults } from "@places/domain";
+import { type LeadRules, type RoutingState, type RuleWho, eventByKey, holidayDays, ruleRecipients, withRuleDefaults } from "@places/domain";
+import { pushOnChannels } from "./push.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -55,14 +56,22 @@ export async function ownerOf(employeeId: string | null, tx: Prisma.TransactionC
   return e ? { name: e.name, userId: e.userId, tlUserId: e.teamLeader?.userId ?? null } : null;
 }
 
+/** Who a rule told, and the phone copy — sent by the caller once its transaction committed (push.ts). */
+export interface Told { readonly userIds: string[]; push(): Promise<number> }
+
 /**
  * Tells the people a rule names (roles and people, «owner» / «ownerTl» of this lead), active accounts only, never
- * twice, on the rule's channels: in-app (`important` ones stay until read), and email queued for the mail-outbox job
- * (M-14 2.4) — skipped for someone who turned email off, unless important. Returns who was told.
+ * twice, on the rule's channels: in-app (`important` ones stay until read), email queued for the mail-outbox job
+ * (M-14 2.4) — skipped for someone who turned email off, unless important — and push (12.10), titled like the API's
+ * event for the same thing (`event`). Returns who was told.
  */
-export async function tellRule(tx: Prisma.TransactionClient, who: RuleWho, owner: LeadOwner | null, n: { text: string; link: string; important: boolean; subject?: string }): Promise<string[]> {
+export async function tellRule(tx: Prisma.TransactionClient, who: RuleWho, owner: LeadOwner | null, n: { text: string; link: string; important: boolean; subject?: string; event?: string }): Promise<Told> {
+  const told = (userIds: string[]): Told => ({
+    userIds,
+    push: () => pushOnChannels(who.ch, n.important, (n.event && eventByKey(n.event)?.label) || n.subject || "الليدز", { userIds, text: n.text, link: n.link }),
+  });
   const to = ruleRecipients(who, { ownerUserId: owner?.userId ?? null, ownerTlUserId: owner?.tlUserId ?? null });
-  if (!to.length || !(who.ch.includes("app") || who.ch.includes("email"))) return [];
+  if (!to.length || !who.ch.length) return told([]);
   const people = await tx.user.findMany({
     where: { status: "ACTIVE", OR: [{ id: { in: to } }, { roles: { some: { role: { key: { in: to } } } } }] },
     select: { id: true, email: true, emailNotifications: true },
@@ -70,5 +79,5 @@ export async function tellRule(tx: Prisma.TransactionClient, who: RuleWho, owner
   if (who.ch.includes("app")) await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, text: n.text, link: n.link, important: n.important })) });
   const mail = who.ch.includes("email") ? people.filter((p) => p.emailNotifications || n.important) : [];
   if (mail.length) await tx.mailLog.createMany({ data: mail.map((p) => ({ to: p.email, subject: `${n.subject ?? "الليدز"} · Places ERP`, text: `${n.text}\n${process.env.WEB_ORIGIN ?? ""}${n.link}` })) });
-  return people.map((p) => p.id);
+  return told(people.map((p) => p.id));
 }

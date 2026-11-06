@@ -133,3 +133,16 @@ export const eventLabel = (key: string | null): string => (key && eventByKey(key
 export function channelsFor(ruleChannels: readonly Channel[], person: { emailNotifications: boolean }, important: boolean): Channel[] {
   return ruleChannels.filter((c) => c !== "email" || person.emailNotifications || important);
 }
+
+/** An event's channels now: the admin's saved rule (M-14 «قواعد الإشعارات») when there is one, else the default. */
+export const eventChannels = (e: NotificationEvent, saved: readonly string[] | null | undefined): Channel[] =>
+  [...((saved ?? e.channels) as readonly Channel[])];
+
+/**
+ * M-14 (51) · 12.10: who of these people also gets the notification on their phone — the channels (the event's
+ * rule, or a lead rule's «ch») through each person's preferences. The API's notify() and the worker's jobs both
+ * decide with this, so a job's Alarm reaches the phone exactly when the same event from the API would.
+ */
+export function pushRecipients(channels: readonly Channel[], people: readonly { id: string; emailNotifications: boolean }[], important: boolean): string[] {
+  return people.filter((p) => channelsFor(channels, p, important).includes("push")).map((p) => p.id);
+}

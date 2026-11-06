@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { MailLogQuery, MailLogRow, Paged } from "@places/contracts";
-import { type Channel, NOTIFICATION_EVENTS, channelsFor, eventByKey, mailStatus } from "@places/domain";
+import { type Channel, NOTIFICATION_EVENTS, channelsFor, eventByKey, eventChannels, mailStatus } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
 import { AuditService } from "../audit/audit.service";
@@ -45,7 +45,7 @@ export class NotificationsService {
     const saved = new Map((await this.db.notificationRule.findMany()).map((r) => [r.event, r]));
     return NOTIFICATION_EVENTS.map((e) => {
       const r = saved.get(e.key);
-      return { ...e, toRoles: r?.toRoles ?? e.toRoles, channels: (r?.channels ?? e.channels) as Channel[] };
+      return { ...e, toRoles: r?.toRoles ?? e.toRoles, channels: eventChannels(e, r?.channels) };
     });
   }
 

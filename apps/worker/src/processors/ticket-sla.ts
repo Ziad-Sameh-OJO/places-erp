@@ -5,6 +5,7 @@
  * this file only applies it, with the same working calendar as lead-sla.ts.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { DEFAULT_LEAD_RULES, DEPARTMENT_MANAGER_TIERS, OPEN_TICKET_STATUSES, PLACES_CALENDAR, type LeadRules, calendarOf, holidayDays, isTicketLate, ticketType } from "@places/domain";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -28,16 +29,18 @@ export async function ticketSlaTick(now = new Date()): Promise<number> {
     const text = dispute
       ? `نزاع TK-${t.number} عدّى ${type.slaHours} ساعة من غير ما يتحسم: ${t.title}`
       : `تذكرة TK-${t.number} لقسم ${t.department} اتأخرت من غير رد · اتصعّدت ليك: ${t.title}`;
-    await prisma.$transaction(async (tx) => {
+    const told = await prisma.$transaction(async (tx) => {
       // only if nobody escalated or answered it meanwhile
       const done = await tx.ticket.updateMany({ where: { id: t.id, escalatedAt: null, status: { in: [...OPEN_TICKET_STATUSES] } }, data: { escalatedAt: now } });
-      if (done.count === 0) return;
+      if (done.count === 0) return false;
       await tx.ticketEvent.create({ data: { ticketId: t.id, kind: "escalate", byUserId: null, text: dispute ? `عدّت الـ ${type.slaHours} ساعة من غير ما يتحسم · اتبلّغت الـ Office Manager` : `اتأخرت · اتصعّدت لمدير قسم ${t.department}` } });
       await tx.auditLog.create({ data: { module: "tickets", entity: "Ticket", entityId: t.id, action: "escalate", after: { escalatedAt: now.toISOString(), to: to.map((u) => u.id) } } });
-      // in-app only, like lead-sla.ts: the worker has no mail service yet
+      // in-app now, the phone copy below once committed (the worker has no mail service yet)
       await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, event: "ticket.late", text, link: `/tickets?id=${t.id}`, important: true })) });
       escalated++;
+      return true;
     });
+    if (told) await pushEvent("ticket.late", { userIds: to.map((u) => u.id), text, link: `/tickets?id=${t.id}` });
   }
   return escalated;
 }

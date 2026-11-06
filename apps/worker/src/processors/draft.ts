@@ -30,17 +30,17 @@ export async function draftTick(now = new Date(), pinned?: LeadRules): Promise<n
     if (days === null || lastTouch > now) continue;
     const done = await prisma.$transaction(async (tx) => {
       const claimed = await tx.lead.updateMany({ where: { id: l.id, draft: null, assignedToId: l.assignedToId, stage: l.stage, archivedAt: null }, data: { draft: "draft", assignedToId: null } });
-      if (!claimed.count) return false;
+      if (!claimed.count) return null;
       const from = await ownerOf(l.assignedToId, tx);
       await tx.leadDraft.create({ data: { leadId: l.id, kind: "draft", at: now, fromId: l.assignedToId, stage: l.stage, days } });
       await tx.leadActivity.create({ data: { leadId: l.id, kind: "assign", byUserId: null,
         text: `اتسحب أوتوماتيك من ${from?.name ?? "—"} للـ Draft بعد ${days} يوم من غير أكشن${stage === "Hold" ? " (Hold)" : ""}` } });
       await tx.auditLog.create({ data: { module: "leads", entity: "Lead", entityId: l.id, action: "to-draft", userId: null,
         before: { assignedToId: l.assignedToId, draft: null }, after: { assignedToId: null, draft: "draft", days } } });
-      await tellRule(tx, rules.draft.notify, from, { text: `${l.name} (${l.code}) اتسحب من ${from?.name ?? "—"} للـ Draft · ${days} يوم من غير أكشن`, link: `/leads?open=${l.id}`, important: false });
-      return true;
+      return tellRule(tx, rules.draft.notify, from, { text: `${l.name} (${l.code}) اتسحب من ${from?.name ?? "—"} للـ Draft · ${days} يوم من غير أكشن`, link: `/leads?open=${l.id}`, important: false });
     });
     if (done) moved++;
+    await done?.push();
   }
   return moved;
 }

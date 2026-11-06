@@ -4,6 +4,7 @@
  * Idempotent: the alert days already sent are claimed on the contract in the same transaction as the notifications.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { eventByKey, fromDecimal, localDate, nextYearValue, renewalAlert, toDecimal } from "@places/domain";
 
 const EVENT = "contract.renewal";
@@ -27,16 +28,19 @@ export async function contractRenewalTick(now = new Date()): Promise<void> {
   for (const c of contracts) {
     const due = renewalAlert(day(c.endsOn), today, c.renewalAlerts);
     if (!due) continue;
-    await prisma.$transaction(async (tx) => {
+    const told = await prisma.$transaction(async (tx) => {
       // claimed only if nobody else marked it meanwhile
       const claimed = await tx.contract.updateMany({ where: { id: c.id, renewalAlerts: { equals: c.renewalAlerts } }, data: { renewalAlerts: [...new Set([...c.renewalAlerts, ...due.mark])] } });
-      if (!claimed.count) return;
+      if (!claimed.count) return null;
       const sales = c.deal.participants.map((p) => p.employee);
       const lead = c.renewalLeadId || !c.deal.lead || !sales[0] ? null : await openRenewalLead(tx, c, sales[0].id, now);
       const text = `العقد ${c.code} (${c.deal.company} · ${c.deal.unit.code}) بينتهي بعد ${due.days} يوم · ${day(c.endsOn)}${lead ? ` · اتعمل ليد تجديد ${lead.code}` : ""}`;
       const to = [...new Set([...sales.map((s) => s.userId), ...finance.map((u) => u.id)])];
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link: lead ? `/leads?open=${lead.id}` : `/contracts?open=${c.id}`, important: eventByKey(EVENT)!.important })) });
+      const link = lead ? `/leads?open=${lead.id}` : `/contracts?open=${c.id}`;
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link, important: eventByKey(EVENT)!.important })) });
+      return { userIds: to, text, link };
     });
+    if (told) await pushEvent(EVENT, told);
   }
 }
 

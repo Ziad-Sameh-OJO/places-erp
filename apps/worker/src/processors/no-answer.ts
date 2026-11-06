@@ -7,7 +7,7 @@
  */
 import { prisma, type Prisma } from "@places/db";
 import { LeadRouter, type LeadRules, OWNER, durationText, localDate, noAnswerStep } from "@places/domain";
-import { leadRules, lockRouting, ownerOf, routingPool, saveRouting, tellRule } from "../leads.ts";
+import { type Told, leadRules, lockRouting, ownerOf, routingPool, saveRouting, tellRule } from "../leads.ts";
 
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
 
@@ -23,37 +23,38 @@ export async function noAnswerTick(now = new Date(), pinned?: LeadRules): Promis
   });
   for (const lead of marked) {
     const step = noAnswerStep(lead, now, rules);
-    if (step === "next" && (await toNextSalesperson(lead, rules, now))) done.next++;
-    if (step === "telesales" && (await toTelesales(lead, rules, now))) done.telesales++;
+    const next = step === "next" ? await toNextSalesperson(lead, rules, now) : null;
+    const telesales = step === "telesales" ? await toTelesales(lead, rules, now) : null;
+    if (next) done.next++;
+    if (telesales) done.telesales++;
+    await (next ?? telesales)?.push();
   }
   return done;
 }
 
 /** Demo: «No Answer: عدّى 24 ساعة عند فلان وراح لـ فلان (رجع Fresh)», and the new salesperson is told. */
-async function toNextSalesperson(lead: Lead, rules: LeadRules, now: Date): Promise<boolean> {
+async function toNextSalesperson(lead: Lead, rules: LeadRules, now: Date): Promise<Told | null> {
   return prisma.$transaction(async (tx) => {
     const router = new LeadRouter(await lockRouting(tx));
     const next = router.next(lead.area, await routingPool(tx, lead.area, lead.assignedToId, localDate(now)));
-    if (!next) return false; // nobody else covers the area: it waits with its salesperson
-    if (!(await move(tx, lead, { assignedToId: next, ownedByTelesales: false }, now))) return false;
+    if (!next) return null; // nobody else covers the area: it waits with its salesperson
+    if (!(await move(tx, lead, { assignedToId: next, ownedByTelesales: false }, now))) return null;
     await saveRouting(tx, router.snapshot());
     const [from, to] = await Promise.all([ownerOf(lead.assignedToId, tx), ownerOf(next, tx)]);
     await record(tx, lead, `No Answer: عدّى ${durationText(rules.noAnswer.hours * 60)} عند ${from?.name ?? "—"} وراح لـ ${to?.name ?? "—"} (رجع Fresh)`, next, "next");
-    await tellRule(tx, { to: [OWNER], ch: rules.newLead.ch }, to, { text: `ليد ${lead.name} جالك بعد No Answer عند ${from?.name ?? "—"}`, link: link(lead), important: false });
-    return true;
+    return tellRule(tx, { to: [OWNER], ch: rules.newLead.ch }, to, { text: `ليد ${lead.name} جالك بعد No Answer عند ${from?.name ?? "—"}`, link: link(lead), important: false, event: "lead.assigned" });
   });
 }
 
 /** Demo: «الروتيشن رقم 3: الليد راح لـ Telesales (فلانة)», and noAnswer.notify is told. Telesales keeps it: no SLA. */
-async function toTelesales(lead: Lead, rules: LeadRules, now: Date): Promise<boolean> {
+async function toTelesales(lead: Lead, rules: LeadRules, now: Date): Promise<Told | null> {
   return prisma.$transaction(async (tx) => {
     const telesales = await telesalesOf(tx, rules);
-    if (!telesales) return false;
-    if (!(await move(tx, lead, { assignedToId: telesales.id, ownedByTelesales: true }, now))) return false;
+    if (!telesales) return null;
+    if (!(await move(tx, lead, { assignedToId: telesales.id, ownedByTelesales: true }, now))) return null;
     const owner = await ownerOf(telesales.id, tx);
     await record(tx, lead, `الروتيشن رقم ${lead.rotation + 1}: الليد راح لـ Telesales (${telesales.name})`, telesales.id, "telesales");
-    await tellRule(tx, rules.noAnswer.notify, owner, { text: `ليد ${lead.name} رجعلك في الروتيشن التالت`, link: link(lead), important: false });
-    return true;
+    return tellRule(tx, rules.noAnswer.notify, owner, { text: `ليد ${lead.name} رجعلك في الروتيشن التالت`, link: link(lead), important: false, event: "lead.assigned" });
   });
 }
 

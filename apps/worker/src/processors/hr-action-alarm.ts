@@ -2,6 +2,7 @@
  * M-05 7.8: «حل الـ HR» from a 1-to-1 rings on its due day, once (actionAlarm in @places/domain), until it's marked done.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { actionAlarm, eventByKey, localDate } from "@places/domain";
 
 export async function hrActionAlarmTick(): Promise<void> {
@@ -13,10 +14,13 @@ export async function hrActionAlarmTick(): Promise<void> {
   const to = (await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: roles } } } } }, select: { id: true } })).map((u) => u.id);
   for (const r of rows) {
     if (!actionAlarm(r.hrActionDue!.toISOString().slice(0, 10), today, r.hrActionDone, !!r.alarmedAt)) continue;
-    await prisma.$transaction(async (tx) => {
+    const text = `ميعاد حل الـ HR مع ${r.employee.name}: ${r.hrAction}`;
+    const rang = await prisma.$transaction(async (tx) => {
       const claimed = await tx.oneOnOne.updateMany({ where: { id: r.id, alarmedAt: null }, data: { alarmedAt: new Date() } });
-      if (!claimed.count) return;
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: "hr.action_due", text: `ميعاد حل الـ HR مع ${r.employee.name}: ${r.hrAction}`, link: "/hr", important: true })) });
+      if (!claimed.count) return false;
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: ev.key, text, link: "/hr", important: true })) });
+      return true;
     });
+    if (rang) await pushEvent(ev.key, { userIds: to, text, link: "/hr" });
   }
 }

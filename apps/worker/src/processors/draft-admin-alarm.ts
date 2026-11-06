@@ -25,6 +25,6 @@ export async function draftAdminAlarmTick(now = new Date(), pinned?: LeadRules):
     await tx.setting.update({ where: { key: KEY }, data: { value: today } });
     const text = `Alarm: ${alarm.waiting} Not Interested / Cancellation مستنيين قرارك${alarm.today ? ` · ${alarm.today} النهارده` : ""}`;
     // to the ones who see it and decide, in the app, whatever channels the «see» list has (it names viewers, not channels)
-    return (await tellRule(tx, { to: rules.draftAdmin.see.to, ch: ["app"] }, null, { text, link: "/leads", important: true })).length;
+    return (await tellRule(tx, { to: rules.draftAdmin.see.to, ch: ["app"] }, null, { text, link: "/leads", important: true })).userIds.length;
   });
 }

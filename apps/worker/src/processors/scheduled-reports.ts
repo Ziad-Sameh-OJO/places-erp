@@ -12,6 +12,7 @@ import {
   isOffPeriod, monthBounds, monthLabel, periodFigures, pickPeople, targetPercent, toDecimal, fromDecimal,
 } from "@places/domain";
 import { inventoryReportRun } from "./inventory-report.ts";
+import { pushEvent } from "../push.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const hm = (d: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
@@ -107,10 +108,13 @@ export async function scheduledReportsTick(now = new Date()): Promise<void> {
       if (now < due || r.content !== "performance" || (await prisma.reportRun.findUnique({ where: { reportId_period: { reportId: r.id, period } } }))) continue;
       const built = await performanceRows(s, period, cal);
       const to = [...pickPeople(r.recipients, users), ...(r.money ? [] : watchers)];
-      await prisma.$transaction(async (tx) => {
+      const text = `اتبعت تقرير «${r.name}» (${r.fmt}) · ${built.title}`;
+      const sent = await prisma.$transaction(async (tx) => {
         const made = await tx.reportRun.createMany({ data: [{ reportId: r.id, period, title: built.title, rows: built.rows }], skipDuplicates: true });
-        if (made.count && to.length) await tx.notification.createMany({ data: [...new Set(to)].map((userId) => ({ userId, text: `اتبعت تقرير «${r.name}» (${r.fmt}) · ${built.title}`, link })) });
+        if (made.count && to.length) await tx.notification.createMany({ data: [...new Set(to)].map((userId) => ({ userId, text, link })) });
+        return made.count > 0;
       });
+      if (sent) await pushEvent("report.sent", { userIds: to, text, link });
       continue;
     }
     const done = new Map((await prisma.reportHandIn.findMany({ where: { reportId: r.id, period } })).map((h) => [h.userId, h]));
@@ -122,11 +126,13 @@ export async function scheduledReportsTick(now = new Date()): Promise<void> {
       const to = step === "remind" ? [userId]
         : [...new Set([...pickPeople(r.lateNotify, users, await followerOf(users.find((u) => u.id === userId)?.employeeId ?? null, q?.id)), userId, ...(r.money ? [] : watchers)])];
       const text = step === "remind" ? `تذكير: سلّم «${r.name}» قبل ${hm(due)}` : `${nameOf.get(userId) || "حد"} ماسلّمش «${r.name}» في ميعاده (${hm(due)})`;
-      await prisma.$transaction(async (tx) => {
+      const told = await prisma.$transaction(async (tx) => {
         await tx.reportHandIn.createMany({ data: [{ reportId: r.id, userId, period }], skipDuplicates: true });
         const claimed = await tx.reportHandIn.updateMany({ where: { reportId: r.id, userId, period, at: null, ...(step === "remind" ? { remindedAt: null } : { lateAt: null }) }, data: step === "remind" ? { remindedAt: now } : { lateAt: now } });
         if (claimed.count) await tx.notification.createMany({ data: to.map((u) => ({ userId: u, text, link, important: step === "late" })) });
+        return claimed.count > 0;
       });
+      if (told) await pushEvent(step === "remind" ? "report.remind" : "report.late", { userIds: to, text, link });
     }
   }
 }
