@@ -8,10 +8,10 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
-import { balance, cleanFinance, fresh } from "./finance-helpers.ts";
+import { balance, cleanFinance, fresh, runPrefix } from "./finance-helpers.ts";
 
 const START = new Date();
-const P = `E2E ${START.getTime()}`;
+const P = runPrefix("journal");
 let safe: { id: string; code: string }, exp: { id: string; code: string };
 let ahmed: string, sales: string, admin: string, mokhtar: string;
 const entries: string[] = [];
@@ -71,9 +71,10 @@ test("editing a manual entry: finance «approve» only, same number, audited bef
   assert.equal(ok.body.entry.debit, "75.00");
   const log = await prisma.auditLog.findFirst({ where: { entity: "JournalEntry", entityId: r.body.entry.id, action: "update" } });
   assert.ok(log);
-  // an automatic entry (an opening) isn't edited here
-  const opening = await prisma.journalEntry.findFirst({ where: { source: { not: "manual" } }, select: { id: true } });
-  if (opening) assert.equal((await call(`/finance/journal/${opening.id}`, { method: "PUT", cookie: ahmed, body })).status, 400);
+  // an automatic entry (this file's own safe's opening) isn't edited here; any automatic entry could be another
+  // file's, removed by its cleanup in between (404)
+  const opening = await prisma.journalEntry.findFirstOrThrow({ where: { source: "opening", sourceId: safe.id }, select: { id: true } });
+  assert.equal((await call(`/finance/journal/${opening.id}`, { method: "PUT", cookie: ahmed, body })).status, 400);
 });
 
 test("periods: this month open, last month closed by itself; closing is approve-only (9.8)", async () => {

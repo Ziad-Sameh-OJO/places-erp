@@ -7,9 +7,9 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
-import { cleanFinance, fresh } from "./finance-helpers.ts";
+import { cleanFinance, fresh, runPrefix } from "./finance-helpers.ts";
 
-const P = `E2E ${Date.now()}`;
+const P = runPrefix("bills");
 const START = new Date();
 let ahmed: string, sales: string, admin: string;
 let bank: { id: string }, line: { id: string };

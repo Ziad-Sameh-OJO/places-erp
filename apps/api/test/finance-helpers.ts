@@ -5,6 +5,12 @@
 import { prisma } from "@places/db";
 import { call } from "./helpers.ts";
 
+/**
+ * The file's own prefix. Files start in the same millisecond, so a bare `E2E <ms>` is shared now and then, and the
+ * first file to finish then removes the other's accounts (cleanFinance goes by prefix) in the middle of its run.
+ */
+export const runPrefix = (tag: string) => `E2E ${tag} ${Date.now()}`;
+
 export interface Node { id: string; code: string; name: string; balance: string; removable: boolean; children: Node[] }
 export const find = (nodes: Node[], code: string): Node | undefined => { for (const n of nodes) { if (n.code === code) return n; const c = find(n.children, code); if (c) return c; } return undefined; };
 export const cents = (s: string) => Math.round(Number(s) * 100);
@@ -21,9 +27,12 @@ export async function fresh(cookie: string, prefix: string, parentCode: string, 
   return r.body as { id: string; code: string; name: string };
 }
 
-/** `holders`: also the 131 / 134 person accounts opened since `since` (only the file that opens them passes it). */
-export async function cleanFinance(prefix: string, since: Date, holders = false) {
-  const accounts = (await prisma.account.findMany({ where: { OR: [{ name: { startsWith: prefix } }, ...(holders ? [{ holderId: { not: null }, createdAt: { gte: since } }] : [])] }, select: { id: true } })).map((a) => a.id);
+/**
+ * `holders`: also these people's 131 / 134 accounts. Only people no other file gives an advance or a custody to:
+ * removing "every person account opened since the start" took another file's accounts (and its entries) mid-run.
+ */
+export async function cleanFinance(prefix: string, since: Date, holders: string[] = []) {
+  const accounts = (await prisma.account.findMany({ where: { OR: [{ name: { startsWith: prefix } }, { holderId: { in: holders } }] }, select: { id: true } })).map((a) => a.id);
   const entries = (await prisma.journalEntry.findMany({ where: { OR: [{ memo: { contains: prefix } }, { lines: { some: { accountId: { in: accounts } } } }] }, select: { id: true } })).map((e) => e.id);
   const moves = (await prisma.treasuryMove.findMany({ where: { entryId: { in: entries } }, select: { id: true } })).map((m) => m.id);
   const bills = (await prisma.recurringBill.findMany({ where: { name: { startsWith: prefix } }, select: { id: true } })).map((b) => b.id);

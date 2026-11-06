@@ -9,19 +9,26 @@ import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
 
 let basant: string, admin: string, tl: string, sales: string;
-let target: { id: string; salary: unknown; target: unknown; commissionPct: unknown; partTime: boolean; partTimeDeductions: boolean; deductionTiers: unknown; fixedSchedule: string | null; leaveBalance: number; joinedAt: Date | null };
+// the file edits its own employee: a seeded one (Mokhtar) is the one payroll.e2e pays, and putting his file back
+// here undid payroll's salary in the middle of its run
+let target: { id: string; userId: string };
 const START = new Date();
+const NAME = `E2E ملف موظف ${START.getTime()}`;
 
 before(async () => {
   const adminEmail = (await prisma.user.findFirstOrThrow({ where: { roles: { some: { role: { key: "admin" } } } }, select: { email: true } })).email;
   [basant, admin, tl, sales] = await Promise.all(["basant.elsawy@places.com", adminEmail, "mahmoud.ali@places.com", "m.mohsen@places.com"].map((e) => session(e)));
-  target = await prisma.employee.findFirstOrThrow({ where: { user: { email: "mokhtar.gamal@places.com" } } });
+  // in no team, like Mokhtar (Accounts): the TL doesn't see him. INVITED: HR lists him, payroll (active only) doesn't
+  // pay him while the salary below is set
+  const u = await prisma.user.create({ data: { email: `e2e-hr-${START.getTime()}@hr.test`, status: "INVITED", employee: { create: { name: NAME, jobTitle: "Accountant", department: "Accounts", salary: 0 } } }, include: { employee: true } });
+  target = { id: u.employee!.id, userId: u.id };
 });
 after(async () => {
-  // put Mokhtar's file back as it was
-  const { id, ...data } = target;
-  await prisma.employee.update({ where: { id }, data: { ...data, deductionTiers: (data.deductionTiers ?? undefined) as never } });
-  await prisma.auditLog.deleteMany({ where: { entity: "Employee", entityId: id, at: { gte: START } } });
+  if (target) {
+    await prisma.auditLog.deleteMany({ where: { entity: "Employee", entityId: target.id } });
+    await prisma.employee.deleteMany({ where: { id: target.id } });
+    await prisma.user.deleteMany({ where: { id: target.userId } });
+  }
   await prisma.$disconnect();
 });
 
@@ -35,7 +42,7 @@ test("HR lists everyone, a TL only his team, sales 403 (M-09 2.7 scope)", async 
   // a TL asking for someone outside his team gets nothing (not his own first team member), and a filter can't widen the scope
   assert.equal((await call(`/hr/employees/${target.id}`, { cookie: tl })).status, 404);
   assert.ok((await call("/hr/employees?department=HR", { cookie: tl })).body.items.every((e: { id: string }) => team.items.some((t: { id: string }) => t.id === e.id)));
-  assert.ok((await call("/hr/employees?q=مختار", { cookie: basant })).body.items.some((e: { id: string }) => e.id === target.id));
+  assert.ok((await call(`/hr/employees?q=${encodeURIComponent(NAME)}`, { cookie: basant })).body.items.some((e: { id: string }) => e.id === target.id));
 });
 
 test("HR edits the file: salary, part-time without deductions, custom tiers, a fixed schedule; audited old → new", async () => {

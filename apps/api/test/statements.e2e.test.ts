@@ -7,10 +7,10 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
-import { cents, cleanFinance, fresh } from "./finance-helpers.ts";
+import { cents, cleanFinance, fresh, runPrefix } from "./finance-helpers.ts";
 
 const START = new Date();
-const P = `E2E ${START.getTime()}`;
+const P = runPrefix("statements");
 let ahmed: string, sales: string;
 let safe: { id: string }, rev: { id: string; code: string }, exp: { id: string; code: string };
 

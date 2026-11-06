@@ -9,35 +9,43 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
-import { balance, cleanFinance, fresh } from "./finance-helpers.ts";
+import { balance, cleanFinance, fresh, runPrefix } from "./finance-helpers.ts";
 
 const START = new Date();
-const P = `E2E ${START.getTime()}`;
+const P = runPrefix("payroll");
 const month = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 7);
 let ahmed: string, sales: string, admin: string, basant: string, tl: string;
 let bank: { id: string }, safe: { id: string };
 let mokhtar: { id: string; userId: string; salary: unknown }, mohsen: { id: string; userId: string; salary: unknown };
 
+/** The month's run with its voucher and entry (one per month: a leftover would refuse «اصرف المرتبات كلها»). */
+async function dropRun() {
+  const run = await prisma.payrollRun.findUnique({ where: { month } });
+  if (!run) return;
+  const move = await prisma.treasuryMove.findUnique({ where: { id: run.moveId } });
+  await prisma.auditLog.deleteMany({ where: { entityId: { in: [run.id, run.moveId, move?.entryId ?? ""] } } });
+  await prisma.payrollRun.delete({ where: { id: run.id } });
+  await prisma.treasuryMove.delete({ where: { id: run.moveId } });
+  if (move) await prisma.journalEntry.deleteMany({ where: { id: move.entryId } });
+}
+
 before(async () => {
   const adminEmail = (await prisma.user.findFirstOrThrow({ where: { roles: { some: { role: { key: "admin" } } } }, select: { email: true } })).email;
   [ahmed, sales, admin, basant, tl] = await Promise.all(["ahmed.ashraf@places.com", "m.mohsen@places.com", adminEmail, "basant.elsawy@places.com", "abdallah.sleem@places.com"].map((e) => session(e)));
-  await prisma.deductionApproval.deleteMany({ where: { month } }); // one per month: a leftover from a manual check would block the flow
   mokhtar = await prisma.employee.findFirstOrThrow({ where: { user: { email: "mokhtar.gamal@places.com" } }, select: { id: true, userId: true, salary: true } });
   mohsen = await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } }, select: { id: true, userId: true, salary: true } });
+  // what an interrupted run (or a manual check) left: this month's run and approval, Mohsen's advance account
+  await dropRun();
+  await prisma.deductionApproval.deleteMany({ where: { month } });
+  await prisma.advanceDeduction.deleteMany({ where: { userId: { in: [mokhtar.userId, mohsen.userId] }, month } });
+  await cleanFinance("E2E payroll ", new Date(0), [mohsen.userId]);
   await prisma.employee.update({ where: { id: mokhtar.id }, data: { salary: "12000" } });
   await prisma.employee.update({ where: { id: mohsen.id }, data: { salary: "8000" } });
   bank = await fresh(ahmed, P, "112", "بنك المرتبات", "500000");
   safe = await fresh(ahmed, P, "111", "خزينة", "10000");
 });
 after(async () => {
-  const run = await prisma.payrollRun.findUnique({ where: { month } });
-  if (run) {
-    const move = await prisma.treasuryMove.findUnique({ where: { id: run.moveId } });
-    await prisma.auditLog.deleteMany({ where: { entityId: { in: [run.id, run.moveId, move?.entryId ?? ""] } } });
-    await prisma.payrollRun.delete({ where: { id: run.id } });
-    await prisma.treasuryMove.delete({ where: { id: run.moveId } });
-    if (move) await prisma.journalEntry.delete({ where: { id: move.entryId } });
-  }
+  await dropRun();
   const ok = await prisma.deductionApproval.findUnique({ where: { month } });
   if (ok) { await prisma.auditLog.deleteMany({ where: { entityId: ok.id } }); await prisma.deductionApproval.delete({ where: { id: ok.id } }); }
   const pens = await prisma.penalty.findMany({ where: { text: { startsWith: P } }, select: { id: true } });
@@ -49,7 +57,7 @@ after(async () => {
   await prisma.notification.deleteMany({ where: { text: { startsWith: "اتصرف مرتب" }, createdAt: { gte: START } } });
   await prisma.employee.update({ where: { id: mokhtar.id }, data: { salary: mokhtar.salary as never } });
   await prisma.employee.update({ where: { id: mohsen.id }, data: { salary: mohsen.salary as never } });
-  await cleanFinance(P, START, true);
+  await cleanFinance(P, START, [mohsen.userId]);
   await prisma.$disconnect();
 });
 
@@ -109,7 +117,9 @@ test("«اصرف المرتبات كلها»: one voucher, one balanced entry; o
   const bank0 = await balance(ahmed, bank.id);
   const r = await call("/finance/payroll/run", { method: "POST", cookie: ahmed, body: { fromId: bank.id } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
-  assert.equal(await balance(ahmed, bank.id), bank0 - Math.round(Number(view.totals.net) * 100));
+  // the run's own net, not the view's: the KPI file gives Youssef a salary for a moment, and may do it in between
+  const run = await prisma.payrollRun.findUniqueOrThrow({ where: { month } });
+  assert.equal(await balance(ahmed, bank.id), bank0 - Math.round(Number(run.net) * 100));
   const entry = (await call(`/finance/journal/${r.body.entry.id}`, { cookie: ahmed })).body;
   assert.equal(entry.debit, entry.credit);
   assert.equal(entry.nature, "صرف مرتبات");

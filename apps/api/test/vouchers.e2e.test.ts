@@ -9,11 +9,14 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
-import { balance, chart, cleanFinance, find, fresh } from "./finance-helpers.ts";
+import { balance, chart, cleanFinance, find, fresh, runPrefix } from "./finance-helpers.ts";
 
 const START = new Date();
-const P = `E2E ${START.getTime()}`;
+const P = runPrefix("vouchers");
 let ahmed: string, sales: string, admin: string;
+// the advance / custody goes to the file's own employee (salary 0, so payroll leaves the advance alone): a seeded
+// person's 131 account is shared with payroll.e2e, which deducts it and removes it with its run
+let holder: { userId: string; id: string };
 let safe: { id: string }, bank: { id: string }, nancy: { id: string }, buffet: { id: string; code: string }, revenue: { id: string };
 const move = async (body: Record<string, unknown>, cookie = ahmed) => call("/finance/moves", { method: "POST", cookie, body: { memo: `${P} حركة`, ...body } });
 const bal = (id: string) => balance(ahmed, id);
@@ -21,13 +24,19 @@ const bal = (id: string) => balance(ahmed, id);
 before(async () => {
   const adminEmail = (await prisma.user.findFirstOrThrow({ where: { roles: { some: { role: { key: "admin" } } } }, select: { email: true } })).email;
   [ahmed, sales, admin] = await Promise.all(["ahmed.ashraf@places.com", "m.mohsen@places.com", adminEmail].map((e) => session(e)));
+  const u = await prisma.user.create({ data: { email: `e2e-vouchers-${START.getTime()}@vouchers.test`, status: "ACTIVE", employee: { create: { name: `${P} موظف`, jobTitle: "Accountant", department: "Accounts", salary: 0 } } }, include: { employee: true } });
+  holder = { userId: u.id, id: u.employee!.id };
   safe = await fresh(ahmed, P, "111", "خزينة رئيسية", "50000");
   nancy = await fresh(ahmed, P, "111", "خزينة نانسي");
   bank = await fresh(ahmed, P, "112", "بنك", "30000");
   buffet = await fresh(ahmed, P, "52", "بوفيه");
   revenue = await fresh(ahmed, P, "42", "استشارات عقارية");
 });
-after(async () => { await cleanFinance(P, START, true); await prisma.$disconnect(); });
+after(async () => {
+  await cleanFinance(P, START, holder ? [holder.userId] : []);
+  if (holder) { await prisma.notification.deleteMany({ where: { userId: holder.userId } }); await prisma.employee.deleteMany({ where: { id: holder.id } }); await prisma.user.deleteMany({ where: { id: holder.userId } }); }
+  await prisma.$disconnect();
+});
 
 test("only finance: sales get 403, the admin views but can't post", async () => {
   assert.equal((await call("/finance/cash", { cookie: sales })).status, 403);
@@ -93,15 +102,14 @@ test("a receipt from other revenue (42): the safe up, the revenue up (9.11)", as
 });
 
 test("an advance opens the employee's own account under 131; a custody settles spent + returned, never more (9.3)", async () => {
-  const mokhtar = (await prisma.user.findUniqueOrThrow({ where: { email: "mokhtar.gamal@places.com" } })).id;
-  const adv = await move({ kind: "advance", fromId: safe.id, partyId: mokhtar, amount: "3000" });
+  const adv = await move({ kind: "advance", fromId: safe.id, partyId: holder.userId, amount: "3000" });
   assert.equal(adv.status, 201, JSON.stringify(adv.body));
   assert.match(adv.body.move.account.code, /^131\d{2}$/);
-  const again = await move({ kind: "advance", fromId: safe.id, partyId: mokhtar, amount: "500" });
+  const again = await move({ kind: "advance", fromId: safe.id, partyId: holder.userId, amount: "500" });
   assert.equal(again.body.move.account.id, adv.body.move.account.id); // same account, not a second one
   assert.equal(await bal(adv.body.move.account.id), 3_500_00);
 
-  const cus = await move({ kind: "custody", fromId: safe.id, partyId: mokhtar, amount: "1000" });
+  const cus = await move({ kind: "custody", fromId: safe.id, partyId: holder.userId, amount: "1000" });
   assert.equal(cus.status, 201);
   const account = cus.body.move.account.id;
   assert.match((await move({ kind: "settle", accountId: account, expenseId: buffet.id, toId: safe.id, spent: "900", returned: "200" })).body.error, /أكبر من العهدة/);
