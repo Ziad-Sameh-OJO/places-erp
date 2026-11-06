@@ -140,7 +140,7 @@ test("a salesperson on approved leave today is out of the rotation; a leave stil
 test("«ليد جديد اتوزع» reaches the salesperson and the Team Leaders (the rule's default), with a link to the lead (1.13)", async () => {
   for (const id of await pool()) await tick(admin, AREA, id, false);
   await tick(admin, AREA, a, true);
-  const since = new Date();
+  const since = new Date(Date.now() - 2_000); // the API stamps rows with its own clock, which can trail this process by a few ms
   const name = `E2E-R ${stamp} 31`;
   assert.equal(await newLead(31), a);
   const owner = (await prisma.employee.findUniqueOrThrow({ where: { id: a } })).userId;
@@ -156,7 +156,7 @@ test("«ليد جديد اتوزع» reaches the salesperson and the Team Leader
 });
 
 test("a lead Telesales keeps, or a salesperson enters for themselves, tells nobody (demo)", async () => {
-  const since = new Date();
+  const since = new Date(Date.now() - 2_000); // the API stamps rows with its own clock, which can trail this process by a few ms
   const hadeer = await session("hadeer.tarek@places.com");
   const kept = await call("/leads", { method: "POST", cookie: hadeer, body: { name: `E2E-R ${stamp} 41`, phones: [`0128${stamp.slice(-5)}41`], area: AREA, type: "Rent", channel: "Facebook", keep: true } });
   assert.equal(kept.status, 201, JSON.stringify(kept.body));
@@ -197,7 +197,7 @@ test("handing over: a fresh SLA with the new salesperson, Activity and audit «�
   const lead = leads.at(-1)!;
   const [fromName, toName] = await Promise.all([a, b].map(async (id) => (await prisma.employee.findUniqueOrThrow({ where: { id } })).name));
   await prisma.lead.update({ where: { id: lead }, data: { touched: true, firstActionAt: new Date(Date.now() - 3_600_000), assignedAt: new Date(Date.now() - 7_200_000) } });
-  const since = new Date();
+  const since = new Date(Date.now() - 2_000); // the API stamps rows with its own clock, which can trail this process by a few ms
   const r = await call(`/leads/${lead}/assign`, { method: "POST", cookie: ops, body: { to: b } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.assignedTo.id, b);

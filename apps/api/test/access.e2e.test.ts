@@ -6,6 +6,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import ExcelJS from "exceljs";
+import { hash } from "@node-rs/argon2";
 import { API, PW, call, lastMail, login, session, tokenIn } from "./helpers.ts";
 
 const NEW_PW = "NewPass12345x";
@@ -300,11 +301,15 @@ test("notification rules: the admin turns email off for an event; my own email p
 });
 
 test("change my password: the old one stops working", async () => {
-  const cookie = await session("ahmed.medhat@places.com");
+  // its own throwaway account: changing a seeded person's password ends their sessions, and other test files
+  // (no-answer.e2e) sign in as them at the same moment → random 401s there
+  const own = `pw-${stamp}@places.test`;
+  await prisma.user.create({ data: { email: own, status: "ACTIVE", passwordHash: await hash(PW) } });
+  const cookie = await session(own);
   assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: "wrong", next: "Changed12345" } })).status, 400);
   assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: PW, next: "Changed12345" } })).status, 204);
-  assert.equal((await login("ahmed.medhat@places.com")).status, 401);
-  await call("/auth/password", { method: "POST", cookie, body: { current: "Changed12345", next: PW } }); // put it back
+  assert.equal((await login(own)).status, 401);
+  assert.equal((await login(own, "Changed12345")).status, 200);
 });
 
 test("Excel export: the filtered users as .xlsx for whoever has «export»; others get 403; it's audited", async () => {
