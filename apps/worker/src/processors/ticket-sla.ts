@@ -6,14 +6,11 @@
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { DEFAULT_LEAD_RULES, DEPARTMENT_MANAGER_TIERS, OPEN_TICKET_STATUSES, PLACES_CALENDAR, type LeadRules, calendarOf, holidayDays, isTicketLate, ticketType } from "@places/domain";
-
-const day = (d: Date) => d.toISOString().slice(0, 10);
+import { DEPARTMENT_MANAGER_TIERS, OPEN_TICKET_STATUSES, isTicketLate, ticketType } from "@places/domain";
+import { workCalendar } from "../calendar.ts";
 
 export async function ticketSlaTick(now = new Date()): Promise<number> {
-  const work = ((await prisma.setting.findUnique({ where: { key: "leadRules" } }))?.value as Partial<LeadRules> | null)?.work ?? DEFAULT_LEAD_RULES.work;
-  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: day(h.from), to: day(h.to) })));
-  const calendar = { ...calendarOf({ ...DEFAULT_LEAD_RULES, work }, PLACES_CALENDAR), holidays };
+  const calendar = await workCalendar();
 
   const open = await prisma.ticket.findMany({ where: { status: { in: [...OPEN_TICKET_STATUSES] }, escalatedAt: null } });
   let escalated = 0;

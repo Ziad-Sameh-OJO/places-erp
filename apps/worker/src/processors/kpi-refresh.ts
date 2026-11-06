@@ -6,10 +6,11 @@
  */
 import { prisma, type Prisma } from "@places/db";
 import {
-  DEFAULT_LEAD_RULES, PLACES_CALENDAR, type DealMoney, type DealStatus, type LeadRules, type MetricParams, type Method, type WorkCalendar,
-  calendarOf, closedInSla, endOfLocalDay, fromDecimal, holidayDays, isTicketLate, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
+  type DealMoney, type DealStatus, type MetricParams, type Method, type WorkCalendar,
+  type Nature, closedInSla, endOfLocalDay, fromDecimal, isTicketLate, pettyCapScore, rollUp, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
   kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, timedTasks, timeliness,
 } from "@places/domain";
+import { workCalendar } from "../calendar.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const MIN = 60_000, HOUR = 60 * MIN;
@@ -20,10 +21,10 @@ const STATUS: Record<string, DealStatus> = {
 };
 
 /**
- * Not measured here: no Broadcast log (4.x), the custody cap setting.
+ * Not measured here: no Broadcast log (4.x).
  * dailySum and webAds (the website ads count, 11.9: no website hook) are typed in the daily report, which writes them (11.12).
  */
-export const UNBUILT = ["broadcasts", "dailySum", "pettyCap", "webAds"];
+export const UNBUILT = ["broadcasts", "dailySum", "webAds"];
 
 interface Ctx { now: Date; quarter: string; qStart: Date; cal: WorkCalendar }
 interface Who { id: string; userId: string; target: Prisma.Decimal }
@@ -183,15 +184,24 @@ const MEASURES: Record<string, Measure> = {
     const p = await prisma.purchase.findMany({ where: { createdAt: { gte: c.qStart }, amount: { gt: 10_000 }, status: { not: "Rejected" } }, select: { attachments: true } });
     return pct(p.filter((x) => x.attachments.length > 0).length, p.length, 100);
   },
+  // M-08 3.1: each capped safe's live balance (the ledger's own roll-up, as the API's LedgerService.balances) vs its ceiling
+  pettyCap: async () => {
+    const [accounts, sums] = await Promise.all([
+      prisma.account.findMany({ where: { archivedAt: null }, select: { id: true, parentId: true, nature: true, cap: true } }),
+      prisma.journalLine.groupBy({ by: ["accountId"], _sum: { debit: true, credit: true } }),
+    ]);
+    const money = (d: Prisma.Decimal | null) => (d ? fromDecimal(d.toFixed(2)) : 0);
+    const balance = rollUp(accounts.map((a) => ({ id: a.id, parentId: a.parentId, nature: a.nature as Nature })),
+      new Map(sums.map((x) => [x.accountId, { debit: money(x._sum.debit), credit: money(x._sum.credit) }])));
+    return pettyCapScore(accounts.filter((a) => a.cap != null).map((a) => ({ balance: balance.get(a.id) ?? 0, cap: money(a.cap) })));
+  },
 };
 /** Company-wide metrics are the same on every card: measured once per run and settings. */
 const PER_PERSON = new Set(["newLeadRoute", "calls", "visitsDone", "unitsBrought", "firstAction", "qualifiedRate", "activitiesDone", "dealsCount", "ownTarget", "teamTarget", "att", "attSales"]);
 
 /** `only`: write just these people's cards (a test, or re-running one person); everything is still measured for «team». */
 export async function kpiRefreshTick(now = new Date(), only?: readonly string[]): Promise<number> {
-  const work = ((await prisma.setting.findUnique({ where: { key: "leadRules" } }))?.value as Partial<LeadRules> | null)?.work ?? DEFAULT_LEAD_RULES.work;
-  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: day(h.from), to: day(h.to) })));
-  const cal = { ...calendarOf({ ...DEFAULT_LEAD_RULES, work }, PLACES_CALENDAR), holidays };
+  const cal = await workCalendar();
   // a Friday or a holiday adds nothing new: the next working day's run counts it
   if (!isWorkingDay(localDate(now, cal), cal)) return 0;
   const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });

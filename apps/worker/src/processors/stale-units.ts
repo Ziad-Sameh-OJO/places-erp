@@ -6,16 +6,12 @@
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { DEFAULT_LEAD_RULES, PLACES_CALENDAR, type LeadRules, calendarOf, followupRole, holidayDays, isWorkingDay, localDate, needsFollowup, staleBefore } from "@places/domain";
-
-const day = (d: Date) => d.toISOString().slice(0, 10);
+import { followupRole, needsFollowup, staleBefore } from "@places/domain";
+import { workingDay } from "../calendar.ts";
 
 export async function staleUnitsTick(now = new Date()): Promise<number> {
-  const work = ((await prisma.setting.findUnique({ where: { key: "leadRules" } }))?.value as Partial<LeadRules> | null)?.work ?? DEFAULT_LEAD_RULES.work;
-  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: day(h.from), to: day(h.to) })));
-  const calendar = { ...calendarOf({ ...DEFAULT_LEAD_RULES, work }, PLACES_CALENDAR), holidays };
-  const today = localDate(now);
-  if (!isWorkingDay(today, calendar)) return 0;
+  const today = await workingDay(now);
+  if (!today) return 0;
 
   const stale = await prisma.unit.findMany({
     where: { archivedAt: null, lastOwnerUpdateAt: { lt: staleBefore(now) }, OR: [{ status: "available" }, { alsoStatus: "available" }] },
@@ -39,7 +35,7 @@ export async function staleUnitsTick(now = new Date()): Promise<number> {
       const t = await tx.task.create({ data: { kind: "followup", unitId: u.id, byUserId: null, toUserId: to, dueOn: new Date(`${today}T00:00:00Z`), note: "last update عدّى عليه أكتر من شهر · كلّم المالك" }, select: { id: true } });
       await tx.auditLog.create({ data: { module: "tasks", entity: "Task", entityId: t.id, action: "create", after: { kind: "followup", unitId: u.id, toUserId: to, by: "system" } } });
       // in-app now, the phone copy below as a new task (task.new, like the API's tasks) once committed
-      await tx.notification.create({ data: { userId: to, text, link: `/tasks?id=${t.id}`, important: false } });
+      await tx.notification.create({ data: { userId: to, event: "task.new", text, link: `/tasks?id=${t.id}`, important: false } });
       made++;
       return t.id;
     });

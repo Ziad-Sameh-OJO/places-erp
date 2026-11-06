@@ -45,12 +45,12 @@ const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "draft", pattern: "10 * * * *", processor: () => draftTick() }, // hourly: 7 days without a touch → the Draft (1.26)
   { name: "draft-admin-alarm", pattern: "0 11 * * *", processor: () => draftAdminAlarmTick() }, // daily at the start of work: the Draft Admin waiting (1.27)
   { name: "visit-alarm", pattern: "* * * * *", processor: () => visitAlarmTick() }, // every minute (M-01 3.3 · 1.9)
-  { name: "recurring-bills", pattern: "0 11 * * *", processor: recurringBillsTick }, // daily at the start of work (M-07 9.16)
-  { name: "payroll-due", pattern: "5 11 * * *", processor: payrollDueTick }, // daily: pay day reached and not paid (M-07 9.14)
+  { name: "recurring-bills", pattern: "0 11 * * *", processor: () => recurringBillsTick() }, // daily at the start of work (M-07 9.16)
+  { name: "payroll-due", pattern: "5 11 * * *", processor: () => payrollDueTick() }, // daily: pay day reached and not paid (M-07 9.14)
   { name: "ticket-sla", pattern: "*/5 * * * *", processor: () => ticketSlaTick() }, // every 5 minutes: SLAs are hours long (M-06 2.4)
   { name: "procurement-reminder", pattern: "*/15 * * * *", processor: () => procurementReminderTick() }, // M-08 2.4
   { name: "leave-chase", pattern: "15 * * * *", processor: leaveChaseTick }, // hourly: remind at 24h, escalate at 48h (M-05 7.5)
-  { name: "hr-action-alarm", pattern: "0 11 * * *", processor: hrActionAlarmTick }, // daily: «حل الـ HR» due today (M-05 7.8)
+  { name: "hr-action-alarm", pattern: "0 11 * * *", processor: () => hrActionAlarmTick() }, // daily: «حل الـ HR» due today (M-05 7.8)
   { name: "scheduled-reports", pattern: "*/5 * * * *", processor: () => scheduledReportsTick() }, // 11.10: auto reports at their time, reminders, late notices
   { name: "target-pace", pattern: "0 12 * * *", processor: () => targetPaceTick() }, // 11.8: the TL hears who is under the month's pace
   { name: "kpi-mid-quarter", pattern: "0 11 * * *", processor: () => kpiMidQuarterTick() }, // daily at the start of work: once per card mid-quarter (M-12 2.1 · 11.6)

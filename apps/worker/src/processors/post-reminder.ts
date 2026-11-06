@@ -22,7 +22,7 @@ export async function postReminderTick(now = new Date()): Promise<number> {
       const claimed = await tx.post.updateMany({ where: { id: p.id, reminderSentAt: null }, data: { reminderSentAt: now } });
       if (claimed.count === 0) return false;
       // in-app now, and the phone copy below once committed (the worker has no mail service yet)
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link, important: false })) });
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: "marketing.post_reminder", text, link, important: false })) });
       sent++;
       return true;
     });

@@ -1,19 +1,18 @@
 /**
  * M-08 2.4: the approver answers a purchase request within one working day, or the approvers get a reminder — once per
  * request (remindedAt is claimed before anything is sent, so a retry or a second run sends nothing more).
- * The rule is approvalOverdue() from @places/domain; holidays come from the settings.
+ * The rule is approvalOverdue() from @places/domain; the working days and holidays come from the settings.
  * shortcut: in-app only (the worker has no mail sender yet); move it to the mail queue when that processor exists.
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { PLACES_CALENDAR, approvalOverdue, eventByKey, holidayDays } from "@places/domain";
+import { approvalOverdue, eventByKey } from "@places/domain";
+import { workCalendar } from "../calendar.ts";
 
 const EVENT = "procurement.reminder";
 
 export async function procurementReminderTick(now = new Date()): Promise<number> {
-  // official holidays are ranges «من … لحد …» (1.29)
-  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: h.from.toISOString().slice(0, 10), to: h.to.toISOString().slice(0, 10) })));
-  const calendar = { ...PLACES_CALENDAR, holidays };
+  const calendar = await workCalendar();
   const pending = await prisma.purchase.findMany({ where: { status: "Pending", remindedAt: null }, select: { id: true, no: true, item: true, createdAt: true } });
   const event = eventByKey(EVENT)!;
   let sent = 0;

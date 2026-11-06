@@ -1,16 +1,19 @@
 /**
  * M-07 9.14: on pay day (finance.payDay, default the 1st) the accountant hears once «اصرف مرتبات الشهر». Nothing is
  * paid here — the accountant pays everyone at once from «المرتبات». Idempotent: `finance.payrollNotifiedFor` holds the
- * month already announced.
+ * month already announced. Working days only: a pay day on a day off is announced the next working day.
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { eventByKey, formatEGP, fromDecimal, localDate, monthLabel, monthOf } from "@places/domain";
+import { eventByKey, formatEGP, fromDecimal, monthLabel, monthOf } from "@places/domain";
+import { workingDay } from "../calendar.ts";
 
 const NOTIFIED = "finance.payrollNotifiedFor";
 
-export async function payrollDueTick(): Promise<void> {
-  const today = localDate(new Date()), month = monthOf(today);
+export async function payrollDueTick(now = new Date()): Promise<void> {
+  const today = await workingDay(now);
+  if (!today) return;
+  const month = monthOf(today);
   const day = await prisma.setting.findUnique({ where: { key: "finance.payDay" } });
   if (Number(today.slice(8, 10)) < (typeof day?.value === "number" ? day.value : 1)) return;
   if (await prisma.payrollRun.findUnique({ where: { month } })) return;

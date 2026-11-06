@@ -1,21 +1,21 @@
 /**
  * M-11 2.1 step 3 · 2.4 · 7.1 (+ M-02 2.4): an active contract's unpaid installment → 3 days before its day the
  * salesperson and Finance are reminded; the day after, it's late (the salesperson, Finance and the sales manager);
- * 7 days late it's escalated to management. Once a day, on a working day (Friday and official holidays skipped, like
- * the other daily jobs); what came due meanwhile goes out the next working day. Idempotent: the alerts sent are
+ * 7 days late it's escalated to management. Once a day, on a working day (the configured days off and official holidays
+ * skipped, like the other daily jobs); what came due meanwhile goes out the next working day. Idempotent: the alerts sent are
  * claimed on the installment in the same transaction as the notifications.
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { PLACES_CALENDAR, eventByKey, formatEGP, fromDecimal, holidayDays, installmentAlerts, isWorkingDay, localDate, type InstallmentAlert } from "@places/domain";
+import { eventByKey, formatEGP, fromDecimal, installmentAlerts, type InstallmentAlert } from "@places/domain";
+import { workingDay } from "../calendar.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const EVENT: Record<InstallmentAlert, string> = { reminder: "contract.installment_due", late: "contract.installment_late", escalated: "contract.installment_escalated" };
 
 export async function installmentAlertsTick(now = new Date()): Promise<number> {
-  const today = localDate(now);
-  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: day(h.from), to: day(h.to) })));
-  if (!isWorkingDay(today, { ...PLACES_CALENDAR, holidays })) return 0;
+  const today = await workingDay(now);
+  if (!today) return 0;
   const horizon = new Date(Date.parse(`${today}T00:00:00Z`) + 3 * 86_400_000);
   const rows = await prisma.installment.findMany({
     where: { dueOn: { lte: horizon }, contract: { status: "ACTIVE" }, NOT: { alerts: { hasEvery: ["late", "escalated"] } } },
@@ -50,7 +50,7 @@ export async function installmentAlertsTick(now = new Date()): Promise<number> {
           : alert === "late" ? `${what} · اتأخر ومتحصّلش` : `تصعيد: ${what} · متأخر 7 أيام أو أكتر`;
         const to = [...new Set([...(alert === "escalated" ? [] : sales), ...byRole.get(alert)!])];
         const link = `/contracts?open=${c.id}`;
-        await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link, important: eventByKey(EVENT[alert])!.important })) });
+        await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: EVENT[alert], text, link, important: eventByKey(EVENT[alert])!.important })) });
         notes.push({ event: EVENT[alert], userIds: to, text, link });
         sent += to.length;
       }

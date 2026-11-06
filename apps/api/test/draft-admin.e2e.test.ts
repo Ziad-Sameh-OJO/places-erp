@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { DEFAULT_LEAD_RULES } from "@places/domain";
 import { draftAdminAlarmTick } from "../../worker/src/processors/draft-admin-alarm.ts";
-import { call, session } from "./helpers.ts";
+import { call, session, workingNow } from "./helpers.ts";
 
 const stamp = String(Date.now());
 type Person = { id: string; userId: string };
@@ -80,10 +80,11 @@ test("the daily Alarm: once a day, to Operations, with how many wait and how man
   const since = new Date(Date.now() - 2_000);
   try {
     await prisma.setting.upsert({ where: { key: "draftAdminAlarm" }, update: { value: "" }, create: { key: "draftAdminAlarm", value: "" } });
-    assert.ok((await draftAdminAlarmTick(new Date(), DEFAULT_LEAD_RULES)) >= 1);
-    assert.equal(await draftAdminAlarmTick(new Date(), DEFAULT_LEAD_RULES), 0); // the same day: nothing more
+    const day = await workingNow(DEFAULT_LEAD_RULES); // the Alarm rests on days off (a Friday run of the suite)
+    assert.ok((await draftAdminAlarmTick(day, DEFAULT_LEAD_RULES)) >= 1);
+    assert.equal(await draftAdminAlarmTick(day, DEFAULT_LEAD_RULES), 0); // the same day: nothing more
     const alarm = await prisma.notification.findFirstOrThrow({ where: { userId: heba.userId, text: { startsWith: "Alarm: " }, important: true }, orderBy: { createdAt: "desc" } });
-    assert.match(alarm.text, /^Alarm: \d+ Not Interested \/ Cancellation مستنيين قرارك · \d+ النهارده$/);
+    assert.match(alarm.text, /^Alarm: \d+ Not Interested \/ Cancellation مستنيين قرارك(?: · \d+ النهارده)?$/); // «النهارده» only when the day ran is today
   } finally { // the job's day as it was (today's real Alarm still goes out), and the Alarm it sent to every Operations person
     if (saved) await prisma.setting.update({ where: { key: "draftAdminAlarm" }, data: { value: saved.value as never } });
     else await prisma.setting.deleteMany({ where: { key: "draftAdminAlarm" } });

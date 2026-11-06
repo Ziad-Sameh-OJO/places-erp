@@ -1,20 +1,18 @@
 /**
  * M-12 2.1 · 11.6: «لو بند تحت المستهدف في نص الربع ← تنبيه للموظف والمتابع». From the 15th of the quarter's middle month
- * (quarterMidpoint), on the first working day (Friday and official holidays skipped), each card of the open quarter is
+ * (quarterMidpoint), on the first working day (the configured days off and official holidays skipped), each card of the open quarter is
  * checked once (midAlertAt): items under target → the owner and the follower (no follower = the Super Admins) hear it.
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { PLACES_CALENDAR, holidayDays, isWorkingDay, itemAchievement, localDate, quarterLabel, quarterMidpoint, type Method } from "@places/domain";
-
-const day = (d: Date) => d.toISOString().slice(0, 10);
+import { itemAchievement, quarterLabel, quarterMidpoint, type Method } from "@places/domain";
+import { workingDay } from "../calendar.ts";
 
 export async function kpiMidQuarterTick(now = new Date()): Promise<number> {
-  const today = localDate(now);
+  const today = await workingDay(now);
+  if (!today) return 0;
   const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
   if (!q || q.status !== "open" || today < quarterMidpoint(q.id)) return 0;
-  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: day(h.from), to: day(h.to) })));
-  if (!isWorkingDay(today, { ...PLACES_CALENDAR, holidays })) return 0;
 
   const cards = await prisma.kpiCard.findMany({
     where: { quarter: q.id, midAlertAt: null },

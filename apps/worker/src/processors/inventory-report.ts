@@ -31,7 +31,7 @@ export async function inventoryReportRun(r: { id: string; name: string }, day: s
     // the unique day: a second run (a retry, two workers) can't make a second report or tell anyone twice
     const made = await tx.inventoryReport.createMany({ data: [{ day: date, reportId: r.id, sendTo: recipients, ...counts }], skipDuplicates: true });
     if (made.count && approvers.length) {
-      await tx.notification.createMany({ data: approvers.map((userId) => ({ userId, text: `«${r.name}» جاهز · مستني اعتمادك`, link: "/inventory?report=1" })) });
+      await tx.notification.createMany({ data: approvers.map((userId) => ({ userId, event: "inventory.report_sent", text: `«${r.name}» جاهز · مستني اعتمادك`, link: "/inventory?report=1" })) });
     }
   });
 }

@@ -1,12 +1,15 @@
 /**
  * M-05 7.8: «حل الـ HR» from a 1-to-1 rings on its due day, once (actionAlarm in @places/domain), until it's marked done.
+ * Working days only: one due on a day off rings the next working day.
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { actionAlarm, eventByKey, localDate } from "@places/domain";
+import { actionAlarm, eventByKey } from "@places/domain";
+import { workingDay } from "../calendar.ts";
 
-export async function hrActionAlarmTick(): Promise<void> {
-  const today = localDate(new Date());
+export async function hrActionAlarmTick(now = new Date()): Promise<void> {
+  const today = await workingDay(now);
+  if (!today) return;
   const rows = await prisma.oneOnOne.findMany({ where: { hrAction: { not: null }, hrActionDone: false, alarmedAt: null, hrActionDue: { lte: new Date(`${today}T00:00:00Z`) } }, include: { employee: { select: { name: true } } } });
   if (!rows.length) return;
   const ev = eventByKey("hr.action_due")!;
@@ -16,7 +19,7 @@ export async function hrActionAlarmTick(): Promise<void> {
     if (!actionAlarm(r.hrActionDue!.toISOString().slice(0, 10), today, r.hrActionDone, !!r.alarmedAt)) continue;
     const text = `ميعاد حل الـ HR مع ${r.employee.name}: ${r.hrAction}`;
     const rang = await prisma.$transaction(async (tx) => {
-      const claimed = await tx.oneOnOne.updateMany({ where: { id: r.id, alarmedAt: null }, data: { alarmedAt: new Date() } });
+      const claimed = await tx.oneOnOne.updateMany({ where: { id: r.id, alarmedAt: null }, data: { alarmedAt: now } });
       if (!claimed.count) return false;
       await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: ev.key, text, link: "/hr", important: true })) });
       return true;

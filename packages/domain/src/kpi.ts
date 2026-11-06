@@ -4,6 +4,7 @@
  * The money bands (salary or quarter bonus, per person) are the same for everyone and editable in settings.
  */
 import { PLACES_CALENDAR, type WorkCalendar, dayStart, localDate } from "./business-time.ts";
+import type { Piasters } from "./money.ts";
 
 /** Where an item's number comes from (meeting 4 Nov): the system measures it, a report is handed in, or a person types it. */
 export type Method = "system" | "report" | "manual";
@@ -250,6 +251,16 @@ export const timeliness = (doneAt: Date | null, deadline: Date, now: Date): Time
 export function onTimeShare(states: readonly Timeliness[], empty: number | null = 100): number | null {
   const counted = states.filter((s) => s !== "waiting");
   return pct(counted.filter((s) => s === "ok").length, counted.length, empty);
+}
+
+/**
+ * «الالتزام بسقف العهدة» (M-08 3.1 · M-12, catalogue pettyCap «رصيد العهدة تحت الحد = 100%، فوقه = 0%», demo kpis):
+ * every safe finance put a «سقف العهدة» on holds at most its ceiling → 100, any one over it → 0. No ceiling set yet →
+ * null (not measured, the item keeps «لسه»).
+ */
+export function pettyCapScore(safes: readonly { balance: Piasters; cap: Piasters }[]): number | null {
+  if (!safes.length) return null;
+  return safes.every((s) => s.balance <= s.cap) ? 100 : 0;
 }
 
 /** 11.15 · the channels whose leads need no Second Call: the item's «excl» setting, «By Safwat» until it's set. */

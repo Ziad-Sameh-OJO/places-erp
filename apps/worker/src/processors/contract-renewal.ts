@@ -2,16 +2,19 @@
  * M-11 2.1 step 5 · 2.4 · 7.1: an active contract's salespeople and Finance hear 90, 60 and 30 days before it ends
  * («contract.renewal»), and the first alert opens a renewal lead with the deal's salesperson — a new sale (demo ctRenew).
  * Idempotent: the alert days already sent are claimed on the contract in the same transaction as the notifications.
+ * Working days only: a threshold reached on a day off goes out the next working day (renewalAlert marks what passed).
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { eventByKey, fromDecimal, localDate, nextYearValue, renewalAlert, toDecimal } from "@places/domain";
+import { eventByKey, fromDecimal, nextYearValue, renewalAlert, toDecimal } from "@places/domain";
+import { workingDay } from "../calendar.ts";
 
 const EVENT = "contract.renewal";
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function contractRenewalTick(now = new Date()): Promise<void> {
-  const today = localDate(now);
+  const today = await workingDay(now);
+  if (!today) return;
   const horizon = new Date(Date.parse(`${today}T00:00:00Z`) + 90 * 86_400_000);
   const contracts = await prisma.contract.findMany({
     where: { status: "ACTIVE", endsOn: { gte: new Date(today), lte: horizon } },
@@ -37,7 +40,7 @@ export async function contractRenewalTick(now = new Date()): Promise<void> {
       const text = `العقد ${c.code} (${c.deal.company} · ${c.deal.unit.code}) بينتهي بعد ${due.days} يوم · ${day(c.endsOn)}${lead ? ` · اتعمل ليد تجديد ${lead.code}` : ""}`;
       const to = [...new Set([...sales.map((s) => s.userId), ...finance.map((u) => u.id)])];
       const link = lead ? `/leads?open=${lead.id}` : `/contracts?open=${c.id}`;
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link, important: eventByKey(EVENT)!.important })) });
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: EVENT, text, link, important: eventByKey(EVENT)!.important })) });
       return { userIds: to, text, link };
     });
     if (told) await pushEvent(EVENT, told);

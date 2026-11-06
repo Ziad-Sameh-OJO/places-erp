@@ -8,21 +8,16 @@
  */
 import { prisma } from "@places/db";
 import {
-  DEFAULT_LEAD_RULES, PLACES_CALENDAR, type LeadRules, type Schedule, type WorkCalendar, calendarOf, dayStart, dealRowOf, dueOf, handInStep, holidayDays,
+  type Schedule, type WorkCalendar, dayStart, dealRowOf, dueOf, handInStep,
   isOffPeriod, monthBounds, monthLabel, periodFigures, pickPeople, targetPercent, toDecimal, fromDecimal,
 } from "@places/domain";
 import { inventoryReportRun } from "./inventory-report.ts";
 import { pushEvent } from "../push.ts";
+import { workCalendar } from "../calendar.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const hm = (d: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
 const shift = (iso: string, days: number) => day(new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000));
-
-export async function workCalendar(): Promise<WorkCalendar> {
-  const work = ((await prisma.setting.findUnique({ where: { key: "leadRules" } }))?.value as Partial<LeadRules> | null)?.work ?? DEFAULT_LEAD_RULES.work;
-  const holidays = holidayDays((await prisma.holiday.findMany()).map((h) => ({ from: day(h.from), to: day(h.to) })));
-  return { ...calendarOf({ ...DEFAULT_LEAD_RULES, work }, PLACES_CALENDAR), holidays };
-}
 
 async function activeUsers() {
   const rows = await prisma.user.findMany({ where: { status: "ACTIVE" }, select: { id: true, roles: { select: { role: { select: { key: true } } } }, employee: { select: { id: true, name: true } } } });
@@ -111,7 +106,7 @@ export async function scheduledReportsTick(now = new Date()): Promise<void> {
       const text = `اتبعت تقرير «${r.name}» (${r.fmt}) · ${built.title}`;
       const sent = await prisma.$transaction(async (tx) => {
         const made = await tx.reportRun.createMany({ data: [{ reportId: r.id, period, title: built.title, rows: built.rows }], skipDuplicates: true });
-        if (made.count && to.length) await tx.notification.createMany({ data: [...new Set(to)].map((userId) => ({ userId, text, link })) });
+        if (made.count && to.length) await tx.notification.createMany({ data: [...new Set(to)].map((userId) => ({ userId, event: "report.sent", text, link })) });
         return made.count > 0;
       });
       if (sent) await pushEvent("report.sent", { userIds: to, text, link });
@@ -129,7 +124,7 @@ export async function scheduledReportsTick(now = new Date()): Promise<void> {
       const told = await prisma.$transaction(async (tx) => {
         await tx.reportHandIn.createMany({ data: [{ reportId: r.id, userId, period }], skipDuplicates: true });
         const claimed = await tx.reportHandIn.updateMany({ where: { reportId: r.id, userId, period, at: null, ...(step === "remind" ? { remindedAt: null } : { lateAt: null }) }, data: step === "remind" ? { remindedAt: now } : { lateAt: now } });
-        if (claimed.count) await tx.notification.createMany({ data: to.map((u) => ({ userId: u, text, link, important: step === "late" })) });
+        if (claimed.count) await tx.notification.createMany({ data: to.map((u) => ({ userId: u, event: step === "remind" ? "report.remind" : "report.late", text, link, important: step === "late" })) });
         return claimed.count > 0;
       });
       if (told) await pushEvent(step === "remind" ? "report.remind" : "report.late", { userIds: to, text, link });
