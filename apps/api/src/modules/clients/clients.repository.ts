@@ -24,8 +24,8 @@ export type FileDealRecord = Prisma.DealGetPayload<{ select: typeof DEAL_OF_FILE
 export class ClientsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  list(visible: Prisma.ClientWhereInput, f: ClientFilters, staleBefore: Date) {
-    const where = { AND: [visible, filterWhere(f, staleBefore)] };
+  list(visible: Prisma.ClientWhereInput, f: ClientFilters, staleBefore: Date, ownerNumbers: boolean) {
+    const where = { AND: [visible, filterWhere(f, staleBefore, ownerNumbers)] };
     return this.db.$transaction([
       this.db.client.findMany({ where, select: CLIENT_ROW, orderBy: [{ lastContactAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.client.count({ where }),
@@ -130,8 +130,11 @@ export class ClientsRepository {
 const staleOwner = (staleBefore: Date): Prisma.ClientWhereInput =>
   ({ kind: { in: ["owner", "both"] }, units: { some: { archivedAt: null, lastOwnerUpdateAt: { lt: staleBefore } } } });
 
-/** The list's search (M-10 5.2: name, number, company, unit code) and its tabs. */
-function filterWhere(f: ClientFilters, staleBefore: Date): Prisma.ClientWhereInput {
+/**
+ * The list's search (M-10 5.2: name, number, company, unit code) and its tabs. The number matches only files whose
+ * numbers the caller may see (`ownerNumbers` = `seesOwnerNumbers`, M-10 4.1), or digits could be guessed one by one.
+ */
+function filterWhere(f: ClientFilters, staleBefore: Date, ownerNumbers: boolean): Prisma.ClientWhereInput {
   const and: Prisma.ClientWhereInput[] = [{ archivedAt: null }];
   if (f.kind) and.push({ kind: { in: [f.kind, "both"] } });
   if (f.status) and.push({ status: f.status });
@@ -142,7 +145,7 @@ function filterWhere(f: ClientFilters, staleBefore: Date): Prisma.ClientWhereInp
       { name: { contains: f.q, mode: "insensitive" } },
       { company: { contains: f.q, mode: "insensitive" } },
       { units: { some: { code: { contains: f.q, mode: "insensitive" } } } },
-      ...(digits.length >= 3 ? [{ phones: { some: { phone: { contains: digits } } } }] : []),
+      ...(digits.length >= 3 ? [{ ...(ownerNumbers ? {} : { kind: "client" as const }), phones: { some: { phone: { contains: digits } } } }] : []),
     ] });
   }
   return { AND: and };

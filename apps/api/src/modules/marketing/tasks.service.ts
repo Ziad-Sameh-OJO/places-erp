@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -213,9 +213,11 @@ export class TasksService {
     const status = t.status as TaskStatus;
     const u = t.unit;
     const sla = taskSla({ kind: t.kind, status, createdAt: t.createdAt, doneAt: t.doneAt, returned: t.returned, unitEnteredAt: u?.enteredAt ?? null }, now);
+    // the owner's number: the photographer of a shoot calls him (M-04 2.1 step 5); otherwise only who sees owner numbers (M-10 4.1)
+    const ownerPhone = (t.kind === "photo" && t.toUserId === me.id) || seesOwnerNumbers(me.grants) ? u?.ownerPhone ?? null : null;
     return {
       id: t.id, kind: t.kind, kindLabel: taskKind(t.kind)?.label ?? t.kind, title: t.title,
-      unit: u && { id: u.id, code: u.code, project: u.project, area: u.area, floor: u.floor, building: u.building, ownerName: u.ownerName, ownerPhone: u.ownerPhone },
+      unit: u && { id: u.id, code: u.code, project: u.project, area: u.area, floor: u.floor, building: u.building, ownerName: u.ownerName, ownerPhone },
       sla: sla && { due: sla.due.toISOString(), hoursLeft: sla.hoursLeft, met: sla.met },
       by: t.byUserId ? { id: t.byUserId, name: names.get(t.byUserId) ?? "—" } : null,
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },

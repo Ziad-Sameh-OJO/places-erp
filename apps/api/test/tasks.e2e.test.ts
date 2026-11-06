@@ -71,8 +71,11 @@ test("the flow: Manar gives a shoot → Bayoumi told, sees the unit → In Progr
   assert.equal(card.unit.code, `U-T${stamp}`);
   assert.equal(card.unit.ownerPhone, "01000000000"); // the unit's data reaches the photographer with the task
   assert.deepEqual(card.can.moves, ["progress", "done"]);
-  // Rahma sees every task of her department's photographer (4.1)
-  assert.ok((await board(rahma)).some((t) => t.id === id));
+  // Rahma sees every task of her department's photographer (4.1), but not the owner's number (M-10 4.1); Manar keeps the inventory
+  const seen = (await board(rahma)).find((t) => t.id === id) as unknown as { unit: { ownerPhone: string | null } } | undefined;
+  assert.ok(seen);
+  assert.equal(seen.unit.ownerPhone, null);
+  assert.equal(((await board(manar)).find((t) => t.id === id) as unknown as { unit: { ownerPhone: string } }).unit.ownerPhone, "01000000000");
   assert.equal((await call(`/tasks/${id}`, { cookie: sales })).status, 403);
   assert.equal((await move(bayoumi, id, "uploaded")).status, 400); // the Retouch lane only
   assert.equal((await move(bayoumi, id, "progress")).body.status, "progress");

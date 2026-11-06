@@ -79,6 +79,21 @@ test("only a Super Admin can give the Super Admin role", async () => {
   assert.equal((await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input({ extraRoles: ["admin"] }) })).status, 403);
 });
 
+test("a Super Admin's account is changed by a Super Admin only: «access: edit» can't take it over (M-09)", async () => {
+  const [ahmed, safwat] = await Promise.all(["ahmed.islam@places.com", "m.safwat@places.com"].map(async (e) => (await prisma.user.findUniqueOrThrow({ where: { email: e } })).id));
+  const by = (cookie: string, path: string, method = "POST", body?: unknown) => call(`/access/users/${ahmed}${path}`, { method, cookie, ...(body ? { body } : {}) });
+  // Nancy (access: edit / create, not a Super Admin): his email + OTP, stopping him, unlock, reset, invite, exceptions
+  assert.equal((await by(nancy, "", "PUT", input({ email: `takeover-${stamp}@places.test`, otpRequired: false }))).status, 403);
+  for (const p of ["/disable", "/enable", "/unlock", "/reset", "/invite"]) assert.equal((await by(nancy, p)).status, 403, p);
+  assert.equal((await by(nancy, "/permissions", "PATCH", { finance: ["view"] })).status, 403);
+  assert.equal((await call(`/access/users/${ahmed}/permissions`, { cookie: nancy })).body.editable, false);
+  const still = await prisma.user.findUniqueOrThrow({ where: { id: ahmed } });
+  assert.deepEqual([still.email, still.status], ["ahmed.islam@places.com", "ACTIVE"]);
+  // another Super Admin gets past the guard (the account just isn't locked)
+  const r = await call(`/access/users/${safwat}/unlock`, { method: "POST", cookie: admin });
+  assert.deepEqual([r.status, r.body.error], [400, "الحساب مش مقفول"]);
+});
+
 test("changing someone's roles applies at once and notifies them", async () => {
   const r = await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input({ extraRoles: ["telesales"] }) });
   assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -294,8 +309,12 @@ test("notification rules: the admin turns email off for an event; my own email p
   const rules = (await call("/notifications/rules", { cookie: admin })).body;
   assert.ok(rules.some((r: { key: string }) => r.key === "lead.pulled"));
   assert.equal((await call("/notifications/rules/hr.excuse", { method: "PUT", cookie: sales, body: { channels: ["app"] } })).status, 403);
+  const since = new Date();
   assert.equal((await call("/notifications/rules/procurement.request", { method: "PUT", cookie: admin, body: { channels: ["app", "push"] } })).status, 200);
   await call("/notifications/rules/procurement.request", { method: "PUT", cookie: admin, body: { channels: ["app", "push", "email"] } });
+  // audited with what it was, in the same transaction as the change
+  const trail = await prisma.auditLog.findMany({ where: { entity: "NotificationRule", entityId: "procurement.request", at: { gte: since } }, orderBy: { at: "asc" } });
+  assert.deepEqual(trail.map((a) => [a.before, a.after]).at(-1), [{ channels: ["app", "push"] }, { channels: ["app", "push", "email"] }]);
   assert.equal((await call("/notifications/preferences", { method: "PUT", cookie: sales, body: { emailNotifications: false } })).status, 204);
   await call("/notifications/preferences", { method: "PUT", cookie: sales, body: { emailNotifications: true } });
 });

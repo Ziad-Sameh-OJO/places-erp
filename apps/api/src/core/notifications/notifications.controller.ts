@@ -5,7 +5,6 @@ import { MailLogQuery, Page, Preferences, PushEndpointInput, PushSubscriptionInp
 import { ZodPipe } from "../http/zod.pipe";
 import { Requires, SignedIn } from "../authz/requires.decorator";
 import { Me, type CurrentUser } from "../auth/current-user.decorator";
-import { AuditService } from "../audit/audit.service";
 import { NotificationsService } from "./notifications.service";
 import { PushService } from "./push.service";
 import { NotificationStreamService } from "./notification-stream.service";
@@ -15,7 +14,7 @@ const MineQuery = Page.extend({ unread: z.coerce.boolean().default(false), event
 
 @Controller("notifications")
 export class NotificationsController {
-  constructor(private readonly n: NotificationsService, private readonly push: PushService, private readonly stream: NotificationStreamService, private readonly audit: AuditService) {}
+  constructor(private readonly n: NotificationsService, private readonly push: PushService, private readonly stream: NotificationStreamService) {}
 
   @SignedIn() @Get()
   mine(@Me() me: CurrentUser, @Query(new ZodPipe(MineQuery)) q: z.infer<typeof MineQuery>) {
@@ -72,9 +71,7 @@ export class NotificationsController {
   }
 
   @Requires("integrations", "edit") @Put("rules/:event")
-  async setRule(@Me() me: CurrentUser, @Param("event") event: string, @Body(new ZodPipe(RuleInput)) b: z.infer<typeof RuleInput>) {
-    const r = await this.n.setRule(event, b.channels);
-    await this.audit.record({ module: "integrations", entity: "NotificationRule", entityId: event, action: "update", userId: me.id, after: b });
-    return r;
+  setRule(@Me() me: CurrentUser, @Param("event") event: string, @Body(new ZodPipe(RuleInput)) b: z.infer<typeof RuleInput>) {
+    return this.n.setRule(me, event, b.channels);
   }
 }

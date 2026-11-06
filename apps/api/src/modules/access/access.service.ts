@@ -77,6 +77,7 @@ export class AccessService {
   }
 
   async updateUser(me: CurrentUser, id: string, b: UserInput) {
+    await this.guardSuperAdmin(me, id);
     const before = await this.getUser(id);
     const roleKeys = this.roleKeys(me, b, before.roles.map((r) => r.role.key));
     const roles = await this.checkRoles(roleKeys);
@@ -102,6 +103,7 @@ export class AccessService {
   /** Disabling signs the person out everywhere at once. Their open leads and tasks then move through HandoverService, once their direct manager approves (M-09 2.2 · 7.1). */
   async setActive(me: CurrentUser, id: string, active: boolean) {
     if (id === me.id && !active) throw new BadRequestException("مينفعش توقف حسابك");
+    await this.guardSuperAdmin(me, id);
     const u = await this.db.user.findUnique({ where: { id } });
     if (!u) throw new NotFoundException();
     await this.db.$transaction(async (tx) => {
@@ -112,12 +114,16 @@ export class AccessService {
   }
 
   async unlock(me: CurrentUser, id: string) {
-    const r = await this.db.user.updateMany({ where: { id, status: "LOCKED" }, data: { status: "ACTIVE", failedLogins: 0 } });
-    if (!r.count) throw new BadRequestException("الحساب مش مقفول");
-    await this.audit.record({ module: "access", entity: "User", entityId: id, action: "unlock", userId: me.id });
+    await this.guardSuperAdmin(me, id);
+    await this.db.$transaction(async (tx) => {
+      const r = await tx.user.updateMany({ where: { id, status: "LOCKED" }, data: { status: "ACTIVE", failedLogins: 0 } });
+      if (!r.count) throw new BadRequestException("الحساب مش مقفول");
+      await this.audit.record({ module: "access", entity: "User", entityId: id, action: "unlock", userId: me.id, before: { status: "LOCKED" }, after: { status: "ACTIVE" } }, tx);
+    });
   }
 
   async resendInvite(me: CurrentUser, id: string) {
+    await this.guardSuperAdmin(me, id);
     const u = await this.getUser(id);
     if (u.status !== "INVITED") throw new BadRequestException("الحساب متفعّل بالفعل");
     const primary = u.roles.find((r) => r.primary) ?? u.roles[0];
@@ -126,6 +132,7 @@ export class AccessService {
   }
 
   async sendReset(me: CurrentUser, id: string) {
+    await this.guardSuperAdmin(me, id);
     const u = await this.getUser(id);
     if (u.status === "DISABLED" || u.status === "INVITED") throw new BadRequestException("الحساب مش متفعّل");
     await this.auth.sendReset(id, u.email);
@@ -144,7 +151,7 @@ export class AccessService {
 
   /** The person's matrix as `me` sees it: `editable` says whether `me` may change it (the screen's ticks). */
   async permissionsFor(me: CurrentUser, id: string) {
-    return { ...(await this.permissionsOf(id)), editable: await this.editReach(me, id) !== null };
+    return { ...(await this.permissionsOf(id)), editable: !(await this.isProtected(me, id)) && await this.editReach(me, id) !== null };
   }
 
   /**
@@ -161,6 +168,7 @@ export class AccessService {
 
   /** An exception equal to what the roles already give is dropped, so the matrix stays honest. */
   async setOverrides(me: CurrentUser, id: string, changes: Overrides) {
+    await this.guardSuperAdmin(me, id);
     const reach = await this.editReach(me, id);
     if (!reach) throw new ForbiddenException(me.roles.includes(OPS_HEAD) ? "بتعدّل صلاحيات فريقك بس" : undefined);
     const { fromRoles, effective } = await this.permissionsOf(id);
@@ -293,6 +301,19 @@ export class AccessService {
     const keys = [...new Set([b.role, ...b.extraRoles])];
     if ((keys.includes(ADMIN) !== had.includes(ADMIN)) && !me.roles.includes(ADMIN)) throw new ForbiddenException("دور الـ Super Admin بيتدّى ويتشال من Super Admin بس");
     return keys;
+  }
+
+  /** A Super Admin's account, and `me` isn't one. */
+  private async isProtected(me: CurrentUser, id: string) {
+    return !me.roles.includes(ADMIN) && (await this.db.userRole.count({ where: { userId: id, role: { key: ADMIN } } })) > 0;
+  }
+
+  /**
+   * M-09: every write to a Super Admin's account (email, OTP, status, unlock, invite, reset, exceptions) is a Super
+   * Admin's — otherwise «access: edit» could change his email and «نسيت الباسورد» would take the account over.
+   */
+  private async guardSuperAdmin(me: CurrentUser, id: string) {
+    if (await this.isProtected(me, id)) throw new ForbiddenException("حساب الـ Super Admin بيتعدّل من Super Admin بس");
   }
 
   private async checkRoles(keys: string[]) {

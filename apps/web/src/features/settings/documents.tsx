@@ -57,15 +57,17 @@ export function StampTab() {
 
 /** «قوالب المستندات» (12.12): the entities claims go out under (logo + bank) and the claim / receipt templates. */
 export function TemplatesTab() {
-  const { can } = useMe();
+  const { can, me } = useMe();
   const ed = can("master", "edit");
   const d = useSetup().data;
+  // the bank details claims ask the client to pay into are the Super Admin's, like the stamp (M-13 2.2)
+  const su = !!me?.roles.includes("admin");
   if (!d) return <p className="hint">بيحمّل…</p>;
   return (
     <>
       <h3 className="mini-h">الجهات اللي بتطلع باسمها المطالبات</h3>
       <Note>اللوجو بيظهر فوق المطالبة والإيصال، وبيانات البنك بتتكتب في المطالبة عشان العميل يحوّل عليها.</Note>
-      <div className="cols">{d.entities.map((e) => <EntityCard key={e.id} e={e} ed={ed} />)}</div>
+      <div className="cols">{d.entities.map((e) => <EntityCard key={e.id} e={e} ed={su} />)}</div>
       <h3 className="mini-h">القوالب</h3>
       <Note>الكلمات اللي بين {"{}"} بتتملي لوحدها: {TEMPLATE_WORDS.map((w) => `{${w}}`).join(" ")}. الختم والإمضا بيتحطوا لوحدهم وقت الطباعة.</Note>
       <div className="cols">{d.templates.map((t) => <TemplateCard key={t.kind} t={t} ed={ed} />)}</div>

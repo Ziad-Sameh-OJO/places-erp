@@ -4,6 +4,8 @@ import type { MailLogQuery, MailLogRow, Paged } from "@places/contracts";
 import { type Channel, NOTIFICATION_EVENTS, channelsFor, eventByKey, mailStatus } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
+import { AuditService } from "../audit/audit.service";
+import type { CurrentUser } from "../auth/current-user.decorator";
 import { PushService } from "./push.service";
 import { env } from "../../config/env";
 
@@ -37,7 +39,7 @@ const MAIL_FILTER: Record<NonNullable<MailLogQuery["status"]> | "all", Prisma.Ma
  */
 @Injectable()
 export class NotificationsService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly mail: MailService, private readonly push: PushService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly mail: MailService, private readonly push: PushService, private readonly audit: AuditService) {}
 
   async rules() {
     const saved = new Map((await this.db.notificationRule.findMany()).map((r) => [r.event, r]));
@@ -47,10 +49,17 @@ export class NotificationsService {
     });
   }
 
-  async setRule(event: string, channels: Channel[]) {
+  /** The change and its audit row (with what it was) in one transaction. */
+  async setRule(me: CurrentUser, event: string, channels: Channel[]) {
     const e = eventByKey(event);
     if (!e) throw new NotFoundException();
-    return this.db.notificationRule.upsert({ where: { event }, create: { event, toRoles: [...e.toRoles], channels }, update: { channels } });
+    return this.db.$transaction(async (tx) => {
+      const before = await tx.notificationRule.findUnique({ where: { event } });
+      const r = await tx.notificationRule.upsert({ where: { event }, create: { event, toRoles: [...e.toRoles], channels }, update: { channels } });
+      await this.audit.record({ module: "integrations", entity: "NotificationRule", entityId: event, action: "update", userId: me.id,
+        before: { channels: before?.channels ?? [...e.channels] }, after: { channels } }, tx);
+      return r;
+    });
   }
 
   async notify(n: Notify) {
