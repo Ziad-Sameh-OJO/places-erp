@@ -1,15 +1,9 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import webpush, { WebPushError } from "web-push";
-import type { PrismaClient } from "@places/db";
+import { type PrismaClient, type PushMessage, type PushSend, pushSender, webPushTransport } from "@places/db";
 import type { PushSubscriptionInput } from "@places/contracts";
 import { PRISMA } from "../database/database.module";
 import { AuditService } from "../audit/audit.service";
 import { env } from "../../config/env";
-
-export interface PushMessage { title: string; body: string; link?: string | undefined }
-
-/** The push service says the device is gone (unsubscribed, app removed): its row is dropped. */
-const GONE = new Set([404, 410]);
 
 /**
  * M-14 (51): push notifications to every device a person turned them on for (Web Push with VAPID keys from the
@@ -19,9 +13,12 @@ const GONE = new Set([404, 410]);
 export class PushService {
   private readonly log = new Logger("Push");
   private readonly on = !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+  // the sender is shared with the worker (@places/db), so a job's Alarm reaches the phone the same way
+  private readonly sender: PushSend;
 
   constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService) {
-    if (this.on) webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY!, env.VAPID_PRIVATE_KEY!);
+    const transport = webPushTransport({ publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT });
+    this.sender = pushSender(db, transport, (m) => this.log.warn(m));
   }
 
   publicKey(): string | null {
@@ -51,21 +48,8 @@ export class PushService {
   }
 
   /** To every device of these people; returns how many devices it reached. */
-  async send(userIds: readonly string[], m: PushMessage): Promise<number> {
-    if (!this.on || !userIds.length) return 0;
-    const subs = await this.db.pushSubscription.findMany({ where: { userId: { in: [...userIds] } } });
-    const payload = JSON.stringify({ title: m.title, body: m.body, link: m.link ?? "/" });
-    const results = await Promise.all(subs.map(async (s) => {
-      try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 24 * 60 * 60 });
-        return true;
-      } catch (err) {
-        if (err instanceof WebPushError && GONE.has(err.statusCode)) await this.db.pushSubscription.deleteMany({ where: { id: s.id } });
-        else this.log.warn(`push to a device of ${s.userId} failed: ${err instanceof Error ? err.message : String(err)}`);
-        return false;
-      }
-    }));
-    return results.filter(Boolean).length;
+  send(userIds: readonly string[], m: PushMessage): Promise<number> {
+    return this.sender(userIds, m);
   }
 
   devices(userId: string) {

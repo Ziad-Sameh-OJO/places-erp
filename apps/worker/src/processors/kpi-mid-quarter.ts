@@ -4,6 +4,7 @@
  * checked once (midAlertAt): items under target → the owner and the follower (no follower = the Super Admins) hear it.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { PLACES_CALENDAR, holidayDays, isWorkingDay, itemAchievement, localDate, quarterLabel, quarterMidpoint, type Method } from "@places/domain";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -27,13 +28,15 @@ export async function kpiMidQuarterTick(now = new Date()): Promise<number> {
     const below = c.items.filter((it) => itemAchievement({ method: it.method as Method, direction: it.direction as "at-least" | "at-most", goal: Number(it.goal),
       value: it.value == null ? null : Number(it.value), required: it.required, delivered: it._count.deliveries }) < 1);
     const to = [...new Set([c.employee.userId, ...(c.follower ? [c.follower.userId] : owners)])];
-    await prisma.$transaction(async (tx) => {
+    const text = await prisma.$transaction(async (tx) => {
       const claimed = await tx.kpiCard.updateMany({ where: { id: c.id, midAlertAt: null }, data: { midAlertAt: now } });
-      if (!claimed.count || !below.length) return;
+      if (!claimed.count || !below.length) return null;
       const text = `نص ${quarterLabel(q.id)}: ${below.length} بند تحت المستهدف في كارت ${c.employee.name} (${below.map((it) => it.title).slice(0, 3).join(" · ")}${below.length > 3 ? " …" : ""})`;
       await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: "kpi.mid_quarter", text, link: "/kpis", important: true })) });
       alerted++;
+      return text;
     });
+    if (text) await pushEvent("kpi.mid_quarter", { userIds: to, text, link: "/kpis" });
   }
   return alerted;
 }

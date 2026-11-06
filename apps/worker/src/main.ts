@@ -4,8 +4,9 @@
  * A job is listed in JOBS only once its processor exists, so nothing piles up in a queue nobody reads.
  */
 import { Queue, Worker, type Processor } from "bullmq";
-import { prisma } from "@places/db";
+import { prisma, pushSender, webPushTransport } from "@places/db";
 import { env } from "./env.ts";
+import { usePushSender } from "./push.ts";
 import { leadSlaTick } from "./processors/lead-sla.ts";
 import { noAnswerTick } from "./processors/no-answer.ts";
 import { noAnswerReminderTick } from "./processors/no-answer-reminder.ts";
@@ -33,6 +34,8 @@ import { contractExpiryTick } from "./processors/contract-expiry.ts";
 
 const connection = { url: env.REDIS_URL };
 const sendMail = mailSender(env);
+// M-14 (51) · 12.10: the jobs' notifications reach the phone too, with the API's VAPID keys (none = push off)
+usePushSender(pushSender(prisma, webPushTransport({ publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT })));
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: () => leadSlaTick() }, // every minute (M-01 2.4)

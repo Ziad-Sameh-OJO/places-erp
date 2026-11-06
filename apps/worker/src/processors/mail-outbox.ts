@@ -10,6 +10,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createTransport } from "nodemailer";
 import { Prisma, prisma } from "@places/db";
 import { MAIL_RETRY_MINUTES, afterMailFailure, eventByKey } from "@places/domain";
+import { pushEvent } from "../push.ts";
 
 export interface OutgoingMail { to: string; subject: string; text: string; attachments?: { filename: string; content: Buffer }[] | undefined }
 export type SendMail = (m: OutgoingMail) => Promise<void>;
@@ -59,13 +60,16 @@ async function failed(m: { id: string; to: string; subject: string }, attempts: 
     await prisma.mailLog.update({ where: { id: m.id }, data: { error: message, nextAttemptAt: next.nextAttemptAt } });
     return;
   }
-  await prisma.$transaction(async (tx) => {
+  const e = eventByKey("mail.failed")!;
+  const text = `${e.label}: «${m.subject}» لـ ${m.to} · ${message}`;
+  const told = await prisma.$transaction(async (tx) => {
     await tx.mailLog.update({ where: { id: m.id }, data: { status: "failed", error: message } });
-    const e = eventByKey("mail.failed")!;
     const rule = await tx.notificationRule.findUnique({ where: { event: e.key } });
-    if (!(rule?.channels ?? e.channels).includes("app")) return;
+    if (!(rule?.channels ?? e.channels).includes("app")) return [];
     const admins = await tx.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: rule?.toRoles ?? [...e.toRoles] } } } } }, select: { id: true } });
     // M-14 7.1 «إيميل موظف غلط»: the Super Admin hears of it; the person still has the notification in the bell
-    await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.id, event: e.key, text: `${e.label}: «${m.subject}» لـ ${m.to} · ${message}`, link: "/integrations", important: e.important })) });
+    await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.id, event: e.key, text, link: "/integrations", important: e.important })) });
+    return admins.map((a) => a.id);
   });
+  if (told.length) await pushEvent(e.key, { userIds: told, text, link: "/integrations" });
 }

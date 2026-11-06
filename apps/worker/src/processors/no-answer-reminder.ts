@@ -7,6 +7,7 @@
 import { prisma } from "@places/db";
 import { type LeadRules, eventByKey, noAnswerReminderDue } from "@places/domain";
 import { leadRules, officialHolidays, ownerOf } from "../leads.ts";
+import { pushEvent } from "../push.ts";
 
 /** `pinned`: the saved «قواعد الليدز» unless given (the e2e pins them, so another test changing them can't move its clock). */
 export async function noAnswerReminderTick(now = new Date(), pinned?: LeadRules): Promise<number> {
@@ -20,14 +21,17 @@ export async function noAnswerReminderTick(now = new Date(), pinned?: LeadRules)
   let sent = 0;
   for (const l of leads) {
     if (!noAnswerReminderDue({ naMarkedAt: l.naMarkedAt, lastCallAt: l.calls[0]?.at ?? null, remindedAt: l.naRemindedAt }, now, rules, holidays)) continue;
-    await prisma.$transaction(async (tx) => {
+    const text = `Alarm: كلّم ${l.name} (No Answer) · سجّل المكالمة`, link = `/leads?open=${l.id}`;
+    const told = await prisma.$transaction(async (tx) => {
       const claimed = await tx.lead.updateMany({ where: { id: l.id, stage: "NO_ANSWER", assignedToId: l.assignedToId, naRemindedAt: l.naRemindedAt }, data: { naRemindedAt: now } });
       const owner = await ownerOf(l.assignedToId, tx);
-      if (!claimed.count || !owner) return;
+      if (!claimed.count || !owner) return null;
       // demo (home «كلّم … (No Answer)»): the salesperson calls, logs the call, and the clock restarts
-      await tx.notification.create({ data: { userId: owner.userId, text: `Alarm: كلّم ${l.name} (No Answer) · سجّل المكالمة`, link: `/leads?open=${l.id}`, important } });
+      await tx.notification.create({ data: { userId: owner.userId, text, link, important } });
       sent++;
+      return owner.userId;
     });
+    if (told) await pushEvent("lead.no_answer", { userIds: [told], text, link });
   }
   return sent;
 }

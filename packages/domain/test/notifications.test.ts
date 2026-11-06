@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAIL_MAX_ATTEMPTS, afterMailFailure, channelsFor, eventByKey, eventLabel, mailStatus } from "../src/notifications.ts";
+import { MAIL_MAX_ATTEMPTS, afterMailFailure, channelsFor, eventByKey, eventChannels, eventLabel, mailStatus, pushRecipients } from "../src/notifications.ts";
 
 const now = new Date("2026-11-05T09:00:00Z");
 
@@ -34,4 +34,18 @@ test("the Super Admin hears of a failed email in the system only, never by email
   const e = eventByKey("mail.failed")!;
   assert.deepEqual(e.toRoles, ["admin"]);
   assert.deepEqual(channelsFor(e.channels, { emailNotifications: true }, e.important), ["app"]);
+});
+
+test("a job's notification reaches the phone exactly when the event's rule has push, whatever the email preference (M-14 · 51 · 12.10)", () => {
+  const visit = eventByKey("lead.visit_due")!; // Alarm: app + push by default
+  const people = [{ id: "u1", emailNotifications: true }, { id: "u2", emailNotifications: false }];
+  assert.deepEqual(pushRecipients(eventChannels(visit, null), people, visit.important), ["u1", "u2"]);
+  // the admin turned push off for the event in «قواعد الإشعارات»
+  assert.deepEqual(eventChannels(visit, ["app"]), ["app"]);
+  assert.deepEqual(pushRecipients(eventChannels(visit, ["app"]), people, visit.important), []);
+  // payroll due is app + email only: no push
+  const payroll = eventByKey("finance.payroll_due")!;
+  assert.deepEqual(pushRecipients(eventChannels(payroll, undefined), people, payroll.important), []);
+  // a lead rule's own channels (SLA warn: app + push + email)
+  assert.deepEqual(pushRecipients(["app", "push", "email"], people, true), ["u1", "u2"]);
 });

@@ -16,5 +16,9 @@ const Env = z.object({
   S3_BUCKET: z.string().min(3),
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(8),
+  // M-14 (51) push: the same VAPID key pair as the API. Empty = push is off and the rest works as before.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:notifications@places.com"),
 });
 export const env = Env.parse(process.env);

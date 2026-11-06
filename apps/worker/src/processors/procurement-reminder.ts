@@ -5,6 +5,7 @@
  * shortcut: in-app only (the worker has no mail sender yet); move it to the mail queue when that processor exists.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { PLACES_CALENDAR, approvalOverdue, eventByKey, holidayDays } from "@places/domain";
 
 const EVENT = "procurement.reminder";
@@ -17,15 +18,18 @@ export async function procurementReminderTick(now = new Date()): Promise<number>
   const event = eventByKey(EVENT)!;
   let sent = 0;
   for (const p of pending.filter((x) => approvalOverdue(x.createdAt, now, calendar))) {
-    await prisma.$transaction(async (tx) => {
+    const text = `تذكير: طلب شراء PR-${p.no} (${p.item}) مستني موافقتك من يوم شغل`;
+    const told = await prisma.$transaction(async (tx) => {
       const claimed = await tx.purchase.updateMany({ where: { id: p.id, status: "Pending", remindedAt: null }, data: { remindedAt: now } });
-      if (!claimed.count) return;
+      if (!claimed.count) return [];
       const rule = await tx.notificationRule.findUnique({ where: { event: EVENT } });
-      if (!(rule?.channels ?? event.channels).includes("app")) return;
+      if (!(rule?.channels ?? event.channels).includes("app")) return [];
       const people = await tx.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: [...(rule?.toRoles ?? event.toRoles)] } } } } }, select: { id: true } });
-      await tx.notification.createMany({ data: people.map((u) => ({ userId: u.id, event: "procurement.reminder", text: `تذكير: طلب شراء PR-${p.no} (${p.item}) مستني موافقتك من يوم شغل`, link: "/procurement", important: event.important })) });
+      await tx.notification.createMany({ data: people.map((u) => ({ userId: u.id, event: EVENT, text, link: "/procurement", important: event.important })) });
       sent++;
+      return people.map((u) => u.id);
     });
+    if (told.length) await pushEvent(EVENT, { userIds: told, text, link: "/procurement" });
   }
   return sent;
 }

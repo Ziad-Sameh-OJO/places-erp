@@ -6,6 +6,7 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 export type { PrismaClient } from "@prisma/client";
 import type { Piasters } from "@places/domain";
+export * from "./push.ts";
 
 // Prisma 7 has no built-in engine: it talks to Postgres through the node-postgres driver adapter
 export const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }), log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"] });

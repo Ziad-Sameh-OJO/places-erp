@@ -6,6 +6,7 @@
  * claimed on the installment in the same transaction as the notifications.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { PLACES_CALENDAR, eventByKey, formatEGP, fromDecimal, holidayDays, installmentAlerts, isWorkingDay, localDate, type InstallmentAlert } from "@places/domain";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -36,10 +37,11 @@ export async function installmentAlertsTick(now = new Date()): Promise<number> {
   for (const i of unpaid) {
     const due = installmentAlerts(day(i.dueOn), today, i.alerts);
     if (!due.length) continue;
-    await prisma.$transaction(async (tx) => {
+    const told = await prisma.$transaction(async (tx) => {
       // claimed only if nobody else marked it meanwhile
       const claimed = await tx.installment.updateMany({ where: { id: i.id, alerts: { equals: i.alerts } }, data: { alerts: [...i.alerts, ...due] } });
-      if (!claimed.count) return;
+      const notes: Array<{ event: string; userIds: string[]; text: string; link: string }> = [];
+      if (!claimed.count) return notes;
       const c = i.contract, owed = formatEGP(fromDecimal(i.amount.toFixed(2)) - fromDecimal(i.paid.toFixed(2)));
       const sales = c.deal.participants.map((p) => p.employee.userId);
       const what = `قسط العقد ${c.code} (${c.deal.company}) · ${owed} · ميعاده ${day(i.dueOn)}`;
@@ -47,10 +49,14 @@ export async function installmentAlertsTick(now = new Date()): Promise<number> {
         const text = alert === "reminder" ? `${what} · فاضل ${Math.round((i.dueOn.getTime() - Date.parse(`${today}T00:00:00Z`)) / 86_400_000)} يوم`
           : alert === "late" ? `${what} · اتأخر ومتحصّلش` : `تصعيد: ${what} · متأخر 7 أيام أو أكتر`;
         const to = [...new Set([...(alert === "escalated" ? [] : sales), ...byRole.get(alert)!])];
-        await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link: `/contracts?open=${c.id}`, important: eventByKey(EVENT[alert])!.important })) });
+        const link = `/contracts?open=${c.id}`;
+        await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link, important: eventByKey(EVENT[alert])!.important })) });
+        notes.push({ event: EVENT[alert], userIds: to, text, link });
         sent += to.length;
       }
+      return notes;
     });
+    for (const n of told) await pushEvent(n.event, n);
   }
   return sent;
 }

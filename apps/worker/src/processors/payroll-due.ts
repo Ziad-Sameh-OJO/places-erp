@@ -4,6 +4,7 @@
  * month already announced.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { eventByKey, formatEGP, fromDecimal, localDate, monthLabel, monthOf } from "@places/domain";
 
 const NOTIFIED = "finance.payrollNotifiedFor";
@@ -20,8 +21,10 @@ export async function payrollDueTick(): Promise<void> {
   const event = eventByKey("finance.payroll_due")!;
   const rule = await prisma.notificationRule.findUnique({ where: { event: event.key } });
   const to = await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: rule?.toRoles ?? [...event.toRoles] } } } } }, select: { id: true } });
+  const text = `اصرف مرتبات ${monthLabel(month)} · ${people.length} موظف · إجمالي ${formatEGP(gross)}`;
   await prisma.$transaction(async (tx) => {
     await tx.setting.upsert({ where: { key: NOTIFIED }, create: { key: NOTIFIED, value: month }, update: { value: month } });
-    await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, event: "finance.payroll_due", text: `اصرف مرتبات ${monthLabel(month)} · ${people.length} موظف · إجمالي ${formatEGP(gross)}`, link: "/finance", important: event.important })) });
+    await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, event: event.key, text, link: "/finance", important: event.important })) });
   });
+  await pushEvent(event.key, { userIds: to.map((u) => u.id), text, link: "/finance" });
 }

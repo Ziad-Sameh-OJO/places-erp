@@ -4,6 +4,7 @@
  * Once per post (reminderSentAt), so running twice changes nothing. The rule is reminderDue() from @places/domain.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { eventByKey, reminderDue } from "@places/domain";
 
 export async function postReminderTick(now = new Date()): Promise<number> {
@@ -16,13 +17,16 @@ export async function postReminderTick(now = new Date()): Promise<number> {
   let sent = 0;
   for (const p of due) {
     const to = [...new Set([p.createdById, ...marketing.map((u) => u.id)])];
-    await prisma.$transaction(async (tx) => {
+    const text = `Reminder: ميعاد بوست «${p.title}» على ${p.channel} دلوقتي`, link = "/marketing?tab=content";
+    const told = await prisma.$transaction(async (tx) => {
       const claimed = await tx.post.updateMany({ where: { id: p.id, reminderSentAt: null }, data: { reminderSentAt: now } });
-      if (claimed.count === 0) return;
-      // in-app only, like the other jobs: the worker has no mail service yet
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text: `Reminder: ميعاد بوست «${p.title}» على ${p.channel} دلوقتي`, link: "/marketing?tab=content", important: false })) });
+      if (claimed.count === 0) return false;
+      // in-app now, and the phone copy below once committed (the worker has no mail service yet)
+      await tx.notification.createMany({ data: to.map((userId) => ({ userId, text, link, important: false })) });
       sent++;
+      return true;
     });
+    if (told) await pushEvent("marketing.post_reminder", { userIds: to, text, link });
   }
   return sent;
 }

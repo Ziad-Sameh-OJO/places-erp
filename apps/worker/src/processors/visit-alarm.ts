@@ -5,6 +5,7 @@
  * «تعديل الميعاد» clears alarmedAt, so a new time gets its own Alarm.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 
 /** A visit older than this when the worker first sees it (it was down, or just deployed) gets no late Alarm. */
 const LATE_LIMIT_MS = 24 * 60 * 60 * 1000;
@@ -21,14 +22,18 @@ export async function visitAlarmTick(now = new Date()): Promise<void> {
   })).map((e) => [e.id, e.userId]));
 
   for (const v of due) {
-    await prisma.$transaction(async (tx) => {
+    const kind = v.kind === "meeting" ? "Meeting" : "Visit";
+    // demo wording; important: an Alarm stays until read (M-14)
+    const text = `Alarm: ميعاد الـ ${kind} مع ${v.lead.name} جه · دوس Done`, link = `/leads?open=${v.lead.id}`;
+    const userId = await prisma.$transaction(async (tx) => {
       // claimed only if still unmarked at the same time: an edit or a Done meanwhile wins
       const claimed = await tx.leadVisit.updateMany({ where: { id: v.id, at: v.at, outcome: null, alarmedAt: null }, data: { alarmedAt: now } });
-      const userId = v.lead.assignedToId ? owners.get(v.lead.assignedToId) : undefined;
-      if (!claimed.count || !userId) return;
-      const kind = v.kind === "meeting" ? "Meeting" : "Visit";
-      // demo wording; important: an Alarm stays until read (M-14)
-      await tx.notification.create({ data: { userId, event: "lead.visit_due", text: `Alarm: ميعاد الـ ${kind} مع ${v.lead.name} جه · دوس Done`, link: `/leads?open=${v.lead.id}`, important: true } });
+      const owner = v.lead.assignedToId ? owners.get(v.lead.assignedToId) : undefined;
+      if (!claimed.count || !owner) return null;
+      await tx.notification.create({ data: { userId: owner, event: "lead.visit_due", text, link, important: true } });
+      return owner;
     });
+    // the Alarm on the phone too (M-01 3.3 «Alarm»), once the claim is committed
+    if (userId) await pushEvent("lead.visit_due", { userIds: [userId], text, link });
   }
 }

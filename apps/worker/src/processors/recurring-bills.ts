@@ -4,6 +4,7 @@
  * only applies it. Idempotent: `notifiedFor` holds the month already announced.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { billState, eventByKey, formatEGP, fromDecimal, localDate, monthOf } from "@places/domain";
 
 export async function recurringBillsTick(): Promise<void> {
@@ -16,11 +17,14 @@ export async function recurringBillsTick(): Promise<void> {
   const roles = rule?.toRoles ?? [...event.toRoles];
   const people = await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: roles } } } } }, select: { id: true } });
   for (const b of due) {
-    await prisma.$transaction(async (tx) => {
+    const text = `ميعاد فاتورة ${b.name} · ${formatEGP(fromDecimal(b.amount.toFixed(2)))} · ${b.vendor} · مستنية موافقتك`;
+    const told = await prisma.$transaction(async (tx) => {
       // optimistic: another run already announced it this month
       const claimed = await tx.recurringBill.updateMany({ where: { id: b.id, OR: [{ notifiedFor: null }, { notifiedFor: { not: month } }] }, data: { notifiedFor: month } });
-      if (!claimed.count) return;
-      await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, event: "finance.bill_due", text: `ميعاد فاتورة ${b.name} · ${formatEGP(fromDecimal(b.amount.toFixed(2)))} · ${b.vendor} · مستنية موافقتك`, link: "/finance", important: event.important })) });
+      if (!claimed.count) return false;
+      await tx.notification.createMany({ data: people.map((p) => ({ userId: p.id, event: event.key, text, link: "/finance", important: event.important })) });
+      return true;
     });
+    if (told) await pushEvent(event.key, { userIds: people.map((p) => p.id), text, link: "/finance" });
   }
 }

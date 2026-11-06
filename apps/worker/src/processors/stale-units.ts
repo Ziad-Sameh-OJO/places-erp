@@ -5,6 +5,7 @@
  * holidays are off), and never a second open follow-up for the same unit, so running twice changes nothing.
  */
 import { prisma } from "@places/db";
+import { pushEvent } from "../push.ts";
 import { DEFAULT_LEAD_RULES, PLACES_CALENDAR, type LeadRules, calendarOf, followupRole, holidayDays, isWorkingDay, localDate, needsFollowup, staleBefore } from "@places/domain";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -31,15 +32,18 @@ export async function staleUnitsTick(now = new Date()): Promise<number> {
   for (const u of todo) {
     const to = people.get(followupRole(u.type));
     if (!to) continue;
-    await prisma.$transaction(async (tx) => {
+    const text = `متابعة مع المالك: ${u.code} (${u.project}) · الـ last update عدّى عليه أكتر من شهر`;
+    const taskId = await prisma.$transaction(async (tx) => {
       // only if nobody opened one meanwhile
-      if (await tx.task.count({ where: { unitId: u.id, kind: "followup", status: { not: "done" } } })) return;
+      if (await tx.task.count({ where: { unitId: u.id, kind: "followup", status: { not: "done" } } })) return null;
       const t = await tx.task.create({ data: { kind: "followup", unitId: u.id, byUserId: null, toUserId: to, dueOn: new Date(`${today}T00:00:00Z`), note: "last update عدّى عليه أكتر من شهر · كلّم المالك" }, select: { id: true } });
       await tx.auditLog.create({ data: { module: "tasks", entity: "Task", entityId: t.id, action: "create", after: { kind: "followup", unitId: u.id, toUserId: to, by: "system" } } });
-      // in-app only, like the other jobs: the worker has no mail service yet
-      await tx.notification.create({ data: { userId: to, text: `متابعة مع المالك: ${u.code} (${u.project}) · الـ last update عدّى عليه أكتر من شهر`, link: `/tasks?id=${t.id}`, important: false } });
+      // in-app now, the phone copy below as a new task (task.new, like the API's tasks) once committed
+      await tx.notification.create({ data: { userId: to, text, link: `/tasks?id=${t.id}`, important: false } });
       made++;
+      return t.id;
     });
+    if (taskId) await pushEvent("task.new", { userIds: [to], text, link: `/tasks?id=${taskId}` });
   }
   return made;
 }
