@@ -47,6 +47,13 @@ test("inventory sees the owner's number", async () => {
   assert.deepEqual((await call(`/clients/${ownerFile}`, { cookie: randa })).body.phones, [phone(1)]);
 });
 
+test("the number search finds an owner's file only for who may see owner numbers (no guessing digits one by one)", async () => {
+  const found = async (cookie: string, n: number) => (await call(`/clients?q=${phone(n)}`, { cookie })).body.items.map((r: { id: string }) => r.id);
+  assert.ok(!(await found(mohsen, 1)).includes(ownerFile));
+  assert.ok((await found(mohsen, 2)).includes(clientFile));
+  assert.ok((await found(randa, 1)).includes(ownerFile));
+});
+
 test("finance reads every file and its balance, read-only: no contact log, no merge; no owner numbers", async () => {
   const file = await call(`/clients/${ownerFile}`, { cookie: finance });
   assert.equal(file.status, 200);

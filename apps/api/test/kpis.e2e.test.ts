@@ -200,6 +200,10 @@ test("11.4 · 11.6 · 11.7 · 11.11 · Nancy closes the quarter (alerts, payroll
   // the seed has no salaries: give Youssef one so his KPI amount and payroll line aren't zero (put back in `after`)
   salaryBefore = (await prisma.employee.findUniqueOrThrow({ where: { id: ids.youssefEmp } })).salary.toFixed(2);
   await prisma.employee.update({ where: { id: ids.youssefEmp }, data: { salary: 12_000 } });
+  // a new quarter can't close the open one without its amounts (payroll would get no KPI line): close it first
+  const early = await call("/kpis/quarter/next", { method: "POST", cookie: heba });
+  assert.equal(early.status, 409);
+  assert.equal(early.body.error, "اقفل الربع الحالي الأول");
   assert.equal((await call("/kpis/quarter/close", { method: "POST", cookie: heba })).status, 403);
   assert.equal((await call("/kpis/quarter/close", { method: "POST", cookie: nancy })).status, 204);
   assert.equal((await call(`/kpis/cards/${ids.testCard}/plan`, { method: "PATCH", cookie: admin, body: { plan: "x" } })).status, 409);

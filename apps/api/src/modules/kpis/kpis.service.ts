@@ -500,9 +500,10 @@ ${c.plan ? `<tr><th>خطة التحسين</th><td>${esc(c.plan)}</td></tr>` : ""
     const w = await this.who(me);
     if (!w.edit && !w.watcher) throw new ForbiddenException("الربع الجديد بيبدأه الأدمن أو مسؤول الـ KPIs");
     const q = await this.current();
+    // closing here without the amounts would leave payroll with no KPI reward/deduction: the close is the Office Manager's (11.4)
+    if (q.status === "open") throw new ConflictException("اقفل الربع الحالي الأول");
     const next = nextQuarter(q.id);
     const n = await this.db.$transaction(async (tx) => {
-      if (q.status === "open") await this.finish(me, q.id, tx, false);
       await tx.kpiQuarter.create({ data: { id: next } });
       const ready = new Set((await tx.kpiCard.findMany({ where: { quarter: next }, select: { employeeId: true } })).map((c) => c.employeeId));
       const cards = (await this.repo.cards({ quarter: q.id }, tx)).filter((c) => !ready.has(c.employeeId));

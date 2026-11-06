@@ -73,6 +73,11 @@ export class LedgerRepository {
     return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-children:${parentCode}`}))`;
   }
 
+  /** Until the transaction ends: one money-out at a time per account, in a fixed order so two of them can't deadlock. */
+  async lockBalances(ids: string[], tx: Tx) {
+    for (const id of [...new Set(ids)].sort()) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-balance:${id}`}))`;
+  }
+
   sourceSums(accountId: string, source: string, sourceId: string, tx: Tx) {
     return tx.journalLine.aggregate({ where: { accountId, entry: { source, sourceId } }, _sum: { debit: true, credit: true } });
   }

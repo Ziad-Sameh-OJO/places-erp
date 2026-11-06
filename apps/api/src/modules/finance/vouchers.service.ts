@@ -92,6 +92,7 @@ export class VouchersService {
   async recordCommissionPayout(me: CurrentUser, p: { fromId: string; accountId: string; amount: Piasters; party: string; partyId: string; ref?: string; memo: string; date?: string | undefined }, tx: Tx) {
     const date = p.date ?? localDate(new Date());
     if (date > localDate(new Date())) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
+    await this.ledger.lockBalances([p.fromId], tx);
     const { accounts, balance } = await this.ledger.balances(tx);
     const from = accounts.find((a) => a.id === p.fromId);
     if (!from || !from.kind || !CASH_KINDS.has(from.kind) || accounts.some((a) => a.parentId === from.id)) throw new BadRequestException("اختار الخزنة / البنك");
@@ -118,8 +119,10 @@ export class VouchersService {
     const kind = input.kind as VoucherKind;
     const date = input.date ?? localDate(new Date());
     if (date > localDate(new Date())) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
+    // the safe the money leaves, and the custody a settlement draws down: both are checked against their balance
+    await this.ledger.lockBalances([input.fromId, kind === "settle" ? input.accountId : undefined], tx);
     const { accounts, balance } = await this.ledger.balances(tx);
-    const parents = new Set(accounts.map((a) => a.parentId));
+    const parents =new Set(accounts.map((a) => a.parentId));
     const leaf = (id: string | undefined, label: string, ok: (a: AccountRow) => boolean): AccountRow => {
       const a = id ? accounts.find((x) => x.id === id) : undefined;
       if (!a) throw new BadRequestException(`اختار ${label}`);

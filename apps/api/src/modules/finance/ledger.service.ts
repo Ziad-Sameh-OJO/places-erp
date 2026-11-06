@@ -176,6 +176,14 @@ export class LedgerService {
     });
   }
 
+  /**
+   * Call before `balances(tx)` when money leaves these accounts: two vouchers at once would both read the same balance
+   * and overdraw the safe; the second now waits for the first to commit and reads what it left.
+   */
+  lockBalances(ids: (string | undefined)[], tx: Tx) {
+    return this.repo.lockBalances(ids.filter((id): id is string => !!id), tx);
+  }
+
   /** Live balances for every account (each account in its own direction, parents = sum of children) + the year's result in 34. */
   async balances(tx?: Tx): Promise<{ accounts: AccountRow[]; balance: Map<string, Piasters> }> {
     const [accounts, sums] = await Promise.all([this.repo.accounts(tx), this.repo.sums(tx)]);

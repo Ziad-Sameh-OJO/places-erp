@@ -27,6 +27,11 @@ export class ClaimsRepository {
     return tx.claim.update({ where: { id }, data, include: CLAIM_INCLUDE });
   }
 
+  /** Moves the claim on only if it's still `from`: a concurrent step waits on the row and then finds it changed (count 0). */
+  async claimStatus(id: string, from: string, to: string, tx: Tx) {
+    return (await tx.claim.updateMany({ where: { id, status: from }, data: { status: to } })).count === 1;
+  }
+
   entity(id: string, tx: Tx) {
     return tx.entity.findUnique({ where: { id } });
   }

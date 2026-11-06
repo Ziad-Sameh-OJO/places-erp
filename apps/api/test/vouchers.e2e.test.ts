@@ -53,6 +53,14 @@ test("a 1,000 payment for the buffet from the main safe: safe −1,000, buffet +
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "TreasuryMove", entityId: r.body.move.id, action: "create" } }));
 });
 
+test("payments at the same moment can't overdraw a safe: they wait for each other and the rest are refused", async () => {
+  const small = await fresh(ahmed, P, "111", "خزينة صغيرة", "1000");
+  assert.equal((await move({ kind: "pay", fromId: small.id, accountId: buffet.id, amount: "600", party: "x" }, sales)).status, 403);
+  const all = await Promise.all(Array.from({ length: 5 }, () => move({ kind: "pay", fromId: small.id, accountId: buffet.id, amount: "600", party: `${P} مورد` })));
+  assert.deepEqual(all.map((r) => r.status).sort(), [201, 400, 400, 400, 400]);
+  assert.equal(await bal(small.id), 400_00);
+});
+
 test("refusals: above the balance, the same safe, a parent account, a future date (4 Nov)", async () => {
   const over = await move({ kind: "pay", fromId: safe.id, accountId: buffet.id, amount: String((await bal(safe.id)) / 100 + 1), party: "x" });
   assert.equal(over.status, 400);

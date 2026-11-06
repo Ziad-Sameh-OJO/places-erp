@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@places/db";
 import type { ClaimEinvoice, ClaimView, ClaimsView, CollectClaim, NewClaim } from "@places/contracts";
 import { CLAIM_STATUS_LABEL, PAY_METHOD, claimStep, formatEGP, fromDecimal, localDate, toDecimal, type ClaimStatus, type ClaimStep, type DocKind } from "@places/domain";
@@ -64,6 +64,8 @@ export class ClaimsService {
       if (!c) throw new NotFoundException("المطالبة مش موجودة");
       const next = claimStep(c.status as ClaimStatus, step);
       if ("problem" in next) throw new BadRequestException(next.problem);
+      // two «اتحصّلت» at once would post two receive vouchers: take the transition first, the loser stops here
+      if (!(await this.repo.claimStatus(id, c.status, next.status, tx))) throw new ConflictException("المطالبة اتغيّرت دلوقتي · افتحها تاني");
       const patch = { ...(await data(c, tx)), status: next.status };
       const row = await this.repo.update(id, patch, tx);
       await this.audit.record({ module: "finance", entity: "Claim", entityId: id, action: "update", userId: me.id, before: { status: c.status }, after: { step, ...patch } }, tx);

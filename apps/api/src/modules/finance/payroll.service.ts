@@ -104,6 +104,7 @@ export class PayrollService {
       if (await tx.payrollRun.findUnique({ where: { month } })) throw new BadRequestException("مرتبات الشهر ده اتصرفت قبل كده");
       const rows = await this.rows(month, tx);
       if (!rows.length) throw new BadRequestException("مفيش مرتبات متسجلة · الـ HR بتدخّلها من فايل الموظف");
+      await this.ledger.lockBalances([input.fromId], tx); // a voucher from the same safe at the same moment can't overdraw it
       const { accounts, balance } = await this.ledger.balances(tx);
       const from = accounts.find((a) => a.id === input.fromId);
       if (!from || !from.kind || !CASH_KINDS.has(from.kind)) throw new BadRequestException("اختار الخزنة أو البنك");

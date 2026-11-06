@@ -36,9 +36,12 @@ export class AuthService {
     if (user.status === "LOCKED") throw new UnauthorizedException("الحساب مقفول · كلّم الأدمن");
     if (!(await verifyPassword(user.passwordHash, password))) {
       const failed = user.failedLogins + 1;
-      await this.db.user.update({ where: { id: user.id }, data: { failedLogins: failed, status: failed >= MAX_FAILED ? "LOCKED" : user.status } });
+      // the lock and its audit row together: never a locked account without its trail
+      await this.db.$transaction(async (tx) => {
+        await tx.user.update({ where: { id: user.id }, data: { failedLogins: failed, status: failed >= MAX_FAILED ? "LOCKED" : user.status } });
+        if (failed >= MAX_FAILED) await this.audit.record({ module: "access", entity: "User", entityId: user.id, action: "locked", userId: null, ip: meta.ip, before: { status: user.status }, after: { status: "LOCKED" } }, tx);
+      });
       if (failed >= MAX_FAILED) {
-        await this.audit.record({ module: "access", entity: "User", entityId: user.id, action: "locked", userId: null, ip: meta.ip });
         // M-09 6.1 «دخول غريب»: the only suspicious sign-in the requirements define so far is the 5-wrong-passwords lock (2.4)
         await this.notifications.notify({ event: "access.suspicious", link: "/access", text: `دخول غريب: حساب ${user.email} اتقفل بعد ${MAX_FAILED} محاولات دخول غلط${meta.ip ? ` من ${meta.ip}` : ""}` });
       }

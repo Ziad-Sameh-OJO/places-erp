@@ -65,7 +65,9 @@ export class DocumentsSetupService {
     });
   }
 
+  /** The bank, account and logo printed on claims and receipts: money rules are the Super Admin's (M-13 2.2), like the stamp. */
   async setEntity(me: CurrentUser, id: string, p: EntityPatch) {
+    if (!me.roles.includes(SUPER_ADMIN)) throw new ForbiddenException("بيانات البنك واللوجو بيعدّلهم الـ Super Admin بس");
     await this.db.$transaction(async (tx) => {
       const before = await tx.entity.findUnique({ where: { id } });
       if (!before) throw new NotFoundException("الجهة مش موجودة");

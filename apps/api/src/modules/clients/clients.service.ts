@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AskDeletion, ClientDeal, ClientFile, ClientFilters, ClientRow, ClientSummary, LogInteraction, Paged, SetConsent, TimelineItem } from "@places/contracts";
-import { allowedValue, fromDecimal, isStale, normalizePhone, partyBalance, showsNumbers, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
+import { allowedValue, fromDecimal, isStale, normalizePhone, partyBalance, seesOwnerNumbers, showsNumbers, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -30,7 +30,7 @@ export class ClientsService {
   ) {}
 
   async list(me: CurrentUser, f: ClientFilters): Promise<Paged<ClientRow>> {
-    const [rows, total] = await this.repo.list(visibleTo(me), f, staleBefore(new Date()));
+    const [rows, total] = await this.repo.list(visibleTo(me), f, staleBefore(new Date()), seesOwnerNumbers(me.grants));
     const deals = await this.repo.dealsOf(rows.map((r) => r.id));
     return { items: rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me)), total, page: f.page, pageSize: f.pageSize };
   }

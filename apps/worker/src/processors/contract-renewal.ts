@@ -58,5 +58,7 @@ async function openRenewalLead(tx: Tx, c: DueContract, salesId: string, now: Dat
   });
   await tx.leadActivity.create({ data: { leadId: lead.id, kind: "assign", text: `ليد تجديد من العقد ${c.code}`, byUserId: null } });
   await tx.contract.update({ where: { id: c.id }, data: { renewalLeadId: lead.id } });
+  await tx.auditLog.create({ data: { module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: null,
+    after: { code: lead.code, assignedToId: salesId, budget: toDecimal(budget), renewalOf: c.code } } });
   return lead;
 }

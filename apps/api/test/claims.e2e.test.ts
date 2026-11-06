@@ -52,6 +52,12 @@ test("12.12 settings: everyone with «master» reads; only the Super Admin sets 
   assert.equal((await call("/settings/stamp", { method: "PUT", cookie: sales, body: { kind: "stamp", fileId: null } })).status, 403);
   assert.equal((await call("/settings/stamp", { method: "PUT", cookie: admin, body: { kind: "stamp", fileId: null } })).status, 204);
   assert.equal((await call("/settings/entities/zrain", { method: "PUT", cookie: sales, body: { bank: "x", accountName: "", accountNo: "", iban: "" } })).status, 403);
+  // the bank details printed on claims (the client pays into them): the Super Admin only, not «master: edit» (M-13 2.2)
+  const z = s.body.entities.find((e: { id: string }) => e.id === "zrain");
+  const same = { bank: z.bank, accountName: z.accountName, accountNo: z.accountNo, iban: z.iban };
+  assert.equal((await call("/settings/entities/zrain", { method: "PUT", cookie: acc, body: { ...same, iban: "EG000000000000000000000000000" } })).status, 403);
+  assert.equal((await call("/settings/entities/zrain", { method: "PUT", cookie: admin, body: same })).status, 204);
+  await prisma.auditLog.deleteMany({ where: { entity: "Entity", entityId: "zrain", at: { gte: START } } });
 });
 
 test("12.12 templates: edited, audited, previewed as a PDF, and «رجّع الافتراضي»", async () => {
@@ -95,7 +101,10 @@ test("9.17 the whole claim: requested → issued → client approved → e-invoi
 
   const before = await balance(acc, income.id);
   assert.equal((await call(`/claims/${id}/collect`, { method: "POST", cookie: admin, body: { toId: safe.id, accountId: income.id } })).status, 403);
-  assert.equal((await call(`/claims/${id}/collect`, { method: "POST", cookie: acc, body: { toId: safe.id, accountId: income.id } })).status, 204);
+  // «اتحصّلت» pressed twice at once: one receive voucher; the other is refused (409 if it raced, 400 if it came after)
+  const twice = (await Promise.all([1, 2].map(() => call(`/claims/${id}/collect`, { method: "POST", cookie: acc, body: { toId: safe.id, accountId: income.id } })))).map((r) => r.status).sort();
+  assert.equal(twice[0], 204);
+  assert.ok([400, 409].includes(twice[1]!), String(twice[1]));
   assert.equal(await balance(acc, income.id), before + 100_000_00);
   assert.equal(await balance(acc, safe.id), 100_000_00);
 

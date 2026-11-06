@@ -41,6 +41,7 @@ before(async () => {
 after(async () => {
   const renewals = (await prisma.contract.findMany({ where: { deal: { code: { startsWith: `D-K${stamp}` } } }, select: { renewalLeadId: true } })).map((c) => c.renewalLeadId).filter((x): x is string => !!x);
   await prisma.notification.deleteMany({ where: { text: { contains: C } } });
+  await prisma.auditLog.deleteMany({ where: { entity: "Lead", entityId: { in: renewals } } });
   await prisma.lead.deleteMany({ where: { id: { in: renewals } } });
   await prisma.contract.deleteMany({ where: { deal: { code: { startsWith: `D-K${stamp}` } } } });
   await prisma.deal.deleteMany({ where: { code: { startsWith: `D-K${stamp}` } } });
@@ -125,8 +126,13 @@ test("6.3 · M-11 2.4 · 7.1: 60 days left → one renewal alert to the salesper
   assert.match(told!.text, new RegExp(`بينتهي بعد 60 يوم .* اتعمل ليد تجديد ${lead.code}`));
   assert.equal((await mine(ashrafUser)).length, 1);
 
+  // the job's lead is audited like any other (CLAUDE.md: audit everything that creates)
+  const audited = () => prisma.auditLog.count({ where: { entity: "Lead", entityId: lead.id, action: "create", userId: null } });
+  assert.equal(await audited(), 1);
+
   await contractRenewalTick(); // again the same day: nothing new
   assert.equal((await mine(mohsenUser)).length, 1);
+  assert.equal(await audited(), 1);
   assert.equal((await prisma.contract.findUniqueOrThrow({ where: { id: contractId } })).renewalAlerts.length, 0); // ends in a year
 });
 
