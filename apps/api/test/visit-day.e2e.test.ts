@@ -8,7 +8,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { dayStart, localDate } from "@places/domain";
-import { API, call, session } from "./helpers.ts";
+import { API, call, cleanLeaveNotices, mark, session } from "./helpers.ts";
 
 const START = new Date();
 const stamp = String(START.getTime());
@@ -18,6 +18,8 @@ const TODAY = localDate(new Date());
 type Emp = { id: string; name: string; userId: string; email: string; tlEmail: string };
 let x: Emp, y: Emp, xs: string, ys: string, ytl: string, hr: string, ops: string, admin: string;
 const leads: string[] = [];
+let savedDays: Awaited<ReturnType<typeof prisma.attendanceDay.findMany>> = [];
+mark(stamp); // «Visit / Meeting معملهاش» mails name the leads
 
 const csv = (rows: string[][]) => new Blob([["الاسم,التاريخ,الدخول,الخروج", ...rows.map((r) => r.join(","))].join("\n")]);
 const upload = async (rows: string[][]) => {
@@ -31,6 +33,7 @@ async function leadWithVisit(e: Emp, day: string, hhmm: string) {
   const lead = await prisma.lead.create({ data: { code: `L-VD${stamp}${leads.length}`, name: `E2E-VD ${stamp} ${leads.length}`, phones: [`0109${stamp.slice(-6)}${leads.length}`],
     area: AREA, type: "Rent", channel: "Facebook", assignedToId: e.id, assignedAt: new Date(), createdById: "e2e", stage: "FOLLOW_UP_TO_VISIT" as never, qualified: true } });
   leads.push(lead.id);
+  mark(lead.id); // «الـ Visit بتاع … اتأجل» links to it without naming it
   const v = await prisma.leadVisit.create({ data: { leadId: lead.id, kind: "visit", at: at(day, hhmm), byUserId: e.userId } });
   return { lead: lead.id, visit: v.id };
 }
@@ -41,7 +44,10 @@ before(async () => {
     select: { id: true, name: true, userId: true, user: { select: { email: true } }, teamLeader: { select: { user: { select: { email: true } } } } }, orderBy: { name: "desc" }, take: 2 });
   [x, y] = people.map((p) => ({ id: p.id, name: p.name, userId: p.userId, email: p.user.email, tlEmail: p.teamLeader!.user.email }));
   [xs, ys, ytl, hr, ops, admin] = await Promise.all([x.email, y.email, y.tlEmail, "basant.elsawy@places.com", "heba.salah@places.com", "ahmed.islam@places.com"].map((m) => session(m)));
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: [x.id, y.id] }, day: { in: [D1, D2, D3, D4, TODAY].map(asDay) } } });
+  // their real days on these dates (today is a real day) are put back at the end
+  const mine = { employeeId: { in: [x.id, y.id] }, day: { in: [D1, D2, D3, D4, TODAY].map(asDay) } };
+  savedDays = await prisma.attendanceDay.findMany({ where: mine });
+  await prisma.attendanceDay.deleteMany({ where: mine });
   await prisma.setting.upsert({ where: { key: "areaRouting" }, update: {}, create: { key: "areaRouting", value: {} } });
   await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([x.id, y.id])}::jsonb) WHERE "key" = 'areaRouting'`;
 });
@@ -51,6 +57,8 @@ after(async () => {
   const visits = await prisma.leadVisit.findMany({ where: { leadId: { in: leads } }, select: { id: true } });
   await prisma.auditLog.deleteMany({ where: { OR: [{ entity: "RotationOrder", at: { gte: START } }, { entityId: { in: [...days, ...asks, ...visits].map((r) => r.id) } }] } });
   await prisma.attendanceDay.deleteMany({ where: { id: { in: days.map((d) => d.id) } } });
+  if (savedDays.length) await prisma.attendanceDay.createMany({ data: savedDays });
+  await cleanLeaveNotices(x.id, START);
   await prisma.leaveRequest.deleteMany({ where: { id: { in: asks.map((a) => a.id) } } });
   await prisma.lead.deleteMany({ where: { OR: [{ id: { in: leads } }, { area: AREA }] } });
   await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = "value" - ${AREA} WHERE "key" = 'areaRouting'`;

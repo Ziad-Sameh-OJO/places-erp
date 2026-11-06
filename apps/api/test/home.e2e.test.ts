@@ -40,6 +40,8 @@ before(async () => {
   await visit("teammate", "teammate", new Date());
 });
 after(async () => {
+  // marking yesterday's Visit wrote Mohsen's day for it (7.3): the day this file opened
+  await prisma.attendanceDay.deleteMany({ where: { employee: { user: { email: "m.mohsen@places.com" } }, source: "visit", createdAt: { gte: new Date(Number(stamp)) } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-E2EH${stamp}` } } }); // the visits go with them
   await prisma.$disconnect();
 });

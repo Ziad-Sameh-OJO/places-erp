@@ -2,12 +2,13 @@
  * 1.2 leads list (M-01) against the real API and database: the data scope is in the query, and the toolbar filters.
  * Team D: Abdallah Sleem (TL) and Mohamed Mohsen. Mahmoud Ali leads another team. Heba Salah is operations; Basant is HR.
  */
-import { after, before, test } from "node:test";
+import { before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { call, cleanup, mark, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
+mark(stamp);
 let mohsen: string, tl: string, ops: string, hr: string;
 const code = (n: number) => `L-E2E${stamp}${n}`;
 
@@ -31,7 +32,7 @@ before(async () => {
   mohsenEmployee = mohsenId;
   savedSkips = ((await prisma.setting.findUnique({ where: { key: "routing" } }))?.value as { skipTurns?: Record<string, number> } | undefined)?.skipTurns?.[mohsenId] ?? 0;
 });
-after(async () => {
+cleanup(async () => {
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-E2E${stamp}` } } });
   // only Mohsen's skipped turns, in one statement: the rotation tests (1.12 / 1.13) move other cursors meanwhile
   await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY['skipTurns', ${mohsenEmployee}], to_jsonb(${savedSkips}::int)) WHERE "key" = 'routing' AND "value" ? 'skipTurns'`;
@@ -98,7 +99,7 @@ const idOf = async (n: number) => (await prisma.lead.findUniqueOrThrow({ where: 
 let nancy: string; // Office Manager: leads «view» only
 let apiLeadId: string | undefined;
 before(async () => { nancy = await session("nancy.islam@places.com"); });
-after(async () => { if (apiLeadId) await prisma.lead.delete({ where: { id: apiLeadId } }).catch(() => {}); });
+cleanup(async () => { if (apiLeadId) await prisma.lead.delete({ where: { id: apiLeadId } }).catch(() => {}); });
 
 test("details: in scope 200 with the drawer's fields; out of scope 404 (not 403); no leads permission 403", async () => {
   const r = await call(`/leads/${await idOf(1)}`, { cookie: mohsen });
@@ -200,9 +201,10 @@ before(async () => {
   await prisma.setting.upsert({ where: { key: "areaRouting" }, update: {}, create: { key: "areaRouting", value: {} } });
   await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", ARRAY[${AREA}], ${JSON.stringify([mohsenId])}::jsonb) WHERE "key" = 'areaRouting'`;
 });
-after(async () => {
+cleanup(async () => {
   await prisma.lead.deleteMany({ where: { id: { in: teleLeads } } });
   await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = "value" - ${AREA} WHERE "key" = 'areaRouting'`;
+  await prisma.$executeRaw`UPDATE "system"."Setting" SET "value" = jsonb_set("value", '{cursor}', ("value"->'cursor') - ${AREA}) WHERE "key" = 'routing' AND "value" ? 'cursor'`;
 });
 
 const teleLead = async (cookie: string, n: number, extra: object) => {
@@ -254,7 +256,7 @@ test("«keep» is Telesales' choice only: a salesperson's own lead stays his, no
 /* ---------------- 1.5 duplicates: every arrival counts, Operations decides (M-01 Q7, M-04 Q22) ---------------- */
 
 const dupLeads: string[] = [];
-after(async () => {
+cleanup(async () => {
   await prisma.lead.deleteMany({ where: { id: { in: dupLeads } } }); // arrivals and duplicates go with it (cascade)
   await prisma.notification.deleteMany({ where: { text: { contains: `E2E-D ${stamp}` } } });
 });
@@ -327,7 +329,7 @@ test("Operations decides: chosen fields and the channel move, both mobiles stay,
 /* ---------------- 1.6 the list's SLA column, the KPI tiles, the filters' choices ---------------- */
 
 const slaCodes: string[] = [];
-after(async () => { await prisma.lead.deleteMany({ where: { code: { in: slaCodes } } }); });
+cleanup(async () => { await prisma.lead.deleteMany({ where: { code: { in: slaCodes } } }); });
 
 test("list rows carry the SLA: a Fresh untouched lead assigned a month ago is pulled (100%); touched, with Telesales or unassigned → none", async () => {
   const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
@@ -454,7 +456,7 @@ before(async () => {
   admin = await session("ahmed.islam@places.com");
   savedLogRoles = (await prisma.setting.findUnique({ where: { key: "leadLogRoles" } }))?.value;
 });
-after(async () => {
+cleanup(async () => {
   if (savedLogRoles === undefined) await prisma.setting.deleteMany({ where: { key: "leadLogRoles" } });
   else await prisma.setting.update({ where: { key: "leadLogRoles" }, data: { value: savedLogRoles as never } });
   if (logLeadId) await prisma.lead.deleteMany({ where: { id: logLeadId } });
@@ -519,7 +521,7 @@ test("Logs: «مين يشوف الـ Logs» from the lead's Logs tab — whoever
 /* ---------------- 1.28 Client / Broker: two tabs, the same filters in both ---------------- */
 
 const kindLeads: string[] = [];
-after(async () => { await prisma.lead.deleteMany({ where: { id: { in: kindLeads } } }); });
+cleanup(async () => { await prisma.lead.deleteMany({ where: { id: { in: kindLeads } } }); });
 
 test("a broker isn't in «الليدز»; the filters apply to both tabs and their counts; selfEntered marks a salesperson's own lead", async () => {
   const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
@@ -557,7 +559,7 @@ test("a broker isn't in «الليدز»; the filters apply to both tabs and the
 
 const gapCode = (n: number) => `L-E2EG${stamp}${n}`;
 const gapPhone = (n: number) => `0154${stamp.slice(-6)}${n}`; // not 010x/011x: `010${stamp.slice(-7)}` and P1 build the same number when that digit matches
-after(async () => {
+cleanup(async () => {
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-E2EG${stamp}` } } }); // activities, arrivals, duplicates cascade
   await prisma.notification.deleteMany({ where: { text: { contains: `E2E-G ${stamp}` } } });
 });

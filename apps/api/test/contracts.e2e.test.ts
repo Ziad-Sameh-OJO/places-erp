@@ -9,10 +9,11 @@ import { prisma } from "@places/db";
 import { localDate } from "@places/domain";
 import { contractRenewalTick } from "../../worker/src/processors/contract-renewal.ts";
 import { contractExpiryTick } from "../../worker/src/processors/contract-expiry.ts";
-import { call, session } from "./helpers.ts";
+import { call, mark, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E ${stamp} عقد`;
+mark(C); // a value change is mailed to the approver too
 let mohsen: string, ashraf: string, omar: string, nancy: string, hr: string;
 let mohsenEmp: string, mohsenUser: string;
 let approved: string, approved2: string, approved3: string, pending: string, pdf: string, pdf2: string, pdf3: string, image: string;

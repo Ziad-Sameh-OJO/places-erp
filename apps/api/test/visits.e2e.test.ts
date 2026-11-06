@@ -7,9 +7,11 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { visitAlarmTick } from "../../worker/src/processors/visit-alarm.ts";
-import { call, session } from "./helpers.ts";
+import { call, mark, session } from "./helpers.ts";
 
-const stamp = String(Date.now());
+const START = new Date();
+const stamp = String(START.getTime());
+mark(stamp); // the Alarms and mails name this file's leads
 let mohsen: string, hr: string, mohsenUser: string;
 let open: string, draft: string;
 const ids: Record<string, string> = {};
@@ -31,6 +33,8 @@ before(async () => {
 });
 
 after(async () => {
+  // marking a Visit writes Mohsen's day for it (7.3): the days this file opened
+  await prisma.attendanceDay.deleteMany({ where: { employee: { userId: mohsenUser }, source: "visit", createdAt: { gte: START } } });
   await prisma.notification.deleteMany({ where: { text: { contains: `E2E ${stamp}` } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-V${stamp}` } } });
   await prisma.unit.deleteMany({ where: { code: { startsWith: `U-V${stamp}` } } });

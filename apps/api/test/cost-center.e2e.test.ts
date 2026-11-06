@@ -8,18 +8,21 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { EXTERNAL_COMMISSION_DUE_NAME } from "@places/domain";
+import { call, mark, session } from "./helpers.ts";
 import { cents, cleanFinance, fresh } from "./finance-helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E-CC ${stamp}`;
 const since = new Date();
 let mohsen: string, nancy: string, ashraf: string, admin: string;
-let dealId: string, campaignId: string, bankId: string, revenueId: string, buyer: { userId: string; id: string };
+let dealId: string, campaignId: string, bankId: string, revenueId: string, buyer: { userId: string; id: string }, hadOpsPct = true;
+mark(stamp); // «D-CC… اتحصّلت بالكامل» to finance, the review mails
 
 before(async () => {
   [mohsen, nancy, ashraf, admin] = await Promise.all(["m.mohsen@places.com", "nancy.islam@places.com", "ahmed.ashraf@places.com", "ahmed.islam@places.com"].map((e) => session(e)));
-  const u = await prisma.user.create({
+  hadOpsPct = !!(await prisma.setting.findUnique({ where: { key: "opsCommissionPct" } }));
+  const u =await prisma.user.create({
     data: { email: `e2e-cc-${stamp}@cost-center.test`, status: "ACTIVE", employee: { create: { name: `${C} buyer`, jobTitle: "Sales", department: "Sales", salary: 0, commissionPct: 30 } } },
     include: { employee: true },
   });
@@ -45,6 +48,9 @@ after(async () => {
   await prisma.tcr.deleteMany({ where: { dealId } });
   await prisma.payment.deleteMany({ where: { dealId } });
   await cleanFinance(C, since);
+  // 21107 is opened by the first external commission ever booked: only if that was this file, and nothing uses it now
+  await prisma.account.deleteMany({ where: { name: EXTERNAL_COMMISSION_DUE_NAME, createdAt: { gte: since }, lines: { none: {} } } });
+  if (!hadOpsPct) await prisma.setting.deleteMany({ where: { key: "opsCommissionPct" } }); // no row = the default 5
   await prisma.auditLog.deleteMany({ where: { entityId: dealId } });
   await prisma.deal.deleteMany({ where: { id: dealId } });
   await prisma.unit.deleteMany({ where: { code: `U-CC${stamp}` } });

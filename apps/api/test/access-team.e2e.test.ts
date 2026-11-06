@@ -1,13 +1,13 @@
 /**
  * M-09 · 12.1 the org structure from the KPI file · 12.2 who manages what (Operations Head → his team only, HR →
  * accounts only) · 12.5 the Audit Log (filters, device, export), «مين عنده أنهي صلاحية», the Super Admin's alerts.
- * Test accounts end in @org.test (not @places.test: the other access file deletes those when it ends).
+ * Test accounts end in -<stamp>@org.test: this file deletes only its own when it ends.
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import ExcelJS from "exceljs";
-import { API, call, lastMail, login, session, tokenIn } from "./helpers.ts";
+import { API, call, lastMail, login, mark, session, tokenIn } from "./helpers.ts";
 
 const PW = "OrgTest12345x";
 const stamp = Date.now();
@@ -38,10 +38,13 @@ before(async () => {
   outsider = (await account("outsider", "inventory_staff")).id;
 });
 
+// what was said about this file's accounts (to the admins too: «صلاحيات تجربة member…»), and the mails to them
+mark(String(stamp), "تجربة head", "تجربة member", "تجربة outsider");
 after(async () => {
-  const users = await prisma.user.findMany({ where: { email: { endsWith: "@org.test" } }, select: { id: true } });
-  await prisma.employee.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
-  await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
+  const users = (await prisma.user.findMany({ where: { email: { endsWith: `${stamp}@org.test` } }, select: { id: true } })).map((u) => u.id);
+  await prisma.notification.deleteMany({ where: { userId: { in: users } } });
+  await prisma.employee.deleteMany({ where: { userId: { in: users } } });
+  await prisma.user.deleteMany({ where: { id: { in: users } } });
   await prisma.$disconnect();
 });
 

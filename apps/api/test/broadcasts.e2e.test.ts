@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { call, session } from "./helpers.ts";
 
+const START = new Date(Date.now() - 2_000);
 const stamp = Date.now().toString(36);
 const WRITER = "ziad.medhat@places.com"; // given «marketing: view + create» here: his Broadcast waits for the manager
 let rahma: string, anas: string, bayoumi: string, writer: string, anasId: string, writerId: string, hot: string, draft: string;
@@ -24,6 +25,8 @@ before(async () => {
 });
 
 after(async () => {
+  // «رسالة Broadcast جديدة» names nothing: the ones sent since this file started (no other file sends Broadcasts)
+  await prisma.notification.deleteMany({ where: { event: "marketing.broadcast", createdAt: { gte: START } } });
   await prisma.permissionOverride.deleteMany({ where: { userId: writerId, module: "marketing" } });
   await prisma.broadcast.deleteMany({ where: { id: { in: broadcasts } } });
   await prisma.unit.deleteMany({ where: { code: { startsWith: `U-B${stamp}` } } });

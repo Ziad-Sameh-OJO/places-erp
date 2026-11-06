@@ -27,6 +27,7 @@ after(async () => {
   await prisma.ticket.deleteMany({ where: { id: { in: ex.map((x) => x.ticketId ?? "") } } });
   await prisma.excuseRequest.deleteMany({ where: { id: { in: ex.map((x) => x.id) } } });
   await prisma.attendanceDay.deleteMany({ where: { id: { in: att.map((a) => a.id) } } });
+  await prisma.mailLog.deleteMany({ where: { text: { contains: "Excuse" }, createdAt: { gte: START } } }); // the 5th's alert to management
   await prisma.notification.deleteMany({ where: { text: { contains: "Excuse" }, createdAt: { gte: START } } });
   await prisma.$disconnect();
 });

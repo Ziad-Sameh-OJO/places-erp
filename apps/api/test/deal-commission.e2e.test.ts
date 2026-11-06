@@ -7,11 +7,12 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { call, mark, session } from "./helpers.ts";
 import { balance, cents, cleanFinance, fresh } from "./finance-helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E-COM ${stamp}`;
+mark(stamp); // «D-M… اتحصّلت بالكامل» to finance
 const since = new Date();
 let mohsen: string, nancy: string, ashraf: string, manar: string, admin: string;
 let dealId: string, bankId: string, revenueId: string;

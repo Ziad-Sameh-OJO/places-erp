@@ -30,7 +30,9 @@ after(async () => {
   if (r) await prisma.auditLog.deleteMany({ where: { entity: "InventoryReport", entityId: r.id } });
   await prisma.inventoryReport.deleteMany({ where: { day: date } });
   await prisma.unit.deleteMany({ where: { code: `U-R${stamp}` } });
-  await prisma.notification.deleteMany({ where: { text: { contains: "التقرير اليومي للانفنتوري" }, createdAt: { gte: now } } });
+  const told = { text: { contains: "التقرير اليومي للانفنتوري" }, createdAt: { gte: now } };
+  await prisma.mailLog.deleteMany({ where: { OR: [told, { notification: told }] } });
+  await prisma.notification.deleteMany({ where: told });
   await prisma.$disconnect();
 });
 
