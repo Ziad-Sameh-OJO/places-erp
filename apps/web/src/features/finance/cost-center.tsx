@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { activeValues, type CostCenterView, type Settings } from "@places/contracts";
 import { Card, Empty, Note, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -14,6 +15,7 @@ type Filters = Partial<Record<"channel" | "salesId" | "area" | "campaignId" | "f
  * Qualified leads, Q40), its commissions and what's left; by platform on top. Below, 9.6's commission rates.
  */
 export function CostCenter() {
+  const t = useTranslations("finance");
   const [f, setF] = useState<Filters>({});
   const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]).toString();
   const q = useQuery({ queryKey: ["finance", "cost-center", qs], queryFn: () => api.get<CostCenterView>(`/finance/cost-center${qs ? `?${qs}` : ""}`) });
@@ -27,31 +29,31 @@ export function CostCenter() {
   return (
     <>
       <div className="toolbar">
-        {sel("channel", "كل المنصات", activeValues(s?.channels ?? []).map((c) => [c, c]), "المنصة")}
-        {sel("campaignId", "كل الكامبينز", (v?.options.campaigns ?? []).map((c) => [c.id, c.name]), "الكامبين")}
-        {sel("salesId", "كل السيلز", (v?.options.sales ?? []).map((p) => [p.id, p.name]), "السيلز")}
-        {sel("area", "كل المناطق", activeValues(s?.areas ?? []).map((a) => [a, a]), "المنطقة")}
-        <label className="date-f"><span>من</span><input type="date" value={f.from ?? ""} onChange={set("from")} /></label>
-        <label className="date-f"><span>لحد</span><input type="date" value={f.to ?? ""} onChange={set("to")} /></label>
+        {sel("channel", t("cost.allChannels"), activeValues(s?.channels ?? []).map((c) => [c, c]), t("cost.channel"))}
+        {sel("campaignId", t("cost.allCampaigns"), (v?.options.campaigns ?? []).map((c) => [c.id, c.name]), t("cost.campaign"))}
+        {sel("salesId", t("cost.allSales"), (v?.options.sales ?? []).map((p) => [p.id, p.name]), t("cost.sales"))}
+        {sel("area", t("cost.allAreas"), activeValues(s?.areas ?? []).map((a) => [a, a]), t("cost.area"))}
+        <label className="date-f"><span>{t("common.from")}</span><input type="date" value={f.from ?? ""} onChange={set("from")} /></label>
+        <label className="date-f"><span>{t("common.until")}</span><input type="date" value={f.to ?? ""} onChange={set("to")} /></label>
       </div>
-      {!v ? <Empty text="بيحمّل…" icon="clock" /> : <>
-        <Card title="الصفقات كلّفت كام ماركتينج · حسب المنصة" icon="chart">
+      {!v ? <Empty text={t("common.loading")} icon="clock" /> : <>
+        <Card title={t("cost.byChannelTitle")} icon="chart">
           {v.byChannel.length ? <div className="hbars">
             {v.byChannel.map((c) => (
               <div className="hb" key={c.channel}>
-                <span className="hb-l">{c.channel}<small>إيراد {money(c.revenue)}</small></span>
+                <span className="hb-l">{c.channel}<small>{t("cost.revenueOf", { amount: money(c.revenue) })}</small></span>
                 <div className="bar"><i style={{ width: `${(Number(c.marketing) / max) * 100}%` }} /></div>
                 <span className="hb-v">{money(c.marketing)}</span>
               </div>
             ))}
-          </div> : <Empty text="مفيش صفقات اتحصّل منها بالفلاتر دي" />}
+          </div> : <Empty text={t("cost.emptyChannels")} />}
         </Card>
-        <Table head={["الصفقة", "المنصة · الكامبين", "السيلز", "المنطقة", "الإيراد", "تكلفة الماركتينج", "العمولة", "صافي الصفقة"]}
+        <Table head={[t("cost.deal"), t("cost.channelCampaign"), t("cost.sales"), t("cost.area"), t("cost.revenue"), t("cost.marketing"), t("cost.commission"), t("cost.net")]}
           rows={v.rows.map((r) => [
-            <span key="c" className="mono">{r.code}</span>, <span key="ch">{r.channel}<span className="sub">{r.campaign ?? "—"}</span></span>, r.sales.join("، "), r.area ?? "—",
+            <span key="c" className="mono">{r.code}</span>, <span key="ch">{r.channel}<span className="sub">{r.campaign ?? "—"}</span></span>, r.sales.join(t("common.listSep")), r.area ?? "—",
             <span key="r" className="n">{money(r.revenue)}</span>, <span key="m" className="n">{money(r.marketing)}</span>, <span key="k" className="n">{money(r.commission)}</span>, <b key="t" className="n">{money(r.net)}</b>,
           ])} />
-        <Note>تكلفة الماركتينج على الصفقة = صرف الكامبين اللي جابت الليد ÷ عدد الـ Qualified leads اللي جابتهم. العمولة = عمولة السيلز على اللي اتحصّل + عمولة الأوبريشن + العمولة الخارجية. في الحسابات (قايمة الدخل) الكامبين بيفضل بإجماليها.</Note>
+        <Note>{t("cost.note")}</Note>
       </>}
       {s && <Rates s={s} />}
     </>
@@ -60,6 +62,7 @@ export function CostCenter() {
 
 /** 9.6 (needs-client): the Super Admin's rates; the demo's 5% and 0 until the client confirms. */
 function Rates({ s }: { s: Settings }) {
+  const t = useTranslations("finance");
   const { canSet } = useMe();
   const run = useAction();
   const qc = useQueryClient();
@@ -68,13 +71,13 @@ function Rates({ s }: { s: Settings }) {
     await api.put("/settings/opsCommissionPct", { value: Number(f.get("ops")) });
     await api.put("/settings/externalCommissionPct", { value: Number(f.get("ext")) });
     await qc.invalidateQueries({ queryKey: ["settings"] });
-  }, "اتحفظ · بيتطبّق على التحصيلات الجاية");
+  }, t("cost.ratesSaved"));
   return (
-    <Card title="نسب عمولة الأوبريشن والعمولة الخارجية" icon="wallet" sub="من عمولة Places، وبتتقيد مع أول تحصيل للصفقة · العمولة الخارجية اللي بتتكتب في مراجعة الصفقة بتغلب النسبة">
+    <Card title={t("cost.ratesTitle")} icon="wallet" sub={t("cost.ratesSub")}>
       <form className="row" action={save}>
-        <label className="date-f"><span>الأوبريشن</span><input name="ops" type="number" min={0} max={100} step="any" defaultValue={s.opsCommissionPct} disabled={!ed} style={{ width: 80 }} />%</label>
-        <label className="date-f"><span>الخارجية</span><input name="ext" type="number" min={0} max={100} step="any" defaultValue={s.externalCommissionPct} disabled={!ed} style={{ width: 80 }} />%</label>
-        {ed && <button className="btn ghost sm">احفظ</button>}
+        <label className="date-f"><span>{t("cost.ops")}</span><input name="ops" type="number" min={0} max={100} step="any" defaultValue={s.opsCommissionPct} disabled={!ed} style={{ width: 80 }} />%</label>
+        <label className="date-f"><span>{t("cost.external")}</span><input name="ext" type="number" min={0} max={100} step="any" defaultValue={s.externalCommissionPct} disabled={!ed} style={{ width: 80 }} />%</label>
+        {ed && <button className="btn ghost sm">{t("common.save")}</button>}
       </form>
     </Card>
   );

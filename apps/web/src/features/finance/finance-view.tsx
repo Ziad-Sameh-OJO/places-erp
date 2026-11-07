@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Tabs } from "@/components/ui";
 import { Bills } from "./bills";
 import { Claims, claimsWaiting, useClaims } from "./claims";
@@ -16,6 +17,7 @@ import { useBills, useBudget } from "./use-finance";
 
 /** M-07 · المالية: the demo's tabs that are built so far (9.1 · 9.2 · 9.3 · 9.4 · 9.5 · 9.7 · 9.8 · 9.9 · 9.10 · 9.11 · 9.13 · 9.14 · 9.16 · 9.17). */
 export function FinanceView() {
+  const t = useTranslations("finance.tabs");
   const [tab, setTab] = useState<FinanceTab>("dash");
   const bills = useBills(), budget = useBudget(), claims = useClaims();
   const go = (t: FinanceTab) => { setTab(t); window.scrollTo({ top: 0 }); };
@@ -23,9 +25,9 @@ export function FinanceView() {
   return (
     <>
       <Tabs<FinanceTab> value={tab} onChange={go} items={[
-        ["dash", "Dashboard"], ["cash", "الخزن والحركات"], ["custody", "العهد والسلف"], ["journal", "القيود"],
-        ["bills", "الفواتير الثابتة", bills.data?.due || undefined], ["claims", "المطالبات", claimsWaiting(claims.data) || undefined], ["pnl", "قايمة الدخل"], ["bs", "الميزانية العمومية"],
-        ["budget", "البادجت", budget.data?.totals.alerts || undefined], ["cost", "Cost Center"], ["payroll", "المرتبات"], ["tree", "شجرة الحسابات"],
+        ["dash", t("dash")], ["cash", t("cash")], ["custody", t("custody")], ["journal", t("journal")],
+        ["bills", t("bills"), bills.data?.due || undefined], ["claims", t("claims"), claimsWaiting(claims.data) || undefined], ["pnl", t("pnl")], ["bs", t("bs")],
+        ["budget", t("budget"), budget.data?.totals.alerts || undefined], ["cost", t("cost")], ["payroll", t("payroll")], ["tree", t("tree")],
       ]} />
       {body}
     </>
