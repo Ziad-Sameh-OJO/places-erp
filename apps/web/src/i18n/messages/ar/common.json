@@ -1,0 +1,19 @@
+{
+  "shell": {
+    "mainMenu": "القايمة الرئيسية",
+    "sections": "الأقسام",
+    "myAccount": "حسابي",
+    "myAccountSub": "الباسورد والإشعارات بتاعتك",
+    "signOut": "خروج",
+    "openMenu": "افتح القايمة",
+    "youAreHere": "مكانك",
+    "notifications": "الإشعارات",
+    "notificationsUnread": "الإشعارات ({count} جديد)",
+    "quickNav": "التنقل السريع",
+    "more": "المزيد"
+  },
+  "language": {
+    "switchTo": "English",
+    "label": "غيّر اللغة"
+  }
+}

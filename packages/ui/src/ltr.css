@@ -1,0 +1,18 @@
+/*
+ * English (dir="ltr"): the demo's CSS was written right-to-left, and most of it uses logical properties that flip on
+ * their own. These are the rules that pinned a side with left / right or moved along X: mirrored here, so Arabic stays
+ * exactly the demo and English is its mirror image.
+ */
+[dir="ltr"] .round b { left: auto; right: -5px; }                 /* the bell's count, on the button's end corner */
+[dir="ltr"] .panel { left: auto; right: 0; animation-name: slide-ltr; }
+@keyframes slide-ltr { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+[dir="ltr"] .drawer { left: auto; right: 0; transform: translateX(24px); }
+[dir="ltr"] .drawer.in { transform: none; }
+@media (max-width: 960px) {
+  [dir="ltr"] .side { inset: 0 auto 0 0; transform: translateX(-100%); }
+  [dir="ltr"] .side.open { transform: none; }
+}
+@media (max-width: 760px) {
+  [dir="ltr"] .drawer { transform: translateY(100%); }               /* the phone's bottom sheet comes up, either way */
+  [dir="ltr"] .drawer.in { transform: none !important; }
+}

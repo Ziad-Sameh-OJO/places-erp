@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
-import { inboxOrder, keepsCompaniesSheet, keepsInventory, type ModuleKey } from "@places/domain";
+import { inboxOrder, keepsCompaniesSheet, keepsInventory } from "@places/domain";
 import { useMe } from "@/lib/me";
-import { NAV } from "@/lib/nav";
+import { NAV, type NavKey } from "@/lib/nav";
+import { useTranslations } from "next-intl";
 import { Card, Chip, Icon } from "@/components/ui";
 import { MyHandIns } from "@/features/reports/daily";
 import { ActivitiesCard } from "@/features/kpis/activities-card";
@@ -21,6 +22,7 @@ import { useCollectLines } from "@/features/finance/today";
  */
 export default function HomePage() {
   const { me, can } = useMe();
+  const tNav = useTranslations("nav");
   const leads = useLeadToday(!!me && can("leads"));
   const bulks = useBulkLines(!!me && can("leads", "approve"));
   const companies = useNewCompanyLines(keepsCompaniesSheet(me?.roles ?? []));
@@ -30,7 +32,7 @@ export default function HomePage() {
   if (!me) return <p className="hint">بيحمّل…</p>;
   const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
-  const pages = (Object.keys(NAV) as ModuleKey[]).filter((k) => k !== "home" && can(k));
+  const pages = (Object.keys(NAV) as NavKey[]).filter((k) => k !== "home" && can(k));
 
   return (
     <>
@@ -49,7 +51,7 @@ export default function HomePage() {
       {!can("leads") && pages.length > 0 && <div className="cols">
         {pages.map((k) => (
           <Link key={k} href={`/${k}`} className="card kpi-btn" style={{ textDecoration: "none", color: "inherit" }}>
-            <div className="card-head"><h3><span className="ico"><Icon name={NAV[k]!.icon} /></span><span>{NAV[k]!.label}<small>{NAV[k]!.sub}</small></span></h3></div>
+            <div className="card-head"><h3><span className="ico"><Icon name={NAV[k].icon} /></span><span>{tNav(`modules.${k}.label`)}<small>{tNav(`modules.${k}.sub`)}</small></span></h3></div>
           </Link>
         ))}
       </div>}
