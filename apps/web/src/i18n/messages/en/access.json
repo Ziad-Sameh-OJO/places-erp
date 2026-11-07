@@ -81,7 +81,9 @@
     "presetView": "View only",
     "presetNone": "Nothing",
     "adminOnly": "The Super Admin role can only be changed by a Super Admin.",
-    "viewOnly": "View only · editing needs «Roles & permissions: edit»."
+    "viewOnly": "View only · editing needs «Roles & permissions: edit».",
+    "partPerms": "Permissions",
+    "partFields": "Fields"
   },
   "roleForm": {
     "editTitle": "Edit {label}",

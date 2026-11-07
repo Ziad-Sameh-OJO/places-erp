@@ -81,7 +81,9 @@
     "presetView": "يشوف بس",
     "presetNone": "ولا حاجة",
     "adminOnly": "دور الـ Super Admin بيتعدّل من Super Admin بس.",
-    "viewOnly": "عرض بس · التعديل لمن عنده «الأدوار والصلاحيات: يعدّل»."
+    "viewOnly": "عرض بس · التعديل لمن عنده «الأدوار والصلاحيات: يعدّل».",
+    "partPerms": "الصلاحيات",
+    "partFields": "الحقول"
   },
   "roleForm": {
     "editTitle": "تعديل {label}",
