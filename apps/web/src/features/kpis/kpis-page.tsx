@@ -6,6 +6,8 @@ import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { dayTime, money } from "@/lib/format";
 import { useMe } from "@/lib/me";
+import { useTranslations } from "next-intl";
+import { serverText } from "@/lib/server-text";
 import { DailyBoard } from "@/features/reports/daily";
 import { IdealEmployee } from "../hr/ideal";
 import { KpiCardBody, KpiDrawer } from "./kpi-drawer";
@@ -18,23 +20,24 @@ export const moneyChip = (v: string | null) => (v && Number(v) ? <Chip tone={Num
 
 /** M-12 · مؤشرات الأداء (demo kpis.js): كارتي · فريقي · كل الشركة · التقارير والتغييرات. */
 export function KpisPage() {
+  const t = useTranslations("kpis");
   const me = useBoard("me"), team = useBoard("team");
   const { can } = useMe();
   const all = !!me.data?.seesAll;
   const mine = me.data?.cards[0];
   const tabs: [Tab, string, number?][] = [
-    ...(mine ? [["me", "كارتي"] as [Tab, string]] : []),
-    ...(team.data?.cards.length ? [["team", "فريقي", team.data.cards.length] as [Tab, string, number]] : []),
-    ...(all ? [["all", "كل الشركة"] as [Tab, string]] : []),
-    ...(all || team.data?.cards.length ? [["daily", "التقارير اليومية"] as [Tab, string]] : []),
-    ...(all ? [["log", "التقارير والتغييرات"] as [Tab, string]] : []),
+    ...(mine ? [["me", t("tabs.me")] as [Tab, string]] : []),
+    ...(team.data?.cards.length ? [["team", t("tabs.team"), team.data.cards.length] as [Tab, string, number]] : []),
+    ...(all ? [["all", t("tabs.all")] as [Tab, string]] : []),
+    ...(all || team.data?.cards.length ? [["daily", t("tabs.daily")] as [Tab, string]] : []),
+    ...(all ? [["log", t("tabs.log")] as [Tab, string]] : []),
     // 7.11: not for the KPI watcher (money); the list itself is the HR one, so it needs «hr: view»
-    ...(me.data?.seesMoney && can("hr", "view") ? [["ideal", "الموظف المثالي"] as [Tab, string]] : []),
+    ...(me.data?.seesMoney && can("hr", "view") ? [["ideal", t("tabs.ideal")] as [Tab, string]] : []),
   ];
   const [pick, setPick] = useState<Tab | null>(null);
-  const tab = tabs.find((t) => t[0] === pick)?.[0] ?? tabs[0]?.[0];
-  if (me.isPending || team.isPending) return <Empty text="بيحمّل…" />;
-  if (!tab) return <Card><Empty text="مفيش كارت KPIs ليك في الربع ده" icon="chart" /></Card>;
+  const tab = tabs.find((x) => x[0] === pick)?.[0] ?? tabs[0]?.[0];
+  if (me.isPending || team.isPending) return <Empty text={t("common.loading")} />;
+  if (!tab) return <Card><Empty text={t("noCard")} icon="chart" /></Card>;
   return (
     <>
       <div className="row"><Tabs<Tab> items={tabs} value={tab} onChange={setPick} /></div>
@@ -48,32 +51,33 @@ function MyCard({ id }: { id: string }) {
 }
 
 function Board({ scope }: { scope: "team" | "all" }) {
+  const t = useTranslations("kpis");
   const q = useBoard(scope);
   const [open, setOpen] = useState<string | null>(null);
   const [sort, setSort] = useState<"low" | "high">("low");
-  if (!q.data) return <Empty text="بيحمّل…" />;
+  if (!q.data) return <Empty text={t("common.loading")} />;
   const { cards, quarter } = q.data;
   const list = sort === "low" ? cards : [...cards].reverse();
   const avg = cards.length ? cards.reduce((s, c) => s + c.score, 0) / cards.length : 0;
   const approved = cards.filter((c) => c.approved).length;
   return (
     <>
-      <Note>البند <b>الأوتوماتيك</b> السيستم بيقيسه لوحده من الموديولات، و<b>التسليم</b> الموظف بيسجّله، و<b>اليدوي</b> بيدخّله المتابع. النتيجة = مجموع (الوزن × التحقيق).</Note>
+      <Note>{t.rich("board.note", { b: (x) => <b>{x}</b> })}</Note>
       <div className="kpis sm">
-        <KpiTile label="الكروت" value={cards.length} sub={scope === "all" ? "كل الشركة" : "فريقك"} icon="users" />
-        <KpiTile label="المتوسط" value={`${Math.round(avg)}%`} sub={quarter.label} icon="chart" />
-        <KpiTile label="اتعتمد" value={`${approved} من ${cards.length}`} sub="من المتابع" icon="check" tone={approved === cards.length ? "ok" : "warn"} />
-        <KpiTile label="الربع" value={quarter.status === "open" ? "مفتوح" : "اتقفل"} sub={quarter.status === "open" ? "النتايج بتتحدّث" : "النتايج اتحفظت"} icon="clock" />
+        <KpiTile label={t("board.cards")} value={cards.length} sub={scope === "all" ? t("tabs.all") : t("board.yourTeam")} icon="users" />
+        <KpiTile label={t("board.average")} value={`${Math.round(avg)}%`} sub={serverText(quarter.label)} icon="chart" />
+        <KpiTile label={t("common.approved")} value={t("board.approvedOf", { n: approved, total: cards.length })} sub={t("board.byFollower")} icon="check" tone={approved === cards.length ? "ok" : "warn"} />
+        <KpiTile label={t("board.quarter")} value={quarter.status === "open" ? t("board.open") : t("board.closed")} sub={quarter.status === "open" ? t("board.updating") : t("board.saved")} icon="clock" />
       </div>
       <div className="toolbar">
-        <div className="seg" role="group" aria-label="الترتيب">
-          <button aria-pressed={sort === "low"} onClick={() => setSort("low")}>الأقل الأول</button>
-          <button aria-pressed={sort === "high"} onClick={() => setSort("high")}>الأعلى الأول</button>
+        <div className="seg" role="group" aria-label={t("board.sort")}>
+          <button aria-pressed={sort === "low"} onClick={() => setSort("low")}>{t("board.lowFirst")}</button>
+          <button aria-pressed={sort === "high"} onClick={() => setSort("high")}>{t("board.highFirst")}</button>
         </div>
       </div>
       <div className="kpi-cards">
         {list.map((c) => <CardTile key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}
-        {!list.length && <Empty text="مفيش كروت ليك" icon="chart" />}
+        {!list.length && <Empty text={t("board.empty")} icon="chart" />}
       </div>
       {open && <KpiDrawer id={open} onClose={() => setOpen(null)} />}
     </>
@@ -81,20 +85,22 @@ function Board({ scope }: { scope: "team" | "all" }) {
 }
 
 function CardTile({ c, onOpen }: { c: KpiCardSummary; onOpen: () => void }) {
+  const t = useTranslations("kpis");
   return (
     <button className="kpi-card" onClick={onOpen}>
-      <span className="row"><Avatar id={c.employeeId} name={c.name} /><span className="kc-who"><b>{c.name}</b><small>{c.title} · يتابعه: {c.follower}</small></span><b className={`num kc-score ${c.tone}`}>{Math.round(c.score)}%</b></span>
+      <span className="row"><Avatar id={c.employeeId} name={c.name} /><span className="kc-who"><b>{c.name}</b><small>{serverText(c.title)} · {t("followedBy", { name: c.follower })}</small></span><b className={`num kc-score ${c.tone}`}>{Math.round(c.score)}%</b></span>
       <Bar pct={c.score} tone={c.tone} />
       <span className="row">
-        <Chip tone={c.tone} plain>{c.tier}</Chip>{moneyChip(c.money)}
-        {c.below > 0 && <Chip tone="warn" plain>{c.below} بند تحت المستهدف</Chip>}
-        {c.approved ? <Chip tone="ok" plain>اتعتمد</Chip> : <Chip plain>مستني اعتماد</Chip>}
+        <Chip tone={c.tone} plain>{serverText(c.tier)}</Chip>{moneyChip(c.money)}
+        {c.below > 0 && <Chip tone="warn" plain>{t("board.below", { count: c.below })}</Chip>}
+        {c.approved ? <Chip tone="ok" plain>{t("common.approved")}</Chip> : <Chip plain>{t("board.awaitingApproval")}</Chip>}
       </span>
     </button>
   );
 }
 
 function Company() {
+  const t = useTranslations("kpis");
   const q = useCompany(true);
   const [open, setOpen] = useState<string | null>(null);
   return (
@@ -102,7 +108,7 @@ function Company() {
       <Board scope="all" />
       {q.data && <Quarters c={q.data} />}
       {q.data && q.data.noCard.length > 0 && (
-        <Card title="موظفين من غير كارت KPIs" icon="users" extra={<Chip tone="warn">{q.data.noCard.length}</Chip>}>
+        <Card title={t("company.noCard")} icon="users" extra={<Chip tone="warn">{q.data.noCard.length}</Chip>}>
           {q.data.noCard.map((p) => <NoCard key={p.id} p={p} onMade={setOpen} />)}
         </Card>
       )}
@@ -114,43 +120,46 @@ function Company() {
 }
 
 function Quarters({ c }: { c: KpiCompany }) {
+  const t = useTranslations("kpis");
   const run = useAction(), refresh = useRefreshKpis();
   const cur = c.quarters[0];
-  const start = () => { if (confirm("تبدأ الربع الجديد؟ نتايج الربع ده هتتحفظ، وكل كارت هيبدأ بنفس البنود والأوزان من غير أرقام.")) void run(async () => { await api.post("/kpis/quarter/next"); await refresh(); }, "الربع الجديد بدأ · عدّلوا البنود براحتكم"); };
-  const close = () => { if (confirm("تقفل الربع؟ نتيجة كل كارت وفلوسه هتتحفظ ومفيش تعديل بعدها.")) void run(async () => { await api.post("/kpis/quarter/close"); await refresh(); }, "الربع اتقفل"); };
-  const sheets = () => { if (confirm("توافقي على ورق الربع؟ كل موظف هتوصله ورقته PDF على إيميله.")) void run(async () => { await api.post("/kpis/quarter/sheets"); await refresh(); }, "الورق اتبعت على الإيميل"); };
+  const start = () => { if (confirm(t("quarters.startConfirm"))) void run(async () => { await api.post("/kpis/quarter/next"); await refresh(); }, t("quarters.startedOk")); };
+  const close = () => { if (confirm(t("quarters.closeConfirm"))) void run(async () => { await api.post("/kpis/quarter/close"); await refresh(); }, t("quarters.closedOk")); };
+  const sheets = () => { if (confirm(t("quarters.sheetsConfirm"))) void run(async () => { await api.post("/kpis/quarter/sheets"); await refresh(); }, t("quarters.sheetsOk")); };
   return (
-    <Card title="الأرباع" icon="calendar" sub="كل ربع بيبدأ بنسخة من كروت الربع اللي قبله، وبعدها تعدّلوا البنود براحتكم"
-      extra={cur && <Chip tone={cur.status === "open" ? "ok" : "warn"}>{cur.label} · {cur.status === "open" ? "شغال" : "اتقفل"}</Chip>}>
-      <Table head={["الربع", "عدد الكروت", "متوسط النتيجة"]} rows={c.quarters.map((x) => [<b key="q">{x.label}</b>, x.cards, x.avg == null ? "—" : `${x.avg}%`])} />
-      {c.sheets && <Note kind="ok">ورق الربع (PDF) اتوافق عليه من {c.sheets.by} واتبعت لكل موظف على إيميله.</Note>}
-      {c.can.sheets && <Note kind="warn">الربع اتقفل · راجعي ورقة أي موظف من الكارت بتاعه، وبعد موافقتك كل واحد بتوصله ورقته على الإيميل.</Note>}
+    <Card title={t("quarters.title")} icon="calendar" sub={t("quarters.sub")}
+      extra={cur && <Chip tone={cur.status === "open" ? "ok" : "warn"}>{serverText(cur.label)} · {cur.status === "open" ? t("quarters.running") : t("board.closed")}</Chip>}>
+      <Table head={[t("board.quarter"), t("quarters.cardsCount"), t("quarters.avg")]} rows={c.quarters.map((x) => [<b key="q">{serverText(x.label)}</b>, x.cards, x.avg == null ? "—" : `${x.avg}%`])} />
+      {c.sheets && <Note kind="ok">{t("quarters.sheetsSent", { by: c.sheets.by })}</Note>}
+      {c.can.sheets && <Note kind="warn">{t("quarters.reviewSheets")}</Note>}
       <div className="row end">
-        {c.can.close && <button className="btn" onClick={close}><Icon name="send" />اقفل الربع</button>}
-        {c.can.sheets && <button className="btn" onClick={sheets}><Icon name="check" />وافق على ورق الربع وابعته</button>}
-        {cur && <button className="btn ghost" onClick={start}><Icon name="plus" />ابدأ ربع جديد</button>}
+        {c.can.close && <button className="btn" onClick={close}><Icon name="send" />{t("quarters.close")}</button>}
+        {c.can.sheets && <button className="btn" onClick={sheets}><Icon name="check" />{t("quarters.approveSheets")}</button>}
+        {cur && <button className="btn ghost" onClick={start}><Icon name="plus" />{t("quarters.start")}</button>}
       </div>
     </Card>
   );
 }
 
 function NoCard({ p, onMade }: { p: KpiCompany["noCard"][number]; onMade: (id: string) => void }) {
+  const t = useTranslations("kpis");
   const run = useAction(), refresh = useRefreshKpis();
-  const make = () => void run(async () => { const r = await api.post<{ id: string }>("/kpis/cards", { employeeId: p.id }); await refresh(); onMade(r.id); }, `كارت جديد لـ ${p.name}`);
-  return <div className="line-item"><span><b>{p.name}</b><small className="hint">{p.title}</small></span><button className="btn ghost sm" onClick={make}><Icon name="plus" />اعمل كارت</button></div>;
+  const make = () => void run(async () => { const r = await api.post<{ id: string }>("/kpis/cards", { employeeId: p.id }); await refresh(); onMade(r.id); }, t("company.newCardOk", { name: p.name }));
+  return <div className="line-item"><span><b>{p.name}</b><small className="hint">{serverText(p.title)}</small></span><button className="btn ghost sm" onClick={make}><Icon name="plus" />{t("company.makeCard")}</button></div>;
 }
 
 function Watchers({ c }: { c: KpiCompany }) {
+  const t = useTranslations("kpis");
   const run = useAction(), refresh = useRefreshKpis();
   const ids = c.watchers.map((w) => w.userId);
-  const save = (userIds: string[]) => void run(async () => { await api.put("/kpis/watchers", { userIds }); await refresh(); }, "اتحفظ");
+  const save = (userIds: string[]) => void run(async () => { await api.put("/kpis/watchers", { userIds }); await refresh(); }, t("common.saved"));
   return (
-    <Card title="مسؤول الـ KPIs" icon="chart" sub="بيشوف كل الكروت والتقارير وأي تغيير، وبيتبلّغ بيه · من غير أي حاجة ليها علاقة بالفلوس">
+    <Card title={t("watchers.title")} icon="chart" sub={t("watchers.sub")}>
       <div className="row">
-        {c.watchers.map((w) => <button key={w.userId} className="btn ghost sm" onClick={() => save(ids.filter((x) => x !== w.userId))} aria-label={`شيل ${w.name}`}>{w.name} <Icon name="x" /></button>)}
-        {!c.watchers.length && <span className="hint">محدش</span>}
-        <select value="" aria-label="ضيف مسؤول" onChange={(e) => e.target.value && save([...ids, e.target.value])}>
-          <option value="">ضيف…</option>
+        {c.watchers.map((w) => <button key={w.userId} className="btn ghost sm" onClick={() => save(ids.filter((x) => x !== w.userId))} aria-label={t("common.remove", { name: w.name })}>{w.name} <Icon name="x" /></button>)}
+        {!c.watchers.length && <span className="hint">{t("watchers.none")}</span>}
+        <select value="" aria-label={t("watchers.add")} onChange={(e) => e.target.value && save([...ids, e.target.value])}>
+          <option value="">{t("common.addMenu")}</option>
           {c.people.filter((p) => !ids.includes(p.userId)).map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
         </select>
       </div>
@@ -159,35 +168,37 @@ function Watchers({ c }: { c: KpiCompany }) {
 }
 
 function Bands({ b, edit }: { b: KpiBandsInput; edit: boolean }) {
+  const t = useTranslations("kpis");
   const run = useAction(), refresh = useRefreshKpis();
   const save = (d: FormData) => void run(async () => {
     await api.put("/kpis/bands", Object.fromEntries((Object.keys(b) as (keyof KpiBandsInput)[]).map((k) => [k, Number(d.get(k))])));
     await refresh();
-  }, "اتحفظ · كل الكروت اتحسبت تاني");
+  }, t("bands.savedOk"));
   const n = (k: keyof KpiBandsInput) => edit ? <input name={k} type="number" defaultValue={b[k]} style={{ width: 64 }} aria-label={k} /> : <b>{b[k]}</b>;
   return (
-    <Card title="شرايح الفلوس" icon="wallet" sub="واحدة للكل · الحسبة على المرتب أو بونص الكوارتر حسب كل موظف">
+    <Card title={t("bands.title")} icon="wallet" sub={t("bands.sub")}>
       <form onSubmit={onFormSubmit(save)}>
         <div className="tiers">
-          <div className="tier ok"><b>{n("top")}% وأكتر</b><span>البونص كامل + مكافأة {n("rewardPercent")}%</span></div>
-          <div className="tier ok"><b>{n("full")}%</b><span>بونص كامل</span></div>
-          <div className="tier warn"><b>{n("partial")}% لحد {b.full}%</b><span>بونص جزئي (النقص لحد {b.cutPercent}%)</span></div>
-          <div className="tier warn2"><b>أقل من {b.partial}%</b><span>خصم {n("cutPercent")}% + خطة تحسين</span></div>
-          <div className="tier bad"><b>أقل من {n("low")}%</b><span>Threshold: البونص بيتلغي + خصم {b.cutPercent}% من المرتب + إنذار</span></div>
+          <div className="tier ok"><b>{t.rich("bands.top", { v: () => n("top") })}</b><span>{t.rich("bands.topPay", { v: () => n("rewardPercent") })}</span></div>
+          <div className="tier ok"><b>{n("full")}%</b><span>{t("bands.full")}</span></div>
+          <div className="tier warn"><b>{t.rich("bands.partial", { v: () => n("partial"), full: b.full })}</b><span>{t("bands.partialPay", { cut: b.cutPercent })}</span></div>
+          <div className="tier warn2"><b>{t("bands.below", { v: b.partial })}</b><span>{t.rich("bands.belowPay", { v: () => n("cutPercent") })}</span></div>
+          <div className="tier bad"><b>{t.rich("bands.low", { v: () => n("low") })}</b><span>{t("bands.lowPay", { cut: b.cutPercent })}</span></div>
         </div>
-        {edit && <div className="row end"><button className="btn ghost"><Icon name="check" />احفظ الشرايح</button></div>}
+        {edit && <div className="row end"><button className="btn ghost"><Icon name="check" />{t("bands.save")}</button></div>}
       </form>
     </Card>
   );
 }
 
 function Log() {
+  const t = useTranslations("kpis");
   const q = useKpiLog();
   return (
-    <Card title="سجل التغييرات" icon="clock" sub="كل تعديل على الـ KPIs، ومين عمله وإمتى" extra={<Chip tone="info">{q.data?.length ?? 0}</Chip>}>
+    <Card title={t("log.title")} icon="clock" sub={t("log.sub")} extra={<Chip tone="info">{q.data?.length ?? 0}</Chip>}>
       <div className="timeline">
-        {q.data?.map((l, i) => <div key={i}>{l.text}<small>{l.by} · {dayTime(l.at)}</small></div>)}
-        {q.data && !q.data.length && <Empty text="مفيش تغييرات لسه" icon="clock" />}
+        {q.data?.map((l, i) => <div key={i}>{serverText(l.text)}<small>{l.by} · {dayTime(l.at)}</small></div>)}
+        {q.data && !q.data.length && <Empty text={t("log.empty")} icon="clock" />}
       </div>
     </Card>
   );
