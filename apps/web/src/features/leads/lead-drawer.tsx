@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { LeadDetail, LeadLogRow } from "@places/contracts";
 import { LEAD_PIPELINE, LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
@@ -9,6 +10,7 @@ import type { Settings } from "@places/contracts";
 import { useMe } from "@/lib/me";
 import { ago, day, dayTime, money, num } from "@/lib/format";
 import { api } from "@/lib/api";
+import { serverText } from "@/lib/server-text";
 import { StageChip, Who, slaText, slaTone } from "./lead-bits";
 import { useAddComment, useLead, useLogCall, useRefreshLead } from "./use-lead";
 import { useSendNewLead } from "./use-new-leads";
@@ -27,6 +29,7 @@ const PIPE = LEAD_PIPELINE;
  * «الوحدات» (2.12), «الزيارات» (1.9). Prev / next walk the list the drawer was opened from.
  */
 export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: string; onGo: (id: string) => void; onClose: () => void }) {
+  const t = useTranslations("leads");
   const lead = useLead(id);
   const [tab, setTab] = useState<"overview" | "units" | "visits" | "activity" | "logs">("overview");
   const recs = useRecommendations(id);
@@ -39,8 +42,8 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   const l = lead.data;
-  if (lead.error) return <Drawer title="الليد مش موجود" onClose={onClose}><Empty text={lead.error.message} /></Drawer>;
-  if (!l) return <Drawer title="…" onClose={onClose}><p className="hint">بيحمّل…</p></Drawer>;
+  if (lead.error) return <Drawer title={t("drawer.notFound")} onClose={onClose}><Empty text={lead.error.message} /></Drawer>;
+  if (!l) return <Drawer title="…" onClose={onClose}><p className="hint">{t("drawer.loading")}</p></Drawer>;
   return (
     <Drawer title={l.name} sub={`${l.code} · ${l.channel}`} onClose={onClose}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
@@ -49,12 +52,12 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
         {l.kind === "broker" && <Chip tone="info">Broker</Chip>}
         <StageChip stage={l.stage} />
         {l.qualified && <Chip tone="ok">Qualified</Chip>}
-        {l.sla && <Chip tone={slaTone(l.sla)}>{slaText(l.sla)}</Chip>}
-        {l.ownedByTelesales && <Chip tone="info">مع Telesales</Chip>}
-        {l.noAnswerCount > 0 && <Chip tone="warn">No Answer ×{l.noAnswerCount} · روتيشن {l.rotation}</Chip>}
+        {l.sla && <Chip tone={slaTone(l.sla)}>{slaText(l.sla, t)}</Chip>}
+        {l.ownedByTelesales && <Chip tone="info">{t("drawer.withTelesales")}</Chip>}
+        {l.noAnswerCount > 0 && <Chip tone="warn">{t("drawer.noAnswer", { count: l.noAnswerCount, rotation: l.rotation })}</Chip>}
       </>}>
       <Tabs value={tab} onChange={setTab} items={[
-        ["overview", "نظرة عامة"], ["units", "الوحدات", recs.data?.items.length], ["visits", "الزيارات", l.visits.length], ["activity", "Activity", comments(l).length],
+        ["overview", t("drawer.overview")], ["units", t("drawer.units"), recs.data?.items.length], ["visits", t("drawer.visits"), l.visits.length], ["activity", "Activity", comments(l).length],
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
       {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
@@ -65,14 +68,15 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
 }
 
 function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: string) => void; onArchived: () => void }) {
+  const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const onPipe = PIPE.includes(l.stage as LeadStage);
   const kv: [string, React.ReactNode][] = [
-    ["الشركة", l.company ?? "—"],
-    ["الموبايل", <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>],
-    ["Area", l.area || "—"], ["Type", l.type], ["Space", l.space != null ? `${num(l.space)} م` : "—"], ["Condition", l.condition ?? "—"],
-    ["Budget", money(l.budget)], ["Channel", l.channel], ["Campaign", l.campaign?.name ?? "—"], ["البوست اللي جابه", l.post ?? "—"],
-    ["Sales", <Who key="w" person={l.assignedTo} />], ["دخل", `${day(l.createdAt)} · ${ago(l.createdAt)}`],
+    [t("company"), l.company ?? "—"],
+    [t("mobile"), <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>],
+    ["Area", l.area ? serverText(l.area) : "—"], ["Type", l.type], ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—"], ["Condition", l.condition ? serverText(l.condition) : "—"],
+    ["Budget", money(l.budget)], ["Channel", l.channel], ["Campaign", l.campaign?.name ?? "—"], [t("post"), l.post ?? "—"],
+    ["Sales", <Who key="w" person={l.assignedTo} />], [t("cameIn"), `${day(l.createdAt)} · ${ago(l.createdAt)}`],
   ];
   return (
     <>
@@ -91,20 +95,21 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
  * salesperson; that salesperson's next turn in the rotation is used up (Q2).
  */
 function Reassign({ l }: { l: LeadDetail }) {
+  const t = useTranslations("leads.drawer");
   const run = useAction();
   const refresh = useRefreshLead();
   const people = useLeadOptions().data?.assignable ?? [];
   const [to, setTo] = useState(l.assignedTo?.id ?? "");
   const name = people.find((p) => p.id === to)?.name ?? "";
   return (
-    <form className="card flat" onSubmit={(e) => { e.preventDefault(); if (to && to !== l.assignedTo?.id) void run(async () => { await api.post(`/leads/${l.id}/assign`, { to }); await refresh(l.id); }, `اتحوّل لـ ${name}`); }}>
-      <div className="card-head"><h3><span className="ico"><Icon name="swap" /></span><span>اسحب الليد وحوّله<small>مدير المبيعات والإدارة</small></span></h3></div>
+    <form className="card flat" onSubmit={(e) => { e.preventDefault(); if (to && to !== l.assignedTo?.id) void run(async () => { await api.post(`/leads/${l.id}/assign`, { to }); await refresh(l.id); }, t("reassigned", { name })); }}>
+      <div className="card-head"><h3><span className="ico"><Icon name="swap" /></span><span>{t("reassignTitle")}<small>{t("reassignSub")}</small></span></h3></div>
       <div className="row">
-        <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="حوّل لـ">
-          {!l.assignedTo && <option value="">اختار السيلز</option>}
+        <select value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("moveTo")}>
+          {!l.assignedTo && <option value="">{t("pickSales")}</option>}
           {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        <button className="btn ghost" disabled={!to || to === l.assignedTo?.id}><Icon name="swap" />حوّل</button>
+        <button className="btn ghost" disabled={!to || to === l.assignedTo?.id}><Icon name="swap" />{t("move")}</button>
       </div>
     </form>
   );
@@ -112,6 +117,7 @@ function Reassign({ l }: { l: LeadDetail }) {
 
 /** Demo «غيّر المرحلة». Visit / Meeting need a time and units first (1.9): they open «الزيارات» with that kind. */
 function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void }) {
+  const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const run = useAction();
   const toast = useToast();
@@ -119,7 +125,7 @@ function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit"
   const [ask, setAsk] = useState(false); // «بعتله واتساب؟» right after No Answer (1.18)
   const pick = (stage: LeadStage) => {
     if (stage === l.stage) return;
-    if (stage === "Visit" || stage === "Meeting") { onVisit(stage); toast(`حدد ميعاد الـ ${stage} والوحدات`); return; }
+    if (stage === "Visit" || stage === "Meeting") { onVisit(stage); toast(t("setVisit", { kind: stage })); return; }
     const qualifies = !l.qualified && isQualifiedAfter(false, stage);
     // refreshed even when refused (e.g. the lead was taken away meanwhile): the drawer then shows why
     void run(async () => {
@@ -128,16 +134,16 @@ function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit"
         if (stage === "No Answer") setAsk(true);
         if (stage === "Done Deal" && !l.hasDeal && can("deals", "create")) onDeal(l.id); // demo: Done Deal opens «سجّل صفقة»
       } finally { await refresh(l.id); }
-    }, qualifies ? `${stage} · واتعلّم Qualified في الكامبين والـ channel` : `المرحلة بقت ${stage}`);
+    }, qualifies ? t("stageQualified", { stage: serverText(stage) }) : t("stageNow", { stage: serverText(stage) }));
   };
   return (
     <section className="card flat">
       {ask && <WhatsAppQuestion lead={l} onClose={() => setAsk(false)} />}
-      <div className="card-head"><h3><span className="ico"><Icon name="layers" /></span><span>غيّر المرحلة</span></h3></div>
+      <div className="card-head"><h3><span className="ico"><Icon name="layers" /></span><span>{t("changeStage")}</span></h3></div>
       <div className="stage-grid">
-        {LEAD_STAGES.map((s) => <button key={s} className={`stage-btn ${s === l.stage ? "on" : ""}`} onClick={() => pick(s)}>{s}</button>)}
+        {LEAD_STAGES.map((s) => <button key={s} className={`stage-btn ${s === l.stage ? "on" : ""}`} onClick={() => pick(s)}>{serverText(s)}</button>)}
       </div>
-      <p className="hint">أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتعلّم Qualified أوتوماتيك، ويفضل محسوب في الكامبين والـ channel. Visit بتفتح تاب الزيارات عشان تحدد الميعاد والوحدات.</p>
+      <p className="hint">{t("stageHint")}</p>
     </section>
   );
 }
@@ -147,6 +153,7 @@ function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit"
  * only on a lead she holds) · «أرشفة» («leads: delete») · «سجّل الصفقة» on a Done Deal with no deal yet.
  */
 function LeadActions({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: string) => void; onArchived: () => void }) {
+  const t = useTranslations("leads.drawer");
   const { me, can } = useMe();
   const run = useAction();
   const logCall = useLogCall();
@@ -159,14 +166,14 @@ function LeadActions({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: st
     await api.post(`/leads/${l.id}/archive`);
     onArchived();
     await Promise.all([refresh(l.id), qc.invalidateQueries({ queryKey: ["lead-second-calls"] })]);
-  }, `${l.name} اتأرشف`);
+  }, t("archived", { name: l.name }));
   return (
     <div className="row">
       {editing && <EditLead l={l} onClose={() => setEditing(false)} />}
-      {can("leads", "edit") && <button className="btn ghost" onClick={() => void run(() => logCall(l.id), "المكالمة اتسجّلت · الـ SLA وقف")}><Icon name="phone" />سجّل مكالمة</button>}
-      {can("leads", "edit") && (!telesales || l.ownedByTelesales) && <button className="btn ghost" onClick={() => setEditing(true)}>تعديل البيانات</button>}
-      {can("leads", "delete") && <button className="btn ghost" onClick={archive}><Icon name="x" />أرشفة</button>}
-      {l.stage === "Done Deal" && !l.hasDeal && can("deals", "create") && <button className="btn" onClick={() => onDeal(l.id)}><Icon name="handshake" />سجّل الصفقة</button>}
+      {can("leads", "edit") && <button className="btn ghost" onClick={() => void run(() => logCall(l.id), t("callLogged"))}><Icon name="phone" />{t("logCall")}</button>}
+      {can("leads", "edit") && (!telesales || l.ownedByTelesales) && <button className="btn ghost" onClick={() => setEditing(true)}>{t("edit")}</button>}
+      {can("leads", "delete") && <button className="btn ghost" onClick={archive}><Icon name="x" />{t("archive")}</button>}
+      {l.stage === "Done Deal" && !l.hasDeal && can("deals", "create") && <button className="btn" onClick={() => onDeal(l.id)}><Icon name="handshake" />{t("logDeal")}</button>}
     </div>
   );
 }
@@ -176,14 +183,15 @@ function LeadActions({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: st
  * Interested goes to Operations; until they decide, «مستني قرار الأوبريشن».
  */
 function NewLeadAction({ l }: { l: LeadDetail }) {
+  const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const run = useAction();
   const send = useSendNewLead();
-  if (l.newLeadPending) return <div className="row"><Chip tone="warn">مستني قرار الأوبريشن</Chip></div>;
+  if (l.newLeadPending) return <div className="row"><Chip tone="warn">{t("waitingOps")}</Chip></div>;
   if (!l.ownedByTelesales || l.stage !== "Interested" || !can("leads", "edit")) return null;
   return (
     <div className="row">
-      <button className="btn" onClick={() => void run(() => send(l.id), "اتبعت للأوبريشن")}><Icon name="send" />ابعته كـ New Lead</button>
+      <button className="btn" onClick={() => void run(() => send(l.id), t("sentToOps"))}><Icon name="send" />{t("sendNewLead")}</button>
     </div>
   );
 }
@@ -193,6 +201,7 @@ function NewLeadAction({ l }: { l: LeadDetail }) {
 const comments = (l: LeadDetail) => l.activities.filter((a) => a.kind === "comment");
 
 function Activity({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void }) {
+  const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const run = useAction();
   const add = useAddComment();
@@ -202,36 +211,37 @@ function Activity({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" 
     <>
       {can("leads", "edit") && <StageCard l={l} onVisit={onVisit} onDeal={onDeal} />}
       {can("leads", "edit") && (
-        <form className="row" onSubmit={(e) => { e.preventDefault(); const t = text.trim(); if (t) void run(async () => { await add(l.id, t); setText(""); }); }}>
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="اكتب كومنت أو نتيجة مكالمة" required maxLength={2000} aria-label="كومنت" />
-          <button className="btn ghost">إضافة</button>
+        <form className="row" onSubmit={(e) => { e.preventDefault(); const body = text.trim(); if (body) void run(async () => { await add(l.id, body); setText(""); }); }}>
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t("commentPlaceholder")} required maxLength={2000} aria-label={t("comment")} />
+          <button className="btn ghost">{t("add")}</button>
         </form>
       )}
       {mine.length
-        ? <div className="timeline">{mine.map((a) => <div key={a.id}>{a.text}<small>{a.by?.name ?? "السيستم"} · {dayTime(a.at)}</small></div>)}</div>
-        : <Empty text="مفيش كومنتات لسه" icon="clock" />}
+        ? <div className="timeline">{mine.map((a) => <div key={a.id}>{serverText(a.text)}<small>{a.by?.name ?? t("system")} · {dayTime(a.at)}</small></div>)}</div>
+        : <Empty text={t("noComments")} icon="clock" />}
     </>
   );
 }
 
-const SOURCE: Record<LeadLogRow["source"], [string, "" | "info" | "warn"]> = { auto: ["تلقائي", ""], comment: ["كومنت", "info"], audit: ["Audit", "warn"] };
+const SOURCE_TONE: Record<LeadLogRow["source"], "" | "info" | "warn"> = { auto: "", comment: "info", audit: "warn" };
 
 /** «Logs» (1.25): everything recorded on the lead, newest first, each line tagged تلقائي / كومنت / Audit. */
 function Logs({ id }: { id: string }) {
+  const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const logs = useQuery({ queryKey: ["lead", id, "logs"], queryFn: () => api.get<LeadLogRow[]>(`/leads/${id}/logs`) });
   return (
     <>
       {can("access", "edit") && <LogRoles />}
       {logs.error ? <Empty text={logs.error.message} />
-        : !logs.data ? <p className="hint">بيحمّل…</p>
-        : !logs.data.length ? <Empty text="مفيش Logs لسه" icon="clock" />
+        : !logs.data ? <p className="hint">{t("loading")}</p>
+        : !logs.data.length ? <Empty text={t("noLogs")} icon="clock" />
         : (
           <div className="timeline">
             {logs.data.map((x) => (
               <div key={x.id}>
-                <Chip tone={SOURCE[x.source][1]}>{SOURCE[x.source][0]}</Chip> {x.text}
-                <small>{x.by?.name ?? "السيستم"} · {dayTime(x.at)}</small>
+                <Chip tone={SOURCE_TONE[x.source]}>{t(`source.${x.source}`)}</Chip> {serverText(x.text)}
+                <small>{x.by?.name ?? t("system")} · {dayTime(x.at)}</small>
               </div>
             ))}
           </div>
@@ -246,6 +256,7 @@ function Logs({ id }: { id: string }) {
  * whole list — saving on every click from the server's last answer lost clicks made before it came back.
  */
 function LogRoles() {
+  const t = useTranslations("leads.drawer");
   const qc = useQueryClient();
   const run = useAction();
   const settings = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
@@ -263,18 +274,18 @@ function LogRoles() {
       await api.put("/leads/log-roles", { roles: next });
       await qc.invalidateQueries({ queryKey: ["settings"] });
       setPicked(null);
-    }, "اتحفظ"), 500);
+    }, t("saved")), 500);
   };
   return (
     <section className="card flat">
-      <div className="card-head"><h3><span className="ico"><Icon name="lock" /></span><span>مين يشوف الـ Logs<small>الأدمن بيشوفها دايماً · بيتطبّق على كل الليدز</small></span></h3></div>
+      <div className="card-head"><h3><span className="ico"><Icon name="lock" /></span><span>{t("logRoles")}<small>{t("logRolesSub")}</small></span></h3></div>
       {roles.data && chosen ? (
         <div className="row">
           {roles.data.filter((r) => r.key !== "admin").map((r) => (
-            <label key={r.key} className="tog"><input type="checkbox" checked={now.includes(r.key)} onChange={(e) => toggle(r.key, e.target.checked)} /><span>{r.label}</span></label>
+            <label key={r.key} className="tog"><input type="checkbox" checked={now.includes(r.key)} onChange={(e) => toggle(r.key, e.target.checked)} /><span>{serverText(r.label)}</span></label>
           ))}
         </div>
-      ) : <p className="hint">بيحمّل…</p>}
+      ) : <p className="hint">{t("loading")}</p>}
     </section>
   );
 }

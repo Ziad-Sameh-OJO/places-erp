@@ -7,6 +7,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { IconName } from "@places/ui";
+import { useTranslations } from "next-intl";
+import { serverText } from "@/lib/server-text";
 import { Icon } from "./ui";
 
 /** Side panel for one record (lead, unit, deal…). Esc or the scrim closes it; prev/next buttons are optional. */
@@ -14,6 +16,7 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
   title: string; sub?: string; chips?: ReactNode; children: ReactNode; foot?: ReactNode; onClose: () => void;
   onPrev?: () => void; onNext?: () => void; position?: string;
 }) {
+  const t = useTranslations("ui");
   const ref = useRef<HTMLElement>(null);
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -40,12 +43,12 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
             {(onPrev || onNext) && (
               <span className="dr-nav">
                 {/* small, like the demo's «round sm»: full-size ones squeezed the lead's name onto 3 lines on a phone */}
-                <button className="round sm" onClick={onPrev} disabled={!onPrev} aria-label="السابق">›</button>
+                <button className="round sm" onClick={onPrev} disabled={!onPrev} aria-label={t("drawer.prev")}>›</button>
                 {position && <span>{position}</span>}
-                <button className="round sm" onClick={onNext} disabled={!onNext} aria-label="التالي">‹</button>
+                <button className="round sm" onClick={onNext} disabled={!onNext} aria-label={t("drawer.next")}>‹</button>
               </span>
             )}
-            <button className="round" onClick={onClose} aria-label="قفل"><Icon name="x" /></button>
+            <button className="round" onClick={onClose} aria-label={t("close")}><Icon name="x" /></button>
           </div>
         </header>
         <div className="dr-body">{children}</div>
@@ -66,7 +69,7 @@ export function Stepper({ stages, current, done }: { stages: readonly string[]; 
     <ol className="stepper">
       {stages.map((s, i) => (
         <li key={s} ref={i === at ? cur : undefined} className={i < at || done ? "done" : i === at ? "cur" : ""} aria-current={i === at ? "step" : undefined}>
-          <span>{i + 1}</span><b>{s}</b>
+          <span>{i + 1}</span><b>{serverText(s)}</b>
         </li>
       ))}
     </ol>
@@ -127,13 +130,14 @@ function Spark({ seed, tone }: { seed: string; tone?: string | undefined }) {
 export function KpiTile({ label, value, sub, icon, tone, delta, onClick }: {
   label: string; value: ReactNode; sub?: string; icon?: IconName; tone?: "ok" | "warn" | "bad"; delta?: number | null; onClick?: () => void;
 }) {
+  const t = useTranslations("ui.kpi");
   const inner = (
     <>
       <div className="k-top"><span>{label}</span>{icon && <span className={`ico ${tone ?? ""}`}><Icon name={icon} /></span>}</div>
       <div className="k-val">
         <strong>{value}</strong>
         {delta != null && Number.isFinite(delta) && (
-          <span className={`delta ${delta >= 0 ? "up" : "down"}`} title="مقارنة بالفترة اللي قبلها">{delta >= 0 ? "▲" : "▼"} {Math.abs(Math.round(delta))}%</span>
+          <span className={`delta ${delta >= 0 ? "up" : "down"}`} title={t("delta")}>{delta >= 0 ? "▲" : "▼"} {Math.abs(Math.round(delta))}%</span>
         )}
       </div>
       {sub && <small>{sub}</small>}
@@ -146,6 +150,7 @@ export function KpiTile({ label, value, sub, icon, tone, delta, onClick }: {
 }
 
 /** The floating «جديد» button; mobile.css shows it on phones only (desktop pages have their own button). */
-export function Fab({ onClick, label = "جديد" }: { onClick: () => void; label?: string }) {
-  return <button className="fab" onClick={onClick} aria-label={label}><Icon name="plus" /></button>;
+export function Fab({ onClick, label }: { onClick: () => void; label?: string }) {
+  const t = useTranslations("ui.fab");
+  return <button className="fab" onClick={onClick} aria-label={label ?? t("new")}><Icon name="plus" /></button>;
 }

@@ -1,7 +1,8 @@
 "use client";
-import { durationText } from "@places/domain";
+import { useTranslations } from "next-intl";
 import { Icon, Modal, Note, useAction } from "@/components/ui";
 import { useAddComment } from "./use-lead";
+import { useDuration } from "./lead-bits";
 import { useLeadSummary } from "./use-leads";
 
 /**
@@ -9,20 +10,23 @@ import { useLeadSummary } from "./use-leads";
  * The note says how long the lead stays and how often the Alarm comes, from «قواعد الليدز».
  */
 export function WhatsAppQuestion({ lead, onClose }: { lead: { id: string; name: string }; onClose: () => void }) {
+  const t = useTranslations("leads.whatsapp");
+  const duration = useDuration();
   const run = useAction();
   const add = useAddComment();
   const rules = useLeadSummary("client").data?.noAnswerRules;
   const answer = (sent: boolean) => run(async () => {
+    // the comment is stored on the lead in the API's language (Arabic), like every other recorded text
     await add(lead.id, sent ? "No Answer · بعتله واتساب" : "No Answer · مابعتلوش واتساب");
     onClose();
-  }, "اتسجّلت كومنت على الليد");
+  }, t("saved"));
   return (
     <Modal title={`No Answer · ${lead.name}`} onClose={onClose}>
-      {rules && <Note>الليد هيفضل عندك {durationText(rules.hours * 60)}، وهيجيلك Alarm كل {rules.remindH} ساعات تكلّمه. بعدها بيروح للسيلز اللي عليه الدور.</Note>}
-      <p>بعتله واتساب؟</p>
+      {rules && <Note>{t("note", { stay: duration(rules.hours * 60), every: rules.remindH })}</Note>}
+      <p>{t("question")}</p>
       <div className="row end">
-        <button className="btn ghost" onClick={() => void answer(false)}>لأ</button>
-        <button className="btn" onClick={() => void answer(true)}><Icon name="send" />اه بعتله</button>
+        <button className="btn ghost" onClick={() => void answer(false)}>{t("no")}</button>
+        <button className="btn" onClick={() => void answer(true)}><Icon name="send" />{t("yes")}</button>
       </div>
     </Modal>
   );

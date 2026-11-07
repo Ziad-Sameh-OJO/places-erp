@@ -41,9 +41,9 @@ export const useMove = (id: string | null) => useQuery({ queryKey: ["finance", "
 export const useBudget = () => useQuery({ queryKey: ["finance", "budget"], queryFn: () => api.get<BudgetView>("/finance/budget") });
 
 export type MoveKind = "pay" | "receive" | "transfer" | "advance" | "custody" | "settle" | "payroll" | "commission";
-/** The demo's KIND: label and chip tone. */
-export const KIND: Record<MoveKind, [string, "bad" | "ok" | "info" | "warn" | ""]> = {
-  payroll: ["صرف مرتبات", "bad"], commission: ["صرف عمولة سيلز", "bad"], pay: ["إذن صرف خزنة", "bad"], receive: ["إذن توريد خزنة", "ok"], transfer: ["تحويل بين خزن", "info"], advance: ["سلفة موظف", "warn"], custody: ["عهدة", "warn"], settle: ["تسوية عهدة", ""],
+/** The demo's KIND: the chip tone; the label is `finance.kind.<kind>` in the messages. */
+export const KIND: Record<MoveKind, "bad" | "ok" | "info" | "warn" | ""> = {
+  payroll: "bad", commission: "bad", pay: "bad", receive: "ok", transfer: "info", advance: "warn", custody: "warn", settle: "",
 };
 export const useBills = () => useQuery({ queryKey: ["finance", "bills"], queryFn: () => api.get<BillsView>("/finance/bills") });
 export const useIncome = (range: "month" | "year") => useQuery({ queryKey: ["finance", "income", range], queryFn: () => api.get<IncomeView>(`/finance/statements/income?range=${range}`) });

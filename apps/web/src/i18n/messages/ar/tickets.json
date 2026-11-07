@@ -1,0 +1,83 @@
+{
+  "priority": { "normal": "عادية", "high": "عالية" },
+  "chips": { "dispute": "نزاع", "high": "عالية" },
+  "drawer": {
+    "notFound": "التذكرة مش موجودة",
+    "loading": "بيحمّل…",
+    "kv": {
+      "from": "من",
+      "department": "القسم",
+      "type": "النوع",
+      "priority": "الأولوية",
+      "opened": "اتفتحت",
+      "firstReply": "أول رد",
+      "notYet": "لسه",
+      "after": "بعد {minutes} د"
+    },
+    "late": {
+      "label": "اتأخرت:",
+      "dispute": "عدّى {hours} ساعة من غير ما يتحسم · اتصعّدت للـ Office Manager.",
+      "other": "عدّى {hours} ساعة من غير رد · اتصعّدت لمدير قسم {department}."
+    },
+    "systemInitial": "س",
+    "system": "السيستم",
+    "kind": { "open": "فتح", "reply": "رد", "transfer": "تحويل", "status": "حالة", "close": "قفل", "escalate": "تصعيد" },
+    "reply": {
+      "sent": "الرد اتبعت",
+      "placeholder": "اكتب رد",
+      "label": "الرد",
+      "status": "الحالة",
+      "keepStatus": "من غير تغيير الحالة",
+      "resolved": "Resolved · خلّصت",
+      "send": "ابعت"
+    },
+    "transfer": {
+      "done": "اتحوّلت لـ {department} · السجل محفوظ",
+      "wrongDept": "اتبعتت للقسم الغلط؟",
+      "label": "حوّلها لقسم",
+      "button": "حوّلها"
+    },
+    "close": { "done": "التذكرة اتقفلت", "button": "الطلب اتنفّذ · اقفلها" }
+  },
+  "page": {
+    "tabs": { "mine": "طلباتي", "assigned": "مسندة لقسم {department}", "late": "متأخرة", "closed": "اتقفلت", "all": "الكل" },
+    "kpi": {
+      "open": "مفتوحة",
+      "late": "متأخرة",
+      "lateSub": "اتصعّدت لمدير القسم",
+      "avgReply": "متوسط وقت الرد",
+      "avgReplySub": "قسم {department} · الشهر ده",
+      "closed": "اتقفلت",
+      "closedSub": "القسم اللي نفّذ بيقفلها"
+    },
+    "minutes": "{n} د",
+    "newTicket": "تذكرة جديدة",
+    "searchPlaceholder": "دوّر برقم التذكرة أو الطلب",
+    "searchLabel": "بحث في التذاكر",
+    "rowMeta": "{code} · من {from} → {department} · {ago} · {events} حركة",
+    "lateEscalated": "اتأخرت · اتصعّدت",
+    "empty": "مفيش تذاكر هنا",
+    "prev": "السابق",
+    "next": "التالي",
+    "slaNote": "الرد خلال 24 ساعة عمل (4 ساعات لو الأولوية عالية)، ولو اتأخرت بتتصعّد لمدير القسم. كل تذكرة ليها سجل زمني رسمي (Audit Trail) ومعدل استجابة لكل قسم."
+  },
+  "rate": {
+    "title": "معدل الاستجابة لكل قسم",
+    "sub": "اللي اتقفل في الـ SLA ÷ كل التذاكر · متوسط وقت الرد",
+    "month": "الشهر",
+    "counts": "{total} تذكرة · {inSla} في الـ SLA"
+  },
+  "new": {
+    "title": "تذكرة جديدة",
+    "sent": "التذكرة اتبعتت",
+    "type": "النوع",
+    "typeWithDept": "{label} ({department} · {hours} ساعة)",
+    "department": "للقسم",
+    "priority": "الأولوية",
+    "normal": "عادية",
+    "high": "عالية",
+    "request": "الطلب",
+    "slaHint": "الرد خلال 24 ساعة عمل (4 ساعات لو الأولوية عالية).",
+    "send": "ابعت"
+  }
+}

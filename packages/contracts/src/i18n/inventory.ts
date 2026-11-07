@@ -1,0 +1,58 @@
+import type { Pair } from "./translate.ts";
+
+/** English for the Arabic text the server sends in this area (see translate.ts for the {placeholder} form). */
+export default [
+  // area tabs, daily report
+  ["التاب ده مش موجود", "This tab doesn't exist"],
+  ["فيه تاب «{tab}» بنفس المساحات", "There's already a «{tab}» tab with the same areas"],
+  ["التقرير لسه ماطلعش · بيطلع لوحده في ميعاده («التقارير ومواعيدها»)", "The report isn't out yet · it comes out by itself on time («Reports and schedules»)"],
+  ["التقرير اتعتمد قبل كده", "The report has already been approved"],
+  // units
+  ["الوحدة مش موجودة", "The unit doesn't exist"],
+  ["الوحدة دي اتشالت من لوحة التسويق قبل كده", "This unit was already removed from the marketing board"],
+  ["الوحدة دي لسه على لوحة التسويق", "This unit is still on the marketing board"],
+  ["Live Alert: وحدة جديدة {code} ({project}) اتضافت للانفنتوري", "Live Alert: new unit {code} ({project}) added to the Inventory"],
+  ["الـ Agent", "Agent"],
+  ["الـ Agent ده مش موجود", "This Agent doesn't exist"],
+  ["الـ Last update مايبقاش في المستقبل", "The Last update can't be in the future"],
+  ["تاب المساحة ده اتشال · اختار تاب تاني", "This area tab was removed · pick another tab"],
+  ["اختار Area من القايمة", "Pick an Area from the list"],
+  ["اختار التشطيب من القايمة", "Pick the finishing from the list"],
+  ["اختار طريقة الدفع من القايمة", "Pick the payment method from the list"],
+  // Not Active sheets
+  ["الشيت ده مش موجود", "This sheet doesn't exist"],
+  ["الصف ده مش موجود أو مش معاك", "This row doesn't exist or isn't yours"],
+  ["خانة «{column}» مش في الشيت", "Column «{column}» isn't in the sheet"],
+  ["الشيت مفيهوش صفوف", "The sheet has no rows"],
+  ["{n} رقم في شيت {sheet} موجود في الانفنتوري الأصلي · حددي حالتهم", "{n} numbers in sheet {sheet} are in the main Inventory · set their status"],
+  ["اختار حد من فريق الانفنتوري", "Pick someone from the Inventory team"],
+  ["{name} بعتتلك {n} رقم من شيت {sheet} تصنّفيهم", "{name} sent you {n} numbers from sheet {sheet} to classify"],
+  ["الصف ده Done خلاص", "This row is already Done"],
+  ["Done معناها وحدة جديدة · دخّل بياناتها", "Done means a new unit · enter its details"],
+  ["{name} جابت وحدة جديدة {code} من شيت {sheet} · تتضاف للانفنتوري", "{name} brought a new unit {code} from sheet {sheet} · to be added to the Inventory"],
+  // team tasks
+  ["المهمة لحد من فريقك بس", "The task is for someone in your team only"],
+  ["{name} عندها {n} مهمة النهارده (الحد الأقصى)", "{name} has {n} tasks today (the maximum)"],
+  ["مهمة من {name}: {title}", "Task from {name}: {title}"],
+  ["المهمة مش موجودة", "The task doesn't exist"],
+  // unit documents and photos
+  ["الـ PDF ده اتعمله Confirm قبل كده", "This PDF was already Confirmed"],
+  ["الوحدة {code} ({project}) اتنشرت · جاهزة للسيلز والحملات", "Unit {code} ({project}) was published · ready for sales and campaigns"],
+  ["صور (jpg / png / webp) أو PDF بس", "Photos (jpg / png / webp) or PDF only"],
+  ["الوحدة ليها لحد {max} صورة", "A unit can have up to {max} photos"],
+  ["الصور اتغيرت · حدّث الصفحة وجرّب تاني", "The photos changed · refresh the page and try again"],
+  ["الصورة مش موجودة", "The photo doesn't exist"],
+  ["مش مسموح لك ترفع أو تمسح في فولدر الوحدة", "You're not allowed to upload or delete in the unit folder"],
+  // closing a unit after a Done Deal
+  ["منار", "Manar"],
+  ["رندا", "Randa"],
+  ["{code} مش متاحة {type} دلوقتي", "{code} isn't available for {type} now"],
+  ["{code} مش متاحة {type}", "{code} isn't available for {type}"],
+  ["الـ {type} في {code} اتقفل قبل كده", "The {type} on {code} was already closed"],
+  ["{code} عليها Done Deal تانية مستنية تأكيد القفل", "{code} has another Done Deal waiting for close confirmation"],
+  ["Done Deal على {code} ({project}) اتوافق عليها · أكّد قفل الوحدة ({status})", "Done Deal on {code} ({project}) approved · confirm closing the unit ({status})"],
+  ["مفيش Done Deal على الوحدة دي", "There's no Done Deal on this unit"],
+  ["تأكيد قفل الـ {type} بتاع {who}", "Confirming the {type} close is {who}'s job"],
+  ["القفل اتأكد قبل كده", "The close was already confirmed"],
+  ["الـ {type} عليه Done Deal {code} · مينفعش يتشال من الوحدة", "The {type} has Done Deal {code} · it can't be removed from the unit"],
+] satisfies Pair[];

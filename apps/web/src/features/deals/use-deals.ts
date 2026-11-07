@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Achievements, CashView, ClaimsView, DealCollectForm, DealDetail, DealForm, DealSheet, DealUnit } from "@places/contracts";
 import type { DealStatus } from "@places/domain";
 import { api } from "@/lib/api";
+import { dateLocale } from "@/lib/format";
 
 export const useDealSheet = () => useQuery({ queryKey: ["deals", "sheet"], queryFn: () => api.get<DealSheet>("/deals/sheet") });
 export const useDeal = (id: string) => useQuery({ queryKey: ["deals", "one", id], queryFn: () => api.get<DealDetail>(`/deals/${id}`), retry: false });
@@ -27,5 +28,5 @@ export const LANES: DealStatus[] = ["Pending Review", "Approved", "Partially Col
 /** «لما توافق عليها تبان وتتسجل في الشيت» */
 export const onSheet = (s: DealStatus) => s !== "Pending Review" && s !== "Rejected";
 export const live = (s: DealStatus) => onSheet(s) && s !== "Cancelled";
-export const monthOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("ar-EG", { month: "long", year: "numeric", timeZone: "Africa/Cairo" }) : "—");
+export const monthOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(dateLocale(), { month: "long", year: "numeric", timeZone: "Africa/Cairo" }) : "—");
 export const names = (p: { name: string }[]) => p.map((x) => x.name).join(" · ") || "—";

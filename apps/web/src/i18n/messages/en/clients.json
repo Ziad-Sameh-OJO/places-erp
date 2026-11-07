@@ -1,0 +1,79 @@
+{
+  "kind": { "client": "Client", "owner": "Owner", "both": "Client + Owner" },
+  "drawer": {
+    "notFound": "File not found",
+    "loading": "Loading…",
+    "kind": "Type",
+    "phones": "Numbers",
+    "company": "Company",
+    "units": "Units",
+    "deals": "Deals",
+    "paid": "Paid",
+    "owes": "Owes",
+    "fileOf": "{kind} file",
+    "unitsTitle": "Their units",
+    "space": "{space} m²",
+    "needsUpdate": "Needs an update",
+    "contracts": "Contracts",
+    "endsOn": "ends {date}",
+    "history": "Full history",
+    "system": "System",
+    "nothing": "Nothing yet"
+  },
+  "log": { "saved": "Logged", "title": "Log a contact", "kind": "Contact type", "details": "Details", "log": "Log" },
+  "list": {
+    "all": "All",
+    "clients": "Clients",
+    "owners": "Owners",
+    "tiles": {
+      "clients": "Clients",
+      "clientsSub": "Closed a deal",
+      "owners": "Owners",
+      "ownersSub": "We have their units",
+      "staleSub": "Last update over a month ago",
+      "both": "Client and owner",
+      "bothSub": "Same person"
+    },
+    "stale": "Owners needing an update",
+    "search": "Name, number, company",
+    "searchLabel": "Search clients and owners",
+    "kind": "Type",
+    "exportFile": "Clients and owners.xlsx",
+    "export": "Export clients and owners",
+    "files": "{count, plural, one {{n} file} other {{n} files}}",
+    "head": { "name": "Name", "phones": "Numbers", "units": "Units", "deals": "Deals", "lastContact": "Last contact" },
+    "empty": "No one matches this search",
+    "prev": "Previous",
+    "next": "Next",
+    "note": "A client is created automatically once a lead reaches Done Deal, and an owner with their first unit. The phone number stops the same person being registered twice."
+  },
+  "merges": {
+    "merged": "The two files were merged",
+    "rejected": "Rejected",
+    "title": "Merge requests waiting for Operations",
+    "into": "→ merges into",
+    "by": " · suggested by {name}",
+    "system": " · System",
+    "merge": "Merge",
+    "reject": "Reject"
+  },
+  "suggest": {
+    "sent": "Sent to Operations to decide",
+    "title": "Merge by mobile",
+    "sub": "Same person in another file · Operations approves",
+    "phone": "The other file's number",
+    "send": "Suggest merge"
+  },
+  "privacy": {
+    "saved": "Saved",
+    "why": "Why does the client want their data erased? The request goes to management",
+    "sent": "Request sent to management",
+    "consentLabel": "Agrees to marketing contact:",
+    "consent": "Agrees to marketing contact",
+    "notAsked": "Not asked yet",
+    "yes": "Yes",
+    "no": "No",
+    "ask": "Request data erasure",
+    "pending": "Data erasure request waiting for management (data protection)"
+  }
+}

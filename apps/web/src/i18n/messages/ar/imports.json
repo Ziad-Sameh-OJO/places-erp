@@ -1,0 +1,42 @@
+{
+  "units": {
+    "button": "استيراد Excel",
+    "title": "استيراد Excel (القالب الموحّد)",
+    "template": "قالب الوحدات.xlsx",
+    "columns": {
+      "type": "Type",
+      "project": "Project",
+      "area": "Area",
+      "space": "المساحة",
+      "building": "رقم المبنى",
+      "ownerName": "الاسم",
+      "ownerPhone": "الرقم",
+      "pricePerSqm": "السعر للمتر"
+    }
+  },
+  "leads": {
+    "button": "ليدز قديمة (Excel)",
+    "title": "استيراد الليدز القديمة",
+    "template": "قالب الليدز القديمة.xlsx",
+    "columns": {
+      "name": "الاسم",
+      "phones": "الموبايل",
+      "area": "Area",
+      "type": "Type",
+      "channel": "Channel",
+      "arrivedAt": "التاريخ"
+    }
+  },
+  "companies": {
+    "button": "شركات (Excel)",
+    "title": "استيراد أرشيف الشركات",
+    "template": "قالب الشركات.xlsx",
+    "columns": {
+      "name": "اسم الشركة",
+      "category": "الكاتيجوري",
+      "number": "الرقم",
+      "contactName": "اسم المسؤول",
+      "contractEnd": "نهاية العقد"
+    }
+  }
+}

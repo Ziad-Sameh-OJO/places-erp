@@ -1,0 +1,105 @@
+{
+  "sections": {
+    "sales": "Sales",
+    "ops": "Operations",
+    "admin": "Management",
+    "system": "System"
+  },
+  "modules": {
+    "home": {
+      "label": "Today's tasks",
+      "short": "Home",
+      "sub": "What needs you today"
+    },
+    "leads": {
+      "label": "Leads",
+      "short": "Leads",
+      "sub": "Create lead · routing by area · SLA · stages · Qualified · No Answer rotation"
+    },
+    "settings": {
+      "label": "Lead rules & routing",
+      "short": "Lead rules",
+      "sub": "Routing, timings, SLA, No Answer and closing · every number and every person in charge is edited here"
+    },
+    "deals": {
+      "label": "Deals",
+      "short": "Deals",
+      "sub": "Done Deals sheet · Office Manager review · collection · targets and transactions"
+    },
+    "clients": {
+      "label": "Clients & owners",
+      "short": "Clients",
+      "sub": "One file per client and owner · every dealing with them in one place"
+    },
+    "contracts": {
+      "label": "Contracts & collection",
+      "short": "Contracts",
+      "sub": "Contracts · renewal alerts 90/60/30 · installments and arrears · invoices"
+    },
+    "inventory": {
+      "label": "Units inventory",
+      "short": "Units",
+      "sub": "Rent · Resale · Income in one filtered list, with the area tabs below like the sheet"
+    },
+    "notactive": {
+      "label": "Not Active Inventory",
+      "short": "Not Active",
+      "sub": "Sheets uploaded as Excel · merged without duplicates · Marwa classifies every number · Done adds a new unit"
+    },
+    "tasks": {
+      "label": "Tasks",
+      "short": "Tasks",
+      "sub": "Photography · Retouch approved by Manar · owner follow-up · sale updates · marketing tasks"
+    },
+    "marketing": {
+      "label": "Marketing",
+      "short": "Marketing",
+      "sub": "Leads per channel and campaign · Qualified · content · Broadcast · new units"
+    },
+    "finance": {
+      "label": "Finance",
+      "short": "Finance",
+      "sub": "Dashboard · safes and movements · custody and advances · journal entries · fixed bills · income statement and balance sheet · budget · chart of accounts"
+    },
+    "procurement": {
+      "label": "Procurement",
+      "short": "Procurement",
+      "sub": "Request → approval (up to 50,000 any approver · above that Ahmed or Safwat) → Mokhtar pays → item budget after payment"
+    },
+    "hr": {
+      "label": "Human resources",
+      "short": "HR",
+      "sub": "Fingerprint attendance and brackets · history · Weekly Delay · every employee's file"
+    },
+    "reports": {
+      "label": "Reports & targets",
+      "short": "Reports",
+      "sub": "Monthly target · Team Leaders · scheduled reports"
+    },
+    "kpis": {
+      "label": "Performance (KPIs)",
+      "short": "KPIs",
+      "sub": "Each employee's card for the quarter · managers control their team's items"
+    },
+    "tickets": {
+      "label": "Tickets",
+      "short": "Tickets",
+      "sub": "Requests between departments instead of WhatsApp · Audit Trail"
+    },
+    "access": {
+      "label": "Roles & permissions",
+      "short": "Permissions",
+      "sub": "Roles and the permission matrix · users · Audit Log"
+    },
+    "master": {
+      "label": "Settings",
+      "short": "Settings",
+      "sub": "The lists and rules the system is built on · edited without code"
+    },
+    "integrations": {
+      "label": "Notifications & email",
+      "short": "Notifications",
+      "sub": "Notifications arrive in the system and by email · the rules of every event"
+    }
+  }
+}

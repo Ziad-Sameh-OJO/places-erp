@@ -1,0 +1,72 @@
+{
+  "all": "All",
+  "kinds": {
+    "photo": "Photo shoot",
+    "retouch": "Retouch",
+    "followup": "Owner follow-up",
+    "toResale": "Resale update",
+    "marketing": "Marketing"
+  },
+  "moves": {
+    "progress": "Start",
+    "done": "Done",
+    "uploaded": "I uploaded the photos to the system",
+    "todo": "Undo"
+  },
+  "toasts": {
+    "done": "Done",
+    "uploaded": "Sent to Manar for approval",
+    "progress": "In Progress",
+    "todo": "Back to the tasks"
+  },
+  "roleNotes": {
+    "marketing": "Rahma sees all the photographer's tasks, including the ones Manar and Randa give.",
+    "photographer": "Manar gives you one unit a day and Randa gives you one. The unit's data comes with the task.",
+    "designer": "Upload the photos after the Retouch on the unit's page in the system. The task isn't Done until Manar approves.",
+    "other": "Drag a card between the columns to change its status."
+  },
+  "retouchOnly": "This column is for Retouch tasks only",
+  "approved": "Retouch approved",
+  "returned": "Sent back to the designer for changes",
+  "give": {
+    "photo": "Photo task",
+    "retouch": "Retouch task",
+    "marketing": "Marketing task"
+  },
+  "assignee": "Assignee",
+  "allAssignees": "All assignees",
+  "approve": "Approve",
+  "sendBack": "Send back",
+  "card": {
+    "place": "{area} · floor {floor} · building {building}",
+    "returned": "{count, plural, one {Sent back for changes once} other {Sent back for changes # times}}",
+    "system": "System",
+    "arrow": "→"
+  },
+  "sla": {
+    "met": "Done within the {hours} hours",
+    "missed": "Done after the {hours} hours",
+    "left": "{left} of {hours} hours left",
+    "late": "{late} hours past the {hours}"
+  },
+  "newTask": {
+    "titles": {
+      "photo": "Photo task for the photographer",
+      "retouch": "Retouch task for the designer (no AI)",
+      "toResale": "Send the unit to Randa · resale update",
+      "marketing": "Marketing task",
+      "default": "Task"
+    },
+    "sentPhoto": "Task sent to the photographer, and Rahma can see it",
+    "sent": "Task sent",
+    "unit": "Unit",
+    "searchUnit": "Search by code or project",
+    "searchUnitLabel": "Search for the unit",
+    "task": "Task",
+    "assignee": "Assignee",
+    "due": "Due date",
+    "notes": "Notes",
+    "photoNote": "The unit's data is sent automatically: code, project, building, floor, location and the owner's number",
+    "send": "Send the task"
+  }
+}

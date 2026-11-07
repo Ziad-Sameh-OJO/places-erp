@@ -1,0 +1,155 @@
+{
+  "tabs": { "camps": "Campaigns", "units": "New units", "deals": "Deals" },
+  "broadcast": {
+    "approvedToast": "Approved · sent to sales",
+    "head": { "message": "Message", "approval": "Approval", "sent": "Sent it", "pending": "Not yet" },
+    "empty": "No Broadcast yet",
+    "sep": ", ",
+    "approved": "Approved",
+    "waiting": "Waiting for the marketing manager",
+    "approve": "Approve",
+    "self": {
+      "title": "Broadcasts sales made for other units",
+      "sub": "Sales record them when they press Done",
+      "sales": "Sales",
+      "units": "Units",
+      "when": "When"
+    },
+    "new": {
+      "title": "New Broadcast message for sales",
+      "sub": "Picture + text + logo · sent as a task on every sales person's board",
+      "sent": "Sent as a task to all sales",
+      "text": "Text",
+      "textPlaceholder": "The text sales will send to their clients",
+      "hot": "Hot Inventory (the units in the message)",
+      "searchPlaceholder": "Search by code, project or area",
+      "searchLabel": "Search for a unit",
+      "unit": "{code} · {project} · {space} m²",
+      "picked": "Picked: {codes}",
+      "logo": "Add the logo",
+      "schedule": "Fixed Broadcast schedule: two days a week · sent this week: {sent} of {of}",
+      "submit": "Send to sales"
+    },
+    "mine": {
+      "done": "Done · Rahma can see you sent it",
+      "title": "Broadcast from marketing",
+      "sub": "Send the message to your client list and press Done",
+      "others": "Did a Broadcast for other units? (codes)",
+      "othersPlaceholder": "U-101, U-205",
+      "note": "Done means you sent it. If you sent about other units, write their codes so marketing sees them."
+    }
+  },
+  "campaigns": {
+    "new": "New campaign",
+    "head": {
+      "campaign": "Campaign",
+      "period": "Period",
+      "budget": "Budget",
+      "spent": "Spent",
+      "leads": "Leads",
+      "costPerLead": "Cost per lead"
+    },
+    "loading": "Loading…",
+    "empty": "No campaigns",
+    "adLink": "Ad link",
+    "edit": "Edit",
+    "live": { "on": "Running", "soon": "Not started yet", "over": "Ended" },
+    "form": {
+      "editTitle": "Edit · {name}",
+      "newTitle": "New campaign",
+      "updated": "Campaign updated",
+      "created": "Campaign added · leads will be linked to it",
+      "name": "Campaign name",
+      "start": "Start",
+      "end": "End",
+      "budget": "Budget",
+      "spent": "Spent",
+      "target": "Target project / units",
+      "adUrl": "Ad link",
+      "note": "Notes",
+      "archived": "Campaign archived",
+      "archive": "Archive",
+      "save": "Save",
+      "saveNew": "Save · it will show in leads under its channel"
+    }
+  },
+  "content": {
+    "state": { "published": "Published", "waiting": "Waiting for approval", "today": "Reminder today", "scheduled": "Scheduled" },
+    "week": { "sat": "Sat", "sun": "Sun", "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri" },
+    "view": "View",
+    "list": "List",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "post": "Post",
+    "head": { "post": "Post", "campaign": "Campaign", "at": "Time", "status": "Status" },
+    "loading": "Loading…",
+    "empty": "No posts this month",
+    "publishedAt": "Published {at}",
+    "note": "Every post has a publish time; the Reminder arrives on time, and the actual publish time is recorded. Posts are reviewed by the marketing manager before they're published.",
+    "actuallyPublished": "Actually published",
+    "description": "Description",
+    "actions": {
+      "approved": "Post approved",
+      "approve": "Approve",
+      "publishedToast": "Publish time recorded",
+      "published": "Published"
+    },
+    "new": {
+      "title": "Post in the Content plan",
+      "scheduled": "Post scheduled",
+      "post": "Post (design / video)",
+      "campaign": "Campaign",
+      "at": "Publish time",
+      "description": "Description",
+      "save": "Save · you'll get a Reminder on time"
+    }
+  },
+  "dashboard": {
+    "period": "Period",
+    "ranges": { "r7": "Last 7 days", "r30": "Last 30 days", "rmonth": "This month", "rall": "All time", "rcustom": "Custom period" },
+    "from": "From",
+    "to": "To",
+    "allChannels": "All Channels",
+    "campaign": "Campaign",
+    "allCampaigns": "All campaigns",
+    "kpi": {
+      "leads": "Total leads",
+      "inPeriod": "In this period",
+      "rate": "{rate}% qualification rate",
+      "spent": "Campaign spend",
+      "campaigns": "{count, plural, one {# campaign} other {# campaigns}}",
+      "costPerQualified": "Cost per Qualified",
+      "perLead": "per lead"
+    },
+    "tree": { "title": "Channels → Campaigns", "sub": "Each channel's total, with its campaigns under it" },
+    "leads": "{count, plural, one {# lead} other {# leads}}",
+    "rateCost": "{rate}% · {cost}/lead",
+    "noCampaign": "No campaign",
+    "empty": "No leads in this period",
+    "byChannel": "Leads by channel",
+    "lead": "leads",
+    "posts": "Posts that brought leads",
+    "noPosts": "No leads linked to a post in this period",
+    "note": "Qualified = as soon as a lead reaches Interested or any later stage it's counted here automatically, and it stays counted even if it goes back to Not Interested or No Answer."
+  },
+  "deals": {
+    "notImage": "It must be an image",
+    "uploaded": "Logo uploaded to the deal",
+    "uploading": "Uploading…",
+    "upload": "Upload Logo",
+    "note": "Done Deals show here after the Office Manager approves them. You may see only the location, space, company name, type and the Buyer's name, and you can attach a Logo to each deal.",
+    "head": { "buyer": "Buyer", "company": "Company", "space": "Space" },
+    "empty": "No deals yet",
+    "space": "{space} m²"
+  },
+  "newUnits": {
+    "gone": "{code} removed from the marketing board",
+    "back": "{code} is back on the board",
+    "note": "Live Alerts: every new unit added to the Inventory shows here right away so you can prepare its material. When the ad is done press Done and it disappears; if pressed by mistake, there's Undo.",
+    "new": "New",
+    "meta": "{area} · {space} m² · {type}",
+    "pdfDraft": " · the PDF is waiting for Manar's confirmation",
+    "done": "Ad finished · Done",
+    "empty": "No new units waiting for campaigns"
+  }
+}

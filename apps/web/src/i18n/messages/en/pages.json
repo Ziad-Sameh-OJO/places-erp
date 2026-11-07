@@ -1,0 +1,71 @@
+{
+  "loading": "Loading…",
+  "home": {
+    "todayTitle": "My tasks today",
+    "todaySub": "Sorted: late first",
+    "late": "{count} late",
+    "onTime": "All on time",
+    "latestNotifications": "Latest notifications",
+    "morning": "Good morning, {name}",
+    "evening": "Good evening, {name}",
+    "waiting": "You have <b>{total}</b> {total, plural, one {thing} other {things}} needing action today",
+    "waitingLate": ", <b>{urgent}</b> of them late",
+    "nothing": "Nothing is waiting for you right now.",
+    "newLead": "New Lead",
+    "statToday": "Today's tasks",
+    "statLate": "Late",
+    "statUnread": "New notifications"
+  },
+  "profile": {
+    "emailOn": "You'll also get them by email",
+    "emailOff": "In the system only (important ones still go by email)",
+    "emailToggle": "Also send my notifications by email",
+    "passwordTitle": "Change password",
+    "passwordSub": "You'll be signed out of all other devices",
+    "mismatch": "The passwords don't match",
+    "changed": "Password changed",
+    "current": "Current password",
+    "next": "New password",
+    "next2": "Confirm new password",
+    "hint": "At least 10 characters, with letters and numbers.",
+    "change": "Change password"
+  },
+  "access": {
+    "roles": "Roles & permissions",
+    "users": "Users",
+    "audit": "Audit Log"
+  },
+  "procurement": {
+    "budgetNote": "Remaining in a line = the line's Budget − what was spent on it. Example: Budget 100,000 and 65,000 spent leaves 35,000. Every approved expense is charged to its line in Finance's chart of accounts."
+  },
+  "devFiles": {
+    "image": "Upload an image",
+    "imageSub": "jpg / png / webp up to 10 MB",
+    "pdf": "Upload a PDF",
+    "pdfSub": "Up to 20 MB",
+    "stored": "From storage",
+    "storedSub": "Short-lived download link from the API",
+    "empty": "Upload something first"
+  },
+  "devUi": {
+    "item1": "Lead · Test company",
+    "item2": "Shoot unit U-101",
+    "laneTodo": "New",
+    "laneDoing": "In progress",
+    "laneDone": "Done",
+    "kpiLeads": "Leads today",
+    "kpiLeadsSub": "From all Channels",
+    "kpiCollected": "Collected this month",
+    "kpiSla": "Late on SLA",
+    "cardClicked": "You clicked the card",
+    "kanban": "Kanban (drag a card to another lane)",
+    "openDrawer": "Open the drawer",
+    "drawerName": "Ahmed Mahmoud",
+    "drawerSub": "L-1042 · Lead",
+    "prev": "Previous",
+    "next": "Next",
+    "ok": "Done",
+    "drawerBody": "Drawer content. On phones it opens as a bottom sheet.",
+    "fab": "New button (shown on phones only)"
+  }
+}

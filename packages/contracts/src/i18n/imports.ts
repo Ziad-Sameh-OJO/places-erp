@@ -1,0 +1,38 @@
+import type { Pair } from "./translate.ts";
+
+/** English for the Arabic text the server sends in this area (see translate.ts for the {placeholder} form). */
+export default [
+  // imports.controller.ts — template column headers (shown back in the import errors' «column»)
+  ["المساحة", "Area (m²)"],
+  ["التشطيب", "Finishing"],
+  ["الدور", "Floor"],
+  ["رقم المبنى", "Building no."],
+  ["الاسم", "Name"],
+  ["الرقم", "Number"],
+  ["السعر للمتر", "Price per m²"],
+  ["سعر الإيجار للمتر (Income)", "Rent per m² (Income)"],
+  ["الـ Agent", "Agent"],
+  ["الصيانة", "Maintenance"],
+  ["الـ Commission", "Commission"],
+  ["طريقة الدفع", "Payment method"],
+  ["الموبايل", "Mobile"],
+  ["الشركة", "Company"],
+  ["البادجت", "Budget"],
+  ["التاريخ", "Date"],
+  ["ملاحظة", "Note"],
+  ["اسم الشركة", "Company name"],
+  ["الكاتيجوري", "Category"],
+  ["اسم المسؤول", "Contact person"],
+  ["الوظيفة", "Job title"],
+  ["الإيميل", "Email"],
+  ["المكان الحالي", "Current location"],
+  ["المساحة الحالية", "Current area"],
+  ["بداية العقد", "Contract start"],
+  ["نهاية العقد", "Contract end"],
+  ["متوسط الإيجار", "Average rent"],
+  ["الزيادة السنوية %", "Annual increase %"],
+  ["الفيدباك", "Feedback"],
+  ["قالب الوحدات.xlsx", "Units template.xlsx"],
+  ["قالب الليدز القديمة.xlsx", "Old Leads template.xlsx"],
+  ["قالب الشركات.xlsx", "Companies template.xlsx"],
+] satisfies Pair[];

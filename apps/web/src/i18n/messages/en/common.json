@@ -1,0 +1,19 @@
+{
+  "shell": {
+    "mainMenu": "Main menu",
+    "sections": "Sections",
+    "myAccount": "My account",
+    "myAccountSub": "Your password and notifications",
+    "signOut": "Sign out",
+    "openMenu": "Open the menu",
+    "youAreHere": "You are here",
+    "notifications": "Notifications",
+    "notificationsUnread": "Notifications ({count} new)",
+    "quickNav": "Quick navigation",
+    "more": "More"
+  },
+  "language": {
+    "switchTo": "عربي",
+    "label": "Change language"
+  }
+}

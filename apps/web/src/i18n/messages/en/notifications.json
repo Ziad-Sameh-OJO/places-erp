@@ -1,0 +1,45 @@
+{
+  "latest": {
+    "empty": "No notifications"
+  },
+  "mailLog": {
+    "title": "Email log",
+    "sub": "When it was sent and when it was read · failed emails alert the Super Admin",
+    "all": "All",
+    "head": { "time": "Time", "to": "To", "subject": "Subject", "status": "Status", "note": "Note" },
+    "empty": "No emails",
+    "readAt": "Read {at}",
+    "lastOf": "Last {shown} of {total}"
+  },
+  "push": {
+    "denied": "The browser blocked notifications · allow them in the site settings",
+    "turnedOn": "Notifications turned on for this device",
+    "turnedOff": "Notifications turned off for this device",
+    "testFailed": "The notification didn't arrive · try turning it off and on again",
+    "testSent": "Sent · it will show on the device in a few seconds",
+    "title": "Mobile notifications (Push)",
+    "sub": "Notifications reach your phone or computer even when the system is closed",
+    "unsupported": "This browser doesn't support notifications · on iPhone, add the system to the Home Screen first (Add to Home Screen).",
+    "offServer": "Push isn't enabled on the server yet.",
+    "blocked": "Notifications are blocked for this site in the browser settings · allow them and come back here.",
+    "turnOn": "Turn on notifications for this device",
+    "test": "Send a test notification",
+    "turnOff": "Turn off for this device"
+  },
+  "rules": {
+    "channels": { "app": "In the system", "push": "Push", "email": "Email" },
+    "saved": "Saved",
+    "save": "Save",
+    "from": { "title": "Sending email", "sub": "The address every notification is sent from", "label": "From" },
+    "prefs": {
+      "title": "My preferences",
+      "sub": "From the «My account» page",
+      "note": "Important notifications (Alarm / lead pulled / 5th Excuse) always go by email too, and stay until they're read."
+    },
+    "title": "Notification rules",
+    "sub": "Who each event goes to: in the system and/or Push and/or email",
+    "head": { "event": "Event", "to": "To" },
+    "important": " · Important",
+    "pushNote": "Push reaches every phone or computer whose owner turned on notifications from «My account»."
+  }
+}

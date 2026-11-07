@@ -1,8 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import { FILE_KINDS, UploadRequest, type FileKind, type StoredFile, type UploadTicket } from "@places/contracts";
+import { createTranslator, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { messages } from "@/i18n/messages";
+import { currentLocale } from "@/lib/locale";
+import { serverText } from "@/lib/server-text";
 import { Icon, useToast } from "@/components/ui";
+
+/** `put` is a plain function (no hooks): its error texts come from the messages in the page's language. */
+const tUpload = () => createTranslator({ locale: currentLocale(), messages: messages[currentLocale()], namespace: "ui.upload" });
 
 /** PUT straight to storage with progress (fetch has no upload progress, XHR does). */
 export function put(t: UploadTicket, file: Blob, onProgress: (pct: number) => void) {
@@ -11,8 +18,8 @@ export function put(t: UploadTicket, file: Blob, onProgress: (pct: number) => vo
     xhr.open("PUT", t.url);
     for (const [k, v] of Object.entries(t.headers)) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100));
-    xhr.onload = () => (xhr.status < 300 ? ok() : fail(new Error("الرفع فشل · جرّب تاني")));
-    xhr.onerror = () => fail(new Error("مفيش اتصال بمكان التخزين"));
+    xhr.onload = () => (xhr.status < 300 ? ok() : fail(new Error(tUpload()("failedRetry"))));
+    xhr.onerror = () => fail(new Error(tUpload()("noStorage")));
     xhr.send(file);
   });
 }
@@ -23,6 +30,7 @@ export function put(t: UploadTicket, file: Blob, onProgress: (pct: number) => vo
  */
 export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?: string; onUploaded?: (f: StoredFile) => void }) {
   const toast = useToast();
+  const t = useTranslations("ui.upload");
   const [preview, setPreview] = useState<string | null>(null);
   const [pct, setPct] = useState<number | null>(null);
   const [done, setDone] = useState<StoredFile | null>(null);
@@ -33,7 +41,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
     const req = { name: file.name, mime: file.type, size: file.size };
     const check = UploadRequest.safeParse(req);
     if (!check.success || !(FILE_KINDS[kind].mimes as readonly string[]).includes(file.type)) {
-      return toast(check.success ? `لازم ${FILE_KINDS[kind].label === "الصورة" ? "صورة" : "PDF"}` : check.error.issues[0]!.message, "bad");
+      return toast(check.success ? t(kind === "image" ? "needImage" : "needPdf") : check.error.issues[0]!.message, "bad");
     }
     setDone(null);
     setPreview(kind === "image" ? URL.createObjectURL(file) : null);
@@ -45,7 +53,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
       setDone(f);
       onUploaded?.(f);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "الرفع فشل", "bad");
+      toast(e instanceof Error ? e.message : t("failed"), "bad");
     } finally {
       setPct(null);
     }
@@ -54,13 +62,13 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
   return (
     <div className="upload">
       <label className="btn ghost">
-        <Icon name={kind === "image" ? "camera" : "file"} />{label ?? (kind === "image" ? "ارفع صورة" : "ارفع PDF")}
+        <Icon name={kind === "image" ? "camera" : "file"} />{label ?? (kind === "image" ? t("image") : t("pdf"))}
         <input type="file" hidden accept={FILE_KINDS[kind].mimes.join(",")} disabled={pct !== null} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
       </label>
-      <span className="hint">لحد {FILE_KINDS[kind].max}</span>
+      <span className="hint">{t("max", { max: serverText(FILE_KINDS[kind].max) })}</span>
       {preview && <img src={preview} alt="" style={{ display: "block", maxWidth: 220, maxHeight: 160, borderRadius: 10, marginTop: 10, objectFit: "cover" }} />}
-      {pct !== null && <div className="bar" role="progressbar" aria-valuenow={pct} aria-label="الرفع" style={{ marginTop: 10 }}><i style={{ width: `${pct}%` }} /></div>}
-      {done && <p className="hint"><Icon name="check" /> اترفع · {done.name}</p>}
+      {pct !== null && <div className="bar" role="progressbar" aria-valuenow={pct} aria-label={t("progress")} style={{ marginTop: 10 }}><i style={{ width: `${pct}%` }} /></div>}
+      {done && <p className="hint"><Icon name="check" /> {t("done", { name: done.name })}</p>}
     </div>
   );
 }

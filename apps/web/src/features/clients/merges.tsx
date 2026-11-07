@@ -1,9 +1,11 @@
 "use client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { ClientFile } from "@places/contracts";
 import { Card, Chip, Icon, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
+import { serverText } from "@/lib/server-text";
 import { KindChips } from "./client-bits";
 import { useMerges } from "./use-clients";
 
@@ -13,6 +15,7 @@ import { useMerges } from "./use-clients";
  */
 export function MergeQueue() {
   const { can } = useMe();
+  const t = useTranslations("clients.merges");
   const merges = useMerges(can("clients", "approve"));
   const run = useAction();
   const qc = useQueryClient();
@@ -21,17 +24,17 @@ export function MergeQueue() {
   const decide = (id: string, decision: "approve" | "reject") => run(async () => {
     await api.post(`/clients/merges/${id}`, { decision });
     await qc.invalidateQueries({ queryKey: ["clients"] });
-  }, decision === "approve" ? "الملفين اتدمجوا" : "اترفض");
+  }, decision === "approve" ? t("merged") : t("rejected"));
   return (
-    <Card className="attn" title="طلبات دمج مستنية الأوبريشن" icon="alert" extra={<Chip tone="warn">{items.length}</Chip>}>
+    <Card className="attn" title={t("title")} icon="alert" extra={<Chip tone="warn">{items.length}</Chip>}>
       {items.map((m) => (
         <div className="line-item" key={m.id}>
           <span><Icon name="users" /><span>
-            <b>{m.drop.name}</b> <KindChips kind={m.drop.kind} /> ← يتدمج في <b>{m.keep.name}</b> <KindChips kind={m.keep.kind} />
-            <small className="hint"> · {m.reason}{m.by ? ` · اقترحه ${m.by}` : " · السيستم"}</small>
+            <b>{m.drop.name}</b> <KindChips kind={m.drop.kind} /> {t("into")} <b>{m.keep.name}</b> <KindChips kind={m.keep.kind} />
+            <small className="hint"> · {serverText(m.reason)}{m.by ? t("by", { name: m.by }) : t("system")}</small>
           </span></span>
-          <button className="btn sm" onClick={() => void decide(m.id, "approve")}>ادمج</button>
-          <button className="btn ghost sm" onClick={() => void decide(m.id, "reject")}>ارفض</button>
+          <button className="btn sm" onClick={() => void decide(m.id, "approve")}>{t("merge")}</button>
+          <button className="btn ghost sm" onClick={() => void decide(m.id, "reject")}>{t("reject")}</button>
         </div>
       ))}
     </Card>
@@ -43,18 +46,19 @@ export function SuggestMergeForm({ file }: { file: ClientFile }) {
   const { can } = useMe();
   const run = useAction();
   const qc = useQueryClient();
+  const t = useTranslations("clients.suggest");
   if (!can("clients", "edit")) return null;
   const save = onFormSubmit((d) => run(async () => {
     await api.post(`/clients/${file.id}/merges`, { phone: d.get("phone") });
     await qc.invalidateQueries({ queryKey: ["clients", "merges"] });
     (document.getElementById("cl-merge") as HTMLInputElement | null)?.form?.reset();
-  }, "اتبعت للأوبريشن تقرر"));
+  }, t("sent")));
   return (
     <form className="card flat" onSubmit={save}>
-      <div className="card-head"><h3><span className="ico"><Icon name="users" /></span><span>ادمج بالموبايل<small>نفس الشخص في ملف تاني · الأوبريشن بتوافق</small></span></h3></div>
+      <div className="card-head"><h3><span className="ico"><Icon name="users" /></span><span>{t("title")}<small>{t("sub")}</small></span></h3></div>
       <div className="row">
-        <input name="phone" id="cl-merge" required inputMode="tel" placeholder="رقم الملف التاني" aria-label="رقم الملف التاني" maxLength={20} />
-        <button className="btn ghost">اقترح دمج</button>
+        <input name="phone" id="cl-merge" required inputMode="tel" placeholder={t("phone")} aria-label={t("phone")} maxLength={20} />
+        <button className="btn ghost">{t("send")}</button>
       </div>
     </form>
   );

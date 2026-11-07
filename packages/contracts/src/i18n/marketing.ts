@@ -1,0 +1,41 @@
+import type { Pair } from "./translate.ts";
+
+/** English for the Arabic text the server sends in this area (see translate.ts for the {placeholder} form). */
+export default [
+  // broadcasts.service.ts
+  ["الـ Broadcast ده مش موجود", "This Broadcast doesn't exist"],
+  ["فيه وحدة في الـ Hot Inventory مش متاحة للسيلز", "A unit in the Hot Inventory isn't available to sales"],
+  ["الـ Broadcast ده اتوافق عليه قبل كده", "This Broadcast was already approved"],
+  ["الـ Broadcast مهمة للسيلز", "The Broadcast is a task for sales"],
+  ["إنت دوست Done على الـ Broadcast ده قبل كده", "You already pressed Done on this Broadcast"],
+  ["رسالة Broadcast جديدة من التسويق · ابعتها لعملائك ودوس Done", "New Broadcast message from marketing · send it to your clients and press Done"],
+  // campaigns.service.ts
+  ["الكامبين دي مش موجودة", "This campaign doesn't exist"],
+  ["اختار الـ Channel من القايمة", "Pick the Channel from the list"],
+  // posts.service.ts
+  ["البوست ده مش موجود", "This post doesn't exist"],
+  ["البوست ده اتوافق عليه قبل كده", "This post was already approved"],
+  ["البوست ده اتسجّل إنه اتنشر", "This post is already marked as published"],
+  ["البوست لسه مستني موافقة مدير التسويق", "The post is still waiting for the marketing manager's approval"],
+  // tasks.service.ts — the full status lines first: the first template that matches wins
+  ["المهمة دي مش موجودة أو مش من حقك تشوفها", "This task doesn't exist or you aren't allowed to see it"],
+  ["المهمة اتغيّرت دلوقتي · افتحها تاني", "The task just changed · open it again"],
+  ["مش من حقك تدّي مهمة {label}", "You aren't allowed to assign a {label} task"],
+  ["اختار الوحدة", "Pick the unit"],
+  ["الوحدة مش موجودة", "The unit doesn't exist"],
+  ["اختار المهمة من «أنواع تاسكات التسويق»", "Pick the task from «Marketing task types»"],
+  ["مهمة {label} جديدة: {title} من {name}", "New {label} task: {title} from {name}"],
+  ["{name}: مهمة {task} رجّعها للمهام (Undo)", "{name}: {task} task moved back to tasks (Undo)"],
+  ["{name}: مهمة {task} رجّعها للتعديل", "{name}: {task} task sent back for changes"],
+  ["{name}: مهمة {task} بقت {status}", "{name}: {task} task is now {status}"],
+  ["رجّعها للمهام (Undo)", "moved it back to tasks (Undo)"],
+  ["رجّعها للتعديل", "sent it back for changes"],
+  ["{name} رفع صور الـ Retouch لـ {unit} · محتاجة موافقتك", "{name} uploaded the Retouch photos for {unit} · needs your approval"],
+  ["الـ Retouch لـ {unit} اتوافق عليه", "The Retouch for {unit} was approved"],
+  ["{name} خلّص تصوير {unit}", "{name} finished shooting {unit}"],
+  ["اللي إدّى المهمة أو مدير القسم بس اللي يعدّلها", "Only the one who assigned the task or the department manager can edit it"],
+  ["المهمة خلصت · Undo الأول", "The task is done · Undo first"],
+  ["مهمة {task} اتحوّلت ليك من {name}", "Task {task} was handed to you by {name}"],
+  ["{name} عدّل مهمة {task}", "{name} edited task {task}"],
+  ["المسؤول ده مينفعش ياخد المهمة دي", "This person can't take this task"],
+] satisfies Pair[];

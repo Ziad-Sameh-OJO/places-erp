@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
-import { inboxOrder, keepsCompaniesSheet, keepsInventory, type ModuleKey } from "@places/domain";
+import { inboxOrder, keepsCompaniesSheet, keepsInventory } from "@places/domain";
 import { useMe } from "@/lib/me";
-import { NAV } from "@/lib/nav";
+import { NAV, type NavKey } from "@/lib/nav";
+import { useTranslations } from "next-intl";
 import { Card, Chip, Icon } from "@/components/ui";
+import { dateLocale } from "@/lib/format";
 import { MyHandIns } from "@/features/reports/daily";
 import { ActivitiesCard } from "@/features/kpis/activities-card";
 import { HandoversCard } from "@/features/access/handovers";
@@ -21,16 +23,18 @@ import { useCollectLines } from "@/features/finance/today";
  */
 export default function HomePage() {
   const { me, can } = useMe();
+  const tNav = useTranslations("nav");
+  const t = useTranslations("pages");
   const leads = useLeadToday(!!me && can("leads"));
   const bulks = useBulkLines(!!me && can("leads", "approve"));
   const companies = useNewCompanyLines(keepsCompaniesSheet(me?.roles ?? []));
   const missingUnits = useMissingUnitLines(!!me && keepsInventory({ can })); // 2.20 · the API keeps Manar's and Randa's apart
   const collect = useCollectLines(!!me && can("finance", "create")); // M-02 · the accountant's «حصّل عمولة»
   const unread = useMyNotifications().data?.unread ?? 0;
-  if (!me) return <p className="hint">بيحمّل…</p>;
+  if (!me) return <p className="hint">{t("loading")}</p>;
   const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
-  const pages = (Object.keys(NAV) as ModuleKey[]).filter((k) => k !== "home" && can(k));
+  const pages = (Object.keys(NAV) as NavKey[]).filter((k) => k !== "home" && can(k));
 
   return (
     <>
@@ -41,15 +45,15 @@ export default function HomePage() {
       <ActivitiesCard />
       <MyTeamTasks />
       <div className="cols wide">
-        <Card title="مهامي النهارده" icon="check" sub="مترتبة: المتأخر الأول" extra={<Chip tone={urgent ? "bad" : "ok"}>{urgent ? `${urgent} متأخر` : "كله في الميعاد"}</Chip>}>
-          {leads.isLoading ? <p className="hint">بيحمّل…</p> : <Inbox lines={lines} />}
+        <Card title={t("home.todayTitle")} icon="check" sub={t("home.todaySub")} extra={<Chip tone={urgent ? "bad" : "ok"}>{urgent ? t("home.late", { count: urgent }) : t("home.onTime")}</Chip>}>
+          {leads.isLoading ? <p className="hint">{t("loading")}</p> : <Inbox lines={lines} />}
         </Card>
-        <Card title="آخر الإشعارات" icon="bell"><LatestNotifications /></Card>
+        <Card title={t("home.latestNotifications")} icon="bell"><LatestNotifications /></Card>
       </div>
       {!can("leads") && pages.length > 0 && <div className="cols">
         {pages.map((k) => (
           <Link key={k} href={`/${k}`} className="card kpi-btn" style={{ textDecoration: "none", color: "inherit" }}>
-            <div className="card-head"><h3><span className="ico"><Icon name={NAV[k]!.icon} /></span><span>{NAV[k]!.label}<small>{NAV[k]!.sub}</small></span></h3></div>
+            <div className="card-head"><h3><span className="ico"><Icon name={NAV[k].icon} /></span><span>{tNav(`modules.${k}.label`)}<small>{tNav(`modules.${k}.sub`)}</small></span></h3></div>
           </Link>
         ))}
       </div>}
@@ -59,21 +63,22 @@ export default function HomePage() {
 
 /** The demo's hero: the date, the greeting, how many things wait (and how many are late), the new notifications. */
 function Hero({ name, total, urgent, unread, canCreateLead }: { name: string; total: number; urgent: number; unread: number; canCreateLead: boolean }) {
+  const t = useTranslations("pages.home");
   const now = new Date();
   const hour = Number(now.toLocaleString("en-US", { timeZone: "Africa/Cairo", hour: "numeric", hourCycle: "h23" }));
-  const date = now.toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", weekday: "long", day: "numeric", month: "long" });
+  const date = now.toLocaleDateString(dateLocale(), { timeZone: "Africa/Cairo", weekday: "long", day: "numeric", month: "long" });
   return (
     <section className="hero">
       <div className="hero-txt">
         <span className="eyebrow">{date}</span>
-        <h2>{hour < 12 ? "صباح الخير" : "مساء الخير"}، {name.split(" ")[0]}</h2>
-        <p>{total ? <>عندك <b>{total}</b> حاجة محتاجة أكشن النهارده{urgent ? <>، منهم <b>{urgent}</b> متأخرين</> : null}.</> : "مفيش حاجة مستنياك دلوقتي."}</p>
-        {canCreateLead && <div className="hero-actions"><Link className="btn" href="/leads?new=1"><Icon name="plus" />ليد جديد</Link></div>}
+        <h2>{t(hour < 12 ? "morning" : "evening", { name: name.split(" ")[0] ?? "" })}</h2>
+        <p>{total ? <>{t.rich("waiting", { total, b: (c) => <b>{c}</b> })}{urgent ? t.rich("waitingLate", { urgent, b: (c) => <b>{c}</b> }) : null}.</> : t("nothing")}</p>
+        {canCreateLead && <div className="hero-actions"><Link className="btn" href="/leads?new=1"><Icon name="plus" />{t("newLead")}</Link></div>}
       </div>
       <div className="hero-stats">
-        <div><b className="num">{total}</b><span>مهام النهارده</span></div>
-        <div><b className="num">{urgent}</b><span>متأخر</span></div>
-        <div><b className="num">{unread}</b><span>إشعار جديد</span></div>
+        <div><b className="num">{total}</b><span>{t("statToday")}</span></div>
+        <div><b className="num">{urgent}</b><span>{t("statLate")}</span></div>
+        <div><b className="num">{unread}</b><span>{t("statUnread")}</span></div>
       </div>
     </section>
   );

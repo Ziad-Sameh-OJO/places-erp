@@ -22,10 +22,9 @@ export const useRefreshProcurement = () => {
   return () => qc.invalidateQueries({ queryKey: ["procurement"] });
 };
 
-/** demo LV / SL: the chip tone and label of each status. */
-export const STATUS: Record<PurchaseStatusKey, ["ok" | "warn" | "bad" | "info", string]> = {
-  Pending: ["warn", "Pending"], Approved: ["info", "Approved"], Rejected: ["bad", "Rejected"],
-  Settled: ["warn", "اتسوّى · مستني المالية"], Posted: ["ok", "اترحّل في المالية"],
+/** demo LV / SL: the chip tone of each status; its label is `procurement.status.<status>` in the messages. */
+export const STATUS: Record<PurchaseStatusKey, "ok" | "warn" | "bad" | "info"> = {
+  Pending: "warn", Approved: "info", Rejected: "bad", Settled: "warn", Posted: "ok",
 };
 
 /** Opens an attachment through the request's own access check (a 5-minute link). */

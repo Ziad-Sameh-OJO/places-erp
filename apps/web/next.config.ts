@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const config: NextConfig = {
   transpilePackages: ["@places/domain", "@places/contracts", "@places/ui"],
@@ -15,4 +16,5 @@ const config: NextConfig = {
     ] }];
   },
 };
-export default config;
+// the language of each request: src/i18n/request.ts
+export default createNextIntlPlugin("./src/i18n/request.ts")(config);

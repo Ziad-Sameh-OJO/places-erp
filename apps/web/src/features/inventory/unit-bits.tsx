@@ -1,15 +1,23 @@
 "use client";
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import type { UnitDetail, UnitRow } from "@places/contracts";
 import { Avatar, Chip, Icon } from "@/components/ui";
 import { amount, day, moneyExact, num } from "@/lib/format";
+import type inventory from "@/i18n/messages/ar/inventory.json";
 import { UnitFolder } from "./unit-photos";
+import { serverText } from "@/lib/server-text";
 
 export type UnitTypeName = UnitRow["type"];
 export const TYPE_TONE: Record<UnitTypeName, "info" | "acc" | "ok" | "warn"> = { Rent: "info", Resale: "acc", Income: "ok", Primary: "warn" };
 export const TypeChip = ({ type }: { type: UnitTypeName }) => <Chip tone={TYPE_TONE[type]}>{type}</Chip>;
 
-type Col = readonly [key: string, label: string];
+/** The inventory namespace's translator, for the helpers here that build a sheet's words. */
+export type InventoryT = ReturnType<typeof useTranslations<"inventory">>;
+/** A column named in the client's own English stays a literal; one the client named in Arabic is a key in inventory.cols. */
+export type ColWord = keyof typeof inventory.cols;
+type Col = readonly [key: string, label: string | { w: ColWord }];
+export const w = (k: ColWord) => ({ w: k });
 const RENT: readonly Col[] = [
   ["project", "Project"], ["code", "Code"], ["photos", "Pic & Info"], ["space", "Area"], ["condition", "Conditions"], ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"],
   ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["building", "Building Number"], ["parking", "Parking Slots"], ["location", "Location"],
@@ -22,30 +30,32 @@ const RENT: readonly Col[] = [
 export const COLS: Record<UnitTypeName | "all" | "closed", readonly Col[]> = {
   // 2.21 · the client's Rent sheet (Book7) column for column, then the system's own columns
   Rent: RENT,
-  Resale: [["project", "اسم المبنى"], ["code", "الكود"], ["ownerName", "اسم الأونر"], ["ownerPhone", "الرقم"], ["space", "المساحة"], ["floor", "الدور"], ["condition", "التشطيب"], ["pricePerSqm", "السعر للمتر"], ["total", "إجمالي السعر"], ["paymentMethod", "طريقة الدفع"], ["agent", "Agent"], ["maintenance", "صيانة"], ["building", "رقم المبنى"], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
-  Income: [["project", "اسم المبنى"], ["code", "الكود"], ["ownerName", "الاسم"], ["ownerPhone", "الرقم"], ["link", "اللينك"], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
+  Resale: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("ownerName")], ["ownerPhone", w("number")], ["space", w("space")], ["floor", w("floor")], ["condition", w("finishing")], ["pricePerSqm", w("pricePerSqm")], ["total", w("totalPrice")], ["paymentMethod", w("paymentMethod")], ["agent", "Agent"], ["maintenance", w("maintenance")], ["building", w("buildingNumber")], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
+  Income: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("name")], ["ownerPhone", w("number")], ["link", w("link")], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
   // Primary's own columns weren't sent yet: it shows the common ones
   Primary: [["code", "Code"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["condition", "Condition"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["floor", "Floor"], ["building", "Build num"], ["parking", "Parking"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
   // the rented / sold sheet (M-03 5.2): which side closed, when and by which deal
-  closed: [["code", "Code"], ["closedAs", "اتقفلت"], ["closedAt", "التاريخ"], ["deal", "Done Deal"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["total", "Total"], ["agent", "Agent"], ["stillOpen", "لسه متاحة"]],
+  closed: [["code", "Code"], ["closedAs", w("closedAs")], ["closedAt", w("date")], ["deal", "Done Deal"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["total", "Total"], ["agent", "Agent"], ["stillOpen", w("stillOpen")]],
   all: [RENT[0]!, RENT[1]!, ["type", "Type"], ...RENT.slice(2)],
 };
 const OWNER_KEYS = new Set(["ownerName", "ownerPhone", "deal"]);
 
 /** The columns this person sees: the owners' name and number only for the people who keep the inventory (API too). */
-export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boolean) => COLS[type].filter(([k]) => insider || !OWNER_KEYS.has(k));
+export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boolean, t: InventoryT): [key: string, label: string][] =>
+  COLS[type].filter(([k]) => insider || !OWNER_KEYS.has(k)).map(([k, l]) => [k, typeof l === "string" ? l : t(`cols.${l.w}`)]);
 
 // English values sit in <bdi> so «1,5 Month» keeps its order in the RTL table
 const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : <bdi>{String(v)}</bdi>);
 const yesNo = (v: boolean) => <Chip tone={v ? "ok" : ""}>{v ? "Yes" : "No"}</Chip>;
 
 /** One cell, as the demo's cell(): money grouped, late updates in red, the map link, Income's figures. */
-export function cell(u: UnitRow, key: string): ReactNode {
+export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
   const d = u.details;
   switch (key) {
-    case "code": return <><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <> <Chip tone="warn">PDF draft</Chip></>}{u.missing.length > 0 && <> <Chip tone="bad">ناقص {u.missing.length}</Chip></>}</>;
+    case "code": return <><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <> <Chip tone="warn">PDF draft</Chip></>}{u.missing.length > 0 && <> <Chip tone="bad">{t("cell.missing", { count: u.missing.length })}</Chip></>}</>;
     case "type": return <TypeChip type={u.type} />;
     case "space": return !u.space ? "—" : <bdi className="num">{u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)}` : num(u.space)}</bdi>;
+    case "area": case "condition": return u[key] ? serverText(u[key]) : "—"; // list values: the default ones have English names
     case "layout": return yesNo(u.layout);
     case "pic": return yesNo(u.photoCount > 0);
     case "resale": return yesNo(u.type === "Resale" || u.alsoType === "Resale");
@@ -57,10 +67,10 @@ export function cell(u: UnitRow, key: string): ReactNode {
     case "yield": return u.income?.yieldPct != null ? <b className="num">{u.income.yieldPct.toFixed(1)}%</b> : "—";
     case "parking": return <span className="num">{num(u.parking)}</span>;
     case "agent": return u.agent ? <span className="who"><Avatar id={u.agent.id} name={u.agent.name} sm /><span>{u.agent.name}</span></span> : "—";
-    case "lastUpdate": return u.stale ? <Chip tone="bad">متأخر · {day(u.lastOwnerUpdateAt)}</Chip> : day(u.lastOwnerUpdateAt);
-    case "divisible": return u.divisible ? <Chip tone="info">{u.minSplit ? `اه · من ${num(u.minSplit)} م` : "اه"}</Chip> : "—";
+    case "lastUpdate": return u.stale ? <Chip tone="bad">{t("cell.late", { day: day(u.lastOwnerUpdateAt) })}</Chip> : day(u.lastOwnerUpdateAt);
+    case "divisible": return u.divisible ? <Chip tone="info">{u.minSplit ? t("cell.yesFrom", { min: num(u.minSplit) }) : t("cell.yes")}</Chip> : "—";
     case "location": return u.location
-      ? <a className="lnk" href={`https://maps.google.com/?q=${encodeURIComponent(u.location)}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><Icon name="pin" />خريطة</a>
+      ? <a className="lnk" href={`https://maps.google.com/?q=${encodeURIComponent(u.location)}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><Icon name="pin" />{t("cell.map")}</a>
       : "—";
     case "delivery": return typeof d.delivery === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.delivery) ? day(d.delivery) : text(d.delivery);
     case "contract": return text(d.contractDuration);
@@ -69,7 +79,7 @@ export function cell(u: UnitRow, key: string): ReactNode {
     case "escalation": return d.escalationPct != null ? <span className="num">{d.escalationPct}%</span> : "—";
     case "serviceUsd": return d.serviceChargeUsd != null ? <span className="num">{amount(String(d.serviceChargeUsd))}</span> : "—";
     case "link": case "tenant": case "note": return text(d[key]);
-    case "photos": return <UnitFolder u={u} label={<><Icon name="folder" />{u.photoCount ? `${num(u.photoCount)} ملف` : "فاضي"}</>} />; // 2.22: opens the folder
+    case "photos": return <UnitFolder u={u} label={<><Icon name="folder" />{u.photoCount ? t("cell.files", { count: u.photoCount }) : t("cell.empty")}</>} />; // 2.22: opens the folder
     case "ownerPhone": return u.ownerPhone ? <span className="mono">{u.ownerPhone}</span> : "—";
     case "closedAs": return closedSides(u).map((c) => <Chip key={c.type} tone="bad">{c.type} · {c.status === "sold" ? "Sold" : "Rented"}</Chip>);
     case "closedAt": return u.closings.length ? day(u.closings.at(-1)!.at) : "—";
@@ -91,17 +101,18 @@ function closedSides(u: UnitRow): { type: UnitTypeName; status: "rented" | "sold
 
 /** The demo's chips on a unit: type, open / closed, PDF, second type, divisible, late update. */
 export function UnitChips({ u }: { u: UnitRow & Partial<Pick<UnitDetail, "locks">> }) {
+  const t = useTranslations("inventory.chips");
   return (
     <>
       <TypeChip type={u.type} />
-      {u.status !== "available" ? <Chip tone="bad">{u.status === "sold" ? "Sold" : "Rented"}</Chip> : <Chip tone="ok">متاحة</Chip>}
-      {u.pdfStatus === "draft" ? <Chip tone="warn">PDF مستني Confirm</Chip> : <Chip tone="ok">PDF منشور للسيلز</Chip>}
-      {u.locks?.some((l) => l.status === "pending") && <Chip tone="warn">مستنية تأكيد القفل</Chip>}
+      {u.status !== "available" ? <Chip tone="bad">{u.status === "sold" ? "Sold" : "Rented"}</Chip> : <Chip tone="ok">{t("available")}</Chip>}
+      {u.pdfStatus === "draft" ? <Chip tone="warn">{t("pdfDraft")}</Chip> : <Chip tone="ok">{t("pdfPublished")}</Chip>}
+      {u.locks?.some((l) => l.status === "pending") && <Chip tone="warn">{t("lockPending")}</Chip>}
       {u.alsoType && (u.alsoStatus && u.alsoStatus !== "available"
-        ? <Chip tone="bad">{u.alsoType} اتقفلت</Chip>
-        : <Chip tone="acc">متاحة كمان {u.alsoType}</Chip>)}
-      {u.divisible && <Chip tone="info">{u.minSplit ? `تتقسم · من ${num(u.minSplit)} م` : "تتقسم"}</Chip>}
-      {u.stale && <Chip tone="bad">محتاجة ابديت</Chip>}
+        ? <Chip tone="bad">{t("alsoClosed", { type: u.alsoType })}</Chip>
+        : <Chip tone="acc">{t("alsoAvailable", { type: u.alsoType })}</Chip>)}
+      {u.divisible && <Chip tone="info">{u.minSplit ? t("divisibleFrom", { min: num(u.minSplit) }) : t("divisible")}</Chip>}
+      {u.stale && <Chip tone="bad">{t("stale")}</Chip>}
     </>
   );
 }

@@ -14,3 +14,7 @@
 .toast.bad::before { background: var(--bad); }
 /* #211: the email sits on its own line under the name; ltr so it doesn't mix into the Arabic line */
 .who > span > small { display: block; text-align: right; }
+
+/* عربي ⇄ English (components/language-switch.tsx): a word, not an icon; at the end of the sign-in card's brand row */
+.lang-btn { width: auto; padding: 0 8px; font-size: 12px; font-weight: 600; }
+.auth-brand .lang-btn { margin-inline-start: auto; }

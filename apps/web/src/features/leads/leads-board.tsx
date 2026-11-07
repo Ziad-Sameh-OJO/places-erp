@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { LeadBoard, LeadRow } from "@places/contracts";
 import { type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Kanban } from "@/components/blocks";
 import { Avatar, Chip, Icon, useAction, useToast } from "@/components/ui";
 import { ago, num, short } from "@/lib/format";
+import { serverText } from "@/lib/server-text";
 import { slaText, slaTone, stageTone } from "./lead-bits";
 import { useChangeStage } from "./use-leads";
 import { WhatsAppQuestion } from "./whatsapp-question";
@@ -17,32 +19,33 @@ const LANE_COLOR: Record<string, string> = { ok: "ok", warn: "warn", bad: "bad",
  * stage (the API checks the permission and the scope). Visit needs a date and units, so it isn't a drop (1.9).
  */
 export function LeadsBoard({ board, canMove, onOpen }: { board: LeadBoard | undefined; canMove: boolean; onOpen: (id: string) => void }) {
+  const t = useTranslations("leads");
   const run = useAction();
   const toast = useToast();
   const changeStage = useChangeStage();
   const [ask, setAsk] = useState<LeadRow | null>(null); // «بعتله واتساب؟» right after No Answer (1.18)
   const move = (l: LeadRow, stage: string) => {
     if (stage === l.stage) return;
-    if (stage === "Visit") { toast("حدد ميعاد الـ Visit والوحدات"); return; }
+    if (stage === "Visit") { toast(t("board.setVisit")); return; }
     const willQualify = !l.qualified && isQualifiedAfter(false, stage as LeadStage); // the toast says so, like the demo
     void run(async () => { await changeStage(l.id, stage); if (stage === "No Answer") setAsk(l); },
-      willQualify ? `${l.name} بقى ${stage} واتعلّم Qualified` : `${l.name} بقى ${stage}`);
+      willQualify ? t("board.movedQualified", { name: l.name, stage: serverText(stage) }) : t("board.moved", { name: l.name, stage: serverText(stage) }));
   };
-  const lanes = (board?.lanes ?? []).map((l) => ({ key: l.stage, title: l.stage, tone: LANE_COLOR[stageTone(l.stage)], items: l.items, count: l.total }));
+  const lanes = (board?.lanes ?? []).map((l) => ({ key: l.stage, title: serverText(l.stage), tone: LANE_COLOR[stageTone(l.stage)], items: l.items, count: l.total }));
   return (
     <>
     {ask && <WhatsAppQuestion lead={ask} onClose={() => setAsk(null)} />}
-    <Kanban className="leads-board" lanes={lanes} itemKey={(l) => l.id} empty="اسحب ليد هنا" onOpen={(l) => onOpen(l.id)}
+    <Kanban className="leads-board" lanes={lanes} itemKey={(l) => l.id} empty={t("board.dropHere")} onOpen={(l) => onOpen(l.id)}
       cardClass={(l) => `lead-card ${l.sla ? `sla-${slaTone(l.sla)}` : ""}`}
       {...(canMove ? { onMove: (l: LeadRow, lane: string) => move(l, lane) } : {})}
       card={(l) => (
         <>
           <div className="row"><b className="spacer">{l.name}</b>{l.qualified && <Icon name="star" />}</div>
-          <span className="hint">{l.area || "—"} · {l.type}{l.space != null && <> · <span className="num">{num(l.space)}</span> م</>} · {short(l.budget)}</span>
+          <span className="hint">{l.area ? serverText(l.area) : "—"} · {l.type}{l.space != null && <> · {t.rich("board.sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>} · {short(l.budget)}</span>
           <div className="row">
             {l.assignedTo && <Avatar id={l.assignedTo.id} name={l.assignedTo.name} sm />}
             <span className="hint spacer">{l.channel}</span>
-            {l.sla ? <Chip tone={slaTone(l.sla)}>{slaText(l.sla)}</Chip> : <span className="hint">{ago(l.createdAt)}</span>}
+            {l.sla ? <Chip tone={slaTone(l.sla)}>{slaText(l.sla, t)}</Chip> : <span className="hint">{ago(l.createdAt)}</span>}
           </div>
         </>
       )} />

@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { LeadDetail, VisitRow, VisitUnit } from "@places/contracts";
 import { Chip, Empty, Field, Icon, Modal, onFormSubmit, useAction } from "@/components/ui";
 import { useMe } from "@/lib/me";
 import { api } from "@/lib/api";
+import { dateLocale } from "@/lib/format";
 import { useRefreshLead } from "./use-lead";
 
 type Kind = VisitRow["kind"];
@@ -15,6 +17,7 @@ type Kind = VisitRow["kind"];
  * only). «اتأجلت» (1.24): a reason, then whom the lead rules name (the TL) approves or rejects.
  */
 export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
+  const t = useTranslations("leads.visits");
   const { can } = useMe();
   const run = useAction();
   const refresh = useRefreshLead();
@@ -23,10 +26,10 @@ export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
   const edit = can("leads", "edit");
   const mark = (v: VisitRow, outcome: "done" | "not_done") => void run(async () => {
     try { await api.post(`/leads/${l.id}/visits/${v.id}/outcome`, { outcome }); } finally { await refresh(l.id); }
-  }, outcome === "done" ? `الـ ${v.kind} خلصت · اتحسبت في الـ activity` : "اتسجّلت إنها محصلتش · ظاهرة للـ HR في الحضور");
+  }, outcome === "done" ? t("doneToast", { kind: v.kind }) : t("notDoneToast"));
   const decide = (v: VisitRow, approve: boolean) => void run(async () => {
     try { await api.post(`/leads/${l.id}/visits/${v.id}/postpone/decision`, { approve }); } finally { await refresh(l.id); }
-  }, approve ? "اتوافق على التأجيل · من غير خصم" : "اترفض التأجيل");
+  }, approve ? t("approvedToast") : t("rejectedToast"));
   const p = (v: VisitRow) => v.postpone?.status;
   return (
     <>
@@ -34,37 +37,37 @@ export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
         const d = new Date(v.at);
         return (
           <div key={v.id} className={`visit ${v.outcome === "done" ? "done" : v.due ? "due" : ""}`}>
-            <div className="v-date"><b>{d.toLocaleDateString("en-US", { timeZone: "Africa/Cairo", day: "numeric" })}</b><small>{d.toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo", month: "short" })}</small></div>
+            <div className="v-date"><b>{d.toLocaleDateString("en-US", { timeZone: "Africa/Cairo", day: "numeric" })}</b><small>{d.toLocaleDateString(dateLocale(), { timeZone: "Africa/Cairo", month: "short" })}</small></div>
             <div className="v-main">
-              <b>{v.kind} · {d.toLocaleTimeString("ar-EG", { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" })} · {v.units.map((u) => u.code).join("، ") || "وحدات هتتحدد"}</b>
-              {v.extra && <small>مساحات مش في الشيت: {v.extra}</small>}
-              {v.postpone && <small>سبب التأجيل: {v.postpone.reason}</small>}
-              {v.due && <small className="bad-t"><Icon name="bell" />Alarm: ميعاد الـ {v.kind} جه · دوس Done</small>}
+              <b>{v.kind} · {d.toLocaleTimeString(dateLocale(), { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" })} · {v.units.map((u) => u.code).join(t("sep")) || t("unitsTbd")}</b>
+              {v.extra && <small>{t("extra", { extra: v.extra })}</small>}
+              {v.postpone && <small>{t("postponeReason", { reason: v.postpone.reason })}</small>}
+              {v.due && <small className="bad-t"><Icon name="bell" />{t("alarm", { kind: v.kind })}</small>}
             </div>
-            {v.outcome === "done" ? <Chip tone="ok">Done · اتحسبت في الـ activity</Chip>
-              : v.outcome === "not_done" ? <Chip tone="bad">معملهاش · ظاهرة للـ HR</Chip>
-              : p(v) === "approved" ? <Chip tone="info">اتأجلت · الـ Team Leader وافق · من غير خصم</Chip>
+            {v.outcome === "done" ? <Chip tone="ok">{t("done")}</Chip>
+              : v.outcome === "not_done" ? <Chip tone="bad">{t("notDone")}</Chip>
+              : p(v) === "approved" ? <Chip tone="info">{t("postponedApproved")}</Chip>
               : p(v) === "pending" ? <>
-                <Chip tone="warn">اتأجلت · مستنية موافقة الـ Team Leader</Chip>
-                {v.postpone?.canDecide && <><button className="btn sm" onClick={() => decide(v, true)}>وافق على التأجيل</button><button className="btn ghost sm" onClick={() => decide(v, false)}>ارفض</button></>}
+                <Chip tone="warn">{t("postponedPending")}</Chip>
+                {v.postpone?.canDecide && <><button className="btn sm" onClick={() => decide(v, true)}>{t("approve")}</button><button className="btn ghost sm" onClick={() => decide(v, false)}>{t("reject")}</button></>}
               </>
               : edit && <>
                 <button className="btn sm" onClick={() => mark(v, "done")}>Done</button>
-                <button className="btn ghost sm" onClick={() => mark(v, "not_done")}>معملتهاش</button>
-                {!p(v) && <button className="btn ghost sm" onClick={() => setPostponing(v)}>اتأجلت</button>}
-                <button className="btn ghost sm" onClick={() => setEditing(v)}>تعديل</button>
+                <button className="btn ghost sm" onClick={() => mark(v, "not_done")}>{t("didntDo")}</button>
+                {!p(v) && <button className="btn ghost sm" onClick={() => setPostponing(v)}>{t("postponed")}</button>}
+                <button className="btn ghost sm" onClick={() => setEditing(v)}>{t("edit")}</button>
               </>}
           </div>
         );
-      }) : <Empty text="مفيش زيارات لسه" icon="pin" />}
+      }) : <Empty text={t("empty")} icon="pin" />}
       {edit && <VisitForm key={editing?.id ?? `new-${kind}`} l={l} kind={kind} editing={editing} onDone={() => setEditing(null)} />}
-      {postponing && <Modal title={`تأجيل الـ ${postponing.kind} · ${l.name}`} onClose={() => setPostponing(null)}>
+      {postponing && <Modal title={t("postponeTitle", { kind: postponing.kind, name: l.name })} onClose={() => setPostponing(null)}>
         <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
           try { await api.post(`/leads/${l.id}/visits/${postponing.id}/postpone`, { reason: f.get("reason") }); setPostponing(null); } finally { await refresh(l.id); }
-        }, "اتبعت للـ Team Leader يوافق"))}>
-          <Field label="سبب التأجيل" req wide><textarea name="reason" required minLength={3} maxLength={300} placeholder="مثلاً: العميل طلب يأجّل لبكره عشان مسافر" /></Field>
-          <p className="hint wide">الطلب هيروح لـ الـ Team Leader يوافق أو يرفض.</p>
-          <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setPostponing(null)}>إلغاء</button><button className="btn">ابعت الطلب</button></div>
+        }, t("sentToTl")))}>
+          <Field label={t("reason")} req wide><textarea name="reason" required minLength={3} maxLength={300} placeholder={t("reasonPlaceholder")} /></Field>
+          <p className="hint wide">{t("goesToTl")}</p>
+          <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setPostponing(null)}>{t("cancel")}</button><button className="btn">{t("sendRequest")}</button></div>
         </form>
       </Modal>}
     </>
@@ -75,12 +78,13 @@ export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
 function VisitForm({ l, kind, editing, onDone }: { l: LeadDetail; kind: Kind; editing: VisitRow | null; onDone: () => void }) {
   const run = useAction();
   const refresh = useRefreshLead();
+  const t = useTranslations("leads.visits");
   const [k, setK] = useState<Kind>(editing?.kind ?? kind);
   const [at, setAt] = useState(editing ? localInput(editing.at) : "");
   const [picked, setPicked] = useState<VisitUnit[]>(editing?.units ?? []);
   const [extra, setExtra] = useState(editing?.extra ?? "");
   const [q, setQ] = useState(""), [search, setSearch] = useState("");
-  useEffect(() => { const t = setTimeout(() => setSearch(q.trim()), 300); return () => clearTimeout(t); }, [q]);
+  useEffect(() => { const id = setTimeout(() => setSearch(q.trim()), 300); return () => clearTimeout(id); }, [q]);
   const found = useQuery({ queryKey: ["visit-units", search], queryFn: () => api.get<VisitUnit[]>(`/leads/visit-units${search ? `?q=${encodeURIComponent(search)}` : ""}`) });
   const options = [...picked, ...(found.data ?? []).filter((u) => !picked.some((p) => p.id === u.id))];
   const save = () => void run(async () => {
@@ -90,27 +94,27 @@ function VisitForm({ l, kind, editing, onDone }: { l: LeadDetail; kind: Kind; ed
       else await api.post(`/leads/${l.id}/visits`, body);
       onDone(); setAt(""); setPicked([]); setExtra(""); setQ("");
     } finally { await refresh(l.id); }
-  }, `الـ ${k} اتحفظ`);
+  }, t("saved", { kind: k }));
   return (
     <form className="card flat" onSubmit={(e) => { e.preventDefault(); save(); }}>
-      <div className="card-head"><h3><span className="ico"><Icon name="pin" /></span><span>{editing ? "تعديل الميعاد" : "Visit / Meeting جديدة"}<small>بتنقل الليد لمرحلة Visit أو Meeting</small></span></h3></div>
+      <div className="card-head"><h3><span className="ico"><Icon name="pin" /></span><span>{editing ? t("editTime") : t("newTitle")}<small>{t("newSub")}</small></span></h3></div>
       <div className="grid">
-        <Field label="النوع" req>
+        <Field label={t("kind")} req>
           <select value={k} onChange={(e) => setK(e.target.value as Kind)}>{(["Visit", "Meeting"] as const).map((x) => <option key={x} value={x}>{x}</option>)}</select>
         </Field>
-        <Field label="الميعاد" req><input type="datetime-local" required value={at} onChange={(e) => setAt(e.target.value)} /></Field>
-        <Field label="الوحدات (من الانفنتوري)" wide>
-          <div className="search"><Icon name="search" /><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="دوّر بالكود، المشروع أو المساحة" aria-label="دوّر على وحدة" /></div>
-          <select multiple size={6} aria-label="الوحدات" value={picked.map((u) => u.id)}
+        <Field label={t("time")} req><input type="datetime-local" required value={at} onChange={(e) => setAt(e.target.value)} /></Field>
+        <Field label={t("unitsFromInventory")} wide>
+          <div className="search"><Icon name="search" /><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchPlaceholder")} aria-label={t("searchLabel")} /></div>
+          <select multiple size={6} aria-label={t("units")} value={picked.map((u) => u.id)}
             onChange={(e) => { const on = new Set([...e.target.selectedOptions].map((o) => o.value)); setPicked(options.filter((u) => on.has(u.id))); }}>
-            {options.map((u) => <option key={u.id} value={u.id}>{u.code} · {u.project} · {u.space} م</option>)}
+            {options.map((u) => <option key={u.id} value={u.id}>{u.code} · {u.project} · {t("sqm", { n: u.space })}</option>)}
           </select>
         </Field>
-        <Field label="مساحات مش موجودة في الشيت" wide><input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="مثلاً: دور 4 في مبنى B6" maxLength={300} /></Field>
+        <Field label={t("extraLabel")} wide><input value={extra} onChange={(e) => setExtra(e.target.value)} placeholder={t("extraPlaceholder")} maxLength={300} /></Field>
       </div>
       <div className="row end">
-        {editing && <button type="button" className="btn ghost" onClick={onDone}>إلغاء</button>}
-        <button className="btn"><Icon name="pin" />حفظ الميعاد</button>
+        {editing && <button type="button" className="btn ghost" onClick={onDone}>{t("cancel")}</button>}
+        <button className="btn"><Icon name="pin" />{t("saveTime")}</button>
       </div>
     </form>
   );

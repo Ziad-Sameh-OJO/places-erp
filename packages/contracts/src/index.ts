@@ -25,3 +25,4 @@ export * from "./imports.ts";
 export * from "./campaigns.ts";
 export * from "./posts.ts";
 export * from "./broadcasts.ts";
+export * from "./i18n/index.ts";

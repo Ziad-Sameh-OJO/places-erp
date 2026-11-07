@@ -1,5 +1,6 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { InventoryReportView } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
 import { Icon, Modal, Note, useAction } from "@/components/ui";
@@ -13,6 +14,8 @@ const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/C
  * Manar's «اعتمد وابعت للإدارة» — or who sent it and when.
  */
 export function DailyReportModal({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("inventory.dailyReport");
+  const tc = useTranslations("inventory.common");
   const qc = useQueryClient();
   const run = useAction();
   const d = today();
@@ -21,19 +24,19 @@ export function DailyReportModal({ onClose }: { onClose: () => void }) {
   const approve = () => void run(async () => {
     await api.post(`/inventory/daily-report/${d}/approve`);
     await qc.invalidateQueries({ queryKey: ["inventory-report"] });
-  }, "التقرير اتبعت");
+  }, t("sent"));
   return (
-    <Modal title={`التقرير اليومي · ${day(d)}`} onClose={onClose}>
-      {q.error ? <Note kind="warn">{q.error.message}</Note> : !r ? <p className="hint">بيحمّل…</p> : <>
+    <Modal title={t("title", { day: day(d) })} onClose={onClose}>
+      {q.error ? <Note kind="warn">{q.error.message}</Note> : !r ? <p className="hint">{tc("loading")}</p> : <>
         <div className="kpis sm">
-          <KpiTile label="جديد" value={num(r.newUnits)} sub="النهارده" icon="building" />
-          <KpiTile label="متحدّث" value={num(r.updated)} sub="النهارده" icon="building" />
-          <KpiTile label="اتأجر / اتباع" value={num(r.closed)} sub="النهارده" icon="building" />
-          <KpiTile label="مش مؤكد" value={num(r.unconfirmed)} sub="النهارده" icon="building" />
+          <KpiTile label={t("new")} value={num(r.newUnits)} sub={t("today")} icon="building" />
+          <KpiTile label={t("updated")} value={num(r.updated)} sub={t("today")} icon="building" />
+          <KpiTile label={t("closed")} value={num(r.closed)} sub={t("today")} icon="building" />
+          <KpiTile label={t("unconfirmed")} value={num(r.unconfirmed)} sub={t("today")} icon="building" />
         </div>
         {r.approvedAt
-          ? <Note>اتبعت {dayTime(r.approvedAt)} من {r.approvedBy?.name}.</Note>
-          : <div className="row end"><button className="btn" onClick={approve}><Icon name="send" />اعتمد وابعت للإدارة</button></div>}
+          ? <Note>{t("sentBy", { at: dayTime(r.approvedAt), name: r.approvedBy?.name ?? "" })}</Note>
+          : <div className="row end"><button className="btn" onClick={approve}><Icon name="send" />{t("approve")}</button></div>}
       </>}
     </Modal>
   );

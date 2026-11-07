@@ -1,0 +1,163 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "choose": "Choose",
+    "record": "Record",
+    "add": "Add",
+    "saveEdit": "Save changes",
+    "prev": "Previous",
+    "next": "Next",
+    "pageOf": "{page} of {pages}",
+    "from": "From",
+    "until": "To",
+    "date": "Date",
+    "amount": "Amount",
+    "memo": "Description",
+    "line": "Line item",
+    "vendor": "Vendor",
+    "left": "{amount} left"
+  },
+  "status": {
+    "Pending": "Pending",
+    "Approved": "Approved",
+    "Rejected": "Rejected",
+    "Settled": "Settled · waiting for finance",
+    "Posted": "Posted in finance"
+  },
+  "custody": {
+    "capSaved": "Ceiling saved",
+    "title": "Mokhtar's custody and turnaround",
+    "balanceOf": "Custody balance · {name}",
+    "cap": "Ceiling {amount}",
+    "in48": "Done within 48 hours",
+    "in48Sub": "{done} of {count, plural, one {# request} other {# requests}}",
+    "noCap": "Finance hasn't set a custody ceiling yet.",
+    "rule": "Above EGP 10,000, a receipt or two price quotes are required before the request is sent.",
+    "safe": "Safe",
+    "capLabel": "Custody ceiling",
+    "setCap": "Set ceiling"
+  },
+  "assets": {
+    "needsRepair": "Needs repair",
+    "ok": "Good",
+    "reviewedOn": "Reviewed {day}",
+    "notReviewed": "Not reviewed",
+    "added": "Asset added",
+    "reviewSaved": "Review recorded",
+    "title": "Office assets register",
+    "asset": "Asset",
+    "place": "Location",
+    "state": "Condition",
+    "empty": "The register is empty",
+    "newAsset": "New asset",
+    "reviewMonth": "Reviewed this month",
+    "edited": "Asset updated",
+    "removed": "Asset removed from the register",
+    "editTitle": "Edit asset",
+    "remove": "Remove from register"
+  },
+  "boys": {
+    "title": "Office Boys rota",
+    "sub": "Split by area · Nancy rates their commitment",
+    "area": "Area",
+    "areaCol": "Area",
+    "owner": "Owner",
+    "slots": "Times",
+    "empty": "The rota is empty",
+    "edited": "Rota updated",
+    "added": "Area added to the rota",
+    "removed": "Removed from the rota",
+    "editTitle": "Edit area",
+    "newTitle": "New area",
+    "areaPlaceholder": "Ground floor + reception",
+    "remove": "Remove"
+  },
+  "drawer": {
+    "notFound": "Request not found",
+    "stageSettled": "Settled",
+    "stagePosted": "Posted in finance",
+    "attachments": "Attachments",
+    "approver": "Approved by",
+    "paidFrom": "Paid from",
+    "requested": "Requested",
+    "budgetAfter": "Budget after payment",
+    "sub": "{no} · purchase request",
+    "warning": "Warning:",
+    "overBudget": "This request goes over the Budget left on line {line} ({left} left). It can only be paid with management's approval.",
+    "bigAmount": "Amount over 50,000 EGP: only Ahmed or Safwat can approve.",
+    "rejectReason": "Reason for rejection: {reason}",
+    "settledOn": "Settled on {day} · waiting for finance to pay it from the safe and post the entry",
+    "postedOn": "Posted by finance · {no} on {day}"
+  },
+  "decide": {
+    "approved": "Approved · Mokhtar can pay",
+    "rejected": "Rejected and returned to Mokhtar with the reason",
+    "title": "Your decision",
+    "reasonPlaceholder": "Reason for rejection (if rejecting)",
+    "reason": "Reason for rejection",
+    "reject": "Reject",
+    "approve": "Approve"
+  },
+  "settle": {
+    "backToApproval": "The amount changed · the request went back for approval",
+    "sent": "Sent to finance · balances didn't change",
+    "title": "Settlement",
+    "sub": "Procurement only informs finance · the accountant posts the balances and the entry",
+    "paidFrom": "Paid from (for finance's information)",
+    "amount": "Amount at payment",
+    "moreFiles": "More attachments (the receipt)",
+    "submit": "Settled · send to finance"
+  },
+  "form": {
+    "receiptPhoto": "Receipt photo",
+    "badAmount": "Amount in pounds, with up to two decimal places",
+    "sent": "Sent to the approvers",
+    "title": "Purchase / payment request",
+    "item": "Item",
+    "line": "Line item (from the chart of accounts)",
+    "chooseLine": "Choose the line item",
+    "attachments": "Attachments (invoice / quote)",
+    "approvalRule": "Up to 50,000 any approver can approve; above that, Ahmed or Safwat. The Budget is deducted after payment.",
+    "submit": "Send for approval"
+  },
+  "list": {
+    "request": "Request",
+    "status": "Status",
+    "empty": "No requests",
+    "overBudget": "Over Budget"
+  },
+  "kpis": {
+    "pending": "Awaiting approval",
+    "pendingSub": "Management / Nancy / Ahmed / Safwat",
+    "approved": "Ready to pay",
+    "approvedSub": "Approved",
+    "budget": "Total Budget",
+    "lines": "{count, plural, one {# line} other {# lines}}",
+    "left": "Left",
+    "spentPct": "{pct}% spent"
+  },
+  "toolbar": {
+    "allStatuses": "All statuses",
+    "allLines": "All lines",
+    "group": "Expense type",
+    "allGroups": "All types",
+    "allVendors": "All vendors",
+    "file": "Requests.xlsx",
+    "export": "Export requests"
+  },
+  "budget": {
+    "title": "Budget per line",
+    "sub": "Spent and left",
+    "empty": "No lines have a Budget yet · the accountant sets it from the Budget page in finance."
+  },
+  "settled": {
+    "title": "Purchase requests waiting for payment",
+    "sub": "Procurement settled and reported them · paying from the safe and the entry are yours",
+    "paidFrom": "Paid from (per procurement)",
+    "pay": "Pay it",
+    "posted": "Posted · payment voucher and its entry created",
+    "voucherTitle": "Payment voucher · {no}",
+    "fromSafe": "From safe / bank"
+  }
+}
