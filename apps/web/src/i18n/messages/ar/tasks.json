@@ -1,1 +1,72 @@
-{}
+{
+  "all": "الكل",
+  "kinds": {
+    "photo": "تصوير",
+    "retouch": "Retouch",
+    "followup": "متابعة مع المالك",
+    "toResale": "ابديت للبيع",
+    "marketing": "تسويق"
+  },
+  "moves": {
+    "progress": "ابدأ",
+    "done": "Done",
+    "uploaded": "رفعت الصور على السيستم",
+    "todo": "Undo"
+  },
+  "toasts": {
+    "done": "Done",
+    "uploaded": "اتبعتت لمنار توافق",
+    "progress": "In Progress",
+    "todo": "رجعت للمهام"
+  },
+  "roleNotes": {
+    "marketing": "رحمة بتشوف كل مهام المصوّر حتى اللي منار ورندا بيدّوها.",
+    "photographer": "منار بتدّيك وحدة في اليوم ورندا بتدّيك وحدة. بيانات الوحدة بتوصلك مع المهمة.",
+    "designer": "ارفع الصور بعد الـ Retouch على صفحة الوحدة في السيستم. المهمة مبتبقاش Done غير لما منار توافق.",
+    "other": "اسحب الكارت بين الأعمدة عشان تغيّر حالته."
+  },
+  "retouchOnly": "العمود ده لمهام الـ Retouch بس",
+  "approved": "اتوافق على الـ Retouch",
+  "returned": "رجعت للمصمم للتعديل",
+  "give": {
+    "photo": "مهمة تصوير",
+    "retouch": "مهمة Retouch",
+    "marketing": "مهمة تسويق"
+  },
+  "assignee": "المسؤول",
+  "allAssignees": "كل المسؤولين",
+  "approve": "موافقة",
+  "sendBack": "رجّعها",
+  "card": {
+    "place": "{area} · الدور {floor} · مبنى {building}",
+    "returned": "رجعت للتعديل {count} مرة",
+    "system": "السيستم",
+    "arrow": "←"
+  },
+  "sla": {
+    "met": "خلصت في الـ {hours} ساعة",
+    "missed": "خلصت بعد الـ {hours} ساعة",
+    "left": "فاضل {left} ساعة من الـ {hours}",
+    "late": "متأخرة {late} ساعة عن الـ {hours}"
+  },
+  "newTask": {
+    "titles": {
+      "photo": "مهمة تصوير للمصوّر",
+      "retouch": "مهمة Retouch للمصمم (من غير AI)",
+      "toResale": "ابعت الوحدة لرندا · ابديت للبيع",
+      "marketing": "مهمة تسويق",
+      "default": "مهمة"
+    },
+    "sentPhoto": "المهمة اتبعتت للمصوّر، ورحمة شايفاها",
+    "sent": "المهمة اتبعتت",
+    "unit": "الوحدة",
+    "searchUnit": "دوّر بالكود أو البروجكت",
+    "searchUnitLabel": "دوّر على الوحدة",
+    "task": "المهمة",
+    "assignee": "مسؤول",
+    "due": "الميعاد",
+    "notes": "ملاحظات",
+    "photoNote": "بيانات الوحدة بتتبعت أوتوماتيك: الكود والبروجكت والمبنى والدور واللوكيشن ورقم المالك",
+    "send": "ابعت المهمة"
+  }
+}

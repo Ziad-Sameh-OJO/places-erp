@@ -1,5 +1,6 @@
 "use client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { UnitDetail } from "@places/contracts";
 import { Chip, Icon, Note, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -10,25 +11,26 @@ import { api } from "@/lib/api";
  * Any edit sends it back (Q19).
  */
 export function UnitPdfTab({ u, canConfirm }: { u: UnitDetail; canConfirm: boolean }) {
+  const t = useTranslations("inventory.pdf");
   const qc = useQueryClient();
   const base = `/api/v1/inventory/units/${u.id}`;
   const run = useAction();
   const confirm = () => void run(async () => {
     await api.post(`/inventory/units/${u.id}/pdf/confirm`);
     await Promise.all([qc.invalidateQueries({ queryKey: ["unit"] }), qc.invalidateQueries({ queryKey: ["units"] })]);
-  }, "الـ PDF اترفع، والتسويق والسيلز وصلهم إشعار");
+  }, t("published"));
   return (
     <>
       <div className="row">
-        <a className="btn" href={`${base}/pdf`} target="_blank" rel="noopener noreferrer"><Icon name="file" />افتح الـ PDF</a>
-        <a className="btn ghost" href={`${base}/pdf/pptx`}><Icon name="download" />الـ PDF كـ PowerPoint</a>
-        <a className="btn ghost" href={`${base}/slide`} target="_blank" rel="noopener noreferrer"><Icon name="board" />افتح الـ slide</a>
-        <a className="btn ghost" href={`${base}/slide/pptx`}><Icon name="download" />الـ slide كـ PowerPoint</a>
+        <a className="btn" href={`${base}/pdf`} target="_blank" rel="noopener noreferrer"><Icon name="file" />{t("openPdf")}</a>
+        <a className="btn ghost" href={`${base}/pdf/pptx`}><Icon name="download" />{t("pdfPptx")}</a>
+        <a className="btn ghost" href={`${base}/slide`} target="_blank" rel="noopener noreferrer"><Icon name="board" />{t("openSlide")}</a>
+        <a className="btn ghost" href={`${base}/slide/pptx`}><Icon name="download" />{t("slidePptx")}</a>
       </div>
-      <Note>الـ PDF والـ slide بيتعملوا أوتوماتيك بنفس تصميم Places: الغلاف والجدول من بيانات الوحدة، والصور من فولدر Pic &amp; Info (أول صورة هي صورة المبنى، والباقي صور من جوه). محدش بيعدّل عليهم بإيده: أي تعديل في البيانات أو الصور بيظهر فيهم على طول، والوحدة بترجع تستنى Confirm منار. والوحدة مابتظهرش للسيلز غير بعد الـ Confirm.</Note>
+      <Note>{t("note")}</Note>
       {u.pdfStatus === "draft" && canConfirm
-        ? <button className="btn" onClick={confirm}><Icon name="check" />Confirm وانشره للسيلز</button>
-        : u.pdfStatus === "draft" ? <Chip tone="warn">مستني Confirm من منار</Chip> : <Chip tone="ok">منشور للسيلز</Chip>}
+        ? <button className="btn" onClick={confirm}><Icon name="check" />{t("confirm")}</button>
+        : u.pdfStatus === "draft" ? <Chip tone="warn">{t("waiting")}</Chip> : <Chip tone="ok">{t("published2")}</Chip>}
     </>
   );
 }

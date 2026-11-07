@@ -1,1 +1,42 @@
-{}
+{
+  "units": {
+    "button": "Import Excel",
+    "title": "Import Excel (the unified template)",
+    "template": "Units template.xlsx",
+    "columns": {
+      "type": "Type",
+      "project": "Project",
+      "area": "Area",
+      "space": "Space",
+      "building": "Building number",
+      "ownerName": "Name",
+      "ownerPhone": "Number",
+      "pricePerSqm": "Price per sqm"
+    }
+  },
+  "leads": {
+    "button": "Old leads (Excel)",
+    "title": "Import old leads",
+    "template": "Old leads template.xlsx",
+    "columns": {
+      "name": "Name",
+      "phones": "Mobile",
+      "area": "Area",
+      "type": "Type",
+      "channel": "Channel",
+      "arrivedAt": "Date"
+    }
+  },
+  "companies": {
+    "button": "Companies (Excel)",
+    "title": "Import the companies archive",
+    "template": "Companies template.xlsx",
+    "columns": {
+      "name": "Company name",
+      "category": "Category",
+      "number": "Number",
+      "contactName": "Contact name",
+      "contractEnd": "Contract end"
+    }
+  }
+}

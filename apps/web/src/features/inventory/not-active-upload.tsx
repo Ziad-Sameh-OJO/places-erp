@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { NotActiveImportDone, NotActivePreview, NotActiveSheetView } from "@places/contracts";
 import { Chip, Field, Icon, Modal, Note, Table, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -19,6 +20,7 @@ const form = (file: File, fields: Record<string, string>) => {
  * new before anything is saved.
  */
 export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveSheetView[]; onClose: () => void; onDone: (sheetId: string) => void }) {
+  const t = useTranslations("inventory");
   const run = useAction();
   const toast = useToast();
   const qc = useQueryClient();
@@ -41,51 +43,51 @@ export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveShee
   const merge = () => step(async () => {
     const r = await api.post<NotActiveImportDone>("/not-active/import", form(file!, { name: name.trim(), dedupeBy: column, numberBy: numberCol }));
     await qc.invalidateQueries({ queryKey: ["not-active"] });
-    toast(`اتضاف ${num(r.added)} صف · اتساب ${num(r.duplicates)} مكرر${r.noKey ? ` · ${num(r.noKey)} من غير «${column}»` : ""}${r.inInventory ? ` · ${num(r.inInventory)} موجود في الانفنتوري` : ""}`);
+    toast(`${t("upload.merged", { added: num(r.added), duplicates: num(r.duplicates) })}${r.noKey ? ` · ${t("upload.noKeyCount", { count: num(r.noKey), column })}` : ""}${r.inInventory ? ` · ${t("upload.inInventory", { count: num(r.inInventory) })}` : ""}`);
     onDone(r.sheetId);
   });
   return (
-    <Modal title="ارفع / ادمج شيت" onClose={onClose}>
+    <Modal title={t("upload.title")} onClose={onClose}>
       <div className="row">
         <label className="btn ghost">
-          <Icon name="upload" />{file ? file.name : "اختار ملف Excel أو CSV"}
-          <input type="file" hidden accept=".xlsx,.csv" aria-label="ملف الشيت" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+          <Icon name="upload" />{file ? file.name : t("upload.pickFile")}
+          <input type="file" hidden accept=".xlsx,.csv" aria-label={t("upload.fileLabel")} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
       </div>
       <div className="grid">
-        <Field label="اسم الشيت" req>
-          <input value={name} list="na-sheets" maxLength={60} placeholder="مثلاً CFC" onChange={(e) => setName(e.target.value)} onBlur={() => file && void look(file, name, column)} />
+        <Field label={t("upload.sheetName")} req>
+          <input value={name} list="na-sheets" maxLength={60} placeholder={t("upload.sheetExample")} onChange={(e) => setName(e.target.value)} onBlur={() => file && void look(file, name, column)} />
           <datalist id="na-sheets">{sheets.map((s) => <option key={s.id} value={s.name} />)}</datalist>
         </Field>
-        {p && <Field label="منع التكرار بخانة" req>
+        {p && <Field label={t("upload.dedupeBy")} req>
           <select value={column} onChange={(e) => { setColumn(e.target.value); if (file) void look(file, name, e.target.value); }}>
             {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
           </select>
         </Field>}
         {/* M-03 1.1: the «Number» column is compared with the owners' numbers in the inventory */}
-        {p && <Field label="خانة الرقم (للمقارنة بالانفنتوري)">
+        {p && <Field label={t("upload.numberBy")}>
           <select value={numberCol} onChange={(e) => setNumberCol(e.target.value)}>
-            <option value="">من غير مقارنة</option>
+            <option value="">{t("upload.noCompare")}</option>
             {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
           </select>
         </Field>}
       </div>
-      {busy && !p && <p className="hint">بيقرا الشيت…</p>}
+      {busy && !p && <p className="hint">{t("upload.reading")}</p>}
       {p && <>
-        <Note>{p.sheet ? `هيتدمج مع شيت «${p.sheet.name}» (${num(p.sheet.rows)} صف): أي صف قيمته في «${column}» موجودة قبل كده مش هيتضاف.` : name.trim() ? `شيت جديد باسم «${name.trim()}».` : "شيت جديد · اكتب اسمه."}</Note>
+        <Note>{p.sheet ? t("upload.mergeInto", { name: p.sheet.name, rows: num(p.sheet.rows), column }) : name.trim() ? t("upload.newNamed", { name: name.trim() }) : t("upload.newUnnamed")}</Note>
         <div className="row">
-          <Chip plain>{num(p.total)} صف في الملف</Chip>
-          {p.added != null && <Chip tone="ok">هيتضاف {num(p.added)}</Chip>}
-          {!!p.duplicates && <Chip tone="warn">مكرر {num(p.duplicates)}</Chip>}
-          {!!p.noKey && <Chip tone="bad">من غير «{column}» {num(p.noKey)}</Chip>}
+          <Chip plain>{t("upload.inFile", { count: num(p.total) })}</Chip>
+          {p.added != null && <Chip tone="ok">{t("upload.toAdd", { count: num(p.added) })}</Chip>}
+          {!!p.duplicates && <Chip tone="warn">{t("upload.dupes", { count: num(p.duplicates) })}</Chip>}
+          {!!p.noKey && <Chip tone="bad">{t("upload.noKey", { column, count: num(p.noKey) })}</Chip>}
         </div>
         <Table head={p.headers} rows={p.sample.map((r) => p.headers.map((h) => r[h] ?? ""))} />
-        {p.total > p.sample.length && <p className="hint">ظاهر أول {p.sample.length} صف من {num(p.total)}.</p>}
+        {p.total > p.sample.length && <p className="hint">{t("upload.sample", { shown: p.sample.length, total: num(p.total) })}</p>}
       </>}
       <div className="row end">
-        <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
+        <button type="button" className="btn ghost" onClick={onClose}>{t("common.cancel")}</button>
         <button type="button" className="btn" disabled={!p || busy || !name.trim() || !column || !p.added} onClick={() => void merge()}>
-          {busy && p ? "بيحفظ…" : `ادمج${p?.added ? ` · ${num(p.added)} صف` : ""}`}
+          {busy && p ? t("common.saving") : `${t("upload.merge")}${p?.added ? ` · ${t("upload.rows", { count: num(p.added) })}` : ""}`}
         </button>
       </div>
     </Modal>
