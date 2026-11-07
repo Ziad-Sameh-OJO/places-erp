@@ -12,6 +12,7 @@ import { ICONS, type IconName } from "@places/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
+import { useTranslations } from "next-intl";
 
 export function Icon({ name }: { name: IconName }) {
   return <svg className="i" viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ICONS[name] }} />;
@@ -50,14 +51,15 @@ export function Tabs<K extends string>({ items, value, onChange }: { items: [K, 
 
 /** On phones every row becomes a card; each cell is labelled with its column (data-label, styled by mobile.css). */
 /** `onRow` makes rows clickable (the demo opens a record's drawer from its row); `className` goes on the wrapper («has-sheets»). */
-export function Table({ head, rows, empty = "مفيش بيانات", onRow, className = "" }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void; className?: string }) {
+export function Table({ head, rows, empty, onRow, className = "" }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void; className?: string }) {
+  const t = useTranslations("ui");
   return (
     <div className={`tbl-wrap ${className}`}>
       <table className="cardable">
         <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
         <tbody>
           {rows.length ? rows.map((r, i) => <tr key={i} className={onRow ? "click" : undefined} onClick={onRow ? () => onRow(i) : undefined}>{r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}</tr>)
-            : <tr><td colSpan={head.length}><Empty text={empty} /></td></tr>}
+            : <tr><td colSpan={head.length}><Empty text={empty ?? t("table.empty")} /></td></tr>}
         </tbody>
       </table>
     </div>
@@ -88,6 +90,7 @@ export function Avatar({ id, name, sm }: { id: string; name: string; sm?: boolea
 }
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const t = useTranslations("ui");
   const ref = useRef<HTMLDivElement>(null);
   // once, when it opens: the first field (not the ✕ in the header, which comes first in the markup)
   useEffect(() => {
@@ -104,7 +107,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   return createPortal(
     <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={title} ref={ref}>
-        <div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label="قفل">✕</button></div>
+        <div className="modal-head"><h2>{title}</h2><button className="icon-btn" onClick={onClose} aria-label={t("close")}>✕</button></div>
         <div className="modal-body">{children}</div>
       </div>
     </div>,
@@ -139,17 +142,19 @@ export const onFormSubmit = (fn: (data: FormData) => unknown) => (e: FormEvent<H
 /** Runs a change: the API's error (or anything thrown) shows as a toast, `ok` shows when it worked. */
 export function useAction() {
   const toast = useToast();
+  const t = useTranslations("ui");
   return useCallback(async (fn: () => Promise<unknown>, ok?: string): Promise<void> => {
     try { await fn(); if (ok) toast(ok); }
-    catch (e) { toast(e instanceof Error ? e.message : "حصل خطأ", "bad"); }
-  }, [toast]);
+    catch (e) { toast(e instanceof Error ? e.message : t("error"), "bad"); }
+  }, [toast, t]);
 }
 
 /**
  * «تصدير Excel» for any table: sends the table's current filters to the module's export endpoint. Shown only to people
  * with the module's `export` permission (the API checks it again).
  */
-export function ExportButton({ module, path, query, filename, label = "تصدير Excel" }: { module: ModuleKey; path: string; query?: URLSearchParams; filename: string; label?: string }) {
+export function ExportButton({ module, path, query, filename, label }: { module: ModuleKey; path: string; query?: URLSearchParams; filename: string; label?: string }) {
+  const t = useTranslations("ui.export");
   const { can } = useMe();
   const run = useAction();
   const [busy, setBusy] = useState(false);
@@ -157,7 +162,7 @@ export function ExportButton({ module, path, query, filename, label = "تصدي�
   const qs = query ? `?${query}` : "";
   return (
     <button className="btn ghost" disabled={busy} onClick={async () => { setBusy(true); await run(() => api.download(`${path}${qs}`, filename)); setBusy(false); }}>
-      <Icon name="upload" />{busy ? "بيجهّز الملف…" : label}
+      <Icon name="upload" />{busy ? t("busy") : label ?? t("label")}
     </button>
   );
 }
@@ -172,6 +177,7 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
 }) {
   const run = useAction();
   const toast = useToast();
+  const t = useTranslations("ui.import");
   const [file, setFile] = useState<File | null>(null);
   const [p, setP] = useState<ImportPreview<T> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -179,7 +185,7 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
   const pick = (f: File | undefined) => { setFile(f ?? null); setP(null); if (f) step(async () => setP(await api.upload<ImportPreview<T>>(`${path}/preview`, f))); };
   const confirm = () => step(async () => {
     const r = await api.upload<ImportDone>(path, file!);
-    toast(r.duplicates !== undefined ? `اتضاف ${r.imported} · متكرر ${r.duplicates} · أخطاء ${r.skipped ?? 0}` : `اتستورد ${r.imported} صف`);
+    toast(r.duplicates !== undefined ? t("done", { imported: r.imported, duplicates: r.duplicates, skipped: r.skipped ?? 0 }) : t("imported", { imported: r.imported }));
     onDone();
   });
   return (
@@ -187,25 +193,25 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
       <div className="row">
         {/* the browser's own file field would say «Choose File» in English: an Arabic button opens it instead */}
         <label className="btn ghost">
-          <Icon name="upload" />{file ? file.name : "اختار ملف Excel أو CSV"}
-          <input type="file" hidden accept=".xlsx,.csv" aria-label="ملف Excel" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+          <Icon name="upload" />{file ? file.name : t("pick")}
+          <input type="file" hidden accept=".xlsx,.csv" aria-label={t("fileLabel")} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
-        <button type="button" className="btn ghost sm" onClick={() => run(() => api.download(`${path}/template`, template))}><Icon name="file" />نزّل القالب</button>
+        <button type="button" className="btn ghost sm" onClick={() => run(() => api.download(`${path}/template`, template))}><Icon name="file" />{t("template")}</button>
       </div>
-      <p className="hint">الأعمدة: {columns.map(([, h]) => h).join("، ")} · أول صف هو العناوين.</p>
-      {busy && !p && <p className="hint">بيقرا الشيت…</p>}
+      <p className="hint">{t("columns", { columns: columns.map(([, h]) => h).join(t("columnSep")) })}</p>
+      {busy && !p && <p className="hint">{t("reading")}</p>}
       {p && <>
-        <div className="row"><Chip plain>{p.total} صف</Chip><Chip tone="ok">{p.valid} {skipErrors ? "جديد" : "سليم"}</Chip>{p.duplicates !== undefined && <Chip tone="warn">{p.duplicates} متكرر</Chip>}{p.errors.length > 0 && <Chip tone="bad">{p.errors.length} خطأ</Chip>}</div>
+        <div className="row"><Chip plain>{t("rows", { count: p.total })}</Chip><Chip tone="ok">{t(skipErrors ? "new" : "valid", { count: p.valid })}</Chip>{p.duplicates !== undefined && <Chip tone="warn">{t("duplicates", { count: p.duplicates })}</Chip>}{p.errors.length > 0 && <Chip tone="bad">{t("errors", { count: p.errors.length })}</Chip>}</div>
         {p.errors.length > 0 && <>
-          <Note kind="warn">{skipErrors ? "الصفوف دي مش هتتضاف · صلّحها وارفعها تاني لو عايزها. والمتكرر مش هيتضاف." : "صلّح الأخطاء دي في الشيت وارفعه تاني · مفيش حاجة هتتحفظ قبل كده."}</Note>
-          <Table head={["المكان", "العمود", "المشكلة"]} rows={p.errors.slice(0, 100).map((e) => [`السطر ${e.line}`, e.column || "—", e.message])} />
+          <Note kind="warn">{skipErrors ? t("skipNote") : t("fixNote")}</Note>
+          <Table head={[t("place"), t("column"), t("problem")]} rows={p.errors.slice(0, 100).map((e) => [t("line", { line: e.line }), e.column || "—", serverText(e.message)])} />
         </>}
         {p.sample.length > 0 && <Table head={columns.map(([, h]) => h)} rows={p.sample.map((r) => columns.map(([k]) => String(r[k] ?? "")))} />}
-        {p.valid > p.sample.length && <p className="hint">ظاهر أول {p.sample.length} صف من {p.valid}.</p>}
+        {p.valid > p.sample.length && <p className="hint">{t("shown", { shown: p.sample.length, valid: p.valid })}</p>}
       </>}
       <div className="row end">
-        <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
-        <button type="button" className="btn" disabled={!p || busy || (!skipErrors && p.errors.length > 0) || p.valid === 0} onClick={confirm}>{busy && p ? "بيحفظ…" : `تأكيد${p?.valid && (skipErrors || !p.errors.length) ? ` · ${p.valid} صف` : ""}`}</button>
+        <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>
+        <button type="button" className="btn" disabled={!p || busy || (!skipErrors && p.errors.length > 0) || p.valid === 0} onClick={confirm}>{busy && p ? t("saving") : p?.valid && (skipErrors || !p.errors.length) ? t("confirmRows", { count: p.valid }) : t("confirm")}</button>
       </div>
     </Modal>
   );

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { IconName } from "@places/ui";
 import { Empty, Icon } from "./ui";
 
@@ -12,7 +13,8 @@ export interface InboxLine {
 }
 
 export function Inbox({ lines }: { lines: InboxLine[] }) {
-  if (!lines.length) return <Empty text="مفيش حاجة مستنياك. يوم هادي!" icon="check" />;
+  const t = useTranslations("ui.inbox");
+  if (!lines.length) return <Empty text={t("empty")} icon="check" />;
   return (
     <ul className="inbox">
       {lines.map((x) => (
