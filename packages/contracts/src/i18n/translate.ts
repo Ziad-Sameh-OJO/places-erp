@@ -10,7 +10,7 @@ export type ServerLocale = "ar" | "en";
 export type Pair = readonly [ar: string, en: string];
 
 const exact = new Map<string, string>();
-const templates: { re: RegExp; names: string[]; en: string }[] = [];
+const templates: { re: RegExp; names: string[]; en: string; fixed: number }[] = [];
 const memo = new Map<string, string>();
 const PART = /\{(\w+)\}/g;
 const escape = (s: string) => s.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
@@ -21,8 +21,10 @@ export function addPairs(pairs: readonly Pair[]) {
     const bits = ar.split(/\{(\w+)\}/);
     if (bits.length === 1) { exact.set(ar, en); continue; }
     const re = new RegExp(`^${bits.map((bit, i) => (i % 2 ? (names.push(bit), "([\\s\\S]+?)") : escape(bit))).join("")}$`);
-    templates.push({ re, names, en });
+    templates.push({ re, names, en, fixed: bits.filter((_, i) => i % 2 === 0).join("").length });
   }
+  // the most specific pattern first (the most fixed text), so «{n} موظف» never catches a longer sentence of its own
+  templates.sort((a, b) => b.fixed - a.fixed);
   memo.clear();
 }
 
