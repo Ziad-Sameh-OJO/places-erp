@@ -301,5 +301,27 @@
     "reasonExample": "مثلاً: مش صاحب الوحدة",
     "save": "احفظ",
     "doneTitle": "Done · وحدة جديدة من {name}"
+  },
+  "listOfOptions": {
+    "bar": "الوحدات المختارة",
+    "picked": "وحدة مختارة",
+    "make": "اعمل List of options",
+    "clear": "إلغاء الاختيار",
+    "tooMany": "لحد {max} وحدة في الـ List",
+    "title": "List of options · {n} وحدة",
+    "kind": "المحتوى",
+    "full": "كامل",
+    "short": "مختصر",
+    "fullHint": "لكل وحدة: الغلاف وصورة المبنى والجدول والصور من جوه، زي الـ PDF.",
+    "shortHint": "لكل وحدة: صفحة الجدول وصفحة الصور، زي الـ slide.",
+    "format": "الشكل",
+    "client": "اسم العميل (اختياري)",
+    "clientHint": "بيتكتب على الغلاف",
+    "cancel": "إلغاء",
+    "download": "نزّل الملف",
+    "making": "بيتعمل…",
+    "done": "الـ List اتعملت",
+    "pickAll": "حدد كل الوحدات اللي في الصفحة",
+    "pickOne": "حدد {code}"
   }
 }

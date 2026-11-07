@@ -387,4 +387,11 @@ export default [
   ["اكتب رد", "Write a reply"],
   ["الرد طويل · 2000 حرف بالكتير", "The reply is too long · 2000 characters at most"],
   ["اختار القسم", "Choose the department"],
+  // inventory.ts ListOfOptionsInput (M-03 6.1)
+  ["اختار الوحدات", "Pick the units"],
+  ["لحد 20 وحدة في الـ List", "Up to 20 units in the list"],
+  ["الوحدة متكررة في الـ List", "A unit is in the list twice"],
+  ["اختار كامل أو مختصر", "Pick full or short"],
+  ["اختار PDF أو PowerPoint", "Pick PDF or PowerPoint"],
+  ["اسم العميل طويل", "The client's name is too long"],
 ] satisfies Pair[];

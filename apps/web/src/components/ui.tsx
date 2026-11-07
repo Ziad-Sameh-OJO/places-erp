@@ -51,15 +51,33 @@ export function Tabs<K extends string>({ items, value, onChange }: { items: [K, 
 
 /** On phones every row becomes a card; each cell is labelled with its column (data-label, styled by mobile.css). */
 /** `onRow` makes rows clickable (the demo opens a record's drawer from its row); `className` goes on the wrapper («has-sheets»). */
-export function Table({ head, rows, empty, onRow, className = "" }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void; className?: string }) {
+/** Optional row checkboxes («حدد»): the ids of the rows in order, the picked ones, and the words for each box. */
+export interface TablePick { ids: string[]; picked: string[]; onChange: (ids: string[]) => void; all: string; one: (index: number) => string }
+
+export function Table({ head, rows, empty, onRow, className = "", pick }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void; className?: string; pick?: TablePick }) {
   const t = useTranslations("ui");
+  const on = (id: string) => !!pick?.picked.includes(id);
+  const all = !!pick && pick.ids.length > 0 && pick.ids.every(on);
+  // toggling this page's rows keeps what was picked on other pages
+  const flip = (ids: string[], add: boolean) => pick!.onChange(add ? [...new Set([...pick!.picked, ...ids])] : pick!.picked.filter((x) => !ids.includes(x)));
   return (
     <div className={`tbl-wrap ${className}`}>
       <table className="cardable">
-        <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+        <thead><tr>
+          {pick && <th className="pick"><input type="checkbox" checked={all} aria-label={pick.all} onChange={(e) => flip(pick.ids, e.target.checked)} /></th>}
+          {head.map((h) => <th key={h}>{h}</th>)}
+        </tr></thead>
         <tbody>
-          {rows.length ? rows.map((r, i) => <tr key={i} className={onRow ? "click" : undefined} onClick={onRow ? () => onRow(i) : undefined}>{r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}</tr>)
-            : <tr><td colSpan={head.length}><Empty text={empty ?? t("table.empty")} /></td></tr>}
+          {rows.length ? rows.map((r, i) => {
+            const id = pick?.ids[i];
+            return (
+              <tr key={i} className={`${onRow ? "click" : ""} ${id && on(id) ? "selected" : ""}`} onClick={onRow ? () => onRow(i) : undefined}>
+                {pick && id && <td className="pick" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={on(id)} aria-label={pick.one(i)} onChange={(e) => flip([id], e.target.checked)} /></td>}
+                {r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}
+              </tr>
+            );
+          })
+            : <tr><td colSpan={head.length + (pick ? 1 : 0)}><Empty text={empty ?? t("table.empty")} /></td></tr>}
         </tbody>
       </table>
     </div>

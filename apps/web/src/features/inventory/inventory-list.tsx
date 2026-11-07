@@ -15,6 +15,7 @@ import { OldDataImport } from "../imports/old-data-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
+import { ListOfOptionsBar } from "./list-of-options";
 import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 import { serverText } from "@/lib/server-text";
 
@@ -33,6 +34,8 @@ export function InventoryList() {
   const [f, setF] = useState<UnitQuery>({});
   const [mode, setMode] = useState<"table" | "drive">("table");
   const [page, setPage] = useState(1);
+  // M-03 6.1: the units picked for a List of options, kept across pages and filters until cleared
+  const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   // a notification links to one unit (the close to confirm, Q16)
   useEffect(() => {
@@ -138,7 +141,9 @@ export function InventoryList() {
             </article>
           ))}</div>
           : <Empty text={t("list.empty")} />)
-        : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k, t)))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)} />}
+        : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k, t)))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)}
+          pick={{ ids: list.map((u) => u.id), picked, onChange: setPicked, all: t("listOfOptions.pickAll"), one: (i) => t("listOfOptions.pickOne", { code: list[i]!.code }) }} />}
+      {picked.length > 0 && <ListOfOptionsBar ids={picked} onClear={() => setPicked([])} />}
       <AreaTabsBar tabs={areaTabs} value={f.tabId} onChange={(tabId) => filter({ ...f, tabId })} editable={me.can("inventory", "edit")} />
       {!failed && pages > 1 && (
         <div className="row end">
@@ -160,7 +165,7 @@ export function InventoryList() {
         onSaved={(id) => { setForm(null); setOpen(id); }} />}
       {report && <DailyReportModal onClose={() => setReport(false)} />}
       {teamTask && <TeamTaskModal units={list} onClose={() => setTeamTask(false)} />}
-      {me.can("inventory", "create") && <Fab onClick={() => setForm("new")} label={t("list.newUnit")} />}
+      {me.can("inventory", "create") && !picked.length && <Fab onClick={() => setForm("new")} label={t("list.newUnit")} />}
     </>
   );
 }
