@@ -1,4 +1,19 @@
 import type { ModuleKey } from "./permissions.ts";
+import { inventory } from "./fields/inventory.ts";
+import { leads } from "./fields/leads.ts";
+import { deals } from "./fields/deals.ts";
+import { clients } from "./fields/clients.ts";
+import { contracts } from "./fields/contracts.ts";
+import { notactive } from "./fields/notactive.ts";
+import { tasks } from "./fields/tasks.ts";
+import { marketing } from "./fields/marketing.ts";
+import { hr } from "./fields/hr.ts";
+import { tickets } from "./fields/tickets.ts";
+import { finance } from "./fields/finance.ts";
+import { procurement } from "./fields/procurement.ts";
+import { reports } from "./fields/reports.ts";
+import { kpis } from "./fields/kpis.ts";
+import { access } from "./fields/access.ts";
 
 /**
  * Field permissions (M-09, RECA TECH proposal agreed with the client's admin needs): on top of a role's actions on a
@@ -22,47 +37,10 @@ export interface FieldDef {
   covers?: readonly string[];
 }
 
-/** Module by module, as phases land (phase 1: the units). */
-export const FIELDS: Partial<Record<ModuleKey, readonly FieldDef[]>> = {
-  inventory: [
-    { key: "code", label: "Code", locked: true },
-    { key: "type", label: "Type", locked: true },
-    { key: "project", label: "Project", locked: true },
-    { key: "area", label: "Area (المنطقة)" },
-    { key: "space", label: "Space (المساحة)", covers: ["areaTabId"] },
-    { key: "condition", label: "Conditions (التشطيب)" },
-    { key: "floor", label: "Floor" },
-    { key: "building", label: "Building Number" },
-    { key: "parking", label: "Parking Slots" },
-    { key: "pricePerSqm", label: "Price / Sqm", covers: ["total", "totalPrice", "yield"] },
-    { key: "leasePerSqm", label: "Lease / Sqm", covers: ["monthly", "annual", "yield", "income"] },
-    { key: "paymentMethod", label: "Payment method" },
-    { key: "maintenance", label: "Maintenance" },
-    { key: "commission", label: "Commission" },
-    { key: "ownerName", label: "Contact (المالك)" },
-    { key: "ownerPhone", label: "Number (رقم المالك)" },
-    { key: "agent", label: "Agent", covers: ["agentId"] },
-    { key: "location", label: "Location" },
-    { key: "layout", label: "Layout" },
-    { key: "comment", label: "Comment" },
-    { key: "divisible", label: "Divisible (تنفع تتقسم)", covers: ["minSplit", "splitNote"] },
-    { key: "lastOwnerUpdateAt", label: "Last update", covers: ["lastUpdate", "stale"] },
-    { key: "delivery", label: "Delivery date" },
-    { key: "upfront", label: "Upfront rent" },
-    { key: "security", label: "Security deposit" },
-    { key: "payment", label: "Payment (Rent)" },
-    { key: "term", label: "Term" },
-    { key: "grace", label: "Grace period" },
-    { key: "escalationPct", label: "Annual increase", covers: ["escalation"] },
-    { key: "link", label: "Link" },
-    { key: "contractDuration", label: "Contract", covers: ["contract"] },
-    { key: "startsOn", label: "Start", covers: ["start"] },
-    { key: "endsOn", label: "End", covers: ["end"] },
-    { key: "tenant", label: "Tenant" },
-    { key: "serviceChargeUsd", label: "Service $/m", covers: ["serviceUsd"] },
-    { key: "note", label: "Note" },
-  ],
-};
+/** Module by module (one file each, so modules are added side by side); a module with no fields isn't offered. */
+export const FIELDS: Partial<Record<ModuleKey, readonly FieldDef[]>> = Object.fromEntries(
+  Object.entries({ inventory, leads, deals, clients, contracts, notactive, tasks, marketing, hr, tickets, finance, procurement, reports, kpis, access }).filter(([, f]) => f.length),
+);
 
 /** The rules that differ from «show», module by module: a role's, or a person's merged from their roles. */
 export type FieldRules = Partial<Record<ModuleKey, Readonly<Record<string, FieldMode>>>>;
