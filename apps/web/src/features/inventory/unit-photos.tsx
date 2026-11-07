@@ -1,10 +1,10 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { StoredFile, UnitDetail, UnitPhotoView } from "@places/contracts";
-import { fillsUnitFolder } from "@places/domain";
-import { FileUpload } from "@/components/file-upload";
-import { Chip, Icon, Modal, Note, useAction } from "@/components/ui";
+import { FILE_KINDS, UploadRequest, type StoredFile, type UnitDetail, type UnitPhotoView, type UploadTicket } from "@places/contracts";
+import { MAX_UNIT_PHOTOS, fillsUnitFolder } from "@places/domain";
+import { put } from "@/components/file-upload";
+import { Chip, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 
@@ -34,7 +34,6 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
   const photos = usePhotos(u.id).data ?? [];
   const base = `/inventory/units/${u.id}/photos`;
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["unit-photos", u.id] }), qc.invalidateQueries({ queryKey: ["units"] }), qc.invalidateQueries({ queryKey: ["unit"] })]);
-  const add = (f: StoredFile) => void run(async () => { await api.post(base, { fileIds: [f.id] }); await refresh(); }, `اترفع ملف في فولدر ${u.code} · الـ PDF مستني Confirm`);
   const order = (ids: string[], ok: string) => void run(async () => { await api.put(`${base}/order`, { fileIds: ids }); await refresh(); }, ok);
   const move = (i: number, by: number) => {
     const ids = photos.map((p) => p.id);
@@ -52,6 +51,7 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
       <span className="hint">{u.project} · {u.area} · {photos.length} ملف</span><span className="spacer" />
       {/* the API streams it with its name (<code> - Pic & Info.zip) and audits the download */}
       {!!photos.length && <a className="btn ghost" href={`/api/v1${base}/zip`} download><Icon name="download" />نزّل الفولدر كله (ZIP)</a>}
+      {up && <FolderUpload left={MAX_UNIT_PHOTOS - photos.length} onDone={(ids) => run(async () => { await api.post(base, { fileIds: ids }); await refresh(); }, `اترفع ${ids.length} ملف في فولدر ${u.code} · الـ PDF مستني Confirm`)} />}
     </div>
     {photos.length ? (
       <div className="ufolder">
@@ -64,10 +64,10 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
               <small>{when(p.at)}{p.by ? ` · ${p.by}` : ""}</small>
               <a className="uf-dl" href={p.download} download={p.name}><Icon name="download" />تحميل</a>
               {up && (
-                <div className="row">
+                <div className="uf-acts">
                   <button className="btn ghost sm" disabled={i === 0} onClick={() => move(i, -1)}>قدّم</button>
                   <button className="btn ghost sm" disabled={i === photos.length - 1} onClick={() => move(i, 1)}>أخّر</button>
-                  {!p.main && !p.pdf && <button className="btn ghost sm" onClick={() => main(i)}>خليها الرئيسية</button>}
+                  {!p.main && !p.pdf && <button className="lnk" onClick={() => main(i)}>خليها الرئيسية</button>}
                 </div>
               )}
             </figcaption>
@@ -78,7 +78,39 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
     ) : (
       <div className="ufolder empty"><Icon name="folder" /><b>الفولدر فاضي</b><span className="hint">{up ? "ارفع كل صور الوحدة هنا." : "لسه محدش رفع صور للوحدة دي."}</span></div>
     )}
-    {up && <div className="row"><FileUpload kind="image" label="ارفع صور" onUploaded={add} /><FileUpload kind="pdf" label="ارفع PDF" onUploaded={add} /></div>}
     <Note>الصور دي بتتشاف من خانة Pic & Info في الشيت ومن صفحة الوحدة، ومنها بيتعمل الـ PDF والـ slide (أول صورة هي الغلاف). أول رفع بيتسجّل وقته وبيتحسب في «رفع الصور خلال 24 ساعة».</Note>
   </>;
+}
+
+/**
+ * The demo's one «ارفع صور / PDF» (invwork.js): several photos and PDFs at once, each straight to storage (like
+ * FileUpload), then added to the folder together. A file that fails its check is skipped with a message; the rest go up.
+ */
+function FolderUpload({ left, onDone }: { left: number; onDone: (ids: string[]) => Promise<void> }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  const pick = async (files: File[]) => {
+    if (files.length > left) return toast(`الفولدر ياخد لحد ${MAX_UNIT_PHOTOS} ملف · فاضل ${left}`, "bad");
+    const ids: string[] = [];
+    for (const [i, file] of files.entries()) {
+      const req = { name: file.name, mime: file.type, size: file.size };
+      const check = UploadRequest.safeParse(req);
+      if (!check.success) { toast(`${file.name}: ${check.error.issues[0]!.message}`, "bad"); continue; }
+      try {
+        const t = await api.post<UploadTicket>("/files/uploads", req);
+        await put(t, file, (pct) => setBusy(`بيترفع ${i + 1}/${files.length} · ${pct}%`));
+        const f = await api.post<StoredFile>(`/files/${t.id}/complete`);
+        if (f.status === "READY") ids.push(f.id); else toast(`${file.name}: الملف مش سليم`, "bad");
+      } catch (e) {
+        toast(`${file.name}: ${e instanceof Error ? e.message : "الرفع فشل"}`, "bad");
+      }
+    }
+    setBusy(null);
+    if (ids.length) await onDone(ids);
+  };
+  return <label className={`btn${busy ? " disabled" : ""}`} title={`الصورة لحد ${FILE_KINDS.image.max} · الـ PDF لحد ${FILE_KINDS.pdf.max}`}>
+    <Icon name="upload" />{busy ?? "ارفع صور / PDF"}
+    <input type="file" multiple hidden accept={[...FILE_KINDS.image.mimes, ...FILE_KINDS.pdf.mimes].join(",")} disabled={!!busy}
+      onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; void pick(fs); }} />
+  </label>;
 }
