@@ -72,6 +72,22 @@ function pages(u: UnitDetail, photos: Photo[], kind: "pdf" | "slide"): Page[] {
   return P;
 }
 
+/**
+ * M-03 6.1 «list of options as pdf»: several units in one file for a client — a list cover, then each unit's own pages
+ * (its cover, building, specs and inside photos; or the slide's specs and photos), then contacts and thank you once.
+ */
+export interface ListUnit { u: UnitDetail; photos: Photo[] }
+function listPages(units: readonly ListUnit[], kind: "pdf" | "slide", client?: string): Page[] {
+  const n = units.length;
+  return [
+    { bg: "red", cover: { title: "LIST OF OPTIONS", area: `${n} ${n === 1 ? "UNIT" : "UNITS"}`, building: client ? `PREPARED FOR : ${client.toUpperCase()}` : "", code: "" } },
+    // a unit's «pdf» pages end with contacts + thank you: the list puts those once, at the end
+    ...units.flatMap(({ u, photos }) => (kind === "pdf" ? pages(u, photos, "pdf").slice(0, -2) : pages(u, photos, "slide"))),
+    { bg: "contacts" }, { bg: "red", thanks: true },
+  ];
+}
+export const listName = (n: number, client?: string) => (client ? `List of options - ${client}` : `List of options (${n} ${n === 1 ? "unit" : "units"})`);
+
 /** The client's file name: «(P1901) Gate Way El Rehab 20M Up TO 690M»; the slide «P1901 slide». */
 export const deckName = (u: UnitDetail, kind: "pdf" | "slide") => (kind === "pdf" ? `(${u.code}) ${u.project} ${areaText(u).replace(/ SQM/g, "M")}` : `${u.code} slide`);
 
@@ -100,9 +116,10 @@ const pageHtml = (p: Page) => `<section class="b-pg" style="background-image:url
   ${p.thanks ? `<div class="b-thanks">Thank you</div><div class="b-site">Places-egy.com</div><p class="b-disc">${esc(DISCLAIMER)}</p>` : ""}
 </section>`;
 
+const deckHtml = (name: string, P: Page[]) => layout(name, `<style>${CSS}</style>${P.map(pageHtml).join("")}`);
 /** The deck as HTML for DocumentsService.pdf(…, { slide: true }). */
-export const unitDeckHtml = (u: UnitDetail, photos: Photo[], kind: "pdf" | "slide") =>
-  layout(deckName(u, kind), `<style>${CSS}</style>${pages(u, photos, kind).map(pageHtml).join("")}`);
+export const unitDeckHtml = (u: UnitDetail, photos: Photo[], kind: "pdf" | "slide") => deckHtml(deckName(u, kind), pages(u, photos, kind));
+export const listDeckHtml = (units: readonly ListUnit[], kind: "pdf" | "slide", client?: string) => deckHtml(listName(units.length, client), listPages(units, kind, client));
 
 /* ---------- PowerPoint (13.333 × 7.5 in) ---------- */
 
@@ -120,12 +137,15 @@ function pixels(src: Photo): { w: number; h: number } | null {
 }
 
 /** The same pages as a .pptx (the demo's unitDeckPptx, server-side). */
-export async function unitDeckPptx(u: UnitDetail, photos: Photo[], kind: "pdf" | "slide"): Promise<Buffer> {
+export const unitDeckPptx = (u: UnitDetail, photos: Photo[], kind: "pdf" | "slide") => deckPptx(deckName(u, kind), pages(u, photos, kind));
+export const listDeckPptx = (units: readonly ListUnit[], kind: "pdf" | "slide", client?: string) => deckPptx(listName(units.length, client), listPages(units, kind, client));
+
+async function deckPptx(name: string, P: Page[]): Promise<Buffer> {
   const X = (v: number) => (v * 13.333) / 100, Y = (v: number) => (v * 7.5) / 100;
   const ppt = new PptxGenJS();
   ppt.layout = "LAYOUT_WIDE";
-  ppt.title = deckName(u, kind);
-  for (const p of pages(u, photos, kind)) {
+  ppt.title = name;
+  for (const p of P) {
     const s = ppt.addSlide();
     s.background = { data: bg(p.bg) };
     for (const [src, x, y, w, h] of p.photos ?? []) {

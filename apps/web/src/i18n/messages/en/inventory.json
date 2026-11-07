@@ -301,5 +301,27 @@
     "reasonExample": "e.g. not the unit's owner",
     "save": "Save",
     "doneTitle": "Done · new unit from {name}"
+  },
+  "listOfOptions": {
+    "bar": "Picked units",
+    "picked": "{count, plural, one {unit picked} other {units picked}}",
+    "make": "Make a List of options",
+    "clear": "Clear",
+    "tooMany": "Up to {max} units in a list",
+    "title": "List of options · {count, plural, one {# unit} other {# units}}",
+    "kind": "Content",
+    "full": "Full",
+    "short": "Short",
+    "fullHint": "For each unit: the cover, the building photo, the specs and the inside photos, like its PDF.",
+    "shortHint": "For each unit: the specs page and a photos page, like its slide.",
+    "format": "Format",
+    "client": "Client's name (optional)",
+    "clientHint": "Shown on the cover",
+    "cancel": "Cancel",
+    "download": "Download",
+    "making": "Making it…",
+    "done": "The list is ready",
+    "pickAll": "Pick every unit on this page",
+    "pickOne": "Pick {code}"
   }
 }

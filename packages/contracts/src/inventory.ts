@@ -204,6 +204,16 @@ export const UnitPhotosInput = z.object({
 });
 export type UnitPhotosInput = z.infer<typeof UnitPhotosInput>;
 /** The unit's photos in the new order: the first one is the main photo. */
+/** M-03 6.1 «list of options as pdf»: the picked units in one file for a client — the full deck or the slide, PDF or PowerPoint. */
+export const MAX_LIST_UNITS = 20;
+export const ListOfOptionsInput = z.object({
+  unitIds: z.array(Id, { required_error: "اختار الوحدات" }).min(1, "اختار الوحدات").max(MAX_LIST_UNITS, `لحد ${MAX_LIST_UNITS} وحدة في الـ List`)
+    .refine((ids) => new Set(ids).size === ids.length, "الوحدة متكررة في الـ List"),
+  kind: z.enum(["pdf", "slide"], { errorMap: () => ({ message: "اختار كامل أو مختصر" }) }),
+  format: z.enum(["pdf", "pptx"], { errorMap: () => ({ message: "اختار PDF أو PowerPoint" }) }),
+  client: optional(text(120, "اسم العميل طويل")),
+});
+export type ListOfOptionsInput = z.infer<typeof ListOfOptionsInput>;
 export const UnitPhotoOrder = z.object({ fileIds: z.array(Id).max(MAX_UNIT_PHOTOS) });
 export type UnitPhotoOrder = z.infer<typeof UnitPhotoOrder>;
 /** One file of the folder with a short link (5 minutes); `main` = the first image (the PDF's cover), never a `pdf`. 2.22: `download` saves it instead of opening it; `by`/`at` = who uploaded it, when. */
