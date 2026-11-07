@@ -1,6 +1,7 @@
 "use client";
 import { type FormEvent, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { AddedCompany, CompanyRow, CompanySheet, PendingCompany } from "@places/contracts";
 import { CONTRACT_ENDING_DAYS, OUTBOUND_WEEKLY_TARGET, keepsCompaniesSheet } from "@places/domain";
 import { api } from "@/lib/api";
@@ -30,6 +31,7 @@ const cell = (c: CompanyRow, k: keyof CompanyRow) => {
 
 /** Demo «شيت الشركات» (1.20): new companies from leads to add, the Outbound row, the category filter, the sheet. */
 export function CompaniesSheet({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("leads.companies");
   const { me } = useMe();
   const keeper = keepsCompaniesSheet(me?.roles ?? []); // comfort only: the API decides
   const [category, setCategory] = useState("");
@@ -41,27 +43,28 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
   });
   const s = sheet.data;
   return (
-    <Modal title="شيت الشركات" onClose={onClose}>
+    <Modal title={t("title")} onClose={onClose}>
       {keeper && <PendingList categories={s?.categories.map((c) => c.name) ?? []} />}
       {keeper && s && <AddRow categories={s.categories.map((c) => c.name)} outbound={s.outboundThisWeek} />}
       <div className="toolbar">
-        <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="الكاتيجوري">
-          <option value="">كل الكاتيجوريز ({s?.categories.length ?? 0})</option>
+        <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={t("category")}>
+          <option value="">{t("allCategories", { count: s?.categories.length ?? 0 })}</option>
           {(s?.categories ?? []).map((c) => <option key={c.name} value={c.name}>{c.name} · {c.count}</option>)}
         </select>
-        <label className="tog"><input type="checkbox" checked={soon} onChange={(e) => setSoon(e.target.checked)} /><span>عقدهم بيخلص خلال {CONTRACT_ENDING_DAYS} يوم</span></label>
-        <span className="hint spacer">{s?.total ?? 0} شركة</span>
-        <ExportButton module="leads" path="/companies/export" query={filters} filename={soon ? "شركات عقدها قرّب يخلص.xlsx" : "شيت الشركات.xlsx"} />
+        <label className="tog"><input type="checkbox" checked={soon} onChange={(e) => setSoon(e.target.checked)} /><span>{t("endingSoon", { days: CONTRACT_ENDING_DAYS })}</span></label>
+        <span className="hint spacer">{t("count", { count: s?.total ?? 0 })}</span>
+        <ExportButton module="leads" path="/companies/export" query={filters} filename={soon ? t("fileEnding") : t("file")} />
       </div>
       <Table className="wide" head={[...COLS.map(([, h]) => h), ...(category ? [] : ["category"])]}
-        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [c.category])])} empty="مفيش شركات" />
-      {s && s.total > s.items.length && <p className="hint">ظاهر أول {s.items.length} من {s.total} · اختار كاتيجوري.</p>}
+        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [c.category])])} empty={t("empty")} />
+      {s && s.total > s.items.length && <p className="hint">{t("shownFirst", { shown: s.items.length, total: s.total })}</p>}
     </Modal>
   );
 }
 
 /** «شركات جديدة محتاجة تتضاف»: each one with its category and «أضف للشيت». */
 function PendingList({ categories }: { categories: string[] }) {
+  const t = useTranslations("leads.companies");
   const run = useAction();
   const toast = useToast();
   const qc = useQueryClient();
@@ -69,16 +72,16 @@ function PendingList({ categories }: { categories: string[] }) {
   if (!pending.length) return null;
   const add = (p: PendingCompany) => onFormSubmit((f) => run(async () => {
     const c = await api.post<AddedCompany>(`/companies/pending/${p.id}`, { category: String(f.get("category") ?? "") });
-    toast(`${c.name} اتضافت تحت ${c.category}`);
+    toast(t("added", { name: c.name, category: c.category }));
     await qc.invalidateQueries({ queryKey: KEY });
   }));
   return (
-    <Card className="flat attn" title="شركات جديدة محتاجة تتضاف" icon="alert">
+    <Card className="flat attn" title={t("pendingTitle")} icon="alert">
       {pending.map((p) => (
         <form className="line-item" key={p.id} onSubmit={add(p)}>
-          <span><span><b>{p.name}</b> · ليد {p.lead.code} · أضافها {p.by}</span></span>
-          <select name="category" aria-label={`كاتيجوري ${p.name}`} style={{ maxWidth: 170 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
-          <button className="btn sm">أضف للشيت</button>
+          <span><span><b>{p.name}</b> · {t("pendingLine", { code: p.lead.code, by: p.by })}</span></span>
+          <select name="category" aria-label={t("categoryOf", { name: p.name })} style={{ maxWidth: 170 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
+          <button className="btn sm">{t("addToSheet")}</button>
         </form>
       ))}
     </Card>
@@ -87,6 +90,7 @@ function PendingList({ categories }: { categories: string[] }) {
 
 /** Demo's Outbound row: name · category · number, and this week's count of 15. */
 function AddRow({ categories, outbound }: { categories: string[]; outbound: number }) {
+  const t = useTranslations("leads.companies");
   const run = useAction();
   const toast = useToast();
   const qc = useQueryClient();
@@ -95,18 +99,18 @@ function AddRow({ categories, outbound }: { categories: string[]; outbound: numb
     const form = e.currentTarget, f = new FormData(form);
     return run(async () => {
       const c = await api.post<AddedCompany>("/companies", { name: f.get("name"), category: f.get("category"), number: f.get("number") });
-      toast(c.leadCode ? `اتضافت · الرقم ده موجود في ليد ${c.leadCode}` : "اتضافت · بتتحسب في الـ Outbound بتاعك");
+      toast(c.leadCode ? t("addedInLead", { code: c.leadCode }) : t("addedOutbound"));
       form.reset(); // only once it was added: a refused one keeps what was typed
       await qc.invalidateQueries({ queryKey: KEY });
     });
   };
   return (
     <form className="row" onSubmit={submit}>
-      <input name="name" required maxLength={160} placeholder="شركة جديدة (Outbound)" aria-label="اسم الشركة" />
-      <select name="category" aria-label="الكاتيجوري" style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
-      <input name="number" required maxLength={40} placeholder="الرقم" style={{ maxWidth: 130 }} aria-label="الرقم" />
-      <button className="btn sm"><Icon name="plus" />أضف</button>
-      <span className="hint">Outbound الأسبوع ده: <b>{outbound}</b> من {OUTBOUND_WEEKLY_TARGET}</span>
+      <input name="name" required maxLength={160} placeholder={t("newCompany")} aria-label={t("companyName")} />
+      <select name="category" aria-label={t("category")} style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
+      <input name="number" required maxLength={40} placeholder={t("number")} style={{ maxWidth: 130 }} aria-label={t("number")} />
+      <button className="btn sm"><Icon name="plus" />{t("add")}</button>
+      <span className="hint">{t.rich("outbound", { count: outbound, target: OUTBOUND_WEEKLY_TARGET, b: (c) => <b>{c}</b> })}</span>
     </form>
   );
 }

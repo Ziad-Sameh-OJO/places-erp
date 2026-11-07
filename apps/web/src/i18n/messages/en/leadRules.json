@@ -1,1 +1,123 @@
-{}
+{
+  "page": {
+    "routing": "Routing",
+    "sla": "Hours and SLA",
+    "visit": "Visit and Meeting",
+    "close": "Closing",
+    "viewOnly": "View only · editing needs the «Edit» permission on routing settings"
+  },
+  "rotation": {
+    "loading": "Loading…",
+    "saved": "Saved · this order is for today only",
+    "backToAuto": "Back to automatic by fingerprint",
+    "title": "Today's rotation order",
+    "sub": "The first to fingerprint gets the first lead, and someone with a Visit counts from its time. You can change the order any time today",
+    "manual": "Changed by hand",
+    "auto": "Automatic by fingerprint",
+    "fingerprinted": "In at {time}",
+    "notYet": "Not in yet",
+    "up": "Move {name} up",
+    "down": "Move {name} down",
+    "nobody": "No salespeople working today",
+    "resetAuto": "Reset to automatic by fingerprint"
+  },
+  "routing": {
+    "loading": "Loading…",
+    "saved": "Saved",
+    "viewOnly": "View only · editing needs the «Edit» permission on routing settings",
+    "title": "Area routing settings",
+    "sub": "When someone picks an area on a lead, the lead goes straight to these salespeople",
+    "viewOnlyChip": "View only",
+    "empty": "No areas or salespeople yet",
+    "salesCount": "{n} sales",
+    "hint": "If an area has more than one salesperson, its leads are split among them in today's rotation order. Salespeople on approved leave are taken out of the routing automatically."
+  },
+  "saved": "Saved · applies right away",
+  "loading": "Loading…",
+  "on": "On",
+  "hour": "hours",
+  "hours": "hours",
+  "day": "days",
+  "notifyTo": "The notification goes to",
+  "days": {
+    "sun": "Sunday",
+    "mon": "Monday",
+    "tue": "Tuesday",
+    "wed": "Wednesday",
+    "thu": "Thursday",
+    "fri": "Friday",
+    "sat": "Saturday"
+  },
+  "who": {
+    "remove": "Remove {name}",
+    "nobody": "Nobody",
+    "addTo": "Add to {label}",
+    "add": "+ Add a role or a person",
+    "owner": "The lead's salesperson",
+    "ownerTl": "The salesperson's Team Leader",
+    "roles": "Roles",
+    "people": "People",
+    "sep": ", ",
+    "ch": {
+      "app": "In the system",
+      "push": "Push",
+      "email": "Email"
+    }
+  },
+  "sla": {
+    "hoursTitle": "SLA working hours",
+    "hoursSub": "The SLA only counts during these hours, and official holidays don't count",
+    "from": "From",
+    "to": "To",
+    "weekOff": "Weekly days off",
+    "title": "New lead with no action (SLA)",
+    "says": "A Fresh lead left <b>{warn}</b> with no action → alert to <b>{warnTo}</b>. If it reaches <b>{pull}</b> → it's pulled to the next in line and sent to <b>{pullTo}</b>. On a holiday: alert after {holWarn} and pull after {holPull}.",
+    "warnAfter": "Alert after",
+    "pullAfter": "Pull after",
+    "holWarn": "Alert on a holiday",
+    "holPull": "Pull on a holiday",
+    "warnTo": "The alert goes to",
+    "pullTo": "The pull is sent to",
+    "holidays": "Official holidays",
+    "holidaysSub": "From one day to another (like Eid) · on those days the SLA runs on holiday times",
+    "holidaysHint": "Only the upcoming ones · the full calendar is in Settings → Official holidays",
+    "newLead": "New lead assigned",
+    "newLeadSays": "As soon as a lead is assigned, a notification goes to <b>{to}</b>."
+  },
+  "na": {
+    "theTelesales": "Telesales",
+    "says": "When a salesperson marks No Answer, the lead stays with them for <b>{stay}</b>, and every <b>{every} hours</b> they get an alert to call. After that it goes to the salesperson next in line and goes back to Fresh, and only moves on again if that salesperson also marks it No Answer. At rotation number <b>{at}</b> it goes to <b>{tele}</b> (Telesales), and the notification to <b>{to}</b>.",
+    "stays": "Stays with each salesperson",
+    "staysUnit": "hours after they mark No Answer",
+    "remind": "Call alert every",
+    "toTelesalesAt": "Goes to Telesales at rotation number",
+    "receiver": "The Telesales who receives it",
+    "anyTelesales": "Telesales (anyone)",
+    "notifyTo": "When it goes to Telesales the notification goes to"
+  },
+  "draft": {
+    "title": "Pulling to the Draft",
+    "says": "A lead with <b>{days} days</b> of no action or comment (or <b>{holdDays} days</b> on Hold) → is pulled from the salesperson into the Draft, and the notification goes to <b>{to}</b>. The Draft is visible to <b>{see}</b> only. It isn't pulled if it's Done Deal, Cancellation, Not Interested or No Answer (which has its own rotation).",
+    "pullAfter": "Pulled after",
+    "pullUnit": "days with no action",
+    "holdAfter": "Hold pulled after",
+    "see": "Who sees the Draft and assigns from it",
+    "notifyTo": "When a lead is pulled the notification goes to",
+    "adminSays": "Any lead marked <b>Not Interested</b> or <b>Cancellation</b> (by a salesperson or Telesales) is taken from them automatically and goes to the Draft Admin. Visible to <b>{see}</b> only, and every day they get an Alarm on the home page with what came in so they can decide.",
+    "adminSee": "Who sees the Draft Admin and decides",
+    "adminNotifyTo": "When a lead comes in the notification goes to"
+  },
+  "visit": {
+    "postponeTitle": "Postponing a Visit / Meeting",
+    "postponeSays": "When a salesperson presses «Postponed» they must write the reason, and the request goes to <b>{to}</b> to approve or reject. If approved, that day has no deduction. Either way, <b>{info}</b> is told what happened.",
+    "approver": "Who approves the postponement",
+    "informed": "Told what happened",
+    "notDoneTitle": "Visit / Meeting not done",
+    "notDoneSays": "When it's marked «Didn't do it», it goes back to the fingerprint with its deduction, and the notification goes to <b>{to}</b>."
+  },
+  "close": {
+    "title": "Closing (Done Deal)",
+    "says": "If the deal closes within <b>{within}</b> of the lead being created, an Alarm says it was recorded at closing time only, and it doesn't count toward the target. The notification goes to <b>{to}</b>.",
+    "alarm": "Alarm if closed within"
+  }
+}

@@ -1,13 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ExportButton, Icon, Note, Tabs } from "@/components/ui";
 import type { DraftKind, LeadKind } from "@places/contracts";
 import { useMe } from "@/lib/me";
 import { num } from "@/lib/format";
-import { durationText, keepsCompaniesSheet } from "@places/domain";
+import { keepsCompaniesSheet } from "@places/domain";
 import type { LeadQuery } from "./filters";
 import { toParams, useSavedViews } from "./filters";
 import { BulkBar } from "./bulk-bar";
+import { useDuration } from "./lead-bits";
 import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
 import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
@@ -26,6 +28,8 @@ const PAGE = 50;
 
 /** M-01 · the leads list (demo «العملاء المحتملين»): the tabs, Operations' queue, tiles, saved views, filters, list or Kanban, the SLA note. */
 export function LeadsList() {
+  const t = useTranslations("leads.list");
+  const duration = useDuration();
   const { me, can } = useMe();
   const keepsSheet = keepsCompaniesSheet(me?.roles ?? []); // comfort only: the API decides (M-01 2.1)
   const newCompanies = usePendingCompanies(keepsSheet).data ?? [];
@@ -75,7 +79,7 @@ export function LeadsList() {
   const tabRow = (
     <div className="row">
       <Tabs<LeadKind | DraftKind> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
-        items={[["client", "الليدز", tabs?.client], ["broker", "البروكرز", tabs?.broker], ...draftTabs]} />
+        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...draftTabs]} />
     </div>
   );
   if (draftTab && draftTabs.some(([k]) => k === draftTab)) {
@@ -88,27 +92,27 @@ export function LeadsList() {
       <DraftAdminAlarm onOpen={() => setDraftTab("admin")} />
       <OperationsQueue />
       <SecondCalls onOpen={setOpen} />
-      {newCompanies.length > 0 && <Note kind="warn">فيه {newCompanies.length} شركة جديدة محتاجة تتضاف لشيت الشركات. <button className="btn sm" onClick={() => setCompanies(true)}>افتح شيت الشركات</button></Note>}
+      {newCompanies.length > 0 && <Note kind="warn">{t("newCompanies", { count: newCompanies.length })} <button className="btn sm" onClick={() => setCompanies(true)}>{t("openCompanies")}</button></Note>}
       {calls?.goal && (
         <Note>{calls.goal.period === "day"
-          ? <>مكالماتك النهارده: <b>{num(calls.count)}</b> من {calls.goal.target} (بند في الـ KPIs بتاعتك).</>
-          : <>مكالماتك آخر 7 أيام: <b>{num(calls.count)}</b> من {calls.goal.target} (بند Calls &amp; Broadcast في الـ KPIs بتاعتك).</>}</Note>
+          ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
+          : t.rich("callsWeek", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })}</Note>
       )}
       <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />
       <div className="row">
         <div className="seg" role="group">
-          <button aria-pressed={mode === "list"} title="قايمة" onClick={() => setMode("list")}><Icon name="list" /><span>قايمة</span></button>
+          <button aria-pressed={mode === "list"} title={t("list")} onClick={() => setMode("list")}><Icon name="list" /><span>{t("list")}</span></button>
           <button aria-pressed={mode === "board"} title="Kanban" onClick={() => setMode("board")}><Icon name="board" /><span>Kanban</span></button>
         </div>
-        <span className="hint num">{num(total)} ليد</span>
+        <span className="hint num">{t("count", { count: total, n: num(total) })}</span>
         <span className="spacer" />
-        {(keepsSheet || can("leads", "import")) && <button className="btn ghost" onClick={() => setCompanies(true)}><Icon name="building" />شيت الشركات</button>}
-        {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />إدخال جماعي (Import)</button>}
+        {(keepsSheet || can("leads", "import")) && <button className="btn ghost" onClick={() => setCompanies(true)}><Icon name="building" />{t("companies")}</button>}
+        {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />{t("bulk")}</button>}
         {can("leads", "import") && <><OldDataImport kind="leads" /><OldDataImport kind="companies" /></>}{/* 13.1 */}
-        <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind }, 1, 100)} filename="الليدز.xlsx" label="تصدير الليدز" />
-        {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />ليد جديد</button>}
+        <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind }, 1, 100)} filename={t("exportFile")} label={t("export")} />
+        {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{t("newLead")}</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
         ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
@@ -117,19 +121,21 @@ export function LeadsList() {
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
       {companies && <CompaniesSheet onClose={() => setCompanies(false)} />}
       {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}
-      {can("leads", "create") && <Fab onClick={() => setCreating(true)} label="ليد جديد" />}
+      {can("leads", "create") && <Fab onClick={() => setCreating(true)} label={t("newLead")} />}
       {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
       {!failed && mode === "list" && pages > 1 && (
         <div className="row end">
-          <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button>
+          <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("prev")}</button>
           <span className="hint">{page} / {pages}</span>
-          <button className="btn ghost sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>التالي</button>
+          <button className="btn ghost sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>{t("next")}</button>
         </div>
       )}
       {s && (
         <Note>
-          الـ SLA{s.holidayMode && <> <b>(النهارده إجازة رسمية)</b></>}: تنبيه بعد {durationText(s.holidayMode ? s.slaRules.holidayWarnAfter : s.slaRules.warnAfter)} من غير أكشن،
-          والليد بيتسحب أوتوماتيك بعد {durationText(s.holidayMode ? s.slaRules.holidayPullAfter : s.slaRules.pullAfter)} للسيلز اللي عليه الدور.
+          {t("slaTitle")}{s.holidayMode && <> <b>{t("holiday")}</b></>}{t("slaNote", {
+            warn: duration(s.holidayMode ? s.slaRules.holidayWarnAfter : s.slaRules.warnAfter),
+            pull: duration(s.holidayMode ? s.slaRules.holidayPullAfter : s.slaRules.pullAfter),
+          })}
         </Note>
       )}
     </>

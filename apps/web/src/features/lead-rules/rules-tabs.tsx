@@ -1,15 +1,19 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { LeadRulesOptions } from "@places/contracts";
-import { OWNER, OWNER_TL, durationText, type LeadRules, type RuleWho } from "@places/domain";
+import { OWNER, OWNER_TL, type LeadRules, type RuleWho } from "@places/domain";
 import { Holidays } from "@/components/holidays";
 import { Card, Chip, Field, Icon, Note, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
+import { serverText } from "@/lib/server-text";
+import { useDuration } from "../leads/lead-bits";
 
 type Channel = RuleWho["ch"][number];
-const CH: [Channel, string][] = [["app", "جوه السيستم"], ["push", "Push"], ["email", "إيميل"]];
-const DAYS = ["الأحد", "الاتنين", "التلات", "الأربع", "الخميس", "الجمعة", "السبت"];
+const CH: Channel[] = ["app", "push", "email"];
+/** Sunday first, as JavaScript counts the days (work.off holds these indexes). */
+const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 export const useLeadRules = () => useQuery({ queryKey: ["lead-rules"], queryFn: () => api.get<LeadRules>("/leads/rules") });
 const useOptions = () => useQuery({ queryKey: ["lead-rules-options"], queryFn: () => api.get<LeadRulesOptions>("/leads/rules/options"), staleTime: 60_000 });
@@ -19,6 +23,7 @@ const useOptions = () => useQuery({ queryKey: ["lead-rules-options"], queryFn: (
  * page goes back to what's saved, like the demo's ruleSave.
  */
 function useSave() {
+  const t = useTranslations("leadRules");
   const qc = useQueryClient();
   const run = useAction();
   return (next: LeadRules) => run(async () => {
@@ -31,7 +36,7 @@ function useSave() {
       await qc.invalidateQueries({ queryKey: ["lead-rules"] });
       throw e;
     }
-  }, "اتحفظ · بيتطبّق على طول");
+  }, t("saved"));
 }
 
 /** The sentence over each rule: what will happen with the values as they are now (demo `says`). */
@@ -71,6 +76,7 @@ function TimeIn({ label, value, editable, onSave }: { label: string; value: numb
 
 /** Demo whoBox: the people / roles told or responsible, «+ ضيف دور أو شخص», and their channels. */
 function WhoBox({ label, who, editable, noChannels, onSave }: { label: string; who: RuleWho; editable: boolean; noChannels?: boolean; onSave: (w: RuleWho) => void }) {
+  const t = useTranslations("leadRules.who");
   const o = useOptions().data;
   const name = useWhoName();
   return (
@@ -78,25 +84,25 @@ function WhoBox({ label, who, editable, noChannels, onSave }: { label: string; w
       <span>{label}</span>
       <div className="row">
         {who.to.map((x) => editable
-          ? <button key={x} type="button" className="btn ghost sm" aria-label={`شيل ${name(x)}`} onClick={() => onSave({ ...who, to: who.to.filter((y) => y !== x) })}>{name(x)} <Icon name="x" /></button>
+          ? <button key={x} type="button" className="btn ghost sm" aria-label={t("remove", { name: name(x) })} onClick={() => onSave({ ...who, to: who.to.filter((y) => y !== x) })}>{name(x)} <Icon name="x" /></button>
           : <Chip key={x} tone="info">{name(x)}</Chip>)}
-        {!who.to.length && <span className="hint">محدش</span>}
+        {!who.to.length && <span className="hint">{t("nobody")}</span>}
         {editable && o && (
-          <select value="" aria-label={`ضيف لـ ${label}`} style={{ maxWidth: 200 }} onChange={(e) => e.target.value && onSave({ ...who, to: [...who.to, e.target.value] })}>
-            <option value="">+ ضيف دور أو شخص</option>
-            {!who.to.includes(OWNER) && <option value={OWNER}>السيلز المسؤول عن الليد</option>}
-            {!who.to.includes(OWNER_TL) && <option value={OWNER_TL}>الـ Team Leader بتاع السيلز</option>}
-            <optgroup label="أدوار">{o.roles.filter((r) => !who.to.includes(r.key)).map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}</optgroup>
-            <optgroup label="أشخاص">{o.people.filter((p) => !who.to.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+          <select value="" aria-label={t("addTo", { label })} style={{ maxWidth: 200 }} onChange={(e) => e.target.value && onSave({ ...who, to: [...who.to, e.target.value] })}>
+            <option value="">{t("add")}</option>
+            {!who.to.includes(OWNER) && <option value={OWNER}>{t("owner")}</option>}
+            {!who.to.includes(OWNER_TL) && <option value={OWNER_TL}>{t("ownerTl")}</option>}
+            <optgroup label={t("roles")}>{o.roles.filter((r) => !who.to.includes(r.key)).map((r) => <option key={r.key} value={r.key}>{serverText(r.label)}</option>)}</optgroup>
+            <optgroup label={t("people")}>{o.people.filter((p) => !who.to.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
           </select>
         )}
       </div>
       {!noChannels && (
         <div className="row">
-          {CH.map(([c, l]) => (
+          {CH.map((c) => (
             <label key={c} className="tog">
               <input type="checkbox" checked={who.ch.includes(c)} disabled={!editable} onChange={(e) => onSave({ ...who, ch: e.target.checked ? [...who.ch, c] : who.ch.filter((x) => x !== c) })} />
-              <span>{l}</span>
+              <span>{t(`ch.${c}`)}</span>
             </label>
           ))}
         </div>
@@ -106,133 +112,139 @@ function WhoBox({ label, who, editable, noChannels, onSave }: { label: string; w
 }
 
 function useWhoName() {
+  const t = useTranslations("leadRules.who");
   const o = useOptions().data;
-  return (x: string) => x === OWNER ? "السيلز المسؤول عن الليد" : x === OWNER_TL ? "الـ Team Leader بتاع السيلز"
-    : o?.roles.find((r) => r.key === x)?.label ?? o?.people.find((p) => p.id === x)?.name ?? x;
+  const role = (x: string) => o?.roles.find((r) => r.key === x)?.label;
+  return (x: string) => x === OWNER ? t("owner") : x === OWNER_TL ? t("ownerTl")
+    : (role(x) != null ? serverText(role(x)!) : undefined) ?? o?.people.find((p) => p.id === x)?.name ?? x;
 }
 function useNames() {
+  const t = useTranslations("leadRules.who");
   const name = useWhoName();
-  return (w: RuleWho) => w.to.map(name).join("، ") || "محدش";
+  return (w: RuleWho) => w.to.map(name).join(t("sep")) || t("nobody");
 }
 
-const OnToggle = ({ on, editable, onSave }: { on: boolean; editable: boolean; onSave: (v: boolean) => void }) => (
-  <label className="tog"><input type="checkbox" checked={on} disabled={!editable} onChange={(e) => onSave(e.target.checked)} /><span>شغالة</span></label>
-);
+function OnToggle({ on, editable, onSave }: { on: boolean; editable: boolean; onSave: (v: boolean) => void }) {
+  const t = useTranslations("leadRules");
+  return <label className="tog"><input type="checkbox" checked={on} disabled={!editable} onChange={(e) => onSave(e.target.checked)} /><span>{t("on")}</span></label>;
+}
 
 export type RulesTab = "sla" | "na" | "draft" | "visit" | "close";
 
 /** Demo «قواعد الليدز والتوزيع»: the tabs after «التوزيع» (1.29). Each rule says in Arabic what happens with its current values. */
 export function RulesTabs({ tab, editable }: { tab: RulesTab; editable: boolean }) {
+  const t = useTranslations("leadRules");
+  const duration = useDuration();
   const q = useLeadRules();
   const o = useOptions().data;
   const save = useSave();
   const names = useNames();
   if (q.error) return <Note kind="warn">{q.error.message}</Note>;
   const r = q.data;
-  if (!r) return <p className="hint">بيحمّل…</p>;
+  if (!r) return <p className="hint">{t("loading")}</p>;
   const ed = editable;
   const set = (next: LeadRules) => void save(next);
 
   if (tab === "sla") return (
     <div className="cols">
-      <Card title="ساعات حساب الـ SLA" icon="clock" sub="الـ SLA بيعدّ في الساعات دي بس، والإجازات الرسمية مابتتحسبش">
+      <Card title={t("sla.hoursTitle")} icon="clock" sub={t("sla.hoursSub")}>
         <div className="grid">
-          <TimeIn label="من" value={r.work.from} editable={ed} onSave={(v) => set({ ...r, work: { ...r.work, from: v } })} />
-          <TimeIn label="لحد" value={r.work.to} editable={ed} onSave={(v) => set({ ...r, work: { ...r.work, to: v } })} />
+          <TimeIn label={t("sla.from")} value={r.work.from} editable={ed} onSave={(v) => set({ ...r, work: { ...r.work, from: v } })} />
+          <TimeIn label={t("sla.to")} value={r.work.to} editable={ed} onSave={(v) => set({ ...r, work: { ...r.work, to: v } })} />
         </div>
         <div className="field">
-          <span>أيام الأجازة الأسبوعية</span>
+          <span>{t("sla.weekOff")}</span>
           <div className="row">
             {DAYS.map((d, i) => (
               <label key={d} className="tog">
                 <input type="checkbox" checked={r.work.off.includes(i)} disabled={!ed} onChange={(e) => set({ ...r, work: { ...r.work, off: e.target.checked ? [...r.work.off, i] : r.work.off.filter((x) => x !== i) } })} />
-                <span>{d}</span>
+                <span>{t(`days.${d}`)}</span>
               </label>
             ))}
           </div>
         </div>
       </Card>
-      <Card title="الليد الجديد من غير أكشن (SLA)" icon="alert" extra={<OnToggle on={r.sla.on} editable={ed} onSave={(on) => set({ ...r, sla: { ...r.sla, on } })} />}>
-        <Says>ليد Fresh فضل <b>{durationText(r.sla.warnMin)}</b> من غير أكشن ← تنبيه لـ <b>{names(r.sla.warn)}</b>. لو كمّل <b>{durationText(r.sla.pullMin)}</b> ← يتسحب للي عليه الدور ويتبعت لـ <b>{names(r.sla.pull)}</b>. يوم الإجازة: تنبيه بعد {durationText(r.sla.holWarnMin)} وسحب بعد {durationText(r.sla.holPullMin)}.</Says>
+      <Card title={t("sla.title")} icon="alert" extra={<OnToggle on={r.sla.on} editable={ed} onSave={(on) => set({ ...r, sla: { ...r.sla, on } })} />}>
+        <Says>{t.rich("sla.says", { warn: duration(r.sla.warnMin), warnTo: names(r.sla.warn), pull: duration(r.sla.pullMin), pullTo: names(r.sla.pull), holWarn: duration(r.sla.holWarnMin), holPull: duration(r.sla.holPullMin), b: (c) => <b>{c}</b> })}</Says>
         <div className="grid">
-          <NumIn label="التنبيه بعد" unit="ساعة" minutes value={r.sla.warnMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, warnMin: v } })} />
-          <NumIn label="السحب بعد" unit="ساعة" minutes value={r.sla.pullMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, pullMin: v } })} />
-          <NumIn label="التنبيه يوم الإجازة" unit="ساعة" minutes value={r.sla.holWarnMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, holWarnMin: v } })} />
-          <NumIn label="السحب يوم الإجازة" unit="ساعة" minutes value={r.sla.holPullMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, holPullMin: v } })} />
+          <NumIn label={t("sla.warnAfter")} unit={t("hour")} minutes value={r.sla.warnMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, warnMin: v } })} />
+          <NumIn label={t("sla.pullAfter")} unit={t("hour")} minutes value={r.sla.pullMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, pullMin: v } })} />
+          <NumIn label={t("sla.holWarn")} unit={t("hour")} minutes value={r.sla.holWarnMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, holWarnMin: v } })} />
+          <NumIn label={t("sla.holPull")} unit={t("hour")} minutes value={r.sla.holPullMin} editable={ed} onSave={(v) => set({ ...r, sla: { ...r.sla, holPullMin: v } })} />
         </div>
-        <WhoBox label="التنبيه بيروح لـ" who={r.sla.warn} editable={ed} onSave={(w) => set({ ...r, sla: { ...r.sla, warn: w } })} />
-        <WhoBox label="السحب بيتبعت لـ" who={r.sla.pull} editable={ed} onSave={(w) => set({ ...r, sla: { ...r.sla, pull: w } })} />
+        <WhoBox label={t("sla.warnTo")} who={r.sla.warn} editable={ed} onSave={(w) => set({ ...r, sla: { ...r.sla, warn: w } })} />
+        <WhoBox label={t("sla.pullTo")} who={r.sla.pull} editable={ed} onSave={(w) => set({ ...r, sla: { ...r.sla, pull: w } })} />
       </Card>
-      <Card title="الإجازات الرسمية" icon="calendar" sub="من يوم لـ يوم (زي العيد) · في أيامها الـ SLA بيمشي بمواعيد يوم الإجازة">
+      <Card title={t("sla.holidays")} icon="calendar" sub={t("sla.holidaysSub")}>
         <Holidays path="/leads/rules/holidays" editable={ed} upcoming />
-        <p className="hint">ده اللي جاي بس · الكالندر كامل في الإعدادات ← الإجازات الرسمية</p>
+        <p className="hint">{t("sla.holidaysHint")}</p>
       </Card>
-      <Card title="ليد جديد اتوزع" icon="users">
-        <Says>أول ما ليد يتوزع، بيتبعت إشعار لـ <b>{names(r.newLead)}</b>.</Says>
-        <WhoBox label="الإشعار بيروح لـ" who={r.newLead} editable={ed} onSave={(w) => set({ ...r, newLead: w })} />
+      <Card title={t("sla.newLead")} icon="users">
+        <Says>{t.rich("sla.newLeadSays", { to: names(r.newLead), b: (c) => <b>{c}</b> })}</Says>
+        <WhoBox label={t("notifyTo")} who={r.newLead} editable={ed} onSave={(w) => set({ ...r, newLead: w })} />
       </Card>
     </div>
   );
 
   if (tab === "na") {
-    const tele = o?.telesales.find((t) => t.id === r.noAnswer.telesales)?.name ?? "الـ Telesales";
+    const tele = o?.telesales.find((x) => x.id === r.noAnswer.telesales)?.name ?? t("na.theTelesales");
     return (
       <Card title="No Answer" icon="phone">
-        <Says>لما السيلز يعلّم No Answer، الليد بيفضل عنده <b>{durationText(r.noAnswer.hours * 60)}</b>، وكل <b>{r.noAnswer.remindH} ساعات</b> بيجيله تنبيه يكلّمه. بعدها بيروح للسيلز اللي عليه الدور ويرجع Fresh، وبيتنقل تاني بس لو السيلز ده كمان علّمه No Answer. في الروتيشن رقم <b>{r.noAnswer.toTelesalesAt}</b> بيروح لـ <b>{tele}</b> (Telesales)، والإشعار لـ <b>{names(r.noAnswer.notify)}</b>.</Says>
+        <Says>{t.rich("na.says", { stay: duration(r.noAnswer.hours * 60), every: r.noAnswer.remindH, at: r.noAnswer.toTelesalesAt, tele, to: names(r.noAnswer.notify), b: (c) => <b>{c}</b> })}</Says>
         <div className="grid">
-          <NumIn label="يفضل عند كل سيلز" unit="ساعة بعد ما يعلّمه No Answer" value={r.noAnswer.hours} editable={ed} onSave={(v) => set({ ...r, noAnswer: { ...r.noAnswer, hours: v } })} />
-          <NumIn label="تنبيه المكالمة كل" unit="ساعات" value={r.noAnswer.remindH} editable={ed} onSave={(v) => set({ ...r, noAnswer: { ...r.noAnswer, remindH: v } })} />
-          <NumIn label="يروح لـ Telesales في الروتيشن رقم" unit="" value={r.noAnswer.toTelesalesAt} editable={ed} onSave={(v) => set({ ...r, noAnswer: { ...r.noAnswer, toTelesalesAt: v } })} />
-          <Field label="الـ Telesales اللي بيستلم">
+          <NumIn label={t("na.stays")} unit={t("na.staysUnit")} value={r.noAnswer.hours} editable={ed} onSave={(v) => set({ ...r, noAnswer: { ...r.noAnswer, hours: v } })} />
+          <NumIn label={t("na.remind")} unit={t("hours")} value={r.noAnswer.remindH} editable={ed} onSave={(v) => set({ ...r, noAnswer: { ...r.noAnswer, remindH: v } })} />
+          <NumIn label={t("na.toTelesalesAt")} unit="" value={r.noAnswer.toTelesalesAt} editable={ed} onSave={(v) => set({ ...r, noAnswer: { ...r.noAnswer, toTelesalesAt: v } })} />
+          <Field label={t("na.receiver")}>
             <select value={r.noAnswer.telesales ?? ""} disabled={!ed} onChange={(e) => set({ ...r, noAnswer: { ...r.noAnswer, telesales: e.target.value || null } })}>
-              <option value="">الـ Telesales (أي حد)</option>
-              {o?.telesales.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              <option value="">{t("na.anyTelesales")}</option>
+              {o?.telesales.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
             </select>
           </Field>
         </div>
-        <WhoBox label="لما يروح لـ Telesales الإشعار بيروح لـ" who={r.noAnswer.notify} editable={ed} onSave={(w) => set({ ...r, noAnswer: { ...r.noAnswer, notify: w } })} />
+        <WhoBox label={t("na.notifyTo")} who={r.noAnswer.notify} editable={ed} onSave={(w) => set({ ...r, noAnswer: { ...r.noAnswer, notify: w } })} />
       </Card>
     );
   }
 
   if (tab === "draft") return (
     <>
-      <Card title="السحب للـ Draft" icon="layers" extra={<OnToggle on={r.draft.on} editable={ed} onSave={(on) => set({ ...r, draft: { ...r.draft, on } })} />}>
-        <Says>ليد عدّى عليه <b>{r.draft.days} يوم</b> من غير أي أكشن أو كومنت (أو <b>{r.draft.holdDays} يوم</b> وهو على Hold) ← بيتسحب من السيلز ويروح Draft، والإشعار لـ <b>{names(r.draft.notify)}</b>. الـ Draft ظاهر لـ <b>{names(r.draft.see)}</b> بس. مابيتسحبش لو Done Deal أو Cancellation أو Not Interested أو No Answer (ليه روتيشن خاص بيه).</Says>
+      <Card title={t("draft.title")} icon="layers" extra={<OnToggle on={r.draft.on} editable={ed} onSave={(on) => set({ ...r, draft: { ...r.draft, on } })} />}>
+        <Says>{t.rich("draft.says", { days: r.draft.days, holdDays: r.draft.holdDays, to: names(r.draft.notify), see: names(r.draft.see), b: (c) => <b>{c}</b> })}</Says>
         <div className="grid">
-          <NumIn label="يتسحب بعد" unit="يوم من غير أكشن" value={r.draft.days} editable={ed} onSave={(v) => set({ ...r, draft: { ...r.draft, days: v } })} />
-          <NumIn label="الـ Hold يتسحب بعد" unit="يوم" value={r.draft.holdDays} editable={ed} onSave={(v) => set({ ...r, draft: { ...r.draft, holdDays: v } })} />
+          <NumIn label={t("draft.pullAfter")} unit={t("draft.pullUnit")} value={r.draft.days} editable={ed} onSave={(v) => set({ ...r, draft: { ...r.draft, days: v } })} />
+          <NumIn label={t("draft.holdAfter")} unit={t("day")} value={r.draft.holdDays} editable={ed} onSave={(v) => set({ ...r, draft: { ...r.draft, holdDays: v } })} />
         </div>
-        <WhoBox label="مين يشوف الـ Draft ويوزّع منه" who={r.draft.see} editable={ed} noChannels onSave={(w) => set({ ...r, draft: { ...r.draft, see: w } })} />
-        <WhoBox label="الإشعار لما ليد يتسحب بيروح لـ" who={r.draft.notify} editable={ed} onSave={(w) => set({ ...r, draft: { ...r.draft, notify: w } })} />
+        <WhoBox label={t("draft.see")} who={r.draft.see} editable={ed} noChannels onSave={(w) => set({ ...r, draft: { ...r.draft, see: w } })} />
+        <WhoBox label={t("draft.notifyTo")} who={r.draft.notify} editable={ed} onSave={(w) => set({ ...r, draft: { ...r.draft, notify: w } })} />
       </Card>
       <Card title="Draft Admin" icon="layers" extra={<OnToggle on={r.draftAdmin.on} editable={ed} onSave={(on) => set({ ...r, draftAdmin: { ...r.draftAdmin, on } })} />}>
-        <Says>أي ليد يتعلّم <b>Not Interested</b> أو <b>Cancellation</b> (من السيلز أو Telesales) بيتشال أوتوماتيك من عنده ويروح الـ Draft Admin. ظاهر لـ <b>{names(r.draftAdmin.see)}</b> بس، وكل يوم بيظهرلهم Alarm في الرئيسية باللي دخل عشان يقرروا.</Says>
-        <WhoBox label="مين يشوف الـ Draft Admin ويقرر" who={r.draftAdmin.see} editable={ed} noChannels onSave={(w) => set({ ...r, draftAdmin: { ...r.draftAdmin, see: w } })} />
-        <WhoBox label="الإشعار لما ليد يدخل بيروح لـ" who={r.draftAdmin.notify} editable={ed} onSave={(w) => set({ ...r, draftAdmin: { ...r.draftAdmin, notify: w } })} />
+        <Says>{t.rich("draft.adminSays", { see: names(r.draftAdmin.see), b: (c) => <b>{c}</b> })}</Says>
+        <WhoBox label={t("draft.adminSee")} who={r.draftAdmin.see} editable={ed} noChannels onSave={(w) => set({ ...r, draftAdmin: { ...r.draftAdmin, see: w } })} />
+        <WhoBox label={t("draft.adminNotifyTo")} who={r.draftAdmin.notify} editable={ed} onSave={(w) => set({ ...r, draftAdmin: { ...r.draftAdmin, notify: w } })} />
       </Card>
     </>
   );
 
   if (tab === "visit") return (
     <div className="cols">
-      <Card title="تأجيل الـ Visit / Meeting" icon="pin">
-        <Says>لما السيلز يدوس «اتأجلت» لازم يكتب السبب، والطلب بيروح لـ <b>{names(r.visit.postpone)}</b> يوافق أو يرفض. لو وافق، اليوم ده من غير خصم. وفي الحالتين بيتبلّغ <b>{names(r.visit.postponeInfo)}</b> باللي حصل.</Says>
-        <WhoBox label="اللي بيوافق على التأجيل" who={r.visit.postpone} editable={ed} onSave={(w) => set({ ...r, visit: { ...r.visit, postpone: w } })} />
-        <WhoBox label="بيتبلّغ باللي حصل" who={r.visit.postponeInfo} editable={ed} onSave={(w) => set({ ...r, visit: { ...r.visit, postponeInfo: w } })} />
+      <Card title={t("visit.postponeTitle")} icon="pin">
+        <Says>{t.rich("visit.postponeSays", { to: names(r.visit.postpone), info: names(r.visit.postponeInfo), b: (c) => <b>{c}</b> })}</Says>
+        <WhoBox label={t("visit.approver")} who={r.visit.postpone} editable={ed} onSave={(w) => set({ ...r, visit: { ...r.visit, postpone: w } })} />
+        <WhoBox label={t("visit.informed")} who={r.visit.postponeInfo} editable={ed} onSave={(w) => set({ ...r, visit: { ...r.visit, postponeInfo: w } })} />
       </Card>
-      <Card title="Visit / Meeting معملهاش" icon="alert">
-        <Says>لما تتعلّم «معملتهاش»، بيرجع للبصمة بخصمها، والإشعار بيروح لـ <b>{names(r.visit.notDone)}</b>.</Says>
-        <WhoBox label="الإشعار بيروح لـ" who={r.visit.notDone} editable={ed} onSave={(w) => set({ ...r, visit: { ...r.visit, notDone: w } })} />
+      <Card title={t("visit.notDoneTitle")} icon="alert">
+        <Says>{t.rich("visit.notDoneSays", { to: names(r.visit.notDone), b: (c) => <b>{c}</b> })}</Says>
+        <WhoBox label={t("notifyTo")} who={r.visit.notDone} editable={ed} onSave={(w) => set({ ...r, visit: { ...r.visit, notDone: w } })} />
       </Card>
     </div>
   );
 
   return (
-    <Card title="الإقفال (Done Deal)" icon="handshake">
-      <Says>لو الصفقة اتقفلت في خلال <b>{durationText(r.close.alarmH * 60)}</b> من ما الليد اتعمل، بيطلع Alarm إنها اتسجّلت وقت القفل بس، ومابتدخلش التارجت. الإشعار بيروح لـ <b>{names(r.close.notify)}</b>.</Says>
-      <div className="grid"><NumIn label="الـ Alarm لو اتقفلت في خلال" unit="ساعة" value={r.close.alarmH} editable={ed} onSave={(v) => set({ ...r, close: { ...r.close, alarmH: v } })} /></div>
-      <WhoBox label="الإشعار بيروح لـ" who={r.close.notify} editable={ed} onSave={(w) => set({ ...r, close: { ...r.close, notify: w } })} />
+    <Card title={t("close.title")} icon="handshake">
+      <Says>{t.rich("close.says", { within: duration(r.close.alarmH * 60), to: names(r.close.notify), b: (c) => <b>{c}</b> })}</Says>
+      <div className="grid"><NumIn label={t("close.alarm")} unit={t("hour")} value={r.close.alarmH} editable={ed} onSave={(v) => set({ ...r, close: { ...r.close, alarmH: v } })} /></div>
+      <WhoBox label={t("notifyTo")} who={r.close.notify} editable={ed} onSave={(w) => set({ ...r, close: { ...r.close, notify: w } })} />
     </Card>
   );
 }
