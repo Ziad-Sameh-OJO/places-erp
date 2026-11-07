@@ -8,11 +8,16 @@ import { useMe } from "@/lib/me";
 import { Avatar, Chip, ExportButton, Field, Icon, Modal, Note, Table, useAction } from "@/components/ui";
 import { Matrix, type MatrixValue } from "./matrix";
 import { STATUS, type RoleRow, type UserRow } from "./types";
+import { useTranslations } from "next-intl";
+import { dateLocale } from "@/lib/format";
+import { serverText } from "@/lib/server-text";
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" }) : "—");
+const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLocale(), { dateStyle: "medium", timeStyle: "short" }) : "—");
 
 /** M-09 users: search (name, email, mobile, department — 5.2), filter, new account (activation email), edit, exceptions, stop / unlock / resend / reset. */
 export function UsersTab() {
+  const t = useTranslations("access.users");
+  const tStatus = useTranslations("access.status");
   const qc = useQueryClient();
   const run = useAction();
   const { me, can } = useMe();
@@ -36,43 +41,43 @@ export function UsersTab() {
   return (
     <>
       <div className="toolbar">
-        <label className="search"><Icon name="search" /><input type="search" placeholder="اسم، إيميل، موبايل، قسم" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label="بحث" /></label>
-        <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label="الحالة">
-          <option value="">كل الحالات</option>{Object.entries(STATUS).map(([k, [l]]) => <option key={k} value={k}>{l}</option>)}
+        <label className="search"><Icon name="search" /><input type="search" placeholder={t("searchPlaceholder")} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label={t("search")} /></label>
+        <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label={t("status")}>
+          <option value="">{t("allStatuses")}</option>{(Object.keys(STATUS) as UserRow["status"][]).map((k) => <option key={k} value={k}>{tStatus(k)}</option>)}
         </select>
-        <select value={dept} onChange={(e) => { setDept(e.target.value); setPage(1); }} aria-label="القسم">
-          <option value="">كل الأقسام</option>{depts.data?.map((d) => <option key={d} value={d}>{d}</option>)}
+        <select value={dept} onChange={(e) => { setDept(e.target.value); setPage(1); }} aria-label={t("department")}>
+          <option value="">{t("allDepartments")}</option>{depts.data?.map((d) => <option key={d} value={d}>{serverText(d)}</option>)}
         </select>
         <span className="spacer" />
-        <span className="hint">{users.data?.total ?? 0} حساب</span>
-        <ExportButton module="access" path="/access/users/export" query={new URLSearchParams(filters)} filename="المستخدمين.xlsx" />
-        <ExportButton module="access" path="/access/report/permissions" filename="مين عنده أنهي صلاحية.xlsx" label="مين عنده أنهي صلاحية" />
-        {can("access", "create") && <button className="btn" onClick={() => setForm("new")}>+ حساب جديد</button>}
+        <span className="hint">{t("count", { count: users.data?.total ?? 0 })}</span>
+        <ExportButton module="access" path="/access/users/export" query={new URLSearchParams(filters)} filename={t("exportFile")} />
+        <ExportButton module="access" path="/access/report/permissions" filename={t("permsReportFile")} label={t("permsReport")} />
+        {can("access", "create") && <button className="btn" onClick={() => setForm("new")}>{t("newAccount")}</button>}
       </div>
       <section className="card">
-      <Table head={["الشخص", "الأدوار", "القسم", "الحالة", "آخر دخول", ""]} empty="مفيش حسابات تطابق البحث"
+      <Table head={[t("head.person"), t("head.roles"), t("head.department"), t("head.status"), t("head.lastLogin"), ""]} empty={t("empty")}
         rows={(users.data?.items ?? []).map((u) => {
-          const [label, tone] = STATUS[u.status];
+          const tone = STATUS[u.status];
           return [
             <span className="who" key="w"><Avatar id={u.id} name={u.employee?.name ?? u.email} sm /><span><b>{u.employee?.name ?? "—"}</b><small className="mono" dir="ltr">{u.email}</small></span></span>,
-            <span key="r">{u.roles.map((r) => <Chip key={r.role.key} tone={r.primary ? "info" : ""}>{r.role.label}</Chip>)}{u._count.overrides > 0 && <Chip tone="warn">استثناءات {u._count.overrides}</Chip>}</span>,
-            u.employee?.department ?? "—",
-            <span key="s"><Chip tone={tone}>{label}</Chip>{u.otpRequired && <Chip plain>OTP</Chip>}</span>,
+            <span key="r">{u.roles.map((r) => <Chip key={r.role.key} tone={r.primary ? "info" : ""}>{serverText(r.role.label)}</Chip>)}{u._count.overrides > 0 && <Chip tone="warn">{t("overrides", { count: u._count.overrides })}</Chip>}</span>,
+            u.employee?.department ? serverText(u.employee.department) : "—",
+            <span key="s"><Chip tone={tone}>{tStatus(u.status)}</Chip>{u.otpRequired && <Chip plain>OTP</Chip>}</span>,
             fmt(u.lastLoginAt),
             <span className="row" key="a">
-              {edit && <button className="btn ghost sm" onClick={() => setForm(u)}>تعديل</button>}
-              <button className="btn ghost sm" onClick={() => setPerms(u)}>الصلاحيات</button>
-              {edit && u.status === "LOCKED" && <button className="btn ghost sm" onClick={() => act(u, "unlock", "الحساب اتفتح")}>فتح</button>}
-              {edit && u.status === "INVITED" && <button className="btn ghost sm" onClick={() => act(u, "invite", `اتبعت إيميل التفعيل على ${u.email}`)}>ابعت التفعيل تاني</button>}
-              {edit && u.status === "ACTIVE" && <button className="btn ghost sm" onClick={() => act(u, "reset", `اتبعت لينك تغيير الباسورد على ${u.email}`)}>تغيير الباسورد</button>}
-              {stop && (u.status === "DISABLED" || u.endDate) && <button className="btn ghost sm" onClick={() => setHandover(u)}>نقل الشغل</button>}
+              {edit && <button className="btn ghost sm" onClick={() => setForm(u)}>{t("edit")}</button>}
+              <button className="btn ghost sm" onClick={() => setPerms(u)}>{t("permissions")}</button>
+              {edit && u.status === "LOCKED" && <button className="btn ghost sm" onClick={() => act(u, "unlock", t("unlocked"))}>{t("unlock")}</button>}
+              {edit && u.status === "INVITED" && <button className="btn ghost sm" onClick={() => act(u, "invite", t("invited", { email: u.email }))}>{t("resendInvite")}</button>}
+              {edit && u.status === "ACTIVE" && <button className="btn ghost sm" onClick={() => act(u, "reset", t("resetSent", { email: u.email }))}>{t("resetPassword")}</button>}
+              {stop && (u.status === "DISABLED" || u.endDate) && <button className="btn ghost sm" onClick={() => setHandover(u)}>{t("handover")}</button>}
               {u.id !== me?.id && (u.status === "DISABLED"
-                ? edit && <button className="btn ghost sm" onClick={() => act(u, "enable", "الحساب اتفعّل")}>تفعيل</button>
-                : stop && <button className="btn danger sm" onClick={() => confirm(`توقف حساب ${u.employee?.name}؟ هيخرج من كل الأجهزة فوراً.`) && act(u, "disable", "الحساب اتوقف")}>إيقاف</button>)}
+                ? edit && <button className="btn ghost sm" onClick={() => act(u, "enable", t("enabled"))}>{t("enable")}</button>
+                : stop && <button className="btn danger sm" onClick={() => confirm(t("confirmDisable", { name: u.employee?.name ?? "" })) && act(u, "disable", t("disabled"))}>{t("disable")}</button>)}
             </span>,
           ];
         })} />
-      {pages > 1 && <div className="row end"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button><span className="hint">{page} / {pages}</span><button className="btn ghost sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>التالي</button></div>}
+      {pages > 1 && <div className="row end"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("prev")}</button><span className="hint">{page} / {pages}</span><button className="btn ghost sm" disabled={page >= pages} onClick={() => setPage(page + 1)}>{t("next")}</button></div>}
       {form && <UserForm user={form === "new" ? null : form} onClose={() => setForm(null)} onSaved={async () => { setForm(null); await refresh(); }} />}
       {handover && <Handover user={handover} onClose={() => setHandover(null)} />}
       {perms && <UserPermissions user={perms} onClose={() => { setPerms(null); refresh(); }} />}
@@ -82,6 +87,7 @@ export function UsersTab() {
 }
 
 function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: () => void; onSaved: () => void }) {
+  const t = useTranslations("access.userForm");
   const run = useAction();
   const { me } = useMe();
   const roles = useQuery({ queryKey: ["roles"], queryFn: () => api.get<RoleRow[]>("/access/roles") });
@@ -100,28 +106,28 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
       endDate: f.get("endDate") || null, otpRequired: f.get("otp") === "on",
     };
     await run(async () => { await (user ? api.put(`/access/users/${user.id}`, body) : api.post("/access/users", body)); onSaved(); },
-      user ? "اتحفظ · الصلاحيات بتتطبّق فوراً" : `الحساب اتعمل · اتبعت إيميل التفعيل على ${body.email}`);
+      user ? t("saved") : t("created", { email: String(body.email) }));
   }
   return (
-    <Modal title={user ? `تعديل ${user.employee?.name}` : "حساب جديد"} onClose={onClose}>
+    <Modal title={user ? t("editTitle", { name: user.employee?.name ?? "" }) : t("newTitle")} onClose={onClose}>
       <form className="grid" action={submit}>
-        <Field label="الاسم" req><input name="name" required minLength={2} defaultValue={user?.employee?.name ?? ""} /></Field>
-        <Field label="الإيميل" req><input name="email" type="email" required defaultValue={user?.email ?? ""} /></Field>
-        <Field label="الموبايل"><input name="phone" inputMode="tel" defaultValue={user?.phone ?? ""} /></Field>
-        <Field label="القسم" req><input name="department" required defaultValue={user?.employee?.department ?? ""} /></Field>
-        <Field label="الدور الأساسي" req><select name="role" defaultValue={primary}>{choosable.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}</select></Field>
-        <Field label="الـ Team Leader (للسيلز)"><select name="tl" defaultValue={user?.employee?.teamLeaderId ?? ""}><option value="">—</option>{tls.data?.items.filter((t) => t.employee).map((t) => <option key={t.id} value={t.employee!.id}>{t.employee!.name}</option>)}</select></Field>
-        <Field label="المدير المباشر"><select name="manager" defaultValue={user?.employee?.managerId ?? ""}><option value="">— (الـ Team Leader لو سيلز)</option>{everyone.data?.items.filter((t) => t.employee && t.id !== user?.id).map((t) => <option key={t.id} value={t.employee!.id}>{t.employee!.name}</option>)}</select></Field>
+        <Field label={t("name")} req><input name="name" required minLength={2} defaultValue={user?.employee?.name ?? ""} /></Field>
+        <Field label={t("email")} req><input name="email" type="email" required defaultValue={user?.email ?? ""} /></Field>
+        <Field label={t("phone")}><input name="phone" inputMode="tel" defaultValue={user?.phone ?? ""} /></Field>
+        <Field label={t("department")} req><input name="department" required defaultValue={user?.employee?.department ?? ""} /></Field>
+        <Field label={t("primaryRole")} req><select name="role" defaultValue={primary}>{choosable.map((r) => <option key={r.key} value={r.key}>{serverText(r.label)}</option>)}</select></Field>
+        <Field label={t("teamLeader")}><select name="tl" defaultValue={user?.employee?.teamLeaderId ?? ""}><option value="">—</option>{tls.data?.items.filter((x) => x.employee).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>
+        <Field label={t("manager")}><select name="manager" defaultValue={user?.employee?.managerId ?? ""}><option value="">{t("managerNone")}</option>{everyone.data?.items.filter((x) => x.employee && x.id !== user?.id).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>
         <fieldset className="field wide" style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend><span>أدوار إضافية (لو بيعمل أكتر من حاجة)</span></legend>
-          <div className="chips-edit">{choosable.map((r) => <label key={r.key} className="tog"><input type="checkbox" name="extra" value={r.key} defaultChecked={extra.has(r.key)} />{r.label}</label>)}</div>
+          <legend><span>{t("extraRoles")}</span></legend>
+          <div className="chips-edit">{choosable.map((r) => <label key={r.key} className="tog"><input type="checkbox" name="extra" value={r.key} defaultChecked={extra.has(r.key)} />{serverText(r.label)}</label>)}</div>
         </fieldset>
-        <Field label="آخر يوم شغل (الحساب بيتوقف بعده)"><input name="endDate" type="date" defaultValue={user?.endDate?.slice(0, 10) ?? ""} /></Field>
-        <label className="tog"><input type="checkbox" name="otp" defaultChecked={user?.otpRequired ?? false} />كود OTP على الإيميل مع كل دخول</label>
+        <Field label={t("endDate")}><input name="endDate" type="date" defaultValue={user?.endDate?.slice(0, 10) ?? ""} /></Field>
+        <label className="tog"><input type="checkbox" name="otp" defaultChecked={user?.otpRequired ?? false} />{t("otp")}</label>
         <div className="row end wide">
-          {!user && <span className="hint spacer">هيتعمل له فايل موظف في الـ HR، ويوصله إيميل تفعيل يعمل منه الباسورد.</span>}
-          <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
-          <button className="btn">{user ? "احفظ" : "اعمل الحساب وابعت التفعيل"}</button>
+          {!user && <span className="hint spacer">{t("newHint")}</span>}
+          <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>
+          <button className="btn">{user ? t("save") : t("create")}</button>
         </div>
       </form>
     </Modal>
@@ -130,18 +136,19 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
 
 /** M-09 2.2 · 7.1: the leaver's open leads and tasks go to someone, once their direct manager approves. */
 function Handover({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const t = useTranslations("access.handover");
   const run = useAction();
   // shortcut: the first 100 working accounts (as the form's «المدير المباشر»), a search box once there are more
   const active = useQuery({ queryKey: ["users", "active"], queryFn: () => api.get<Paged<UserRow>>("/access/users?status=ACTIVE&pageSize=100") });
-  const submit = (f: FormData) => run(async () => { await api.post(`/access/users/${user.id}/handover`, { to: f.get("to") }); onClose(); }, "الطلب اتبعت لمديره المباشر يوافق");
+  const submit = (f: FormData) => run(async () => { await api.post(`/access/users/${user.id}/handover`, { to: f.get("to") }); onClose(); }, t("sent"));
   return (
-    <Modal title={`نقل شغل ${user.employee?.name ?? user.email}`} onClose={onClose}>
+    <Modal title={t("title", { name: user.employee?.name ?? user.email })} onClose={onClose}>
       <form className="grid" action={submit}>
-        <Field label="الليدز والمهام المفتوحة تتنقل لـ" req><select name="to" required defaultValue=""><option value="" disabled>اختار</option>{active.data?.items.filter((t) => t.employee && t.id !== user.id).map((t) => <option key={t.id} value={t.id}>{t.employee!.name}</option>)}</select></Field>
+        <Field label={t("to")} req><select name="to" required defaultValue=""><option value="" disabled>{t("choose")}</option>{active.data?.items.filter((x) => x.employee && x.id !== user.id).map((x) => <option key={x.id} value={x.id}>{x.employee!.name}</option>)}</select></Field>
         <div className="row end wide">
-          <span className="hint spacer">مش هيتنقل حاجة غير لما مديره المباشر يوافق.</span>
-          <button type="button" className="btn ghost" onClick={onClose}>إلغاء</button>
-          <button className="btn">ابعت للموافقة</button>
+          <span className="hint spacer">{t("hint")}</span>
+          <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>
+          <button className="btn">{t("submit")}</button>
         </div>
       </form>
     </Modal>
@@ -152,6 +159,7 @@ interface PermView { roles: { key: string; label: string }[]; fromRoles: MatrixV
 
 /** Who may tick here is the API's answer (`editable`): «edit» → anyone, the Operations Head → his team (M-09 2.2). */
 function UserPermissions({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const t = useTranslations("access.userPerms");
   const qc = useQueryClient();
   const run = useAction();
   const key = ["user-perms", user.id];
@@ -159,17 +167,17 @@ function UserPermissions({ user, onClose }: { user: UserRow; onClose: () => void
   const save = (changes: MatrixValue | Record<string, null>) => run(async () => {
     qc.setQueryData(key, await api.patch<PermView>(`/access/users/${user.id}/permissions`, changes));
     await qc.invalidateQueries({ queryKey: ["me"] });
-  }, "اتحفظ · بيتطبّق فوراً");
+  }, t("saved"));
   const overridden = Object.keys(p.data?.overrides ?? {}) as ModuleKey[];
   return (
-    <Modal title={`صلاحيات ${user.employee?.name ?? user.email}`} onClose={onClose}>
-      {!p.data ? <p className="hint">بيحمّل…</p> : <>
-        <p className="hint">الأدوار: {p.data.roles.map((r) => <Chip key={r.key} tone="info">{r.label}</Chip>)} · الخانات الملوّنة مختلفة عن الدور (استثناء ليه هو بس).</p>
+    <Modal title={t("title", { name: user.employee?.name ?? user.email })} onClose={onClose}>
+      {!p.data ? <p className="hint">{t("loading")}</p> : <>
+        <p className="hint">{t("roles")} {p.data.roles.map((r) => <Chip key={r.key} tone="info">{serverText(r.label)}</Chip>)} · {t("legend")}</p>
         <Matrix value={p.data.effective} base={p.data.fromRoles} editable={p.data.editable} onChange={save} />
-        {overridden.length > 0 && <Note kind="warn">فيه {overridden.length} استثناء للشخص ده.</Note>}
+        {overridden.length > 0 && <Note kind="warn">{t("overrides", { count: overridden.length })}</Note>}
         <div className="row end">
-          {overridden.length > 0 && p.data.editable && <button className="btn ghost" onClick={() => save(Object.fromEntries(overridden.map((m) => [m, null])))}>رجّع زي الدور</button>}
-          <button className="btn" onClick={onClose}>تمام</button>
+          {overridden.length > 0 && p.data.editable && <button className="btn ghost" onClick={() => save(Object.fromEntries(overridden.map((m) => [m, null])))}>{t("reset")}</button>}
+          <button className="btn" onClick={onClose}>{t("ok")}</button>
         </div>
       </>}
     </Modal>

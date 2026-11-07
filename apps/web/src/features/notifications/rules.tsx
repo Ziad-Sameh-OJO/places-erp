@@ -6,12 +6,16 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { Card, Field, Note, Table, Tick, useAction } from "@/components/ui";
 import { MailLog } from "./mail-log";
+import { useTranslations } from "next-intl";
+import { serverText } from "@/lib/server-text";
 
 interface Rule { key: string; label: string; to: string; channels: Channel[]; important: boolean }
-const CH: [Channel, string][] = [["app", "جوه السيستم"], ["push", "Push"], ["email", "إيميل"]];
+const CH: Channel[] = ["app", "push", "email"];
 
 /** M-14: each event goes to whom and on which channel; the sending address. */
 export function NotificationRules() {
+  const t = useTranslations("notifications.rules");
+  const chLabel = (c: Channel) => t(`channels.${c}`);
   const qc = useQueryClient();
   const run = useAction();
   const { can, canSet } = useMe();
@@ -21,26 +25,26 @@ export function NotificationRules() {
   const toggle = (r: Rule, c: Channel, on: boolean) => run(async () => {
     await api.put(`/notifications/rules/${r.key}`, { channels: on ? [...r.channels, c] : r.channels.filter((x) => x !== c) });
     await qc.invalidateQueries({ queryKey: ["notif-rules"] });
-  }, "اتحفظ");
+  }, t("saved"));
   return (
     <>
       <div className="cols">
-        <Card title="إيميل الإرسال" icon="send" sub="الإيميل اللي كل الإشعارات بتطلع منه">
-          {s.data && <form className="form" action={(f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, "اتحفظ")}>
-            <Field label="من"><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!canSet("notificationsFrom")} /></Field>
-            {canSet("notificationsFrom") && <div className="row end"><button className="btn ghost sm">احفظ</button></div>}
+        <Card title={t("from.title")} icon="send" sub={t("from.sub")}>
+          {s.data && <form className="form" action={(f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, t("saved"))}>
+            <Field label={t("from.label")}><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!canSet("notificationsFrom")} /></Field>
+            {canSet("notificationsFrom") && <div className="row end"><button className="btn ghost sm">{t("save")}</button></div>}
           </form>}
         </Card>
-        <Card title="تفضيلاتي" icon="bell" sub="من صفحة «حسابي»">
-          <Note>الإشعارات المهمة (Alarm / سحب ليد / الـ Excuse الخامس) بتوصل على الإيميل دايماً، وبتفضل لحد ما تتقري.</Note>
+        <Card title={t("prefs.title")} icon="bell" sub={t("prefs.sub")}>
+          <Note>{t("prefs.note")}</Note>
         </Card>
       </div>
-      <Card title="قواعد الإشعارات" icon="bell" sub="كل حدث بيروح لمين، جوه السيستم و/أو Push و/أو إيميل">
-        <Table head={["الحدث", "لمين", ...CH.map(([, l]) => l)]} rows={(rules.data ?? []).map((r) => [
-          <b key="l">{r.label}{r.important && " ·  مهم"}</b>, r.to,
-          ...CH.map(([c, l]) => <Tick key={c} checked={r.channels.includes(c)} disabled={!ed} label={`${r.label} ${l}`} onChange={(v) => toggle(r, c, v)} />),
+      <Card title={t("title")} icon="bell" sub={t("sub")}>
+        <Table head={[t("head.event"), t("head.to"), ...CH.map(chLabel)]} rows={(rules.data ?? []).map((r) => [
+          <b key="l">{serverText(r.label)}{r.important && t("important")}</b>, serverText(r.to),
+          ...CH.map((c) => <Tick key={c} checked={r.channels.includes(c)} disabled={!ed} label={`${serverText(r.label)} ${chLabel(c)}`} onChange={(v) => toggle(r, c, v)} />),
         ])} />
-        <Note>الـ Push بيوصل لكل موبايل أو كمبيوتر صاحبه فعّل الإشعارات عليه من «حسابي».</Note>
+        <Note>{t("pushNote")}</Note>
       </Card>
       {ed && <MailLog />}
     </>

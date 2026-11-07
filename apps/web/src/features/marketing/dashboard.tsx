@@ -7,10 +7,13 @@ import { Card, Chip, Empty, Note } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { useCampaigns } from "./use-campaigns";
+import { useTranslations } from "next-intl";
+import { serverText } from "@/lib/server-text";
 
 const COLORS = ["#0037ff", "#5a7dff", "#08875c", "#f2b64d", "#c22a37", "#6a3df0", "#0a7f9e"];
 type Range = "7" | "30" | "month" | "all" | "custom";
-const RANGES: [Range, string][] = [["7", "آخر 7 أيام"], ["30", "آخر 30 يوم"], ["month", "الشهر ده"], ["all", "كل الوقت"], ["custom", "فترة مخصصة"]];
+/** Names in marketing.dashboard.ranges.r<key>. */
+const RANGES: readonly Range[] = ["7", "30", "month", "all", "custom"];
 
 const cairoDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 /** The demo's ranges as Cairo days (M-04 3.2: «فلتر بالأيام والأسابيع والشهور والتواريخ»). */
@@ -24,6 +27,7 @@ function period(r: Range, custom: { from: string; to: string }): { from?: string
 
 /** The demo's «Dashboard» tab (marketing.js): Channels ← Campaigns with Qualified and the rate, the donut, the posts. */
 export function Dashboard() {
+  const t = useTranslations("marketing.dashboard");
   const [range, setRange] = useState<Range>("all");
   const [custom, setCustom] = useState({ from: "", to: "" });
   const [channel, setChannel] = useState("");
@@ -36,56 +40,56 @@ export function Dashboard() {
   return (
     <>
       <div className="toolbar">
-        <div className="seg" role="group" aria-label="الفترة">
-          {RANGES.map(([k, l]) => <button key={k} aria-pressed={range === k} onClick={() => setRange(k)}>{l}</button>)}
+        <div className="seg" role="group" aria-label={t("period")}>
+          {RANGES.map((k) => <button key={k} aria-pressed={range === k} onClick={() => setRange(k)}>{t(`ranges.r${k}`)}</button>)}
         </div>
         {range === "custom" && (
           <>
-            <label className="date-f"><span>من</span><input type="date" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} /></label>
-            <label className="date-f"><span>لحد</span><input type="date" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} /></label>
+            <label className="date-f"><span>{t("from")}</span><input type="date" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} /></label>
+            <label className="date-f"><span>{t("to")}</span><input type="date" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} /></label>
           </>
         )}
         <select value={channel} onChange={(e) => { setChannel(e.target.value); setCampaignId(""); }} aria-label="Channel">
-          <option value="">كل الـ Channels</option>{channels.map((c) => <option key={c} value={c}>{c}</option>)}
+          <option value="">{t("allChannels")}</option>{channels.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}
         </select>
-        <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} aria-label="الكامبين">
-          <option value="">كل الكامبينز</option>
+        <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} aria-label={t("campaign")}>
+          <option value="">{t("allCampaigns")}</option>
           {campaigns.filter((c) => !channel || c.channel === channel).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
       {q.error && <Note kind="warn">{q.error.message}</Note>}
       <div className="kpis">
-        <KpiTile label="إجمالي الليدز" value={d ? num(d.total.leads) : "…"} sub="في الفترة دي" icon="users" />
-        <KpiTile label="Qualified" value={d ? num(d.total.qualified) : "…"} sub={`${d?.total.rate ?? 0}% نسبة التأهيل`} icon="star" tone="ok" />
-        <KpiTile label="صرف الكامبينز" value={d ? money(d.spent) : "…"} sub={`${d?.campaignCount ?? 0} كامبين`} icon="megaphone" tone="warn" />
-        <KpiTile label="تكلفة الـ Qualified" value={d ? money(d.costPerQualified) : "…"} sub="للّيد الواحد" icon="trend" />
+        <KpiTile label={t("kpi.leads")} value={d ? num(d.total.leads) : "…"} sub={t("kpi.inPeriod")} icon="users" />
+        <KpiTile label="Qualified" value={d ? num(d.total.qualified) : "…"} sub={t("kpi.rate", { rate: d?.total.rate ?? 0 })} icon="star" tone="ok" />
+        <KpiTile label={t("kpi.spent")} value={d ? money(d.spent) : "…"} sub={t("kpi.campaigns", { count: d?.campaignCount ?? 0 })} icon="megaphone" tone="warn" />
+        <KpiTile label={t("kpi.costPerQualified")} value={d ? money(d.costPerQualified) : "…"} sub={t("kpi.perLead")} icon="trend" />
       </div>
       <div className="cols wide">
-        <Card title="Channels ← Campaigns" icon="layers" sub="إجمالي كل channel ومتفرع منه الكامبينز">
+        <Card title={t("tree.title")} icon="layers" sub={t("tree.sub")}>
           <div className="tree">
             {d?.channels.length ? d.channels.map((c) => (
               <details key={c.channel} open>
-                <summary><b>{c.channel}</b><span className="num">{c.leads} ليد</span><Chip tone="ok">{`${c.qualified} Qualified`}</Chip><span className="num hide-sm">{c.rate ?? 0}%</span></summary>
+                <summary><b>{serverText(c.channel)}</b><span className="num">{t("leads", { count: c.leads })}</span><Chip tone="ok">{`${c.qualified} Qualified`}</Chip><span className="num hide-sm">{c.rate ?? 0}%</span></summary>
                 <div className="kids">
                   {c.campaigns.map((x) => (
                     <div key={x.id} className="kid">
-                      <span>{x.name}{x.target && <small>{x.target}</small>}</span><span className="num">{x.leads} ليد</span>
-                      <Chip tone="ok">{`${x.qualified} Qualified`}</Chip><span className="num hide-sm">{x.rate ?? 0}% · {money(x.costPerLead)}/ليد</span>
+                      <span>{x.name}{x.target && <small>{x.target}</small>}</span><span className="num">{t("leads", { count: x.leads })}</span>
+                      <Chip tone="ok">{`${x.qualified} Qualified`}</Chip><span className="num hide-sm">{t("rateCost", { rate: x.rate ?? 0, cost: money(x.costPerLead) })}</span>
                     </div>
                   ))}
-                  {c.noCampaign > 0 && <div className="kid"><span className="hint">من غير كامبين</span><span className="num">{c.noCampaign} ليد</span><span /><span /></div>}
+                  {c.noCampaign > 0 && <div className="kid"><span className="hint">{t("noCampaign")}</span><span className="num">{t("leads", { count: c.noCampaign })}</span><span /><span /></div>}
                 </div>
               </details>
-            )) : <Empty text="مفيش ليدز في الفترة دي" />}
+            )) : <Empty text={t("empty")} />}
           </div>
         </Card>
-        <Card title="الليدز حسب الـ channel" icon="chart">
-          {d && <Donut rows={d.channels.map((c, i) => ({ label: c.channel, value: c.leads, color: COLORS[i % COLORS.length]! }))} center={num(d.total.leads)} sub="ليد" />}
-          <h4 className="mini-h">البوستات اللي جابت ليدز</h4>
-          {d?.posts.length ? <HBars rows={d.posts.map((p) => ({ label: p.post, value: p.leads }))} /> : <p className="hint">مفيش ليدز متربطة ببوست في الفترة دي</p>}
+        <Card title={t("byChannel")} icon="chart">
+          {d && <Donut rows={d.channels.map((c, i) => ({ label: serverText(c.channel), value: c.leads, color: COLORS[i % COLORS.length]! }))} center={num(d.total.leads)} sub={t("lead")} />}
+          <h4 className="mini-h">{t("posts")}</h4>
+          {d?.posts.length ? <HBars rows={d.posts.map((p) => ({ label: p.post, value: p.leads }))} /> : <p className="hint">{t("noPosts")}</p>}
         </Card>
       </div>
-      <Note>Qualified = أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتحسب أوتوماتيك هنا، وبيفضل محسوب حتى لو رجع Not Interested أو No Answer.</Note>
+      <Note>{t("note")}</Note>
     </>
   );
 }

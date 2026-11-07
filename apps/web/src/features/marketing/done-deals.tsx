@@ -7,17 +7,19 @@ import { Icon, Note, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { num } from "@/lib/format";
 import { useMe } from "@/lib/me";
+import { useTranslations } from "next-intl";
+import { serverText } from "@/lib/server-text";
 
 const KEY = ["marketing-deals"];
 // the demo lists every Done Deal on one page; 100 is the API's page cap
 export const useMarketingDeals = () => useQuery({ queryKey: KEY, queryFn: () => api.get<Paged<MarketingDeal>>("/deals/marketing?pageSize=100") });
 
 /** Upload → finish → attach: the API takes only a finished upload of the caller's own (0.9). */
-async function uploadLogo(dealId: string, file: File) {
+async function uploadLogo(dealId: string, file: File, notImage: string) {
   const req = { name: file.name, mime: file.type, size: file.size };
   const check = UploadRequest.safeParse(req);
-  if (!check.success) throw new Error(check.error.issues[0]!.message);
-  if (!(FILE_KINDS.image.mimes as readonly string[]).includes(file.type)) throw new Error("لازم صورة");
+  if (!check.success) throw new Error(serverText(check.error.issues[0]!.message));
+  if (!(FILE_KINDS.image.mimes as readonly string[]).includes(file.type)) throw new Error(notImage);
   const t = await api.post<UploadTicket>("/files/uploads", req);
   await put(t, file, () => undefined);
   const f = await api.post<StoredFile>(`/files/${t.id}/complete`);
@@ -29,6 +31,7 @@ async function uploadLogo(dealId: string, file: File) {
  * with only the allowed fields — the Buyer, company, type, space and location — and marketing attaches its logo.
  */
 export function DoneDeals() {
+  const t = useTranslations("marketing.deals");
   const { can } = useMe();
   const run = useAction();
   const qc = useQueryClient();
@@ -36,7 +39,7 @@ export function DoneDeals() {
   const [busy, setBusy] = useState<string | null>(null);
   const attach = (d: MarketingDeal, file: File) => {
     setBusy(d.id);
-    void run(async () => { await uploadLogo(d.id, file); await qc.invalidateQueries({ queryKey: KEY }); }, "الـ Logo اترفع على الديل").finally(() => setBusy(null));
+    void run(async () => { await uploadLogo(d.id, file, t("notImage")); await qc.invalidateQueries({ queryKey: KEY }); }, t("uploaded")).finally(() => setBusy(null));
   };
   const open = (d: MarketingDeal) => void run(async () => {
     const { url } = await api.get<{ url: string }>(`/deals/marketing/${d.id}/logo`);
@@ -47,20 +50,20 @@ export function DoneDeals() {
     if (!can("marketing", "edit")) return "—";
     return (
       <label className="btn ghost sm" aria-disabled={busy === d.id}>
-        <Icon name="upload" />{busy === d.id ? "بيترفع…" : "ارفع Logo"}
+        <Icon name="upload" />{busy === d.id ? t("uploading") : t("upload")}
         <input type="file" accept={FILE_KINDS.image.mimes.join(",")} hidden disabled={busy !== null} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) attach(d, f); }} />
       </label>
     );
   };
   return (
     <>
-      <Note>الـ Done Deals بتظهر هنا بعد موافقة الـ Office Manager. مسموح تشوفي: الـ location، والمساحة، واسم الشركة، والـ type، واسم الـ Buyer بس، وتقدري ترفقي Logo لكل ديل.</Note>
+      <Note>{t("note")}</Note>
       {deals.error && <Note kind="warn">{deals.error.message}</Note>}
       <Table
-        head={["الـ Buyer", "الشركة", "Type", "المساحة", "Location", "Logo"]}
-        empty="مفيش صفقات لسه"
+        head={[t("head.buyer"), t("head.company"), "Type", t("head.space"), "Location", "Logo"]}
+        empty={t("empty")}
         rows={(deals.data?.items ?? []).map((d) => [
-          <b key="b">{d.buyer}</b>, d.company || "—", d.type || "—", <span key="s" className="n">{num(d.space)} م</span>, d.location || "—", logo(d),
+          <b key="b">{d.buyer}</b>, d.company || "—", d.type || "—", <span key="s" className="n">{t("space", { space: num(d.space) })}</span>, d.location || "—", logo(d),
         ])}
       />
     </>

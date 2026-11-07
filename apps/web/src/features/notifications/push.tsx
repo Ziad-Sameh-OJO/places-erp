@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, Note, useAction } from "@/components/ui";
+import { useTranslations } from "next-intl";
 
 type State = "loading" | "unsupported" | "off-server" | "blocked" | "on" | "off";
 
@@ -25,6 +26,7 @@ export async function pushSubscription(): Promise<PushSubscription | null> {
  * the events and channels come from «قواعد الإشعارات».
  */
 export function PushCard() {
+  const t = useTranslations("notifications.push");
   const run = useAction();
   const key = useQuery({ queryKey: ["push-key"], queryFn: () => api.get<{ publicKey: string | null }>("/notifications/push/key"), staleTime: Infinity });
   const [state, setState] = useState<State>("loading");
@@ -40,13 +42,13 @@ export function PushCard() {
   }, [key.data]);
 
   const turnOn = () => run(async () => {
-    if ((await Notification.requestPermission()) !== "granted") { setState("blocked"); throw new Error("المتصفح رفض الإشعارات · اسمح بيها من إعدادات الموقع"); }
+    if ((await Notification.requestPermission()) !== "granted") { setState("blocked"); throw new Error(t("denied")); }
     const reg = await navigator.serviceWorker.register("/sw.js");
     await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key.data!.publicKey!) });
     await api.post("/notifications/push/subscriptions", sub.toJSON());
     setState("on");
-  }, "الإشعارات اتفعّلت على الجهاز ده");
+  }, t("turnedOn"));
 
   const turnOff = () => run(async () => {
     const sub = await pushSubscription();
@@ -55,23 +57,23 @@ export function PushCard() {
       await sub.unsubscribe();
     }
     setState("off");
-  }, "الإشعارات اتقفلت على الجهاز ده");
+  }, t("turnedOff"));
 
   const test = () => run(async () => {
     const r = await api.post<{ devices: number; sent: number }>("/notifications/push/test");
-    if (!r.sent) throw new Error("الإشعار ماوصلش · جرّب تقفلها وتفعّلها تاني");
-  }, "اتبعت · هيظهر على الجهاز خلال ثواني");
+    if (!r.sent) throw new Error(t("testFailed"));
+  }, t("testSent"));
 
   return (
-    <Card title="إشعارات الموبايل (Push)" icon="bell" sub="الإشعارات بتوصلك على الموبايل أو الكمبيوتر حتى لو السيستم مقفول">
-      {state === "unsupported" && <Note kind="warn">المتصفح ده مابيدعمش الإشعارات · على الآيفون ضيف السيستم للشاشة الرئيسية الأول (Add to Home Screen).</Note>}
-      {state === "off-server" && <Note>الـ Push لسه مش متفعّل على السيرفر.</Note>}
-      {state === "blocked" && <Note kind="warn">الإشعارات مقفولة للموقع ده من إعدادات المتصفح · افتحها وارجع هنا.</Note>}
-      {state === "off" && <button className="btn" onClick={() => void turnOn()}>فعّل الإشعارات على الجهاز ده</button>}
+    <Card title={t("title")} icon="bell" sub={t("sub")}>
+      {state === "unsupported" && <Note kind="warn">{t("unsupported")}</Note>}
+      {state === "off-server" && <Note>{t("offServer")}</Note>}
+      {state === "blocked" && <Note kind="warn">{t("blocked")}</Note>}
+      {state === "off" && <button className="btn" onClick={() => void turnOn()}>{t("turnOn")}</button>}
       {state === "on" && (
         <div className="row">
-          <button className="btn ghost sm" onClick={() => void test()}>ابعت إشعار تجربة</button>
-          <button className="btn ghost sm" onClick={() => void turnOff()}>وقّفها على الجهاز ده</button>
+          <button className="btn ghost sm" onClick={() => void test()}>{t("test")}</button>
+          <button className="btn ghost sm" onClick={() => void turnOff()}>{t("turnOff")}</button>
         </div>
       )}
     </Card>

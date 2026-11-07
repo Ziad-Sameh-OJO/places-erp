@@ -1,1 +1,155 @@
-{}
+{
+  "tabs": { "camps": "الكامبينز", "units": "وحدات جديدة", "deals": "الصفقات" },
+  "broadcast": {
+    "approvedToast": "اتوافق عليه · اتبعت للسيلز",
+    "head": { "message": "الرسالة", "approval": "الموافقة", "sent": "بعتوها", "pending": "لسه" },
+    "empty": "مفيش Broadcast لسه",
+    "sep": "، ",
+    "approved": "اتوافق",
+    "waiting": "مستني مدير التسويق",
+    "approve": "موافقة",
+    "self": {
+      "title": "Broadcast عمله السيلز لوحدات تانية",
+      "sub": "السيلز بيسجّلوه وهم بيدوسوا Done",
+      "sales": "السيلز",
+      "units": "الوحدات",
+      "when": "إمتى"
+    },
+    "new": {
+      "title": "رسالة Broadcast جديدة للسيلز",
+      "sub": "صورة + نص + لوجو · بتتبعت كمهمة إرسال في لوحة كل سيلز",
+      "sent": "اتبعتت كمهمة لكل السيلز",
+      "text": "النص",
+      "textPlaceholder": "النص اللي السيلز هيبعته لعملائه",
+      "hot": "Hot Inventory (الوحدات اللي في الرسالة)",
+      "searchPlaceholder": "دوّر بالكود أو البروجكت أو المساحة",
+      "searchLabel": "دوّر على وحدة",
+      "unit": "{code} · {project} · {space} م",
+      "picked": "اخترت: {codes}",
+      "logo": "حط اللوجو",
+      "schedule": "مواعيد الـ Broadcast الثابتة: يومين في الأسبوع · الأسبوع ده اتبعت {sent} من {of}",
+      "submit": "ابعت للسيلز"
+    },
+    "mine": {
+      "done": "تمام · رحمة شايفة إنك بعتها",
+      "title": "Broadcast من التسويق",
+      "sub": "ابعت الرسالة لقايمة عملائك ودوس Done",
+      "others": "عملت Broadcast لوحدات تانية؟ (أكواد)",
+      "othersPlaceholder": "U-101، U-205",
+      "note": "Done يعني إنك بعتها. لو بعت عن وحدات تانية اكتب أكوادها عشان تظهر للتسويق."
+    }
+  },
+  "campaigns": {
+    "new": "كامبين جديدة",
+    "head": {
+      "campaign": "الكامبين",
+      "period": "الفترة",
+      "budget": "الميزانية",
+      "spent": "اتصرف",
+      "leads": "الليدز",
+      "costPerLead": "تكلفة الليد"
+    },
+    "loading": "بيحمّل…",
+    "empty": "مفيش كامبينز",
+    "adLink": "لينك الإعلان",
+    "edit": "تعديل",
+    "live": { "on": "شغالة", "soon": "لسه هتبدأ", "over": "خلصت" },
+    "form": {
+      "editTitle": "تعديل · {name}",
+      "newTitle": "كامبين جديدة",
+      "updated": "الكامبين اتعدّلت",
+      "created": "الكامبين اتضافت · الليدز هتتربط بيها",
+      "name": "اسم الكامبين",
+      "start": "البداية",
+      "end": "النهاية",
+      "budget": "الميزانية",
+      "spent": "اتصرف",
+      "target": "المشروع / الوحدات المستهدفة",
+      "adUrl": "لينك الإعلان",
+      "note": "ملاحظات",
+      "archived": "الكامبين اتأرشفت",
+      "archive": "أرشفة",
+      "save": "حفظ",
+      "saveNew": "حفظ · هتظهر في الليدز تحت الـ channel بتاعها"
+    }
+  },
+  "content": {
+    "state": { "published": "اتنشر", "waiting": "مستني موافقة", "today": "Reminder النهارده", "scheduled": "متجدول" },
+    "week": { "sat": "سبت", "sun": "أحد", "mon": "اتنين", "tue": "تلات", "wed": "أربع", "thu": "خميس", "fri": "جمعة" },
+    "view": "العرض",
+    "list": "قايمة",
+    "prevMonth": "الشهر اللي فات",
+    "nextMonth": "الشهر الجاي",
+    "post": "بوست",
+    "head": { "post": "البوست", "campaign": "الكامبين", "at": "الميعاد", "status": "الحالة" },
+    "loading": "بيحمّل…",
+    "empty": "مفيش بوستات في الشهر ده",
+    "publishedAt": "اتنشر {at}",
+    "note": "كل بوست له ميعاد نشر، والـ Reminder بيوصل في الميعاد، وبيتسجّل وقت النشر الفعلي. البوستات بتتراجع من مدير التسويق قبل ما تتنشر.",
+    "actuallyPublished": "اتنشر فعلاً",
+    "description": "الوصف",
+    "actions": {
+      "approved": "البوست اتوافق عليه",
+      "approve": "موافقة",
+      "publishedToast": "اتسجّل وقت النشر",
+      "published": "اتنشر"
+    },
+    "new": {
+      "title": "بوست في الـ Content plan",
+      "scheduled": "البوست اتجدول",
+      "post": "البوست (التصميم / الفيديو)",
+      "campaign": "الكامبين",
+      "at": "ميعاد النشر",
+      "description": "الوصف",
+      "save": "حفظ · هيجيلك Reminder في الميعاد"
+    }
+  },
+  "dashboard": {
+    "period": "الفترة",
+    "ranges": { "r7": "آخر 7 أيام", "r30": "آخر 30 يوم", "rmonth": "الشهر ده", "rall": "كل الوقت", "rcustom": "فترة مخصصة" },
+    "from": "من",
+    "to": "لحد",
+    "allChannels": "كل الـ Channels",
+    "campaign": "الكامبين",
+    "allCampaigns": "كل الكامبينز",
+    "kpi": {
+      "leads": "إجمالي الليدز",
+      "inPeriod": "في الفترة دي",
+      "rate": "{rate}% نسبة التأهيل",
+      "spent": "صرف الكامبينز",
+      "campaigns": "{count} كامبين",
+      "costPerQualified": "تكلفة الـ Qualified",
+      "perLead": "للّيد الواحد"
+    },
+    "tree": { "title": "Channels ← Campaigns", "sub": "إجمالي كل channel ومتفرع منه الكامبينز" },
+    "leads": "{count} ليد",
+    "rateCost": "{rate}% · {cost}/ليد",
+    "noCampaign": "من غير كامبين",
+    "empty": "مفيش ليدز في الفترة دي",
+    "byChannel": "الليدز حسب الـ channel",
+    "lead": "ليد",
+    "posts": "البوستات اللي جابت ليدز",
+    "noPosts": "مفيش ليدز متربطة ببوست في الفترة دي",
+    "note": "Qualified = أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتحسب أوتوماتيك هنا، وبيفضل محسوب حتى لو رجع Not Interested أو No Answer."
+  },
+  "deals": {
+    "notImage": "لازم صورة",
+    "uploaded": "الـ Logo اترفع على الديل",
+    "uploading": "بيترفع…",
+    "upload": "ارفع Logo",
+    "note": "الـ Done Deals بتظهر هنا بعد موافقة الـ Office Manager. مسموح تشوفي: الـ location، والمساحة، واسم الشركة، والـ type، واسم الـ Buyer بس، وتقدري ترفقي Logo لكل ديل.",
+    "head": { "buyer": "الـ Buyer", "company": "الشركة", "space": "المساحة" },
+    "empty": "مفيش صفقات لسه",
+    "space": "{space} م"
+  },
+  "newUnits": {
+    "gone": "{code} اختفت من لوحة التسويق",
+    "back": "{code} رجعت للوحة",
+    "note": "Live Alerts: أي وحدة جديدة بتتضاف للانفنتوري بتظهر هنا فوراً عشان تجهّزوا موادها. لما الإعلان يخلص دوس Done فتختفي، ولو اتداس بالغلط فيه Undo.",
+    "new": "جديدة",
+    "meta": "{area} · {space} م · {type}",
+    "pdfDraft": " · الـ PDF مستني تأكيد منار",
+    "done": "الإعلان خلص · Done",
+    "empty": "مفيش وحدات جديدة مستنية حملات"
+  }
+}
