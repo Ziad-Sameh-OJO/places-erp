@@ -1,5 +1,10 @@
 {
-  "scopes": { "own": "Own only", "team": "Their team", "dept": "Their department", "all": "All" },
+  "scopes": {
+    "own": "Own only",
+    "team": "Their team",
+    "dept": "Their department",
+    "all": "All"
+  },
   "tiers": {
     "superAdmin": "Owners / founders",
     "officeManager": "Office manager",
@@ -9,7 +14,12 @@
     "teamLeaders": "Team leaders",
     "executiveStaff": "Executive staff"
   },
-  "status": { "ACTIVE": "Active", "INVITED": "Awaiting activation", "LOCKED": "Locked", "DISABLED": "Stopped" },
+  "status": {
+    "ACTIVE": "Active",
+    "INVITED": "Awaiting activation",
+    "LOCKED": "Locked",
+    "DISABLED": "Stopped"
+  },
   "audit": {
     "system": "System",
     "module": "Module",
@@ -19,7 +29,14 @@
     "from": "From",
     "to": "To",
     "count": "{count, plural, one {# change} other {# changes}}",
-    "head": { "time": "Time", "who": "Who", "module": "Module", "change": "Change", "on": "On", "device": "Device" },
+    "head": {
+      "time": "Time",
+      "who": "Who",
+      "module": "Module",
+      "change": "Change",
+      "on": "On",
+      "device": "Device"
+    },
     "empty": "No changes",
     "newer": "Newer",
     "older": "Older"
@@ -94,7 +111,13 @@
     "permsReportFile": "Who has which permission.xlsx",
     "permsReport": "Who has which permission",
     "newAccount": "+ New account",
-    "head": { "person": "Person", "roles": "Roles", "department": "Department", "status": "Status", "lastLogin": "Last sign-in" },
+    "head": {
+      "person": "Person",
+      "roles": "Roles",
+      "department": "Department",
+      "status": "Status",
+      "lastLogin": "Last sign-in"
+    },
     "empty": "No accounts match the search",
     "overrides": "{count, plural, one {# exception} other {# exceptions}}",
     "edit": "Edit",
@@ -153,5 +176,22 @@
     "overrides": "{count, plural, one {# exception} other {# exceptions}} for this person.",
     "reset": "Reset to the role",
     "ok": "OK"
+  },
+  "fields": {
+    "title": "Fields",
+    "module": "Module",
+    "count": "{hidden} hidden · {read} read only",
+    "hint": "For each field pick: shown, read only (seen, not changed) or hidden (gone from the table, details, form, filters and PDF). With several roles, the most permissive one applies.",
+    "loading": "Loading…",
+    "field": "Field",
+    "shows": "How it shows",
+    "locked": "always shown",
+    "modeOf": "How «{field}» shows",
+    "saved": "Fields saved",
+    "mode": {
+      "show": "Shown",
+      "read": "Read only",
+      "hide": "Hidden"
+    }
   }
 }

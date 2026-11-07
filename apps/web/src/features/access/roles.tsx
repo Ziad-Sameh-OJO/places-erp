@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { Card, Chip, Field, Modal, Note, useAction } from "@/components/ui";
 import { Matrix, type MatrixValue } from "./matrix";
+import { RoleFields } from "./role-fields";
 import { SCOPES, TIERS, type RoleRow } from "./types";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -61,6 +62,7 @@ export function RolesTab() {
           </div>
           {!editable && <Note>{role.key === "admin" ? t("adminOnly") : t("viewOnly")}</Note>}
           <Matrix value={role.permissions} editable={editable} onChange={save} />
+          <RoleFields key={role.key} role={role} editable={editable} />
         </Card>
       )}
       {form && <RoleForm {...form} roles={roles.data} onClose={() => setForm(null)} onSaved={async (key) => { setPick(key); setForm(null); await refresh(); }} />}

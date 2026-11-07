@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { AuditFilters, Matrix, Overrides, RoleInput, RoleUpdate, UserFilters, UserInput } from "@places/contracts";
+import { AuditFilters, Matrix, Overrides, RoleFieldsInput, RoleInput, RoleUpdate, UserFilters, UserInput } from "@places/contracts";
 import { AUDIT_ACTION_LABEL, MODULES, MODULE_LABEL, type ModuleKey } from "@places/domain";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendXlsx } from "../../core/http/excel";
@@ -82,6 +82,13 @@ export class AccessController {
 
   @Patch("roles/:key/permissions") @Requires("access", "edit") @HttpCode(204)
   setRolePermissions(@Me() me: CurrentUser, @Param("key") key: string, @Body(new ZodPipe(Matrix)) b: Matrix) { return this.access.setRolePermissions(me, key, b); }
+
+  /** M-09 field permissions: what each field of a module is for this role (shown, read only, hidden). */
+  @Get("roles/:key/fields") @Requires("access", "view")
+  roleFields(@Param("key") key: string) { return this.access.roleFields(key); }
+
+  @Put("roles/:key/fields") @Requires("access", "edit") @HttpCode(204)
+  setRoleFields(@Me() me: CurrentUser, @Param("key") key: string, @Body(new ZodPipe(RoleFieldsInput)) b: RoleFieldsInput) { return this.access.setRoleFields(me, key, b); }
 
   @Delete("roles/:key") @Requires("access", "delete") @HttpCode(204)
   deleteRole(@Me() me: CurrentUser, @Param("key") key: string) { return this.access.deleteRole(me, key); }

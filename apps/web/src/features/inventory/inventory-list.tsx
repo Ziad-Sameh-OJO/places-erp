@@ -6,7 +6,7 @@ import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { num, short } from "@/lib/format";
 import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
@@ -73,7 +73,9 @@ export function InventoryList() {
   const list = failed ? [] : units.data?.items ?? [];
   const total = failed ? 0 : units.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
-  const cols = columnsFor(tab === "all" ? "all" : tab, insider, t);
+  // M-09 field permissions: hidden fields have no column and no filter (the API drops such filters too)
+  const fields = useFields("inventory");
+  const cols = columnsFor(tab === "all" ? "all" : tab, insider, t, fields.hidden);
   const onClosed = (k: keyof typeof closedBy) => (e: { target: { value: string } }) => { setClosedBy({ ...closedBy, [k]: e.target.value || undefined }); setPage(1); };
   // Primary isn't confirmed by the client as a sheet yet: its tab shows once there are Primary units
   const types: [TypeTab, string, number | undefined][] = [
@@ -101,15 +103,15 @@ export function InventoryList() {
       </div>
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={insider ? t("list.searchInsider") : t("list.search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("list.searchLabel")} /></label>
-        <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
+        {fields.shows("area") && <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
           <option value="">{t("list.allAreas")}</option>{options?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
-        </select>
-        <select value={f.condition ?? ""} onChange={on("condition")} aria-label="Condition">
+        </select>}
+        {fields.shows("condition") && <select value={f.condition ?? ""} onChange={on("condition")} aria-label="Condition">
           <option value="">{t("list.allConditions")}</option>{options?.conditions.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
-        </select>
-        <select value={f.agentId ?? ""} onChange={on("agentId")} aria-label="Agent">
+        </select>}
+        {fields.shows("agent") && <select value={f.agentId ?? ""} onChange={on("agentId")} aria-label="Agent">
           <option value="">{t("list.allAgents")}</option>{options?.agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        </select>}
         {tab === "closed" && <>
           <select value={closedBy.type ?? ""} onChange={onClosed("type")} aria-label={t("list.closedAs")}>
             <option value="">{t("list.allClosedTypes")}</option>{(["Rent", "Resale", "Income"] as const).map((x) => <option key={x} value={x}>{x}</option>)}
@@ -117,8 +119,8 @@ export function InventoryList() {
           <label className="date-f"><span>{t("list.from")}</span><input type="date" value={closedBy.closedFrom ?? ""} max={closedBy.closedTo} onChange={onClosed("closedFrom")} aria-label={t("list.closedFrom")} /></label>
           <label className="date-f"><span>{t("list.to")}</span><input type="date" value={closedBy.closedTo ?? ""} min={closedBy.closedFrom} onChange={onClosed("closedTo")} aria-label={t("list.closedTo")} /></label>
         </>}
-        <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={toggle("stale")} /><span>{t("chips.stale")}</span></label>
-        <label className="tog"><input type="checkbox" checked={!!f.divisible} onChange={toggle("divisible")} /><span>{t("list.divisible")}</span></label>
+        {fields.shows("stale") && <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={toggle("stale")} /><span>{t("chips.stale")}</span></label>}
+        {fields.shows("divisible") && <label className="tog"><input type="checkbox" checked={!!f.divisible} onChange={toggle("divisible")} /><span>{t("list.divisible")}</span></label>}
         <label className="tog"><input type="checkbox" checked={!!f.missing} onChange={toggle("missing")} /><span>{t("list.missing")}</span></label>
         <span className="spacer" />
         <div className="seg" role="group" aria-label={t("list.view")}>
@@ -144,7 +146,7 @@ export function InventoryList() {
         : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k, t)))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)}
           pick={{ ids: list.map((u) => u.id), picked, onChange: setPicked, all: t("listOfOptions.pickAll"), one: (i) => t("listOfOptions.pickOne", { code: list[i]!.code }) }} />}
       {picked.length > 0 && <ListOfOptionsBar ids={picked} onClear={() => setPicked([])} />}
-      <AreaTabsBar tabs={areaTabs} value={f.tabId} onChange={(tabId) => filter({ ...f, tabId })} editable={me.can("inventory", "edit")} />
+      {fields.shows("space") && <AreaTabsBar tabs={areaTabs} value={f.tabId} onChange={(tabId) => filter({ ...f, tabId })} editable={me.can("inventory", "edit")} />}
       {!failed && pages > 1 && (
         <div className="row end">
           <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("common.prev")}</button>
