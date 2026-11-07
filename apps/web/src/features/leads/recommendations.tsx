@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { RecommendAnswers, RecommendedUnit, Recommendations } from "@places/contracts";
 import { Chip, Empty, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { useMe } from "@/lib/me";
 import { api } from "@/lib/api";
-import { money, num } from "@/lib/format";
+import { dateLocale, money, num } from "@/lib/format";
 import { useRefreshLead } from "./use-lead";
 
 const key = (id: string) => ["lead", id, "recommendations"];
@@ -20,6 +21,7 @@ export const useRecommendations = (id: string) =>
  * saved on the lead. The ticked units go to the client as a PDF list, recorded as a comment on the lead (2.13).
  */
 export function RecommendedUnits({ id, name }: { id: string; name: string }) {
+  const t = useTranslations("leads.units");
   const { can } = useMe();
   const run = useAction();
   const toast = useToast();
@@ -29,7 +31,7 @@ export function RecommendedUnits({ id, name }: { id: string; name: string }) {
   const [preview, setPreview] = useState(false);
   const r = recs.data;
   if (recs.error) return <Empty text={recs.error.message} />;
-  if (!r) return <p className="hint">بيحمّل…</p>;
+  if (!r) return <p className="hint">{t("loading")}</p>;
   const c = r.client;
   const save = (answers: RecommendAnswers) => void run(async () => { qc.setQueryData(key(id), await api.put<Recommendations>(`/leads/${id}/answers`, answers)); });
   const ask = (k: keyof RecommendAnswers, v: string) => save({ ...r.answers, [k]: v || undefined });
@@ -39,21 +41,21 @@ export function RecommendedUnits({ id, name }: { id: string; name: string }) {
   const tick = (u: RecommendedUnit, on: boolean) => setPicked((p) => (on ? [...p, u.id] : p.filter((x) => x !== u.id)));
   return (
     <>
-      <Note>الـ Recommendations بتطابق بيانات الكلاينت: <b>{c.type} · {c.space != null ? `${num(c.space)} م` : "أي مساحة"} · {c.condition ?? "أي تشطيب"} · {money(c.budget)} · {c.area || "—"}</b> (±{r.tolerancePct}%). والمساحات الكبيرة اللي «تنفع تتقسم» بتظهر كمان.</Note>
+      <Note>{t.rich("match", { client: `${c.type} · ${c.space != null ? t("sqm", { n: num(c.space) }) : t("anySpace")} · ${c.condition ?? t("anyCondition")} · ${money(c.budget)} · ${c.area || "—"}`, pct: r.tolerancePct, b: (c) => <b>{c}</b> })}</Note>
       {edit && <Questions r={r} onAsk={ask} onReset={() => save({})} />}
       <div className="rec-list">
         {r.items.length ? r.items.map((u) => (
           <label key={u.id} className="rec">
-            {edit && <input type="checkbox" checked={picked.includes(u.id)} onChange={(e) => tick(u, e.target.checked)} aria-label={`اختار ${u.code}`} />}
+            {edit && <input type="checkbox" checked={picked.includes(u.id)} onChange={(e) => tick(u, e.target.checked)} aria-label={t("pickUnit", { code: u.code })} />}
             <span className="rec-match num">{u.match}%</span>
-            <div className="rec-main"><b>{u.code} · {u.project}</b><small>{u.area} · الدور {u.floor || "—"} · {num(u.space)} م · {u.condition} · Parking {u.parking}</small></div>
-            <div className="rec-price"><b className="num">{money(u.price)}</b><small>{u.monthly ? "في الشهر" : "إجمالي"}</small></div>
-            {u.split ? <Chip tone="info">تتقسم · من {num(u.minSplit ?? c.space ?? 0)} م</Chip> : u.sameArea ? <Chip tone="ok">نفس المنطقة</Chip> : null}
+            <div className="rec-main"><b>{u.code} · {u.project}</b><small>{u.area} · {t("floor", { floor: u.floor || "—" })} · {t("sqm", { n: num(u.space) })} · {u.condition} · Parking {u.parking}</small></div>
+            <div className="rec-price"><b className="num">{money(u.price)}</b><small>{u.monthly ? t("monthly") : t("total")}</small></div>
+            {u.split ? <Chip tone="info">{t("splits", { n: num(u.minSplit ?? c.space ?? 0) })}</Chip> : u.sameArea ? <Chip tone="ok">{t("sameArea")}</Chip> : null}
           </label>
-        )) : <Empty text="مفيش وحدات مطابقة. جرّب تشيل إجابة من الأسئلة." icon="building" />}
+        )) : <Empty text={t("empty")} icon="building" />}
       </div>
       {edit && r.items.length > 0 && <div className="row end">
-        <button className="btn" onClick={() => (chosen.length ? setPreview(true) : toast("اختار وحدة واحدة على الأقل"))}><Icon name="file" />اعمل PDF list وابعتها</button>
+        <button className="btn" onClick={() => (chosen.length ? setPreview(true) : toast(t("pickOne")))}><Icon name="file" />{t("makePdf")}</button>
       </div>}
       {preview && <ListPreview id={id} name={name} units={chosen} clientSpace={c.space} onClose={() => setPreview(false)} onSent={() => { setPreview(false); setPicked([]); }} />}
     </>
@@ -62,33 +64,34 @@ export function RecommendedUnits({ id, name }: { id: string; name: string }) {
 
 /** «جاوب عشان الـ Recommendations تقل» — the requirements' proposed questions (the client hasn't sent his list yet). */
 function Questions({ r, onAsk, onReset }: { r: Recommendations; onAsk: (k: keyof RecommendAnswers, v: string) => void; onReset: () => void }) {
+  const t = useTranslations("leads.units.questions");
   const a = r.answers;
   const sale = r.client.type !== "Rent";
   return (
     <div className="qs">
-      <span className="qs-t"><Icon name="filter" />جاوب عشان الـ Recommendations تقل:</span>
-      <select value={a.floor ?? ""} onChange={(e) => onAsk("floor", e.target.value)} aria-label="الدور">
-        <option value="">الدور: أي دور</option><option value="ground">دور أرضي بس</option>
+      <span className="qs-t"><Icon name="filter" />{t("title")}</span>
+      <select value={a.floor ?? ""} onChange={(e) => onAsk("floor", e.target.value)} aria-label={t("floor")}>
+        <option value="">{t("anyFloor")}</option><option value="ground">{t("groundOnly")}</option>
       </select>
-      <select value={a.parking ?? ""} onChange={(e) => onAsk("parking", e.target.value)} aria-label="الـ Parking">
-        <option value="">Parking: مش مهم</option>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>Parking {n}+</option>)}
+      <select value={a.parking ?? ""} onChange={(e) => onAsk("parking", e.target.value)} aria-label={t("parking")}>
+        <option value="">{t("anyParking")}</option>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>Parking {n}+</option>)}
       </select>
-      <select value={a.project ?? ""} onChange={(e) => onAsk("project", e.target.value)} aria-label="المشروع">
-        <option value="">المشروع: أي مشروع</option>
+      <select value={a.project ?? ""} onChange={(e) => onAsk("project", e.target.value)} aria-label={t("project")}>
+        <option value="">{t("anyProject")}</option>
         {[...new Set([...r.projects, ...(a.project ? [a.project] : [])])].map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
-      <select value={a.area ?? ""} onChange={(e) => onAsk("area", e.target.value)} aria-label="المنطقة">
-        <option value="">المنطقة: أي منطقة</option><option value="same">نفس منطقة الكلاينت</option>
+      <select value={a.area ?? ""} onChange={(e) => onAsk("area", e.target.value)} aria-label={t("area")}>
+        <option value="">{t("anyArea")}</option><option value="same">{t("sameArea")}</option>
       </select>
-      <select value={a.split ?? ""} onChange={(e) => onAsk("split", e.target.value)} aria-label="مساحة متقسمة">
-        <option value="">مساحة متقسمة: تنفع</option><option value="no">مش عايز مساحة متقسمة</option>
+      <select value={a.split ?? ""} onChange={(e) => onAsk("split", e.target.value)} aria-label={t("split")}>
+        <option value="">{t("splitOk")}</option><option value="no">{t("noSplit")}</option>
       </select>
-      {sale && <select value={a.payment ?? ""} onChange={(e) => onAsk("payment", e.target.value)} aria-label="طريقة الدفع">
-        <option value="">الدفع: أي طريقة</option>
+      {sale && <select value={a.payment ?? ""} onChange={(e) => onAsk("payment", e.target.value)} aria-label={t("payment")}>
+        <option value="">{t("anyPayment")}</option>
         {[...new Set([...r.paymentMethods, ...(a.payment ? [a.payment] : [])])].map((p) => <option key={p} value={p}>{p}</option>)}
       </select>}
-      {sale && <label className="qs-t">التسليم قبل<input type="date" value={a.deliveryBy ?? ""} onChange={(e) => onAsk("deliveryBy", e.target.value)} aria-label="التسليم قبل" /></label>}
-      {Object.values(a).some((v) => v != null && v !== "") && <button className="btn ghost sm" onClick={onReset}>مسح الإجابات</button>}
+      {sale && <label className="qs-t">{t("deliveryBy")}<input type="date" value={a.deliveryBy ?? ""} onChange={(e) => onAsk("deliveryBy", e.target.value)} aria-label={t("deliveryBy")} /></label>}
+      {Object.values(a).some((v) => v != null && v !== "") && <button className="btn ghost sm" onClick={onReset}>{t("reset")}</button>}
     </div>
   );
 }
@@ -100,6 +103,7 @@ function Questions({ r, onAsk, onReset }: { r: Recommendations; onAsk: (k: keyof
 function ListPreview({ id, name, units, clientSpace, onClose, onSent }: { id: string; name: string; units: RecommendedUnit[]; clientSpace: number | null; onClose: () => void; onSent: () => void }) {
   const run = useAction();
   const refresh = useRefreshLead();
+  const t = useTranslations("leads.units.pdf");
   const [busy, setBusy] = useState(false);
   const send = () => {
     setBusy(true);
@@ -109,24 +113,24 @@ function ListPreview({ id, name, units, clientSpace, onClose, onSent }: { id: st
         await refresh(id);
         onSent();
       } finally { setBusy(false); }
-    }, "الـ list اتبعتت واتسجّلت كومنت عند العميل");
+    }, t("sent"));
   };
   return (
     <Modal title="List of options · PDF" onClose={onClose}>
       <div className="pdf">
-        <div className="pdf-head"><span className="brand-mark sm"><Icon name="building" /></span><div><b>Places · List of options</b><small>لـ {name} · {new Date().toLocaleDateString("ar-EG", { timeZone: "Africa/Cairo" })}</small></div></div>
+        <div className="pdf-head"><span className="brand-mark sm"><Icon name="building" /></span><div><b>Places · List of options</b><small>{t("for", { name, date: new Date().toLocaleDateString(dateLocale(), { timeZone: "Africa/Cairo" }) })}</small></div></div>
         {units.map((u) => (
           <div key={u.id} className="pdf-row">
             <div className="pdf-img"><Icon name="image" /></div>
-            <div><b>{u.project} · {u.code}</b><small>{u.area} · الدور {u.floor || "—"} · {u.split && clientSpace ? `${num(clientSpace)} م (جزء من ${num(u.space)} م)` : `${num(u.space)} م`} · {u.condition}</small></div>
-            <b className="num">{money(u.price)}{u.monthly && u.price ? <small> / شهر</small> : null}</b>
+            <div><b>{u.project} · {u.code}</b><small>{u.area} · {t("floor", { floor: u.floor || "—" })} · {u.split && clientSpace ? t("part", { n: num(clientSpace), of: num(u.space) }) : t("sqm", { n: num(u.space) })} · {u.condition}</small></div>
+            <b className="num">{money(u.price)}{u.monthly && u.price ? <small>{t("perMonth")}</small> : null}</b>
           </div>
         ))}
-        <p className="hint">الـ PDF بيتعمل أوتوماتيك من بيانات الوحدات، ومحدش يقدر يعدّل عليه.</p>
+        <p className="hint">{t("auto")}</p>
       </div>
       <div className="row end">
-        <button className="btn ghost" onClick={onClose}>رجوع</button>
-        <button className="btn" disabled={busy} onClick={send}><Icon name="send" />ابعت للعميل وسجّل كومنت</button>
+        <button className="btn ghost" onClick={onClose}>{t("back")}</button>
+        <button className="btn" disabled={busy} onClick={send}><Icon name="send" />{t("send")}</button>
       </div>
     </Modal>
   );
