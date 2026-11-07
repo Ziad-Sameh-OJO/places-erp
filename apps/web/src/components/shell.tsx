@@ -74,7 +74,6 @@ export function Shell({ children }: { children: ReactNode }) {
           {me && (
             <div className="me-card">
               <Link href="/profile" className="me-link" title={t("myAccount")}><Avatar id={me.id} name={me.name} /><div><b>{me.name}</b><small>{me.roleLabels.join(" + ")}</small></div></Link>
-              <LanguageSwitch />
               <button className="icon-btn" onClick={signOut} aria-label={t("signOut")} title={t("signOut")}><Icon name="x" /></button>
             </div>
           )}
@@ -92,6 +91,8 @@ export function Shell({ children }: { children: ReactNode }) {
             {page?.sub && <p>{page.sub}</p>}
           </div>
           <div className="top-actions">
+            {/* always in sight, next to the bell (not at the end of a scrolling menu) */}
+            <LanguageSwitch className="round lang-btn" />
             <button className="round" onClick={() => void bell.openBell()} aria-label={bell.unread ? t("notificationsUnread", { count: bell.unread }) : t("notifications")}>
               <Icon name="bell" />{bell.unread > 0 && <b>{bell.unread}</b>}
             </button>
