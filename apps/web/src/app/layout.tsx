@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { dirOf } from "@/i18n/config";
+import { LocaleSync } from "@/lib/locale";
 import "@places/ui/src/app.css";
 import "@places/ui/src/mobile.css";
 import "@places/ui/src/theme.css"; // design 2 «مخطط»: the architectural-sheet look, after app.css
@@ -22,7 +23,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
       </head>
-      <body><NextIntlClientProvider messages={await getMessages()}>{children}</NextIntlClientProvider></body>
+      <body><NextIntlClientProvider messages={await getMessages()}><LocaleSync />{children}</NextIntlClientProvider></body>
     </html>
   );
 }

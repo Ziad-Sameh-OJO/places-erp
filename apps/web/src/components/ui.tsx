@@ -11,6 +11,7 @@ import type { ImportDone, ImportPreview } from "@places/contracts";
 import { ICONS, type IconName } from "@places/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
+import { serverText } from "@/lib/server-text";
 
 export function Icon({ name }: { name: IconName }) {
   return <svg className="i" viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ICONS[name] }} />;
@@ -118,7 +119,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [msg, setMsg] = useState<{ text: string; tone: ToastTone } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const show = useCallback((text: string, tone: ToastTone = "ok") => {
-    setMsg({ text, tone });
+    setMsg({ text: serverText(text), tone }); // a server message in the reader's language
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setMsg(null), 3200);
   }, []);
