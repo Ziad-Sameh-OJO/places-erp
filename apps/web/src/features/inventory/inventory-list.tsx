@@ -16,6 +16,7 @@ import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
 import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
+import { serverText } from "@/lib/server-text";
 
 const PAGE = 50;
 type TypeTab = "all" | "Rent" | "Resale" | "Income" | "Primary" | "closed";
@@ -98,10 +99,10 @@ export function InventoryList() {
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={insider ? t("list.searchInsider") : t("list.search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("list.searchLabel")} /></label>
         <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
-          <option value="">{t("list.allAreas")}</option>{options?.areas.map(({ value }) => <option key={value} value={value}>{value}</option>)}
+          <option value="">{t("list.allAreas")}</option>{options?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
         </select>
         <select value={f.condition ?? ""} onChange={on("condition")} aria-label="Condition">
-          <option value="">{t("list.allConditions")}</option>{options?.conditions.map(({ value }) => <option key={value} value={value}>{value}</option>)}
+          <option value="">{t("list.allConditions")}</option>{options?.conditions.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
         </select>
         <select value={f.agentId ?? ""} onChange={on("agentId")} aria-label="Agent">
           <option value="">{t("list.allAgents")}</option>{options?.agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -130,7 +131,7 @@ export function InventoryList() {
               <div className={`u-img u-${u.type}`}>{u.photo ? <img src={u.photo} alt="" loading="lazy" /> : <Icon name="image" />}<span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <Chip tone="warn">PDF draft</Chip>}</div>
               <div className="u-body">
                 <b>{u.project}</b>
-                <small>{u.area} · {t("list.floor", { floor: String(u.floor || "—") })}</small>
+                <small>{serverText(u.area)} · {t("list.floor", { floor: String(u.floor || "—") })}</small>
                 <div className="row"><span className="num u-space">{t("list.meters", { space: num(u.space) })}</span><span className="spacer" /><b className="num">{short(u.totalPrice)}</b></div>
                 <div className="row"><Chip tone={TYPE_TONE[u.type]}>{u.type}</Chip>{u.divisible && <Chip tone="info">{t("chips.divisible")}</Chip>}{u.stale && <Chip tone="bad">{t("list.update")}</Chip>}</div>
               </div>

@@ -5,6 +5,7 @@ import type { LeadRow } from "@places/contracts";
 import { Chip, Empty } from "@/components/ui";
 import { ago, money, num } from "@/lib/format";
 import { SlaBar, StageChip, Who } from "./lead-bits";
+import { serverText } from "@/lib/server-text";
 
 /**
  * The demo's list (leads.js listView): one row per lead, on phones a card per lead. With `picked`, a checkbox per row
@@ -20,7 +21,7 @@ export function LeadsTable({ leads, onOpen, picked, onPick }: {
   const toggle = (id: string, on: boolean) => onPick?.(on ? [...picked!.filter((x) => x !== id), id] : picked!.filter((x) => x !== id));
   const cells = (l: LeadRow): ReactNode[] => [
     <span key="l"><b>{l.name}</b><span className="sub"><span className="mono">{l.code}</span></span><span className="sub mono">{l.phones.join(" · ")}</span></span>,
-    <span key="a">{l.area || "—"}<span className="sub">{l.type}{l.space != null && <> · {t.rich("sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>}</span></span>,
+    <span key="a">{l.area ? serverText(l.area) : "—"}<span className="sub">{l.type}{l.space != null && <> · {t.rich("sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>}</span></span>,
     <span key="b" className="n">{money(l.budget)}</span>,
     <span key="c">{l.channel}<span className="sub">{l.campaign?.name ?? "—"}</span></span>,
     <span key="s"><Who person={l.assignedTo} />{l.ownedByTelesales && <span className="sub">{t("withTelesales")}</span>}</span>,

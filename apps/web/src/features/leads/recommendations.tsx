@@ -8,6 +8,7 @@ import { useMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import { dateLocale, money, num } from "@/lib/format";
 import { useRefreshLead } from "./use-lead";
+import { serverText } from "@/lib/server-text";
 
 const key = (id: string) => ["lead", id, "recommendations"];
 
@@ -41,14 +42,14 @@ export function RecommendedUnits({ id, name }: { id: string; name: string }) {
   const tick = (u: RecommendedUnit, on: boolean) => setPicked((p) => (on ? [...p, u.id] : p.filter((x) => x !== u.id)));
   return (
     <>
-      <Note>{t.rich("match", { client: `${c.type} · ${c.space != null ? t("sqm", { n: num(c.space) }) : t("anySpace")} · ${c.condition ?? t("anyCondition")} · ${money(c.budget)} · ${c.area || "—"}`, pct: r.tolerancePct, b: (c) => <b>{c}</b> })}</Note>
+      <Note>{t.rich("match", { client: `${c.type} · ${c.space != null ? t("sqm", { n: num(c.space) }) : t("anySpace")} · ${c.condition ? serverText(c.condition) : t("anyCondition")} · ${money(c.budget)} · ${c.area || "—"}`, pct: r.tolerancePct, b: (c) => <b>{c}</b> })}</Note>
       {edit && <Questions r={r} onAsk={ask} onReset={() => save({})} />}
       <div className="rec-list">
         {r.items.length ? r.items.map((u) => (
           <label key={u.id} className="rec">
             {edit && <input type="checkbox" checked={picked.includes(u.id)} onChange={(e) => tick(u, e.target.checked)} aria-label={t("pickUnit", { code: u.code })} />}
             <span className="rec-match num">{u.match}%</span>
-            <div className="rec-main"><b>{u.code} · {u.project}</b><small>{u.area} · {t("floor", { floor: u.floor || "—" })} · {t("sqm", { n: num(u.space) })} · {u.condition} · Parking {u.parking}</small></div>
+            <div className="rec-main"><b>{u.code} · {u.project}</b><small>{serverText(u.area)} · {t("floor", { floor: u.floor || "—" })} · {t("sqm", { n: num(u.space) })} · {u.condition} · Parking {u.parking}</small></div>
             <div className="rec-price"><b className="num">{money(u.price)}</b><small>{u.monthly ? t("monthly") : t("total")}</small></div>
             {u.split ? <Chip tone="info">{t("splits", { n: num(u.minSplit ?? c.space ?? 0) })}</Chip> : u.sameArea ? <Chip tone="ok">{t("sameArea")}</Chip> : null}
           </label>
@@ -122,7 +123,7 @@ function ListPreview({ id, name, units, clientSpace, onClose, onSent }: { id: st
         {units.map((u) => (
           <div key={u.id} className="pdf-row">
             <div className="pdf-img"><Icon name="image" /></div>
-            <div><b>{u.project} · {u.code}</b><small>{u.area} · {t("floor", { floor: u.floor || "—" })} · {u.split && clientSpace ? t("part", { n: num(clientSpace), of: num(u.space) }) : t("sqm", { n: num(u.space) })} · {u.condition}</small></div>
+            <div><b>{u.project} · {u.code}</b><small>{serverText(u.area)} · {t("floor", { floor: u.floor || "—" })} · {u.split && clientSpace ? t("part", { n: num(clientSpace), of: num(u.space) }) : t("sqm", { n: num(u.space) })} · {u.condition}</small></div>
             <b className="num">{money(u.price)}{u.monthly && u.price ? <small>{t("perMonth")}</small> : null}</b>
           </div>
         ))}

@@ -16,3 +16,10 @@
   [dir="ltr"] .drawer { transform: translateY(100%); }               /* the phone's bottom sheet comes up, either way */
   [dir="ltr"] .drawer.in { transform: none !important; }
 }
+/* text alignment: the demo's «right» is the start of the line and «left» its end (app.css) */
+[dir="ltr"] th, [dir="ltr"] td, [dir="ltr"] table.je, [dir="ltr"] .kpi-btn, [dir="ltr"] .search-pill span, [dir="ltr"] .choice-card,
+[dir="ltr"] .cal-item, [dir="ltr"] .cmd-item, [dir="ltr"] .who > span > small { text-align: left; }
+[dir="ltr"] .funnel .f .n, [dir="ltr"] .rec-price, [dir="ltr"] .legend small, [dir="ltr"] .wf b { text-align: right; }
+/* theme.css draws each block in from the start of the line (the right in Arabic): from the left in English */
+@keyframes draw-in-ltr { from { clip-path: inset(0 100% 0 0); opacity: .2; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+[dir="ltr"] .view.enter > * { animation-name: draw-in-ltr; }

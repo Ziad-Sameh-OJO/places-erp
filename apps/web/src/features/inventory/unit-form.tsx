@@ -8,6 +8,7 @@ import { Field, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { moneyExact } from "@/lib/format";
 import { type ColWord, type UnitTypeName, w } from "./unit-bits";
+import { serverText } from "@/lib/server-text";
 
 type Key =
   | "type" | "project" | "area" | "space" | "condition" | "floor" | "building" | "parking" | "agentId" | "areaTabId" | "location"
@@ -175,12 +176,12 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
         <Field label="Area">
           <select name="area" value={f.area} onChange={set("area")}>
             <option value="">{t("form.pick")}</option>
-            {choices(options?.areas, f.area).map((a) => <option key={a}>{a}</option>)}
+            {choices(options?.areas, f.area).map((a) => <option key={a} value={a}>{serverText(a)}</option>)}
           </select>
         </Field>
         <Field label={t("form.grossArea")}><input name="space" type="number" min={1} step={1} value={f.space} onChange={set("space")} /></Field>
         <Field label={t("form.condition")}>
-          <select name="condition" value={f.condition} onChange={set("condition")}><option value="">{t("form.pick")}</option>{choices(options?.conditions, f.condition).map((c) => <option key={c}>{c}</option>)}</select>
+          <select name="condition" value={f.condition} onChange={set("condition")}><option value="">{t("form.pick")}</option>{choices(options?.conditions, f.condition).map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
         </Field>
         <Field label="Floor"><input name="floor" maxLength={40} value={f.floor} onChange={set("floor")} /></Field>
         <Field label="Build num"><input name="building" maxLength={40} value={f.building} onChange={set("building")} /></Field>

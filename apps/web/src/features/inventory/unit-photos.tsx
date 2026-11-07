@@ -53,7 +53,7 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
 
   return <>
     <div className="row">
-      <span className="hint">{u.project} · {u.area} · {t("files", { count: photos.length })}</span><span className="spacer" />
+      <span className="hint">{u.project} · {serverText(u.area)} · {t("files", { count: photos.length })}</span><span className="spacer" />
       {/* the API streams it with its name (<code> - Pic & Info.zip) and audits the download */}
       {!!photos.length && <a className="btn ghost" href={`/api/v1${base}/zip`} download><Icon name="download" />{t("zip")}</a>}
       {up && <FolderUpload left={MAX_UNIT_PHOTOS - photos.length} onDone={(ids) => run(async () => { await api.post(base, { fileIds: ids }); await refresh(); }, t("uploaded", { count: ids.length, code: u.code }))} />}

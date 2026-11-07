@@ -6,6 +6,7 @@ import { Avatar, Chip, Icon } from "@/components/ui";
 import { amount, day, moneyExact, num } from "@/lib/format";
 import type inventory from "@/i18n/messages/ar/inventory.json";
 import { UnitFolder } from "./unit-photos";
+import { serverText } from "@/lib/server-text";
 
 export type UnitTypeName = UnitRow["type"];
 export const TYPE_TONE: Record<UnitTypeName, "info" | "acc" | "ok" | "warn"> = { Rent: "info", Resale: "acc", Income: "ok", Primary: "warn" };
@@ -54,6 +55,7 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     case "code": return <><span className="mono">{u.code}</span>{u.pdfStatus === "draft" && <> <Chip tone="warn">PDF draft</Chip></>}{u.missing.length > 0 && <> <Chip tone="bad">{t("cell.missing", { count: u.missing.length })}</Chip></>}</>;
     case "type": return <TypeChip type={u.type} />;
     case "space": return !u.space ? "—" : <bdi className="num">{u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)}` : num(u.space)}</bdi>;
+    case "area": case "condition": return u[key] ? serverText(u[key]) : "—"; // list values: the default ones have English names
     case "layout": return yesNo(u.layout);
     case "pic": return yesNo(u.photoCount > 0);
     case "resale": return yesNo(u.type === "Resale" || u.alsoType === "Resale");

@@ -6,6 +6,7 @@ import { KpiTile } from "@/components/blocks";
 import { Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
 import { num } from "@/lib/format";
 import { type LeadQuery, PRESETS, type SavedView, activeCount, sameFilters } from "./filters";
+import { serverText } from "@/lib/server-text";
 
 /** «مقارنة بالأسبوع اللي فات»: % change, none when last week had nothing (demo U.delta). */
 const delta = (cur: number, prev: number) => (prev ? ((cur - prev) / prev) * 100 : null);
@@ -81,7 +82,7 @@ export function LeadsToolbar({ f, set, settings, options }: {
         </select>
       )}
       <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
-        <option value="">{t("allAreas")}</option>{settings?.areas.map(({ value }) => <option key={value} value={value}>{value}</option>)}
+        <option value="">{t("allAreas")}</option>{settings?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
       </select>
       <select value={f.qualified ?? ""} onChange={on("qualified")} aria-label="Qualified">
         <option value="">{t("qualifiedAll")}</option><option value="true">{t("qualifiedOnly")}</option><option value="false">{t("notQualified")}</option>

@@ -74,7 +74,7 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
   const kv: [string, React.ReactNode][] = [
     [t("company"), l.company ?? "—"],
     [t("mobile"), <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>],
-    ["Area", l.area || "—"], ["Type", l.type], ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—"], ["Condition", l.condition ?? "—"],
+    ["Area", l.area ? serverText(l.area) : "—"], ["Type", l.type], ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—"], ["Condition", l.condition ? serverText(l.condition) : "—"],
     ["Budget", money(l.budget)], ["Channel", l.channel], ["Campaign", l.campaign?.name ?? "—"], [t("post"), l.post ?? "—"],
     ["Sales", <Who key="w" person={l.assignedTo} />], [t("cameIn"), `${day(l.createdAt)} · ${ago(l.createdAt)}`],
   ];

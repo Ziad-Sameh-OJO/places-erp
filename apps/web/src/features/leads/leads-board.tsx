@@ -41,7 +41,7 @@ export function LeadsBoard({ board, canMove, onOpen }: { board: LeadBoard | unde
       card={(l) => (
         <>
           <div className="row"><b className="spacer">{l.name}</b>{l.qualified && <Icon name="star" />}</div>
-          <span className="hint">{l.area || "—"} · {l.type}{l.space != null && <> · {t.rich("board.sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>} · {short(l.budget)}</span>
+          <span className="hint">{l.area ? serverText(l.area) : "—"} · {l.type}{l.space != null && <> · {t.rich("board.sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>} · {short(l.budget)}</span>
           <div className="row">
             {l.assignedTo && <Avatar id={l.assignedTo.id} name={l.assignedTo.name} sm />}
             <span className="hint spacer">{l.channel}</span>

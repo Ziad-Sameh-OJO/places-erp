@@ -6,6 +6,7 @@ import { Avatar, Card, Chip, Empty, Note, Tick, useAction } from "@/components/u
 import { api } from "@/lib/api";
 import { num } from "@/lib/format";
 import { RotationCard } from "./rotation-card";
+import { serverText } from "@/lib/server-text";
 
 /**
  * Demo «إعدادات توزيع المناطق» (1.12): areas × salespeople. A tick puts the salesperson in that area's rotation
@@ -40,10 +41,10 @@ export function RoutingTab({ editable }: { editable: boolean }) {
               <tbody>
                 {areas.map((a) => (
                   <tr key={a}>
-                    <td><b>{a}</b><span className="sub num">{t("salesCount", { n: num((routing[a] ?? []).length) })}</span></td>
+                    <td><b>{serverText(a)}</b><span className="sub num">{t("salesCount", { n: num((routing[a] ?? []).length) })}</span></td>
                     {salespeople.map((s) => (
                       <td key={s.id}>
-                        <Tick checked={(routing[a] ?? []).includes(s.id)} disabled={!editable} label={`${a} · ${s.name}`} onChange={(on) => tick(a, s.id, on)} />
+                        <Tick checked={(routing[a] ?? []).includes(s.id)} disabled={!editable} label={`${serverText(a)} · ${s.name}`} onChange={(on) => tick(a, s.id, on)} />
                       </td>
                     ))}
                   </tr>

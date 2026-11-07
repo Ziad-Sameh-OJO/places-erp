@@ -34,11 +34,11 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
   const cols = columnsFor(u.type, insider, t).filter(([k]) => k !== "code");
   const kv: [string, ReactNode][] = [
     // the region (Income's «Area» column is the unit's size, as in its sheet)
-    ...(COLS[u.type].some(([k]) => k === "area") ? [] : [[t("drawer.region"), u.area] as [string, ReactNode]]),
+    ...(COLS[u.type].some(([k]) => k === "area") ? [] : [[t("drawer.region"), u.area ? serverText(u.area) : "—"] as [string, ReactNode]]),
     ...cols.map(([k, label]) => [label, cell(u, k, t)] as [string, ReactNode]),
   ];
   return (
-    <Drawer title={`${u.code} · ${u.project}`} sub={`${u.type} · ${u.area}`} onClose={onClose} chips={<UnitChips u={u} />}
+    <Drawer title={`${u.code} · ${u.project}`} sub={`${u.type} · ${serverText(u.area)}`} onClose={onClose} chips={<UnitChips u={u} />}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}>
       <Tabs value={tab} onChange={setTab} items={[["data", t("drawer.data")], ["pdf", "PDF & slide"]]} />

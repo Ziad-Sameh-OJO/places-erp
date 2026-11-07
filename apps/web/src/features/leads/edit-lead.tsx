@@ -5,6 +5,7 @@ import { Field, Modal, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useSettings } from "./use-leads";
 import { useRefreshLead } from "./use-lead";
+import { serverText } from "@/lib/server-text";
 
 const TYPES = ["Rent", "Resale", "Primary", "Income"] as const; // as the new-lead form (requirements M-01)
 /** «رقم في كل سطر» (or commas), digits only, as the API normalises them. */
@@ -39,13 +40,13 @@ export function EditLead({ l, onClose }: { l: LeadDetail; onClose: () => void })
         <Field label={t("company")}><input name="company" maxLength={160} defaultValue={l.company ?? ""} /></Field>
         <Field label={t("phones")} req><textarea name="phones" required defaultValue={l.phones.join("\n")} /></Field>
         <Field label="Area">
-          <select name="area" defaultValue={l.area}>{withCurrent(activeValues(settings?.areas ?? []), l.area).map((a) => <option key={a}>{a}</option>)}</select>
+          <select name="area" defaultValue={l.area}>{withCurrent(activeValues(settings?.areas ?? []), l.area).map((a) => <option key={a} value={a}>{serverText(a)}</option>)}</select>
         </Field>
         <Field label="Type"><select name="type" defaultValue={l.type}>{TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>
         <Field label="Space"><input name="space" type="number" min="1" step="1" defaultValue={l.space ?? ""} /></Field>
         <Field label="Condition">
           <select name="condition" defaultValue={l.condition ?? ""}>
-            <option value="">—</option>{withCurrent(activeValues(settings?.finishings ?? []), l.condition).map((c) => <option key={c}>{c}</option>)}
+            <option value="">—</option>{withCurrent(activeValues(settings?.finishings ?? []), l.condition).map((c) => <option key={c} value={c}>{serverText(c)}</option>)}
           </select>
         </Field>
         <Field label="Budget"><input name="budget" inputMode="decimal" pattern="\d+(\.\d{1,2})?" dir="ltr" defaultValue={l.budget ?? ""} /></Field>
