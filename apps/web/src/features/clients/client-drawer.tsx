@@ -1,13 +1,15 @@
 "use client";
 import type { ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { ClientFile } from "@places/contracts";
 import { Drawer } from "@/components/blocks";
 import { Card, Chip, Empty, Icon, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { day, dayTime, money, num } from "@/lib/format";
-import { KIND_WORD, KindChips } from "./client-bits";
+import { serverText } from "@/lib/server-text";
+import { KindChips } from "./client-bits";
 import { SuggestMergeForm } from "./merges";
 import { PrivacyBits } from "./privacy";
 
@@ -18,53 +20,56 @@ import { PrivacyBits } from "./privacy";
 export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
   ids: string[]; id: string; file: ClientFile | undefined; error: Error | null; onGo: (id: string) => void; onClose: () => void;
 }) {
+  const t = useTranslations("clients.drawer");
+  const tk = useTranslations("clients.kind");
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
-  if (error) return <Drawer title="الملف مش موجود" onClose={onClose}><Empty text={error.message} /></Drawer>;
-  if (!file) return <Drawer title="…" onClose={onClose}><p className="hint">بيحمّل…</p></Drawer>;
+  if (error) return <Drawer title={t("notFound")} onClose={onClose}><Empty text={error.message} /></Drawer>;
+  if (!file) return <Drawer title="…" onClose={onClose}><p className="hint">{t("loading")}</p></Drawer>;
   const p = file;
   const kv: [string, ReactNode][] = [
-    ["النوع", KIND_WORD[p.kind]],
-    ["الأرقام", p.phones ? p.phones.map((x) => <span key={x} className="mono">{x}<br /></span>) : "—"],
-    ["الشركة", p.company || "—"],
-    ["الوحدات", num(p.units.length)],
-    ["الصفقات", num(p.deals.length)],
-    ["دفع", money(p.balance.paid)],
-    ["عليه", money(p.balance.remaining)],
+    [t("kind"), tk(p.kind)],
+    [t("phones"), p.phones ? p.phones.map((x) => <span key={x} className="mono">{x}<br /></span>) : "—"],
+    [t("company"), p.company || "—"],
+    [t("units"), num(p.units.length)],
+    [t("deals"), num(p.deals.length)],
+    [t("paid"), money(p.balance.paid)],
+    [t("owes"), money(p.balance.remaining)],
   ];
   return (
-    <Drawer title={p.name} sub={`ملف ${KIND_WORD[p.kind]}`} chips={<><KindChips kind={p.kind} />{p.status === "inactive" && <Chip>Inactive</Chip>}</>} onClose={onClose}
+    <Drawer title={p.name} sub={t("fileOf", { kind: tk(p.kind) })} chips={<><KindChips kind={p.kind} />{p.status === "inactive" && <Chip>Inactive</Chip>}</>} onClose={onClose}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}>
       <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {p.units.length > 0 && (
-        <Card className="flat" title="وحداته" icon="building">
+        <Card className="flat" title={t("unitsTitle")} icon="building">
           {p.units.map((u) => (
             <div key={u.id} className="line-item">
-              <span><b className="mono">{u.code}</b> · {u.project} · {num(u.space)} م</span>
-              {u.stale ? <Chip tone="bad">محتاجة ابديت</Chip> : <Chip tone="ok">{day(u.lastOwnerUpdateAt)}</Chip>}
+              <span><b className="mono">{u.code}</b> · {u.project} · {t("space", { space: num(u.space) })}</span>
+              {u.stale ? <Chip tone="bad">{t("needsUpdate")}</Chip> : <Chip tone="ok">{day(u.lastOwnerUpdateAt)}</Chip>}
             </div>
           ))}
         </Card>
       )}
       {p.contracts.length > 0 && (
-        <Card className="flat" title="العقود" icon="file">
-          {p.contracts.map((c) => <div key={c.id} className="line-item"><span><b className="mono">{c.code}</b> · ينتهي {day(c.endsOn)}</span></div>)}
+        <Card className="flat" title={t("contracts")} icon="file">
+          {p.contracts.map((c) => <div key={c.id} className="line-item"><span><b className="mono">{c.code}</b> · {t("endsOn", { date: day(c.endsOn) })}</span></div>)}
         </Card>
       )}
       <PrivacyBits file={p} />
       <LogForm file={p} />
       <SuggestMergeForm file={p} />
-      <h4 className="mini-h">التاريخ كله</h4>
+      <h4 className="mini-h">{t("history")}</h4>
       {p.timeline.length
-        ? <div className="timeline">{p.timeline.map((x, i) => <div key={i}>{x.text}<small>{x.by ?? "السيستم"} · {dayTime(x.at)}</small></div>)}</div>
-        : <Empty text="مفيش" icon="clock" />}
+        ? <div className="timeline">{p.timeline.map((x, i) => <div key={i}>{serverText(x.text)}<small>{x.by ?? t("system")} · {dayTime(x.at)}</small></div>)}</div>
+        : <Empty text={t("nothing")} icon="clock" />}
     </Drawer>
   );
 }
 
 /** «سجّل تواصل» (M-10 2.1 step 5): for whoever may log on the file (sales on their clients, M-10 4.1). */
 function LogForm({ file }: { file: ClientFile }) {
+  const t = useTranslations("clients.log");
   const me = useMe();
   const run = useAction();
   const qc = useQueryClient();
@@ -73,14 +78,14 @@ function LogForm({ file }: { file: ClientFile }) {
     await api.post(`/clients/${file.id}/interactions`, { kind: d.get("kind"), text: d.get("text") });
     await Promise.all([qc.invalidateQueries({ queryKey: ["client", file.id] }), qc.invalidateQueries({ queryKey: ["clients"] })]);
     (document.getElementById("cl-t") as HTMLInputElement | null)?.form?.reset();
-  }, "اتسجّل"));
+  }, t("saved")));
   return (
     <form className="card flat" onSubmit={save}>
-      <div className="card-head"><h3><span className="ico"><Icon name="phone" /></span><span>سجّل تواصل</span></h3></div>
+      <div className="card-head"><h3><span className="ico"><Icon name="phone" /></span><span>{t("title")}</span></h3></div>
       <div className="row">
-        <select name="kind" id="cl-k" aria-label="نوع التواصل">{file.interactionKinds.map((k) => <option key={k}>{k}</option>)}</select>
-        <input name="text" id="cl-t" required placeholder="التفاصيل" aria-label="التفاصيل" maxLength={1000} />
-        <button className="btn ghost"><Icon name="plus" />سجّل</button>
+        <select name="kind" id="cl-k" aria-label={t("kind")}>{file.interactionKinds.map((k) => <option key={k} value={k}>{serverText(k)}</option>)}</select>
+        <input name="text" id="cl-t" required placeholder={t("details")} aria-label={t("details")} maxLength={1000} />
+        <button className="btn ghost"><Icon name="plus" />{t("log")}</button>
       </div>
     </form>
   );
