@@ -153,4 +153,7 @@ export default [
   ["لازم يتعلّم Done أو معملتهاش", "It must be marked Done or Didn't do it"],
   ["{owner}: الـ {kind} بتاع {day} اتأجل واتوافق عليه · من غير خصم", "{owner}: the {kind} on {day} was postponed and approved · no deduction"],
   ["{name}: الـ Team Leader رفض تأجيل الـ {kind}", "{name}: the Team Leader rejected postponing the {kind}"],
+  // the comment «بعتله واتساب؟» saves on the lead (web features/leads/whatsapp-question.tsx)
+  ["No Answer · بعتله واتساب", "No Answer · sent them a WhatsApp"],
+  ["No Answer · مابعتلوش واتساب", "No Answer · didn't send a WhatsApp"],
 ] satisfies Pair[];
