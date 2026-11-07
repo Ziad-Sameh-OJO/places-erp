@@ -10,7 +10,7 @@ cp .env.example .env            # واملا SESSION_SECRET (openssl rand -base6
 pnpm install
 pnpm db:local                   # Postgres من غير Docker (في تاب لوحده) · أو pnpm infra:up لو عندك Docker
 pnpm redis:local                # Redis للجوبز من غير Docker (في تاب لوحده) · أول مرة بيبني Redis (دقيقة تقريباً)
-pnpm files:local                # تخزين الملفات (rclone أو MinIO متسطّب عندك، أو من pnpm infra:up)، في تاب لوحده
+pnpm files:local                # تخزين الملفات (versitygw زي السيرفر · infra/server/README.md، أو pnpm infra:up)، في تاب لوحده
 pnpm db:migrate && pnpm db:seed # 18 دور · 36 شخص حقيقي · كلهم بيدخلوا بـ SEED_DEV_PASSWORD من غير OTP
 pnpm dev                        # web :3000 · api :4000
 ```
