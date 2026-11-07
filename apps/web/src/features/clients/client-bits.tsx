@@ -1,9 +1,12 @@
 import type { ClientKind } from "@places/domain";
+import { useTranslations } from "next-intl";
 import { Chip } from "@/components/ui";
 
 /** The demo's chips: «عميل» accent, «مالك» green; «الاتنين» shows both. */
-const KIND_CHIPS: Record<ClientKind, [string, "acc" | "ok"][]> = {
-  client: [["عميل", "acc"]], owner: [["مالك", "ok"]], both: [["عميل", "acc"], ["مالك", "ok"]],
+const KIND_CHIPS: Record<ClientKind, ["client" | "owner", "acc" | "ok"][]> = {
+  client: [["client", "acc"]], owner: [["owner", "ok"]], both: [["client", "acc"], ["owner", "ok"]],
 };
-export const KIND_WORD: Record<ClientKind, string> = { client: "عميل", owner: "مالك", both: "عميل + مالك" };
-export const KindChips = ({ kind }: { kind: ClientKind }) => <>{KIND_CHIPS[kind].map(([t, tone]) => <Chip key={t} tone={tone}>{t}</Chip>)}</>;
+export function KindChips({ kind }: { kind: ClientKind }) {
+  const t = useTranslations("clients.kind");
+  return <>{KIND_CHIPS[kind].map(([k, tone]) => <Chip key={k} tone={tone}>{t(k)}</Chip>)}</>;
+}

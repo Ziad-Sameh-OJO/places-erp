@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CollectionReport, ContractCalendar, ContractDetail, ContractForm, ContractRow, ContractSummary, Paged } from "@places/contracts";
 import type { InstallmentState } from "@places/domain";
 import { api } from "@/lib/api";
+import { serverText } from "@/lib/server-text";
 
 export const useContracts = (q: string, ending: boolean, page: number) => {
   const qs = new URLSearchParams({ page: String(page), pageSize: "50", ...(q ? { q } : {}), ...(ending ? { ending: "true" } : {}) });
@@ -19,14 +20,12 @@ export const useRefreshContracts = () => {
   return () => qc.invalidateQueries({ queryKey: ["contracts"] });
 };
 
-/** The demo's chips for an installment: اتدفع · جزء · متأخر · لسه. */
-export const INSTALLMENT: Record<InstallmentState, ["ok" | "warn" | "bad" | "", string]> = {
-  paid: ["ok", "اتدفع"], partial: ["warn", "جزء"], late: ["bad", "متأخر"], due: ["", "لسه"],
-};
+/** The demo's chip tones for an installment: اتدفع · جزء · متأخر · لسه (the words are `contracts.installment.<state>`). */
+export const INSTALLMENT_TONE: Record<InstallmentState, "ok" | "warn" | "bad" | ""> = { paid: "ok", partial: "warn", late: "bad", due: "" };
 
-/** The status chip as the demo shows it: «قرّب يخلص» for an active contract with 90 days or less left. */
-export const statusChip = (c: ContractRow): ["ok" | "warn" | "", string] =>
-  c.status === "Active" ? (c.endingSoon ? ["warn", "قرّب يخلص"] : ["ok", "Active"]) : ["", c.status];
+/** The status chip as the demo shows it: «قرّب يخلص» (`endingSoon`, already in the reader's language) for an active contract with 90 days or less left. */
+export const statusChip = (c: ContractRow, endingSoon: string): ["ok" | "warn" | "", string] =>
+  c.status === "Active" ? (c.endingSoon ? ["warn", endingSoon] : ["ok", "Active"]) : ["", serverText(c.status)];
 
 export const openContractFile = async (id: string) => {
   const { url } = await api.get<{ url: string }>(`/contracts/${id}/file`);

@@ -1,37 +1,40 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { DailyForm, DayReport, MyHandIn } from "@places/contracts";
 import { Card, Chip, Empty, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
+import { dateLocale } from "@/lib/format";
 import { useMe } from "@/lib/me";
+import { serverText } from "@/lib/server-text";
 
 /** M-12 · 11.12 the daily report (demo kpis.js «التقارير اليومية») and the home's hand-ins (11.10 «سلّم»). */
 
-const hm = (iso: string) => new Date(iso).toLocaleTimeString("ar-EG", { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" });
-const STATUS: Record<DailyForm["status"], [string, "ok" | "warn" | "bad" | ""]> = {
-  onTime: ["اتسلّم في الميعاد", "ok"], late: ["اتسلّم متأخر", "warn"], missing: ["ماسلّمش تقرير اليوم ده", "bad"], off: ["يوم أجازة", ""], open: ["لسه ماتسلّمش", ""],
-};
+const hm = (iso: string) => new Date(iso).toLocaleTimeString(dateLocale(), { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" });
+const STATUS_TONE: Record<DailyForm["status"], "ok" | "warn" | "bad" | ""> = { onTime: "ok", late: "warn", missing: "bad", off: "", open: "" };
 
 /** The form exactly as the person sees it; `preview` = the same form, disabled, for whoever looks at it. */
 function FormFields({ f, preview }: { f: DailyForm; preview?: boolean }) {
+  const t = useTranslations("reports.daily");
   const v = f.saved?.values ?? {};
   return (
     <>
-      {f.items.length > 0 && <div className="wide"><Table head={["البند", "النهارده", ""]} rows={f.items.map((it) => [
-        <span key="t"><b>{it.title}</b><small className="sub">{it.target}</small></span>,
-        it.auto ? <b key="v">{it.value ?? "—"}</b> : <input key="v" type="number" min="0" step="any" name={`v:${it.key}`} defaultValue={v[it.key] ?? ""} disabled={preview} style={{ width: 90 }} aria-label={it.title} />,
-        <span key="h" className="hint">{it.auto ? "من السيستم" : "اكتبه إنت"}</span>,
+      {f.items.length > 0 && <div className="wide"><Table head={[t("item"), t("today"), ""]} rows={f.items.map((it) => [
+        <span key="t"><b>{serverText(it.title)}</b><small className="sub">{serverText(it.target)}</small></span>,
+        it.auto ? <b key="v">{it.value ?? "—"}</b> : <input key="v" type="number" min="0" step="any" name={`v:${it.key}`} defaultValue={v[it.key] ?? ""} disabled={preview} style={{ width: 90 }} aria-label={serverText(it.title)} />,
+        <span key="h" className="hint">{it.auto ? t("fromSystem") : t("typeIt")}</span>,
       ])} /></div>}
-      {f.fields.map((x) => <Field key={x.id} label={x.label} wide>
+      {f.fields.map((x) => <Field key={x.id} label={serverText(x.label)} wide>
         <input name={`f:${x.id}`} type={x.type === "number" ? "number" : "text"} min={0} step="any" defaultValue={v[x.id] ?? ""} disabled={preview} />
       </Field>)}
-      <Field label="عملت إيه تاني النهارده؟" wide><textarea name="note" defaultValue={f.saved?.note ?? ""} disabled={preview} /></Field>
+      <Field label={t("whatElse")} wide><textarea name="note" defaultValue={f.saved?.note ?? ""} disabled={preview} /></Field>
     </>
   );
 }
 
 function DailyModal({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("reports.daily");
   const q = useQuery({ queryKey: ["reports", "daily", "me"], queryFn: () => api.get<DailyForm>("/reports/daily/me") });
   const run = useAction(), qc = useQueryClient();
   const send = (d: FormData) => void run(async () => {
@@ -46,14 +49,14 @@ function DailyModal({ onClose }: { onClose: () => void }) {
     const r = await api.post<{ onTime: boolean }>("/reports/daily", { values, note: String(d.get("note") ?? "") });
     await qc.invalidateQueries({ queryKey: ["reports"] });
     onClose();
-    if (!r.onTime) alert("اتسلّم متأخر · مش هيتحسب في الـ KPIs");
-  }, "التقرير اتسلّم");
+    if (!r.onTime) alert(t("lateAlert"));
+  }, t("handedIn"));
   return (
-    <Modal title="التقرير اليومي" onClose={onClose}>
-      {!q.data ? <Empty text="بيحمّل…" /> : (
+    <Modal title={t("title")} onClose={onClose}>
+      {!q.data ? <Empty text={t("loading")} /> : (
         <form className="grid" onSubmit={onFormSubmit(send)}>
           <FormFields f={q.data} />
-          <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>إلغاء</button><button className="btn"><Icon name="send" />سلّم التقرير</button></div>
+          <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button><button className="btn"><Icon name="send" />{t("submit")}</button></div>
         </form>
       )}
     </Modal>
@@ -62,6 +65,8 @@ function DailyModal({ onClose }: { onClose: () => void }) {
 
 /** The home's «سلّم» tasks: the hand-ins due today (demo «reportInbox»). */
 export function MyHandIns() {
+  const t = useTranslations("reports.handIns");
+  const td = useTranslations("reports.daily");
   const q = useQuery({ queryKey: ["reports", "mine"], queryFn: () => api.get<MyHandIn[]>("/reports/mine") });
   const run = useAction(), qc = useQueryClient();
   const [daily, setDaily] = useState(false);
@@ -69,14 +74,14 @@ export function MyHandIns() {
   const hand = (h: MyHandIn) => void run(async () => {
     const r = await api.post<{ onTime: boolean; counted: boolean }>(`/reports/scheduled/${h.reportId}/hand-in`);
     await qc.invalidateQueries({ queryKey: ["reports"] });
-    if (!r.onTime) alert("اتسلّم متأخر · مش هيتحسب في الـ KPIs");
-  }, h.kpi ? "اتسلّم · اتحسب في الـ KPIs" : "اتسلّم");
+    if (!r.onTime) alert(td("lateAlert"));
+  }, h.kpi ? t("handedKpi") : t("handed"));
   return (
-    <Card title="تقارير لازم تتسلّم النهارده" icon="upload" extra={<Chip tone="warn">{q.data.length}</Chip>}>
+    <Card title={t("title")} icon="upload" extra={<Chip tone="warn">{q.data.length}</Chip>}>
       {q.data.map((h) => (
         <div key={h.reportId} className="line-item">
-          <span><b>سلّم «{h.name}»</b><small className="hint">{h.late ? "متأخر · " : ""}الميعاد {hm(h.due)}{h.kpi ? " · بيتحسب في الـ KPIs بتاعتك" : h.daily ? " · اللي عملته النهارده" : ""}</small></span>
-          {h.daily ? <button className="btn sm" onClick={() => setDaily(true)}>اكتب التقرير</button> : <button className="btn sm" onClick={() => hand(h)}><Icon name="check" />سلّمت</button>}
+          <span><b>{t("handIn", { name: serverText(h.name) })}</b><small className="hint">{h.late ? t("late") : ""}{t("due", { time: hm(h.due) })}{h.kpi ? t("countsKpi") : h.daily ? t("whatYouDid") : ""}</small></span>
+          {h.daily ? <button className="btn sm" onClick={() => setDaily(true)}>{t("write")}</button> : <button className="btn sm" onClick={() => hand(h)}><Icon name="check" />{t("done")}</button>}
         </div>
       ))}
       {daily && <DailyModal onClose={() => setDaily(false)} />}
@@ -90,6 +95,8 @@ const useDay = (userId: string | null, day: string) => useQuery({
 
 /** «التقارير اليومية» on the KPIs page: one person's report for any day, or the shape of his report. */
 export function DailyBoard() {
+  const t = useTranslations("reports.board");
+  const td = useTranslations("reports.daily");
   const { me } = useMe();
   const [pick, setPick] = useState<string | null>(null);
   const [day, setDay] = useState("");
@@ -98,34 +105,33 @@ export function DailyBoard() {
   const id = pick ?? first.data?.team[0]?.userId ?? me?.id ?? null;
   const q = useDay(id, day);
   const d = q.data ?? (id === me?.id ? first.data : undefined);
-  if (!d) return <Card><Empty text={q.isError ? "مفيش تقرير يومي شغال" : "بيحمّل…"} icon="list" /></Card>;
-  const today = new Date().toISOString().slice(0, 10), shown = d.form.day, dayLbl = shown === today ? "النهارده" : new Date(shown).toLocaleDateString("ar-EG", { weekday: "short", day: "numeric", month: "short" });
-  const [label, tone] = STATUS[d.form.status];
+  if (!d) return <Card><Empty text={q.isError ? t("none") : td("loading")} icon="list" /></Card>;
+  const today = new Date().toISOString().slice(0, 10), shown = d.form.day, dayLbl = shown === today ? td("today") : new Date(shown).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
   return (
-    <Card title="التقارير اليومية" icon="list" extra={<Chip tone="info">بيتسلّم {d.time}</Chip>} sub={`بيروح لـ ${d.to} · بيتجمع يومي وأسبوعي وشهري وبيتحسب منه الـ KPIs`}>
+    <Card title={t("title")} icon="list" extra={<Chip tone="info">{t("handedAt", { time: d.time })}</Chip>} sub={t("sub", { to: serverText(d.to) })}>
       <div className="row">
-        <select value={id ?? ""} onChange={(e) => setPick(e.target.value)} aria-label="الموظف">
-          {(d.team.some((t) => t.userId === d.person.userId) ? d.team : [{ userId: d.person.userId, name: d.person.name, handed: false }, ...d.team]).map((t) => <option key={t.userId} value={t.userId}>{t.name}{t.handed ? " · سلّم" : ""}</option>)}
+        <select value={id ?? ""} onChange={(e) => setPick(e.target.value)} aria-label={t("employee")}>
+          {(d.team.some((x) => x.userId === d.person.userId) ? d.team : [{ userId: d.person.userId, name: d.person.name, handed: false }, ...d.team]).map((x) => <option key={x.userId} value={x.userId}>{x.name}{x.handed ? t("handed") : ""}</option>)}
         </select>
-        <div className="seg" role="group" aria-label="العرض">
-          <button aria-pressed={view === "day"} onClick={() => setView("day")}>تقرير يوم</button>
-          <button aria-pressed={view === "shape"} onClick={() => setView("shape")}>شكل التقرير</button>
+        <div className="seg" role="group" aria-label={t("view")}>
+          <button aria-pressed={view === "day"} onClick={() => setView("day")}>{t("dayReport")}</button>
+          <button aria-pressed={view === "shape"} onClick={() => setView("shape")}>{t("shape")}</button>
         </div>
         {view === "day" && <>
-          <label className="date-f"><span>يوم</span><input type="date" value={day || shown} max={today} onChange={(e) => setDay(e.target.value)} aria-label="اليوم" /></label>
-          <span className="hint">سلّموا {dayLbl}: {d.team.filter((t) => t.handed).length} من {d.team.length}</span>
+          <label className="date-f"><span>{t("day")}</span><input type="date" value={day || shown} max={today} onChange={(e) => setDay(e.target.value)} aria-label={t("theDay")} /></label>
+          <span className="hint">{t("handedCount", { day: dayLbl, got: String(d.team.filter((x) => x.handed).length), of: String(d.team.length) })}</span>
         </>}
       </div>
       {view === "shape" ? <Shape d={d} /> : (
         <>
           <section className="card flat">
-            <div className="card-head"><h3><span className="ico"><Icon name="file" /></span><span>تقرير {d.person.name} · {dayLbl}</span></h3><Chip tone={tone}>{label}{d.form.saved ? ` · ${hm(d.form.saved.at)}` : ""}</Chip></div>
-            {d.form.saved && d.form.fields.filter((f) => d.form.saved!.values[f.id] != null).map((f) => <p key={f.id}><b>{f.label}:</b> {d.form.saved!.values[f.id]}</p>)}
+            <div className="card-head"><h3><span className="ico"><Icon name="file" /></span><span>{t("reportOf", { name: d.person.name, day: dayLbl })}</span></h3><Chip tone={STATUS_TONE[d.form.status]}>{t(`status.${d.form.status}`)}{d.form.saved ? ` · ${hm(d.form.saved.at)}` : ""}</Chip></div>
+            {d.form.saved && d.form.fields.filter((f) => d.form.saved!.values[f.id] != null).map((f) => <p key={f.id}><b>{serverText(f.label)}:</b> {d.form.saved!.values[f.id]}</p>)}
             {d.form.saved?.note && <div className="quote">{d.form.saved.note}</div>}
           </section>
-          <Table head={["البند", dayLbl, "آخر 7 أيام", "الشهر", "الربع", "المستهدف", "التحقيق"]} empty="مفيش كارت KPIs"
-            rows={d.rows.map((r) => [<span key="t"><b>{r.title}</b><small className="sub">{r.calc}</small></span>,
-              <b key="d">{r.day ?? "—"}</b>, ...(r.week == null ? ["—", "—", "—"] : [r.week, r.month, r.quarter]), r.target, <b key="a">{Math.round(r.achievement)}%</b>])} />
+          <Table head={[td("item"), dayLbl, t("last7"), t("month"), t("quarter"), t("target"), t("achievement")]} empty={t("noCard")}
+            rows={d.rows.map((r) => [<span key="t"><b>{serverText(r.title)}</b><small className="sub">{serverText(r.calc)}</small></span>,
+              <b key="d">{r.day ?? "—"}</b>, ...(r.week == null ? ["—", "—", "—"] : [r.week, r.month, r.quarter]), serverText(r.target), <b key="a">{Math.round(r.achievement)}%</b>])} />
         </>
       )}
     </Card>
@@ -133,26 +139,27 @@ export function DailyBoard() {
 }
 
 function Shape({ d }: { d: DayReport }) {
+  const t = useTranslations("reports.shape");
   const run = useAction(), qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: ["reports", "day"] });
-  const add = (f: FormData) => void run(async () => { await api.post("/reports/daily/fields", { userId: d.person.userId, label: String(f.get("label")), type: String(f.get("type")) }); await refresh(); }, "اتضافت");
-  const del = (id: string) => void run(async () => { await api.del(`/reports/daily/fields/${id}`); await refresh(); }, "اتشالت");
-  const copy = () => { if (confirm("تنسخ الخانات الإضافية لكل اللي ليهم نفس الدور؟ اللي عندهم هيتبدل.")) void run(async () => { const r = await api.post<{ copied: number }>(`/reports/daily/fields/copy/${d.person.userId}`); await refresh(); alert(`اتنسخت لـ ${r.copied}`); }); };
+  const add = (f: FormData) => void run(async () => { await api.post("/reports/daily/fields", { userId: d.person.userId, label: String(f.get("label")), type: String(f.get("type")) }); await refresh(); }, t("added"));
+  const del = (id: string) => void run(async () => { await api.del(`/reports/daily/fields/${id}`); await refresh(); }, t("removed"));
+  const copy = () => { if (confirm(t("confirmCopy"))) void run(async () => { const r = await api.post<{ copied: number }>(`/reports/daily/fields/copy/${d.person.userId}`); await refresh(); alert(t("copied", { count: r.copied, n: String(r.copied) })); }); };
   return (
     <section className="card flat">
-      <div className="card-head"><h3><span className="ico"><Icon name="file" /></span><span>شكل التقرير اليومي · {d.person.name}<small>بيتسلّم كل يوم شغل الساعة {d.time} · بيروح لـ {d.to} · لو اتأخر يتبلّغ {d.late}</small></span></h3></div>
-      <Table head={["الخانة", "بتتملي إزاي", "بتروح فين", ""]} rows={d.shape.map((x) => [<b key="l">{x.label}</b>, x.how, <span key="g" className="hint">{x.goes}</span>,
-        x.fieldId && d.can.fields ? <button key="x" className="btn ghost sm" onClick={() => del(x.fieldId!)} aria-label={`امسح ${x.label}`}><Icon name="x" /></button> : ""])} />
+      <div className="card-head"><h3><span className="ico"><Icon name="file" /></span><span>{t("title", { name: d.person.name })}<small>{t("sub", { time: d.time, to: serverText(d.to), late: serverText(d.late) })}</small></span></h3></div>
+      <Table head={[t("field"), t("how"), t("goes"), ""]} rows={d.shape.map((x) => [<b key="l">{serverText(x.label)}</b>, serverText(x.how), <span key="g" className="hint">{serverText(x.goes)}</span>,
+        x.fieldId && d.can.fields ? <button key="x" className="btn ghost sm" onClick={() => del(x.fieldId!)} aria-label={t("remove", { name: serverText(x.label) })}><Icon name="x" /></button> : ""])} />
       {d.can.fields && <>
         <form className="row" onSubmit={onFormSubmit(add)}>
-          <input name="label" placeholder="خانة جديدة · مثلاً: عدد الملاك اللي كلمتهم" required aria-label="اسم الخانة" />
-          <select name="type" aria-label="نوعها"><option value="number">رقم</option><option value="text">كلام</option></select>
-          <button className="btn ghost"><Icon name="plus" />ضيف خانة</button>
-          {d.form.fields.length > 0 && <button type="button" className="btn ghost sm" onClick={copy}>انسخ الخانات الإضافية لكل نفس الدور</button>}
+          <input name="label" placeholder={t("newPh")} required aria-label={t("newLabel")} />
+          <select name="type" aria-label={t("type")}><option value="number">{t("number")}</option><option value="text">{t("text")}</option></select>
+          <button className="btn ghost"><Icon name="plus" />{t("add")}</button>
+          {d.form.fields.length > 0 && <button type="button" className="btn ghost sm" onClick={copy}>{t("copy")}</button>}
         </form>
-        <p className="hint">عشان رقم بيكتبه يتحسب في الـ KPIs: ضيف بند في الكارت، وخلّيه «اللي بيكتبه في التقرير اليومي».</p>
+        <p className="hint">{t("hint")}</p>
       </>}
-      <h4 className="mini-h">ده شكله عنده</h4>
+      <h4 className="mini-h">{t("preview")}</h4>
       <div className="grid report-preview"><FormFields f={d.form} preview /></div>
     </section>
   );
