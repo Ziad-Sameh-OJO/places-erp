@@ -151,7 +151,9 @@ const MEASURES: Record<string, Measure> = {
     return pct(deals, leads);
   },
   dealExec: async (c) => {
-    const due = await prisma.deal.findMany({ where: { status: NOT_DONE_DEAL, execDueAt: { lte: c.now } }, select: { execDueAt: true, executedAt: true, commissionOwner: true, commissionClient: true } });
+    // execDueAt is a Cairo calendar day (stored at 00:00 UTC): compare by Cairo day, or a deal due «today» isn't counted
+    // between midnight Cairo and midnight UTC
+    const due = await prisma.deal.findMany({ where: { status: NOT_DONE_DEAL, execDueAt: { lte: dateOnly(c.now, c) } }, select: { execDueAt: true, executedAt: true, commissionOwner: true, commissionClient: true } });
     const value = (d: (typeof due)[number]) => fromDecimal(d.commissionOwner.toFixed(2)) + fromDecimal(d.commissionClient.toFixed(2));
     return pct(due.filter((d) => d.executedAt && d.executedAt <= d.execDueAt!).reduce((s, d) => s + value(d), 0), due.reduce((s, d) => s + value(d), 0));
   },
