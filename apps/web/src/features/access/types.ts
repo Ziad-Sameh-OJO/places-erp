@@ -11,11 +11,14 @@ export interface UserRow {
   employee: { id: string; name: string; department: string; jobTitle: string; team: string | null; teamLeaderId: string | null; managerId: string | null } | null;
   _count: { overrides: number };
 }
-export const SCOPES: [string, string][] = [["own", "بتاعه بس"], ["team", "فريقه"], ["dept", "قسمه"], ["all", "الكل"]];
-export const TIERS: [string, string][] = [
-  ["Super Admin", "الملاك / المؤسسين"], ["Office Manager", "مدير المكتب"], ["Operations Head", "مدير العمليات"],
-  ["Sales Director", "مدير المبيعات"], ["Department Head", "مدير قسم"], ["Team Leaders", "قادة الفرق"], ["Executive Staff", "الموظفين التنفيذيين"],
-];
-export const STATUS: Record<UserRow["status"], [string, "ok" | "warn" | "bad" | ""]> = {
-  ACTIVE: ["شغال", "ok"], INVITED: ["مستني التفعيل", "warn"], LOCKED: ["مقفول", "bad"], DISABLED: ["متوقف", ""],
+/** Data scopes; their names are access.scopes.<key>. */
+export const SCOPES = ["own", "team", "dept", "all"] as const;
+/** The tiers (stored in English) with the key of their gloss in access.tiers. */
+export const TIERS = [
+  ["Super Admin", "superAdmin"], ["Office Manager", "officeManager"], ["Operations Head", "operationsHead"],
+  ["Sales Director", "salesDirector"], ["Department Head", "departmentHead"], ["Team Leaders", "teamLeaders"], ["Executive Staff", "executiveStaff"],
+] as const;
+/** The chip tone of each account status; the name is access.status.<status>. */
+export const STATUS: Record<UserRow["status"], "ok" | "warn" | "bad" | ""> = {
+  ACTIVE: "ok", INVITED: "warn", LOCKED: "bad", DISABLED: "",
 };

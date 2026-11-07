@@ -1,1 +1,83 @@
-{}
+{
+  "priority": { "normal": "Normal", "high": "High" },
+  "chips": { "dispute": "Dispute", "high": "High" },
+  "drawer": {
+    "notFound": "Ticket not found",
+    "loading": "Loading…",
+    "kv": {
+      "from": "From",
+      "department": "Department",
+      "type": "Type",
+      "priority": "Priority",
+      "opened": "Opened",
+      "firstReply": "First reply",
+      "notYet": "Not yet",
+      "after": "After {minutes} min"
+    },
+    "late": {
+      "label": "Late:",
+      "dispute": "{hours, plural, one {# hour} other {# hours}} without a decision · escalated to the Office Manager.",
+      "other": "{hours, plural, one {# hour} other {# hours}} without a reply · escalated to the {department} department manager."
+    },
+    "systemInitial": "S",
+    "system": "System",
+    "kind": { "open": "Opened", "reply": "Reply", "transfer": "Transfer", "status": "Status", "close": "Closed", "escalate": "Escalation" },
+    "reply": {
+      "sent": "Reply sent",
+      "placeholder": "Write a reply",
+      "label": "Reply",
+      "status": "Status",
+      "keepStatus": "Keep the status",
+      "resolved": "Resolved · done",
+      "send": "Send"
+    },
+    "transfer": {
+      "done": "Moved to {department} · the history is kept",
+      "wrongDept": "Sent to the wrong department?",
+      "label": "Move to department",
+      "button": "Move it"
+    },
+    "close": { "done": "Ticket closed", "button": "Request done · close it" }
+  },
+  "page": {
+    "tabs": { "mine": "My requests", "assigned": "Assigned to {department}", "late": "Late", "closed": "Closed", "all": "All" },
+    "kpi": {
+      "open": "Open",
+      "late": "Late",
+      "lateSub": "Escalated to the department manager",
+      "avgReply": "Average reply time",
+      "avgReplySub": "{department} · this month",
+      "closed": "Closed",
+      "closedSub": "The department that did it closes it"
+    },
+    "minutes": "{n} min",
+    "newTicket": "New ticket",
+    "searchPlaceholder": "Search by ticket number or request",
+    "searchLabel": "Search tickets",
+    "rowMeta": "{code} · from {from} → {department} · {ago} · {events} updates",
+    "lateEscalated": "Late · escalated",
+    "empty": "No tickets here",
+    "prev": "Previous",
+    "next": "Next",
+    "slaNote": "Replies within 24 working hours (4 hours for high priority); late tickets are escalated to the department manager. Every ticket has an official timeline (Audit Trail) and every department a response rate."
+  },
+  "rate": {
+    "title": "Response rate by department",
+    "sub": "Closed within the SLA ÷ all tickets · average reply time",
+    "month": "Month",
+    "counts": "{total} tickets · {inSla} within the SLA"
+  },
+  "new": {
+    "title": "New ticket",
+    "sent": "Ticket sent",
+    "type": "Type",
+    "typeWithDept": "{label} ({department} · {hours} h)",
+    "department": "To department",
+    "priority": "Priority",
+    "normal": "Normal",
+    "high": "High",
+    "request": "Request",
+    "slaHint": "Replies within 24 working hours (4 hours for high priority).",
+    "send": "Send"
+  }
+}

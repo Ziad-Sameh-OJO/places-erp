@@ -1,1 +1,148 @@
-{}
+{
+  "image": { "notImage": "Upload a PNG or JPG image", "broken": "The image is damaged" },
+  "stamp": {
+    "uploaded": "Uploaded · it will show on every file",
+    "removed": "Removed",
+    "hasFile": "Uploaded",
+    "notYet": "Not yet",
+    "none": "No {label} yet",
+    "change": "Change {label}",
+    "upload": "Upload {label}",
+    "remove": "Remove",
+    "note": "The signature and stamp you upload here go on every file the system produces (receipts, TCRs, account statements, journal entries and employee papers) when it's printed or saved as PDF. A PNG with a transparent background works best.",
+    "adminOnly": "Only the Super Admin uploads the stamp and signature.",
+    "signature": "signature",
+    "stamp": "stamp",
+    "lastChange": "Last changed: {by} · {at}"
+  },
+  "templates": {
+    "loading": "Loading…",
+    "entitiesTitle": "Entities claims are issued under",
+    "entitiesNote": "The logo shows at the top of the claim and the receipt; the bank details are written on the claim so the client can transfer to them.",
+    "title": "Templates",
+    "wordsNote": "Words between '{}' fill in by themselves: {words}. The stamp and signature are added at print time."
+  },
+  "entity": {
+    "logoChanged": "Logo changed",
+    "noLogo": "No logo yet",
+    "changeLogo": "Change logo",
+    "saved": "Saved",
+    "bank": "Bank",
+    "accountName": "Account name",
+    "accountNo": "Account number",
+    "iban": "IBAN",
+    "save": "Save"
+  },
+  "template": {
+    "kinds": { "claim": "Claim template", "receipt": "Cash receipt template", "installment": "Contract installment receipt template" },
+    "custom": "Edited",
+    "saved": "Template saved",
+    "titleField": "Title",
+    "body": "Text",
+    "closing": "Closing",
+    "resetDone": "Back to the default template",
+    "reset": "Restore default",
+    "preview": "Preview",
+    "save": "Save"
+  },
+  "lists": {
+    "note": "Every list the screens show is edited here: what you add shows in the forms right away; what you remove disappears from new records only and old data stays as it is. Items with a lock are used in the system's calculations, so they can't be removed.",
+    "unitTypes": { "title": "Unit purpose", "sub": "Each type has its own fields · changed in code" },
+    "sources": {
+      "title": "Cash receipt sources",
+      "sub": "Commission from a client + «Other revenue» (42) accounts in the chart",
+      "note": "The sources are the other-revenue accounts in the chart of accounts, so any new revenue is added as a sub-account under 42."
+    },
+    "card": {
+      "back": "«{value}» is back · showing in the forms again",
+      "off": "«{value}» switched off · it won't show on new records; old data stays as it is",
+      "exists": "This value already exists",
+      "offByOther": "«{value}» is switched off · someone else restores it",
+      "added": "Added · showing on every screen",
+      "whoEdits": "Who edits",
+      "locked": "The system calculates with it",
+      "switchOff": "Switch off {value}",
+      "empty": "No values",
+      "addPlaceholder": "Add…",
+      "addTo": "Add to {label}",
+      "add": "Add",
+      "offList": "Switched off ({count})",
+      "restore": "Restore"
+    },
+    "who": {
+      "loading": "Loading…",
+      "saved": "Saved · applies right away",
+      "remove": "Remove {name}",
+      "nobody": "Nobody",
+      "addTo": "Add to {label}",
+      "addPrompt": "+ Add a role or person",
+      "roles": "Roles",
+      "people": "People",
+      "notSetUp": "Not set up yet · for now everyone who can edit settings. The first change here limits it to the ones chosen.",
+      "adds": "Adds",
+      "offs": "Switches off / restores"
+    }
+  },
+  "page": {
+    "saved": "Saved · showing on every screen",
+    "loading": "Loading…",
+    "tabs": {
+      "lists": "Lists",
+      "stages": "Lead stages",
+      "time": "Times & rules",
+      "holidays": "Official holidays",
+      "tpl": "Document templates",
+      "brand": "Stamp & signature"
+    },
+    "readOnly": "View only · editing is for the Super Admin or the department manager.",
+    "stages": {
+      "title": "Lead stages",
+      "sub": "The order, and which stage makes a lead Qualified (from the requirements)",
+      "stage": "Stage",
+      "qualified": "Qualified?",
+      "yes": "Yes · automatic",
+      "no": "No"
+    },
+    "leave": { "title": "Leave types", "type": "Type", "balance": "Annual balance", "balanceOf": "{name} balance" },
+    "save": "Save",
+    "whatsapp": { "title": "Daily WhatsApp limit", "limit": "Daily limit", "perDay": "messages a day" },
+    "recommend": {
+      "title": "Recommending units to the client",
+      "sub": "Units «close to» the client's area and budget · proposed ±20% until the client confirms",
+      "tolerance": "Closeness",
+      "ofArea": "% of the area and budget"
+    },
+    "holidays": {
+      "title": "Official holidays calendar",
+      "sub": "From one day to another (like Eid) · on those days the SLA runs on holiday hours and they don't count as working hours",
+      "import": "Import Excel",
+      "importTitle": "Import official holidays",
+      "template": "Official holidays template.xlsx",
+      "from": "From",
+      "to": "To",
+      "label": "Holiday"
+    }
+  },
+  "tlTiers": {
+    "title": "TL Scheme tiers",
+    "sub": "By the team's target achievement · TL commission = tier percentage × each sales person's share in the team",
+    "below": "If the team achieved less than",
+    "percent": "TL percentage",
+    "andMore": "and above",
+    "belowOf": "Tier {n} limit %",
+    "percentOf": "Tier {n} percentage %",
+    "remove": "Remove tier",
+    "add": "Tier",
+    "save": "Save"
+  },
+  "sla": {
+    "title": "SLA rules",
+    "warn": "Alert",
+    "warnValue": "{work} (working days) · {holiday} (holidays)",
+    "pull": "Lead pull",
+    "pullValue": "{work} · {holiday} on holidays",
+    "noAnswerValue": "{time} with each sales person · Telesales at rotation number {at}",
+    "where": "Times and owners are in «Lead rules & distribution».",
+    "edit": "Edit in lead rules"
+  }
+}
