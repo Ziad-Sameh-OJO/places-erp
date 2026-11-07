@@ -1,20 +1,23 @@
 "use client";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { MoveEffect, MoveView } from "@places/contracts";
 import { Chip, Empty, Icon, Note, Table } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { useMe } from "@/lib/me";
 import { money, short } from "@/lib/format";
+import { serverText } from "@/lib/server-text";
 import { KIND, useCash, useMoves, type MoveKind } from "./use-finance";
 import { MoveForm } from "./move-form";
 import { Voucher, VoucherById } from "./voucher";
 import { LedgerModal } from "./ledger-modal";
 import { DueBillsCard } from "./bills";
 
-const KIND_LABEL: Record<string, string> = { treasury: "خزنة", bank: "بنك", wallet: "محفظة" };
+const ACCOUNT_KINDS = ["treasury", "bank", "wallet"] as const;
 
 /** M-07 · «الخزن والحركات» (9.2 · 9.11): balances, today's moves, the vouchers, and every move with its voucher. */
 export function Cash() {
+  const t = useTranslations("finance");
   const { can } = useMe();
   const cash = useCash();
   const [filter, setFilter] = useState("");
@@ -24,35 +27,37 @@ export function Cash() {
   const [saved, setSaved] = useState<{ move: MoveView; effect: MoveEffect[] } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [statement, setStatement] = useState<string | null>(null);
-  if (!cash.data) return <Empty text="بيحمّل…" icon="clock" />;
+  if (!cash.data) return <Empty text={t("common.loading")} icon="clock" />;
   const c = cash.data, canPost = can("finance", "create");
   const total = c.accounts.reduce((s, a) => s + Number(a.balance), 0);
-  const btn = (k: MoveKind, icon: Parameters<typeof Icon>[0]["name"], ghost = true) => <button className={`btn ${ghost ? "ghost" : ""}`} onClick={() => setForm(k)}><Icon name={icon} />{KIND[k][0]}</button>;
+  const holders = c.custody.filter((h) => Number(h.balance)).length;
+  const kindLabel = (k: string) => ((ACCOUNT_KINDS as readonly string[]).includes(k) ? t(`accountKind.${k as (typeof ACCOUNT_KINDS)[number]}`) : k);
+  const btn = (k: MoveKind, icon: Parameters<typeof Icon>[0]["name"], ghost = true) => <button className={`btn ${ghost ? "ghost" : ""}`} onClick={() => setForm(k)}><Icon name={icon} />{t(`kind.${k}`)}</button>;
   const m = moves.data;
   return (
     <>
       <DueBillsCard cash={c} />
       <div className="kpis">
-        <KpiTile label="الخزن والبنوك" value={money(total.toFixed(2))} sub={`${c.accounts.length} حساب`} icon="bank" />
-        <KpiTile label="حركات النهارده" value={c.today.count} sub={`صرف ${short(c.today.paid)} · قبض ${short(c.today.received)}`} icon="list" />
-        <KpiTile label="عهد مفتوحة" value={money(c.custody.reduce((s, h) => s + Number(h.balance), 0).toFixed(2))} sub={`${c.custody.filter((h) => Number(h.balance)).length} شخص`} icon="wallet" tone="warn" />
-        <KpiTile label="سلف الموظفين" value={money(c.advances.reduce((s, h) => s + Number(h.balance), 0).toFixed(2))} sub="بتتخصم من المرتب" icon="users" />
+        <KpiTile label={t("cash.safes")} value={money(total.toFixed(2))} sub={t("cash.accounts", { count: c.accounts.length, n: String(c.accounts.length) })} icon="bank" />
+        <KpiTile label={t("cash.today")} value={c.today.count} sub={t("cash.todaySub", { paid: short(c.today.paid), received: short(c.today.received) })} icon="list" />
+        <KpiTile label={t("cash.openCustody")} value={money(c.custody.reduce((s, h) => s + Number(h.balance), 0).toFixed(2))} sub={t("cash.people", { count: holders, n: String(holders) })} icon="wallet" tone="warn" />
+        <KpiTile label={t("common.employeeAdvances")} value={money(c.advances.reduce((s, h) => s + Number(h.balance), 0).toFixed(2))} sub={t("cash.advancesSub")} icon="users" />
       </div>
       {canPost && <div className="row">{btn("pay", "send", false)}{btn("receive", "wallet")}{btn("transfer", "swap")}{btn("advance", "users")}{btn("custody", "wallet")}</div>}
-      <Note>كل إذن بيعمل قيد يومية لوحده وبيغيّر أرصدة الشجرة على طول. مفيش صرف أكبر من رصيد الخزنة. دوس على أي خزنة تشوف كشف حسابها.</Note>
+      <Note>{t("cash.note")}</Note>
       <div className="kpis sm">
-        {c.accounts.map((a) => <KpiTile key={a.id} label={`${a.code} · ${a.name}`} value={money(a.balance)} sub={KIND_LABEL[a.kind] ?? a.kind} icon={a.kind === "treasury" ? "wallet" : "bank"} onClick={() => setStatement(a.id)} />)}
+        {c.accounts.map((a) => <KpiTile key={a.id} label={`${a.code} · ${serverText(a.name)}`} value={money(a.balance)} sub={kindLabel(a.kind)} icon={a.kind === "treasury" ? "wallet" : "bank"} onClick={() => setStatement(a.id)} />)}
       </div>
       <div className="row">
-        <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} aria-label="فلتر الخزنة">
-          <option value="">كل الخزن</option>{c.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} aria-label={t("cash.filter")}>
+          <option value="">{t("cash.allSafes")}</option>{c.accounts.map((a) => <option key={a.id} value={a.id}>{serverText(a.name)}</option>)}
         </select>
       </div>
-      {m && <Table head={["الحركة", "التاريخ", "النوع", "من ← لـ", "الطرف", "البيان", "المبلغ"]} empty="مفيش حركات" onRow={(i) => setOpen(m.items[i]!.id)}
-        rows={m.items.map((x) => [<span key="n" className="mono">{x.no}</span>, x.date, <Chip key="k" tone={KIND[x.kind as MoveKind]?.[1] ?? ""}>{x.label}</Chip>,
-          `${x.from?.name ?? "—"}${x.to ? ` ← ${x.to.name}` : ""}`, x.party, x.memo, money(x.amount)])} />}
+      {m && <Table head={[t("cash.move"), t("common.date"), t("cash.type"), t("cash.fromTo"), t("cash.party"), t("common.memo"), t("common.amount")]} empty={t("cash.empty")} onRow={(i) => setOpen(m.items[i]!.id)}
+        rows={m.items.map((x) => [<span key="n" className="mono">{x.no}</span>, x.date, <Chip key="k" tone={KIND[x.kind as MoveKind] ?? ""}>{serverText(x.label)}</Chip>,
+          `${x.from ? serverText(x.from.name) : "—"}${x.to ? `${t("common.pathSep")}${serverText(x.to.name)}` : ""}`, x.party, x.memo, money(x.amount)])} />}
       {m && m.total > m.pageSize && (
-        <div className="row"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>السابق</button><span className="hint">{page} من {Math.ceil(m.total / m.pageSize)}</span><button className="btn ghost sm" disabled={page * m.pageSize >= m.total} onClick={() => setPage(page + 1)}>اللي بعده</button></div>
+        <div className="row"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("common.prev")}</button><span className="hint">{t("common.pageOf", { page: String(page), pages: String(Math.ceil(m.total / m.pageSize)) })}</span><button className="btn ghost sm" disabled={page * m.pageSize >= m.total} onClick={() => setPage(page + 1)}>{t("common.next")}</button></div>
       )}
       {form && <MoveForm kind={form} cash={c} onClose={() => setForm(null)} onSaved={(s) => { setForm(null); setSaved(s); }} />}
       {saved && <Voucher move={saved.move} effect={saved.effect} onClose={() => setSaved(null)} />}
