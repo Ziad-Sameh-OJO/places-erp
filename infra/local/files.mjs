@@ -1,7 +1,7 @@
 // File storage without Docker: `pnpm files:local` runs an S3 server on localhost:9000 with the S3_* keys from .env —
-// a MinIO you installed (on PATH, or MINIO_BIN; console :9001, data in .local/minio-data), else rclone's `serve s3`
-// (on PATH, or RCLONE_BIN; `winget install Rclone.Rclone`, `brew install rclone`; data in .local/s3-data).
-// With Docker, `pnpm infra:up` starts MinIO instead.
+// versitygw, the one production runs (infra/server/README.md; VERSITYGW_BIN, .local/bin or on PATH; data in
+// .local/s3-files), else a MinIO you installed (MINIO_BIN or on PATH; data in .local/minio-data), else rclone's
+// `serve s3` (RCLONE_BIN or on PATH; data in .local/s3-data). With Docker, `pnpm infra:up` starts versitygw instead.
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { connect } from "node:net";
@@ -23,9 +23,20 @@ const find = (name) => {
 };
 
 let server;
-const minio = process.env.MINIO_BIN || find("minio");
-const rclone = !minio && (process.env.RCLONE_BIN || find("rclone"));
-if (minio) {
+const local = `${root}bin/versitygw${process.platform === "win32" ? ".exe" : ""}`;
+const vgw = process.env.VERSITYGW_BIN || (existsSync(local) ? local : find("versitygw"));
+const minio = !vgw && (process.env.MINIO_BIN || find("minio"));
+const rclone = !vgw && !minio && (process.env.RCLONE_BIN || find("rclone"));
+if (vgw) {
+  // The same flags as production: plain files on disk, their type in a sidecar folder (no xattrs: works on Windows, and
+  // a plain copy of both folders is the backup). CORS for the web's origin, which uploads straight to the signed link.
+  const data = `${root}s3-files`, meta = `${root}s3-meta`;
+  for (const d of [data, meta]) mkdirSync(d, { recursive: true });
+  server = spawn(vgw, ["--port", "127.0.0.1:9000", "--iam-dir", meta, "--cors-allow-origin", process.env.WEB_ORIGIN || "*", "--quiet", "posix", "--sidecar", meta, data], {
+    stdio: "inherit", env: { ...process.env, ROOT_ACCESS_KEY: user, ROOT_SECRET_KEY: secret },
+  });
+  console.log(`versitygw ready on localhost:9000 · files in ${data}`);
+} else if (minio) {
   const data = `${root}minio-data`;
   mkdirSync(data, { recursive: true });
   server = spawn(minio, ["server", data, "--address", "127.0.0.1:9000", "--console-address", "127.0.0.1:9001", "--quiet"], {
@@ -33,8 +44,8 @@ if (minio) {
   });
   console.log("minio ready on localhost:9000 · console http://localhost:9001");
 } else if (rclone) {
-  // MinIO stopped publishing binaries (its downloads answer 410), so rclone is the no-Docker fallback. The browser
-  // uploads straight to the pre-signed link from the web's port, hence CORS; it only listens on 127.0.0.1.
+  // MinIO stopped publishing binaries (its downloads answer 410). The browser uploads straight to the pre-signed link
+  // from the web's port, hence CORS; it only listens on 127.0.0.1.
   const data = `${root}s3-data`;
   mkdirSync(data, { recursive: true });
   server = spawn(rclone, ["serve", "s3", data, "--addr", "127.0.0.1:9000", "--allow-origin", "*", "--log-level", "NOTICE"], {
@@ -42,7 +53,7 @@ if (minio) {
   });
   console.log("rclone S3 ready on localhost:9000 (the API creates the bucket on start)");
 } else {
-  console.error("no S3 server found · use Docker (pnpm infra:up), or install rclone (winget install Rclone.Rclone) or a minio build (MINIO_BIN=/path/to/minio)");
+  console.error("no S3 server found · use Docker (pnpm infra:up), or put versitygw in .local/bin (infra/server/README.md), or install rclone (winget install Rclone.Rclone)");
   process.exit(1);
 }
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => server.kill(sig));

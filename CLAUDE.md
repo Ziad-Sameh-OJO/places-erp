@@ -58,7 +58,7 @@ Node 24 (`.nvmrc`), pnpm via `corepack enable`.
 ```bash
 pnpm install
 pnpm db:local          # Postgres without Docker (or: pnpm infra:up)
-pnpm files:local       # file storage: rclone (winget install Rclone.Rclone) or a MinIO you installed (or: pnpm infra:up)
+pnpm files:local       # file storage: versitygw in .local/bin, as on the server (infra/server/README.md), or: pnpm infra:up
 pnpm redis:local       # Redis for the worker's jobs without Docker (or: pnpm infra:up)
 (cd apps/api && npx playwright-core install --only-shell chromium)   # once: Chromium for PDFs
 pnpm db:migrate && pnpm db:seed

@@ -1,0 +1,19 @@
+# File storage for Places ERP on our own server (infra/server/README.md): versitygw keeps every upload as a plain file
+# under /srv/places/files, and its type and checksum under /srv/places/files-meta. Only the reverse proxy reaches it.
+[Unit]
+Description=Places ERP file storage (versitygw, S3 API on 127.0.0.1:9000)
+After=network.target
+
+[Service]
+User=places
+Group=places
+# ROOT_ACCESS_KEY / ROOT_SECRET_KEY (= S3_ACCESS_KEY / S3_SECRET_KEY in the API's .env) and VGW_CORS_ALLOW_ORIGIN
+EnvironmentFile=/etc/places/files.env
+ExecStart=/usr/local/bin/versitygw --port 127.0.0.1:9000 --iam-dir /srv/places/files-meta --quiet \
+  posix --sidecar /srv/places/files-meta --fsync /srv/places/files
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
