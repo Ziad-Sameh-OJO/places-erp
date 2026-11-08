@@ -1,6 +1,6 @@
 # كل التاسكات لحد التسليم
 
-**169 تاسك** في **14 جزء**. كل تاسك له issue على GitHub فيه كل التفاصيل.
+**204 تاسك** في **14 جزء**. كل تاسك له issue على GitHub فيه كل التفاصيل.
 
 **إزاي تستخدمه:**
 - كل سطر = **تاسك واحد تديه لحد**، و PR واحد. ابعتله لينك الـ issue.
@@ -10,21 +10,21 @@
 
 | الجزء | عدد التاسكات |
 |---|---|
-| 0 · الأساس المشترك | 8 |
-| 1 · الليدز والتوزيع · M-01 | 29 |
-| 2 · الانفنتوري · M-03 | 24 |
-| 3 · العملاء والملاك · M-10 | 6 |
-| 4 · المهام والتسويق · M-04 | 9 |
-| 5 · الصفقات والتحصيل · M-02 | 14 |
+| 0 · الأساس المشترك | 13 |
+| 1 · الليدز والتوزيع · M-01 | 34 |
+| 2 · الانفنتوري · M-03 | 32 |
+| 3 · العملاء والملاك · M-10 | 7 |
+| 4 · المهام والتسويق · M-04 | 12 |
+| 5 · الصفقات والتحصيل · M-02 | 15 |
 | 6 · العقود والأقساط · M-11 | 7 |
-| 7 · الـ HR · M-05 | 13 |
-| 8 · التذاكر · M-06 | 4 |
-| 9 · المالية · M-07 | 17 |
+| 7 · الـ HR · M-05 | 16 |
+| 8 · التذاكر · M-06 | 5 |
+| 9 · المالية · M-07 | 19 |
 | 10 · المشتريات · M-08 | 4 |
-| 11 · الـ KPIs والتقارير · M-12 | 15 |
-| 12 · اللي فاضل في الموديولات اللي خلصت · M-09 · M-13 · M-14 | 12 |
+| 11 · الـ KPIs والتقارير · M-12 | 18 |
+| 12 · اللي فاضل في الموديولات اللي خلصت · M-09 · M-13 · M-14 | 15 |
 | 13 · التسليم والإطلاق | 7 |
-| **الإجمالي** | **169** |
+| **الإجمالي** | **204** |
 
 ## 0 · الأساس المشترك _(أي حد يبدأ بيه · الأجزاء التانية كلها محتاجاه)_
 
@@ -36,6 +36,11 @@
 - [ ] **0.11** تصدير Excel لأي جدول (component في الواجهة + endpoint مشترك) ([#59](https://github.com/Ziad-Sameh-OJO/places-erp/issues/59)) · `T-33`
 - [ ] **0.12** استيراد Excel مشترك: رفع ← معاينة ← أخطاء ← تأكيد (ExcelJS) ([#60](https://github.com/Ziad-Sameh-OJO/places-erp/issues/60)) · `T-30`
 - [ ] **0.13** كومبوننتس الواجهة من الديمو: Drawer (bottom sheet على الموبايل)، و Stepper، و Kanban، و KPI tile، وزرار «جديد» (FAB) ([#61](https://github.com/Ziad-Sameh-OJO/places-erp/issues/61)) · `—`
+- [ ] **0.14** القايمة الجانبية: «المفضلة» و«فتحتها مؤخراً» ([#399](https://github.com/Ziad-Sameh-OJO/places-erp/issues/399)) · `—`
+- [ ] **0.15** ترتيب أي جدول بالدوسة على عنوان العمود ([#400](https://github.com/Ziad-Sameh-OJO/places-erp/issues/400)) · `—`
+- [ ] **0.16** زرار «جديد» عام من أي صفحة: ليد، صفقة، وحدة، تذكرة، إجازة… ([#401](https://github.com/Ziad-Sameh-OJO/places-erp/issues/401)) · `—` · بعد 1.8
+- [ ] **0.17** البحث السريع في كل السيستم (⌘K / «/») ([#402](https://github.com/Ziad-Sameh-OJO/places-erp/issues/402)) · `—`
+- [ ] **0.18** الرئيسية بتجمع شغل كل الموديولات في «مهامي النهارده» ([#403](https://github.com/Ziad-Sameh-OJO/places-erp/issues/403)) · `—` · بعد 1.34 · 9.19
 
 ## 1 · الليدز والتوزيع · M-01 _(بعد 0.2 للجوبز)_
 
@@ -68,6 +73,11 @@
 - [ ] **1.27** الـ Draft Admin: كل Not Interested و Cancellation + Alarm يومي للأوبريشن + القرار ([#224](https://github.com/Ziad-Sameh-OJO/places-erp/issues/224)) · `T-03` · بعد 1.26
 - [ ] **1.28** نوع الليد Client / Broker + تاب البروكرز + الفلاتر في كل التابات ([#225](https://github.com/Ziad-Sameh-OJO/places-erp/issues/225)) · `T-03` · بعد 1.6
 - [ ] **1.29** صفحة «قواعد الليدز والتوزيع»: كل المواعيد والمسؤولين بيتعدّلوا + كالندر الإجازات بمدة ([#226](https://github.com/Ziad-Sameh-OJO/places-erp/issues/226)) · `T-04` · بعد 1.12
+- [ ] **1.30** فورم الليد الجديد: «بتروح لـ: …» بعد اختيار المنطقة ([#404](https://github.com/Ziad-Sameh-OJO/places-erp/issues/404)) · `T-04` · بعد 1.12
+- [ ] **1.31** جدول الليدز: اسم الشركة تحت اسم العميل ([#405](https://github.com/Ziad-Sameh-OJO/places-erp/issues/405)) · `T-03` · بعد 1.6
+- [ ] **1.32** الـ Kanban: السحب على Meeting بيحجز ميعاد، وعلى Done Deal بيفتح الصفقة ([#406](https://github.com/Ziad-Sameh-OJO/places-erp/issues/406)) · `T-03` · بعد 1.9 · 5.1
+- [ ] **1.33** ملاحظة الـ Team Leader على الليد، والسيلز بيتبلّغ ([#407](https://github.com/Ziad-Sameh-OJO/places-erp/issues/407)) · `T-03` · بعد 1.7
+- [ ] **1.34** «مهامي النهارده» للّيدز: السطور الناقصة ([#408](https://github.com/Ziad-Sameh-OJO/places-erp/issues/408)) · `T-03` · بعد 1.22
 
 ## 2 · الانفنتوري · M-03 _(بالتوازي مع الجزء 1)_
 
@@ -95,6 +105,14 @@
 - [ ] **2.22** فولدر Pic & Info: تحميل ملف أو الفولدر كله ZIP، والترتيب وصورة الغلاف ([#365](https://github.com/Ziad-Sameh-OJO/places-erp/issues/365)) · `T-05` · بعد 2.4 · 2.21
 - [ ] **2.23** الـ PDF والـ slide بشكل ملفات الكلاينت + تنزيل PowerPoint ([#366](https://github.com/Ziad-Sameh-OJO/places-erp/issues/366)) · `T-05` · بعد 2.8 · 2.22
 - [ ] **2.24** صلاحيات الانفنتوري: منار من غير «العملاء والملاك»، وفريق الانفنتوري يفتح الوحدات ([#367](https://github.com/Ziad-Sameh-OJO/places-erp/issues/367)) · `T-05` · بعد 2.2
+- [ ] **2.25** تاب الـ PDF: صورة صغيرة للغلاف وصفحة المواصفات ([#409](https://github.com/Ziad-Sameh-OJO/places-erp/issues/409)) · `T-05` · بعد 2.23
+- [ ] **2.26** دروار الوحدة: تاب Location بكارت خريطة ([#410](https://github.com/Ziad-Sameh-OJO/places-erp/issues/410)) · `T-05` · بعد 2.21
+- [ ] **2.27** فورم الوحدة: اختيار اللوكيشن من الخريطة ([#411](https://github.com/Ziad-Sameh-OJO/places-erp/issues/411)) · `T-05` · بعد 2.26
+- [ ] **2.28** تصدير شيت الوحدات Excel ([#412](https://github.com/Ziad-Sameh-OJO/places-erp/issues/412)) · `T-05` · بعد 0.11
+- [ ] **2.29** «ابديت مع المالك النهارده» بدوسة، وبتقفل مهمة المتابعة ([#413](https://github.com/Ziad-Sameh-OJO/places-erp/issues/413)) · `T-05` · بعد 2.15
+- [ ] **2.30** دروار الوحدة: تاب «المهام» (تصوير، Retouch، ابعتها لرندا) ([#414](https://github.com/Ziad-Sameh-OJO/places-erp/issues/414)) · `T-05` · بعد 4.3
+- [ ] **2.31** ملف الـ Agreement لوحدة الـ Income ([#415](https://github.com/Ziad-Sameh-OJO/places-erp/issues/415)) · `T-05` · بعد 2.22
+- [ ] **2.32** طلبات الـ List: زرار للـ TL، ومروة بتربط الوحدات، وبنود الـ KPIs ([#416](https://github.com/Ziad-Sameh-OJO/places-erp/issues/416)) · `T-29` · بعد 2.19 · 8.1
 
 ## 3 · العملاء والملاك · M-10 _(بعد 1.3)_
 
@@ -104,6 +122,7 @@
 - [ ] **3.4** الدمج بالموبايل بموافقة الأوبريشن + Audit ([#106](https://github.com/Ziad-Sameh-OJO/places-erp/issues/106)) · `T-09` · بعد 3.2
 - [ ] **3.5** الصلاحيات: السيلز مايشوفش أرقام الملاك، والمالية تقرا بس ([#107](https://github.com/Ziad-Sameh-OJO/places-erp/issues/107)) · `T-09` · بعد 3.2
 - [ ] **3.6** جوب Inactive بعد سنة + تقرير الملاك اللي محتاجين ابديت + موافقة التسويق + طلب مسح البيانات ([#108](https://github.com/Ziad-Sameh-OJO/places-erp/issues/108)) · `T-09` · بعد 3.2 · 0.2
+- [ ] **3.7** ملف العميل: «افتح» لوحداته وعقوده ([#417](https://github.com/Ziad-Sameh-OJO/places-erp/issues/417)) · `T-09` · بعد 3.3
 
 ## 4 · المهام والتسويق · M-04 _(بالتوازي)_
 
@@ -116,6 +135,9 @@
 - [ ] **4.7** الـ Content plan: كالندر البوستات + وقت النشر الفعلي + Reminder ([#115](https://github.com/Ziad-Sameh-OJO/places-erp/issues/115)) · `T-19` · بعد 4.5
 - [ ] **4.8** البرودكاست: مهمة للسيلز + Done/share + Hot Inventory مرتين في الأسبوع + الحد اليومي ([#116](https://github.com/Ziad-Sameh-OJO/places-erp/issues/116)) · `T-19` · بعد 4.1
 - [ ] **4.9** Alarm الصفقة للتسويق بالبيانات المسموحة + رفع لوجو ([#117](https://github.com/Ziad-Sameh-OJO/places-erp/issues/117)) · `T-12` · بعد 5.2
+- [ ] **4.10** مهمة التصوير: تنبيه «إديته وحدة النهارده قبل كده» ([#418](https://github.com/Ziad-Sameh-OJO/places-erp/issues/418)) · `T-11` · بعد 4.3
+- [ ] **4.11** داشبورد التسويق: كارت «تقرير المنافسين الشهري» ([#419](https://github.com/Ziad-Sameh-OJO/places-erp/issues/419)) · `T-19` · بعد 11.10
+- [ ] **4.12** مهمة الـ Retouch بتحمل صور الوحدة للديزاينر ([#420](https://github.com/Ziad-Sameh-OJO/places-erp/issues/420)) · `T-11` · بعد 4.3 · 2.22
 
 ## 5 · الصفقات والتحصيل · M-02 _(بعد 2.9)_
 
@@ -133,6 +155,7 @@
 - [ ] **5.12** الـ TCR: رقم تسلسلي، والتوقيعات بالترتيب، و TCR جديدة مع كل تحصيل ([#129](https://github.com/Ziad-Sameh-OJO/places-erp/issues/129)) · `T-15` · بعد 5.3
 - [ ] **5.13** PDF الـ TCR ([#130](https://github.com/Ziad-Sameh-OJO/places-erp/issues/130)) · `T-15` · بعد 0.10 · 5.12
 - [ ] **5.14** تستات e2e بمثال الكلاينت (100,000 ← 25,000 / 25,000 / 50,000) ([#131](https://github.com/Ziad-Sameh-OJO/places-erp/issues/131)) · `T-12` · بعد 5.4
+- [ ] **5.15** المالية تعدّل مبلغ تحصيل أو TCR اتسجّل ([#421](https://github.com/Ziad-Sameh-OJO/places-erp/issues/421)) · `T-15` · بعد 5.6
 
 ## 6 · العقود والأقساط · M-11 _(بعد 5.3)_
 
@@ -159,6 +182,9 @@
 - [ ] **7.11** الموظف المثالي وصندوق الفريق كل شهر ([#149](https://github.com/Ziad-Sameh-OJO/places-erp/issues/149)) · `T-13` · بعد 7.2 · 7.7
 - [ ] **7.12** رفع شيت البصمة: ربط الأسامي، ومنع التكرار، واستكمال الأيام ([#150](https://github.com/Ziad-Sameh-OJO/places-erp/issues/150)) · `T-17` · بعد 0.12 · 7.2
 - [ ] **7.13** agent جهاز البصمة (بعد ما الكلاينت يحدد نوع الجهاز) ([#151](https://github.com/Ziad-Sameh-OJO/places-erp/issues/151)) · `T-17` · بعد 7.12
+- [ ] **7.14** الـ Weekly Delay: عمود «التراكمي» ([#422](https://github.com/Ziad-Sameh-OJO/places-erp/issues/422)) · `T-13` · بعد 7.10
+- [ ] **7.15** قايمة الموظفين: «آخر 1-to-1» و«حل HR» بميعاده ([#423](https://github.com/Ziad-Sameh-OJO/places-erp/issues/423)) · `T-13` · بعد 7.8
+- [ ] **7.16** ملف الموظف: أرقام الشهر ([#424](https://github.com/Ziad-Sameh-OJO/places-erp/issues/424)) · `T-13` · بعد 7.1
 
 ## 8 · التذاكر · M-06 _(قبل 7.4 و 2.19)_
 
@@ -166,6 +192,7 @@
 - [ ] **8.2** واجهة التذاكر ([#153](https://github.com/Ziad-Sameh-OJO/places-erp/issues/153)) · `T-18` · بعد 8.1
 - [ ] **8.3** جوب الـ SLA والتصعيد (24 ساعة، و4 للعالية، والنزاع 48 وتنبيه نانسي) ([#154](https://github.com/Ziad-Sameh-OJO/places-erp/issues/154)) · `T-18` · بعد 8.1 · 0.2
 - [ ] **8.4** تقرير سرعة الرد لكل قسم ([#155](https://github.com/Ziad-Sameh-OJO/places-erp/issues/155)) · `T-18` · بعد 8.1
+- [ ] **8.5** صفحة التذاكر: اختصارات «طلب إجازة» و«شغل من بره» ([#425](https://github.com/Ziad-Sameh-OJO/places-erp/issues/425)) · `T-18` · بعد 7.5 · 7.3
 
 ## 9 · المالية · M-07
 
@@ -186,6 +213,8 @@
 - [ ] **9.15** صرف عمولة السيلز لكل صفقة مع الـ TCR ([#247](https://github.com/Ziad-Sameh-OJO/places-erp/issues/247)) · `T-20` · بعد 9.12 · 5.4 · 5.12
 - [ ] **9.16** الفواتير الثابتة بموافقة المحاسب (زي اشتراك Property Finder) ([#248](https://github.com/Ziad-Sameh-OJO/places-erp/issues/248)) · `T-14` · بعد 9.2
 - [ ] **9.17** المطالبات + الفاتورة الإلكترونية + إيصال استلام النقدية (من القوالب) ([#249](https://github.com/Ziad-Sameh-OJO/places-erp/issues/249)) · `T-15` · بعد 5.3 · 0.10 · 12.12
+- [ ] **9.18** كارت «طلبات مشتريات مستنية الصرف» في تاب الخزن ([#426](https://github.com/Ziad-Sameh-OJO/places-erp/issues/426)) · `T-14` · بعد 10.2
+- [ ] **9.19** «مستنيك النهارده» للمحاسب كامل ([#427](https://github.com/Ziad-Sameh-OJO/places-erp/issues/427)) · `T-15` · بعد 9.17 · 5.14
 
 ## 10 · المشتريات · M-08 _(بعد 9.3)_
 
@@ -211,6 +240,9 @@
 - [ ] **11.13** نشاطات Farming / Approach للسيلز + بند Farming أوتوماتيك ([#229](https://github.com/Ziad-Sameh-OJO/places-erp/issues/229)) · `T-34` · بعد 11.11
 - [ ] **11.14** مسؤول الـ KPIs: يشوف كل الكروت والتقارير والتغييرات ويعدّل البنود، من غير أي حاجة فلوس ([#230](https://github.com/Ziad-Sameh-OJO/places-erp/issues/230)) · `T-23` · بعد 11.4 · 11.10
 - [ ] **11.15** مقاييس كارت الأوبريشن: الـ New Lead خلال 30 دقيقة، وقرارات الـ Draft في يومها، والـ Second Calls لكل ليدز اليوم ([#231](https://github.com/Ziad-Sameh-OJO/places-erp/issues/231)) · `T-34` · بعد 1.17 · 1.26 · 1.27 · 1.28 · 11.11
+- [ ] **11.16** الرئيسية: كارت «الـ KPIs بتاعتي» وتذكيرات الـ KPIs ([#428](https://github.com/Ziad-Sameh-OJO/places-erp/issues/428)) · `T-23` · بعد 11.4
+- [ ] **11.17** التقرير المتجدول: «ابعته دلوقتي» ([#429](https://github.com/Ziad-Sameh-OJO/places-erp/issues/429)) · `T-33` · بعد 11.10
+- [ ] **11.18** شيت الموظف الربعي كامل: المرتب والتارجت والـ scheme وقواعد الجوايز ([#430](https://github.com/Ziad-Sameh-OJO/places-erp/issues/430)) · `T-23` · بعد 11.7
 
 ## 12 · اللي فاضل في الموديولات اللي خلصت · M-09 · M-13 · M-14 _(أي وقت)_
 
@@ -226,6 +258,9 @@
 - [ ] **12.10** الـ Push notifications (PWA + VAPID) ([#189](https://github.com/Ziad-Sameh-OJO/places-erp/issues/189)) · `T-27`
 - [ ] **12.11** الجرس لحظي (WebSocket) + فلتر بالنوع ([#190](https://github.com/Ziad-Sameh-OJO/places-erp/issues/190)) · `T-27`
 - [ ] **12.12** الختم والإمضا + الجهات (لوجو وبيانات بنك) + قوالب المستندات ([#250](https://github.com/Ziad-Sameh-OJO/places-erp/issues/250)) · `T-26` · بعد 0.9 · 0.10
+- [ ] **12.13** تاب المستخدمين: كروت العدد، والـ reset للمقفول ([#431](https://github.com/Ziad-Sameh-OJO/places-erp/issues/431)) · `T-25` · بعد 12.6
+- [ ] **12.14** «ابعت إيميل تجربة» من إعدادات الإيميل ([#432](https://github.com/Ziad-Sameh-OJO/places-erp/issues/432)) · `T-27` · بعد 12.10
+- [ ] **12.15** صفحة «حسابي»: الموبايل، والقسم، والـ TL، وآخر دخول، وآخر تغيير باسورد ([#433](https://github.com/Ziad-Sameh-OJO/places-erp/issues/433)) · `T-25` · بعد 12.4
 
 ## 13 · التسليم والإطلاق _(آخر حاجة)_
 
