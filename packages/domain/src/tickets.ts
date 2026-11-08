@@ -30,8 +30,10 @@ export const TICKET_TYPES: readonly TicketType[] = [
   { key: "hr_letter", label: "HR Letter", department: "HR", slaHours: 24, highSlaHours: null, clock: "wall", measure: "reply", escalateTo: "manager" },
   // M-06 3.1 + M-12 7.1: «كل النزاعات تتحسم خلال 48 ساعة» and the system alerts Nancy (Office Manager)
   { key: "dispute", label: "نزاع", department: "الإدارة", slaHours: 48, highSlaHours: null, clock: "wall", measure: "resolve", escalateTo: "officemgr" },
-  // M-12: Marwa «طلبات الـ Team Leaders من الـ Lists خلال 24 ساعة من الطلب · طلب الـ List كتذكرة»
-  { key: "list", label: "طلب List", department: "Inventory", slaHours: 24, highSlaHours: null, clock: "wall", measure: "reply", escalateTo: "manager" },
+  // M-12: Marwa «طلبات الـ Team Leaders من الـ Lists خلال 24 ساعة من الطلب · طلب الـ List كتذكرة». Opened by the TL's
+  // «اطلب List» and settled when Marwa sends the units (2.32, inventory list-requests), so the List's units and its
+  // unconfirmed count are kept for the KPIs: never from the tickets form
+  { key: "list", label: "طلب List", department: "Inventory", slaHours: 24, highSlaHours: null, clock: "wall", measure: "reply", escalateTo: "manager", system: true },
   // M-06 3.1: Mokhtar «الشراء والصيانة 48 ساعة»
   // M-05 7.4: «الـ Excuse نوع تذكرة (8.1): TL ثم HR» — decided in HR's Excuse flow, shown here with its history
   { key: "excuse", label: "Excuse", department: "HR", slaHours: 24, highSlaHours: null, clock: "working", measure: "resolve", escalateTo: "manager", system: true },

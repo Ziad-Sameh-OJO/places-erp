@@ -9,8 +9,8 @@ import { NotificationsService } from "../../core/notifications/notifications.ser
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryRepository } from "./inventory.repository";
 import { InventoryService } from "./inventory.service";
-import type { ListOfOptionsInput } from "@places/contracts";
-import { type ListUnit, type Photo, deckName, listDeckHtml, listDeckPptx, listName, unitDeckHtml, unitDeckPptx } from "./unit-pdf";
+import type { ListOfOptionsInput, UnitPdfPreview } from "@places/contracts";
+import { type ListUnit, type Photo, deckName, listDeckHtml, listDeckPptx, listName, unitDeckHtml, unitDeckPptx, unitPreviewPages } from "./unit-pdf";
 
 /**
  * 2.8 · M-03 2.2 (15) · (19): the unit's PDF and slide are made by the system from its current sheet and photos — so
@@ -54,10 +54,19 @@ export class UnitDocumentsService {
       : { name: `${name}.pdf`, mime: "application/pdf", body: await this.docs.pdf(listDeckHtml(units, b.kind, b.client), new Date(), { slide: true }) };
   }
 
-  /** The unit as the person may see it, with its Pic & Info photos in order (never its PDFs). */
-  private async unit(me: CurrentUser, unitId: string): Promise<ListUnit> {
+  /**
+   * 2.25 · the small preview of the PDF's cover and specs page, drawn from the unit as it is now (so an edit shows at
+   * once) and as the person may see it (field permissions, M-09).
+   */
+  async preview(me: CurrentUser, unitId: string): Promise<UnitPdfPreview> {
+    const { u, photos } = await this.unit(me, unitId, 1);
+    return { pages: unitPreviewPages(u, photos) };
+  }
+
+  /** The unit as the person may see it, with its Pic & Info photos in order (never its PDFs); `max` = the first ones only. */
+  private async unit(me: CurrentUser, unitId: string, max?: number): Promise<ListUnit> {
     const u = await this.units.get(me, unitId);
-    const ids = (await this.repo.photos(unitId)).filter((p) => !p.pdf).map((p) => p.fileId);
+    const ids = (await this.repo.photos(unitId)).filter((p) => !p.pdf).map((p) => p.fileId).slice(0, max);
     // a photo storage can't give back is left out: the document still comes out
     const photos = (await Promise.all(ids.map((id) => this.files.dataUrl(id)))).filter((p): p is Photo => !!p && p.startsWith("data:image/"));
     return { u, photos };

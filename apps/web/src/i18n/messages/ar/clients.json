@@ -1,6 +1,7 @@
 {
   "kind": { "client": "عميل", "owner": "مالك", "both": "عميل + مالك" },
   "drawer": {
+    "open": "افتح",
     "notFound": "الملف مش موجود",
     "loading": "بيحمّل…",
     "kind": "النوع",

@@ -16,8 +16,8 @@ import { type TicketRecord, TicketsRepository } from "./tickets.repository";
 const NO_TICKET = "التذكرة دي مش موجودة أو مش من حقك تشوفها";
 const SETTLED = ["Resolved", "Closed"];
 const code = (n: number) => `TK-${n}`;
-/** A system type (the Excuse) is decided in its own flow, so its status never moves from the tickets screen. */
-const SYSTEM_TICKET = "الطلب ده بيتقرر من شاشته (الـ Excuse من الـ HR)";
+/** A system type (the Excuse, the List request) is decided in its own flow, so its status never moves from the tickets screen. */
+const SYSTEM_TICKET = "الطلب ده بيتقرر من شاشته (الـ Excuse من الـ HR، والـ List من الانفنتوري)";
 const link = (id: string) => `/tickets?id=${id}`;
 
 /** M-06 use cases. The rules (routes, SLAs, lateness, the report) live in @places/domain. */
@@ -200,9 +200,15 @@ export class TicketsService {
     return (await this.settings.all()).ticketDepts.filter((d) => d.active).map((d) => d.value);
   }
 
-  private async tellDepartment(department: string, exceptUserId: string, text: string, id: string) {
+  /** A new ticket for a department: its people are told (not whoever opened it). A system type links to its own screen. */
+  async tellDepartment(department: string, exceptUserId: string, text: string, id: string, to = link(id)) {
     const userIds = (await this.repo.departmentPeople(department)).filter((u) => u !== exceptUserId);
-    if (userIds.length) await this.notifications.notify({ event: "ticket.new", text, link: link(id), userIds });
+    if (userIds.length) await this.notifications.notify({ event: "ticket.new", text, link: to, userIds });
+  }
+
+  /** Tickets' codes (TK-…) by id, for a module that shows the ticket its record opened (the List request, 2.32). */
+  async codes(ids: string[]): Promise<Map<string, string>> {
+    return new Map((ids.length ? await this.db.ticket.findMany({ where: { id: { in: ids } }, select: { id: true, number: true } }) : []).map((t) => [t.id, code(t.number)]));
   }
 
   private async names(userIds: string[]): Promise<Map<string, string>> {

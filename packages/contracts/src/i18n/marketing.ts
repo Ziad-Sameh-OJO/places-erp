@@ -21,6 +21,8 @@ export default [
   ["المهمة دي مش موجودة أو مش من حقك تشوفها", "This task doesn't exist or you aren't allowed to see it"],
   ["المهمة اتغيّرت دلوقتي · افتحها تاني", "The task just changed · open it again"],
   ["مش من حقك تدّي مهمة {label}", "You aren't allowed to assign a {label} task"],
+  ["صور الوحدة بتتفتح من مهمة الـ Retouch بس", "The unit's photos open from a Retouch task only"],
+  ["اللي ماسك الـ Retouch بس اللي يرفع الصور، وقبل ما تتبعت لمنار", "Only the Retouch's assignee uploads the photos, and before it goes to Manar"],
   ["اختار الوحدة", "Pick the unit"],
   ["الوحدة مش موجودة", "The unit doesn't exist"],
   ["اختار المهمة من «أنواع تاسكات التسويق»", "Pick the task from «Marketing task types»"],
