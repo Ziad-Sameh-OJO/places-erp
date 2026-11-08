@@ -104,6 +104,16 @@ export class ClientsService {
     });
   }
 
+  /**
+   * 2.29 · «ابديت مع المالك النهارده» on one unit (M-03 2.4): the contact goes on the owner's file like one logged
+   * there (M-10 2.4), in the unit's transaction. The unit's own last update is the inventory's to change.
+   */
+  async logOwnerUpdate(tx: Prisma.TransactionClient, by: string, clientId: string, text: string) {
+    const row = await this.repo.addInteraction(tx, { clientId, kind: OWNER_UPDATE, text, byId: by });
+    await tx.client.update({ where: { id: clientId }, data: { lastContactAt: row.at, status: "active" } });
+    await this.audit.record({ module: "clients", entity: "ClientInteraction", entityId: row.id, action: "create", userId: by, after: row }, tx);
+  }
+
   /** M-10 3.1 «موافقة على التواصل التسويقي»: written by sales (and whoever edits files), audited old → new. */
   async setConsent(me: CurrentUser, id: string, input: SetConsent) {
     if (me.fields.fixed("clients").has("marketingConsent")) throw new ForbiddenException(LOCKED);

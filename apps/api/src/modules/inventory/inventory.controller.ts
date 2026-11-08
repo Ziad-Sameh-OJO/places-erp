@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { UnitFilters, UnitInput, type UnitRow } from "@places/contracts";
+import { OwnerUpdateInput, UnitFilters, UnitInput, type UnitRow } from "@places/contracts";
 import { localDate } from "@places/domain";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { type ExcelColumn, sendXlsx } from "../../core/http/excel";
@@ -80,6 +80,14 @@ export class InventoryController {
   @Requires("inventory", "edit")
   update(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UnitInput)) body: UnitInput) {
     return this.inventory.update(me, id, body);
+  }
+
+  /** 2.29 · «ابديت مع المالك النهارده» (the people who edit units, like the demo's button) */
+  @Post(":id/owner-update")
+  @HttpCode(200)
+  @Requires("inventory", "edit")
+  ownerUpdate(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(OwnerUpdateInput)) body: OwnerUpdateInput) {
+    return this.inventory.ownerUpdate(me, id, body);
   }
 
   @Delete(":id")
