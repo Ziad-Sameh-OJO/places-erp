@@ -185,6 +185,7 @@
     "open": "افتح"
   },
   "pdf": {
+    "preview": "معاينة الـ PDF",
     "published": "الـ PDF اترفع، والتسويق والسيلز وصلهم إشعار",
     "openPdf": "افتح الـ PDF",
     "pdfPptx": "الـ PDF كـ PowerPoint",

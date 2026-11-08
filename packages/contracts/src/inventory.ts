@@ -188,6 +188,8 @@ export interface UnitTabCounts { all: number; Rent: number; Resale: number; Inco
 /** The lists from the settings (12.7): a form offers the active values, a filter all of them (old records keep switched-off ones). */
 export interface UnitOptions { areas: ListItem[]; conditions: ListItem[]; agents: Person[]; paymentMethods: ListItem[] }
 export interface CreatedUnit { id: string; code: string }
+/** 2.25 · the PDF's cover and specs page, each a whole HTML page (1280 × 720), for the PDF tab's small preview */
+export interface UnitPdfPreview { pages: string[] }
 
 /** An area tab (M-03 7.2): «من» and «لحد» in m², «لحد» empty = and above. */
 export const AreaTabInput = z.object({

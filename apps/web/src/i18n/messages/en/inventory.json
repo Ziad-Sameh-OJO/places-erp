@@ -185,6 +185,7 @@
     "open": "Open"
   },
   "pdf": {
+    "preview": "PDF preview",
     "published": "The PDF is published, and marketing and sales were notified",
     "openPdf": "Open the PDF",
     "pdfPptx": "PDF as PowerPoint",

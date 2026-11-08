@@ -118,6 +118,23 @@ test("Q19: any edit makes the PDF again and hides the unit from sales until Mana
   assert.equal((await call("/inventory/units/nope/pdf/confirm", { method: "POST", cookie: manar })).status, 404);
 });
 
+test("2.25 · the PDF tab's preview: the cover and the specs page, drawn from the unit as it is now", async () => {
+  const preview = async (cookie: string) => call(`/inventory/units/${unitId}/pdf/preview`, { cookie });
+  const r = await preview(randa);
+  assert.equal(r.status, 200);
+  const [cover, specs, ...rest] = (r.body as { pages: string[] }).pages;
+  assert.equal(rest.length, 0);
+  assert.match(cover ?? "", new RegExp(`CODE:${code}`));
+  assert.match(specs ?? "", /Rent rate per meter.*EGP 1,200/s);
+  // an edit shows at once
+  assert.equal((await call(`/inventory/units/${unitId}`, { method: "PUT", cookie: manar, body: body({ pricePerSqm: "1300" }) })).status, 200);
+  assert.match(((await preview(manar)).body as { pages: string[] }).pages[1] ?? "", /EGP 1,300/);
+  assert.equal((await preview(sales)).status, 404, "a draft again: not for sales (Q15)");
+  assert.equal((await preview(hr)).status, 403);
+  assert.equal((await confirm(manar)).status, 204);
+  assert.equal((await preview(sales)).status, 200);
+});
+
 test("2.23 · a unit with 4 photos: the PDF has 8 pages (3 inside), the slide 3 (inside two a page), the same in PowerPoint", { skip }, async () => {
   // the smallest valid PNG (1×1)
   const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
