@@ -11,6 +11,7 @@ import { amount, dateLocale, moneyExact, num } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { COLS, UnitChips, cell, columnsFor } from "./unit-bits";
 import { useFields } from "@/lib/me";
+import { UnitTasks, useUnitTasksTab } from "../tasks/unit-tasks";
 
 const hours = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 3_600_000;
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLocale(), { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -26,7 +27,8 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
 }) {
   const t = useTranslations("inventory");
   const fields = useFields("inventory");
-  const [tab, setTab] = useState<"data" | "pdf">("data");
+  const [tab, setTab] = useState<"data" | "pdf" | "tasks">("data");
+  const tasksTab = useUnitTasksTab(id); // 2.30
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   if (error) return <Drawer title={t("drawer.notFound")} onClose={onClose}><Empty text={error.message} /></Drawer>;
@@ -43,8 +45,8 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
     <Drawer title={`${u.code} · ${u.project}`} sub={fields.shows("area") ? `${u.type} · ${serverText(u.area)}` : u.type} onClose={onClose} chips={<UnitChips u={u} />}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}>
-      <Tabs value={tab} onChange={setTab} items={[["data", t("drawer.data")], ["pdf", "PDF & slide"]]} />
-      {tab === "pdf" ? <UnitPdfTab u={u} canConfirm={canConfirm} /> : <>
+      <Tabs value={tab} onChange={setTab} items={[["data", t("drawer.data")], ["pdf", "PDF & slide"], ...(tasksTab ? [tasksTab] : [])]} />
+      {tab === "tasks" ? <UnitTasks u={u} /> : tab === "pdf" ? <UnitPdfTab u={u} canConfirm={canConfirm} /> : <>
       <CloseRequests unit={u} />
       {u.missing.length > 0 && <Note kind="warn"><b>{t("drawer.missingTitle", { count: u.missing.length })}</b> {u.missing.map(serverText).join(t("today.sep"))}{t("drawer.missingBody")}{" "}
         {onComplete && <button className="btn sm" onClick={onComplete}>{t("drawer.complete")}</button>}</Note>}

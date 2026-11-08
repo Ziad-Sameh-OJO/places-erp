@@ -57,7 +57,8 @@ export class TasksService {
         await this.scope(me),
         f.kind ? { kind: f.kind } : {},
         f.toUserId ? { toUserId: f.toUserId } : {},
-        { OR: [{ status: { not: "done" } }, { doneAt: { gte: recent } }] },
+        // one unit's tasks (its drawer, 2.30) are few: all of them, the old Done ones too, as in the demo's tab
+        f.unitId ? { unitId: f.unitId } : { OR: [{ status: { not: "done" } }, { doneAt: { gte: recent } }] },
       ],
     };
     const rows = await this.repo.list(where, BOARD_MAX);
