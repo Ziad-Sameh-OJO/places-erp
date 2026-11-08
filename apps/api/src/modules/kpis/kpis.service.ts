@@ -23,8 +23,20 @@ const NO_CARD = "الكارت ده مش موجود أو مش من حقك تشو�
 const CLOSED = "الربع اتقفل · مفيش تعديل";
 /** 11.14: the watcher never sees these in the changes log. */
 const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose"];
+const NO_MONEY = "الفلوس مش في صلاحياتك";
+const NO_PLAN = "خطة التحسين مش في صلاحياتك";
 
-export interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean }
+/** M-09 field permissions: a hidden result leaves no trace (its tier and tone tell it too). */
+function hideScore<T extends { score: number; tone: "ok" | "warn" | "bad"; tier: string }>(w: Who, x: T): T {
+  return w.noScore ? { ...x, score: 0, tone: "ok", tier: "" } : x;
+}
+function hideCard(w: Who, v: KpiCardView): KpiCardView {
+  const out = hideScore(w, { ...v, plan: w.noPlan ? null : v.plan });
+  return w.noScore ? { ...out, items: out.items.map((it) => ({ ...it, achievement: 0, contribution: 0 })) } : out;
+}
+
+/** `noScore` / `noPlan` / `fixedMoney` / `fixedPlan`: the person's M-09 field rules on the card (`noMoney` covers them too). */
+export interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean; noScore: boolean; noPlan: boolean; fixedMoney: boolean; fixedPlan: boolean }
 type Quarter = { id: string; status: string; sheetsAt?: Date | null; sheetsById?: string | null };
 
 const piasters = (d: Prisma.Decimal | null) => (d == null ? 0 : fromDecimal(d.toFixed(2)));
@@ -62,7 +74,10 @@ export class KpisService {
   async who(me: CurrentUser): Promise<Who> {
     const watcher = (await this.watchers()).includes(me.id);
     const edit = me.grants.can("kpis", "edit"), approve = me.grants.can("kpis", "approve");
-    return { me, watcher, edit, approve, all: edit || approve || watcher, noMoney: watcher && !edit && !approve };
+    // M-09 field permissions only hide more: a hidden «money» is the watcher's view of it (11.14), everywhere money goes
+    const hidden = me.fields.hidden("kpis"), fixed = me.fields.fixed("kpis");
+    return { me, watcher, edit, approve, all: edit || approve || watcher, noMoney: (watcher && !edit && !approve) || hidden.has("money"),
+      noScore: hidden.has("score"), noPlan: hidden.has("plan"), fixedMoney: fixed.has("money"), fixedPlan: fixed.has("plan") };
   }
 
   /** The follower approves and types the follower's manual items; «الملاك» (no follower) = a Super Admin who isn't the card's owner. */
@@ -119,12 +134,12 @@ export class KpisService {
 
   private summary(w: Who, c: CardRecord, b: Bands): KpiCardSummary {
     const s = this.score(c);
-    return {
+    return hideScore(w, {
       id: c.id, employeeId: c.employeeId, name: c.employee.name, title: c.employee.jobTitle, follower: c.follower?.name ?? "الملاك",
       score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b),
       below: c.items.filter((it) => this.ach(it) < 1).length, approved: !!c.approvedAt,
       money: w.noMoney ? null : toDecimal(this.delta(c, s, b)),
-    };
+    });
   }
 
   /** «كارتي» · «فريقي» · «كل الشركة»: the scope goes into the query. */
@@ -138,7 +153,7 @@ export class KpisService {
     const where = scope === "me" ? { employeeId: me.employeeId ?? "-" } : scope === "team" ? team : {};
     const [cards, bands] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands()]);
     const b = bandsOf(bands);
-    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => x.score - y.score), seesMoney: !w.noMoney, seesAll: w.all };
+    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all };
   }
 
   async card(me: CurrentUser, id: string): Promise<KpiCardView> {
@@ -154,7 +169,7 @@ export class KpisService {
     const follower = this.isFollower(w, c), mine = c.employeeId === w.me.employeeId, manage = open && this.canManage(w, c);
     const approver = c.approvedBy ? people.find((p) => p.userId === c.approvedBy)?.name ?? "" : "";
     const details = await this.details(c, q);
-    return {
+    return hideCard(w, {
       id: c.id, quarter: this.qView(q), employee: { id: c.employeeId, name: c.employee.name, title: c.employee.jobTitle },
       follower: { id: c.followerId, name: c.follower?.name ?? "الملاك" },
       score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b), plan: c.plan,
@@ -178,9 +193,9 @@ export class KpisService {
           canDeliver: open && mine && it.method === "report" && !it.report && it.deliveries.length < (it.required ?? 0),
         };
       }),
-      can: { manage, approve: open && follower && !c.approvedAt, plan: open && follower, pay: open && w.edit, admin: open && (w.edit || w.watcher), sheet: this.canSheet(w, q) },
+      can: { manage, approve: open && follower && !c.approvedAt, plan: open && follower && !w.fixedPlan, pay: open && w.edit && !w.fixedMoney, admin: open && (w.edit || w.watcher), sheet: this.canSheet(w, q) },
       options: manage ? { people: people.map((p) => ({ id: p.id, userId: p.userId, name: p.name })), roles } : null,
-    };
+    });
   }
 
   /**
@@ -296,6 +311,7 @@ export class KpisService {
     const w = await this.who(me);
     const { c } = await this.openCard(w, id);
     if (!this.isFollower(w, c)) throw new ForbiddenException("خطة التحسين بيكتبها المتابع");
+    if (w.fixedPlan) throw new ForbiddenException(NO_PLAN); // M-09: read only or hidden for this person
     await this.db.$transaction(async (tx) => {
       await tx.kpiCard.update({ where: { id }, data: { plan: plan || null } });
       await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: id, action: "update", userId: me.id,
@@ -321,6 +337,7 @@ export class KpisService {
   /** 11.4: salary or quarter bonus, monthly or per quarter, and the bonus (null = one month's salary). Money: «kpis: edit». */
   async setPay(me: CurrentUser, id: string, input: KpiPayInput) {
     const w = await this.who(me);
+    if (w.fixedMoney) throw new ForbiddenException(NO_MONEY); // M-09: read only or hidden for this person
     const { c } = await this.openCard(w, id);
     await this.db.$transaction(async (tx) => {
       await tx.kpiCard.update({ where: { id }, data: { payBase: input.base, payPeriod: input.period, payAmount: input.amount } });
@@ -335,6 +352,7 @@ export class KpisService {
 
   /** 11.4: one set of bands for everyone. */
   async setBands(me: CurrentUser, input: KpiBandsInput) {
+    if ((await this.who(me)).fixedMoney) throw new ForbiddenException(NO_MONEY);
     const data = { top: input.top, full: input.full, partial: input.partial, low: input.low, rewardPct: input.rewardPercent, cutPct: input.cutPercent };
     await this.db.$transaction(async (tx) => {
       const before = await this.repo.bands(tx);
@@ -451,7 +469,7 @@ export class KpisService {
 
   /** 11.7: the sheet of a closed quarter, before the Office Manager's approval only for the KPI admins. */
   private canSheet(w: Who, q: Quarter) {
-    return q.status === "closed" && !w.noMoney && (!!q.sheetsAt || w.approve || w.edit);
+    return q.status === "closed" && !w.noMoney && !w.noScore && !w.noPlan && (!!q.sheetsAt || w.approve || w.edit);
   }
 
   /** 11.7: the employee's quarterly sheet: the result, its tier and amount, and every item. */
@@ -537,7 +555,7 @@ ${c.plan ? `<tr><th>خطة التحسين</th><td>${esc(c.plan)}</td></tr>` : ""
     return {
       quarters: quarters.map((x) => {
         const st = stats.find((s) => s.quarter === x.id);
-        return { id: x.id, label: quarterLabel(x.id), status: x.status, cards: st?._count._all ?? 0, avg: st?._avg.finalScore == null ? null : Math.round(Number(st._avg.finalScore)) };
+        return { id: x.id, label: quarterLabel(x.id), status: x.status, cards: st?._count._all ?? 0, avg: w.noScore || st?._avg.finalScore == null ? null : Math.round(Number(st._avg.finalScore)) };
       }),
       noCard: w.edit || w.watcher ? people.filter((p) => !has.has(p.id)).map((p) => ({ id: p.id, name: p.name, title: p.jobTitle })) : [],
       watchers: people.filter((p) => watchers.includes(p.userId)).map((p) => ({ id: p.id, userId: p.userId, name: p.name })),

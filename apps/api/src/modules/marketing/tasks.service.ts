@@ -111,7 +111,8 @@ export class TasksService {
     }
     const data = {
       kind: kind.key, toUserId: input.toUserId, byUserId: me.id, dueOn: dayStartUtc(input.dueOn),
-      unitId: kind.withUnit ? input.unitId! : null, title: kind.key === "marketing" ? input.title! : null, note: input.note ?? null,
+      unitId: kind.withUnit ? input.unitId! : null, title: kind.key === "marketing" ? input.title! : null,
+      note: me.fields.fixed("tasks").has("note") ? null : input.note ?? null, // M-09: a note the person may not set starts empty
     };
     const warning = kind.key === "photo" ? photoDayWarning(kind.key, await this.repo.openSameDay(kind.key, me.id, input.toUserId, data.dueOn)) : null;
     const created = await this.db.$transaction(async (tx) => {
@@ -168,7 +169,8 @@ export class TasksService {
     if (t.status === "done") throw new BadRequestException("المهمة خلصت · Undo الأول");
     if (input.toUserId && input.toUserId !== t.toUserId) await this.checkAssignee(t.kind, input.toUserId);
     const before = { toUserId: t.toUserId, dueOn: day(t.dueOn), note: t.note };
-    const after = { toUserId: input.toUserId ?? t.toUserId, dueOn: input.dueOn ?? day(t.dueOn), note: input.note === undefined ? t.note : input.note };
+    // M-09: a note the person may not change keeps its stored value
+    const after = { toUserId: input.toUserId ?? t.toUserId, dueOn: input.dueOn ?? day(t.dueOn), note: input.note === undefined || me.fields.fixed("tasks").has("note") ? t.note : input.note };
     await this.db.$transaction(async (tx) => {
       const r = await this.repo.update(tx, t.id, t.status, { toUserId: after.toUserId, dueOn: dayStartUtc(after.dueOn), note: after.note });
       if (r.count === 0) throw new ConflictException(CHANGED);
@@ -215,14 +217,19 @@ export class TasksService {
     const u = t.unit;
     const sla = taskSla({ kind: t.kind, status, createdAt: t.createdAt, doneAt: t.doneAt, returned: t.returned, unitEnteredAt: u?.enteredAt ?? null }, now);
     // the owner's number: the photographer of a shoot calls him (M-04 2.1 step 5); otherwise only who sees owner numbers (M-10 4.1)
-    const ownerPhone = (t.kind === "photo" && t.toUserId === me.id) || seesOwnerNumbers(me.grants) ? u?.ownerPhone ?? null : null;
+    // M-09 field permissions on top of that: a hidden field's value never leaves the API (the screens leave it out too)
+    const h = me.fields.hidden("tasks"), hide = <V,>(k: string, v: V, blank: V) => (h.has(k) ? blank : v);
+    const ownerPhone = (t.kind === "photo" && t.toUserId === me.id) || seesOwnerNumbers(me.grants) ? hide("ownerPhone", u?.ownerPhone ?? null, null) : null;
     return {
       id: t.id, kind: t.kind, kindLabel: taskKind(t.kind)?.label ?? t.kind, title: t.title,
-      unit: u && { id: u.id, code: u.code, project: u.project, area: u.area, floor: u.floor, building: u.building, ownerName: u.ownerName, ownerPhone },
+      unit: u && {
+        id: u.id, code: u.code, project: u.project, area: hide("area", u.area, ""), floor: hide("floor", u.floor, null), building: hide("building", u.building, null),
+        ownerName: hide("ownerName", u.ownerName, null), ownerPhone,
+      },
       sla: sla && { due: sla.due.toISOString(), hoursLeft: sla.hoursLeft, met: sla.met },
       by: t.byUserId ? { id: t.byUserId, name: names.get(t.byUserId) ?? "—" } : null,
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },
-      dueOn: day(t.dueOn), status, returned: t.returned, note: t.note, doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
+      dueOn: day(t.dueOn), status, returned: t.returned, note: hide("note", t.note, null), doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
       late: isTaskLate({ status, dueOn: day(t.dueOn) }, now),
       can: { moves: me.grants.can("tasks", "edit") ? taskMovesFor(t.kind, status, a) : [], edit: me.grants.can("tasks", "edit") && a.manager && status !== "done" },
     };

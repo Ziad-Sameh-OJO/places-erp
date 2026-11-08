@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ACTIONS, MODULES } from "@places/domain";
+import { ACTIONS, FIELD_MODES, MODULES } from "@places/domain";
 import { CalendarDay, Id, Page } from "./common.ts";
 
 /** M-09: at least 10 characters with letters and digits. */
@@ -12,6 +12,13 @@ export const Tier = z.enum(["Super Admin", "Office Manager", "Operations Head", 
 export const ModuleActions = z.array(z.enum(ACTIONS)).max(ACTIONS.length);
 export const Matrix = z.record(z.enum(MODULES), ModuleActions);
 export type Matrix = z.infer<typeof Matrix>;
+
+/** M-09 field permissions: one module's fields for a role, each «show», «read» or «hide» (fields not sent are shown). */
+export const RoleFieldsInput = z.object({
+  module: z.enum(MODULES, { errorMap: () => ({ message: "اختار الموديول" }) }),
+  rules: z.record(z.string().max(60), z.enum(FIELD_MODES, { errorMap: () => ({ message: "اختار ظاهر أو قراية بس أو مخفي" }) })),
+});
+export type RoleFieldsInput = z.infer<typeof RoleFieldsInput>;
 
 export const UserInput = z.object({
   name: z.string().trim().min(2).max(120),
@@ -26,6 +33,9 @@ export const UserInput = z.object({
   otpRequired: z.boolean().default(false),
 });
 export type UserInput = z.infer<typeof UserInput>;
+/** An edit: a field the person may not see or change (M-09 field permissions) isn't in the form, so it may be left out. */
+export const UserUpdate = UserInput.extend({ email: UserInput.shape.email.optional(), department: UserInput.shape.department.optional() });
+export type UserUpdate = z.infer<typeof UserUpdate>;
 
 export const UserFilters = Page.extend({
   q: z.string().max(80).optional(),

@@ -130,11 +130,11 @@ export class InventoryService {
     return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now) };
   }
 
-  async list(me: CurrentUser, f: UnitFilters): Promise<Paged<UnitRow>> {
-    const s = this.scope(me);
+  async list(me: CurrentUser, filters: UnitFilters): Promise<Paged<UnitRow>> {
+    const s = this.scope(me), hidden = me.fields.hidden("inventory"), f = shownFilters(filters, hidden);
     const [rows, total] = await this.repo.list(s, await withMissing(this.repo, s, f), f.tabId ? await this.repo.areaTabs() : []);
     const [agents, links] = await Promise.all([this.names(rows.map((r) => r.agentId)), this.photos.links(rows.flatMap((r) => r.photos.map((p) => p.fileId)))]);
-    return { items: rows.map((r) => this.row(r, s, agents, links)), total, page: f.page, pageSize: f.pageSize };
+    return { items: rows.map((r) => this.row(r, s, agents, links, hidden)), total, page: f.page, pageSize: f.pageSize };
   }
 
   async summary(me: CurrentUser): Promise<UnitSummary> {
@@ -152,8 +152,8 @@ export class InventoryService {
     return { units: mine.slice(0, 5).map(({ id, code, missing }) => ({ id, code, missing })), total: mine.length };
   }
 
-  async tabs(me: CurrentUser, f: UnitFilters): Promise<UnitTabCounts> {
-    const s = this.scope(me);
+  async tabs(me: CurrentUser, filters: UnitFilters): Promise<UnitTabCounts> {
+    const s = this.scope(me), f = shownFilters(filters, me.fields.hidden("inventory"));
     const [all, ...rest] = await this.repo.tabCounts(s, await withMissing(this.repo, s, f), UNIT_TYPES, f.tabId ? await this.repo.areaTabs() : []);
     const closed = rest.pop()!;
     return { all, ...(Object.fromEntries(UNIT_TYPES.map((t, i) => [t, rest[i]!])) as Record<(typeof UNIT_TYPES)[number], number>), closed };
@@ -165,21 +165,22 @@ export class InventoryService {
   }
 
   async get(me: CurrentUser, id: string): Promise<UnitDetail> {
-    const s = this.scope(me);
+    const s = this.scope(me), hidden = me.fields.hidden("inventory");
     const u = await this.repo.detail(s, id);
     if (!u) throw new NotFoundException(NO_UNIT);
     const [agents, links] = await Promise.all([this.names([u.agentId]), this.photos.links(u.photos.map((p) => p.fileId))]);
     const by = u.createdById ? await this.repo.userName(u.createdById) : null;
     const locks = s.insider ? await this.units.locks(me, id) : []; // the deals on it are the inventory team's business
     return {
-      ...this.row(u, s, agents, links), splitNote: u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
+      ...this.row(u, s, agents, links, hidden), splitNote: hidden.has("splitNote") ? null : u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
       createdBy: u.createdById && by ? { id: u.createdById, name: by.name } : null, updatedAt: u.updatedAt.toISOString(), locks,
       mediaUploadedAt: u.mediaUploadedAt?.toISOString() ?? null, mediaOnTime: u.mediaUploadedAt ? mediaOnTime(u.enteredAt, u.mediaUploadedAt) : null,
     };
   }
 
   /** M-03 2.1 · 3.2: the serial code and the total are the system's; marketing gets the Live Alert (M-03 7.1). */
-  async create(me: CurrentUser, input: UnitInput): Promise<CreatedUnit> {
+  async create(me: CurrentUser, sheet: UnitInput): Promise<CreatedUnit> {
+    const input = keepFixed(sheet, null, me.fields.fixed("inventory"));
     await this.check(input, null);
     const unit = await this.db.$transaction((tx) => this.insert(tx, me, input));
     // to marketing's board of new units (M-04 4.4), not the unit: it isn't published until Manar confirms its PDF (Q15, 2.8)
@@ -201,7 +202,7 @@ export class InventoryService {
     const run = async (tx: Prisma.TransactionClient) => {
       for (const { line, data } of sheet.rows) {
         const name = data.agentId?.trim().toLowerCase();
-        const input = { ...data, agentId: name ? agents.get(name) ?? "" : undefined }; // the sheet has the agent's name (may be empty, 2.21)
+        const input = keepFixed({ ...data, agentId: name ? agents.get(name) ?? "" : undefined }, null, me.fields.fixed("inventory")); // the sheet has the agent's name (may be empty, 2.21)
         if (input.agentId === "") { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
         try { await this.check(input, null); } catch (e) { errors.push({ line, column: "", message: (e as Error).message }); continue; }
         const key = { project: input.project, space: input.space, floor: input.floor ?? null, building: input.building ?? null, ownerPhone: input.ownerPhone ?? null };
@@ -228,10 +229,12 @@ export class InventoryService {
   }
 
   /** The whole sheet is sent back; only what changed is audited (prices too, 2.2), and the PDF waits for Manar again (Q19). */
-  async update(me: CurrentUser, id: string, input: UnitInput): Promise<UnitDetail> {
+  async update(me: CurrentUser, id: string, sheet: UnitInput): Promise<UnitDetail> {
     const s = this.scope(me);
     const before = await this.repo.detail(s, id);
     if (!before) throw new NotFoundException(NO_UNIT);
+    // M-09 field permissions: what the person may not change keeps its value (the form sends the whole sheet)
+    const input = keepFixed(sheet, before, me.fields.fixed("inventory"));
     await this.check(input, before);
     const blocked = await this.units.editBlocked(id, { type: input.type, alsoType: input.alsoType ?? null });
     if (blocked) throw new BadRequestException(blocked);
@@ -288,7 +291,11 @@ export class InventoryService {
     return new Map((known.length ? await this.repo.employeeNames(known) : []).map((e) => [e.id, e.name]));
   }
 
-  private row(u: UnitRowRecord, s: UnitScope, agents: Map<string, string>, links: Map<string, string>): UnitRow {
+  private row(u: UnitRowRecord, s: UnitScope, agents: Map<string, string>, links: Map<string, string>, hidden: ReadonlySet<string>): UnitRow {
+    return hideFields(this.fullRow(u, s, agents, links, hidden), hidden);
+  }
+
+  private fullRow(u: UnitRowRecord, s: UnitScope, agents: Map<string, string>, links: Map<string, string>, hidden: ReadonlySet<string>): UnitRow {
     const money = (d: Prisma.Decimal | null) => (d ? d.toFixed(2) : null);
     const income = u.type === "Income" && u.pricePerSqm && u.leasePerSqm && u.space > 0
       ? incomeFigures({ salePerSqm: fromDecimal(u.pricePerSqm.toFixed(2)), leasePerSqm: fromDecimal(u.leasePerSqm.toFixed(2)), area: u.space })
@@ -307,9 +314,60 @@ export class InventoryService {
       income: income ? { monthlyRent: toDecimal(income.monthlyRent), annualRent: toDecimal(income.annualRent), yieldPct: income.yieldPct } : null,
       photo: u.photos[0] ? links.get(u.photos[0].fileId) ?? null : null, photoCount: u._count.photos,
       closings: u.locks.map((l) => ({ type: l.type, status: closedStatus(l.type), at: (l.lockedAt ?? u.createdAt).toISOString(), dealCode: s.insider ? l.deal.code : null })),
-      missing: missingFields({ ...u, photoCount: u._count.photos }),
+      missing: missingFields({ ...u, photoCount: u._count.photos }, hidden),
     };
   }
+}
+
+/**
+ * M-09 field permissions: a hidden field's value never leaves the API: blank in the row (its kind kept, so the screens
+ * and documents show «—»), gone from `details`. The screens leave its column, row and input out (they read the same rules).
+ */
+function hideFields(r: UnitRow, hidden: ReadonlySet<string>): UnitRow {
+  if (!hidden.size) return r;
+  const h = (k: string) => hidden.has(k);
+  return {
+    ...r,
+    area: h("area") ? "" : r.area, space: h("space") ? 0 : r.space, areaTabId: h("areaTabId") ? null : r.areaTabId, condition: h("condition") ? "" : r.condition,
+    floor: h("floor") ? null : r.floor, building: h("building") ? null : r.building, parking: h("parking") ? 0 : r.parking,
+    ownerName: h("ownerName") ? null : r.ownerName, ownerPhone: h("ownerPhone") ? null : r.ownerPhone,
+    pricePerSqm: h("pricePerSqm") ? null : r.pricePerSqm, totalPrice: h("totalPrice") ? null : r.totalPrice, leasePerSqm: h("leasePerSqm") ? null : r.leasePerSqm,
+    income: h("income") || !r.income ? null : h("yield") ? { ...r.income, yieldPct: null } : r.income,
+    maintenance: h("maintenance") ? null : r.maintenance, commission: h("commission") ? null : r.commission, paymentMethod: h("paymentMethod") ? null : r.paymentMethod,
+    layout: h("layout") ? false : r.layout, comment: h("comment") ? null : r.comment, location: h("location") ? null : r.location,
+    divisible: h("divisible") ? false : r.divisible, minSplit: h("minSplit") ? null : r.minSplit, agent: h("agent") ? null : r.agent,
+    lastOwnerUpdateAt: h("lastOwnerUpdateAt") ? "" : r.lastOwnerUpdateAt, stale: h("stale") ? false : r.stale,
+    details: Object.fromEntries(Object.entries(r.details).filter(([k]) => !h(k))),
+  };
+}
+
+/** Filtering by a hidden field would tell its value: such a filter is dropped. */
+function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitFilters {
+  if (!hidden.size) return f;
+  const drop = (on: boolean, ...keys: (keyof UnitFilters)[]) => (on ? Object.fromEntries(keys.map((k) => [k, undefined])) : {});
+  return {
+    ...f, ...drop(hidden.has("area"), "area"), ...drop(hidden.has("condition"), "condition"), ...drop(hidden.has("agent"), "agentId"),
+    ...drop(hidden.has("space"), "minSpace", "maxSpace", "tabId"), ...drop(hidden.has("totalPrice"), "minPrice", "maxPrice"),
+    ...drop(hidden.has("lastOwnerUpdateAt"), "stale"), ...drop(hidden.has("divisible"), "divisible"),
+  };
+}
+
+/** A field the person may not set: its value as stored (an edit), or empty (a new unit). Keys a type doesn't have are ignored by toData. */
+const EMPTY: Record<string, unknown> = { area: "", space: 0, condition: "", parking: 0, layout: false, divisible: false };
+const INPUT_KEYS = ["area", "space", "areaTabId", "condition", "floor", "building", "parking", "agentId", "maintenance", "commission", "location", "layout", "comment",
+  "lastOwnerUpdateAt", "divisible", "minSplit", "splitNote", "ownerName", "ownerPhone", "pricePerSqm", "leasePerSqm", "paymentMethod", "delivery", "upfront",
+  "security", "payment", "term", "grace", "escalationPct", "link", "contractDuration", "startsOn", "endsOn", "serviceChargeUsd", "tenant", "note"] as const;
+function keepFixed(input: UnitInput, before: UnitRecord | null, fixed: ReadonlySet<string>): UnitInput {
+  if (!fixed.size) return input;
+  const out: Record<string, unknown> = { ...input };
+  const stored = (before ?? {}) as Record<string, unknown>, details = (before?.details ?? {}) as Record<string, unknown>;
+  for (const k of INPUT_KEYS) {
+    if (!fixed.has(k)) continue;
+    if (!before) { out[k] = EMPTY[k]; continue; }
+    const v = k in stored ? stored[k] : details[k];
+    out[k] = v instanceof Date ? localDate(v) : v != null && typeof v === "object" && "toFixed" in v ? (v as Prisma.Decimal).toFixed(2) : v ?? undefined;
+  }
+  return out as UnitInput;
 }
 
 /**

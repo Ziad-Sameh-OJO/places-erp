@@ -12,6 +12,7 @@ import type { Tx } from "./hr.repository";
 import { LeavesService } from "./leaves.service";
 import { ExcusesService } from "./excuses.service";
 import { KpisService } from "../kpis/kpis.service";
+import { hideAttendance, hideDeduction, hiddenTotal } from "./hr-fields";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const EMP = { id: true, name: true, department: true, salary: true, partTime: true, partTimeDeductions: true, deductionTiers: true, fixedSchedule: true } as const;
@@ -115,7 +116,7 @@ export class AttendanceService {
       const r = attendanceDay({ kind: "forgot-fingerprint", confirmedByHr: true });
       const out = await tx.attendanceDay.update({ where: { id }, data: { hrConfirmed: true, deduction: r.deduction } });
       await this.audit.record({ module: "hr", entity: "AttendanceDay", entityId: id, action: "confirm-forgot", userId: me.id, before: { deduction: Number(a.deduction) }, after: { day: isoDay(a.day), deduction: r.deduction } }, tx);
-      return this.row(a.employee, out);
+      return hideAttendance(this.row(a.employee, out), me.fields.hidden("hr"));
     });
   }
 
@@ -129,7 +130,8 @@ export class AttendanceService {
       this.leaves.employeesOnLeave(day),
     ]);
     const byId = new Map(emps.map((e) => [e.id, e]));
-    const view = rows.filter((a) => byId.has(a.employeeId)).map((a) => this.row(byId.get(a.employeeId)!, a)).sort((x, y) => x.name.localeCompare(y.name, "ar"));
+    const hidden = me.fields.hidden("hr");
+    const view = rows.filter((a) => byId.has(a.employeeId)).map((a) => hideAttendance(this.row(byId.get(a.employeeId)!, a), hidden)).sort((x, y) => x.name.localeCompare(y.name, "ar"));
     const working = isWorkingDay(day, cal);
     const seen = new Set(rows.map((r) => r.employeeId));
     // a holiday or a day off is never «غياب»; part-timers don't fingerprint; approved leave isn't missing (7.5)
@@ -137,7 +139,7 @@ export class AttendanceService {
     return {
       day, working, holiday: holiday?.label ?? null, rows: view, missing,
       unmatched: unmatched.map((u) => ({ id: u.id, name: u.name, day: isoDay(u.day), checkIn: u.checkIn })),
-      totals: { present: view.length, late: view.filter((r) => r.lateMinutes > 0).length, deductions: toDecimal(view.reduce((s, r) => s + fromDecimal(r.deductionAmount), 0)) },
+      totals: { present: view.length, late: view.filter((r) => r.lateMinutes > 0).length, deductions: hiddenTotal(hidden, "deductionAmount", toDecimal(view.reduce((s, r) => s + fromDecimal(r.deductionAmount), 0))) },
     };
   }
 
@@ -155,9 +157,10 @@ export class AttendanceService {
     const emp = f.employeeId ? await this.db.employee.findFirst({ where: { AND: [{ id: f.employeeId }, this.scope(me)] }, select: EMP }) : null;
     if (f.employeeId && !emp) throw new NotFoundException("الموظف مش موجود");
     if (!emp) return { employee: null, rows: [], totals: { late: 0, deductionDays: 0, deductions: "0.00" } };
-    const rows = (await this.db.attendanceDay.findMany({ where: { employeeId: emp.id, day: { gte: asDay(f.from), lte: asDay(f.to) } }, orderBy: { day: "asc" } })).map((a) => this.row(emp, a));
+    const hidden = me.fields.hidden("hr");
+    const rows = (await this.db.attendanceDay.findMany({ where: { employeeId: emp.id, day: { gte: asDay(f.from), lte: asDay(f.to) } }, orderBy: { day: "asc" } })).map((a) => hideAttendance(this.row(emp, a), hidden));
     return { employee: { id: emp.id, name: emp.name }, rows,
-      totals: { late: rows.reduce((s, r) => s + r.lateMinutes, 0), deductionDays: rows.reduce((s, r) => s + r.deduction, 0), deductions: toDecimal(rows.reduce((s, r) => s + fromDecimal(r.deductionAmount), 0)) } };
+      totals: { late: rows.reduce((s, r) => s + r.lateMinutes, 0), deductionDays: rows.reduce((s, r) => s + r.deduction, 0), deductions: hiddenTotal(hidden, "deductionAmount", toDecimal(rows.reduce((s, r) => s + fromDecimal(r.deductionAmount), 0))) } };
   }
 
   /** Weekly Delay (M-05): every minute after 11:16 per person per day, Excuse / Visit included, sorted by the most. */
@@ -203,8 +206,9 @@ export class AttendanceService {
     const by = ok ? await this.db.employee.findUnique({ where: { userId: ok.approvedById }, select: { name: true } }) : null;
     const rows = lines.map((l) => ({ employeeId: l.employeeId, name: l.name, salary: l.salary, attendanceDays: l.attendanceDays, penaltyDays: l.penaltyDays, lateMinutes: l.lateMinutes, kpi: l.kpi ?? "0.00", amount: l.amount,
       net: toDecimal(fromDecimal(l.salary) - fromDecimal(l.amount)) }));
-    const sum = (k: "salary" | "amount" | "net") => toDecimal(rows.reduce((s, r) => s + fromDecimal(r[k]), 0));
-    return { month, rows, totals: { salary: sum("salary"), amount: sum("amount"), net: sum("net"), people: rows.length }, approved: ok ? { by: by?.name ?? "", at: ok.at.toISOString() } : null };
+    const hidden = me.fields.hidden("hr"), shown = rows.map((r) => hideDeduction(r, hidden));
+    const sum = (k: "salary" | "amount" | "net") => toDecimal(shown.reduce((s, r) => s + fromDecimal(r[k]), 0));
+    return { month, rows: shown, totals: { salary: sum("salary"), amount: sum("amount"), net: sum("net"), people: rows.length }, approved: ok ? { by: by?.name ?? "", at: ok.at.toISOString() } : null };
   }
 
   /**
@@ -238,7 +242,7 @@ export class AttendanceService {
     const out = [...teams].filter(([, ids]) => ids.size > 1).map(([lead, ids]) => {
       const team = [...ids].map(member), r = idealEmployee(team);
       return {
-        name: `فريق ${nameOf.get(lead) ?? ""}`, winner: r.winner ? { employeeId: r.winner, name: byId.get(r.winner)!.name } : null, fund: toDecimal(r.fund),
+        name: `فريق ${nameOf.get(lead) ?? ""}`, winner: r.winner ? { employeeId: r.winner, name: byId.get(r.winner)!.name } : null, fund: hiddenTotal(me.fields.hidden("hr"), "fund", toDecimal(r.fund)),
         rows: team.map((m) => ({
           employeeId: m.id, name: byId.get(m.id)!.name, earlyDays: m.earlyDays, lateHours: Math.round(m.lateHours * 10) / 10, absentDays: m.absentDays,
           kpi: m.kpiScore == null ? null : Math.round(m.kpiScore), points: Math.round(r.points.get(m.id)! * 10) / 10,
@@ -330,7 +334,7 @@ export class AttendanceService {
       const after = await tx.attendanceDay.findUniqueOrThrow({ where: { employeeId_day: { employeeId: e.id, day: asDay(input.day) } } });
       await this.audit.record({ module: "hr", entity: "AttendanceDay", entityId: after.id, action: before ? "update" : "create", userId: me.id,
         before: before ? { checkIn: this.hhmm(before.checkInAt, input.day), deduction: Number(before.deduction) } : null, after: { day: input.day, checkIn, checkOut, deduction: Number(after.deduction) } }, tx);
-      return this.row(e, after);
+      return hideAttendance(this.row(e, after), me.fields.hidden("hr"));
     });
   }
 }

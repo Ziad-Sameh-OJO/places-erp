@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { moneyExact } from "@/lib/format";
 import { type ColWord, type UnitTypeName, w } from "./unit-bits";
 import { serverText } from "@/lib/server-text";
+import { useFields } from "@/lib/me";
 
 type Key =
   | "type" | "project" | "area" | "space" | "condition" | "floor" | "building" | "parking" | "agentId" | "areaTabId" | "location"
@@ -149,7 +150,12 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
     });
   };
 
-  const input = ([k, label, kind, req]: TypeField): ReactNode => (
+  // M-09 field permissions: a hidden field has no input; a read-only one is shown locked (the API keeps it either way)
+  const fields = useFields("inventory");
+  const only = (key: string, node: ReactNode): ReactNode =>
+    !fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
+
+  const input = ([k, label, kind, req]: TypeField): ReactNode => only(k,
     <Field key={k} label={typeof label === "string" ? label : t(`cols.${label.w}`)} req={req} wide={k === "note" || k === "comment"}>
       {k === "paymentMethod"
         ? <select name={k} required={req} value={f[k]} onChange={set(k)}><option value="">—</option>{choices(options?.paymentMethods, f[k]).map((p) => <option key={p}>{p}</option>)}</select>
@@ -173,51 +179,51 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
           </select>
         </Field>
         <Field label={t("form.project")}><input name="project" maxLength={160} value={f.project} onChange={set("project")} /></Field>
-        <Field label="Area">
+        {only("area", <Field label="Area">
           <select name="area" value={f.area} onChange={set("area")}>
             <option value="">{t("form.pick")}</option>
             {choices(options?.areas, f.area).map((a) => <option key={a} value={a}>{serverText(a)}</option>)}
           </select>
-        </Field>
-        <Field label={t("form.grossArea")}><input name="space" type="number" min={1} step={1} value={f.space} onChange={set("space")} /></Field>
-        <Field label={t("form.condition")}>
+        </Field>)}
+        {only("space", <Field label={t("form.grossArea")}><input name="space" type="number" min={1} step={1} value={f.space} onChange={set("space")} /></Field>)}
+        {only("condition", <Field label={t("form.condition")}>
           <select name="condition" value={f.condition} onChange={set("condition")}><option value="">{t("form.pick")}</option>{choices(options?.conditions, f.condition).map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
-        </Field>
-        <Field label="Floor"><input name="floor" maxLength={40} value={f.floor} onChange={set("floor")} /></Field>
-        <Field label="Build num"><input name="building" maxLength={40} value={f.building} onChange={set("building")} /></Field>
-        <Field label="Parking slots"><input name="parking" type="number" min={0} step={1} value={f.parking} onChange={set("parking")} /></Field>
-        <Field label={t("form.agent")}>
+        </Field>)}
+        {only("floor", <Field label="Floor"><input name="floor" maxLength={40} value={f.floor} onChange={set("floor")} /></Field>)}
+        {only("building", <Field label="Build num"><input name="building" maxLength={40} value={f.building} onChange={set("building")} /></Field>)}
+        {only("parking", <Field label="Parking slots"><input name="parking" type="number" min={0} step={1} value={f.parking} onChange={set("parking")} /></Field>)}
+        {only("agent", <Field label={t("form.agent")}>
           <select name="agentId" value={f.agentId} onChange={set("agentId")}>
             <option value="">{t("form.pick")}</option>{agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-        </Field>
-        <Field label={t("form.areaTab")}>
+        </Field>)}
+        {only("areaTabId", <Field label={t("form.areaTab")}>
           <select name="areaTabId" value={f.areaTabId} onChange={set("areaTabId")}>
             <option value="">{t("form.auto")}{auto ? ` (${areaTabLabel(auto)})` : ""}</option>
             {tabs.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
           </select>
-        </Field>
-        <Field label={t("form.location")}>
+        </Field>)}
+        {only("location", <Field label={t("form.location")}>
           <div className="row">
             <input name="location" dir="ltr" placeholder="30.02, 31.48" value={f.location} onChange={set("location")} />
             <a className="btn ghost sm" href={`https://maps.google.com/${f.location ? `?q=${encodeURIComponent(f.location)}` : ""}`} target="_blank" rel="noopener noreferrer"><Icon name="pin" />{t("form.pick")}</a>
           </div>
-        </Field>
-        <Field label={t("form.lastUpdate")}><input name="lastOwnerUpdateAt" type="date" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>
+        </Field>)}
+        {only("lastOwnerUpdateAt", <Field label={t("form.lastUpdate")}><input name="lastOwnerUpdateAt" type="date" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>)}
         {TYPE_FIELDS[type].map(input)}
-        <Field label="Layout">
+        {only("layout", <Field label="Layout">
           <select name="layout" value={f.layout} onChange={set("layout")}><option value="no">No</option><option value="yes">Yes</option></select>
-        </Field>
+        </Field>)}
         <Field label={t("form.receivedAt")}><input name="receivedAt" type="datetime-local" value={f.receivedAt} onChange={set("receivedAt")} /></Field>
-        <Field label={t("form.divisibleQ")}>
+        {only("divisible", <Field label={t("form.divisibleQ")}>
           <select name="divisible" value={f.divisible} onChange={set("divisible")}><option value="no">{t("form.no")}</option><option value="yes">{t("cell.yes")}</option></select>
-        </Field>
-        {f.divisible === "yes" && <>
+        </Field>)}
+        {f.divisible === "yes" && fields.shows("divisible") && <>
           <Field label={t("form.minSplit")}><input name="minSplit" type="number" min={1} step={1} value={f.minSplit} onChange={set("minSplit")} /></Field>
           <Field label={t("form.splitNote")} wide><textarea name="splitNote" maxLength={500} value={f.splitNote} onChange={set("splitNote")} placeholder={t("form.splitExample")} /></Field>
         </>}
         {type === "Primary" && <div className="wide"><Note kind="warn">{t("form.primaryNote")}</Note></div>}
-        <div className="wide"><Figures f={f} /></div>
+        {fields.shows("totalPrice") && fields.shows("income") && <div className="wide"><Figures f={f} /></div>}
         <div className="row end wide">
           <span className="hint spacer">{unit ? t("form.editHint") : t("form.newHint")}</span>
           <button className="btn" disabled={busy}>{busy ? t("common.saving") : unit ? t("form.save") : t("form.saveUnit")}</button>

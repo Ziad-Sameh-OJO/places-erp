@@ -7,6 +7,7 @@ import { Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
 import { num } from "@/lib/format";
 import { type LeadQuery, PRESETS, type SavedView, activeCount, sameFilters } from "./filters";
 import { serverText } from "@/lib/server-text";
+import { useFields } from "@/lib/me";
 
 /** «مقارنة بالأسبوع اللي فات»: % change, none when last week had nothing (demo U.delta). */
 const delta = (cur: number, prev: number) => (prev ? ((cur - prev) / prev) * 100 : null);
@@ -66,24 +67,25 @@ export function LeadsToolbar({ f, set, settings, options }: {
   const on = (k: keyof LeadQuery) => (e: { target: { value: string } }) => set({ ...f, [k]: e.target.value, ...(k === "channel" ? { campaignId: "" } : {}) });
   const campaigns = (options?.campaigns ?? []).filter((c) => !f.channel || c.channel === f.channel);
   const t = useTranslations("leads.filters");
+  const fields = useFields("leads"); // M-09: no filter on a hidden field (the API drops such filters too)
   const n = activeCount(f);
   return (
     <div className="toolbar">
       <label className="search"><Icon name="search" /><input type="search" placeholder={t("search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("searchLabel")} /></label>
-      <select value={f.channel ?? ""} onChange={on("channel")} aria-label="Channel">
+      {fields.shows("channel") && <select value={f.channel ?? ""} onChange={on("channel")} aria-label="Channel">
         <option value="">{t("allChannels")}</option>{settings?.channels.map(({ value }) => <option key={value} value={value}>{value}</option>)}
-      </select>
-      <select value={f.campaignId ?? ""} onChange={on("campaignId")} aria-label="Campaign">
+      </select>}
+      {fields.shows("campaign") && <select value={f.campaignId ?? ""} onChange={on("campaignId")} aria-label="Campaign">
         <option value="">{t("allCampaigns")}</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select>
+      </select>}
       {!!options?.salespeople.length && (
         <select value={f.assignedToId ?? ""} onChange={on("assignedToId")} aria-label="Sales">
           <option value="">{t("allSales")}</option>{options.salespeople.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       )}
-      <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
+      {fields.shows("area") && <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
         <option value="">{t("allAreas")}</option>{settings?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
-      </select>
+      </select>}
       <select value={f.qualified ?? ""} onChange={on("qualified")} aria-label="Qualified">
         <option value="">{t("qualifiedAll")}</option><option value="true">{t("qualifiedOnly")}</option><option value="false">{t("notQualified")}</option>
       </select>

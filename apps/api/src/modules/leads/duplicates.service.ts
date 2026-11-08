@@ -7,6 +7,7 @@ import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { type DuplicateRecord, LeadsRepository } from "./leads.repository";
+import { hideSide } from "./lead-fields";
 
 /** What was entered the second time, as stored on the duplicate (the new-lead form without the routing choices). */
 const Entry = CreateLead.pick({ name: true, company: true, phones: true, area: true, type: true, space: true, condition: true, budget: true, channel: true, campaignId: true });
@@ -39,7 +40,8 @@ export class LeadDuplicatesService {
   }
 
   /** Operations' queue «طلبات مستنية الأوبريشن»: both sides of every pending duplicate. */
-  async pending(): Promise<DuplicateRow[]> {
+  async pending(me: CurrentUser): Promise<DuplicateRow[]> {
+    const hidden = me.fields.hidden("leads"); // M-09: both sides blank a hidden field
     const rows = await this.repo.pendingDuplicates();
     const entries = new Map(rows.map((r) => [r.id, Entry.parse(r.data)]));
     const [people, salespeople, campaigns] = await Promise.all([
@@ -50,11 +52,14 @@ export class LeadDuplicatesService {
     const person = new Map(people.map((p) => [p.userId, p.name]));
     const salesperson = new Map(salespeople.map((s) => [s.id, s.name]));
     const campaign = new Map(campaigns.map((c) => [c.id, c]));
-    return rows.map((r) => toRow(r, entries.get(r.id)!, person, salesperson, campaign));
+    return rows.map((r) => toRow(r, entries.get(r.id)!, person, salesperson, campaign)).map((d) => ({ ...d, lead: hideSide(d.lead, hidden), entry: hideSide(d.entry, hidden) }));
   }
 
   /** Applies Operations' choice once (two people deciding at once: the second gets 409), audited before / after. */
-  async decide(me: CurrentUser, id: string, choice: DuplicateDecision) {
+  async decide(me: CurrentUser, id: string, picked: DuplicateDecision) {
+    // M-09: a field the person may not change keeps the lead's value («old»); «channel» brings its campaign along
+    const fixed = me.fields.fixed("leads");
+    const choice = Object.fromEntries(Object.entries(picked).map(([k, v]) => [k, fixed.has(k) || (k === "channel" && fixed.has("campaignId")) ? "old" : v])) as DuplicateDecision;
     await this.db.$transaction(async (tx) => {
       const d = await this.repo.duplicate(tx, id);
       if (!d) throw new NotFoundException("طلب التكرار ده مش موجود");

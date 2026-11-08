@@ -15,8 +15,8 @@ export class LeadDuplicatesController {
 
   @Get()
   @Requires("leads", "approve")
-  pending() {
-    return this.duplicates.pending();
+  pending(@Me() me: CurrentUser) {
+    return this.duplicates.pending(me);
   }
 
   @Post(":id/decide")

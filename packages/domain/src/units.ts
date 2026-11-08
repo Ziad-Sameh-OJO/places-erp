@@ -234,10 +234,11 @@ export interface MissingInput { readonly type: UnitType; readonly photoCount: nu
  * 2.20: the names of the unit's empty columns (empty text, nothing, or 0); the photos are missing while the folder is
  * empty. The unit is saved anyway; the alert stays on «مهامي النهارده» until this is empty.
  */
-export function missingFields(u: MissingInput): string[] {
+export function missingFields(u: MissingInput, skip: ReadonlySet<string> = new Set()): string[] {
   const details = (u.details ?? {}) as Record<string, unknown>;
   const value = (k: string) => (k === "photos" ? u.photoCount : (u[k] ?? details[k]));
-  return MISSING_COLUMNS[u.type].filter(([k]) => { const v = value(k); return v == null || v === "" || v === 0; }).map(([, label]) => label);
+  // `skip`: fields hidden from the person (M-09 field permissions) — neither shown nor theirs to fill
+  return MISSING_COLUMNS[u.type].filter(([k]) => { if (skip.has(k)) return false; const v = value(k); return v == null || v === "" || v === 0; }).map(([, label]) => label);
 }
 
 /** Whose «مهامي النهارده» shows a unit's missing data: Manar the Rent units, Randa the rest, the admin all (demo home.js). */

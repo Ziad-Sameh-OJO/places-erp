@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ROTATION, type DuplicateDecision, type DuplicateRow, type LeadSide, type NewLeadRequestRow } from "@places/contracts";
 import { DUPLICATE_FIELDS } from "@places/domain";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { Card, Chip, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { useDecideDuplicate, useDuplicates } from "./use-duplicates";
@@ -97,12 +97,14 @@ function DuplicateReview({ row, onClose }: { row: DuplicateRow; onClose: () => v
   const t = useTranslations("leads.queue");
   const run = useAction();
   const decide = useDecideDuplicate();
+  // M-09: a hidden field has no row; one the person may not change keeps the lead's value (the API does the same)
+  const fields = useFields("leads");
   const pick = (name: string, side: "old" | "new", text: string) => (
-    <label className="tog"><input type="radio" name={name} value={side} defaultChecked={side === "old"} /> {text}</label>
+    <label className="tog"><input type="radio" name={name} value={side} defaultChecked={side === "old"} disabled={side === "new" && (!fields.edits(name) || (name === "channel" && !fields.edits("campaign")))} /> {text}</label>
   );
   const rows = [
-    ...DUPLICATE_FIELDS.map(([k, label]) => [<b key="l">{serverText(label)}</b>, pick(k, "old", shown(row.lead[k])), pick(k, "new", shown(row.entry[k]))]),
-    [<b key="l">Channel · Campaign</b>, pick("channel", "old", channelOf(row.lead)), pick("channel", "new", channelOf(row.entry))],
+    ...DUPLICATE_FIELDS.filter(([k]) => fields.shows(k)).map(([k, label]) => [<b key="l">{serverText(label)}</b>, pick(k, "old", shown(row.lead[k])), pick(k, "new", shown(row.entry[k]))]),
+    ...(fields.shows("channel") ? [[<b key="l">Channel · Campaign</b>, pick("channel", "old", channelOf(row.lead)), pick("channel", "new", channelOf(row.entry))]] : []),
   ];
   const save = (f: FormData) => run(async () => {
     const side = (k: string) => (f.get(k) === "new" ? "new" : "old");

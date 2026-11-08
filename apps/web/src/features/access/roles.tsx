@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ACTIONS, MODULES } from "@places/domain";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { Card, Chip, Field, Modal, Note, useAction } from "@/components/ui";
+import { Card, Chip, Field, Modal, Note, Tabs, useAction } from "@/components/ui";
 import { Matrix, type MatrixValue } from "./matrix";
+import { RoleFields } from "./role-fields";
 import { SCOPES, TIERS, type RoleRow } from "./types";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -20,6 +21,8 @@ export function RolesTab() {
   const roles = useQuery({ queryKey: ["roles"], queryFn: () => api.get<RoleRow[]>("/access/roles") });
   const [pick, setPick] = useState<string | null>(null);
   const [form, setForm] = useState<{ mode: "new" | "edit" | "copy"; role?: RoleRow } | null>(null);
+  // the role's module actions, or its fields (M-09 field permissions): two tabs, so the fields aren't lost under the matrix
+  const [part, setPart] = useState<"perms" | "fields">("perms");
   const role = roles.data?.find((r) => r.key === pick) ?? roles.data?.[0];
   // the Super Admin role is changed by a Super Admin only (the API refuses anyone else)
   const editable = can("access", "edit") && (role?.key !== "admin" || !!me?.roles.includes("admin"));
@@ -48,6 +51,8 @@ export function RolesTab() {
             {can("access", "delete") && !role.builtIn && <button className="btn danger sm" disabled={role.users > 0} title={role.users ? t("hasPeople") : ""}
               onClick={() => confirm(t("confirmDelete", { label: serverText(role.label) })) && run(async () => { await api.del(`/access/roles/${role.key}`); setPick(null); await refresh(); }, t("deleted"))}>{t("delete")}</button>}
           </div>}>
+          <Tabs value={part} onChange={setPart} items={[["perms", t("partPerms")], ["fields", t("partFields")]]} />
+          {part === "perms" ? <>
           <div className="matrix-tools">
             <span className="hint">{t("scopeLabel")}</span>
             <select value={role.scope.toLowerCase()} disabled={!editable} aria-label={t("scope")}
@@ -61,6 +66,10 @@ export function RolesTab() {
           </div>
           {!editable && <Note>{role.key === "admin" ? t("adminOnly") : t("viewOnly")}</Note>}
           <Matrix value={role.permissions} editable={editable} onChange={save} />
+          </> : <>
+          {!editable && <Note>{role.key === "admin" ? t("adminOnly") : t("viewOnly")}</Note>}
+          <RoleFields key={role.key} role={role} editable={editable} />
+          </>}
         </Card>
       )}
       {form && <RoleForm {...form} roles={roles.data} onClose={() => setForm(null)} onSaved={async (key) => { setPick(key); setForm(null); await refresh(); }} />}

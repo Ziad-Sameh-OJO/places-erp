@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EmployeesView, HrActionsView, OneOnOnesView, PenaltiesView } from "@places/contracts";
 import { Card, Chip, Empty, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { money } from "@/lib/format";
 
@@ -18,6 +18,7 @@ const STATUS = { pending: "warn", approved: "ok", rejected: "bad" } as const;
 export function PeopleCare() {
   const t = useTranslations("hr");
   const { can, me } = useMe();
+  const amounts = useFields("hr").shows("deductionAmount"); // M-09: a hidden amount isn't shown (the API blanks it)
   const [month, setMonth] = useState(today().slice(0, 7));
   const pens = useQuery({ queryKey: ["hr", "penalties", month], queryFn: () => api.get<PenaltiesView>(`/hr/penalties?month=${month}`) });
   const emps = useQuery({ queryKey: ["hr", "employees", ""], queryFn: () => api.get<EmployeesView>("/hr/employees") });
@@ -39,9 +40,9 @@ export function PeopleCare() {
       <Card title={t("care.penaltiesTitle")} icon="alert" sub={t("care.penaltiesSub")}
         extra={<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label={t("common.month")} />}>
         {!p ? <Empty text={t("common.loading")} icon="clock" /> : <>
-          <div className="row"><Chip tone="ok">{t("care.approvedCount", { n: p.totals.approved })}</Chip>{p.totals.pending > 0 && <Chip tone="warn">{t("care.pendingCount", { n: p.totals.pending })}</Chip>}<Chip>{t("care.deductionsTotal", { amount: money(p.totals.deductions) })}</Chip></div>
+          <div className="row"><Chip tone="ok">{t("care.approvedCount", { n: p.totals.approved })}</Chip>{p.totals.pending > 0 && <Chip tone="warn">{t("care.pendingCount", { n: p.totals.pending })}</Chip>}{amounts && <Chip>{t("care.deductionsTotal", { amount: money(p.totals.deductions) })}</Chip>}</div>
           <Table head={[t("common.employee"), t("common.day"), t("care.penalty"), t("common.deduction"), t("care.by"), t("common.status"), ""]} empty={t("care.empty")}
-            rows={p.items.map((x) => [<b key="n">{x.name}</b>, x.day, x.text, x.deductionDays ? <span key="d">{dedLabel(x.deductionDays)}<span className="sub">{money(x.deductionAmount)}</span></span> : "—", x.by,
+            rows={p.items.map((x) => [<b key="n">{x.name}</b>, x.day, x.text, x.deductionDays ? <span key="d">{dedLabel(x.deductionDays)}{amounts && <span className="sub">{money(x.deductionAmount)}</span>}</span> : "—", x.by,
               <Chip key="s" tone={STATUS[x.status]}>{t(`care.status.${x.status}`)}</Chip>,
               <span key="a" className="row">{x.canDecide && <><button className="btn sm" onClick={() => void decide(x.id, true)}>{t("care.approve")}</button><button className="btn ghost sm" onClick={() => void decide(x.id, false)}>{t("care.reject")}</button></>}
                 {can("hr", "delete") && <button className="icon-btn sm" aria-label={t("care.deleteAria")} onClick={() => void remove(x.id)}><Icon name="x" /></button>}</span>])} />

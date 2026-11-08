@@ -41,8 +41,9 @@ export const COLS: Record<UnitTypeName | "all" | "closed", readonly Col[]> = {
 const OWNER_KEYS = new Set(["ownerName", "ownerPhone", "deal"]);
 
 /** The columns this person sees: the owners' name and number only for the people who keep the inventory (API too). */
-export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boolean, t: InventoryT): [key: string, label: string][] =>
-  COLS[type].filter(([k]) => insider || !OWNER_KEYS.has(k)).map(([k, l]) => [k, typeof l === "string" ? l : t(`cols.${l.w}`)]);
+/** `hidden`: the fields the person's role doesn't see (M-09 field permissions). */
+export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boolean, t: InventoryT, hidden: ReadonlySet<string> = new Set()): [key: string, label: string][] =>
+  COLS[type].filter(([k]) => (insider || !OWNER_KEYS.has(k)) && !hidden.has(k)).map(([k, l]) => [k, typeof l === "string" ? l : t(`cols.${l.w}`)]);
 
 // English values sit in <bdi> so «1,5 Month» keeps its order in the RTL table
 const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : <bdi>{String(v)}</bdi>);

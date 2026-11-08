@@ -10,6 +10,7 @@ import { UnitPdfTab } from "./unit-pdf-tab";
 import { amount, dateLocale, moneyExact, num } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { COLS, UnitChips, cell, columnsFor } from "./unit-bits";
+import { useFields } from "@/lib/me";
 
 const hours = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 3_600_000;
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLocale(), { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -24,6 +25,7 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
   onGo: (id: string) => void; onClose: () => void; onComplete?: () => void; actions?: ReactNode;
 }) {
   const t = useTranslations("inventory");
+  const fields = useFields("inventory");
   const [tab, setTab] = useState<"data" | "pdf">("data");
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
@@ -31,14 +33,14 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
   if (!unit) return <Drawer title="…" onClose={onClose}><p className="hint">{t("common.loading")}</p></Drawer>;
   const u = unit;
   const entered = u.receivedAt ? hours(u.receivedAt, u.enteredAt) : null;
-  const cols = columnsFor(u.type, insider, t).filter(([k]) => k !== "code");
+  const cols = columnsFor(u.type, insider, t, fields.hidden).filter(([k]) => k !== "code");
   const kv: [string, ReactNode][] = [
     // the region (Income's «Area» column is the unit's size, as in its sheet)
-    ...(COLS[u.type].some(([k]) => k === "area") ? [] : [[t("drawer.region"), u.area ? serverText(u.area) : "—"] as [string, ReactNode]]),
+    ...(COLS[u.type].some(([k]) => k === "area") || !fields.shows("area") ? [] : [[t("drawer.region"), u.area ? serverText(u.area) : "—"] as [string, ReactNode]]),
     ...cols.map(([k, label]) => [label, cell(u, k, t)] as [string, ReactNode]),
   ];
   return (
-    <Drawer title={`${u.code} · ${u.project}`} sub={`${u.type} · ${serverText(u.area)}`} onClose={onClose} chips={<UnitChips u={u} />}
+    <Drawer title={`${u.code} · ${u.project}`} sub={fields.shows("area") ? `${u.type} · ${serverText(u.area)}` : u.type} onClose={onClose} chips={<UnitChips u={u} />}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}>
       <Tabs value={tab} onChange={setTab} items={[["data", t("drawer.data")], ["pdf", "PDF & slide"]]} />

@@ -24,8 +24,8 @@ export type FileDealRecord = Prisma.DealGetPayload<{ select: typeof DEAL_OF_FILE
 export class ClientsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  list(visible: Prisma.ClientWhereInput, f: ClientFilters, staleBefore: Date, ownerNumbers: boolean) {
-    const where = { AND: [visible, filterWhere(f, staleBefore, ownerNumbers)] };
+  list(visible: Prisma.ClientWhereInput, f: ClientFilters, staleBefore: Date, search: ClientSearch) {
+    const where = { AND: [visible, filterWhere(f, staleBefore, search)] };
     return this.db.$transaction([
       this.db.client.findMany({ where, select: CLIENT_ROW, orderBy: [{ lastContactAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.client.count({ where }),
@@ -131,10 +131,16 @@ const staleOwner = (staleBefore: Date): Prisma.ClientWhereInput =>
   ({ kind: { in: ["owner", "both"] }, units: { some: { archivedAt: null, lastOwnerUpdateAt: { lt: staleBefore } } } });
 
 /**
- * The list's search (M-10 5.2: name, number, company, unit code) and its tabs. The number matches only files whose
- * numbers the caller may see (`ownerNumbers` = `seesOwnerNumbers`, M-10 4.1), or digits could be guessed one by one.
+ * What the search may look in: the numbers of every file (`seesOwnerNumbers`), of clients only, or none; the company
+ * and the units' codes unless hidden from the reader (M-09).
  */
-function filterWhere(f: ClientFilters, staleBefore: Date, ownerNumbers: boolean): Prisma.ClientWhereInput {
+export interface ClientSearch { numbers: "all" | "clients" | "none"; company: boolean; units: boolean }
+
+/**
+ * The list's search (M-10 5.2: name, number, company, unit code) and its tabs. The number matches only files whose
+ * numbers the caller may see (M-10 4.1), or digits could be guessed one by one.
+ */
+function filterWhere(f: ClientFilters, staleBefore: Date, search: ClientSearch): Prisma.ClientWhereInput {
   const and: Prisma.ClientWhereInput[] = [{ archivedAt: null }];
   if (f.kind) and.push({ kind: { in: [f.kind, "both"] } });
   if (f.status) and.push({ status: f.status });
@@ -143,9 +149,9 @@ function filterWhere(f: ClientFilters, staleBefore: Date, ownerNumbers: boolean)
     const digits = normalizePhone(f.q) ?? f.q.replace(/\D/g, ""); // a number written any way (+20, spaces…)
     and.push({ OR: [
       { name: { contains: f.q, mode: "insensitive" } },
-      { company: { contains: f.q, mode: "insensitive" } },
-      { units: { some: { code: { contains: f.q, mode: "insensitive" } } } },
-      ...(digits.length >= 3 ? [{ ...(ownerNumbers ? {} : { kind: "client" as const }), phones: { some: { phone: { contains: digits } } } }] : []),
+      ...(search.company ? [{ company: { contains: f.q, mode: "insensitive" as const } }] : []),
+      ...(search.units ? [{ units: { some: { code: { contains: f.q, mode: "insensitive" as const } } } }] : []),
+      ...(digits.length >= 3 && search.numbers !== "none" ? [{ ...(search.numbers === "all" ? {} : { kind: "client" as const }), phones: { some: { phone: { contains: digits } } } }] : []),
     ] });
   }
   return { AND: and };

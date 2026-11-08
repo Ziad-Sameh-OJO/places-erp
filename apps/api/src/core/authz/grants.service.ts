@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import { type Action, type DataScope, type ModuleKey, effectiveGrants } from "@places/domain";
+import { type Action, type DataScope, type FieldMode, type FieldRules, type ModuleKey, effectiveGrants, fieldAccess, mergeFieldRules } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import type { CurrentUser } from "../auth/current-user.decorator";
 
@@ -13,11 +13,17 @@ export class GrantsService {
   async currentUser(userId: string, db: Pick<PrismaClient, "user"> = this.db): Promise<CurrentUser> {
     const u = await db.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { roles: { include: { role: { include: { permissions: true } } } }, overrides: true, employee: { include: { teamMembers: { select: { id: true } } } } },
+      include: { roles: { include: { role: { include: { permissions: true, fieldRules: true } } } }, overrides: true, employee: { include: { teamMembers: { select: { id: true } } } } },
     });
     const roles = u.roles.map(({ role }) => ({
       scope: role.scope.toLowerCase() as DataScope,
       modules: Object.fromEntries(role.permissions.map((p) => [p.module, p.actions as Action[]])) as Partial<Record<ModuleKey, Action[]>>,
+    }));
+    // M-09 field permissions: each role's «read» / «hide» fields, merged the most permissive way
+    const fieldRules = mergeFieldRules(u.roles.map(({ role }) => {
+      const r: Partial<Record<ModuleKey, Record<string, FieldMode>>> = {};
+      for (const f of role.fieldRules) (r[f.module as ModuleKey] ??= {})[f.field] = f.mode as FieldMode;
+      return r as FieldRules;
     }));
     const overrides = Object.fromEntries(u.overrides.map((o) => [o.module, o.actions as Action[]])) as Partial<Record<ModuleKey, Action[]>>;
     return {
@@ -29,6 +35,8 @@ export class GrantsService {
       roleLabels: [...u.roles].sort((a, b) => Number(b.primary) - Number(a.primary)).map(({ role }) => role.label),
       employeeId: u.employee?.id ?? null,
       grants: effectiveGrants(roles, overrides),
+      fieldRules,
+      fields: fieldAccess(fieldRules),
       teamIds: u.employee ? [u.employee.id, ...u.employee.teamMembers.map((m) => m.id)] : [],
       department: u.employee?.department ?? null,
     };

@@ -4,7 +4,7 @@ import { Card, Icon, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { money } from "../finance/money";
 import { serverText } from "@/lib/server-text";
 import { useOverview, useRefreshProcurement } from "./use-purchases";
 

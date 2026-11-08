@@ -6,7 +6,7 @@ import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAc
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
 import { useCash, usePayroll, useRefreshFinance } from "./use-finance";
 import { VoucherById } from "./voucher";

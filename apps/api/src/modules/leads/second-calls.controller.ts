@@ -12,8 +12,8 @@ export class SecondCallsController {
 
   @Get()
   @Requires("leads", "approve")
-  list() {
-    return this.calls.list();
+  list(@Me() me: CurrentUser) {
+    return this.calls.list(me);
   }
 
   @Post(":id")

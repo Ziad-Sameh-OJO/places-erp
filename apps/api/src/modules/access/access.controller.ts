@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { AuditFilters, Matrix, Overrides, RoleInput, RoleUpdate, UserFilters, UserInput } from "@places/contracts";
+import { AuditFilters, Matrix, Overrides, RoleFieldsInput, RoleInput, RoleUpdate, UserFilters, UserInput, UserUpdate } from "@places/contracts";
 import { AUDIT_ACTION_LABEL, MODULES, MODULE_LABEL, type ModuleKey } from "@places/domain";
 import { ZodPipe } from "../../core/http/zod.pipe";
-import { sendXlsx } from "../../core/http/excel";
+import { type ExcelColumn, sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { AccessService } from "./access.service";
@@ -14,37 +14,40 @@ export class AccessController {
   constructor(private readonly access: AccessService) {}
 
   @Get("users") @Requires("access", "view")
-  users(@Query(new ZodPipe(UserFilters)) f: UserFilters) { return this.access.listUsers(f); }
+  users(@Me() me: CurrentUser, @Query(new ZodPipe(UserFilters)) f: UserFilters) { return this.access.listUsers(me, f); }
 
   // before users/:id, or "export" would be read as an id
   @Get("users/export") @Requires("access", "export")
   async exportUsers(@Me() me: CurrentUser, @Query(new ZodPipe(UserFilters)) f: UserFilters, @Res() res: Response) {
     const rows = await this.access.usersForExport(me, f);
     const STATUS = { ACTIVE: "شغال", INVITED: "مستني التفعيل", LOCKED: "مقفول", DISABLED: "متوقف" } as const;
-    await sendXlsx(res, "المستخدمين.xlsx", [
-      { header: "الاسم", value: (u) => u.employee?.name, width: 24 },
-      { header: "الإيميل", value: (u) => u.email, width: 30 },
-      { header: "الموبايل", value: (u) => u.phone },
-      { header: "القسم", value: (u) => u.employee?.department },
-      { header: "الأدوار", value: (u) => u.roles.map((r) => r.role.label).join(" + "), width: 30 },
-      { header: "الحالة", value: (u) => STATUS[u.status] },
-      { header: "OTP", value: (u) => (u.otpRequired ? "اه" : "لأ") },
-      { header: "آخر دخول", value: (u) => u.lastLoginAt, width: 20 },
-    ], rows, "المستخدمين");
+    type Row = (typeof rows)[number];
+    const hidden = me.fields.hidden("access"); // M-09 field permissions: a hidden field's column isn't in the file
+    const cols: [string, ExcelColumn<Row>][] = [
+      ["name", { header: "الاسم", value: (u) => u.employee?.name, width: 24 }],
+      ["email", { header: "الإيميل", value: (u) => u.email, width: 30 }],
+      ["phone", { header: "الموبايل", value: (u) => u.phone }],
+      ["department", { header: "القسم", value: (u) => u.employee?.department }],
+      ["roles", { header: "الأدوار", value: (u) => u.roles.map((r) => r.role.label).join(" + "), width: 30 }],
+      ["status", { header: "الحالة", value: (u) => STATUS[u.status] }],
+      ["otpRequired", { header: "OTP", value: (u) => (u.otpRequired ? "اه" : "لأ") }],
+      ["lastLoginAt", { header: "آخر دخول", value: (u) => u.lastLoginAt, width: 20 }],
+    ];
+    await sendXlsx(res, "المستخدمين.xlsx", cols.filter(([k]) => !hidden.has(k)).map(([, c]) => c), rows, "المستخدمين");
   }
 
   /** The departments people are in, for the search filter (M-09 5.2). Before users/:id too. */
   @Get("users/departments") @Requires("access", "view")
-  departments() { return this.access.departments(); }
+  departments(@Me() me: CurrentUser) { return me.fields.hidden("access").has("department") ? [] : this.access.departments(); }
 
   @Get("users/:id") @Requires("access", "view")
-  user(@Param("id") id: string) { return this.access.getUser(id); }
+  user(@Me() me: CurrentUser, @Param("id") id: string) { return this.access.userFor(me, id); }
 
   @Post("users") @Requires("access", "create")
   create(@Me() me: CurrentUser, @Body(new ZodPipe(UserInput)) b: UserInput) { return this.access.createUser(me, b); }
 
   @Put("users/:id") @Requires("access", "edit")
-  update(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UserInput)) b: UserInput) { return this.access.updateUser(me, id, b); }
+  update(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UserUpdate)) b: UserUpdate) { return this.access.updateUser(me, id, b); }
 
   // M-09 1.2 · 4.1: HR adds and stops accounts («access: create») without being able to touch permissions («edit»)
   @Post("users/:id/disable") @Requires("access", "create") @HttpCode(204)
@@ -82,6 +85,13 @@ export class AccessController {
 
   @Patch("roles/:key/permissions") @Requires("access", "edit") @HttpCode(204)
   setRolePermissions(@Me() me: CurrentUser, @Param("key") key: string, @Body(new ZodPipe(Matrix)) b: Matrix) { return this.access.setRolePermissions(me, key, b); }
+
+  /** M-09 field permissions: what each field of a module is for this role (shown, read only, hidden). */
+  @Get("roles/:key/fields") @Requires("access", "view")
+  roleFields(@Param("key") key: string) { return this.access.roleFields(key); }
+
+  @Put("roles/:key/fields") @Requires("access", "edit") @HttpCode(204)
+  setRoleFields(@Me() me: CurrentUser, @Param("key") key: string, @Body(new ZodPipe(RoleFieldsInput)) b: RoleFieldsInput) { return this.access.setRoleFields(me, key, b); }
 
   @Delete("roles/:key") @Requires("access", "delete") @HttpCode(204)
   deleteRole(@Me() me: CurrentUser, @Param("key") key: string) { return this.access.deleteRole(me, key); }

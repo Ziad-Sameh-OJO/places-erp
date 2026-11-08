@@ -7,6 +7,7 @@ import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { Tx } from "./hr.repository";
+import { hidePenalty } from "./hr-fields";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const QUESTIONS = "hr.oneQuestions";
@@ -42,12 +43,12 @@ export class PeopleCareService {
   async penalties(me: CurrentUser, month = localDate(new Date()).slice(0, 7)): Promise<PenaltiesView> {
     const end = iso(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)));
     const rows = await this.db.penalty.findMany({ where: { day: { gte: day(`${month}-01`), lte: day(end) }, employee: this.scope(me) }, ...PEN, orderBy: { day: "desc" } });
-    const by = await this.names(rows.map((r) => r.byUserId));
+    const by = await this.names(rows.map((r) => r.byUserId)), hidden = me.fields.hidden("hr");
     const items: PenaltyView[] = rows.map((r) => ({
       id: r.id, employeeId: r.employeeId, name: r.employee.name, day: iso(r.day), text: r.text, deductionDays: Number(r.deductionDays),
       deductionAmount: toDecimal(deductionAmount(fromDecimal(r.employee.salary.toFixed(2)), Number(r.deductionDays))), status: r.status as PenaltyView["status"], by: by.get(r.byUserId) ?? "",
       canDecide: r.status === "pending" && this.isHr(me),
-    }));
+    })).map((x) => hidePenalty(x, hidden)); // M-09: a hidden amount (and so the total) never leaves the API
     const ok = items.filter((i) => penaltyCounts(i.status));
     return { month, items, totals: { approved: ok.length, pending: items.filter((i) => i.status === "pending").length, deductions: toDecimal(ok.reduce((s, i) => s + fromDecimal(i.deductionAmount), 0)) } };
   }

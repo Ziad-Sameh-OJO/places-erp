@@ -73,4 +73,21 @@ export default [
   ["الطلب ده اتقرر قبل كده", "This request has already been decided"],
   ["{name} وافق: {leads} ليد و{tasks} مهمة من شغل {from} اتنقلوا لـ {to}", "{name} approved: {leads} leads and {tasks} tasks from {from}'s work moved to {to}"],
   ["{name} رفض نقل شغل {from}", "{name} rejected moving {from}'s work"],
+  // M-09 field permissions (domain fields.ts, contracts access.ts)
+  ["Area (المنطقة)", "Area"],
+  ["Space (المساحة)", "Space"],
+  ["Conditions (التشطيب)", "Conditions"],
+  ["Contact (المالك)", "Contact (owner)"],
+  ["Number (رقم المالك)", "Number (owner's)"],
+  ["Divisible (تنفع تتقسم)", "Divisible"],
+  ["الحقل ده مش موجود", "There's no such field"],
+  ["«{label}» لازم يفضل ظاهر", "«{label}» must stay shown"],
+  ["«{label}» إجباري في الإضافة: الدور ده بيضيف، فمينفعش يتخفى عنه", "«{label}» is required to add one, and this role adds: it can't be hidden from it"],
+  ["اختار الموديول", "Pick the module"],
+  ["اختار ظاهر أو قراية بس أو مخفي", "Pick shown, read only or hidden"],
+  ["حقول دور «{role}» في {module} اتعدّلت", "The fields of role «{role}» in {module} were changed"],
+  // field permissions (M-09): the accounts' fields
+  ["آخر يوم شغل", "Last working day"],
+  ["المدير المباشر", "Direct manager"],
+  ["اكتب الإيميل والقسم", "Enter the email and the department"],
 ] satisfies Pair[];

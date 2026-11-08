@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useFields } from "@/lib/me";
 import type { KpiCardView, KpiItemInput, KpiItemView } from "@places/contracts";
 import { METRICS, METRIC_PARAMS, type MetricParam } from "@places/domain";
 import { Chip, Field, Icon, Note, useAction } from "@/components/ui";
@@ -32,16 +33,17 @@ export function KpiCardBody({ id, startEditing }: { id: string; startEditing?: b
   const q = useKpiCard(id);
   const [editing, setEditing] = useState(!!startEditing);
   const run = useAction(), refresh = useRefreshKpis();
+  const fields = useFields("kpis"); // M-09: a hidden result or plan isn't shown (the API blanks them)
   const c = q.data;
   if (!c) return <p className="hint">{t("common.loading")}</p>;
   const approve = () => void run(async () => { await api.post(`/kpis/cards/${id}/approve`); await refresh(); }, t("card.approvedOk"));
   const sumW = c.items.reduce((s, it) => s + it.weight, 0);
   return (
     <>
-      <div className="row"><b className={`num kc-score big ${c.tone}`}>{Math.round(c.score)}%</b><span className="hint">{t("card.scoreToday", { tier: serverText(c.tier) })}</span></div>
-      <Bar pct={c.score} tone={c.tone} />
+      {fields.shows("score") && <><div className="row"><b className={`num kc-score big ${c.tone}`}>{Math.round(c.score)}%</b><span className="hint">{t("card.scoreToday", { tier: serverText(c.tier) })}</span></div>
+      <Bar pct={c.score} tone={c.tone} /></>}
       {c.pay && <PayBox c={c} />}
-      {!c.pay && c.can.plan && c.tone === "bad" && <Plan c={c} />}
+      {!c.pay && c.can.plan && fields.shows("plan") && c.tone === "bad" && <Plan c={c} />}
       {editing && c.can.admin && <CardAdmin c={c} />}
       {editing && c.can.manage ? <Editor c={c} onDone={() => setEditing(false)} /> : <Items c={c} sumW={sumW} />}
       <Note>{t("card.note")}</Note>
@@ -57,12 +59,13 @@ export function KpiCardBody({ id, startEditing }: { id: string; startEditing?: b
 
 function Items({ c, sumW }: { c: KpiCardView; sumW: number }) {
   const t = useTranslations("kpis");
+  const score = useFields("kpis").shows("score");
   return (
     <div className="tbl-wrap">
       <table className="kpi-items">
         <thead><tr><th>{t("items.item")}</th><th className="c">{t("items.weight")}</th><th>{t("items.target")}</th><th>{t("items.measure")}</th><th className="c">{t("items.actual")}</th><th className="c">{t("items.achievement")}</th><th className="c">{t("items.inCard")}</th></tr></thead>
         <tbody>{c.items.map((it) => <ItemRow key={it.id} c={c} it={it} />)}</tbody>
-        <tfoot><tr><td><b>{t("items.total")}</b></td><td className="c">{sumW}%</td><td colSpan={4} /><td className="c num"><b>{c.score.toFixed(1)}%</b></td></tr></tfoot>
+        <tfoot><tr><td><b>{t("items.total")}</b></td><td className="c">{sumW}%</td><td colSpan={4} /><td className="c num"><b>{score ? `${c.score.toFixed(1)}%` : "—"}</b></td></tr></tfoot>
       </table>
     </div>
   );
@@ -70,6 +73,7 @@ function Items({ c, sumW }: { c: KpiCardView; sumW: number }) {
 
 function ItemRow({ c, it }: { c: KpiCardView; it: KpiItemView }) {
   const t = useTranslations("kpis");
+  const score = useFields("kpis").shows("score");
   const actual = it.method === "report" ? t("items.deliveredOf", { n: it.delivered, total: it.required ?? 0 }) : it.value == null ? t("items.notYet") : String(it.value);
   const run = useAction(), refresh = useRefreshKpis();
   const [link, setLink] = useState<string | null>(null);
@@ -90,8 +94,8 @@ function ItemRow({ c, it }: { c: KpiCardView; it: KpiItemView }) {
           ? <button className="btn ghost sm" onClick={() => setLink("")}><Icon name="upload" />{t("items.delivered")}</button>
           : <span className="row"><input type="url" placeholder={t("items.fileLink")} value={link} onChange={(e) => setLink(e.target.value)} aria-label={t("items.deliveryLink")} style={{ width: 140 }} /><button className="btn sm" onClick={deliver}>{t("items.deliver")}</button></span>)}
       </td>
-      <td className="c"><div className="cell-bar"><b className="num">{Math.round(it.achievement)}%</b><Bar pct={it.achievement} tone={tone} /></div></td>
-      <td className="c num"><b>{it.contribution.toFixed(1)}%</b></td>
+      <td className="c">{score ? <div className="cell-bar"><b className="num">{Math.round(it.achievement)}%</b><Bar pct={it.achievement} tone={tone} /></div> : "—"}</td>
+      <td className="c num"><b>{score ? `${it.contribution.toFixed(1)}%` : "—"}</b></td>
     </tr>
   );
 }

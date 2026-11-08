@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Paged } from "@places/contracts";
 import type { ModuleKey } from "@places/domain";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { Avatar, Chip, ExportButton, Field, Icon, Modal, Note, Table, useAction } from "@/components/ui";
 import { Matrix, type MatrixValue } from "./matrix";
 import { STATUS, type RoleRow, type UserRow } from "./types";
@@ -21,6 +21,7 @@ export function UsersTab() {
   const qc = useQueryClient();
   const run = useAction();
   const { me, can } = useMe();
+  const fields = useFields("access"); // M-09: hidden fields' columns and filters aren't there (the API blanks them)
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [dept, setDept] = useState("");
@@ -45,9 +46,9 @@ export function UsersTab() {
         <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label={t("status")}>
           <option value="">{t("allStatuses")}</option>{(Object.keys(STATUS) as UserRow["status"][]).map((k) => <option key={k} value={k}>{tStatus(k)}</option>)}
         </select>
-        <select value={dept} onChange={(e) => { setDept(e.target.value); setPage(1); }} aria-label={t("department")}>
+        {fields.shows("department") && <select value={dept} onChange={(e) => { setDept(e.target.value); setPage(1); }} aria-label={t("department")}>
           <option value="">{t("allDepartments")}</option>{depts.data?.map((d) => <option key={d} value={d}>{serverText(d)}</option>)}
-        </select>
+        </select>}
         <span className="spacer" />
         <span className="hint">{t("count", { count: users.data?.total ?? 0 })}</span>
         <ExportButton module="access" path="/access/users/export" query={new URLSearchParams(filters)} filename={t("exportFile")} />
@@ -55,15 +56,15 @@ export function UsersTab() {
         {can("access", "create") && <button className="btn" onClick={() => setForm("new")}>{t("newAccount")}</button>}
       </div>
       <section className="card">
-      <Table head={[t("head.person"), t("head.roles"), t("head.department"), t("head.status"), t("head.lastLogin"), ""]} empty={t("empty")}
+      <Table head={[t("head.person"), t("head.roles"), ...(fields.shows("department") ? [t("head.department")] : []), t("head.status"), ...(fields.shows("lastLoginAt") ? [t("head.lastLogin")] : []), ""]} empty={t("empty")}
         rows={(users.data?.items ?? []).map((u) => {
           const tone = STATUS[u.status];
           return [
-            <span className="who" key="w"><Avatar id={u.id} name={u.employee?.name ?? u.email} sm /><span><b>{u.employee?.name ?? "—"}</b><small className="mono" dir="ltr">{u.email}</small></span></span>,
+            <span className="who" key="w"><Avatar id={u.id} name={u.employee?.name ?? u.email} sm /><span><b>{u.employee?.name ?? "—"}</b>{u.email && <small className="mono" dir="ltr">{u.email}</small>}</span></span>,
             <span key="r">{u.roles.map((r) => <Chip key={r.role.key} tone={r.primary ? "info" : ""}>{serverText(r.role.label)}</Chip>)}{u._count.overrides > 0 && <Chip tone="warn">{t("overrides", { count: u._count.overrides })}</Chip>}</span>,
-            u.employee?.department ? serverText(u.employee.department) : "—",
+            ...(fields.shows("department") ? [u.employee?.department ? serverText(u.employee.department) : "—"] : []),
             <span key="s"><Chip tone={tone}>{tStatus(u.status)}</Chip>{u.otpRequired && <Chip plain>OTP</Chip>}</span>,
-            fmt(u.lastLoginAt),
+            ...(fields.shows("lastLoginAt") ? [fmt(u.lastLoginAt)] : []),
             <span className="row" key="a">
               {edit && <button className="btn ghost sm" onClick={() => setForm(u)}>{t("edit")}</button>}
               <button className="btn ghost sm" onClick={() => setPerms(u)}>{t("permissions")}</button>
@@ -96,12 +97,16 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
   const primary = user?.roles.find((r) => r.primary)?.role.key ?? user?.roles[0]?.role.key ?? "sales";
   const extra = new Set(user?.roles.filter((r) => r.role.key !== primary).map((r) => r.role.key));
   const isAdmin = me?.roles.includes("admin");
+  const fields = useFields("access");
+  /** M-09: a hidden input is gone, a read-only one locked (left out of the save: the API keeps it). A new account always takes its required fields. */
+  const only = (key: string, node: ReactNode, required = false) =>
+    !user && required ? node : !fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
   const choosable = (roles.data ?? []).filter((r) => r.key !== "admin" || isAdmin || primary === "admin" || extra.has("admin"));
 
   async function submit(f: FormData) {
     const role = String(f.get("role"));
     const body = {
-      name: f.get("name"), email: f.get("email"), phone: f.get("phone") || undefined, department: f.get("department"), role,
+      name: f.get("name"), email: f.get("email") ?? undefined, phone: f.get("phone") || undefined, department: f.get("department") ?? undefined, role,
       extraRoles: f.getAll("extra").map(String).filter((k) => k !== role), teamLeaderId: f.get("tl") || null, managerId: f.get("manager") || null,
       endDate: f.get("endDate") || null, otpRequired: f.get("otp") === "on",
     };
@@ -112,18 +117,18 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     <Modal title={user ? t("editTitle", { name: user.employee?.name ?? "" }) : t("newTitle")} onClose={onClose}>
       <form className="grid" action={submit}>
         <Field label={t("name")} req><input name="name" required minLength={2} defaultValue={user?.employee?.name ?? ""} /></Field>
-        <Field label={t("email")} req><input name="email" type="email" required defaultValue={user?.email ?? ""} /></Field>
-        <Field label={t("phone")}><input name="phone" inputMode="tel" defaultValue={user?.phone ?? ""} /></Field>
-        <Field label={t("department")} req><input name="department" required defaultValue={user?.employee?.department ?? ""} /></Field>
+        {only("email", <Field label={t("email")} req><input name="email" type="email" required defaultValue={user?.email ?? ""} /></Field>, true)}
+        {only("phone", <Field label={t("phone")}><input name="phone" inputMode="tel" defaultValue={user?.phone ?? ""} /></Field>)}
+        {only("department", <Field label={t("department")} req><input name="department" required defaultValue={user?.employee?.department ?? ""} /></Field>, true)}
         <Field label={t("primaryRole")} req><select name="role" defaultValue={primary}>{choosable.map((r) => <option key={r.key} value={r.key}>{serverText(r.label)}</option>)}</select></Field>
-        <Field label={t("teamLeader")}><select name="tl" defaultValue={user?.employee?.teamLeaderId ?? ""}><option value="">—</option>{tls.data?.items.filter((x) => x.employee).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>
-        <Field label={t("manager")}><select name="manager" defaultValue={user?.employee?.managerId ?? ""}><option value="">{t("managerNone")}</option>{everyone.data?.items.filter((x) => x.employee && x.id !== user?.id).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>
+        {only("teamLeader", <Field label={t("teamLeader")}><select name="tl" defaultValue={user?.employee?.teamLeaderId ?? ""}><option value="">—</option>{tls.data?.items.filter((x) => x.employee).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>)}
+        {only("manager", <Field label={t("manager")}><select name="manager" defaultValue={user?.employee?.managerId ?? ""}><option value="">{t("managerNone")}</option>{everyone.data?.items.filter((x) => x.employee && x.id !== user?.id).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>)}
         <fieldset className="field wide" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend><span>{t("extraRoles")}</span></legend>
           <div className="chips-edit">{choosable.map((r) => <label key={r.key} className="tog"><input type="checkbox" name="extra" value={r.key} defaultChecked={extra.has(r.key)} />{serverText(r.label)}</label>)}</div>
         </fieldset>
-        <Field label={t("endDate")}><input name="endDate" type="date" defaultValue={user?.endDate?.slice(0, 10) ?? ""} /></Field>
-        <label className="tog"><input type="checkbox" name="otp" defaultChecked={user?.otpRequired ?? false} />{t("otp")}</label>
+        {only("endDate", <Field label={t("endDate")}><input name="endDate" type="date" defaultValue={user?.endDate?.slice(0, 10) ?? ""} /></Field>)}
+        {only("otpRequired", <label className="tog"><input type="checkbox" name="otp" defaultChecked={user?.otpRequired ?? false} />{t("otp")}</label>)}
         <div className="row end wide">
           {!user && <span className="hint spacer">{t("newHint")}</span>}
           <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>

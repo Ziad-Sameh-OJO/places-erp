@@ -116,6 +116,7 @@ model Role {
   builtIn     Boolean          @default(false) // the 18 roles from the requirements: can't be deleted
   scope       DataScope        @default(OWN)
   permissions RolePermission[]
+  fieldRules  RoleFieldRule[]
   users       UserRole[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -130,6 +131,18 @@ model RolePermission {
   actions String[] // view · create · edit · approve · delete · import · export
 
   @@id([roleId, module])
+  @@schema("access")
+}
+
+/// M-09 field permissions: a field of a module this role sees read only or not at all (no row = shown)
+model RoleFieldRule {
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module String // see FIELDS in @places/domain
+  field  String
+  mode   String // read · hide
+
+  @@id([roleId, module, field])
   @@schema("access")
 }
 

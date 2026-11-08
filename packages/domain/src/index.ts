@@ -22,6 +22,7 @@ export * from "./leaves.ts";
 export * from "./kpi.ts";
 export * from "./ideal-employee.ts";
 export * from "./permissions.ts";
+export * from "./fields.ts";
 export * from "./notifications.ts";
 export * from "./office-assets.ts";
 export * from "./tickets.ts";

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { ClientMergeRow, DecideMerge, SuggestMerge } from "@places/contracts";
 import { mergedFile, normalizePhone } from "@places/domain";
@@ -25,18 +25,22 @@ export class ClientMergesService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async pending(): Promise<ClientMergeRow[]> {
+  async pending(me: CurrentUser): Promise<ClientMergeRow[]> {
+    // M-09: numbers hidden from the reader are left out, from the files and from the reason («نفس الموبايل 010…»)
+    const noNumbers = me.fields.hidden("clients").has("phones");
     const rows = await this.repo.pendingMerges();
-    const files = new Map((await this.repo.mergeSides(rows.flatMap((r) => [r.keepId, r.dropId]))).map((c) => [c.id, { id: c.id, name: c.name, kind: c.kind, phones: c.phones.map((p) => p.phone) }]));
+    const files = new Map((await this.repo.mergeSides(rows.flatMap((r) => [r.keepId, r.dropId]))).map((c) => [c.id, { id: c.id, name: c.name, kind: c.kind, phones: noNumbers ? [] : c.phones.map((p) => p.phone) }]));
     const names = new Map((await this.repo.userNames(rows.flatMap((r) => (r.suggestedById ? [r.suggestedById] : [])))).map((e) => [e.userId, e.name]));
     return rows.flatMap((r) => {
       const keep = files.get(r.keepId), drop = files.get(r.dropId);
-      return keep && drop ? [{ id: r.id, keep, drop, reason: r.reason, by: r.suggestedById ? names.get(r.suggestedById) ?? null : null, at: r.createdAt.toISOString() }] : [];
+      return keep && drop ? [{ id: r.id, keep, drop, reason: noNumbers ? r.reason.replace(/\+?\d[\d ]{4,}/g, "").trim() : r.reason, by: r.suggestedById ? names.get(r.suggestedById) ?? null : null, at: r.createdAt.toISOString() }] : [];
     });
   }
 
   /** «ادمج بالموبايل»: the file the reader is on stays; the one with that number moves into it once Operations approves. */
   async suggest(me: CurrentUser, keepId: string, input: SuggestMerge) {
+    // M-09: with the numbers hidden, the answer («مفيش ملف بالرقم ده») would tell which numbers are on a file
+    if (me.fields.hidden("clients").has("phones")) throw new ForbiddenException("الحقل ده مقفول عليك");
     const phone = normalizePhone(input.phone);
     if (!phone) throw new BadRequestException("الرقم غلط");
     const created = await this.db.$transaction(async (tx) => {

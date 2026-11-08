@@ -16,8 +16,9 @@ const USER_ROW = {
 export class AccessRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  listUsers(f: UserFilters) {
-    const where = userWhere(f);
+  /** `hidden`: the fields the person may not see (M-09), so the search doesn't match on them. */
+  listUsers(f: UserFilters, hidden: ReadonlySet<string> = new Set()) {
+    const where = userWhere(f, hidden);
     return this.db.$transaction([
       this.db.user.findMany({ where, select: USER_ROW, orderBy: { employee: { name: "asc" } }, skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.user.count({ where }),
@@ -25,8 +26,8 @@ export class AccessRepository {
   }
 
   /** Same filters, every row (the Excel export), capped by the caller. */
-  allUsers(f: UserFilters, take: number) {
-    return this.db.user.findMany({ where: userWhere(f), select: USER_ROW, orderBy: { employee: { name: "asc" } }, take });
+  allUsers(f: UserFilters, take: number, hidden: ReadonlySet<string> = new Set()) {
+    return this.db.user.findMany({ where: userWhere(f, hidden), select: USER_ROW, orderBy: { employee: { name: "asc" } }, take });
   }
 
   departments() {
@@ -91,23 +92,23 @@ const auditWhere = (f: AuditFilters): Prisma.AuditLogWhereInput => ({
 });
 const nextDay = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 864e5).toISOString().slice(0, 10);
 
-const userWhere = (f: UserFilters): Prisma.UserWhereInput => ({
+const userWhere = (f: UserFilters, hidden: ReadonlySet<string>): Prisma.UserWhereInput => ({
   AND: [
     f.status ? { status: f.status } : {},
     f.role ? { roles: { some: { role: { key: f.role } } } } : {},
     f.department ? { employee: { department: { equals: f.department, mode: "insensitive" } } } : {},
-    f.q ? { OR: searchText(f.q) } : {},
+    f.q ? { OR: searchText(f.q, hidden) } : {},
   ],
 });
 
 /** M-09 5.2: name, email, mobile or department. A mobile typed with spaces or dashes still matches its digits. */
-const searchText = (q: string): Prisma.UserWhereInput[] => {
+const searchText = (q: string, hidden: ReadonlySet<string>): Prisma.UserWhereInput[] => {
   const digits = q.replace(/\D/g, "");
+  const phone: Prisma.UserWhereInput[] = hidden.has("phone") ? [] : [{ phone: { contains: q } }, ...(digits.length >= 3 && digits !== q ? [{ phone: { contains: digits } }] : [])];
   return [
-    { email: { contains: q, mode: "insensitive" } },
-    { phone: { contains: q } },
-    ...(digits.length >= 3 && digits !== q ? [{ phone: { contains: digits } }] : []),
+    ...(hidden.has("email") ? [] : [{ email: { contains: q, mode: "insensitive" } } satisfies Prisma.UserWhereInput]),
+    ...phone,
     { employee: { name: { contains: q, mode: "insensitive" } } },
-    { employee: { department: { contains: q, mode: "insensitive" } } },
+    ...(hidden.has("department") ? [] : [{ employee: { department: { contains: q, mode: "insensitive" } } } satisfies Prisma.UserWhereInput]),
   ];
 };

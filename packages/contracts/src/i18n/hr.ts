@@ -86,4 +86,12 @@ export default [
   ["مسح الجزاءات للـ HR", "Deleting penalties is for HR"],
   ["«حل الـ HR» لازم يتحدد له ميعاد", "«HR solution» needs a date"],
   ["مفيش حل HR في الجلسة دي", "There's no HR solution in this session"],
+  // field permissions (M-09): the employee file's fields
+  ["المرتب", "Salary"],
+  ["التارجت", "Target"],
+  ["نسبة العمولة", "Commission %"],
+  ["الدوام", "Schedule"],
+  ["شرايح الخصم", "Deduction tiers"],
+  ["بدأ الشغل", "Started work"],
+  ["بيتابعه", "Followed by"],
 ] satisfies Pair[];

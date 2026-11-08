@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { AuditFilters, Matrix, Overrides, RoleInput, RoleUpdate, UserFilters, UserInput } from "@places/contracts";
+import type { AuditFilters, Matrix, Overrides, RoleFieldsInput, RoleInput, RoleUpdate, UserFilters, UserInput, UserUpdate } from "@places/contracts";
 import {
   ACTIONS, ACTION_LABEL, type Action, type DataScope, MODULES, MODULE_LABEL, type ModuleKey, OPS_HEAD, effectiveGrants, keepsAccessAdmin,
-  normalizeActions, teamUnder, withinOwnPermissions,
+  type FieldMode, type FieldRules, fieldRuleProblem, normalizeActions, teamUnder, withinOwnPermissions,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -13,6 +13,7 @@ import { NotificationsService } from "../../core/notifications/notifications.ser
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { AccessRepository } from "./access.repository";
 import { EXPORT_LIMIT } from "../../core/http/excel";
+import { hideUser, keepUser, shownUserFilters, wholeUser } from "./access-fields";
 
 type Tx = Prisma.TransactionClient;
 const ADMIN = "admin";
@@ -38,9 +39,10 @@ export class AccessService {
 
   /* ---------------- users ---------------- */
 
-  async listUsers(f: UserFilters) {
-    const [items, total] = await this.repo.listUsers(f);
-    return { items, total, page: f.page, pageSize: f.pageSize };
+  async listUsers(me: CurrentUser, filters: UserFilters) {
+    const hidden = me.fields.hidden("access"), f = shownUserFilters(filters, hidden);
+    const [items, total] = await this.repo.listUsers(f, hidden);
+    return { items: items.map((u) => hideUser(u, hidden)), total, page: f.page, pageSize: f.pageSize };
   }
 
   async departments(): Promise<string[]> {
@@ -48,8 +50,9 @@ export class AccessService {
   }
 
   /** Every user matching the filters, for the Excel export (audited: who exported what). */
-  async usersForExport(me: CurrentUser, f: UserFilters) {
-    const rows = await this.repo.allUsers(f, EXPORT_LIMIT);
+  async usersForExport(me: CurrentUser, filters: UserFilters) {
+    const hidden = me.fields.hidden("access"), f = shownUserFilters(filters, hidden);
+    const rows = (await this.repo.allUsers(f, EXPORT_LIMIT, hidden)).map((u) => hideUser(u, hidden));
     await this.audit.record({ module: "access", entity: "User", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
     return rows;
   }
@@ -60,7 +63,13 @@ export class AccessService {
     return u;
   }
 
-  async createUser(me: CurrentUser, b: UserInput) {
+  /** The account as `me` may see it (M-09 field permissions). */
+  async userFor(me: CurrentUser, id: string) {
+    return hideUser(await this.getUser(id), me.fields.hidden("access"));
+  }
+
+  async createUser(me: CurrentUser, sent: UserInput) {
+    const b = { ...sent, ...keepUser(sent, null, me.fields.fixed("access")), email: sent.email, department: sent.department };
     const roleKeys = this.roleKeys(me, b, []);
     const roles = await this.checkRoles(roleKeys);
     if (await this.db.user.findUnique({ where: { email: b.email } })) throw new ConflictException("الإيميل ده عليه حساب قبل كده");
@@ -73,12 +82,15 @@ export class AccessService {
       return u;
     });
     await this.auth.sendInvite(user.id, user.email, roles.get(roleKeys[0]!)!.label);
-    return this.getUser(user.id);
+    return this.userFor(me, user.id);
   }
 
-  async updateUser(me: CurrentUser, id: string, b: UserInput) {
+  async updateUser(me: CurrentUser, id: string, sent: UserUpdate) {
     await this.guardSuperAdmin(me, id);
     const before = await this.getUser(id);
+    // M-09 field permissions: what the person may not change keeps its value (the form leaves it out or sends it as shown)
+    const b = wholeUser(keepUser(sent, before, me.fields.fixed("access")));
+    if (!b) throw new BadRequestException("اكتب الإيميل والقسم");
     const roleKeys = this.roleKeys(me, b, before.roles.map((r) => r.role.key));
     const roles = await this.checkRoles(roleKeys);
     const clash = await this.db.user.findUnique({ where: { email: b.email } });
@@ -97,7 +109,7 @@ export class AccessService {
       await this.notifications.notify({ event: "access.changed", userIds: [id], text: `أدوارك اتغيرت: ${labels}` });
       await this.tellSuperAdmin(me, `أدوار ${b.name} اتغيرت: ${labels}`);
     }
-    return this.getUser(id);
+    return this.userFor(me, id);
   }
 
   /** Disabling signs the person out everywhere at once. Their open leads and tasks then move through HandoverService, once their direct manager approves (M-09 2.2 · 7.1). */
@@ -239,6 +251,39 @@ export class AccessService {
       await this.keepSelfAdmin(me, tx);
     });
     await this.tellSuperAdmin(me, `صلاحيات دور «${r.label}» اتعدّلت: ${Object.keys(matrix).map((m) => MODULE_LABEL[m as ModuleKey] ?? m).join("، ")}`);
+  }
+
+  /** M-09 field permissions: the role's «read» / «hide» fields, module by module (no entry = shown). */
+  async roleFields(key: string): Promise<FieldRules> {
+    const r = await this.role(key);
+    const out: Partial<Record<ModuleKey, Record<string, FieldMode>>> = {};
+    for (const f of await this.db.roleFieldRule.findMany({ where: { roleId: r.id } })) (out[f.module as ModuleKey] ??= {})[f.field] = f.mode as FieldMode;
+    return out;
+  }
+
+  /**
+   * Replaces one module's field rules for the role. A rule the catalog refuses (the unit's identity, a field the role's
+   * create form needs) stops the whole change; the Super Admin's role is the Super Admin's, like its matrix.
+   */
+  async setRoleFields(me: CurrentUser, key: string, b: RoleFieldsInput) {
+    const r = await this.role(key);
+    if (key === ADMIN && !me.roles.includes(ADMIN)) throw new ForbiddenException("دور الـ Super Admin بيتعدّل من Super Admin بس");
+    const creates = (await this.db.rolePermission.findUnique({ where: { roleId_module: { roleId: r.id, module: b.module } } }))?.actions.includes("create") ?? false;
+    for (const [field, mode] of Object.entries(b.rules)) {
+      const problem = fieldRuleProblem(b.module, field, mode, creates);
+      if (problem) throw new BadRequestException(problem);
+    }
+    const next = Object.entries(b.rules).filter(([, mode]) => mode !== "show");
+    await this.db.$transaction(async (tx) => {
+      const before = await tx.roleFieldRule.findMany({ where: { roleId: r.id, module: b.module } });
+      await tx.roleFieldRule.deleteMany({ where: { roleId: r.id, module: b.module } });
+      if (next.length) await tx.roleFieldRule.createMany({ data: next.map(([field, mode]) => ({ roleId: r.id, module: b.module, field, mode })) });
+      await this.audit.record({
+        module: "access", entity: "Role", entityId: r.id, action: "fields", userId: me.id,
+        before: { module: b.module, rules: Object.fromEntries(before.map((f) => [f.field, f.mode])) }, after: { module: b.module, rules: Object.fromEntries(next) },
+      }, tx);
+    });
+    await this.tellSuperAdmin(me, `حقول دور «${r.label}» في ${MODULE_LABEL[b.module] ?? b.module} اتعدّلت`);
   }
 
   async deleteRole(me: CurrentUser, key: string) {

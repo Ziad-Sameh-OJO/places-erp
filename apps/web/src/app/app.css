@@ -36,3 +36,7 @@
   .tbl-wrap.has-sheets td.pick, .tbl-wrap.has-sheets td:nth-child(2) { background: var(--surface); }
   .tbl-wrap.has-sheets th.pick, .tbl-wrap.has-sheets th:nth-child(2) { z-index: 3; }
 }
+
+/* M-09 field permissions: a read-only field in a form keeps its place in the grid, locked */
+fieldset.field-lock { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); color: var(--ink-3); cursor: not-allowed; border-style: dashed; }

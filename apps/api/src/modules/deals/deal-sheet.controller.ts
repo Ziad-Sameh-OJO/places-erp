@@ -3,7 +3,7 @@ import type { Response } from "express";
 import { AchievementsQuery, DealExportQuery, type DealSheetRow } from "@places/contracts";
 import { fromDecimal } from "@places/domain";
 import { ZodPipe } from "../../core/http/zod.pipe";
-import { sendXlsx } from "../../core/http/excel";
+import { type ExcelColumn, sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { DealSheetService } from "./deal-sheet.service";
@@ -42,34 +42,37 @@ export class DealSheetController {
     const names = (p: { name: string }[]) => p.map((x) => x.name).join(" · ");
     const pcts = (d: DealSheetRow, s: "buyer" | "seller") => d.shares.filter((x) => x.side === s).map((x) => `${x.schemePercent}%`).join(" / ");
     const comm = (d: DealSheetRow, s: "buyer" | "seller") => d.shares.filter((x) => x.side === s).reduce((t, x) => t + fromDecimal(x.commission), 0) / 100; // summed in piasters
-    await sendXlsx<DealSheetRow>(res, "الصفقات.xlsx", [
+    // M-09: the columns of hidden fields are left out (their values are blank already)
+    const hidden = me.fields.hidden("deals");
+    const cols: Array<ExcelColumn<DealSheetRow> & { field?: string }> = [
       { header: "الصفقة", value: (d) => d.code, width: 12 },
       { header: "الحالة", value: (d) => d.status, width: 18 },
       { header: "Date", value: (d) => d.firstPaidAt?.slice(0, 7) ?? "" },
       { header: "company", value: (d) => d.company, width: 26 },
       { header: "الوحدة", value: (d) => d.unitCode, width: 14 },
-      { header: "space", value: (d) => d.space },
-      { header: "type", value: (d) => d.type },
-      { header: "location", value: (d) => d.location, width: 22 },
+      { header: "space", field: "space", value: (d) => d.space },
+      { header: "type", field: "type", value: (d) => d.type },
+      { header: "location", field: "location", value: (d) => d.location, width: 22 },
       { header: "buyer", value: (d) => names(d.buyers), width: 24 },
       { header: "seller", value: (d) => names(d.sellers), width: 22 },
-      { header: "source", value: (d) => d.source },
-      { header: "العمولة المتوقعة", value: (d) => (fromDecimal(d.commissionOwner) + fromDecimal(d.commissionClient)) / 100 },
-      { header: "owner side", value: (d) => Number(d.collectedOwner) },
-      { header: "client side", value: (d) => Number(d.collectedClient) },
-      { header: "net commission", value: (d) => Number(d.collected) },
-      { header: "المتبقي", value: (d) => Number(d.remaining) },
-      { header: "buyer %", value: (d) => pcts(d, "buyer") },
-      { header: "buyer commission", value: (d) => comm(d, "buyer") },
-      { header: "seller %", value: (d) => pcts(d, "seller") },
-      { header: "seller commission", value: (d) => comm(d, "seller") },
+      { header: "source", field: "source", value: (d) => d.source },
+      { header: "العمولة المتوقعة", field: "expected", value: (d) => (fromDecimal(d.commissionOwner) + fromDecimal(d.commissionClient)) / 100 },
+      { header: "owner side", field: "collectedOwner", value: (d) => Number(d.collectedOwner) },
+      { header: "client side", field: "collectedClient", value: (d) => Number(d.collectedClient) },
+      { header: "net commission", field: "collected", value: (d) => Number(d.collected) },
+      { header: "المتبقي", field: "remaining", value: (d) => Number(d.remaining) },
+      { header: "buyer %", field: "shares", value: (d) => pcts(d, "buyer") },
+      { header: "buyer commission", field: "shares", value: (d) => comm(d, "buyer") },
+      { header: "seller %", field: "shares", value: (d) => pcts(d, "seller") },
+      { header: "seller commission", field: "shares", value: (d) => comm(d, "seller") },
       { header: "tcr", value: (d) => d.tcrs.join(" · ") },
-      { header: "note", value: (d) => [d.note, d.targetBase && `التارجت بـ ${d.targetBase}`].filter(Boolean).join(" · "), width: 26 },
-      { header: "ميعاد التنفيذ", value: (d) => d.execDueAt ?? "" },
-      { header: "اتنفذت", value: (d) => d.executedAt ?? "" },
-      { header: "أوراق الصفقة", value: (d) => (d.papersOk == null ? "لسه ماتراجعتش" : d.papersOk ? "سليمة" : `فيها خطأ: ${d.papersNote ?? ""}`), width: 22 },
+      { header: "note", field: "note", value: (d) => [d.note, d.targetBase && `التارجت بـ ${d.targetBase}`].filter(Boolean).join(" · "), width: 26 },
+      { header: "ميعاد التنفيذ", field: "execDueAt", value: (d) => d.execDueAt ?? "" },
+      { header: "اتنفذت", field: "executedAt", value: (d) => d.executedAt ?? "" },
+      { header: "أوراق الصفقة", field: "papersOk", value: (d) => (d.papersOk == null ? "لسه ماتراجعتش" : d.papersOk ? "سليمة" : `فيها خطأ: ${d.papersNote ?? ""}`), width: 22 },
       { header: "deal date", value: (d) => d.closedAt.slice(0, 10) },
-    ], await this.sheet.exportRows(me, q), "الصفقات");
+    ];
+    await sendXlsx<DealSheetRow>(res, "الصفقات.xlsx", cols.filter((c) => !c.field || !hidden.has(c.field)), await this.sheet.exportRows(me, q), "الصفقات");
   }
 
   /** 5.11: «تفاصيل الصفقات» as Excel (0.11). */

@@ -21,18 +21,19 @@ export class CampaignsService {
     private readonly settings: SettingsService,
   ) {}
 
-  async list(now = new Date()): Promise<CampaignRow[]> {
+  async list(me: CurrentUser, now = new Date()): Promise<CampaignRow[]> {
     const rows = await this.repo.list();
     const counts = await this.repo.counts(rows.map((c) => c.id));
-    const today = localDate(now);
-    return rows.map((c) => toRow(c, counts.get(c.id) ?? { leads: 0, qualified: 0 }, today));
+    const today = localDate(now), hidden = me.fields.hidden("marketing");
+    return rows.map((c) => hideFields(toRow(c, counts.get(c.id) ?? { leads: 0, qualified: 0 }, today), hidden));
   }
 
   /**
    * M-04 3.2 · 6.1: channel → campaign → post, leads and Qualified with the rate, for a period of Cairo days and an
    * optional channel / campaign. Every arrival counts, the duplicates too (Q22), so the numbers match the leads' arrivals.
    */
-  async dashboard(q: DashboardQuery): Promise<MarketingDashboard> {
+  async dashboard(me: CurrentUser, q: DashboardQuery): Promise<MarketingDashboard> {
+    const hidden = me.fields.hidden("marketing"), h = (k: string) => hidden.has(k);
     const at = { ...(q.from ? { gte: dayStart(q.from) } : {}), ...(q.to ? { lt: dayStart(nextDay(q.to)) } : {}) };
     const pick = { ...(q.channel ? { channel: q.channel } : {}), ...(q.campaignId ? { campaignId: q.campaignId } : {}) };
     const rows = await this.repo.arrivals({ ...pick, ...(q.from || q.to ? { at } : {}) });
@@ -46,13 +47,16 @@ export class CampaignsService {
     const perQualified = costPerLead(spent, total.qualified);
     return {
       total: { leads: total.leads, qualified: total.qualified, rate: total.rate },
-      spent: toDecimal(spent), costPerQualified: perQualified === null ? null : toDecimal(perQualified), campaignCount: covered.length,
+      spent: h("spent") ? "" : toDecimal(spent), costPerQualified: perQualified === null || h("costPerQualified") ? null : toDecimal(perQualified), campaignCount: covered.length,
       channels: tree.map((c) => ({
         channel: c.channel, leads: c.leads, qualified: c.qualified, rate: c.rate, noCampaign: c.noCampaign,
         campaigns: c.campaigns.map((x) => {
           const info = camps.get(x.campaignId);
           const cost = info ? costPerLead(fromDecimal(money(info.spent)), x.leads) : null;
-          return { id: x.campaignId, name: info?.name ?? "—", target: info?.target ?? null, leads: x.leads, qualified: x.qualified, rate: x.rate, costPerLead: cost === null ? null : toDecimal(cost) };
+          return {
+            id: x.campaignId, name: info?.name ?? "—", target: h("target") ? null : info?.target ?? null, leads: x.leads, qualified: x.qualified, rate: x.rate,
+            costPerLead: cost === null || h("costPerLead") ? null : toDecimal(cost),
+          };
         }),
       })),
       posts: leadsByPost(arrivals),
@@ -66,6 +70,7 @@ export class CampaignsService {
 
   async create(me: CurrentUser, input: CampaignInput): Promise<{ id: string }> {
     await this.checkChannel(input.channel, null);
+    input = keepFixed(input, null, me.fields.fixed("marketing"));
     const data = toData(input);
     return this.db.$transaction(async (tx) => {
       const c = await this.repo.create(tx, data);
@@ -79,6 +84,7 @@ export class CampaignsService {
     const before = await this.repo.find(id);
     if (!before) throw new NotFoundException(NO_CAMPAIGN);
     await this.checkChannel(input.channel, before.channel);
+    input = keepFixed(input, before, me.fields.fixed("marketing"));
     await this.db.$transaction(async (tx) => {
       await this.repo.update(tx, id, toData(input));
       await this.audit.record({ module: "marketing", entity: "Campaign", entityId: id, action: "update", userId: me.id, before: plain(before), after: { ...input } }, tx);
@@ -125,5 +131,30 @@ function toRow(c: Campaign, n: { leads: number; qualified: number }, today: stri
   return {
     ...plain(c), id: c.id, live: isCampaignLive({ startsOn: day(c.startsOn), endsOn: day(c.endsOn) }, today),
     leads: n.leads, qualified: n.qualified, costPerLead: cost === null ? null : toDecimal(cost),
+  };
+}
+
+/**
+ * M-09 field permissions: a hidden field's value never leaves the API (blank, its kind kept); the screens leave its
+ * column and input out (they read the same rules).
+ */
+function hideFields(r: CampaignRow, hidden: ReadonlySet<string>): CampaignRow {
+  if (!hidden.size) return r;
+  const h = (k: string) => hidden.has(k);
+  return {
+    ...r, budget: h("budget") ? "" : r.budget, spent: h("spent") ? "" : r.spent, costPerLead: h("costPerLead") ? null : r.costPerLead,
+    target: h("target") ? null : r.target, adUrl: h("adUrl") ? null : r.adUrl, note: h("note") ? null : r.note,
+  };
+}
+
+/** A field the person may not set: its value as stored (an edit), or empty (a new campaign). */
+function keepFixed(input: CampaignInput, before: Campaign | null, fixed: ReadonlySet<string>): CampaignInput {
+  if (!fixed.size) return input;
+  const f = (k: string) => fixed.has(k);
+  return {
+    ...input,
+    budget: f("budget") ? (before ? money(before.budget) : "0") : input.budget, spent: f("spent") ? (before ? money(before.spent) : "0") : input.spent,
+    target: f("target") ? before?.target ?? undefined : input.target, adUrl: f("adUrl") ? before?.adUrl ?? undefined : input.adUrl,
+    note: f("note") ? before?.note ?? undefined : input.note,
   };
 }

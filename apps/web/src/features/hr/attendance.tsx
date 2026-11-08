@@ -5,7 +5,7 @@ import type { AttendanceDayView, AttendanceHistoryView, EmployeesView, Fingerpri
 import { Card, Chip, Empty, ExportButton, Field, Icon, ImportDialog, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { dateLocale, money } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
@@ -21,6 +21,7 @@ const useEmployees = () => useQuery({ queryKey: ["hr", "employees", ""], queryFn
 export function AttendanceToday() {
   const t = useTranslations("hr");
   const { can } = useMe();
+  const amounts = useFields("hr").shows("deductionAmount"); // M-09: a hidden amount isn't shown (the API blanks it)
   const [day, setDay] = useState(today());
   const [q, setQ] = useState("");
   const [upload, setUpload] = useState(false);
@@ -49,7 +50,7 @@ export function AttendanceToday() {
         <KpiTile label={t("attendance.present")} value={d.totals.present} sub={d.working ? t("attendance.presentOf", { total: d.totals.present + d.missing.length }) : d.holiday ? serverText(d.holiday) : t("attendance.dayOff")} icon="fingerprint" tone="ok" />
         <KpiTile label={t("attendance.late")} value={d.totals.late} sub={t("attendance.lateSub")} icon="clock" tone="warn" />
         <KpiTile label={t("attendance.missing")} value={d.missing.length} sub={d.working ? t("attendance.workDay") : t("attendance.notWorkDay")} icon="alert" {...(d.missing.length ? { tone: "bad" as const } : {})} />
-        <KpiTile label={t("attendance.dayDeductions")} value={money(d.totals.deductions)} sub={t("attendance.dayDeductionsSub")} icon="wallet" />
+        {amounts && <KpiTile label={t("attendance.dayDeductions")} value={money(d.totals.deductions)} sub={t("attendance.dayDeductionsSub")} icon="wallet" />}
       </div>}
       <div className="toolbar">
         <ExportButton module="hr" path="/hr/attendance/export" query={new URLSearchParams(q ? { day, q } : { day })} filename={t("attendance.exportFile", { day })} label={t("attendance.export")} />
@@ -69,7 +70,7 @@ export function AttendanceToday() {
             r.visitAt ? <span key="i">Visit {r.visitAt}{r.checkIn && <span className="sub">{t("attendance.fingerprinted", { time: r.checkIn })}</span>}</span> : r.checkIn ?? "—",
             r.checkOut ?? "—", r.lateMinutes ? t("common.minutes", { n: r.lateMinutes }) : "—",
             <Chip key="s" tone={tone(r.deduction, r.lateMinutes)}>{serverText(r.label)}</Chip>,
-            r.deduction ? <span key="d">{r.deduction === 1 ? t("common.fullDay") : r.deduction === 0.5 ? t("common.halfDay") : t("common.quarterDay")}<span className="sub">{money(r.deductionAmount)}</span></span> : r.confirmForgot ? t("attendance.awaitingConfirm") : "—",
+            r.deduction ? <span key="d">{r.deduction === 1 ? t("common.fullDay") : r.deduction === 0.5 ? t("common.halfDay") : t("common.quarterDay")}{amounts && <span className="sub">{money(r.deductionAmount)}</span>}</span> : r.confirmForgot ? t("attendance.awaitingConfirm") : "—",
             <span key="e" className="row">
               {r.confirmForgot && can("hr", "approve") && <button className="btn sm" onClick={() => void run(async () => { await api.post(`/hr/attendance/${r.id}/confirm-forgot`, {}); await refresh(); }, t("attendance.confirmedOk"))}>{t("attendance.confirmBtn")}</button>}
               {can("hr", "edit") && <button className="btn ghost sm" onClick={() => setEntry({ employeeId: r.employeeId, name: r.name, ...(r.checkIn ? { checkIn: r.checkIn } : {}) })}>{t("common.edit")}</button>}
@@ -105,6 +106,7 @@ export function AttendanceToday() {
 /** «التاريخ» (7.10, demo history()): one person over a period, day by day, with the totals. */
 export function AttendanceHistory() {
   const t = useTranslations("hr");
+  const amounts = useFields("hr").shows("deductionAmount");
   const emps = useEmployees();
   const [emp, setEmp] = useState("");
   const [from, setFrom] = useState(`${today().slice(0, 7)}-01`);
@@ -122,10 +124,10 @@ export function AttendanceHistory() {
         <div className="kpis sm">
           <KpiTile label={t("common.lateMinutes")} value={t("common.minutes", { n: h.data.totals.late })} icon="clock" tone="warn" />
           <KpiTile label={t("common.deductionDays")} value={h.data.totals.deductionDays} icon="alert" tone="bad" />
-          <KpiTile label={t("common.deductionAmount")} value={money(h.data.totals.deductions)} icon="wallet" />
+          {amounts && <KpiTile label={t("common.deductionAmount")} value={money(h.data.totals.deductions)} icon="wallet" />}
         </div>
         <Table head={[t("common.day"), "Check-in", "Check-out", t("common.lateMinutes"), t("common.status"), t("common.deduction")]} empty={t("history.empty")}
-          rows={h.data.rows.map((r) => [dayName(r.day), r.checkIn ?? "—", r.checkOut ?? "—", r.lateMinutes ? t("common.minutes", { n: r.lateMinutes }) : "—", <Chip key="s" tone={tone(r.deduction, r.lateMinutes)}>{serverText(r.label)}</Chip>, r.deduction ? money(r.deductionAmount) : "—"])} />
+          rows={h.data.rows.map((r) => [dayName(r.day), r.checkIn ?? "—", r.checkOut ?? "—", r.lateMinutes ? t("common.minutes", { n: r.lateMinutes }) : "—", <Chip key="s" tone={tone(r.deduction, r.lateMinutes)}>{serverText(r.label)}</Chip>, r.deduction ? (amounts ? money(r.deductionAmount) : r.deduction === 1 ? t("common.fullDay") : r.deduction === 0.5 ? t("common.halfDay") : t("common.quarterDay")) : "—"])} />
       </>}
     </>
   );

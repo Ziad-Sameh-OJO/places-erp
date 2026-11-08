@@ -85,4 +85,10 @@ export default [
   ["الصفقة {code} اترفضت: {reason}", "Deal {code} was rejected: {reason}"],
   ["صفقة اتقفلت {code} · {company} · العمولة {amount} · مستنية التحصيل", "Deal closed {code} · {company} · commission {amount} · waiting for collection"],
   ["Done Deal اتسجّلت في الشيت: {type} · {location} · {space} م · {company} · {client}", "Done Deal recorded in the sheet: {type} · {location} · {space} m² · {company} · {client}"],
+  // field permissions (M-09): the deal fields' labels, and what a locked field answers
+  ["عمولة متوقعة من الـ Owner", "Expected commission from the Owner"],
+  ["عمولة متوقعة من الـ Client", "Expected commission from the Client"],
+  ["المحصّل (owner side / client side / net commission)", "Collected (owner side / client side / net commission)"],
+  ["نصيب كل سيلز وعمولته (buyer % / seller %)", "Each salesperson's share and commission (buyer % / seller %)"],
+  ["مش مسموحلك تغيّر «{field}» في الصفقات", "You aren't allowed to change «{field}» on deals"],
 ] satisfies Pair[];
