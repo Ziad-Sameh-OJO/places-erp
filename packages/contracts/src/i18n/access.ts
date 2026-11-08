@@ -86,4 +86,8 @@ export default [
   ["اختار الموديول", "Pick the module"],
   ["اختار ظاهر أو قراية بس أو مخفي", "Pick shown, read only or hidden"],
   ["حقول دور «{role}» في {module} اتعدّلت", "The fields of role «{role}» in {module} were changed"],
+  // field permissions (M-09): the accounts' fields
+  ["آخر يوم شغل", "Last working day"],
+  ["المدير المباشر", "Direct manager"],
+  ["اكتب الإيميل والقسم", "Enter the email and the department"],
 ] satisfies Pair[];

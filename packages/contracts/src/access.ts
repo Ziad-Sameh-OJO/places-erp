@@ -33,6 +33,9 @@ export const UserInput = z.object({
   otpRequired: z.boolean().default(false),
 });
 export type UserInput = z.infer<typeof UserInput>;
+/** An edit: a field the person may not see or change (M-09 field permissions) isn't in the form, so it may be left out. */
+export const UserUpdate = UserInput.extend({ email: UserInput.shape.email.optional(), department: UserInput.shape.department.optional() });
+export type UserUpdate = z.infer<typeof UserUpdate>;
 
 export const UserFilters = Page.extend({
   q: z.string().max(80).optional(),

@@ -67,7 +67,8 @@ export class HrController {
       { header: "الحالة", value: (a) => a.label, width: 26 },
       { header: "دقايق", value: (a) => a.lateMinutes },
       { header: "الخصم", value: (a) => (a.deduction ? DEDUCTION[a.deduction] ?? a.deduction : a.confirmForgot ? "يوم · مستني Confirmation" : "") },
-      { header: "مبلغ الخصم", value: (a) => Number(a.deductionAmount) },
+      // M-09 field permissions: a hidden amount isn't a column of zeros, it isn't there
+      ...(me.fields.hidden("hr").has("deductionAmount") ? [] : [{ header: "مبلغ الخصم", value: (a: (typeof rows)[number]) => Number(a.deductionAmount) }]),
     ], rows, "الحضور");
   }
 

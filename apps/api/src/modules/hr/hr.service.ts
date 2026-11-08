@@ -5,6 +5,7 @@ import { fromDecimal, tiersProblem, toDecimal } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { HrRepository, type EmployeeRowDb, type Tx } from "./hr.repository";
+import { hideEmployee, keepEmployee } from "./hr-fields";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const money = (v: { toFixed(n: number): string }) => toDecimal(fromDecimal(v.toFixed(2)));
@@ -36,16 +37,21 @@ export class HrService {
       f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { department: { contains: f.q, mode: "insensitive" } }, { jobTitle: { contains: f.q, mode: "insensitive" } }] } : {},
     ] };
     const [rows, deps] = await Promise.all([this.repo.employees(where), this.repo.departments(this.scope(me))]);
-    return { items: rows.map((e) => this.row(e)), departments: deps.map((d) => d.department) };
+    const hidden = me.fields.hidden("hr");
+    return { items: rows.map((e) => hideEmployee(this.row(e), hidden)), departments: deps.map((d) => d.department) };
   }
 
   async file(me: CurrentUser, id: string): Promise<EmployeeFile> {
     const e = await this.repo.employee(id, this.scope(me));
     if (!e) throw new NotFoundException("الموظف مش موجود");
-    return this.view(e);
+    return hideEmployee(this.view(e), me.fields.hidden("hr"));
   }
 
-  async update(me: CurrentUser, id: string, p: EmployeePatch, run: Run): Promise<EmployeeFile> {
+  async update(me: CurrentUser, id: string, sent: EmployeePatch, run: Run): Promise<EmployeeFile> {
+    // M-09 field permissions: what the person may not change keeps its stored value (the form sends the whole file)
+    const fixed = me.fields.fixed("hr");
+    const stored = fixed.size ? await this.repo.employee(id, this.scope(me)) : null;
+    const p = stored ? keepEmployee(sent, this.view(stored), fixed) : sent;
     if (p.deductionTiers) { const bad = tiersProblem(p.deductionTiers); if (bad) throw new BadRequestException(bad); }
     if (fromDecimal(p.salary) < 0 || (p.target && fromDecimal(p.target) < 0)) throw new BadRequestException("المبالغ مابتبقاش بالسالب");
     return run(async (tx) => {
@@ -68,7 +74,7 @@ export class HrService {
       const changed = keys.filter((k) => JSON.stringify(b[k]) !== JSON.stringify(a[k]));
       if (changed.length) await this.audit.record({ module: "hr", entity: "Employee", entityId: id, action: "update", userId: me.id,
         before: Object.fromEntries(changed.map((k) => [k, b[k]])), after: Object.fromEntries(changed.map((k) => [k, a[k]])) }, tx);
-      return a;
+      return hideEmployee(a, me.fields.hidden("hr"));
     });
   }
 

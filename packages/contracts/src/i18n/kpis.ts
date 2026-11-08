@@ -126,4 +126,10 @@ export default [
   ["{name} عايز يغيّر تارجت {owner} ({month}) لـ {value} · مستني موافقتك", "{name} wants to change {owner}'s target ({month}) to {value} · waiting for your approval"],
   ["مفيش تغيير مستني موافقة", "No change is waiting for approval"],
   ["اتوافق على تارجت {name} ({month}) {value}", "{name}'s target ({month}) approved: {value}"],
+  // field permissions (M-09): the card's fields
+  ["المكافأة / الخصم", "Reward / deduction"],
+  ["نتيجة الربع", "Quarter result"],
+  ["خطة التحسين", "Improvement plan"],
+  ["الفلوس مش في صلاحياتك", "Money isn't in your permissions"],
+  ["خطة التحسين مش في صلاحياتك", "The improvement plan isn't in your permissions"],
 ] satisfies Pair[];
