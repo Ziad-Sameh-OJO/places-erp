@@ -23,6 +23,7 @@ import { CompaniesSheet, usePendingCompanies } from "./companies";
 import { DraftAdminAlarm, DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
+import { ListRequestsModal, useListRequests } from "../inventory/list-requests";
 
 const PAGE = 50;
 
@@ -41,12 +42,16 @@ export function LeadsList() {
   const [creating, setCreating] = useState(false);
   const [bulk, setBulk] = useState(false);
   const [companies, setCompanies] = useState(false);
+  // 2.32 · demo leads.js: a Team Leader's «اطلب List من الانفنتوري» (who may ask is the API's answer)
+  const [lists, setLists] = useState(false);
+  const asksLists = useListRequests(can("tickets", "view")).data?.canAsk;
   // links from the home board and the notifications: «/leads?open=<id>» opens the lead, «/leads?new=1» the form
   const canCreate = can("leads", "create");
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     setOpen(q.get("open"));
     if (q.get("companies") === "1") setCompanies(true); // the new-company notification's link (1.20)
+    if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32)
   }, []);
   useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
   const [draftTab, setDraftTab] = useState<DraftKind | null>(null);
@@ -98,6 +103,7 @@ export function LeadsList() {
           ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
           : t.rich("callsWeek", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })}</Note>
       )}
+      {asksLists && <div className="row end"><button className="btn ghost sm" onClick={() => setLists(true)}><Icon name="list" />{t("askList")}</button></div>}
       <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />
@@ -120,6 +126,7 @@ export function LeadsList() {
       {mode === "list" && picked.length > 0 && <BulkBar ids={picked} onDone={() => setPicked([])} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
       {companies && <CompaniesSheet onClose={() => setCompanies(false)} />}
+      {lists && <ListRequestsModal onClose={() => setLists(false)} />}
       {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}
       {can("leads", "create") && <Fab onClick={() => setCreating(true)} label={t("newLead")} />}
       {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}

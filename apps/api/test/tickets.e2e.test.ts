@@ -45,7 +45,8 @@ test("each type goes to its own department (M-06 2.2); a plain request goes wher
   const dept = async (id: string) => (await prisma.ticket.findUniqueOrThrow({ where: { id } })).department;
   assert.equal(await dept((await open(sales, { type: "hr_letter", department: "Inventory", title: "E2E HR Letter للسفارة" })).id), "HR");
   assert.equal(await dept((await open(sales, { type: "dispute", title: "E2E نزاع على عميل" })).id), "الإدارة");
-  assert.equal(await dept((await open(sales, { type: "list", title: "E2E List وحدات التجمع" })).id), "Inventory");
+  // the List request is opened from the leads page, so it carries its units (2.32 · list-requests.e2e)
+  assert.equal((await call("/tickets", { method: "POST", cookie: sales, body: { type: "list", title: "E2E List وحدات التجمع" } })).status, 400);
   assert.equal(await dept((await open(sales, { type: "purchase", title: "E2E صيانة تكييف" })).id), "Accounts");
   const noDept = await call("/tickets", { method: "POST", cookie: sales, body: { type: "request", title: "E2E من غير قسم" } });
   assert.equal(noDept.status, 400);
