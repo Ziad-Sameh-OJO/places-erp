@@ -16,6 +16,7 @@ import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
 import { ListOfOptionsBar } from "./list-of-options";
+import { ListRequestsModal, useListRequests } from "./list-requests";
 import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 import { serverText } from "@/lib/server-text";
 
@@ -42,11 +43,15 @@ export function InventoryList() {
     const q = new URLSearchParams(window.location.search);
     if (q.get("unit")) setOpen(q.get("unit"));
     if (q.get("report")) setReport(true); // «التقرير اليومي جاهز» (2.18)
+    if (q.get("lists")) setLists(true); // «طلب List من …» (2.32)
     if (q.get("missing")) setF({ missing: "true" }); // «مهامي النهارده»: «N وحدة تانية ناقصها بيانات» (2.20)
   }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   const [teamTask, setTeamTask] = useState(false);
   const [report, setReport] = useState(false);
+  // 2.32 · the inventory team's «طلبات الـ Lists» (who prepares them is the API's answer)
+  const [lists, setLists] = useState(false);
+  const prepares = useListRequests(me.can("tickets", "view")).data?.canSend;
   const qc = useQueryClient();
   const run = useAction();
   // the rented / sold sheet keeps its own type and dates (M-03 5.2); the other tabs don't use them
@@ -99,6 +104,7 @@ export function InventoryList() {
         {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}
+        {prepares && <button className="btn ghost" onClick={() => setLists(true)}><Icon name="list" />{t("list.listRequests")}</button>}
         {/* 2.28: the sheet as filtered now, every page (the API drops what the reader may not see) */}
         <ExportButton module="inventory" path="/inventory/units/export" query={toParams(query, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
@@ -168,6 +174,7 @@ export function InventoryList() {
       {form && <UnitForm unit={form === "edit" ? unit.data : undefined} options={options} tabs={areaTabs} onClose={() => setForm(null)}
         onSaved={(id) => { setForm(null); setOpen(id); }} />}
       {report && <DailyReportModal onClose={() => setReport(false)} />}
+      {lists && <ListRequestsModal onClose={() => setLists(false)} />}
       {teamTask && <TeamTaskModal units={list} onClose={() => setTeamTask(false)} />}
       {me.can("inventory", "create") && !picked.length && <Fab onClick={() => setForm("new")} label={t("list.newUnit")} />}
     </>

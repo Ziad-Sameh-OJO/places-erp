@@ -80,6 +80,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "contract.installment_escalated", label: "قسط متأخر 7 أيام · تصعيد", to: "الإدارة", toRoles: ["admin"], channels: ["app", "email"], important: true },
   { key: "ticket.new", label: "تذكرة جديدة / اتحوّلت لقسمك", to: "القسم المسؤول", toRoles: [], channels: ["app", "push"], important: false }, // M-06 2.1
   { key: "ticket.late", label: "تذكرة اتأخرت · تصعيد", to: "مدير القسم · نانسي للنزاعات", toRoles: [], channels: ["app", "push", "email"], important: true }, // M-06 2.4
+  { key: "list.sent", label: "الـ List جاهزة", to: "الـ Team Leader اللي طلبها", toRoles: [], channels: ["app", "push"], important: false }, // 2.32 · M-12 Marwa
   { key: "kpi.changed", label: "تغيير في الـ KPIs", to: "مسؤول الـ KPIs", toRoles: [], channels: ["app"], important: false }, // 11.14: never about money
   { key: "report.sent", label: "تقرير متجدول اتبعت", to: "مستلمين التقرير", toRoles: [], channels: ["app"], important: false }, // 11.10
   { key: "report.remind", label: "تذكير بتسليم تقرير", to: "اللي بيسلّمه", toRoles: [], channels: ["app"], important: false }, // 11.10
