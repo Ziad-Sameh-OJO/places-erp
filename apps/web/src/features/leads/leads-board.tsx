@@ -7,6 +7,7 @@ import { Kanban } from "@/components/blocks";
 import { Avatar, Chip, Icon, useAction, useToast } from "@/components/ui";
 import { ago, num, short } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
+import { useFields } from "@/lib/me";
 import { slaText, slaTone, stageTone } from "./lead-bits";
 import { useChangeStage } from "./use-leads";
 import { WhatsAppQuestion } from "./whatsapp-question";
@@ -23,6 +24,7 @@ export function LeadsBoard({ board, canMove, onOpen }: { board: LeadBoard | unde
   const run = useAction();
   const toast = useToast();
   const changeStage = useChangeStage();
+  const fields = useFields("leads"); // M-09: the card leaves a hidden field out
   const [ask, setAsk] = useState<LeadRow | null>(null); // «بعتله واتساب؟» right after No Answer (1.18)
   const move = (l: LeadRow, stage: string) => {
     if (stage === l.stage) return;
@@ -41,7 +43,7 @@ export function LeadsBoard({ board, canMove, onOpen }: { board: LeadBoard | unde
       card={(l) => (
         <>
           <div className="row"><b className="spacer">{l.name}</b>{l.qualified && <Icon name="star" />}</div>
-          <span className="hint">{l.area ? serverText(l.area) : "—"} · {l.type}{l.space != null && <> · {t.rich("board.sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>} · {short(l.budget)}</span>
+          <span className="hint">{l.area ? serverText(l.area) : "—"} · {l.type}{l.space != null && <> · {t.rich("board.sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>}{fields.shows("budget") && <> · {short(l.budget)}</>}</span>
           <div className="row">
             {l.assignedTo && <Avatar id={l.assignedTo.id} name={l.assignedTo.name} sm />}
             <span className="hint spacer">{l.channel}</span>

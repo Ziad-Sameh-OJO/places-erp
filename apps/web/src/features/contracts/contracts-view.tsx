@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import type { ContractCalendar, ContractSummary } from "@places/contracts";
 import { Card, Chip, Icon, Table, Tabs } from "@/components/ui";
 import { Fab, KpiTile } from "@/components/blocks";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { day, money, num } from "@/lib/format";
 import { useCalendar, useCollections, useContracts, useSummary, statusChip } from "./use-contracts";
 import { ContractDrawer } from "./contract-drawer";
@@ -21,7 +21,9 @@ export function ContractsView() {
   const [tab, setTab] = useState<Tab>("list");
   const [open, setOpen] = useState<string | null>(null);
   const [form, setForm] = useState(false);
-  const uploader = can("contracts", "create");
+  const fields = useFields("contracts");
+  // M-09: a contract can't be uploaded without its value, table and PDF, so a role that may not set them doesn't get the form
+  const uploader = can("contracts", "create") && ["value", "installments", "file"].every((k) => fields.edits(k));
   return (
     <>
       {s.data && <Kpis s={s.data} />}
@@ -41,12 +43,13 @@ export function ContractsView() {
 
 function Kpis({ s }: { s: ContractSummary }) {
   const t = useTranslations("contracts.kpis");
+  const fields = useFields("contracts"); // M-09: a tile made of a hidden field is gone
   return (
     <div className="kpis">
       <KpiTile label={t("active")} value={num(s.active)} sub={t("activeSub")} icon="file" />
       <KpiTile label={t("endingSoon")} value={num(s.endingSoon)} sub={t("endingSoonSub")} icon="clock" tone="warn" />
-      <KpiTile label={t("late")} value={num(s.late.count)} sub={money(s.late.amount)} icon="alert" tone="bad" />
-      <KpiTile label={t("paid")} value={money(s.paid)} sub={t("paidSub")} icon="wallet" tone="ok" />
+      {fields.shows("late") && <KpiTile label={t("late")} value={num(s.late.count)} sub={money(s.late.amount)} icon="alert" tone="bad" />}
+      {fields.shows("paid") && <KpiTile label={t("paid")} value={money(s.paid)} sub={t("paidSub")} icon="wallet" tone="ok" />}
     </div>
   );
 }
@@ -73,6 +76,8 @@ function List({ aging, onOpen }: { aging: ContractSummary["aging"] | undefined; 
   const [page, setPage] = useState(1);
   const list = useContracts(q.trim(), ending, page);
   const items = list.data?.items ?? [];
+  const fields = useFields("contracts"); // M-09: a hidden field's column is gone
+  const shown = (k: string) => fields.shows(k);
   return (
     <>
       <div className="toolbar">
@@ -81,14 +86,15 @@ function List({ aging, onOpen }: { aging: ContractSummary["aging"] | undefined; 
       </div>
       <div className="cols wide">
         <div>
-          <Table head={[t("list.contract"), t("fields.client"), t("fields.unit"), t("list.period"), t("fields.value"), t("list.collected"), t("fields.status")]} empty={list.isPending ? t("loading") : t("list.empty")} onRow={(i) => onOpen(items[i]!.id)}
+          <Table head={[t("list.contract"), t("fields.client"), t("fields.unit"), t("list.period"), ...(shown("value") ? [t("fields.value")] : []), ...(shown("paid") && shown("value") ? [t("list.collected")] : []), t("fields.status")]} empty={list.isPending ? t("loading") : t("list.empty")} onRow={(i) => onOpen(items[i]!.id)}
             rows={items.map((c) => {
               const pct = Number(c.value) ? Math.round((Number(c.paid) / Number(c.value)) * 100) : 0;
               const [tone, label] = statusChip(c, t("endingSoon"));
               return [
                 <span key="c" className="mono">{c.code}</span>, c.client, <span key="u" className="mono">{c.unitCode}</span>,
-                `${day(c.startsOn)} → ${day(c.endsOn)}`, <span key="v" className="n">{money(c.value)}</span>,
-                <div key="p" className="cell-bar"><span className="num">{pct}%</span><div className="bar"><i style={{ width: `${pct}%` }} /></div></div>,
+                `${day(c.startsOn)} → ${day(c.endsOn)}`, ...(shown("value") ? [<span key="v" className="n">{money(c.value)}</span>] : []),
+                // the collected % needs both the payments and the value
+                ...(shown("paid") && shown("value") ? [<div key="p" className="cell-bar"><span className="num">{pct}%</span><div className="bar"><i style={{ width: `${pct}%` }} /></div></div>] : []),
                 <Chip key="s" tone={tone}>{label}</Chip>,
               ];
             })} />
@@ -96,7 +102,7 @@ function List({ aging, onOpen }: { aging: ContractSummary["aging"] | undefined; 
             <div className="row"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("list.prev")}</button><span className="hint">{t("list.pageOf", { page: String(page), pages: String(Math.ceil(list.data.total / list.data.pageSize)) })}</span><button className="btn ghost sm" disabled={page * list.data.pageSize >= list.data.total} onClick={() => setPage(page + 1)}>{t("list.next")}</button></div>
           )}
         </div>
-        {aging && <Aging aging={aging} />}
+        {aging && shown("aging") && <Aging aging={aging} />}
       </div>
     </>
   );
@@ -141,9 +147,10 @@ function Collections({ onOpen }: { onOpen: (id: string) => void }) {
   const t = useTranslations("contracts");
   const r = useCollections(month);
   const items = r.data?.items ?? [];
+  const fields = useFields("contracts"); // M-09: the API leaves out what's hidden; its totals and the Aging go too
   return (
     <div className="cols wide">
-      <Card title={t("collections.title")} icon="wallet" sub={r.data ? t("collections.sub", { due: money(r.data.due), collected: money(r.data.collected) }) : ""}
+      <Card title={t("collections.title")} icon="wallet" sub={r.data && fields.shows("installments") && fields.shows("paid") ? t("collections.sub", { due: money(r.data.due), collected: money(r.data.collected) }) : ""}
         extra={<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label={t("month")} style={{ width: "auto" }} />}>
         <Table head={[t("collections.paidOn"), t("list.contract"), t("fields.client"), t("fields.unit"), t("collections.dueOn"), t("fields.amount"), ""]} empty={r.isPending ? t("loading") : t("collections.empty")} onRow={(i) => onOpen(items[i]!.contractId)}
           rows={items.map((x) => [
@@ -152,7 +159,7 @@ function Collections({ onOpen }: { onOpen: (id: string) => void }) {
             <a key="r" className="btn ghost sm" href={`/api/v1/contracts/payments/${x.paymentId}/receipt`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}><Icon name="file" />{t("receipt", { no: x.receiptNo })}</a>,
           ])} />
       </Card>
-      {r.data && <Aging aging={r.data.aging} />}
+      {r.data && fields.shows("aging") && <Aging aging={r.data.aging} />}
     </div>
   );
 }

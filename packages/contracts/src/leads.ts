@@ -31,7 +31,9 @@ export type CreateLead = z.infer<typeof CreateLead>;
  * «تعديل البيانات» (demo leads.js leadEdit): the whole form again; a field left empty is cleared. The mobiles go
  * through the same duplicate check as a new lead (M-01 Q7).
  */
-export const UpdateLead = CreateLead.pick({ name: true, kind: true, company: true, phones: true, area: true, type: true, space: true, condition: true, budget: true, note: true });
+export const UpdateLead = CreateLead.pick({ name: true, kind: true, company: true, phones: true, area: true, type: true, space: true, condition: true, budget: true, note: true })
+  // M-09: a field the person may not change (hidden or read only) isn't in their form; left out, it keeps its value
+  .partial({ phones: true, area: true, type: true });
 export type UpdateLead = z.infer<typeof UpdateLead>;
 
 export const ChangeStage = z.object({ stage: z.enum(LEAD_STAGES), note: z.string().max(2000).optional() });

@@ -10,11 +10,12 @@ import { LeadsService } from "./leads.service";
 
 type ExportRow = Awaited<ReturnType<LeadsService["exportRows"]>>[number];
 /** The demo's export columns (ui.js cols.leads). */
-const EXPORT: ExcelColumn<ExportRow>[] = [
-  { header: "الكود", value: (r) => r.code }, { header: "الاسم", value: (r) => r.name, width: 24 }, { header: "الشركة", value: (r) => r.company, width: 20 },
-  { header: "الموبايل", value: (r) => r.phones, width: 26 }, { header: "Area", value: (r) => r.area, width: 18 }, { header: "Type", value: (r) => r.type },
-  { header: "Space", value: (r) => r.space }, { header: "Budget", value: (r) => r.budget }, { header: "Channel", value: (r) => r.channel },
-  { header: "Campaign", value: (r) => r.campaign, width: 20 }, { header: "Sales", value: (r) => r.sales, width: 20 }, { header: "Stage", value: (r) => r.stage, width: 20 },
+/** `field`: the column's field (M-09 · fields/leads.ts) — a hidden one isn't in the file (its values are blank anyway). */
+const EXPORT: (ExcelColumn<ExportRow> & { field?: string })[] = [
+  { header: "الكود", value: (r) => r.code }, { header: "الاسم", value: (r) => r.name, width: 24 }, { header: "الشركة", value: (r) => r.company, width: 20, field: "company" },
+  { header: "الموبايل", value: (r) => r.phones, width: 26, field: "phones" }, { header: "Area", value: (r) => r.area, width: 18, field: "area" }, { header: "Type", value: (r) => r.type, field: "type" },
+  { header: "Space", value: (r) => r.space, field: "space" }, { header: "Budget", value: (r) => r.budget, field: "budget" }, { header: "Channel", value: (r) => r.channel, field: "channel" },
+  { header: "Campaign", value: (r) => r.campaign, width: 20, field: "campaign" }, { header: "Sales", value: (r) => r.sales, width: 20 }, { header: "Stage", value: (r) => r.stage, width: 20 },
   { header: "Qualified", value: (r) => r.qualified }, { header: "Created", value: (r) => r.createdAt, width: 20 },
 ];
 
@@ -84,7 +85,8 @@ export class LeadsController {
   @Get("export")
   @Requires("leads", "export")
   async export(@Me() me: CurrentUser, @Query(new ZodPipe(LeadFilters)) f: LeadFilters, @Res() res: Response) {
-    await sendXlsx(res, "الليدز.xlsx", EXPORT, await this.leads.exportRows(me, f), "الليدز");
+    const hidden = me.fields.hidden("leads");
+    await sendXlsx(res, "الليدز.xlsx", EXPORT.filter((c) => !c.field || !hidden.has(c.field)), await this.leads.exportRows(me, f), "الليدز");
   }
 
   /** The list's bulk bar: «حوّل لسيلز…» (also needs «leads: approve», checked in the service) and / or «غيّر المرحلة…». */

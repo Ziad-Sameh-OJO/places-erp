@@ -5,8 +5,8 @@ import type { BudgetRow } from "@places/contracts";
 import { Chip, Empty, ExportButton, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { useFields, useMe } from "@/lib/me";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
 import { useBudget, useRefreshFinance } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
@@ -27,8 +27,10 @@ export function Budget() {
   const refresh = useRefreshFinance();
   const [f, setF] = useState<Filter>("");
   const [ledger, setLedger] = useState<string | null>(null);
+  const fields = useFields("finance");
   if (!q.data) return <Empty text={t("common.loading")} icon="clock" />;
-  const ed = can("finance", "edit");
+  // M-09: a read-only / hidden amount can't set a budget (the alert, period and owner stay editable)
+  const ed = can("finance", "edit"), edMoney = ed && fields.edits("amount");
   const { rows, totals, people } = q.data;
   const budgeted = rows.filter((r) => r.budget).length;
   const period = (p: string) => t(`budget.period.${p as Period}`);
@@ -38,7 +40,7 @@ export function Budget() {
     await api.post("/finance/budget", { parent: d.get("parent"), name: d.get("name"), budget: d.get("budget"), period: d.get("period"), alert: Number(d.get("alert")), ...(d.get("ownerId") ? { ownerId: d.get("ownerId") } : {}) });
     await refresh();
   }, t("budget.added")));
-  const amount = (r: BudgetRow) => ed
+  const amount = (r: BudgetRow) => edMoney
     ? <input key={`b${r.budget}`} style={{ width: 110 }} inputMode="decimal" defaultValue={r.budget ?? ""} placeholder={t("budget.noBudget")} aria-label={t("budget.budgetOf", { name: serverText(r.name) })}
         onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.budget ?? "") && /^\d+(\.\d{1,2})?$/.test(v)) void save(r, { budget: v }); }} />
     : r.budget ? money(r.budget) : "—";
@@ -73,7 +75,7 @@ export function Budget() {
             {ed && r.budget && <button className="btn ghost sm" onClick={() => void save(r, { active: !r.active })}>{r.active ? t("budget.stop") : t("budget.start")}</button>}
           </span>,
         ])} />
-      {ed && (
+      {edMoney && (
         <form className="card flat grid" onSubmit={add}>
           <h3 className="mini-h wide"><Icon name="plus" /> {t("budget.newTitle")}</h3>
           <Field label={t("budget.name")} req><input name="name" required minLength={2} placeholder={t("budget.namePlaceholder")} /></Field>

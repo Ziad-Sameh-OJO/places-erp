@@ -3,18 +3,19 @@ import { useTranslations } from "next-intl";
 import type { ContractDetail } from "@places/contracts";
 import { Field, Icon, Note, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { ago, money } from "@/lib/format";
 import { useRefreshContracts } from "./use-contracts";
 
 /** 6.4 in the contract drawer: a value change (asked → management decides) and «فسخ العقد» (reason · penalty). */
 export function ContractActions({ c }: { c: ContractDetail }) {
   const { can } = useMe();
+  const value = useFields("contracts").edits("value"); // M-09: a read-only (or hidden) value can't be changed
   if (c.status !== "Active") return null;
   return (
     <>
-      {c.pending ? <PendingValue c={c} decide={can("contracts", "approve") && !c.pending.mine} />
-        : can("contracts", "create") && <ProposeValue c={c} />}
+      {c.pending ? <PendingValue c={c} decide={can("contracts", "approve") && !c.pending.mine && value} />
+        : can("contracts", "create") && value && <ProposeValue c={c} />}
       {can("contracts", "approve") && <Terminate c={c} />}
     </>
   );
@@ -58,6 +59,7 @@ function ProposeValue({ c }: { c: ContractDetail }) {
 
 function Terminate({ c }: { c: ContractDetail }) {
   const t = useTranslations("contracts.actions");
+  const fields = useFields("contracts");
   const run = useAction();
   const refresh = useRefreshContracts();
   const send = (d: FormData) => void run(async () => {
@@ -68,7 +70,10 @@ function Terminate({ c }: { c: ContractDetail }) {
     <form className="card flat grid" onSubmit={onFormSubmit(send)}>
       <div className="card-head wide"><h3><span className="ico"><Icon name="x" /></span><span>{t("terminate")}</span></h3></div>
       <Field label={t("reason")} req><input name="reason" required minLength={2} maxLength={500} placeholder={t("terminateReason")} /></Field>
-      <Field label={t("penalty")}><input name="penalty" inputMode="decimal" type="number" min={0} step="0.01" defaultValue={0} /></Field>
+      {/* M-09: a hidden penalty has no input; a read-only one stays 0 (the API keeps it 0 either way) */}
+      {fields.shows("penalty") && (fields.edits("penalty")
+        ? <Field label={t("penalty")}><input name="penalty" inputMode="decimal" type="number" min={0} step="0.01" defaultValue={0} /></Field>
+        : <fieldset className="field-lock" disabled><Field label={t("penalty")}><input name="penalty" inputMode="decimal" type="number" defaultValue={0} /></Field></fieldset>)}
       <div className="row end wide"><button className="btn danger sm">{t("terminate")}</button></div>
     </form>
   );

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { DealsToCollect } from "@places/contracts";
 import { api } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import type { InboxLine } from "@/components/inbox";
 
 /**

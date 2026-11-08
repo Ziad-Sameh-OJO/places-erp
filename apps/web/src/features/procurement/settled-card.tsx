@@ -6,7 +6,8 @@ import type { CashView, PurchaseView } from "@places/contracts";
 import { Card, Chip, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { day, money } from "@/lib/format";
+import { day } from "@/lib/format";
+import { money } from "../finance/money";
 import { serverText } from "@/lib/server-text";
 
 /**

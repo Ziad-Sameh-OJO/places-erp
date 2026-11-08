@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import type { MoveEffect, MoveView } from "@places/contracts";
 import { Empty, Icon, Modal } from "@/components/ui";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
 import { printBlock } from "./print";
 import { useEntry, useMove } from "./use-finance";
@@ -20,9 +20,9 @@ export function Voucher({ move, effect, onClose }: { move: MoveView; effect?: Mo
     ...(move.ref ? [[t("move.ref"), move.ref] as [string, string]] : []),
     ...(move.from ? [[t("common.from"), acct(move.from)] as [string, string]] : []),
     ...(move.to ? [[t("common.to"), acct(move.to)] as [string, string]] : []),
-    [t("cash.party"), move.party], ...(move.account ? [[t("common.account"), acct(move.account)] as [string, string]] : []),
+    ...(move.party ? [[t("cash.party"), move.party] as [string, string]] : []), ...(move.account ? [[t("common.account"), acct(move.account)] as [string, string]] : []),
     ...(move.kind === "settle" ? [[t("voucher.spent"), money(move.spent ?? "0")], [t("voucher.returned"), money(move.returned ?? "0")]] as [string, string][] : []),
-    [t("common.memo"), move.memo], [t("voucher.by"), move.by],
+    ...(move.memo ? [[t("common.memo"), move.memo] as [string, string]] : []), [t("voucher.by"), move.by],
   ];
   return (
     <Modal title={`${label} · ${move.no}`} onClose={onClose}>

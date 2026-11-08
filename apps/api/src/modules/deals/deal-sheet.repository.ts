@@ -19,8 +19,8 @@ export class DealSheetRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
   // shortcut: the newest 2,000 deals in scope, the sheet is filtered in the browser; page it when the sheet grows past that
-  sheet(scope: Prisma.DealWhereInput, f: { q?: string | undefined; statuses?: string[] | undefined } = {}) {
-    const where: Prisma.DealWhereInput = { AND: [scope, f.statuses ? { status: { in: f.statuses as never } } : {}, search(f.q)] };
+  sheet(scope: Prisma.DealWhereInput, f: { q?: string | undefined; statuses?: string[] | undefined; byLocation?: boolean } = {}) {
+    const where: Prisma.DealWhereInput = { AND: [scope, f.statuses ? { status: { in: f.statuses as never } } : {}, search(f.q, f.byLocation ?? true)] };
     return this.db.deal.findMany({ where, select: SHEET_ROW, orderBy: [{ closedAt: "desc" }, { id: "desc" }], take: 2_000 });
   }
 }

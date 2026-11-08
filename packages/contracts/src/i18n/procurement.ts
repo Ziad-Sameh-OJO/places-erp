@@ -35,4 +35,6 @@ export default [
   ["الطلب لسه مااتسوّاش", "The request hasn't been settled yet"],
   ["المالية رحّلت {no} ({item}) · {move}", "Finance posted {no} ({item}) · {move}"],
   ["الملف مش موجود", "The file doesn't exist"],
+  // M-09 field permissions (catalog labels)
+  ["سبب الرفض", "Rejection reason"],
 ] satisfies Pair[];

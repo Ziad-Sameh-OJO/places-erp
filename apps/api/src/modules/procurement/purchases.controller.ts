@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { CustodyCap, NewPurchase, PostPurchase, PurchaseDecision, PurchaseFilters, SettlePurchase, type PurchaseStatusKey } from "@places/contracts";
+import { CustodyCap, NewPurchase, PostPurchase, PurchaseDecision, PurchaseFilters, SettlePurchase, type PurchaseStatusKey, type PurchaseView } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -35,12 +35,13 @@ export class PurchasesController {
   @Get("purchases/export")
   @Requires("procurement", "export")
   async export(@Me() me: CurrentUser, @Query(new ZodPipe(PurchaseFilters)) f: PurchaseFilters, @Res() res: Response) {
+    const h = me.fields.hidden("procurement"); // M-09: a hidden field's column isn't in the file
     await sendXlsx(res, "الطلبات.xlsx", [
       { header: "الطلب", value: (p) => p.no },
       { header: "الحاجة", value: (p) => p.item, width: 30 },
-      { header: "المبلغ", value: (p) => Number(p.amount) },
-      { header: "البند", value: (p) => p.account.name, width: 24 },
-      { header: "المورد", value: (p) => p.vendor, width: 20 },
+      ...(h.has("amount") ? [] : [{ header: "المبلغ", value: (p: PurchaseView) => Number(p.amount) }]),
+      ...(h.has("account") ? [] : [{ header: "البند", value: (p: PurchaseView) => p.account.name, width: 24 }]),
+      ...(h.has("vendor") ? [] : [{ header: "المورد", value: (p: PurchaseView) => p.vendor, width: 20 }]),
       { header: "الحالة", value: (p) => STATUS[p.status], width: 22 },
       { header: "طلبه", value: (p) => p.createdBy.name, width: 22 },
       { header: "اتطلب", value: (p) => new Date(p.createdAt), width: 18 },
@@ -51,8 +52,8 @@ export class PurchasesController {
   /** «طلبات مشتريات مستنية الصرف» on finance's cash tab. */
   @Get("purchases/settled")
   @Requires("finance", "view")
-  settled() {
-    return this.purchases.settled();
+  settled(@Me() me: CurrentUser) {
+    return this.purchases.settled(me);
   }
 
   @Get("purchases/:id")
