@@ -19,6 +19,8 @@
     "missingSub": "To be completed later",
     "dailyReport": "Daily report",
     "teamTask": "Team task",
+    "export": "Export units",
+    "exportFile": "Units.xlsx",
     "newUnit": "New unit",
     "searchInsider": "Search anything: project, code, owner, number",
     "search": "Search anything: project, code, building",

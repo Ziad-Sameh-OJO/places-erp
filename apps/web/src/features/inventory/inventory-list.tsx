@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { keepsInventory } from "@places/domain";
 import { Fab, KpiTile } from "@/components/blocks";
-import { Chip, Empty, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
+import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFields, useMe } from "@/lib/me";
@@ -16,7 +16,7 @@ import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
 import { ListOfOptionsBar } from "./list-of-options";
-import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
+import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 import { serverText } from "@/lib/server-text";
 
 const PAGE = 50;
@@ -99,6 +99,8 @@ export function InventoryList() {
         {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}
+        {/* 2.28: the sheet as filtered now, every page (the API drops what the reader may not see) */}
+        <ExportButton module="inventory" path="/inventory/units/export" query={toParams(query, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
       <div className="toolbar">
