@@ -51,7 +51,11 @@ export interface TaskRow {
   /** M-12: a shoot 72 h from the unit's registration, a Retouch 48 h from being given; null for other kinds */
   sla: { due: string; hoursLeft: number; met: boolean | null } | null;
   /** the stages the caller may move it to, and whether they may reassign it (the server checks again) */
-  can: { moves: (typeof TASK_STATUSES)[number][]; edit: boolean };
+  can: {
+    moves: (typeof TASK_STATUSES)[number][]; edit: boolean;
+    /** 4.12: a Retouch opens the unit's Pic & Info folder; its designer adds the edited photos while working it */
+    folder: { open: boolean; upload: boolean };
+  };
 }
 
 export interface TaskOptions {
