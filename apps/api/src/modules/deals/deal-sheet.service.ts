@@ -9,6 +9,7 @@ import { VouchersService } from "../finance/vouchers.service";
 import { TargetsService } from "../kpis/targets.service";
 import { type DealSheetRecord, DealSheetRepository } from "./deal-sheet.repository";
 import { toRow } from "./deals.service";
+import { hideSheetRow, hideTotals } from "./deal-fields";
 
 const money = (d: DealSheetRecord) => dealRowOf({
   ...d, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), targetBase: d.targetBase?.toFixed(2) ?? null,
@@ -38,7 +39,8 @@ export class DealSheetService {
   }
 
   async sheet(me: CurrentUser, f: { q?: string | undefined; statuses?: string[] | undefined } = {}): Promise<DealSheet> {
-    const rows = await this.repo.sheet(this.scope(me), f);
+    const hidden = me.fields.hidden("deals"); // M-09: hidden fields are blanked, and not searched
+    const rows = await this.repo.sheet(this.scope(me), { ...f, byLocation: !hidden.has("location") });
     const people = new Map(rows.flatMap((d) => d.participants.map((p) => [p.employeeId, p.employee] as const)));
     const scheme = (id: string) => Number(people.get(id)?.commissionPct ?? 0);
     const deals = rows.map(money);
@@ -57,7 +59,8 @@ export class DealSheetService {
         })),
       };
     });
-    return { items, totals: { expected: toDecimal(t.expected), collected: toDecimal(t.collected), remaining: toDecimal(t.remaining), commission: toDecimal(t.commission), deals: t.deals } };
+    const totals = { expected: toDecimal(t.expected), collected: toDecimal(t.collected), remaining: toDecimal(t.remaining), commission: toDecimal(t.commission), deals: t.deals };
+    return { items: items.map((r) => hideSheetRow(r, hidden)), totals: hideTotals(totals, hidden) };
   }
 
   /** 5.11 · M-02 6.1: «تفاصيل الصفقات» — every salesperson on every deal that counts, for the Excel file. */
@@ -77,8 +80,10 @@ export class DealSheetService {
     return items;
   }
 
-  achievements(me: CurrentUser, month?: string) {
-    return this.targets.leaderboard(me, month);
+  /** M-09: a role kept from each salesperson's share doesn't see what entered the target either. */
+  async achievements(me: CurrentUser, month?: string) {
+    const board = await this.targets.leaderboard(me, month);
+    return me.fields.hidden("deals").has("achieved") ? { ...board, rows: board.rows.map((r) => ({ ...r, achieved: "", percent: 0 })) } : board;
   }
 
   async collectForm() {
@@ -92,6 +97,8 @@ export class DealSheetService {
   async toCollect(me: CurrentUser): Promise<DealsToCollect> {
     const rows = await this.repo.sheet({ AND: [this.scope(me), { status: { in: ["APPROVED", "PARTIALLY_COLLECTED"] } }] });
     const items = rows.map((d) => ({ d, m: money(d) })).filter((x) => awaitsCollection(x.m)).reverse();
-    return { items: items.map(({ d, m }) => ({ id: d.id, code: d.code, company: d.company, commission: toDecimal(placesCommission(m)), remaining: toDecimal(remaining(m)) })) };
+    const hidden = me.fields.hidden("deals");
+    return { items: items.map(({ d, m }) => ({ id: d.id, code: d.code, company: d.company,
+      commission: hidden.has("expected") ? "" : toDecimal(placesCommission(m)), remaining: hidden.has("remaining") ? "" : toDecimal(remaining(m)) })) };
   }
 }

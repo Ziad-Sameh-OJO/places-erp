@@ -35,8 +35,8 @@ const DEAL_MAKERS = ["sales", "tl"] as const;
 export class DealsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  list(scope: Prisma.DealWhereInput, f: DealFilters, status: string | undefined) {
-    const where: Prisma.DealWhereInput = { AND: [scope, status ? { status: status as never } : {}, search(f.q)] };
+  list(scope: Prisma.DealWhereInput, f: DealFilters, status: string | undefined, byLocation = true) {
+    const where: Prisma.DealWhereInput = { AND: [scope, status ? { status: status as never } : {}, search(f.q, byLocation)] };
     return this.db.$transaction([
       this.db.deal.findMany({ where, select: DEAL_ROW, orderBy: [{ closedAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.deal.count({ where }),
@@ -224,9 +224,12 @@ export class DealsRepository {
   }
 }
 
-/** Search the sheet by company, deal code, unit code or a salesperson's name (M-02 5.2). */
-export function search(q: string | undefined): Prisma.DealWhereInput {
+/**
+ * Search the sheet by company, deal code, unit code or a salesperson's name (M-02 5.2). `byLocation` false: the
+ * location is hidden from the caller (M-09), so it isn't searched (a match would tell it).
+ */
+export function search(q: string | undefined, byLocation = true): Prisma.DealWhereInput {
   if (!q) return {};
   const has = { contains: q, mode: "insensitive" } as const;
-  return { OR: [{ company: has }, { code: has }, { location: has }, { unit: { code: has } }, { participants: { some: { employee: { name: has } } } }] };
+  return { OR: [{ company: has }, { code: has }, ...(byLocation ? [{ location: has }] : []), { unit: { code: has } }, { participants: { some: { employee: { name: has } } } }] };
 }
