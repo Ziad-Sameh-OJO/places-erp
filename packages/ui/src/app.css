@@ -525,6 +525,7 @@ button.lnk { background: none; border: 0; padding: 0; }
 .map > svg.i { width: 36px; height: 36px; color: var(--bad); }
 /* 2.26 · the unit's live map (Leaflet) in the .map frame; its own stacking context so its panes stay under the drawer's header */
 .map.live { display: block; padding: 0; overflow: hidden; isolation: isolate; }
+.map.live.pick.leaflet-grab { cursor: crosshair; } /* 2.27 · the unit form's picker */
 
 /* companies */
 .co-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }

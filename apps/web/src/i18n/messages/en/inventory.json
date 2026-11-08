@@ -126,6 +126,7 @@
     "agent": "Agent (the salesperson who brought the unit)",
     "areaTab": "Area tab",
     "auto": "Automatic from the area",
+    "mapHint": "Click the unit's place on the map and the coordinates fill in",
     "location": "Location (from the map)",
     "lastUpdate": "Last update (with the owner)",
     "receivedAt": "Received on (from the owner / WhatsApp)",
