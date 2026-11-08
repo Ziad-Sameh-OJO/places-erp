@@ -11,6 +11,7 @@ import { NotificationsService } from "../../core/notifications/notifications.ser
 import { LedgerService } from "./ledger.service";
 import type { AccountRow, Tx } from "./ledger.repository";
 import { VouchersRepository, type MoveRow } from "./vouchers.repository";
+import { blankHidden } from "./hidden-fields";
 
 const CASH_KINDS = new Set(["treasury", "bank", "wallet"]);
 /** ايرادات النشاط الرئيسي (عمولات تسويق عقاري …), the chart's 41 */
@@ -208,14 +209,15 @@ export class VouchersService {
   }
 
   /** «اطبع السند» as a PDF (12.12: with the stamp and signature): the voucher's fields and its journal entry. */
-  async pdf(id: string): Promise<{ name: string; html: string }> {
-    const m = await this.get(id);
-    const e = await this.ledger.entry(m.entry.id);
+  async pdf(id: string, hidden: ReadonlySet<string> = new Set()): Promise<{ name: string; html: string }> {
+    // M-09: a hidden field is blank here too, and its row left out
+    const m = blankHidden(await this.get(id), hidden);
+    const e = blankHidden(await this.ledger.entry(m.entry.id), hidden);
     const acc = (a: { code: string; name: string } | null) => (a ? `${a.code} · ${a.name}` : "");
-    const kv: [string, string][] = [["التاريخ", m.date], ["المبلغ", formatEGP(fromDecimal(m.amount))], ["قيد اليومية", `${m.entry.no} · ${m.label}`],
-      ...([["رقم الفاتورة / المرجع", m.ref ?? ""], ["من", acc(m.from)], ["لـ", acc(m.to)], ["الطرف", m.party], ["الحساب", acc(m.account)]] as [string, string][]).filter(([, v]) => v),
-      ["البيان", m.memo], ["سجّله", m.by]];
-    const amt = (s: string) => (fromDecimal(s) ? formatEGP(fromDecimal(s)) : "");
+    const amt = (s: string) => (s && fromDecimal(s) ? formatEGP(fromDecimal(s)) : "");
+    const kv = ([["التاريخ", m.date], ["المبلغ", amt(m.amount)], ["قيد اليومية", `${m.entry.no} · ${m.label}`],
+      ["رقم الفاتورة / المرجع", m.ref ?? ""], ["من", acc(m.from)], ["لـ", acc(m.to)], ["الطرف", m.party], ["الحساب", acc(m.account)],
+      ["البيان", m.memo], ["سجّله", m.by]] as [string, string][]).filter(([, v]) => v);
     return { name: `${m.label} ${m.no}.pdf`, html: layout(`${m.label} ${m.no}`, `<h1>Places · ${esc(m.label)} <span class="num">${esc(m.no)}</span></h1>
       <table><tbody>${kv.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table>
       <h2>قيد اليومية ${esc(m.entry.no)}</h2>

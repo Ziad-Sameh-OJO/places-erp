@@ -109,4 +109,7 @@ export default [
   ["سجّله", "Recorded by"],
   ["البادجت بيتحط على حساب مصروف فرعي", "A budget is set on an expense sub-account"],
   ["البادجت مايبقاش بالسالب", "The budget can't be negative"],
+  // M-09 field permissions
+  ["«{label}» قراية بس عندك · مينفعش تسجّله", "«{label}» is read only for you · you can't enter it"],
+  ["«المبلغ» مخفي عندك · مينفعش تطبع المستند ده", "«Amount» is hidden for you · you can't print this document"],
 ] satisfies Pair[];

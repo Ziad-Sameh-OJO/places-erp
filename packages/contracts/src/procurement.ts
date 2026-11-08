@@ -25,8 +25,9 @@ export const PurchaseDecision = z.object({
 }).refine((d) => d.decision === "Approved" || !!d.reason, { path: ["reason"], message: "اكتب سبب الرفض" });
 export type PurchaseDecision = z.infer<typeof PurchaseDecision>;
 
-/** «التسوية»: اتدفع من (معلومة للمالية) · المبلغ وقت الدفع. A different amount sends it back for approval. */
-export const SettlePurchase = z.object({ paidFromId: Id, amount: Positive, attachments: Files.default([]) });
+/** «التسوية»: اتدفع من (معلومة للمالية) · المبلغ وقت الدفع. A different amount sends it back for approval;
+ * no amount = the approved one (M-09: what someone whose «المبلغ» is read only or hidden sends). */
+export const SettlePurchase = z.object({ paidFromId: Id, amount: Positive.optional(), attachments: Files.default([]) });
 export type SettlePurchase = z.infer<typeof SettlePurchase>;
 
 /** Finance «اصرفها»: the safe / bank it really leaves from; the amount is the request's (locked). */

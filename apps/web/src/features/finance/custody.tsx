@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import type { Holder, MoveEffect, MoveView } from "@places/contracts";
 import { Card, Empty, Note, Table } from "@/components/ui";
 import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import { useCash } from "./use-finance";
 import { MoveForm } from "./move-form";
 import { Voucher } from "./voucher";

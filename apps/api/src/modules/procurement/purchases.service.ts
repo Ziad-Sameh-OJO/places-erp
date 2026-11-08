@@ -14,6 +14,7 @@ import { LedgerService } from "../finance/ledger.service";
 import { VouchersService } from "../finance/vouchers.service";
 import { SettingsService } from "../settings/settings.service";
 import { PurchasesRepository, type PurchaseRow, type Scope } from "./purchases.repository";
+import { blankHidden, notYours } from "../finance/hidden-fields";
 
 const MODULE = "procurement";
 const LINK = "/procurement";
@@ -21,6 +22,15 @@ const NOT_FOUND = "الطلب ده مش موجود";
 const H48 = 48 * 3_600_000; // KPI M-12: purchase and repair done within 48 hours
 const dec = (v: { toFixed(n: number): string }): Piasters => fromDecimal(v.toFixed(2));
 const code = (no: number) => `PR-${no}`;
+
+/** M-09 field permissions: what the person may not see / change on a request. */
+const hidden = (me: CurrentUser) => me.fields.hidden(MODULE);
+const fixed = (me: CurrentUser) => me.fields.fixed(MODULE);
+/** Filtering by a hidden field would tell its value: such a filter is dropped. */
+function shownFilters(f: PurchaseFilters, h: ReadonlySet<string>): PurchaseFilters {
+  const { accountId, group, vendor, ...rest } = f;
+  return { ...rest, ...(accountId && !h.has("account") ? { accountId } : {}), ...(group && !h.has("account") ? { group } : {}), ...(vendor && !h.has("vendor") ? { vendor } : {}) };
+}
 
 /**
  * M-08 · purchase requests. Mokhtar asks → an approver releases it within his limit (Q44 · Q45, never his own: 4.1) →
@@ -82,21 +92,21 @@ export class PurchasesService {
   }
 
   async list(me: CurrentUser, f: PurchaseFilters): Promise<PurchasesView> {
-    const [[rows, total], who, left] = await Promise.all([this.repo.list(f, this.scope(me)), this.approver(me), this.budgetLeft()]);
-    return { items: await this.views(rows, who, left), total, page: f.page, pageSize: f.pageSize };
+    const [[rows, total], who, left] = await Promise.all([this.repo.list(shownFilters(f, hidden(me)), this.scope(me)), this.approver(me), this.budgetLeft()]);
+    return blankHidden({ items: await this.views(rows, who, left), total, page: f.page, pageSize: f.pageSize }, hidden(me));
   }
 
   /** «تصدير الطلبات» (demo procurement.js · M-12 0.11): every request the filters match, in the reader's scope (4.1). */
   async exportRows(me: CurrentUser, f: PurchaseFilters): Promise<PurchaseView[]> {
-    const [rows] = await this.repo.list({ ...f, page: 1, pageSize: EXPORT_LIMIT }, this.scope(me));
+    const [rows] = await this.repo.list({ ...shownFilters(f, hidden(me)), page: 1, pageSize: EXPORT_LIMIT }, this.scope(me));
     await this.audit.record({ module: MODULE, entity: "Purchase", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
-    return this.views(rows, null, new Map());
+    return blankHidden(await this.views(rows, null, new Map()), hidden(me));
   }
 
   async get(me: CurrentUser, id: string): Promise<PurchaseView> {
     const row = await this.repo.find(id, this.scope(me));
     if (!row) throw new NotFoundException(NOT_FOUND);
-    return (await this.views([row], await this.approver(me), await this.budgetLeft()))[0]!;
+    return blankHidden((await this.views([row], await this.approver(me), await this.budgetLeft()))[0]!, hidden(me));
   }
 
   /** The KPI tiles, the budget per line (10.3 report), the safes with their ceilings, and the 48-hour KPI. */
@@ -105,17 +115,24 @@ export class PurchasesService {
     const [counts, budget, cash, caps, times] = await Promise.all([this.repo.counts(scope), this.vouchers.budget(), this.vouchers.cash(), this.ledger.caps(), this.repo.settledTimes(scope)]);
     const count = (s: string) => counts.find((c) => c.status === s)?._count ?? 0;
     const groups = new Map(budget.rows.map((r) => [r.code.slice(0, 2), r.group]));
-    return {
+    // a hidden «المبلغ»: what the lines spent (the posted requests are in it) and the safes' balances go blank too
+    return blankHidden({
       pending: count("Pending"), approved: count("Approved"),
       lines: budget.rows.map((r) => ({ accountId: r.accountId, code: r.code, name: r.name, group: r.group, budget: r.active ? r.budget : null, spent: r.spent, left: r.active ? r.left : null, pct: r.pct, level: r.level })),
       groups: [...groups].map(([c, name]) => ({ code: c, name })),
       totals: { budget: budget.totals.budget, spent: budget.totals.spent, left: budget.totals.left },
       cash: cash.accounts.map((a) => ({ accountId: a.id, code: a.code, name: a.name, balance: a.balance, cap: caps.get(a.id) ?? null })),
       in48: { done: times.filter((t) => t.settledAt!.getTime() - t.createdAt.getTime() <= H48).length, total: times.length },
-    };
+    }, hidden(me));
   }
 
-  async create(me: CurrentUser, input: NewPurchase): Promise<PurchaseView> {
+  async create(me: CurrentUser, given: NewPurchase): Promise<PurchaseView> {
+    // a read-only «المبلغ» / «البند» can't be set (the request needs both); a read-only «المورد» starts empty
+    const f = fixed(me);
+    if (f.has("amount")) throw notYours("المبلغ");
+    if (f.has("account")) throw notYours("البند");
+    const { vendor, ...rest } = given;
+    const input: NewPurchase = vendor && !f.has("vendor") ? { ...rest, vendor } : rest;
     const amount = fromDecimal(input.amount);
     const { rows } = await this.vouchers.budget();
     if (!rows.some((r) => r.accountId === input.accountId)) throw new BadRequestException("اختار البند من شجرة الحسابات (مصروف فرعي)");
@@ -129,7 +146,7 @@ export class PurchasesService {
       return p;
     });
     await this.notifications.notify({ event: "procurement.request", text: `طلب شراء جديد: ${row.item} · ${formatEGP(amount)}`, link: LINK });
-    return (await this.views([row], null, await this.budgetLeft()))[0]!;
+    return blankHidden((await this.views([row], null, await this.budgetLeft()))[0]!, hidden(me));
   }
 
   async decide(me: CurrentUser, id: string, d: PurchaseDecision): Promise<PurchaseView> {
@@ -141,7 +158,7 @@ export class PurchasesService {
       if (problem) throw new ForbiddenException(problem);
     }
     await this.db.$transaction(async (tx) => {
-      const data = { status: d.decision, decidedById: me.id, decidedAt: new Date(), rejectReason: d.decision === "Rejected" ? d.reason! : null };
+      const data = { status: d.decision, decidedById: me.id, decidedAt: new Date(), rejectReason: d.decision === "Rejected" ? (fixed(me).has("rejectReason") ? "" : d.reason!) : null };
       if (!(await this.repo.move(id, { status: "Pending", amount: p.amount.toFixed(2) }, data, tx))) throw new ConflictException("الطلب اتغير · افتحه تاني");
       await this.audit.record({ module: MODULE, entity: "Purchase", entityId: id, action: d.decision === "Approved" ? "approve" : "reject", userId: me.id,
         before: { status: "Pending" }, after: { status: d.decision, amount: p.amount.toFixed(2), reason: data.rejectReason } }, tx);
@@ -155,9 +172,11 @@ export class PurchasesService {
    * «اتسوّى · ابعته للمالية»: procurement says it paid and from which safe; nothing moves until finance posts it.
    * A different amount than the approved one goes back to Pending for a new approval (2.3).
    */
-  async settle(me: CurrentUser, id: string, s: SettlePurchase): Promise<PurchaseView> {
+  async settle(me: CurrentUser, id: string, given: SettlePurchase): Promise<PurchaseView> {
     const p = await this.repo.find(id, this.scope(me));
     if (!p) throw new NotFoundException(NOT_FOUND);
+    // no amount, or a read-only «المبلغ»: settled at the approved amount
+    const s = { ...given, amount: fixed(me).has("amount") || !given.amount ? p.amount.toFixed(2) : given.amount };
     if (p.status !== "Approved") throw new ConflictException("الطلب لازم يكون اتوافق عليه الأول");
     const cash = (await this.vouchers.cash()).accounts.find((a) => a.id === s.paidFromId);
     if (!cash) throw new BadRequestException("اختار الخزنة أو البنك اللي اتدفع منه");
@@ -180,8 +199,8 @@ export class PurchasesService {
   }
 
   /** «طلبات مشتريات مستنية الصرف» for finance. */
-  async settled(): Promise<PurchaseView[]> {
-    return this.views(await this.repo.settled(), null, new Map());
+  async settled(me: CurrentUser): Promise<PurchaseView[]> {
+    return blankHidden(await this.views(await this.repo.settled(), null, new Map()), hidden(me));
   }
 
   /** Finance «اصرفها»: one payment voucher for the request's amount on its line, in the same transaction (10.2 → 9.3). */

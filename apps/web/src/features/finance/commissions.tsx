@@ -5,7 +5,7 @@ import type { CommissionPaid, CommissionPerson, CommissionStatement } from "@pla
 import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
 import { useCash, useCommission, useCommissionPeople, useRefreshFinance } from "./use-finance";
 import { VoucherById } from "./voucher";
