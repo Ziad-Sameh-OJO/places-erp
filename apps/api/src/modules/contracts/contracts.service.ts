@@ -19,6 +19,8 @@ import { type ContractRecord, ContractsRepository, type PaymentRecord } from "./
 const NO_CONTRACT = "العقد ده مش موجود";
 const FILE_ENTITY = "Contract";
 const PDF = "application/pdf";
+/** M-09: a field the person may only read (or not see) can't be written through its own endpoint. */
+const LOCKED = "الحقل ده مقفول عليك";
 /** ACTIVE ↔ «Active»: the API speaks the statuses as the screens show them. */
 const label = (s: string) => (s[0] + s.slice(1).toLowerCase()) as ContractStatus;
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -50,7 +52,8 @@ export class ContractsService {
     const today = localDate(now);
     const ending: Prisma.ContractWhereInput = f.ending ? { status: "ACTIVE", endsOn: { gte: new Date(today), lte: new Date(addDays(today, RENEWAL_WINDOW_DAYS)) } } : {};
     const [rows, total] = await this.repo.list(this.scope(me), f, { ...(f.status ? { status: f.status.toUpperCase() as never } : {}), ...ending });
-    return { items: rows.map((r) => toRow(r, today)), total, page: f.page, pageSize: f.pageSize };
+    const hidden = me.fields.hidden("contracts");
+    return { items: rows.map((r) => hideRow(toRow(r, today), hidden)), total, page: f.page, pageSize: f.pageSize };
   }
 
   async get(me: CurrentUser, id: string, now = new Date()): Promise<ContractDetail> {
@@ -58,7 +61,7 @@ export class ContractsService {
     if (!c) throw new NotFoundException(NO_CONTRACT);
     const today = localDate(now);
     const pendingBy = c.pendingById ? await this.repo.userName(c.pendingById) : null;
-    return {
+    return hideDetail({
       ...toRow(c, today), createdAt: c.createdAt.toISOString(),
       endedOn: c.endedOn ? day(c.endedOn) : null, endReason: c.endReason, penalty: c.penalty?.toFixed(2) ?? null,
       pending: c.pendingValue && c.pendingAt ? { value: c.pendingValue.toFixed(2), reason: c.pendingReason ?? "", by: pendingBy, at: c.pendingAt.toISOString(), mine: c.pendingById === me.id } : null,
@@ -71,7 +74,7 @@ export class ContractsService {
           payments: i.payments.map((p, n) => ({ id: p.id, amount: p.amount.toFixed(2), paidOn: day(p.paidOn), receiptNo: receiptNo(c.code, k, n) })),
         };
       }),
-    };
+    }, me.fields.hidden("contracts"));
   }
 
   /** The demo's tiles (active · ending · late installments · collected), the renewals card and the Aging (M-11 5.1 · 6.1). */
@@ -82,11 +85,13 @@ export class ContractsService {
     const late = lines.filter((l) => l.paid < l.amount && l.dueOn < today);
     const rows = all.map((c) => toRow(c, today));
     const renewals = rows.filter((r) => r.endingSoon).sort((a, b) => a.daysLeft - b.daysLeft);
+    const h = me.fields.hidden("contracts"); // M-09: the tiles and the Aging are made of the installments and the payments
     return {
       active: rows.filter((r) => r.status === "Active").length, endingSoon: renewals.length,
-      late: { count: late.length, amount: toDecimal(late.reduce((s, l) => s + l.amount - l.paid, 0)) },
-      paid: toDecimal(rows.reduce((s, r) => s + fromDecimal(r.paid), 0)),
-      aging: agingBuckets(lines, today).map(toDecimal) as ContractSummary["aging"], renewals: renewals.slice(0, 10),
+      late: h.has("late") ? { count: 0, amount: "" } : { count: late.length, amount: toDecimal(late.reduce((s, l) => s + l.amount - l.paid, 0)) },
+      paid: h.has("paid") ? "" : toDecimal(rows.reduce((s, r) => s + fromDecimal(r.paid), 0)),
+      aging: h.has("aging") ? ["", "", "", ""] : agingBuckets(lines, today).map(toDecimal) as ContractSummary["aging"],
+      renewals: renewals.slice(0, 10).map((r) => hideRow(r, h)),
     };
   }
 
@@ -97,7 +102,8 @@ export class ContractsService {
     const [installments, ends] = await this.repo.month(this.scope(me), from, to);
     const byDay: Record<string, CalendarItem[]> = {};
     const add = (d: Date, item: CalendarItem) => (byDay[day(d)] ??= []).push(item);
-    for (const i of installments) {
+    // M-09: the installments are the table's: without it the calendar has the contracts' ends only
+    for (const i of me.fields.hidden("contracts").has("installments") ? [] : installments) {
       const amount = fromDecimal(i.amount.toFixed(2)), paid = fromDecimal(i.paid.toFixed(2));
       add(i.dueOn, { contractId: i.contract.id, code: i.contract.code, client: i.contract.deal.company, kind: "installment", amount: toDecimal(amount), state: installmentState({ dueOn: day(i.dueOn), amount, paid }, today) });
     }
@@ -111,6 +117,7 @@ export class ContractsService {
    * Not posted to the journal: whether a tenant's installment is Places' money is still open (M-11 7.2).
    */
   async pay(me: CurrentUser, installmentId: string, input: RecordPayment, now = new Date()): Promise<ContractDetail> {
+    if (me.fields.fixed("contracts").has("paid")) throw new ForbiddenException(LOCKED);
     const today = localDate(now), paidOn = input.paidOn ?? today, amount = fromDecimal(input.amount);
     const contractId = await this.db.$transaction(async (tx) => {
       const i = await this.repo.installment(tx, this.scope(me), installmentId);
@@ -131,10 +138,11 @@ export class ContractsService {
   async collections(me: CurrentUser, month: string, now = new Date()): Promise<CollectionReport> {
     const from = new Date(`${month}-01T00:00:00Z`), to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 0));
     const [[payments, due], { aging }] = await Promise.all([this.repo.collections(this.scope(me), from, to), this.summary(me, now)]);
+    const h = me.fields.hidden("contracts"); // M-09: what fell due is the installments', what came in the payments'
     return {
-      month, due: toDecimal(fromDecimal((due._sum.amount ?? 0).toFixed(2))), aging,
-      collected: toDecimal(payments.reduce((s, p) => s + fromDecimal(p.amount.toFixed(2)), 0)),
-      items: payments.map((p) => ({
+      month, due: h.has("installments") ? "" : toDecimal(fromDecimal((due._sum.amount ?? 0).toFixed(2))), aging,
+      collected: h.has("collected") ? "" : toDecimal(payments.reduce((s, p) => s + fromDecimal(p.amount.toFixed(2)), 0)),
+      items: (h.has("payments") ? [] : payments).map((p) => ({
         paymentId: p.id, contractId: p.installment.contract.id, code: p.installment.contract.code, client: p.installment.contract.deal.company,
         unitCode: p.installment.contract.deal.unit.code, dueOn: day(p.installment.dueOn), paidOn: day(p.paidOn), amount: p.amount.toFixed(2), receiptNo: paymentReceiptNo(p),
       })),
@@ -143,6 +151,7 @@ export class ContractsService {
 
   /** 6.7: a payment's receipt from the 12.12 template (the entity's logo; the stamp and signature come when printed), for whoever sees the contract. */
   async receipt(me: CurrentUser, paymentId: string) {
+    if (me.fields.hidden("contracts").has("payments")) throw new ForbiddenException(LOCKED);
     const p = await this.repo.payment(this.scope(me), paymentId);
     if (!p) throw new NotFoundException("الدفعة دي مش موجودة");
     const c = p.installment.contract, no = paymentReceiptNo(p);
@@ -166,7 +175,8 @@ export class ContractsService {
    */
   async terminate(me: CurrentUser, id: string, input: TerminateContract): Promise<ContractDetail> {
     const c = await this.load(me, id);
-    const penalty = fromDecimal(input.penalty);
+    // M-09: a penalty the person may not set stays empty (0)
+    const penalty = me.fields.fixed("contracts").has("penalty") ? 0 : fromDecimal(input.penalty);
     const problem = terminationProblem(label(c.status), input.reason, penalty);
     if (problem) throw new BadRequestException(problem);
     await this.db.$transaction(async (tx) => {
@@ -181,6 +191,7 @@ export class ContractsService {
 
   /** M-11 2.2: a change of value after signing waits for management; the contract keeps its value meanwhile. */
   async proposeValue(me: CurrentUser, id: string, input: ProposeValue): Promise<ContractDetail> {
+    if (me.fields.fixed("contracts").has("value")) throw new ForbiddenException(LOCKED);
     const c = await this.load(me, id);
     if (c.status !== "ACTIVE") throw new BadRequestException("العقد ده مش شغال");
     const value = toDecimal(fromDecimal(input.value));
@@ -199,6 +210,7 @@ export class ContractsService {
    * spread again over the installments not paid yet (domain respread); old and new values are audited.
    */
   async decideValue(me: CurrentUser, id: string, input: DecideValue): Promise<ContractDetail> {
+    if (me.fields.fixed("contracts").has("value")) throw new ForbiddenException(LOCKED);
     const c = await this.load(me, id);
     if (!c.pendingValue) throw new BadRequestException("مفيش طلب تغيير قيمة على العقد ده");
     if (c.pendingById === me.id) throw new ForbiddenException("الموافقة لحد غير اللي طلب التغيير");
@@ -230,7 +242,7 @@ export class ContractsService {
   /** The signed PDF: whoever may see the contract. */
   async fileUrl(me: CurrentUser, id: string) {
     const c = await this.repo.detail(this.scope(me), id);
-    if (!c?.fileId) throw new NotFoundException(NO_CONTRACT);
+    if (!c?.fileId || me.fields.hidden("contracts").has("file")) throw new NotFoundException(NO_CONTRACT);
     return this.files.downloadUrl(c.fileId);
   }
 
@@ -238,7 +250,12 @@ export class ContractsService {
    * M-11 2.1 steps 1–2: the contract is uploaded on an approved deal of the caller's (one per deal), with its PDF; the
    * system builds the installment table (value ÷ count, M-11 3.2) unless it's written line by line.
    */
-  async create(me: CurrentUser, input: CreateContract): Promise<ContractDetail> {
+  async create(me: CurrentUser, sent: CreateContract): Promise<ContractDetail> {
+    // M-09: the value, the table and the PDF make the contract, so a person who may not set one can't upload it; a
+    // yearly increase they may not set starts at 0
+    const fixed = me.fields.fixed("contracts");
+    if (["value", "installments", "file"].some((k) => fixed.has(k))) throw new ForbiddenException(LOCKED);
+    const input = fixed.has("escalation") ? { ...sent, escalation: 0 } : sent;
     const deal = await this.deals.forContract(me, input.dealId);
     if (!deal) throw new NotFoundException("الصفقة دي مش موجودة أو لسه ماتوافقش عليها");
     if (await this.repo.existsForDeal(deal.id)) throw new ConflictException("الصفقة دي ليها عقد بالفعل");
@@ -271,6 +288,25 @@ export class ContractsService {
 const receiptNo = (code: string, k: number, n: number) => `${code}-${k + 1}${n ? `/${n + 1}` : ""}`;
 const paymentReceiptNo = (p: PaymentRecord) =>
   receiptNo(p.installment.contract.code, p.installment.contract.installments.findIndex((x) => x.id === p.installment.id), p.installment.payments.findIndex((x) => x.id === p.id));
+
+/**
+ * M-09 field permissions: a hidden field's value never leaves the API — blank in the row (its kind kept, so the screens
+ * show «—»). The code, the parties, the unit and the dates are the contract's identity and always stay.
+ */
+function hideRow<T extends ContractRow>(r: T, h: ReadonlySet<string>): T {
+  if (!h.size) return r;
+  return { ...r, value: h.has("value") ? "" : r.value, escalation: h.has("escalation") ? 0 : r.escalation, paid: h.has("paid") ? "" : r.paid };
+}
+
+function hideDetail(d: ContractDetail, h: ReadonlySet<string>): ContractDetail {
+  if (!h.size) return d;
+  return {
+    ...hideRow(d, h),
+    nextYearValue: h.has("nextYearValue") ? "" : d.nextYearValue, pending: h.has("pending") ? null : d.pending,
+    file: h.has("file") ? null : d.file, penalty: h.has("penalty") ? null : d.penalty,
+    installments: h.has("installments") ? [] : h.has("paid") ? d.installments.map((i) => ({ ...i, paid: "", payments: [] })) : d.installments,
+  };
+}
 
 const addDays = (today: string, n: number) => day(new Date(new Date(`${today}T00:00:00Z`).getTime() + n * 86_400_000));
 
