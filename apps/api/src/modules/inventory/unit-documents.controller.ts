@@ -17,6 +17,13 @@ export class UnitDocumentsController {
     return this.send(res, this.docs.render(me, id, "pdf"));
   }
 
+  /** 2.25 · the cover and the specs page, small, in the PDF tab */
+  @Get("pdf/preview")
+  @Requires("inventory", "view")
+  preview(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.docs.preview(me, id);
+  }
+
   @Get("slide")
   @Requires("inventory", "view")
   slide(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
