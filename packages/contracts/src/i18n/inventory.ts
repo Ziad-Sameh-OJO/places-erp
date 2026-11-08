@@ -57,4 +57,14 @@ export default [
   ["تأكيد قفل الـ {type} بتاع {who}", "Confirming the {type} close is {who}'s job"],
   ["القفل اتأكد قبل كده", "The close was already confirmed"],
   ["الـ {type} عليه Done Deal {code} · مينفعش يتشال من الوحدة", "The {type} has Done Deal {code} · it can't be removed from the unit"],
-] satisfies Pair[];
+  // list-requests.service.ts (2.32)
+  ["طلب الـ List ده مش موجود", "This List request doesn't exist"],
+  ["طلب الـ List للـ Team Leader", "Asking for a List is the Team Leader's"],
+  ["الـ List بيجهّزها فريق الانفنتوري", "The Inventory team prepares the List"],
+  ["الـ List دي اتبعتت قبل كده", "This List was already sent"],
+  ["الـ List دي اتبعتت دلوقتي", "This List was just sent"],
+  ["فيه وحدة مش متاحة أو الـ PDF بتاعها لسه ماتأكدش", "A unit isn't available or its PDF isn't confirmed yet"],
+  ["{codes} مش مؤكدة (عدّى عليها شهر من غير ابديت). تبعتها برضه؟", "{codes} not confirmed (a month without an update). Send anyway?"],
+  ["طلب List من {name}: {text}", "List request from {name}: {text}"],
+  ["الـ List بتاعة «{text}» جاهزة: {codes}", "The List «{text}» is ready: {codes}"],
+  ["الـ List اتبعتت: {codes}", "List sent: {codes}"],] satisfies Pair[];

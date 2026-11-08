@@ -17,6 +17,7 @@ import { ClientsService } from "../clients/clients.service";
 import { InventoryRepository, type ListFilters, type UnitRecord, type UnitRowRecord, type UnitScope } from "./inventory.repository";
 import { UnitsService } from "./units.service";
 import { IMPORT_TX, type ImportReport, type ParsedSheet } from "../../core/http/import";
+import { EXPORT_LIMIT } from "../../core/http/excel";
 import { UnitPhotosService } from "./unit-photos.service";
 
 const NO_UNIT = "الوحدة مش موجودة";
@@ -135,6 +136,18 @@ export class InventoryService {
     const [rows, total] = await this.repo.list(s, await withMissing(this.repo, s, f), f.tabId ? await this.repo.areaTabs() : []);
     const [agents, links] = await Promise.all([this.names(rows.map((r) => r.agentId)), this.photos.links(rows.flatMap((r) => r.photos.map((p) => p.fileId)))]);
     return { items: rows.map((r) => this.row(r, s, agents, links, hidden)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /**
+   * 2.28 · «تصدير الوحدات» (demo inventory.js, M-12 0.11): the sheet as filtered on the screen, every page, in the same
+   * scope (sales: confirmed units only, Q15) and with the same hidden fields blank (M-09). Audited.
+   */
+  async exportRows(me: CurrentUser, filters: UnitFilters): Promise<UnitRow[]> {
+    const s = this.scope(me), hidden = me.fields.hidden("inventory"), f = { ...shownFilters(filters, hidden), page: 1, pageSize: EXPORT_LIMIT };
+    const [rows] = await this.repo.list(s, await withMissing(this.repo, s, f), f.tabId ? await this.repo.areaTabs() : []);
+    const agents = await this.names(rows.map((r) => r.agentId));
+    await this.audit.record({ module: "inventory", entity: "Unit", entityId: "export", action: "export", userId: me.id, after: { filters, rows: rows.length } });
+    return rows.map((r) => this.row(r, s, agents, new Map(), hidden));
   }
 
   async summary(me: CurrentUser): Promise<UnitSummary> {

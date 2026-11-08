@@ -4,7 +4,7 @@ import type { Pair } from "./translate.ts";
 export default [
   // tickets.service.ts
   ["التذكرة دي مش موجودة أو مش من حقك تشوفها", "This ticket doesn't exist or you aren't allowed to see it"],
-  ["الطلب ده بيتقرر من شاشته (الـ Excuse من الـ HR)", "This request is decided from its own screen (the Excuse from HR)"],
+  ["الطلب ده بيتقرر من شاشته (الـ Excuse من الـ HR، والـ List من الانفنتوري)", "This request is decided from its own screen (the Excuse from HR, the List from the Inventory)"],
   ["اختار القسم", "Pick the department"],
   ["القسم ده مش في قايمة أقسام التذاكر", "This department isn't in the ticket departments list"],
   ["اتفتحت", "Opened"],

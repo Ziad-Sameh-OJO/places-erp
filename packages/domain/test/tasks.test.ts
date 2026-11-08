@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { followupRole, isTaskLate, needsFollowup, photoDayWarning, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
+import { followupRole, isTaskLate, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
 
 const assignee: TaskActor = { assignee: true, manager: false, approver: false };
 const manar: TaskActor = { assignee: false, manager: true, approver: true };
@@ -48,6 +48,15 @@ test("the board's buttons follow the same rule", () => {
   assert.deepEqual(taskMovesFor("retouch", "uploaded", manar), ["todo", "done"]);
   assert.deepEqual(taskMovesFor("marketing", "done", assignee), ["todo"]);
   assert.deepEqual(taskMovesFor("photo", "todo", stranger), []);
+});
+
+test("4.12 · M-03 3.1: a Retouch carries the unit's photos; its designer uploads the edited ones until sent to Manar", () => {
+  assert.deepEqual(retouchFolder("retouch", "todo", assignee), { open: true, upload: true });
+  assert.deepEqual(retouchFolder("retouch", "progress", assignee), { open: true, upload: true });
+  assert.deepEqual(retouchFolder("retouch", "uploaded", assignee), { open: true, upload: false }); // waiting for Manar
+  assert.deepEqual(retouchFolder("retouch", "done", assignee), { open: true, upload: false });
+  assert.deepEqual(retouchFolder("retouch", "todo", manar), { open: true, upload: false }); // Manar has the folder on the unit's page
+  assert.deepEqual(retouchFolder("photo", "todo", assignee), { open: false, upload: false });
 });
 
 test("M-03 2.4 · 2.17: a unit late on its owner update gets one follow-up — Randa for Resale, Manar for the rest", () => {

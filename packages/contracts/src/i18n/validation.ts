@@ -392,6 +392,9 @@ export default [
   ["لحد 20 وحدة في الـ List", "Up to 20 units in the list"],
   ["الوحدة متكررة في الـ List", "A unit is in the list twice"],
   ["اختار كامل أو مختصر", "Pick full or short"],
+  // inventory.ts ListRequestInput (2.32)
+  ["اكتب عايز List إيه", "Write what List you want"],
+  ["الطلب طويل · 500 حرف بالكتير", "The request is too long · 500 characters at most"],
   ["اختار PDF أو PowerPoint", "Pick PDF or PowerPoint"],
   ["اسم العميل طويل", "The client's name is too long"],
 ] satisfies Pair[];

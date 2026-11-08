@@ -1,6 +1,7 @@
 {
   "kind": { "client": "Client", "owner": "Owner", "both": "Client + Owner" },
   "drawer": {
+    "open": "Open",
     "notFound": "File not found",
     "loading": "Loading…",
     "kind": "Type",

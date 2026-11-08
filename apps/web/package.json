@@ -15,6 +15,7 @@
     "@places/ui": "workspace:*",
     "@tanstack/react-query": "^5.62.8",
     "@tanstack/react-table": "^8.20.6",
+    "leaflet": "1.9.4",
     "next": "^15.1.2",
     "next-intl": "4.14.9",
     "react": "^19.0.0",
@@ -22,6 +23,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/leaflet": "1.9.21",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "playwright-core": "1.64.0",

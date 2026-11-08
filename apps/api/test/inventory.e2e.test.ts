@@ -123,6 +123,12 @@ test("nothing is required (2.21), but a wrong value is refused in Arabic", async
   await refused(rent({ condition: "مفروش" }), "التشطيب");
   await refused(rent({ ownerPhone: "12" }), "الرقم غلط");
   await refused(rent({ location: "مش لوكيشن" }), "اللوكيشن");
+  // 2.27 · what the form's map writes (five decimals; south / west too) is the shape the API takes, kept as is
+  for (const location of ["30.02541, 31.49130", "-33.86882, -151.20930"]) {
+    const r = await call("/inventory/units", { method: "POST", cookie: manar, body: rent({ location }) });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal((await call(`/inventory/units/${r.body.id}`, { cookie: manar })).body.location, location);
+  }
   await refused(rent({ divisible: true, minSplit: 95 }), "أصغر من مساحة الوحدة");
   await refused(income({ startsOn: "2027-01-01", endsOn: "2026-01-01" }), "End date");
   await refused(income({ escalationPct: 150 }), "Escalation");
