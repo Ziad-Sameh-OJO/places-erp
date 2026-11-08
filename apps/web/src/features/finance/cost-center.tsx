@@ -6,7 +6,7 @@ import { activeValues, type CostCenterView, type Settings } from "@places/contra
 import { Card, Empty, Note, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { money } from "./money";
 
 type Filters = Partial<Record<"channel" | "salesId" | "area" | "campaignId" | "from" | "to", string>>;
 

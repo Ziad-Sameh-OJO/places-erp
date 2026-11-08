@@ -4,13 +4,23 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { RecommendAnswers, RecommendedUnit, Recommendations } from "@places/contracts";
 import { Chip, Empty, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import { dateLocale, money, num } from "@/lib/format";
 import { useRefreshLead } from "./use-lead";
 import { serverText } from "@/lib/server-text";
 
 const key = (id: string) => ["lead", id, "recommendations"];
+
+/**
+ * M-09: the units follow the inventory's field rules — a hidden unit field is left out of the card, the PDF preview and
+ * the questions (the API blanks it and doesn't apply a question on it).
+ */
+function useUnitFields() {
+  const f = useFields("inventory");
+  const parts = (...p: [string, string][]) => p.filter(([k]) => f.shows(k)).map(([, text]) => text).join(" · ");
+  return { shows: f.shows, parts };
+}
 
 /** The units that suit the lead's client (2.12); the drawer's tab shows how many. */
 export const useRecommendations = (id: string) =>
@@ -28,6 +38,7 @@ export function RecommendedUnits({ id, name }: { id: string; name: string }) {
   const toast = useToast();
   const qc = useQueryClient();
   const recs = useRecommendations(id);
+  const unit = useUnitFields();
   const [picked, setPicked] = useState<string[]>([]);
   const [preview, setPreview] = useState(false);
   const r = recs.data;
@@ -49,8 +60,8 @@ export function RecommendedUnits({ id, name }: { id: string; name: string }) {
           <label key={u.id} className="rec">
             {edit && <input type="checkbox" checked={picked.includes(u.id)} onChange={(e) => tick(u, e.target.checked)} aria-label={t("pickUnit", { code: u.code })} />}
             <span className="rec-match num">{u.match}%</span>
-            <div className="rec-main"><b>{u.code} · {u.project}</b><small>{serverText(u.area)} · {t("floor", { floor: u.floor || "—" })} · {t("sqm", { n: num(u.space) })} · {u.condition} · Parking {u.parking}</small></div>
-            <div className="rec-price"><b className="num">{money(u.price)}</b><small>{u.monthly ? t("monthly") : t("total")}</small></div>
+            <div className="rec-main"><b>{u.code} · {u.project}</b><small>{unit.parts(["area", serverText(u.area)], ["floor", t("floor", { floor: u.floor || "—" })], ["space", t("sqm", { n: num(u.space) })], ["condition", u.condition], ["parking", `Parking ${u.parking}`])}</small></div>
+            {unit.shows("pricePerSqm") && <div className="rec-price"><b className="num">{money(u.price)}</b><small>{u.monthly ? t("monthly") : t("total")}</small></div>}
             {u.split ? <Chip tone="info">{t("splits", { n: num(u.minSplit ?? c.space ?? 0) })}</Chip> : u.sameArea ? <Chip tone="ok">{t("sameArea")}</Chip> : null}
           </label>
         )) : <Empty text={t("empty")} icon="building" />}
@@ -68,30 +79,31 @@ function Questions({ r, onAsk, onReset }: { r: Recommendations; onAsk: (k: keyof
   const t = useTranslations("leads.units.questions");
   const a = r.answers;
   const sale = r.client.type !== "Rent";
+  const { shows } = useUnitFields();
   return (
     <div className="qs">
       <span className="qs-t"><Icon name="filter" />{t("title")}</span>
-      <select value={a.floor ?? ""} onChange={(e) => onAsk("floor", e.target.value)} aria-label={t("floor")}>
+      {shows("floor") && <select value={a.floor ?? ""} onChange={(e) => onAsk("floor", e.target.value)} aria-label={t("floor")}>
         <option value="">{t("anyFloor")}</option><option value="ground">{t("groundOnly")}</option>
-      </select>
-      <select value={a.parking ?? ""} onChange={(e) => onAsk("parking", e.target.value)} aria-label={t("parking")}>
+      </select>}
+      {shows("parking") && <select value={a.parking ?? ""} onChange={(e) => onAsk("parking", e.target.value)} aria-label={t("parking")}>
         <option value="">{t("anyParking")}</option>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>Parking {n}+</option>)}
-      </select>
+      </select>}
       <select value={a.project ?? ""} onChange={(e) => onAsk("project", e.target.value)} aria-label={t("project")}>
         <option value="">{t("anyProject")}</option>
         {[...new Set([...r.projects, ...(a.project ? [a.project] : [])])].map((p) => <option key={p} value={p}>{p}</option>)}
       </select>
-      <select value={a.area ?? ""} onChange={(e) => onAsk("area", e.target.value)} aria-label={t("area")}>
+      {shows("area") && <select value={a.area ?? ""} onChange={(e) => onAsk("area", e.target.value)} aria-label={t("area")}>
         <option value="">{t("anyArea")}</option><option value="same">{t("sameArea")}</option>
-      </select>
-      <select value={a.split ?? ""} onChange={(e) => onAsk("split", e.target.value)} aria-label={t("split")}>
+      </select>}
+      {shows("divisible") && <select value={a.split ?? ""} onChange={(e) => onAsk("split", e.target.value)} aria-label={t("split")}>
         <option value="">{t("splitOk")}</option><option value="no">{t("noSplit")}</option>
-      </select>
-      {sale && <select value={a.payment ?? ""} onChange={(e) => onAsk("payment", e.target.value)} aria-label={t("payment")}>
+      </select>}
+      {sale && shows("paymentMethod") && <select value={a.payment ?? ""} onChange={(e) => onAsk("payment", e.target.value)} aria-label={t("payment")}>
         <option value="">{t("anyPayment")}</option>
         {[...new Set([...r.paymentMethods, ...(a.payment ? [a.payment] : [])])].map((p) => <option key={p} value={p}>{p}</option>)}
       </select>}
-      {sale && <label className="qs-t">{t("deliveryBy")}<input type="date" value={a.deliveryBy ?? ""} onChange={(e) => onAsk("deliveryBy", e.target.value)} aria-label={t("deliveryBy")} /></label>}
+      {sale && shows("delivery") && <label className="qs-t">{t("deliveryBy")}<input type="date" value={a.deliveryBy ?? ""} onChange={(e) => onAsk("deliveryBy", e.target.value)} aria-label={t("deliveryBy")} /></label>}
       {Object.values(a).some((v) => v != null && v !== "") && <button className="btn ghost sm" onClick={onReset}>{t("reset")}</button>}
     </div>
   );
@@ -105,6 +117,7 @@ function ListPreview({ id, name, units, clientSpace, onClose, onSent }: { id: st
   const run = useAction();
   const refresh = useRefreshLead();
   const t = useTranslations("leads.units.pdf");
+  const unit = useUnitFields();
   const [busy, setBusy] = useState(false);
   const send = () => {
     setBusy(true);
@@ -123,8 +136,9 @@ function ListPreview({ id, name, units, clientSpace, onClose, onSent }: { id: st
         {units.map((u) => (
           <div key={u.id} className="pdf-row">
             <div className="pdf-img"><Icon name="image" /></div>
-            <div><b>{u.project} · {u.code}</b><small>{serverText(u.area)} · {t("floor", { floor: u.floor || "—" })} · {u.split && clientSpace ? t("part", { n: num(clientSpace), of: num(u.space) }) : t("sqm", { n: num(u.space) })} · {u.condition}</small></div>
-            <b className="num">{money(u.price)}{u.monthly && u.price ? <small>{t("perMonth")}</small> : null}</b>
+            <div><b>{u.project} · {u.code}</b><small>{unit.parts(["area", serverText(u.area)], ["floor", t("floor", { floor: u.floor || "—" })],
+              ["space", u.split && clientSpace ? t("part", { n: num(clientSpace), of: num(u.space) }) : t("sqm", { n: num(u.space) })], ["condition", u.condition])}</small></div>
+            {unit.shows("pricePerSqm") && <b className="num">{money(u.price)}{u.monthly && u.price ? <small>{t("perMonth")}</small> : null}</b>}
           </div>
         ))}
         <p className="hint">{t("auto")}</p>
