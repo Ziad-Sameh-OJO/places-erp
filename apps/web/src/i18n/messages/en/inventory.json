@@ -86,6 +86,7 @@
   "drawer": {
     "notFound": "Unit not found",
     "region": "Region",
+    "location": "Location",
     "data": "Details",
     "missingTitle": "Missing data ({count}):",
     "missingBody": ". The unit was saved as usual, and there's an alert in «My tasks today» until it's completed.",
@@ -101,6 +102,10 @@
     "mediaLate": "{hours, plural, one {Uploaded after # hour} other {Uploaded after # hours}}",
     "mediaNone": "Not uploaded yet",
     "enteredBy": "Entered by: {name}"
+  },
+  "location": {
+    "none": "No location",
+    "google": "Open in Google Maps"
   },
   "form": {
     "tooBig": "The total is too large · check the price and area",
