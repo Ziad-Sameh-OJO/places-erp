@@ -920,6 +920,7 @@ model Unit {
   areaTabId         String?     // the area tab Manar picked (M-03 3.2); null = by its area
   areaTab           AreaTab?    @relation(fields: [areaTabId], references: [id], onDelete: SetNull)
   location          String?     // "lat, lng" picked on the map
+  agreementFileId   String?     // system.File (entity "Unit"): an Income unit's contract, «Agreement» (M-03, 2.31)
   pdfStatus         String      @default("draft") // draft · confirmed (Manar, Q15/Q19)
   receivedAt        DateTime?   // KPI: entered within 24h of receiving it
   enteredAt         DateTime    @default(now())

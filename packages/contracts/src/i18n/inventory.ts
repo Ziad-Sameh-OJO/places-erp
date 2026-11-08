@@ -9,6 +9,11 @@ export default [
   ["التقرير اتعتمد قبل كده", "The report has already been approved"],
   // units
   ["الوحدة مش موجودة", "The unit doesn't exist"],
+  ["الـ Agreement مقفول على دورك", "The Agreement is locked for your role"], // 2.31
+  ["الـ Agreement لوحدات الـ Income بس", "The Agreement is for Income units only"],
+  ["الـ Agreement ملف PDF", "The Agreement is a PDF file"],
+  ["مش مسموح لك تشوف الـ Agreement", "You may not see the Agreement"],
+  ["مفيش Agreement مترفع للوحدة دي", "No Agreement was uploaded for this unit"],
   ["الوحدة دي اتشالت من لوحة التسويق قبل كده", "This unit was already removed from the marketing board"],
   ["الوحدة دي لسه على لوحة التسويق", "This unit is still on the marketing board"],
   ["Live Alert: وحدة جديدة {code} ({project}) اتضافت للانفنتوري", "Live Alert: new unit {code} ({project}) added to the Inventory"],

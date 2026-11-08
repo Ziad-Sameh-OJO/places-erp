@@ -9,7 +9,7 @@ export const UNIT_ROW = {
   id: true, code: true, type: true, alsoType: true, status: true, alsoStatus: true, project: true, area: true, space: true,
   condition: true, floor: true, building: true, parking: true, ownerName: true, ownerPhone: true, pricePerSqm: true,
   totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, layout: true, comment: true, details: true,
-  divisible: true, minSplit: true, location: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
+  divisible: true, minSplit: true, location: true, agreementFileId: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
   // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
   locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
   // the main photo (2.4: the first image, never a PDF of the folder, 2.22) and how many files there are

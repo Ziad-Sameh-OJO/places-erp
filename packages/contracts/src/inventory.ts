@@ -164,6 +164,8 @@ export interface UnitRow {
   closings: UnitClosing[];
   /** 2.20 · the names of its empty columns (domain missingFields): «ناقص N» until they are filled */
   missing: string[];
+  /** 2.31 · an Income unit's Agreement file is up (opened at GET /inventory/units/:id/agreement) */
+  agreement: boolean;
 }
 export interface UnitClosing { type: UnitType; status: "rented" | "sold"; at: string; dealCode: string | null }
 export interface UnitDetail extends UnitRow {
@@ -203,6 +205,9 @@ export const UnitPhotosInput = z.object({
   fileIds: z.array(Id, { required_error: "اختار الصور" }).min(1, "اختار الصور").max(MAX_UNIT_PHOTOS, `لحد ${MAX_UNIT_PHOTOS} صورة`),
 });
 export type UnitPhotosInput = z.infer<typeof UnitPhotosInput>;
+/** 2.31 · an Income unit's Agreement: one PDF the editor uploaded through core/files */
+export const UnitAgreementInput = z.object({ fileId: Id });
+export type UnitAgreementInput = z.infer<typeof UnitAgreementInput>;
 /** The unit's photos in the new order: the first one is the main photo. */
 /** M-03 6.1 «list of options as pdf»: the picked units in one file for a client — the full deck or the slide, PDF or PowerPoint. */
 export const MAX_LIST_UNITS = 20;

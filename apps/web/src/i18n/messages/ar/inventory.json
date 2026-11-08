@@ -64,6 +64,7 @@
     "stillOpen": "لسه متاحة"
   },
   "cell": {
+    "openFile": "افتح الملف",
     "missing": "ناقص {count}",
     "late": "متأخر · {day}",
     "yesFrom": "اه · من {min} م",
@@ -121,6 +122,8 @@
     "agent": "Agent (السيلز اللي جاب الوحدة)",
     "areaTab": "تاب المساحة",
     "auto": "أوتوماتيك من المساحة",
+    "agreement": "Agreement (ملف · يترفع على السيستم)",
+    "agreementSaved": "الـ Agreement اترفع",
     "location": "Location (من الخريطة)",
     "lastUpdate": "Last update (ابديت مع المالك)",
     "receivedAt": "اتستلمت إمتى (من المالك / الواتساب)",
