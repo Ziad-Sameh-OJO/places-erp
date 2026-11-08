@@ -7,6 +7,7 @@ import { Chip, Empty, Note, Tabs } from "@/components/ui";
 import { CloseRequests } from "./close-requests";
 import { UnitFolder } from "./unit-photos";
 import { UnitPdfTab } from "./unit-pdf-tab";
+import { UnitLocationTab } from "./unit-map";
 import { amount, dateLocale, moneyExact, num } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { COLS, UnitChips, cell, columnsFor } from "./unit-bits";
@@ -18,8 +19,8 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLoc
 
 /**
  * The demo's unit drawer. «البيانات»: the type's columns, how the total (or Income's yield) is worked out, the photos
- * and when it came in. «PDF & slide» (2.8): the documents and Manar's confirm. The tasks and map tabs come with their
- * tasks. Prev / next walk the list.
+ * and when it came in. «PDF & slide» (2.8): the documents and Manar's confirm. «الموقع» (2.26): the map, for whoever
+ * sees the Location field (M-09). Prev / next walk the list.
  */
 export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, onClose, onComplete, actions }: {
   ids: string[]; id: string; insider: boolean; canConfirm: boolean; unit: UnitDetail | undefined; error: Error | null;
@@ -27,7 +28,7 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
 }) {
   const t = useTranslations("inventory");
   const fields = useFields("inventory");
-  const [tab, setTab] = useState<"data" | "pdf" | "tasks">("data");
+  const [tab, setTab] = useState<"data" | "pdf" | "loc" | "tasks">("data");
   const tasksTab = useUnitTasksTab(id); // 2.30
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
@@ -45,8 +46,8 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
     <Drawer title={`${u.code} · ${u.project}`} sub={fields.shows("area") ? `${u.type} · ${serverText(u.area)}` : u.type} onClose={onClose} chips={<UnitChips u={u} />}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}>
-      <Tabs value={tab} onChange={setTab} items={[["data", t("drawer.data")], ["pdf", "PDF & slide"], ...(tasksTab ? [tasksTab] : [])]} />
-      {tab === "tasks" ? <UnitTasks u={u} /> : tab === "pdf" ? <UnitPdfTab u={u} canConfirm={canConfirm} /> : <>
+      <Tabs value={tab} onChange={setTab} items={[["data", t("drawer.data")], ["pdf", "PDF & slide"], ...(fields.shows("location") ? [["loc", t("drawer.location")] as ["loc", string]] : []), ...(tasksTab ? [tasksTab] : [])]} />
+      {tab === "tasks" ? <UnitTasks u={u} /> : tab === "loc" ? <UnitLocationTab u={u} /> : tab === "pdf" ? <UnitPdfTab u={u} canConfirm={canConfirm} /> : <>
       <CloseRequests unit={u} />
       {u.missing.length > 0 && <Note kind="warn"><b>{t("drawer.missingTitle", { count: u.missing.length })}</b> {u.missing.map(serverText).join(t("today.sep"))}{t("drawer.missingBody")}{" "}
         {onComplete && <button className="btn sm" onClick={onComplete}>{t("drawer.complete")}</button>}</Note>}
