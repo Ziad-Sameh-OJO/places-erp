@@ -9,9 +9,14 @@ const day = (d: Date) => d.toLocaleDateString("ar-EG-u-nu-latn", { timeZone: "Af
  * The client's «List of options» (2.13, M-01 6.1 · M-03 6.1), as the demo's PDF: Places, the client and the day, then
  * each unit's project, code, area, floor, space, finishing and price (a Rent's price is a month's rent).
  */
-export function unitListHtml(client: string, units: ClientListUnit[], now: Date): string {
+export function unitListHtml(client: string, units: ClientListUnit[], now: Date, hidden: ReadonlySet<string> = new Set()): string {
+  // M-09: a unit field hidden from the person who sends the list isn't on it (its value is already blank)
+  const shown = (k: string, part: string) => (hidden.has(k) ? [] : [part]);
   const rows = units.map((u) => `<tr>
-    <td><b>${esc(u.project)}</b> · <span class="num">${esc(u.code)}</span><br><small>${esc(u.area)} · الدور ${esc(u.floor || "—")} · <span class="num">${u.space}</span> م${u.splitOf ? ` (جزء من <span class="num">${u.splitOf}</span> م)` : ""} · ${esc(u.condition)} · Parking <span class="num">${u.parking}</span></small></td>
+    <td><b>${esc(u.project)}</b> · <span class="num">${esc(u.code)}</span><br><small>${[
+      ...shown("area", esc(u.area)), ...shown("floor", `الدور ${esc(u.floor || "—")}`),
+      ...shown("space", `<span class="num">${u.space}</span> م${u.splitOf ? ` (جزء من <span class="num">${u.splitOf}</span> م)` : ""}`),
+      ...shown("condition", esc(u.condition)), ...shown("parking", `Parking <span class="num">${u.parking}</span>`)].join(" · ")}</small></td>
     <td>${u.totalPrice ? egp(u.totalPrice) : "—"}${u.totalPrice && u.type === "Rent" ? " / شهر" : ""}</td>
   </tr>`).join("");
   return layout(`List of options · ${client}`, `
@@ -21,5 +26,5 @@ export function unitListHtml(client: string, units: ClientListUnit[], now: Date)
 }
 
 /** The comment on the lead (M-03 6.1: «تم ارسال الوحدات التالية … المساحة و البروجكت لكل مساحة حددها»), the demo's words. */
-export const unitListLine = (units: ClientListUnit[]): string =>
-  `تم إرسال الوحدات التالية للعميل (PDF): ${units.map((u) => `${u.code} (${u.project} · ${u.space} م${u.splitOf ? ` من ${u.splitOf} م` : ""})`).join("، ")}`;
+export const unitListLine = (units: ClientListUnit[], hidden: ReadonlySet<string> = new Set()): string =>
+  `تم إرسال الوحدات التالية للعميل (PDF): ${units.map((u) => `${u.code} (${u.project}${hidden.has("space") ? "" : ` · ${u.space} م${u.splitOf ? ` من ${u.splitOf} م` : ""}`})`).join("، ")}`;

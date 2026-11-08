@@ -7,7 +7,7 @@ import { LEAD_PIPELINE, LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@p
 import { Drawer, Stepper } from "@/components/blocks";
 import { Chip, Empty, Icon, Tabs, useAction, useToast } from "@/components/ui";
 import type { Settings } from "@places/contracts";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { ago, day, dayTime, money, num } from "@/lib/format";
 import { api } from "@/lib/api";
 import { serverText } from "@/lib/server-text";
@@ -45,7 +45,7 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
   if (lead.error) return <Drawer title={t("drawer.notFound")} onClose={onClose}><Empty text={lead.error.message} /></Drawer>;
   if (!l) return <Drawer title="…" onClose={onClose}><p className="hint">{t("drawer.loading")}</p></Drawer>;
   return (
-    <Drawer title={l.name} sub={`${l.code} · ${l.channel}`} onClose={onClose}
+    <Drawer title={l.name} sub={l.channel ? `${l.code} · ${l.channel}` : l.code} onClose={onClose}
       {...(prev ? { onPrev: () => onGo(prev) } : {})} {...(next ? { onNext: () => onGo(next) } : {})}
       {...(ids.length > 1 && at >= 0 ? { position: `${at + 1}/${ids.length}` } : {})}
       chips={<>
@@ -71,17 +71,19 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
   const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const onPipe = PIPE.includes(l.stage as LeadStage);
-  const kv: [string, React.ReactNode][] = [
-    [t("company"), l.company ?? "—"],
-    [t("mobile"), <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>],
-    ["Area", l.area ? serverText(l.area) : "—"], ["Type", l.type], ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—"], ["Condition", l.condition ? serverText(l.condition) : "—"],
-    ["Budget", money(l.budget)], ["Channel", l.channel], ["Campaign", l.campaign?.name ?? "—"], [t("post"), l.post ?? "—"],
+  const fields = useFields("leads"); // M-09: a hidden field has no row (the API blanks it too)
+  const kv: [string, React.ReactNode, string?][] = [
+    [t("company"), l.company ?? "—", "company"],
+    [t("mobile"), <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>, "phones"],
+    ["Area", l.area ? serverText(l.area) : "—", "area"], ["Type", l.type || "—", "type"], ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—", "space"],
+    ["Condition", l.condition ? serverText(l.condition) : "—", "condition"],
+    ["Budget", money(l.budget), "budget"], ["Channel", l.channel || "—", "channel"], ["Campaign", l.campaign?.name ?? "—", "campaign"], [t("post"), l.post ?? "—", "post"],
     ["Sales", <Who key="w" person={l.assignedTo} />], [t("cameIn"), `${day(l.createdAt)} · ${ago(l.createdAt)}`],
   ];
   return (
     <>
       {onPipe && <Stepper stages={PIPE} current={l.stage} />}
-      <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+      <dl className="kv">{kv.filter(([, , f]) => !f || fields.shows(f)).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {l.note && <div className="quote">{l.note}</div>}
       <LeadActions l={l} onDeal={onDeal} onArchived={onArchived} />
       <NewLeadAction l={l} />

@@ -48,11 +48,12 @@ export class NewLeadsService {
   }
 
   /** Operations' queue, with each request's clock (the KPI item's minutes, 30 by default). */
-  async pending(now = new Date()): Promise<NewLeadRequestRow[]> {
+  async pending(me: CurrentUser, now = new Date()): Promise<NewLeadRequestRow[]> {
+    const hideArea = me.fields.hidden("leads").has("area"); // M-09
     const [rows, { newLeadMin }] = await Promise.all([this.repo.pendingNewLeads(), this.kpis.leadClocks()]);
     const people = new Map((await this.repo.userNames([...new Set(rows.map((r) => r.newLeadRequestedById).filter((x): x is string => !!x))])).map((p) => [p.userId, p.name]));
     return rows.map((r) => ({
-      id: r.id, code: r.code, name: r.name, area: r.area, requestedAt: r.newLeadRequestedAt!.toISOString(),
+      id: r.id, code: r.code, name: r.name, area: hideArea ? "" : r.area, requestedAt: r.newLeadRequestedAt!.toISOString(),
       by: r.newLeadRequestedById ? { id: r.newLeadRequestedById, name: people.get(r.newLeadRequestedById) ?? "" } : null,
       minutesLeft: newLeadMinutesLeft(r.newLeadRequestedAt!, now, newLeadMin),
     }));

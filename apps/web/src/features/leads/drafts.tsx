@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { ago, day } from "@/lib/format";
 import { type LeadsT, StageChip, Who } from "./lead-bits";
 import { useLeadOptions, useLeadSummary } from "./use-leads";
+import { useFields } from "@/lib/me";
 
 const key = (kind: DraftKind) => ["lead-drafts", kind];
 /** Cairo's «today» as the API's day() prints it, to mark what came in today (demo «النهارده»). */
@@ -25,9 +26,10 @@ export function DraftView({ kind, onOpen }: { kind: DraftKind; onOpen: (id: stri
   const rows = [...(drafts.data ?? [])].sort((a, b) => (kind === "admin" ? Number(a.kept) - Number(b.kept) : 0));
   const today = cairoDay(new Date().toISOString());
   const waiting = rows.filter((r) => !r.kept).length;
+  const company = useFields("leads").shows("company"); // M-09
   const lead = (d: DraftRow) => (
     <span key="l"><button className="link" onClick={() => onOpen(d.lead.id)}><b>{d.lead.name}</b></button>{d.lead.kind === "broker" && <> <Chip tone="info">Broker</Chip></>}
-      <span className="sub">{d.lead.company ?? t("drafts.noCompany")} · {d.lead.code}</span></span>
+      <span className="sub">{company && <>{d.lead.company ?? t("drafts.noCompany")} · </>}{d.lead.code}</span></span>
   );
   if (kind === "admin") {
     return (

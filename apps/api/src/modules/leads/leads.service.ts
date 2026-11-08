@@ -17,6 +17,7 @@ import { BusinessTimeService } from "../../core/business-time/business-time.serv
 import { InventoryService } from "../inventory/inventory.service";
 import { DocumentsService } from "../../core/documents/documents.service";
 import { unitListHtml, unitListLine } from "./unit-list";
+import { hideClient, hideLeadDetail, hideLeadRow, hideListUnit, hideRecommended, keepFixedCreate, keepFixedUpdate, shownAnswers, shownLeadFilters } from "./lead-fields";
 import { CompaniesService } from "./companies.service";
 import { AttendanceService } from "../hr/attendance.service";
 import { ClientsService } from "../clients/clients.service";
@@ -52,17 +53,19 @@ export class LeadsService {
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
   async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
-    const [rows, total] = await this.repo.list(ownedBy(me) as never, f);
+    const hidden = me.fields.hidden("leads");
+    const [rows, total] = await this.repo.list(ownedBy(me) as never, shownLeadFilters(f, hidden));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.map((r) => r.assignedToId)), this.slaClock()]);
-    return { items: rows.map((r) => toRow(r, names, sla)), total, page: f.page, pageSize: f.pageSize };
+    return { items: rows.map((r) => hideLeadRow(toRow(r, names, sla), hidden)), total, page: f.page, pageSize: f.pageSize };
   }
 
   /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
   async board(me: CurrentUser, f: LeadFilters): Promise<LeadBoard> {
-    const [counts, rows] = await this.repo.board(ownedBy(me) as never, f, LEAD_STAGES.map(toDb), CARDS_PER_LANE);
+    const hidden = me.fields.hidden("leads");
+    const [counts, rows] = await this.repo.board(ownedBy(me) as never, shownLeadFilters(f, hidden), LEAD_STAGES.map(toDb), CARDS_PER_LANE);
     const total = new Map(counts.map((c) => [c.stage as string, c._count._all]));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.flat().map((r) => r.assignedToId)), this.slaClock()]);
-    return { lanes: LEAD_STAGES.map((stage, i) => ({ stage, total: total.get(toDb(stage)) ?? 0, items: rows[i]!.map((r) => toRow(r, names, sla)) })) };
+    return { lanes: LEAD_STAGES.map((stage, i) => ({ stage, total: total.get(toDb(stage)) ?? 0, items: rows[i]!.map((r) => hideLeadRow(toRow(r, names, sla), hidden)) })) };
   }
 
   /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */
@@ -88,7 +91,7 @@ export class LeadsService {
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
   async tabs(me: CurrentUser, f: LeadFilters): Promise<LeadTabCounts> {
-    const counts = new Map((await this.repo.tabCounts(ownedBy(me) as never, f)).map((c) => [c.kind, c._count._all]));
+    const counts = new Map((await this.repo.tabCounts(ownedBy(me) as never, shownLeadFilters(f, me.fields.hidden("leads")))).map((c) => [c.kind, c._count._all]));
     return { client: counts.get("CLIENT") ?? 0, broker: counts.get("BROKER") ?? 0 };
   }
 
@@ -134,7 +137,7 @@ export class LeadsService {
     const detail = toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla);
     // 1.24: «وافق على التأجيل» only for whom the lead rules name (the salesperson's TL by default)
     if (lead.assignedToId && detail.visits.some((v) => v.postpone?.status === "pending") && (await this.canDecidePostpone(me, lead.assignedToId))) for (const v of detail.visits) if (v.postpone) v.postpone.canDecide = v.postpone.status === "pending";
-    return { ...detail, canSeeLogs, logCount };
+    return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount };
   }
 
   /** 1.24: whether this person approves postponing this salesperson's Visits (lead rules «visit.postpone»). */
@@ -202,11 +205,13 @@ export class LeadsService {
     const settings = await this.settings.all();
     const answers = storedAnswers(lead.answers);
     const need = needOf(lead);
-    const { items, projects } = await this.inventory.recommend(need, answers, settings.recommendTolerancePct);
+    // M-09: the units follow the inventory's field rules — a question on a hidden unit field isn't applied, its value is blank
+    const units = me.fields.hidden("inventory");
+    const { items, projects } = await this.inventory.recommend(need, shownAnswers(answers, units), settings.recommendTolerancePct);
     return {
       tolerancePct: settings.recommendTolerancePct,
-      client: { type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, area: lead.area },
-      answers, projects, paymentMethods: activeValues(settings.paymentPlans), items,
+      client: hideClient({ type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, area: lead.area }, me.fields.hidden("leads")),
+      answers, projects, paymentMethods: activeValues(settings.paymentPlans), items: items.map((u) => hideRecommended(u, units)),
     };
   }
 
@@ -236,12 +241,15 @@ export class LeadsService {
     const { recommendTolerancePct } = await this.settings.all();
     const need = needOf(lead);
     const parts = new Map((await this.inventory.recommend(need, {}, recommendTolerancePct)).items.filter((r) => r.split).map((r) => [r.id, r]));
-    const units = found.map((u) => { const p = parts.get(u.id); return p && need.space ? { ...u, space: need.space, splitOf: u.space, totalPrice: p.price } : u; });
+    // M-09: a unit field hidden from the sender isn't on the client's list (nor in the comment it writes)
+    const hidden = me.fields.hidden("inventory");
+    const units = found.map((u) => { const p = parts.get(u.id); return p && need.space ? { ...u, space: need.space, splitOf: u.space, totalPrice: p.price } : u; })
+      .map((u) => hideListUnit(u, hidden));
     const now = new Date();
-    const pdf = await this.documents.pdf(unitListHtml(lead.name, units, now), now);
+    const pdf = await this.documents.pdf(unitListHtml(lead.name, units, now, hidden), now);
     await this.db.$transaction(async (tx) => {
       if (!(await this.repo.findInScope(ownedBy(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
-      const text = unitListLine(units);
+      const text = unitListLine(units, hidden);
       const activity = await this.repo.addActivity(tx, id, "comment", text, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.repo.addSuggestedUnits(tx, id, units.map((u) => u.id), me.id);
@@ -271,7 +279,8 @@ export class LeadsService {
   }
 
   /** Create → duplicate check by phone (Q7: Operations decides) → route by area round-robin (Q1–Q3) → audit. */
-  async create(me: CurrentUser, input: CreateLead): Promise<CreatedLead> {
+  async create(me: CurrentUser, typed: CreateLead): Promise<CreatedLead> {
+    const input = keepFixedCreate(typed, me.fields.fixed("leads")); // M-09: what the person may not set starts empty
     const dup = await this.repo.findByPhone(input.phones);
     if (dup) {
       await this.duplicates.record(me, dup, input);
@@ -396,10 +405,13 @@ export class LeadsService {
    * leads, and duplicates are Operations' call (M-01 Q7) — the same check as a new lead. A company that isn't in the
    * sheet goes the way it does from the new-lead form (1.20). Audited old → new, with a line in the Activity (demo).
    */
-  async update(me: CurrentUser, id: string, input: UpdateLead) {
+  async update(me: CurrentUser, id: string, typed: UpdateLead) {
     const saved = await this.db.$transaction(async (tx) => {
       const lead = await this.repo.editable(ownedBy(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
+      // M-09: a field the person may not change (or that their form left out) keeps what the lead has
+      const input = keepFixedUpdate(typed, { phones: lead.phones, area: lead.area, type: lead.type, company: lead.company?.name ?? null, space: lead.space,
+        condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note }, me.fields.fixed("leads"));
       const added = input.phones.filter((p) => !lead.phones.includes(p));
       const dup = added.length ? await this.repo.findByPhone(added, id) : null;
       if (dup) throw new ConflictException(`الرقم ده موجود في ليد تاني (${dup.code}) · العميل ده مكرر والأوبريشن هي اللي تقرر`);
@@ -476,7 +488,8 @@ export class LeadsService {
    * is filtered, in the caller's scope, with the demo's columns. Audited (who exported what).
    */
   async exportRows(me: CurrentUser, f: LeadFilters) {
-    const rows = await this.repo.exportRows(ownedBy(me) as never, f, EXPORT_LIMIT);
+    const hidden = me.fields.hidden("leads");
+    const rows = (await this.repo.exportRows(ownedBy(me) as never, shownLeadFilters(f, hidden), EXPORT_LIMIT)).map((r) => ({ ...r, ...hiddenExport(r, hidden) }));
     const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
     await this.audit.record({ module: "leads", entity: "Lead", entityId: "export", action: "export", userId: me.id,
       after: { rows: rows.length, filters: Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== undefined && k !== "page" && k !== "pageSize")) } });
@@ -707,6 +720,15 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
   }
 }
 const iso = (d: Date | null) => d?.toISOString() ?? null;
+
+/** M-09: the export's hidden columns, blank (the controller leaves them out too). */
+function hiddenExport(r: { company: { name: string } | null; phones: string[]; area: string; type: string; space: number | null; budget: Prisma.Decimal | null; channel: string; campaign: { id: string; name: string } | null }, hidden: ReadonlySet<string>) {
+  const h = (k: string) => hidden.has(k);
+  return {
+    company: h("company") ? null : r.company, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type,
+    space: h("space") ? null : r.space, budget: h("budget") ? null : r.budget, channel: h("channel") ? "" : r.channel, campaign: h("campaign") ? null : r.campaign,
+  };
+}
 
 type SlaClock = (r: Pick<LeadRecord, "stage" | "touched" | "ownedByTelesales" | "assignedAt">) => LeadRow["sla"];
 

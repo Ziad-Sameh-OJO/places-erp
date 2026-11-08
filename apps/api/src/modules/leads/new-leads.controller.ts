@@ -15,8 +15,8 @@ export class NewLeadsController {
 
   @Get()
   @Requires("leads", "approve")
-  pending() {
-    return this.newLeads.pending();
+  pending(@Me() me: CurrentUser) {
+    return this.newLeads.pending(me);
   }
 
   @Post(":id")

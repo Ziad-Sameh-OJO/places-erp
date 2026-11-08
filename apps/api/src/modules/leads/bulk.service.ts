@@ -36,7 +36,8 @@ export class LeadBulkService {
     return { numbers: bulkMobiles(await sheetTexts(file)) };
   }
 
-  async send(me: CurrentUser, input: BulkRequest): Promise<BulkSent> {
+  async send(me: CurrentUser, typed: BulkRequest): Promise<BulkSent> {
+    const input = me.fields.fixed("leads").has("campaignId") ? { ...typed, campaignId: undefined } : typed; // M-09: the new leads' campaign
     const numbers = bulkMobiles([input.numbers]);
     if (!numbers.length) throw new BadRequestException("مفيش أرقام صحيحة في الشيت");
     if (input.campaignId && !(await this.repo.campaignOf(input.campaignId, input.channel))) throw new BadRequestException("الكامبين دي مش تبع الـ channel ده");

@@ -13,7 +13,7 @@ export class LeadsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
   /** `scope` is the caller's data scope (ownedBy), always ANDed in the query itself, never filtered afterwards. */
-  list(scope: Prisma.LeadWhereInput, f: LeadFilters) {
+  list(scope: Prisma.LeadWhereInput, f: LeadQuery) {
     const where = leadWhere(scope, f);
     return this.db.$transaction([
       this.db.lead.findMany({ where, select: LEAD_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
@@ -45,7 +45,7 @@ export class LeadsRepository {
   }
 
   /** «تصدير الليدز»: the list under the same scope and filters, newest first, up to `limit` rows. */
-  exportRows(scope: Prisma.LeadWhereInput, f: LeadFilters, limit: number) {
+  exportRows(scope: Prisma.LeadWhereInput, f: LeadQuery, limit: number) {
     return this.db.lead.findMany({ where: leadWhere(scope, f), select: { ...LEAD_ROW, company: { select: { name: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit });
   }
 
@@ -97,7 +97,7 @@ export class LeadsRepository {
   }
 
   /** The Kanban: per stage the real count and the newest `perLane` rows, under the same scope and filters as the list. */
-  board(scope: Prisma.LeadWhereInput, f: LeadFilters, stages: readonly string[], perLane: number) {
+  board(scope: Prisma.LeadWhereInput, f: LeadQuery,stages: readonly string[], perLane: number) {
     const where = leadWhere(scope, f);
     return Promise.all([
       this.db.lead.groupBy({ by: ["stage"], where, _count: { _all: true } }),
@@ -108,7 +108,7 @@ export class LeadsRepository {
   }
 
   /** How many leads each tab has under the current filters (the tab itself set aside). */
-  tabCounts(scope: Prisma.LeadWhereInput, f: LeadFilters) {
+  tabCounts(scope: Prisma.LeadWhereInput, f: LeadQuery) {
     return this.db.lead.groupBy({ by: ["kind"], where: leadWhere(scope, { ...f, kind: undefined }), _count: { _all: true } });
   }
 
@@ -346,7 +346,10 @@ const DUPLICATE_ROW = {
 } satisfies Prisma.LeadDuplicateSelect;
 export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DUPLICATE_ROW }>;
 
-function leadWhere(scope: Prisma.LeadWhereInput, f: LeadFilters): Prisma.LeadWhereInput {
+/** The list's filters; `phoneSearch` false (M-09: the mobile is hidden from the caller): the search doesn't look at the mobiles. */
+export type LeadQuery = LeadFilters & { phoneSearch?: boolean };
+
+function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhereInput {
   const digits = f.q?.replace(/\D/g, "") ?? "";
   return {
     // a lead in a Draft tab shows only there (1.26, demo): not in the list, the board or the counts
@@ -356,7 +359,7 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadFilters): Prisma.LeadWhe
       f.area ? { area: f.area } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
       f.assignedToId ? { assignedToId: f.assignedToId } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
       // the whole mobile (the GIN index), any part of the name, or the code typed in any case («l-1001»)
-      f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { code: f.q.toUpperCase() }, ...(digits.length >= 10 ? [{ phones: { has: digits } }] : [])] } : {},
+      f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { code: f.q.toUpperCase() }, ...(digits.length >= 10 && f.phoneSearch !== false ? [{ phones: { has: digits } }] : [])] } : {},
       // Cairo days, «to» included: up to the start of the next day
       f.from ? { createdAt: { gte: dayStart(f.from) } } : {},
       f.to ? { createdAt: { lt: dayStart(nextDay(f.to)) } } : {}],
