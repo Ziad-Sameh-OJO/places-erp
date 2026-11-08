@@ -1,7 +1,7 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  type CreatedUnit, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
+  type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
   type MissingUnitsToday, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
@@ -255,6 +255,30 @@ export class InventoryService {
         before: Object.fromEntries(Object.entries(changed).map(([k, [b]]) => [k, b])),
         after: Object.fromEntries(Object.entries(changed).map(([k, [, a]]) => [k, a])),
       }, tx);
+    });
+    return this.get(me, id);
+  }
+
+  /**
+   * 2.29 · the demo's unitUpdate (M-03 2.4): the owner was spoken to today. The unit's last update becomes now (so it
+   * leaves «محتاجة ابديت»), its open «متابعة مع المالك» tasks are done, and the contact goes on the owner's file
+   * (M-10 2.4) — all in one transaction, audited. Only this unit: the owner's file has its own «ابديت مع المالك» for all.
+   */
+  async ownerUpdate(me: CurrentUser, id: string, input: OwnerUpdateInput): Promise<UnitDetail> {
+    if (me.fields.fixed("inventory").has("lastOwnerUpdateAt")) throw new ForbiddenException("الـ Last update مقفول على دورك");
+    const now = new Date();
+    await this.db.$transaction(async (tx) => {
+      const u = await this.repo.detail(this.scope(me), id, tx);
+      if (!u) throw new NotFoundException(NO_UNIT);
+      await tx.unit.update({ where: { id }, data: { lastOwnerUpdateAt: now } });
+      await this.audit.record({ module: "inventory", entity: "Unit", entityId: id, action: "owner-update", userId: me.id, before: { lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { lastOwnerUpdateAt: now, comment: input.comment ?? null } }, tx);
+      // the task is the inventory's own (the stale-units job makes it); the tasks module imports this one, so it's closed here
+      const open = await tx.task.findMany({ where: { unitId: id, kind: "followup", status: { not: "done" } }, select: { id: true, status: true } });
+      await tx.task.updateMany({ where: { id: { in: open.map((t) => t.id) } }, data: { status: "done", doneAt: now } });
+      for (const t of open) await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: "status", userId: me.id, before: { status: t.status }, after: { status: "done" } }, tx);
+      if (u.ownerId && !me.fields.fixed("clients").has("timeline")) {
+        await this.clients.logOwnerUpdate(tx, me.id, u.ownerId, `${u.code} · ${u.project}${input.comment ? ` · ${input.comment}` : ""}`);
+      }
     });
     return this.get(me, id);
   }

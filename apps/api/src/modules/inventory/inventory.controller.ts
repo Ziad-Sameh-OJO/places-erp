@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
-import { UnitFilters, UnitInput } from "@places/contracts";
+import { OwnerUpdateInput, UnitFilters, UnitInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -51,6 +51,14 @@ export class InventoryController {
   @Requires("inventory", "edit")
   update(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UnitInput)) body: UnitInput) {
     return this.inventory.update(me, id, body);
+  }
+
+  /** 2.29 · «ابديت مع المالك النهارده» (the people who edit units, like the demo's button) */
+  @Post(":id/owner-update")
+  @HttpCode(200)
+  @Requires("inventory", "edit")
+  ownerUpdate(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(OwnerUpdateInput)) body: OwnerUpdateInput) {
+    return this.inventory.ownerUpdate(me, id, body);
   }
 
   @Delete(":id")

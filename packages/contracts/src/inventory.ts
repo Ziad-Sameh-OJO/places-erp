@@ -112,6 +112,10 @@ export const UnitInput = z.discriminatedUnion("type", [Rent, Resale, Income, Pri
   .refine((u) => u.type !== "Income" || !u.startsOn || !u.endsOn || u.startsOn <= u.endsOn, { path: ["endsOn"], message: "الـ End date قبل الـ Start date" });
 export type UnitInput = z.infer<typeof UnitInput>;
 
+/** 2.29 · «ابديت مع المالك النهارده» from the unit's drawer: today, with an optional word on what the owner said. */
+export const OwnerUpdateInput = z.object({ comment: z.string().trim().max(1000, "الكومنت طويل").optional() });
+export type OwnerUpdateInput = z.infer<typeof OwnerUpdateInput>;
+
 const QueryBool = z.enum(["true", "false"]).transform((v) => v === "true");
 const QueryInt = z.coerce.number().int().min(0).max(1_000_000);
 /** «closed» = the rented / sold sheet (M-03 5.2): rented or sold, or one side of a dual unit closed. */

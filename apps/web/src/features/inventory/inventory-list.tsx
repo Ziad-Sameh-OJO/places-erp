@@ -11,6 +11,7 @@ import { num, short } from "@/lib/format";
 import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
 import { UnitForm } from "./unit-form";
+import { OwnerUpdateButton } from "./owner-update";
 import { OldDataImport } from "../imports/old-data-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
@@ -161,6 +162,7 @@ export function InventoryList() {
           <div className="row">
             {me.can("inventory", "edit") && <button className="btn ghost" onClick={() => setForm("edit")}>{t("list.edit")}</button>}
             {me.can("inventory", "delete") && <button className="btn ghost" onClick={() => archive(unit.data!.id, unit.data!.code)}><Icon name="x" />{t("list.archive")}</button>}
+            {me.can("inventory", "edit") && fields.edits("lastOwnerUpdateAt") && <OwnerUpdateButton u={unit.data} />}
           </div>
         )} />}
       {form && <UnitForm unit={form === "edit" ? unit.data : undefined} options={options} tabs={areaTabs} onClose={() => setForm(null)}

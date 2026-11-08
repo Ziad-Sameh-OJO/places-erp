@@ -102,6 +102,14 @@
     "mediaNone": "Not uploaded yet",
     "enteredBy": "Entered by: {name}"
   },
+  "ownerUpdate": {
+    "button": "Owner update today",
+    "comment": "Comment (optional)",
+    "placeholder": "What did the owner say?",
+    "hint": "Last update becomes today, the «Follow up with the owner» task is closed, and it's logged on the owner's file.",
+    "save": "Save the update",
+    "done": "Last update refreshed"
+  },
   "form": {
     "tooBig": "The total is too large · check the price and area",
     "total": "Total price = Price per sqm × Area = ",
