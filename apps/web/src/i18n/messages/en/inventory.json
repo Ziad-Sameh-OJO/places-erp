@@ -67,6 +67,7 @@
     "stillOpen": "Still available"
   },
   "cell": {
+    "openFile": "Open the file",
     "missing": "{count} missing",
     "late": "Late · {day}",
     "yesFrom": "Yes · from {min} m²",
@@ -138,6 +139,8 @@
     "areaTab": "Area tab",
     "auto": "Automatic from the area",
     "mapHint": "Click the unit's place on the map and the coordinates fill in",
+    "agreement": "Agreement (file · uploaded to the system)",
+    "agreementSaved": "The Agreement was uploaded",
     "location": "Location (from the map)",
     "lastUpdate": "Last update (with the owner)",
     "receivedAt": "Received on (from the owner / WhatsApp)",

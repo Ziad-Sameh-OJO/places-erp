@@ -37,5 +37,6 @@ export const inventory: readonly FieldDef[] = [
   { key: "endsOn", label: "End", covers: ["end"] },
   { key: "tenant", label: "Tenant" },
   { key: "serviceChargeUsd", label: "Service $/m", covers: ["serviceUsd"] },
+  { key: "agreement", label: "Agreement (Income)", covers: ["agreementFileId"] },
   { key: "note", label: "Note" },
 ];

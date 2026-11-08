@@ -7,10 +7,11 @@ import { areaTabLabel, fromDecimal, incomeFigures, toDecimal, unitAreaTab, unitF
 import { Field, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { moneyExact } from "@/lib/format";
-import { type ColWord, type UnitTypeName, w } from "./unit-bits";
+import { AgreementLink, type ColWord, type UnitTypeName, w } from "./unit-bits";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
 import { MapView, parseLocation } from "./unit-map";
+import { FileUpload } from "@/components/file-upload";
 
 type Key =
   | "type" | "project" | "area" | "space" | "condition" | "floor" | "building" | "parking" | "agentId" | "areaTabId" | "location"
@@ -121,6 +122,7 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
   }, [options, unit]);
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false); // 2.27: the map under the Location field
+  const [agreement, setAgreement] = useState<string | null>(null); // 2.31: the Income unit's new Agreement file, set after saving
   const original = unit ? fromUnit(unit).receivedAt : null;
   const set = (k: Key) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   const type = f.type as UnitTypeName;
@@ -129,6 +131,13 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
   const auto = Number(f.space) > 0 ? unitAreaTab({ space: Number(f.space), areaTabId: null }, tabs) : null;
   // the agent who brought the unit stays on it after leaving; they're no longer in the list of people working here
   const agents = [...(options?.agents ?? []), ...(unit?.agent && !options?.agents.some((a) => a.id === unit.agent!.id) ? [{ ...unit.agent, name: t("form.leftCompany", { name: unit.agent.name }) }] : [])];
+
+  /** 2.31: the uploaded Agreement goes on the unit once it's saved (an Income unit only). */
+  const putAgreement = async (id: string) => {
+    if (!agreement || f.type !== "Income") return false;
+    await api.put(`/inventory/units/${id}/agreement`, { fileId: agreement });
+    return true;
+  };
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -140,10 +149,12 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
       try {
         if (unit) {
           const saved = await api.put<UnitDetail>(`/inventory/units/${unit.id}`, body);
-          toast(saved.updatedAt !== unit.updatedAt ? t("form.saved") : t("form.noChange"));
+          const file = await putAgreement(unit.id);
+          toast(saved.updatedAt !== unit.updatedAt ? t("form.saved") : file ? t("form.agreementSaved") : t("form.noChange"));
           onSaved(unit.id);
         } else {
           const made = fromSheet ? await fromSheet.save(body) : await api.post<CreatedUnit>("/inventory/units", body);
+          await putAgreement(made.id);
           toast(t("form.created", { code: made.code }));
           onSaved(made.id);
         }
@@ -168,6 +179,12 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
           : <input name={k} type={kind} required={req} value={f[k]} onChange={set(k)} {...(kind === "number" ? { min: 0, max: 100, step: "any" } : {})} {...(kind === "tel" ? { dir: "ltr", inputMode: "tel" as const } : {})} />}
     </Field>
   );
+
+  // 2.31 · the demo's «Agreement (ملف · يترفع على السيستم)», a PDF, between the tenant and the commission
+  const agreementField = only("agreement", <Field key="agreement" label={t("form.agreement")}>
+    <FileUpload kind="pdf" onUploaded={(file) => setAgreement(file.id)} />
+    {unit?.agreement && !agreement && <AgreementLink u={unit} t={t} />}
+  </Field>);
 
   return (
     <Modal title={unit ? t("form.editTitle", { code: unit.code }) : fromSheet?.title ?? t("list.newUnit")} onClose={onClose}>
@@ -217,7 +234,7 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
           <p className="hint">{t("form.mapHint")}</p>
         </div>}
         {only("lastOwnerUpdateAt", <Field label={t("form.lastUpdate")}><input name="lastOwnerUpdateAt" type="date" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>)}
-        {TYPE_FIELDS[type].map(input)}
+        {TYPE_FIELDS[type].map((x) => (type === "Income" && x[0] === "commission" ? [agreementField, input(x)] : input(x)))}
         {only("layout", <Field label="Layout">
           <select name="layout" value={f.layout} onChange={set("layout")}><option value="no">No</option><option value="yes">Yes</option></select>
         </Field>)}

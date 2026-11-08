@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { FILE_KINDS, type UnitPhotoView } from "@places/contracts";
-import { MAX_UNIT_PHOTOS, fillsUnitFolder, photoOrder } from "@places/domain";
+import { MAX_UNIT_PHOTOS, fillsUnitFolder, keepsInventory, photoOrder } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { FilesService } from "../../core/files/files.service";
@@ -131,6 +131,34 @@ export class UnitPhotosService {
       await this.toDraft(unitId, tx);
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-remove", userId: me.id, before: { photo: fileId } }, tx);
     });
+  }
+
+  /**
+   * 2.31 · an Income unit's «Agreement» (M-03 «INCOME · agreement · ملف · ملف العقد»): one PDF, uploaded through
+   * core/files by whoever edits units, replacing the one before (its file record stays, with the audit trail). Not on
+   * the unit's PDF, so the PDF doesn't wait for Manar again. A role the field is read only or hidden for can't set it.
+   */
+  async setAgreement(me: CurrentUser, unitId: string, fileId: string): Promise<void> {
+    if (me.fields.fixed("inventory").has("agreement")) throw new ForbiddenException("الـ Agreement مقفول على دورك");
+    await this.db.$transaction(async (tx) => {
+      const u = await this.repo.detail({ insider: keepsInventory(me.grants), staleBefore: new Date(0) }, unitId, tx);
+      if (!u) throw new NotFoundException(NO_UNIT);
+      if (u.type !== "Income") throw new BadRequestException("الـ Agreement لوحدات الـ Income بس");
+      const [f] = await this.files.names([fileId]);
+      if (f && !(FILE_KINDS.pdf.mimes as readonly string[]).includes(f.mime)) throw new BadRequestException("الـ Agreement ملف PDF");
+      await this.files.attach(me, [fileId], "Unit", unitId, tx);
+      await tx.unit.update({ where: { id: unitId }, data: { agreementFileId: fileId } });
+      await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "agreement", userId: me.id, before: { agreementFileId: u.agreementFileId }, after: { agreementFileId: fileId } }, tx);
+    });
+  }
+
+  /** 2.31 · a short link to the Agreement, for whoever sees the unit and the field (M-09). */
+  async agreementUrl(me: CurrentUser, unitId: string): Promise<string> {
+    if (me.fields.hidden("inventory").has("agreement")) throw new ForbiddenException("مش مسموح لك تشوف الـ Agreement");
+    const u = await this.repo.detail({ insider: keepsInventory(me.grants), staleBefore: new Date(0) }, unitId);
+    if (!u) throw new NotFoundException(NO_UNIT);
+    if (!u.agreementFileId) throw new NotFoundException("مفيش Agreement مترفع للوحدة دي");
+    return (await this.files.downloadUrl(u.agreementFileId)).url;
   }
 
   /** M-03 Q19: the PDF and slide are made from the photos, so new photos (or a new order) wait for Manar's confirm again. */

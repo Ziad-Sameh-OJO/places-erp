@@ -25,13 +25,13 @@ const RENT: readonly Col[] = [
 ];
 /**
  * The demo's sheet columns per type (M-03 3.1: each type keeps its own sheet's columns and names); «all» is the
- * mixed list and the rented / sold sheet. «Pic / info» counts the unit's photos (2.4); the agreement comes later.
+ * mixed list and the rented / sold sheet. «Pic / info» counts the unit's photos (2.4); Income's «Agreement» opens its file (2.31).
  */
 export const COLS: Record<UnitTypeName | "all" | "closed", readonly Col[]> = {
   // 2.21 · the client's Rent sheet (Book7) column for column, then the system's own columns
   Rent: RENT,
   Resale: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("ownerName")], ["ownerPhone", w("number")], ["space", w("space")], ["floor", w("floor")], ["condition", w("finishing")], ["pricePerSqm", w("pricePerSqm")], ["total", w("totalPrice")], ["paymentMethod", w("paymentMethod")], ["agent", "Agent"], ["maintenance", w("maintenance")], ["building", w("buildingNumber")], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
-  Income: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("name")], ["ownerPhone", w("number")], ["link", w("link")], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
+  Income: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("name")], ["ownerPhone", w("number")], ["link", w("link")], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["agreement", "Agreement"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
   // Primary's own columns weren't sent yet: it shows the common ones
   Primary: [["code", "Code"], ["project", "Project"], ["area", "Area"], ["space", "Space"], ["condition", "Condition"], ["pricePerSqm", "Price / sqm"], ["total", "Total"], ["floor", "Floor"], ["building", "Build num"], ["parking", "Parking"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
   // the rented / sold sheet (M-03 5.2): which side closed, when and by which deal
@@ -80,6 +80,7 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     case "escalation": return d.escalationPct != null ? <span className="num">{d.escalationPct}%</span> : "—";
     case "serviceUsd": return d.serviceChargeUsd != null ? <span className="num">{amount(String(d.serviceChargeUsd))}</span> : "—";
     case "link": case "tenant": case "note": return text(d[key]);
+    case "agreement": return <AgreementLink u={u} t={t} />;
     case "photos": return <UnitFolder u={u} label={<><Icon name="folder" />{u.photoCount ? t("cell.files", { count: u.photoCount }) : t("cell.empty")}</>} />; // 2.22: opens the folder
     case "ownerPhone": return u.ownerPhone ? <span className="mono">{u.ownerPhone}</span> : "—";
     case "closedAs": return closedSides(u).map((c) => <Chip key={c.type} tone="bad">{c.type} · {c.status === "sold" ? "Sold" : "Rented"}</Chip>);
@@ -90,6 +91,11 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     default: return text((u as unknown as Record<string, unknown>)[key]);
   }
 }
+
+/** 2.31 · an Income unit's Agreement: the API checks who may open it and sends them to the file. */
+export const AgreementLink = ({ u, t }: { u: UnitRow; t: InventoryT }) => (u.agreement
+  ? <a className="lnk" href={`/api/v1/inventory/units/${u.id}/agreement`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><Icon name="file" />{t("cell.openFile")}</a>
+  : <>—</>);
 
 /** The closed sides: from the confirmed deals, or the unit's own state for one closed before the deals were in (2.9). */
 function closedSides(u: UnitRow): { type: UnitTypeName; status: "rented" | "sold" }[] {

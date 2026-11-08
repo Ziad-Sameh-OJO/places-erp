@@ -349,7 +349,7 @@ export class InventoryService {
       pdfStatus: u.pdfStatus === "confirmed" ? "confirmed" : "draft", createdAt: u.createdAt.toISOString(),
       details: (u.details ?? {}) as UnitRow["details"],
       income: income ? { monthlyRent: toDecimal(income.monthlyRent), annualRent: toDecimal(income.annualRent), yieldPct: income.yieldPct } : null,
-      photo: u.photos[0] ? links.get(u.photos[0].fileId) ?? null : null, photoCount: u._count.photos,
+      photo: u.photos[0] ? links.get(u.photos[0].fileId) ?? null : null, photoCount: u._count.photos, agreement: !!u.agreementFileId,
       closings: u.locks.map((l) => ({ type: l.type, status: closedStatus(l.type), at: (l.lockedAt ?? u.createdAt).toISOString(), dealCode: s.insider ? l.deal.code : null })),
       missing: missingFields({ ...u, photoCount: u._count.photos }, hidden),
     };
@@ -371,7 +371,7 @@ function hideFields(r: UnitRow, hidden: ReadonlySet<string>): UnitRow {
     pricePerSqm: h("pricePerSqm") ? null : r.pricePerSqm, totalPrice: h("totalPrice") ? null : r.totalPrice, leasePerSqm: h("leasePerSqm") ? null : r.leasePerSqm,
     income: h("income") || !r.income ? null : h("yield") ? { ...r.income, yieldPct: null } : r.income,
     maintenance: h("maintenance") ? null : r.maintenance, commission: h("commission") ? null : r.commission, paymentMethod: h("paymentMethod") ? null : r.paymentMethod,
-    layout: h("layout") ? false : r.layout, comment: h("comment") ? null : r.comment, location: h("location") ? null : r.location,
+    layout: h("layout") ? false : r.layout, comment: h("comment") ? null : r.comment, location: h("location") ? null : r.location, agreement: h("agreement") ? false : r.agreement,
     divisible: h("divisible") ? false : r.divisible, minSplit: h("minSplit") ? null : r.minSplit, agent: h("agent") ? null : r.agent,
     lastOwnerUpdateAt: h("lastOwnerUpdateAt") ? "" : r.lastOwnerUpdateAt, stale: h("stale") ? false : r.stale,
     details: Object.fromEntries(Object.entries(r.details).filter(([k]) => !h(k))),
