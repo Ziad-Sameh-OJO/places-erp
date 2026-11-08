@@ -1,6 +1,8 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
-import { CreateTask, EditTask, MoveTask, TaskFilters, TaskSlaQuery, TaskUnitQuery } from "@places/contracts";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import type { Response } from "express";
+import { CreateTask, EditTask, MoveTask, TaskFilters, TaskSlaQuery, TaskUnitQuery, UnitPhotosInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
+import { writeZip } from "../../core/files/zip";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { TasksService } from "./tasks.service";
@@ -40,6 +42,30 @@ export class TasksController {
   @Requires("tasks", "view")
   get(@Me() me: CurrentUser, @Param("id") id: string) {
     return this.tasks.get(me, id);
+  }
+
+  /** 4.12: the unit's Pic & Info folder from its Retouch task (who may is the domain's retouchFolder). */
+  @Get(":id/photos")
+  @Requires("tasks", "view")
+  photos(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.tasks.photos(me, id);
+  }
+
+  @Get(":id/photos/zip")
+  @Requires("tasks", "view")
+  async photosZip(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
+    const z = await this.tasks.photosZip(me, id);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(z.filename)}`);
+    await writeZip(res, z.entries);
+    res.end();
+  }
+
+  /** 4.12: the designer's edited photos, into the unit's folder. */
+  @Post(":id/photos")
+  @Requires("tasks", "edit")
+  addPhotos(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UnitPhotosInput)) b: UnitPhotosInput) {
+    return this.tasks.addPhotos(me, id, b.fileIds);
   }
 
   @Post()

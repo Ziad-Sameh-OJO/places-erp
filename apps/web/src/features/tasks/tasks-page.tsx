@@ -9,6 +9,7 @@ import { day } from "@/lib/format";
 import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { NewTask } from "./new-task";
+import { TaskFolder } from "./task-folder";
 import { useTaskActions, useTaskOptions, useTasks } from "./use-tasks";
 
 type Tone = "" | "acc" | "info" | "warn" | "ok";
@@ -106,6 +107,7 @@ function TaskCard({ t, onMove }: { t: TaskRow; onMove: (status: string) => void 
           {fields.shows("place") && tr("place", { area: u.area, floor: String(u.floor || "—"), building: String(u.building || "—") })}{u.ownerName ? ` · ${u.ownerName}` : ""} {u.ownerPhone && <span className="mono">{u.ownerPhone}</span>}
         </span>
       )}
+      {u && t.can.folder.open && <TaskFolder task={{ ...t, unit: u }} />}
       {t.sla && <SlaLine sla={t.sla} kind={t.kind} />}
       {t.note && <span className="hint">{t.note}</span>}
       {t.returned > 0 && <span className="hint warn-t">{tr("returned", { count: t.returned })}</span>}

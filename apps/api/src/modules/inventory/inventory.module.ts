@@ -29,6 +29,7 @@ import { TicketsModule } from "../tickets/tickets.module";
   imports: [SettingsModule, ClientsModule, TicketsModule], // the areas list (M-13) · the owner's file (M-10 2.1, 2.11) · a List request's ticket (2.32)
   controllers: [AreaTabsController, UnitLocksController, UnitPhotosController, UnitDocumentsController, UnitListsController, TeamTasksController, DailyReportController, InventoryController, NotActiveController, InventoryTodayController, ListRequestsController],
   providers: [InventoryService, UnitsService, UnitPhotosService, UnitDocumentsService, TeamTasksService, DailyReportService, AreaTabsService, InventoryRepository, NotActiveService, NotActiveRepository, ListRequestsService],
-  exports: [InventoryService, UnitsService], // UnitsService.lock / release: the deals (5.5) and contracts (6.4)
+  // UnitsService.lock / release: the deals (5.5) and contracts (6.4) · UnitPhotosService: the Retouch task's folder (4.12)
+  exports: [InventoryService, UnitsService, UnitPhotosService],
 })
 export class InventoryModule {}
