@@ -6,6 +6,7 @@ import { KpiTile } from "@/components/blocks";
 import { Card, Chip, Empty, Note } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
+import { useFields } from "@/lib/me";
 import { useCampaigns } from "./use-campaigns";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -36,6 +37,7 @@ export function Dashboard() {
   const qs = new URLSearchParams({ ...period(range, custom), ...(channel ? { channel } : {}), ...(campaignId ? { campaignId } : {}) }).toString();
   const q = useQuery({ queryKey: ["marketing-dashboard", qs], queryFn: () => api.get<MarketingDashboard>(`/marketing/campaigns/dashboard?${qs}`), placeholderData: keepPreviousData });
   const d = q.data;
+  const fields = useFields("marketing"); // M-09: the money tiles go with a hidden «اتصرف»
   const channels = [...new Set(campaigns.map((c) => c.channel))];
   return (
     <>
@@ -61,8 +63,8 @@ export function Dashboard() {
       <div className="kpis">
         <KpiTile label={t("kpi.leads")} value={d ? num(d.total.leads) : "…"} sub={t("kpi.inPeriod")} icon="users" />
         <KpiTile label="Qualified" value={d ? num(d.total.qualified) : "…"} sub={t("kpi.rate", { rate: d?.total.rate ?? 0 })} icon="star" tone="ok" />
-        <KpiTile label={t("kpi.spent")} value={d ? money(d.spent) : "…"} sub={t("kpi.campaigns", { count: d?.campaignCount ?? 0 })} icon="megaphone" tone="warn" />
-        <KpiTile label={t("kpi.costPerQualified")} value={d ? money(d.costPerQualified) : "…"} sub={t("kpi.perLead")} icon="trend" />
+        {fields.shows("spent") && <KpiTile label={t("kpi.spent")} value={d ? money(d.spent) : "…"} sub={t("kpi.campaigns", { count: d?.campaignCount ?? 0 })} icon="megaphone" tone="warn" />}
+        {fields.shows("costPerQualified") && <KpiTile label={t("kpi.costPerQualified")} value={d ? money(d.costPerQualified) : "…"} sub={t("kpi.perLead")} icon="trend" />}
       </div>
       <div className="cols wide">
         <Card title={t("tree.title")} icon="layers" sub={t("tree.sub")}>

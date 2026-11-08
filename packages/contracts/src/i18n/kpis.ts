@@ -132,4 +132,9 @@ export default [
   ["خطة التحسين", "Improvement plan"],
   ["الفلوس مش في صلاحياتك", "Money isn't in your permissions"],
   ["خطة التحسين مش في صلاحياتك", "The improvement plan isn't in your permissions"],
+  // M-09 field permissions (domain fields/reports.ts)
+  ["التارجت (نصيبه من الكوميشن)", "Target (his share of the commission)"],
+  ["عمولة الـ TL", "TL commission"],
+  ["اتحصّل", "Collected"],
+  ["مش من حقك تغيّر قيمة التارجت", "You may not change the target's value"],
 ] satisfies Pair[];

@@ -38,4 +38,15 @@ export default [
   ["مهمة {task} اتحوّلت ليك من {name}", "Task {task} was handed to you by {name}"],
   ["{name} عدّل مهمة {task}", "{name} edited task {task}"],
   ["المسؤول ده مينفعش ياخد المهمة دي", "This person can't take this task"],
+  // M-09 field permissions (domain fields/marketing.ts, fields/tasks.ts)
+  ["الكامبين", "Campaign"],
+  ["الميزانية", "Budget"],
+  ["المشروع / الوحدات المستهدفة", "Target project / units"],
+  ["لينك الإعلان", "Ad link"],
+  ["ملاحظات", "Notes"],
+  ["المهمة", "Task"],
+  ["الميعاد", "Due"],
+  ["مكان الوحدة", "The unit's place"],
+  ["المالك", "Owner"],
+  ["رقم المالك", "Owner's number"],
 ] satisfies Pair[];
