@@ -32,6 +32,11 @@ export class UnitPhotosService {
 
   async list(me: CurrentUser, unitId: string): Promise<UnitPhotoView[]> {
     await this.visibleUnit(me, unitId);
+    return this.view(unitId);
+  }
+
+  /** The folder, for a caller that already checked who may open it: a Retouch task's designer (4.12, M-03 3.1). */
+  async view(unitId: string): Promise<UnitPhotoView[]> {
     const photos = await this.repo.photos(unitId);
     const ids = photos.map((p) => p.fileId);
     const [files, links, saves] = await Promise.all([this.files.names(ids), this.links(ids), this.links(ids, false)]);
@@ -48,7 +53,12 @@ export class UnitPhotosService {
    * starts; the files are read one at a time while the ZIP streams (a file storage can't read is left out).
    */
   async zip(me: CurrentUser, unitId: string): Promise<{ filename: string; entries: AsyncIterable<{ name: string; data: Buffer }> }> {
-    const u = await this.visibleUnit(me, unitId);
+    return this.zipOf(me, await this.visibleUnit(me, unitId));
+  }
+
+  /** The ZIP of a unit the caller was already let into (the unit page, or a Retouch task, 4.12). */
+  async zipOf(me: CurrentUser, u: { id: string; code: string }): Promise<{ filename: string; entries: AsyncIterable<{ name: string; data: Buffer }> }> {
+    const unitId = u.id;
     const ids = (await this.repo.photos(unitId)).map((p) => p.fileId);
     const files = await this.files.names(ids);
     await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-zip", userId: me.id, after: { files: ids.length } });
@@ -71,6 +81,11 @@ export class UnitPhotosService {
   async add(me: CurrentUser, unitId: string, fileIds: string[]): Promise<UnitPhotoView[]> {
     this.mayFill(me);
     await this.visibleUnit(me, unitId);
+    return this.put(me, unitId, fileIds);
+  }
+
+  /** Adds to the folder for a caller already allowed to: the folder's people, or a Retouch's designer with the edited photos (4.12). */
+  async put(me: CurrentUser, unitId: string, fileIds: string[]): Promise<UnitPhotoView[]> {
     const ids = [...new Set(fileIds)];
     const pdfs = new Set<string>(FILE_KINDS.pdf.mimes), allowed = new Set<string>([...FILE_KINDS.image.mimes, ...pdfs]);
     const files = await this.files.names(ids);
@@ -86,7 +101,7 @@ export class UnitPhotosService {
       await tx.unit.updateMany({ where: { id: unitId, mediaUploadedAt: null }, data: { mediaUploadedAt: new Date() } });
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-add", userId: me.id, after: { photos: ids } }, tx);
     });
-    return this.list(me, unitId);
+    return this.view(unitId);
   }
 
   /** The new order; the first image becomes the main photo. */

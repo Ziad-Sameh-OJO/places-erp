@@ -26,6 +26,7 @@ import { InventoryTodayController } from "./today.controller";
   imports: [SettingsModule, ClientsModule], // the areas list (M-13) · the owner's file (M-10 2.1, 2.11)
   controllers: [AreaTabsController, UnitLocksController, UnitPhotosController, UnitDocumentsController, UnitListsController, TeamTasksController, DailyReportController, InventoryController, NotActiveController, InventoryTodayController],
   providers: [InventoryService, UnitsService, UnitPhotosService, UnitDocumentsService, TeamTasksService, DailyReportService, AreaTabsService, InventoryRepository, NotActiveService, NotActiveRepository],
-  exports: [InventoryService, UnitsService], // UnitsService.lock / release: the deals (5.5) and contracts (6.4)
+  // UnitsService.lock / release: the deals (5.5) and contracts (6.4) · UnitPhotosService: the Retouch task's folder (4.12)
+  exports: [InventoryService, UnitsService, UnitPhotosService],
 })
 export class InventoryModule {}

@@ -1,14 +1,15 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption } from "@places/contracts";
+import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, photoDayWarning, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, photoDayWarning, retouchFolder, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryService } from "../inventory/inventory.service";
+import { UnitPhotosService } from "../inventory/unit-photos.service";
 import { SettingsService } from "../settings/settings.service";
 import { type TaskRecord, TasksRepository } from "./tasks.repository";
 
@@ -29,6 +30,7 @@ export class TasksService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly inventory: InventoryService,
+    private readonly unitPhotos: UnitPhotosService,
     private readonly settings: SettingsService,
   ) {}
 
@@ -184,6 +186,28 @@ export class TasksService {
     return this.get(me, id);
   }
 
+  /** 4.12: the unit's Pic & Info folder from its Retouch task — the designer has no inventory of his own to open it from. */
+  async photos(me: CurrentUser, id: string): Promise<UnitPhotoView[]> {
+    return this.unitPhotos.view((await this.folderOf(me, id, "open")).id);
+  }
+
+  async photosZip(me: CurrentUser, id: string) {
+    return this.unitPhotos.zipOf(me, await this.folderOf(me, id, "open"));
+  }
+
+  /** 4.12: the designer's edited photos go into the unit's folder (audited there, and the PDF waits for Manar's confirm again). */
+  async addPhotos(me: CurrentUser, id: string, fileIds: string[]): Promise<UnitPhotoView[]> {
+    return this.unitPhotos.put(me, (await this.folderOf(me, id, "upload")).id, fileIds);
+  }
+
+  private async folderOf(me: CurrentUser, id: string, need: "open" | "upload"): Promise<{ id: string; code: string }> {
+    const t = await this.find(me, id);
+    if (!t.unit || !folder(me, t)[need]) {
+      throw new ForbiddenException(need === "open" ? "صور الوحدة بتتفتح من مهمة الـ Retouch بس" : "اللي ماسك الـ Retouch بس اللي يرفع الصور، وقبل ما تتبعت لمنار");
+    }
+    return t.unit;
+  }
+
   /** M-09 2.2 · 7.1: a leaver's unfinished tasks. */
   openCount(userId: string) {
     return this.db.task.count({ where: { toUserId: userId, status: { not: "done" } } });
@@ -232,7 +256,10 @@ export class TasksService {
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },
       dueOn: day(t.dueOn), status, returned: t.returned, note: hide("note", t.note, null), doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
       late: isTaskLate({ status, dueOn: day(t.dueOn) }, now),
-      can: { moves: me.grants.can("tasks", "edit") ? taskMovesFor(t.kind, status, a) : [], edit: me.grants.can("tasks", "edit") && a.manager && status !== "done" },
+      can: {
+        moves: me.grants.can("tasks", "edit") ? taskMovesFor(t.kind, status, a) : [], edit: me.grants.can("tasks", "edit") && a.manager && status !== "done",
+        folder: folder(me, t),
+      },
     };
   }
 }
@@ -250,6 +277,12 @@ function actor(me: CurrentUser, t: Pick<TaskRecord, "toUserId" | "byUserId">): T
     manager: t.byUserId === me.id || me.grants.scope === "dept" || me.grants.scope === "all",
     approver: me.grants.can("tasks", "approve"),
   };
+}
+
+/** 4.12: the Retouch's folder (domain rule), adding only with «tasks: edit». */
+function folder(me: CurrentUser, t: TaskRecord): { open: boolean; upload: boolean } {
+  const f = retouchFolder(t.kind, t.status as TaskStatus, actor(me, t));
+  return { open: f.open && !!t.unit, upload: f.upload && !!t.unit && me.grants.can("tasks", "edit") };
 }
 
 const label = (t: Pick<TaskRecord, "kind" | "title" | "unit">) => `${taskKind(t.kind)?.label ?? t.kind} ${t.unit?.code ?? t.title ?? ""}`.trim();
