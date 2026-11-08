@@ -5,7 +5,7 @@ import { Avatar, Card, Chip, Empty, Icon, Note, Tabs, Table, onFormSubmit, useAc
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { dayTime, money } from "@/lib/format";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { DailyBoard } from "@/features/reports/daily";
@@ -55,6 +55,7 @@ function Board({ scope }: { scope: "team" | "all" }) {
   const q = useBoard(scope);
   const [open, setOpen] = useState<string | null>(null);
   const [sort, setSort] = useState<"low" | "high">("low");
+  const score = useFields("kpis").shows("score");
   if (!q.data) return <Empty text={t("common.loading")} />;
   const { cards, quarter } = q.data;
   const list = sort === "low" ? cards : [...cards].reverse();
@@ -65,7 +66,7 @@ function Board({ scope }: { scope: "team" | "all" }) {
       <Note>{t.rich("board.note", { b: (x) => <b>{x}</b> })}</Note>
       <div className="kpis sm">
         <KpiTile label={t("board.cards")} value={cards.length} sub={scope === "all" ? t("tabs.all") : t("board.yourTeam")} icon="users" />
-        <KpiTile label={t("board.average")} value={`${Math.round(avg)}%`} sub={serverText(quarter.label)} icon="chart" />
+        {score && <KpiTile label={t("board.average")} value={`${Math.round(avg)}%`} sub={serverText(quarter.label)} icon="chart" />}
         <KpiTile label={t("common.approved")} value={t("board.approvedOf", { n: approved, total: cards.length })} sub={t("board.byFollower")} icon="check" tone={approved === cards.length ? "ok" : "warn"} />
         <KpiTile label={t("board.quarter")} value={quarter.status === "open" ? t("board.open") : t("board.closed")} sub={quarter.status === "open" ? t("board.updating") : t("board.saved")} icon="clock" />
       </div>
@@ -86,12 +87,13 @@ function Board({ scope }: { scope: "team" | "all" }) {
 
 function CardTile({ c, onOpen }: { c: KpiCardSummary; onOpen: () => void }) {
   const t = useTranslations("kpis");
+  const score = useFields("kpis").shows("score"); // M-09: a hidden result isn't shown (the API blanks it)
   return (
     <button className="kpi-card" onClick={onOpen}>
-      <span className="row"><Avatar id={c.employeeId} name={c.name} /><span className="kc-who"><b>{c.name}</b><small>{serverText(c.title)} · {t("followedBy", { name: c.follower })}</small></span><b className={`num kc-score ${c.tone}`}>{Math.round(c.score)}%</b></span>
-      <Bar pct={c.score} tone={c.tone} />
+      <span className="row"><Avatar id={c.employeeId} name={c.name} /><span className="kc-who"><b>{c.name}</b><small>{serverText(c.title)} · {t("followedBy", { name: c.follower })}</small></span>{score && <b className={`num kc-score ${c.tone}`}>{Math.round(c.score)}%</b>}</span>
+      {score && <Bar pct={c.score} tone={c.tone} />}
       <span className="row">
-        <Chip tone={c.tone} plain>{serverText(c.tier)}</Chip>{moneyChip(c.money)}
+        {score && <Chip tone={c.tone} plain>{serverText(c.tier)}</Chip>}{moneyChip(c.money)}
         {c.below > 0 && <Chip tone="warn" plain>{t("board.below", { count: c.below })}</Chip>}
         {c.approved ? <Chip tone="ok" plain>{t("common.approved")}</Chip> : <Chip plain>{t("board.awaitingApproval")}</Chip>}
       </span>
