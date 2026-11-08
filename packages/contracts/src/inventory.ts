@@ -188,6 +188,8 @@ export interface UnitTabCounts { all: number; Rent: number; Resale: number; Inco
 /** The lists from the settings (12.7): a form offers the active values, a filter all of them (old records keep switched-off ones). */
 export interface UnitOptions { areas: ListItem[]; conditions: ListItem[]; agents: Person[]; paymentMethods: ListItem[] }
 export interface CreatedUnit { id: string; code: string }
+/** 2.25 · the PDF's cover and specs page, each a whole HTML page (1280 × 720), for the PDF tab's small preview */
+export interface UnitPdfPreview { pages: string[] }
 
 /** An area tab (M-03 7.2): «من» and «لحد» in m², «لحد» empty = and above. */
 export const AreaTabInput = z.object({
@@ -240,3 +242,23 @@ export interface InventoryReportView {
 }
 export const ReportDay = z.object({ day: CalendarDay.optional() });
 export type ReportDay = z.infer<typeof ReportDay>;
+
+/** 2.32 · a Team Leader's «اطلب List من الانفنتوري» (demo invwork.js listReqs): what they want, in words. */
+export const ListRequestInput = z.object({
+  text: z.string({ required_error: "اكتب عايز List إيه" }).trim().min(3, "اكتب عايز List إيه").max(500, "الطلب طويل · 500 حرف بالكتير"),
+});
+export type ListRequestInput = z.infer<typeof ListRequestInput>;
+/** Marwa's «جهّز وابعت»: the open, confirmed units of the List. `sendAnyway` after the «مش مؤكدة» warning. */
+export const SendListInput = z.object({
+  unitIds: z.array(Id, { required_error: "اختار الوحدات" }).min(1, "اختار الوحدات").max(MAX_LIST_UNITS, `لحد ${MAX_LIST_UNITS} وحدة في الـ List`)
+    .refine((ids) => new Set(ids).size === ids.length, "الوحدة متكررة في الـ List"),
+  sendAnyway: z.boolean().default(false),
+});
+export type SendListInput = z.infer<typeof SendListInput>;
+export interface ListRequestRow {
+  id: string; text: string; by: Person; createdAt: string; ticketCode: string | null;
+  /** sent: when, by whom, the units' codes and how many weren't confirmed */
+  doneAt: string | null; doneBy: Person | null; units: string[]; unconfirmed: number;
+}
+/** The requests the person sees (a TL: their own · the inventory team: all), and what they may do. */
+export interface ListRequests { items: ListRequestRow[]; canAsk: boolean; canSend: boolean }

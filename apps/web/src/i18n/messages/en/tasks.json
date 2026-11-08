@@ -1,5 +1,10 @@
 {
   "all": "All",
+  "unit": {
+    "tab": "Tasks",
+    "none": "No tasks on this unit",
+    "toResale": "Send to Randa (resale update)"
+  },
   "kinds": {
     "photo": "Photo shoot",
     "retouch": "Retouch",

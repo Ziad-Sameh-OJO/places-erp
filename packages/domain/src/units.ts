@@ -243,3 +243,18 @@ export function missingFields(u: MissingInput, skip: ReadonlySet<string> = new S
 
 /** Whose «مهامي النهارده» shows a unit's missing data: Manar the Rent units, Randa the rest, the admin all (demo home.js). */
 export const seesMissingOf = confirmsClose;
+
+/**
+ * M-12 (Marwa's card 2) «طلبات الـ Team Leaders من الـ Lists خلال 24 ساعة · طلب الـ List كتذكرة»: who asks the
+ * inventory team for a List — a Team Leader (demo leads.js «اطلب List من الانفنتوري», TL only), and whoever sees
+ * every ticket (the Super Admin).
+ */
+export const asksForLists = (roles: readonly string[], g: Pick<Grants, "can">): boolean => roles.includes("tl") || g.can("tickets", "approve");
+
+/**
+ * M-12 (Marwa's card 3) «صفر وحدات مش مؤكدة في أي List»: a List's units that aren't confirmed — no owner update for
+ * over a month (demo invwork.js «مش مؤكدة (عدّى عليها شهر من غير ابديت)»), by code, in the List's order.
+ */
+export function unconfirmedUnits(units: readonly { code: string; lastOwnerUpdateAt: Date }[], now: Date): string[] {
+  return units.filter((u) => isStale(u.lastOwnerUpdateAt, now)).map((u) => u.code);
+}

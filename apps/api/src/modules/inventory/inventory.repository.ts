@@ -101,6 +101,14 @@ export class InventoryRepository {
     });
   }
 
+  /** A TL's List (2.32): of these ids, the open units a salesperson may see, with their last owner update («مش مؤكدة»). */
+  forList(ids: string[]) {
+    return this.db.unit.findMany({
+      where: { AND: [{ id: { in: ids } }, visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE] },
+      select: { id: true, code: true, lastOwnerUpdateAt: true },
+    });
+  }
+
   /** Every unit's owner number (Not Active rows are compared with them, M-03 1.1), archived ones aside. */
   ownerPhones() {
     return this.db.unit.findMany({ where: { archivedAt: null, ownerPhone: { not: null } }, select: { id: true, code: true, ownerPhone: true } });

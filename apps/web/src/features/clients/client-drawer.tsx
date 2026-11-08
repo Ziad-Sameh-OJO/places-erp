@@ -1,5 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { ClientFile } from "@places/contracts";
@@ -15,7 +16,8 @@ import { PrivacyBits } from "./privacy";
 
 /**
  * The demo's file drawer (clients.js clDrawer): the details with what they owe, their units with the last update,
- * their contracts, «سجّل تواصل», and the whole history newest first. Prev / next walk the list.
+ * their contracts, «سجّل تواصل», and the whole history newest first. Prev / next walk the list. «افتح» on a unit or a
+ * contract opens it in its own page (3.7), for whoever may see that module.
  */
 export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
   ids: string[]; id: string; file: ClientFile | undefined; error: Error | null; onGo: (id: string) => void; onClose: () => void;
@@ -23,6 +25,8 @@ export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
   const t = useTranslations("clients.drawer");
   const tk = useTranslations("clients.kind");
   const fields = useFields("clients"), inv = useFields("inventory");
+  const { can } = useMe();
+  const router = useRouter();
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   if (error) return <Drawer title={t("notFound")} onClose={onClose}><Empty text={error.message} /></Drawer>;
@@ -50,13 +54,19 @@ export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
             <div key={u.id} className="line-item">
               <span><b className="mono">{u.code}</b> · {u.project}{space && <> · {t("space", { space: num(u.space) })}</>}</span>
               {lastUpdate && (u.stale ? <Chip tone="bad">{t("needsUpdate")}</Chip> : <Chip tone="ok">{day(u.lastOwnerUpdateAt)}</Chip>)}
+              {can("inventory", "view") && <button className="btn ghost sm" onClick={() => router.push(`/inventory?unit=${u.id}`)}>{t("open")}</button>}
             </div>
           ))}
         </Card>
       )}
       {p.contracts.length > 0 && (
         <Card className="flat" title={t("contracts")} icon="file">
-          {p.contracts.map((c) => <div key={c.id} className="line-item"><span><b className="mono">{c.code}</b> · {t("endsOn", { date: day(c.endsOn) })}</span></div>)}
+          {p.contracts.map((c) => (
+            <div key={c.id} className="line-item">
+              <span><b className="mono">{c.code}</b> · {t("endsOn", { date: day(c.endsOn) })}</span>
+              {can("contracts", "view") && <button className="btn ghost sm" onClick={() => router.push(`/contracts?open=${c.id}`)}>{t("open")}</button>}
+            </div>
+          ))}
         </Card>
       )}
       <PrivacyBits file={p} />

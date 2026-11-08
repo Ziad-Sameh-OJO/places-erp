@@ -1054,7 +1054,10 @@ model ListRequest {
   doneById     String?
   doneAt       DateTime?
   createdAt    DateTime  @default(now())
+  ticketId     String?   @unique // «طلب الـ List كتذكرة» (M-12 · ticket type «list»): its SLA, history and report
 
+  @@index([requestedBy, createdAt])
+  @@index([doneAt, createdAt])
   @@schema("inventory")
 }
 

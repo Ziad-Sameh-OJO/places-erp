@@ -2,10 +2,11 @@ import { z } from "zod";
 import { TASK_STATUSES, taskKind } from "@places/domain";
 import { CalendarDay, Id } from "./common.ts";
 
-/** M-04 · the board's filters: by kind and by assignee (4.2). */
+/** M-04 · the board's filters: by kind and by assignee (4.2); by unit for the unit drawer's «المهام» tab (2.30). */
 export const TaskFilters = z.object({
   kind: z.string().max(20).optional(),
   toUserId: Id.optional(),
+  unitId: Id.optional(),
 });
 export type TaskFilters = z.infer<typeof TaskFilters>;
 
@@ -51,7 +52,11 @@ export interface TaskRow {
   /** M-12: a shoot 72 h from the unit's registration, a Retouch 48 h from being given; null for other kinds */
   sla: { due: string; hoursLeft: number; met: boolean | null } | null;
   /** the stages the caller may move it to, and whether they may reassign it (the server checks again) */
-  can: { moves: (typeof TASK_STATUSES)[number][]; edit: boolean };
+  can: {
+    moves: (typeof TASK_STATUSES)[number][]; edit: boolean;
+    /** 4.12: a Retouch opens the unit's Pic & Info folder; its designer adds the edited photos while working it */
+    folder: { open: boolean; upload: boolean };
+  };
 }
 
 export interface TaskOptions {

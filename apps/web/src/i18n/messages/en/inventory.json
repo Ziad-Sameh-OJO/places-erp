@@ -19,6 +19,8 @@
     "missingSub": "To be completed later",
     "dailyReport": "Daily report",
     "teamTask": "Team task",
+    "export": "Export units",
+    "exportFile": "Units.xlsx",
     "newUnit": "New unit",
     "searchInsider": "Search anything: project, code, owner, number",
     "search": "Search anything: project, code, building",
@@ -42,7 +44,8 @@
     "empty": "No units match this filter",
     "hint": "The tabs below are customized: the team sets the ranges and adds or removes them. A unit whose last update is more than a month old shows as late and counts in Manar's and Randa's activity.",
     "edit": "Edit details",
-    "archive": "Archive"
+    "archive": "Archive",
+    "listRequests": "List requests"
   },
   "cols": {
     "buildingName": "Building name",
@@ -190,6 +193,7 @@
     "open": "Open"
   },
   "pdf": {
+    "preview": "PDF preview",
     "published": "The PDF is published, and marketing and sales were notified",
     "openPdf": "Open the PDF",
     "pdfPptx": "PDF as PowerPoint",
@@ -328,5 +332,32 @@
     "done": "The list is ready",
     "pickAll": "Pick every unit on this page",
     "pickOne": "Pick {code}"
+  },
+  "lists": {
+    "title": "List requests",
+    "placeholder": "What List do you need? (e.g. rent in New Cairo 100–150 m finished)",
+    "ask": "Ask",
+    "asked": "The request went to the Inventory",
+    "request": "Request",
+    "who": "Who",
+    "asked_at": "Asked",
+    "status": "Status",
+    "prepare": "Prepare & send",
+    "sentInTime": "Sent within 24 hours",
+    "sentAfter": "Sent after {hours} hours",
+    "late": "Late",
+    "waiting": "Waiting",
+    "unconfirmed": "{count} unconfirmed units",
+    "note": "The List is sent within 24 hours of the request, with no unconfirmed unit (a month without an update).",
+    "none": "No requests yet",
+    "search": "Find a unit",
+    "searchHint": "Code, project or space",
+    "units": "Units",
+    "meters": "{space} m",
+    "notConfirmed": "not confirmed",
+    "confirmUnconfirmed": "{codes} not confirmed (a month without an update). Send anyway? (It counts in the quality)",
+    "sent": "Sent",
+    "send": "Send to the Team Leader",
+    "noUnits": "No available units for this search"
   }
 }

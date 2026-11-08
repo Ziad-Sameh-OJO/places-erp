@@ -364,6 +364,8 @@ export default [
   ["القسم المسؤول", "The responsible department"],
   ["تذكرة اتأخرت · تصعيد", "Ticket overdue · escalation"],
   ["مدير القسم · نانسي للنزاعات", "Department manager · Nancy for disputes"],
+  ["الـ List جاهزة", "The List is ready"],
+  ["الـ Team Leader اللي طلبها", "The Team Leader who asked for it"],
   ["تغيير في الـ KPIs", "Change in the KPIs"],
   ["مسؤول الـ KPIs", "KPI owner"],
   ["تقرير متجدول اتبعت", "Scheduled report sent"],
