@@ -4,8 +4,9 @@ import { useTranslations } from "next-intl";
 import type { BillView, CashView, MoveEffect, MoveView } from "@places/contracts";
 import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { useFields, useMe } from "@/lib/me";
+import { only } from "./field-lock";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
 import { useBills, useCash, useRefreshFinance } from "./use-finance";
 import { MoveForm, type MovePrefill } from "./move-form";
@@ -71,19 +72,20 @@ export function Bills() {
   const refresh = useRefreshFinance();
   const a = useBillActions(cash.data, q.data?.label ?? "");
   const [voucher, setVoucher] = useState<string | null>(null);
+  const fields = useFields("finance");
   if (!q.data || !cash.data) return <Empty text={t("common.loading")} icon="clock" />;
-  const canPost = can("finance", "create"), canEdit = can("finance", "edit");
+  const canPost = can("finance", "create") && fields.edits("amount"), canEdit = can("finance", "edit");
   const toggle = (b: BillView) => run(async () => { await api.patch(`/finance/bills/${b.id}`, { active: !b.active }); await refresh(); }, b.active ? t("bills.stopped") : t("bills.started"));
   const add = onFormSubmit(async (d) => run(async () => {
-    await api.post("/finance/bills", { name: d.get("name"), vendor: d.get("vendor"), accountId: d.get("accountId"), fromId: d.get("fromId"), amount: d.get("amount"), day: Number(d.get("day")) });
+    await api.post("/finance/bills", { name: d.get("name"), vendor: fields.edits("vendor") ? d.get("vendor") : "—", /* a read-only vendor: the API saves it empty */ accountId: d.get("accountId"), fromId: d.get("fromId"), amount: d.get("amount"), day: Number(d.get("day")) });
     await refresh();
   }, t("bills.added")));
   return (
     <>
       <Note>{t("bills.note")}</Note>
-      <Table head={[t("bills.bill"), t("common.item"), t("common.from"), t("bills.day"), t("common.amount"), serverText(q.data.label), ""]} empty={t("bills.empty")}
+      <Table head={[t("bills.bill"), t("common.item"), t("common.from"), t("bills.day"), ...(fields.shows("amount") ? [t("common.amount")] : []), serverText(q.data.label), ""]} empty={t("bills.empty")}
         rows={q.data.items.map((b) => [
-          <span key="n"><b>{b.name}</b><span className="sub">{b.vendor}</span></span>, `${b.account.code} · ${serverText(b.account.name)}`, serverText(b.from.name), b.day, money(b.amount),
+          <span key="n"><b>{b.name}</b>{b.vendor && <span className="sub">{b.vendor}</span>}</span>, `${b.account.code} · ${serverText(b.account.name)}`, serverText(b.from.name), b.day, ...(fields.shows("amount") ? [money(b.amount)] : []),
           <span key="s"><Chip tone={TONE[b.state]}>{serverText(b.stateLabel)}</Chip>{b.move && <> <a className="mono click" onClick={() => setVoucher(b.move!.id)}>{b.move.no}</a></>}{b.reason && <span className="sub">{b.reason}</span>}</span>,
           <span key="x" className="row">
             {canPost && (b.state === "due" || b.state === "soon") && <button className="btn sm" onClick={() => a.open(b)}>{t("bills.approvePay")}</button>}
@@ -94,7 +96,7 @@ export function Bills() {
       {canPost && (
         <form className="card flat grid" onSubmit={add}>
           <Field label={t("bills.bill")} req><input name="name" required placeholder={t("bills.namePlaceholder")} /></Field>
-          <Field label={t("bills.vendor")} req><input name="vendor" required /></Field>
+          {only(fields, "vendor", <Field label={t("bills.vendor")} req><input name="vendor" required /></Field>)}
           <Field label={t("common.item")} req><select name="accountId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{cash.data.expenses.map((e) => <option key={e.id} value={e.id}>{e.code} · {serverText(e.name)}</option>)}</select></Field>
           <Field label={t("bills.usualAmount")} req><input name="amount" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required /></Field>
           <Field label={t("bills.dayOfMonth")} req><input name="day" type="number" min={1} max={28} defaultValue={1} required /></Field>

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, HttpCode, Inject, Param, Post, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { z } from "zod";
 import type { PrismaClient } from "@places/db";
@@ -11,6 +11,7 @@ import { Requires, SignedIn } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { ClaimsService } from "./claims.service";
 import type { Tx } from "./ledger.repository";
+import { blankHidden, notYours } from "./hidden-fields";
 
 const DocQuery = z.object({ doc: z.enum(["claim", "receipt"]).default("claim") }); // the installment receipt prints from contracts
 
@@ -26,10 +27,13 @@ export class ClaimsController {
   private readonly run = <T>(fn: (tx: Tx) => Promise<T>) => this.db.$transaction(fn);
 
   @Get() @SignedIn()
-  list(@Me() me: CurrentUser, @Query(new ZodPipe(ClaimFilter)) q: z.infer<typeof ClaimFilter>) { return this.claims.list(me, q.status); }
+  async list(@Me() me: CurrentUser, @Query(new ZodPipe(ClaimFilter)) q: z.infer<typeof ClaimFilter>) { return blankHidden(await this.claims.list(me, q.status), me.fields.hidden("finance")); }
 
   @Post() @Requires("deals", "create")
-  create(@Me() me: CurrentUser, @Body(new ZodPipe(NewClaim)) b: NewClaim) { return this.claims.create(me, b, this.run); }
+  async create(@Me() me: CurrentUser, @Body(new ZodPipe(NewClaim)) b: NewClaim) {
+    if (me.fields.fixed("finance").has("amount")) throw notYours("المبلغ"); // M-09: a claim is its amount
+    return blankHidden(await this.claims.create(me, b, this.run), me.fields.hidden("finance"));
+  }
 
   @Post(":id/issue") @Requires("finance", "approve") @HttpCode(204)
   issue(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string) { return this.claims.issue(me, id, this.run); }
@@ -52,6 +56,8 @@ export class ClaimsController {
   /** The claim (`doc=claim`) or the cash receipt (`doc=receipt`), with the stamp and signature. */
   @Get(":id/pdf") @SignedIn()
   async pdf(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string, @Query(new ZodPipe(DocQuery)) q: { doc: DocKind }, @Res() res: Response) {
+    // M-09: the claim and its receipt are the amount (in figures and words): not printed for whom «المبلغ» is hidden
+    if (me.fields.hidden("finance").has("amount")) throw new ForbiddenException("«المبلغ» مخفي عندك · مينفعش تطبع المستند ده");
     const { name, html } = await this.claims.document(me, id, q.doc);
     sendPdf(res, name, await this.docs.pdf(html));
   }

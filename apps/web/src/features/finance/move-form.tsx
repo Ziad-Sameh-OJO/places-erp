@@ -4,8 +4,10 @@ import { useTranslations } from "next-intl";
 import type { CashView, MoveSaved } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
+import { useFields } from "@/lib/me";
+import { only } from "./field-lock";
 import { useRefreshFinance, type MoveKind } from "./use-finance";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
@@ -24,6 +26,8 @@ export function MoveForm({ kind, cash, settle, prefill, onClose, onSaved }: { ki
   const toast = useToast();
   const refresh = useRefreshFinance();
   const [busy, setBusy] = useState(false);
+  // M-09: a hidden field has no input, a read-only one is locked (the API saves it empty); no voucher without its amount
+  const fields = useFields("finance");
   const safes = (name: string, label: string) => (
     <Field label={label} req>
       <select name={name} required defaultValue={(name === "fromId" && prefill?.fromId) || ""}>
@@ -49,6 +53,7 @@ export function MoveForm({ kind, cash, settle, prefill, onClose, onSaved }: { ki
     const body: Record<string, string> = { kind };
     for (const [k, v] of d.entries()) if (typeof v === "string" && v.trim()) body[k] = v.trim();
     if (settle) body.accountId = settle.accountId;
+    if (!fields.edits("memo")) body.memo = "—"; // a locked memo isn't sent by the form; the API saves it empty (M-09)
     setBusy(true);
     await run(async () => {
       const r = await api.post<MoveSaved>("/finance/moves", body);
@@ -60,17 +65,17 @@ export function MoveForm({ kind, cash, settle, prefill, onClose, onSaved }: { ki
   });
   return (
     <Modal title={settle ? t("move.settleTitle", { name: settle.name }) : t(`kind.${kind}`)} onClose={onClose}>
-      <form className="grid" onSubmit={submit}>
+      {!fields.edits("amount") ? <Note kind="warn">{serverText("«المبلغ» قراية بس عندك · مينفعش تسجّله")}</Note> : <form className="grid" onSubmit={submit}>
         {settle && <Note>{t("move.custodyNow")} <b>{money(settle.balance)}</b></Note>}
         {prefill?.note && <Note>{prefill.note}</Note>}
         {prefill?.billId && <input type="hidden" name="billId" value={prefill.billId} />}
         {kind !== "settle" && <Field label={t("common.date")} req><input name="date" type="date" defaultValue={today()} max={today()} required /></Field>}
         {kind === "pay" && <>{safes("fromId", t("common.fromSafe"))}{expenses("accountId", t("move.expenseType"))}
-          <Field label={t("move.recipient")} req><input name="party" list="pp-list" required placeholder={t("move.recipientPlaceholder")} defaultValue={prefill?.party ?? ""} /><datalist id="pp-list">{cash.people.map((p) => <option key={p.userId} value={p.name} />)}</datalist></Field>
-          <Field label={t("move.ref")}><input name="ref" placeholder={t("common.optional")} /></Field></>}
+          {only(fields, "party", <Field label={t("move.recipient")} req><input name="party" list="pp-list" required placeholder={t("move.recipientPlaceholder")} defaultValue={prefill?.party ?? ""} /><datalist id="pp-list">{cash.people.map((p) => <option key={p.userId} value={p.name} />)}</datalist></Field>)}
+          {only(fields, "ref", <Field label={t("move.ref")}><input name="ref" placeholder={t("common.optional")} /></Field>)}</>}
         {kind === "receive" && <>{safes("toId", t("move.toSafe"))}
           <Field label={t("move.source")} req><select name="accountId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{cash.revenues.map((r) => <option key={r.id} value={r.id}>{r.code} · {serverText(r.name)}</option>)}</select></Field>
-          <Field label={t("move.fromWhom")} req><input name="party" required placeholder={t("move.fromWhomPlaceholder")} /></Field></>}
+          {only(fields, "party", <Field label={t("move.fromWhom")} req><input name="party" required placeholder={t("move.fromWhomPlaceholder")} /></Field>)}</>}
         {kind === "transfer" && <>{safes("fromId", t("common.from"))}{safes("toId", t("common.to"))}</>}
         {kind === "advance" && <>{safes("fromId", t("common.fromSafe"))}{people(t("common.employee"))}</>}
         {kind === "custody" && <>{safes("fromId", t("common.fromSafe"))}{people(t("move.custodyWith"))}</>}
@@ -79,9 +84,9 @@ export function MoveForm({ kind, cash, settle, prefill, onClose, onSaved }: { ki
           <Field label={t("move.returned")} req><input name="returned" {...AMOUNT} defaultValue="0" required /></Field>
           <Field label={t("move.returnedTo")}><select name="toId" defaultValue=""><option value="">—</option>{cash.accounts.map((a) => <option key={a.id} value={a.id}>{a.code} · {serverText(a.name)}</option>)}</select></Field>
         </> : <Field label={t("common.amount")} req><input name="amount" {...AMOUNT} required defaultValue={prefill?.amount ?? ""} /></Field>}
-        <Field label={t("common.memo")} req wide><input name="memo" required minLength={2} defaultValue={prefill?.memo ?? ""} placeholder={kind === "settle" ? t("move.settleMemoPlaceholder") : t("move.memoPlaceholder")} /></Field>
+        {only(fields, "memo", <Field label={t("common.memo")} req wide><input name="memo" required minLength={2} defaultValue={prefill?.memo ?? ""} placeholder={kind === "settle" ? t("move.settleMemoPlaceholder") : t("move.memoPlaceholder")} /></Field>)}
         <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{t("common.cancel")}</button><button className="btn" disabled={busy}>{busy ? t("common.saving") : settle ? t("move.saveSettle") : t("common.record")}</button></div>
-      </form>
+      </form>}
     </Modal>
   );
 }

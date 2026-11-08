@@ -5,7 +5,7 @@ import type { AccountNode } from "@places/contracts";
 import { Empty, Icon, Note, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { money, short } from "@/lib/format";
+import { money, short } from "./money";
 import { serverText } from "@/lib/server-text";
 import { SYSTEM_CODES, useChart, useRefreshFinance } from "./use-finance";
 import { AccountForm } from "./account-form";

@@ -5,8 +5,8 @@ import { useTranslations } from "next-intl";
 import type { EntrySaved, MoveEffect, PeriodView } from "@places/contracts";
 import { Chip, Empty, Icon, Modal, Note, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
-import { money } from "@/lib/format";
+import { useFields, useMe } from "@/lib/me";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
 import { EntryForm } from "./entry-form";
 import { printBlock } from "./print";
@@ -24,23 +24,25 @@ export function Journal() {
   const [form, setForm] = useState(false);
   const [saved, setSaved] = useState<EntrySaved | null>(null);
   const q = useJournal(f, page, PAGE);
+  // M-09: a hidden memo has no column and no search; a hidden amount no column or totals; no new entry without the amount
+  const fields = useFields("finance");
   const set = (k: keyof JournalQuery, v: string) => { setF((o) => ({ ...o, [k]: v || undefined })); setPage(1); };
   const d = q.data;
   return (
     <>
       <Periods />
       <div className="row">
-        <input type="search" placeholder={t("journal.search")} onChange={(e) => set("q", e.target.value)} />
+        {fields.shows("memo") && <input type="search" placeholder={t("journal.search")} onChange={(e) => set("q", e.target.value)} />}
         <label className="hint">{t("common.from")} <input type="date" onChange={(e) => set("from", e.target.value)} /></label>
         <label className="hint">{t("common.until")} <input type="date" onChange={(e) => set("to", e.target.value)} /></label>
         <span className="spacer" />
-        {can("finance", "create") && <button className="btn" onClick={() => setForm(true)}><Icon name="plus" />{t("entry.newTitle")}</button>}
+        {can("finance", "create") && fields.edits("amount") && <button className="btn" onClick={() => setForm(true)}><Icon name="plus" />{t("entry.newTitle")}</button>}
       </div>
       {!d ? <Empty text={t("common.loading")} icon="clock" /> : (
         <>
-          <Note kind={d.totals.balanced ? "ok" : "warn"}>{t("journal.note", { debit: money(d.totals.debit), credit: money(d.totals.credit) })} · {d.totals.balanced ? t("common.balanced") : t("journal.unbalanced")}</Note>
-          <Table head={[t("journal.entry"), t("common.date"), t("journal.type"), t("common.memo"), t("common.amount"), t("journal.by")]} empty={t("journal.empty")} onRow={(i) => setOpen(d.items[i]!.id)}
-            rows={d.items.map((e) => [<b key="n" className="mono">{e.no}</b>, e.date.slice(0, 10), serverText(e.nature), e.memo, money(e.debit), e.by])} />
+          {fields.shows("amount") && <Note kind={d.totals.balanced ? "ok" : "warn"}>{t("journal.note", { debit: money(d.totals.debit), credit: money(d.totals.credit) })} · {d.totals.balanced ? t("common.balanced") : t("journal.unbalanced")}</Note>}
+          <Table head={[t("journal.entry"), t("common.date"), t("journal.type"), ...(fields.shows("memo") ? [t("common.memo")] : []), ...(fields.shows("amount") ? [t("common.amount")] : []), t("journal.by")]} empty={t("journal.empty")} onRow={(i) => setOpen(d.items[i]!.id)}
+            rows={d.items.map((e) => [<b key="n" className="mono">{e.no}</b>, e.date.slice(0, 10), serverText(e.nature), ...(fields.shows("memo") ? [e.memo] : []), ...(fields.shows("amount") ? [money(e.debit)] : []), e.by])} />
           {d.total > PAGE && (
             <div className="row">
               <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("common.prev")}</button>
@@ -95,7 +97,7 @@ function EntryModal({ id, effect, onClose }: { id: string; effect?: MoveEffect[]
         <>
           <div ref={ref}><div className="pdf">
             <div className="pdf-head"><b>Places · {t("journal.journalEntry")}</b><span className="mono">{e.no}</span></div>
-            <p className="hint">{e.date.slice(0, 10)} · {serverText(e.nature)} · {e.memo} · {e.by}</p>
+            <p className="hint">{e.date.slice(0, 10)} · {serverText(e.nature)}{e.memo ? ` · ${e.memo}` : ""} · {e.by}</p>
             <table className="je">
               <thead><tr><th>{t("common.account")}</th><th>{t("common.debit")}</th><th>{t("common.credit")}</th></tr></thead>
               <tbody>

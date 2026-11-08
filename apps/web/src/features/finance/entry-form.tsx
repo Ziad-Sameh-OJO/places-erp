@@ -4,8 +4,10 @@ import { useTranslations } from "next-intl";
 import type { EntrySaved, EntryView } from "@places/contracts";
 import { Field, Icon, Modal, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
+import { useFields } from "@/lib/me";
+import { only } from "./field-lock";
 import { flatten, useChart, useRefreshFinance } from "./use-finance";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
@@ -26,6 +28,9 @@ export function EntryForm({ entry, onClose, onSaved }: { entry?: EntryView; onCl
   const [memo, setMemo] = useState(entry?.memo ?? "");
   const [lines, setLines] = useState<Line[]>(entry ? entry.lines.map((l) => ({ accountId: l.accountId, debit: Number(l.debit) ? l.debit : "", credit: Number(l.credit) ? l.credit : "" })) : [blank(), blank()]);
   const [busy, setBusy] = useState(false);
+  // M-09: a read-only amount locks the lines (the API keeps them as posted); a read-only memo is locked, a hidden one gone
+  const fields = useFields("finance");
+  const lock = !fields.edits("amount");
   const leaves = chart.data ? flatten(chart.data.roots).filter(({ leaf, node }) => leaf && node.code !== "34") : [];
   const dr = lines.reduce((s, l) => s + cents(l.debit), 0), cr = lines.reduce((s, l) => s + cents(l.credit), 0);
   const set = (i: number, k: keyof Line, v: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
@@ -44,9 +49,9 @@ export function EntryForm({ entry, onClose, onSaved }: { entry?: EntryView; onCl
     <Modal title={entry ? t("entry.editTitle", { no: entry.no }) : t("entry.newTitle")} onClose={onClose}>
       <form className="grid" onSubmit={submit}>
         <Field label={t("common.date")} req><input type="date" value={date} max={today()} required onChange={(e) => setDate(e.target.value)} /></Field>
-        <Field label={t("common.memo")} req><input value={memo} required minLength={2} placeholder={t("entry.memoPlaceholder")} onChange={(e) => setMemo(e.target.value)} /></Field>
+        {only(fields, "memo", <Field label={t("common.memo")} req><input value={memo} required minLength={2} placeholder={t("entry.memoPlaceholder")} onChange={(e) => setMemo(e.target.value)} /></Field>)}
         <div className="wide tbl-wrap">
-          <table className="je">
+          <fieldset className="field-lock" disabled={lock}><table className="je">
             <thead><tr><th>{t("common.account")}</th><th>{t("common.debit")}</th><th>{t("common.credit")}</th><th /></tr></thead>
             <tbody>
               {lines.map((l, i) => (
@@ -65,7 +70,7 @@ export function EntryForm({ entry, onClose, onSaved }: { entry?: EntryView; onCl
               <td><button type="button" className="btn ghost sm" onClick={() => setLines((ls) => [...ls, blank()])}><Icon name="plus" />{t("entry.line")}</button></td>
               <td className="num"><b>{money((dr / 100).toFixed(2))}</b></td><td className="num"><b>{money((cr / 100).toFixed(2))}</b></td><td />
             </tr></tfoot>
-          </table>
+          </table></fieldset>
           <p className={`hint ${dr === cr && dr ? "ok-t" : "bad-t"}`}>{dr === cr && dr ? t("common.balanced") : dr || cr ? t("entry.diff", { amount: money((Math.abs(dr - cr) / 100).toFixed(2)) }) : t("entry.mustEqual")}</p>
         </div>
         <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{t("common.cancel")}</button><button className="btn" disabled={busy}><Icon name="check" />{busy ? t("common.saving") : entry ? t("entry.saveEdit") : t("entry.submit")}</button></div>

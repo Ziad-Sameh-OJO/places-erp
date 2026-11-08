@@ -6,8 +6,10 @@ import { attachmentProblem, fromDecimal } from "@places/domain";
 import { Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { FileUpload } from "@/components/file-upload";
 import { api } from "@/lib/api";
-import { short } from "@/lib/format";
+import { short } from "../finance/money";
 import { serverText } from "@/lib/server-text";
+import { only } from "../finance/field-lock";
+import { useFields } from "@/lib/me";
 import { useRefreshProcurement, useVendors } from "./use-purchases";
 
 /** Uploaded files so far, with both upload buttons (a receipt photo or a PDF of the quotes). */
@@ -29,6 +31,7 @@ export function PurchaseForm({ lines, onClose }: { lines: BudgetLineRow[]; onClo
   const refresh = useRefreshProcurement();
   const vendors = useVendors();
   const [files, setFiles] = useState<StoredFile[]>([]);
+  const fields = useFields("procurement");
   const send = (d: FormData) => {
     const amount = String(d.get("amount") ?? "").trim();
     if (!/^\d+(\.\d{1,2})?$/.test(amount)) return toast(t("form.badAmount"), "bad");
@@ -55,10 +58,11 @@ export function PurchaseForm({ lines, onClose }: { lines: BudgetLineRow[]; onClo
             {lines.map((l) => <option key={l.accountId} value={l.accountId}>{l.code} · {serverText(l.name)}{l.left != null ? ` · ${t("common.left", { amount: short(l.left) })}` : ""}</option>)}
           </select>
         </Field>
-        <Field label={t("common.vendor")}>
+        {/* M-09: a hidden vendor has no input, a read-only one is locked (the API saves it empty either way) */}
+        {only(fields, "vendor", <Field label={t("common.vendor")}>
           <input name="vendor" list="vendorList" maxLength={80} />
           <datalist id="vendorList">{(vendors.data ?? []).map((v) => <option key={v} value={v} />)}</datalist>
-        </Field>
+        </Field>)}
         <Field label={t("form.attachments")} wide><Attachments files={files} onAdd={(f) => setFiles((x) => [...x, f])} /></Field>
         <div className="row end wide">
           <span className="hint spacer">{t("form.approvalRule")}</span>
