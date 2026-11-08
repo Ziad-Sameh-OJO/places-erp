@@ -2,10 +2,11 @@ import { z } from "zod";
 import { TASK_STATUSES, taskKind } from "@places/domain";
 import { CalendarDay, Id } from "./common.ts";
 
-/** M-04 · the board's filters: by kind and by assignee (4.2). */
+/** M-04 · the board's filters: by kind and by assignee (4.2); by unit for the unit drawer's «المهام» tab (2.30). */
 export const TaskFilters = z.object({
   kind: z.string().max(20).optional(),
   toUserId: Id.optional(),
+  unitId: Id.optional(),
 });
 export type TaskFilters = z.infer<typeof TaskFilters>;
 
