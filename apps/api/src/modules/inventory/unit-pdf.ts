@@ -120,6 +120,14 @@ const deckHtml = (name: string, P: Page[]) => layout(name, `<style>${CSS}</style
 /** The deck as HTML for DocumentsService.pdf(…, { slide: true }). */
 export const unitDeckHtml = (u: UnitDetail, photos: Photo[], kind: "pdf" | "slide") => deckHtml(deckName(u, kind), pages(u, photos, kind));
 export const listDeckHtml = (units: readonly ListUnit[], kind: "pdf" | "slide", client?: string) => deckHtml(listName(units.length, client), listPages(units, kind, client));
+/**
+ * 2.25 · the demo's deckPreview: the PDF's cover and specs page, each a page of its own (no fonts: the deck's are the
+ * system ones), for the small preview in the unit's PDF tab. Only the first photo shows on those two pages.
+ */
+export const unitPreviewPages = (u: UnitDetail, photos: Photo[]) => {
+  const P = pages(u, photos.slice(0, 1), "pdf");
+  return [P[0]!, P[2]!].map((p) => `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}${CSS}</style></head><body>${pageHtml(p)}</body></html>`);
+};
 
 /* ---------- PowerPoint (13.333 × 7.5 in) ---------- */
 

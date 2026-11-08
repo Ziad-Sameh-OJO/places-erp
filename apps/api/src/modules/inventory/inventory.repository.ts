@@ -16,7 +16,7 @@ export const UNIT_ROW = {
   photos: { where: { pdf: false }, select: { fileId: true }, orderBy: { position: "asc" }, take: 1 },
   _count: { select: { photos: true } },
 } satisfies Prisma.UnitSelect;
-export const UNIT_DETAIL = { ...UNIT_ROW, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true, mediaUploadedAt: true } satisfies Prisma.UnitSelect;
+export const UNIT_DETAIL = { ...UNIT_ROW, ownerId: true, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true, mediaUploadedAt: true } satisfies Prisma.UnitSelect;
 export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
 export type UnitRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_DETAIL }>;
 
@@ -98,6 +98,14 @@ export class InventoryRepository {
     return this.db.unit.findMany({
       where: { AND: [{ id: { in: ids } }, visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE] },
       select: { id: true, code: true, type: true, project: true, area: true, floor: true, space: true, condition: true, parking: true, totalPrice: true },
+    });
+  }
+
+  /** A TL's List (2.32): of these ids, the open units a salesperson may see, with their last owner update («مش مؤكدة»). */
+  forList(ids: string[]) {
+    return this.db.unit.findMany({
+      where: { AND: [{ id: { in: ids } }, visible({ insider: false, staleBefore: new Date(0) }), AVAILABLE] },
+      select: { id: true, code: true, lastOwnerUpdateAt: true },
     });
   }
 

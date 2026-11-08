@@ -78,6 +78,16 @@ export const taskMovesFor = (kind: string, from: TaskStatus, actor: TaskActor): 
   TASK_STATUSES.filter((to) => taskMove(kind, from, to, actor).ok);
 
 /**
+ * 4.12 · M-03 3.1 «مهمة Retouch»: «صور الوحدة المرفوعة على السيستم، بيتبعت للمصمم. المصمم يرفع الصور بعد التعديل على
+ * صفحة الوحدة». Whoever sees a Retouch task opens the unit's Pic & Info folder from it; its designer adds the edited
+ * photos while working it — once sent to Manar (uploaded) or approved, the folder is hers again.
+ */
+export function retouchFolder(kind: string, status: TaskStatus, actor: TaskActor): { open: boolean; upload: boolean } {
+  const open = kind === "retouch";
+  return { open, upload: open && actor.assignee && (status === "todo" || status === "progress") };
+}
+
+/**
  * M-04 2.1 step 4 «كل واحدة بتديله وحدة في اليوم»: a second photo task from the same person to the same photographer
  * for the same day, while the first isn't Done, gets the demo's warning (tasks.js `taskNew`). A warning, not a block:
  * the demo still sends it. `sameDayOpen` = their open photo tasks for that day before this one.

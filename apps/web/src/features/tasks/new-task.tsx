@@ -14,7 +14,11 @@ const titled = (k: string): k is (typeof TITLED)[number] => (TITLED as readonly 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 
 /** Give a task (M-04 2.1 step 4): the unit (its data reaches the assignee), or the marketing task's type; who; the day. */
-export function NewTask({ kind, options, onClose }: { kind: string; options: TaskOptions | undefined; onClose: () => void }) {
+export function NewTask({ kind, options, unit, onClose }: {
+  kind: string; options: TaskOptions | undefined; onClose: () => void;
+  /** given from the unit's drawer (2.30): the unit is picked already, as the demo's `taskNew` with `data-code` */
+  unit?: { id: string; code: string; project: string };
+}) {
   const t = useTranslations("tasks.newTask");
   const run = useAction();
   const toast = useToast();
@@ -41,8 +45,8 @@ export function NewTask({ kind, options, onClose }: { kind: string; options: Tas
         {withUnit ? (
           <Field label={t("unit")} req wide>
             <input type="search" placeholder={t("searchUnit")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("searchUnitLabel")} />
-            <select name="unitId" required aria-label={t("unit")}>
-              {units.map((u) => <option key={u.id} value={u.id}>{u.code} · {u.project}</option>)}
+            <select name="unitId" required aria-label={t("unit")} defaultValue={unit?.id}>
+              {(unit ? [unit, ...units.filter((u) => u.id !== unit.id)] : units).map((u) => <option key={u.id} value={u.id}>{u.code} · {u.project}</option>)}
             </select>
           </Field>
         ) : (

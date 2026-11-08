@@ -91,7 +91,7 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
  * The demo's one «ارفع صور / PDF» (invwork.js): several photos and PDFs at once, each straight to storage (like
  * FileUpload), then added to the folder together. A file that fails its check is skipped with a message; the rest go up.
  */
-function FolderUpload({ left, onDone }: { left: number; onDone: (ids: string[]) => Promise<void> }) {
+export function FolderUpload({ left, onDone }: { left: number; onDone: (ids: string[]) => Promise<void> }) {
   const t = useTranslations("inventory.photos");
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);

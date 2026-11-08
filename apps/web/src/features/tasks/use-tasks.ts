@@ -5,6 +5,9 @@ import { api } from "@/lib/api";
 
 /** The whole board (the API sends the open tasks and a month of Done ones, already in the caller's scope). */
 export const useTasks = () => useQuery({ queryKey: ["tasks"], queryFn: () => api.get<TaskRow[]>("/tasks") });
+/** One unit's tasks (its drawer's «المهام» tab, 2.30); under ["tasks"], so giving or moving a task refreshes it too. */
+export const useUnitTasks = (unitId: string, enabled: boolean) =>
+  useQuery({ queryKey: ["tasks", "unit", unitId], queryFn: () => api.get<TaskRow[]>(`/tasks?unitId=${unitId}`), enabled });
 export const useTaskOptions = (enabled: boolean) => useQuery({ queryKey: ["task-options"], queryFn: () => api.get<TaskOptions>("/tasks/options"), enabled, staleTime: 60_000 });
 /** Units a task can be about, by code or project (the new-task form). */
 export const useTaskUnits = (q: string, enabled: boolean) =>

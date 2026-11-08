@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { keepsInventory } from "@places/domain";
 import { Fab, KpiTile } from "@/components/blocks";
-import { Chip, Empty, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
+import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFields, useMe } from "@/lib/me";
@@ -11,12 +11,14 @@ import { num, short } from "@/lib/format";
 import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
 import { UnitForm } from "./unit-form";
+import { OwnerUpdateButton } from "./owner-update";
 import { OldDataImport } from "../imports/old-data-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
 import { ListOfOptionsBar } from "./list-of-options";
-import { type UnitQuery, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
+import { ListRequestsModal, useListRequests } from "./list-requests";
+import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 import { serverText } from "@/lib/server-text";
 
 const PAGE = 50;
@@ -42,11 +44,15 @@ export function InventoryList() {
     const q = new URLSearchParams(window.location.search);
     if (q.get("unit")) setOpen(q.get("unit"));
     if (q.get("report")) setReport(true); // «التقرير اليومي جاهز» (2.18)
+    if (q.get("lists")) setLists(true); // «طلب List من …» (2.32)
     if (q.get("missing")) setF({ missing: "true" }); // «مهامي النهارده»: «N وحدة تانية ناقصها بيانات» (2.20)
   }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   const [teamTask, setTeamTask] = useState(false);
   const [report, setReport] = useState(false);
+  // 2.32 · the inventory team's «طلبات الـ Lists» (who prepares them is the API's answer)
+  const [lists, setLists] = useState(false);
+  const prepares = useListRequests(me.can("tickets", "view")).data?.canSend;
   const qc = useQueryClient();
   const run = useAction();
   // the rented / sold sheet keeps its own type and dates (M-03 5.2); the other tabs don't use them
@@ -99,6 +105,9 @@ export function InventoryList() {
         {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}
+        {prepares && <button className="btn ghost" onClick={() => setLists(true)}><Icon name="list" />{t("list.listRequests")}</button>}
+        {/* 2.28: the sheet as filtered now, every page (the API drops what the reader may not see) */}
+        <ExportButton module="inventory" path="/inventory/units/export" query={toParams(query, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
       <div className="toolbar">
@@ -161,11 +170,13 @@ export function InventoryList() {
           <div className="row">
             {me.can("inventory", "edit") && <button className="btn ghost" onClick={() => setForm("edit")}>{t("list.edit")}</button>}
             {me.can("inventory", "delete") && <button className="btn ghost" onClick={() => archive(unit.data!.id, unit.data!.code)}><Icon name="x" />{t("list.archive")}</button>}
+            {me.can("inventory", "edit") && fields.edits("lastOwnerUpdateAt") && <OwnerUpdateButton u={unit.data} />}
           </div>
         )} />}
       {form && <UnitForm unit={form === "edit" ? unit.data : undefined} options={options} tabs={areaTabs} onClose={() => setForm(null)}
         onSaved={(id) => { setForm(null); setOpen(id); }} />}
       {report && <DailyReportModal onClose={() => setReport(false)} />}
+      {lists && <ListRequestsModal onClose={() => setLists(false)} />}
       {teamTask && <TeamTaskModal units={list} onClose={() => setTeamTask(false)} />}
       {me.can("inventory", "create") && !picked.length && <Fab onClick={() => setForm("new")} label={t("list.newUnit")} />}
     </>

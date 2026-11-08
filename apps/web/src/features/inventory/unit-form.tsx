@@ -10,6 +10,7 @@ import { moneyExact } from "@/lib/format";
 import { AgreementLink, type ColWord, type UnitTypeName, w } from "./unit-bits";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
+import { MapView, parseLocation } from "./unit-map";
 import { FileUpload } from "@/components/file-upload";
 
 type Key =
@@ -120,6 +121,7 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
     if (!unit && first) setF((x) => (x.condition ? x : { ...x, condition: first }));
   }, [options, unit]);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false); // 2.27: the map under the Location field
   const [agreement, setAgreement] = useState<string | null>(null); // 2.31: the Income unit's new Agreement file, set after saving
   const original = unit ? fromUnit(unit).receivedAt : null;
   const set = (k: Key) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -223,9 +225,14 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
         {only("location", <Field label={t("form.location")}>
           <div className="row">
             <input name="location" dir="ltr" placeholder="30.02, 31.48" value={f.location} onChange={set("location")} />
-            <a className="btn ghost sm" href={`https://maps.google.com/${f.location ? `?q=${encodeURIComponent(f.location)}` : ""}`} target="_blank" rel="noopener noreferrer"><Icon name="pin" />{t("form.pick")}</a>
+            <button type="button" className="btn ghost sm" aria-pressed={picking} onClick={() => setPicking(!picking)}><Icon name="pin" />{t("form.pick")}</button>
           </div>
         </Field>)}
+        {/* 2.27 · the demo's pickLoc (M-03 «بيفتح ماب و منار او رندا بيختارو اللوكيشن»): a click on the map writes «30.02, 31.48» */}
+        {picking && fields.edits("location") && <div className="wide">
+          <MapView at={parseLocation(f.location)} onPick={(location) => setF((x) => ({ ...x, location }))} />
+          <p className="hint">{t("form.mapHint")}</p>
+        </div>}
         {only("lastOwnerUpdateAt", <Field label={t("form.lastUpdate")}><input name="lastOwnerUpdateAt" type="date" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>)}
         {TYPE_FIELDS[type].map((x) => (type === "Income" && x[0] === "commission" ? [agreementField, input(x)] : input(x)))}
         {only("layout", <Field label="Layout">

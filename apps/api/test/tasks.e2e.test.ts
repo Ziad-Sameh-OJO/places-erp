@@ -168,3 +168,22 @@ test("M-04 2.1 step 4 «وحدة في اليوم»: Randa's second shoot for Bay
   tasks.push(manars.body.id);
   assert.equal(manars.body.warning, null);
 });
+
+test("2.30 the unit drawer's «المهام»: GET /tasks?unitId= gives that unit's tasks only, in the caller's scope", async () => {
+  const other = (await prisma.unit.create({ data: { code: `U-T${stamp}b`, type: "Rent", project: `مشروع ${stamp}`, area: "التجمع الخامس", space: 300, condition: "Finished" } })).id;
+  try {
+    const here = await give(manar, { kind: "retouch", toUserId: bayoumiId, unitId });
+    const there = await give(manar, { kind: "photo", toUserId: bayoumiId, unitId: other });
+    const of = async (cookie: string, id: string) => (await call(`/tasks?unitId=${id}`, { cookie })).body as Array<{ id: string; unit: { id: string } }>;
+    const mine = await of(manar, unitId);
+    assert.ok(mine.some((t) => t.id === here));
+    assert.ok(mine.every((t) => t.unit.id === unitId));
+    assert.deepEqual((await of(manar, other)).map((t) => t.id), [there]);
+    assert.deepEqual((await of(bayoumi, other)).map((t) => t.id), [there]); // the photographer sees his own
+    assert.equal((await call(`/tasks?unitId=${other}`, { cookie: sales })).status, 403);
+  } finally {
+    await prisma.notification.deleteMany({ where: { OR: tasks.map((id) => ({ link: { contains: id } })) } });
+    await prisma.task.deleteMany({ where: { unitId: other } });
+    await prisma.unit.delete({ where: { id: other } });
+  }
+});
