@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { activeValues, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { useLeadOptions, useSettings } from "./use-leads";
 
@@ -38,6 +38,11 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   const qc = useQueryClient();
   const settings = useSettings();
   const options = useLeadOptions();
+  // M-09: a hidden field isn't in the form, a read-only one is locked (a new lead starts it empty). Mobile, Area, Type
+  // and Channel are what a lead can't be saved without: they stay typeable here (the API takes them on a new lead).
+  const fields = useFields("leads");
+  const only = (key: string, node: ReactNode, required = false) =>
+    !fields.shows(key) ? null : required || fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
   const [phones, setPhones] = useState("");
   const [channel, setChannel] = useState("");
   const [company, setCompany] = useState("");
@@ -86,14 +91,14 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
       <form className="grid" onSubmit={onFormSubmit(save)}>
         <Field label={t("kind")} req><select name="kind" defaultValue={kind}><option value="client">{t("client")}</option><option value="broker">Broker</option></select></Field>
         <Field label={t("name")} req><input name="name" required minLength={2} maxLength={120} /></Field>
-        <Field label={t("company")}>
+        {only("company", <Field label={t("company")}>
           <input name="company" maxLength={160} placeholder={t("companyPlaceholder")} list="coList" value={company} onChange={(e) => setCompany(e.target.value)} />
           <datalist id="coList">{(sheetNames ?? []).map((n) => <option key={n} value={n} />)}</datalist>
-        </Field>
-        {newCompany && <NewCompanyNote name={typedCompany} telesales={isTelesales} categories={activeValues(settings.data?.companyCategories ?? [])} />}
-        <Field label={t("phones")} req>
+        </Field>)}
+        {newCompany && fields.edits("company") && <NewCompanyNote name={typedCompany} telesales={isTelesales} categories={activeValues(settings.data?.companyCategories ?? [])} />}
+        {only("phones", <Field label={t("phones")} req>
           <textarea name="phones" required placeholder="01xxxxxxxxx" value={phones} onChange={(e) => setPhones(e.target.value)} />
-        </Field>
+        </Field>, true)}
         {dup && (
           <div className="wide">
             <Note kind="warn">
@@ -102,23 +107,23 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
             </Note>
           </div>
         )}
-        <Field label="Area" req>
+        {only("area", <Field label="Area" req>
           <select name="area" required defaultValue=""><option value="">{t("pick")}</option>{activeValues(settings.data?.areas ?? []).map((a) => <option key={a}>{a}</option>)}</select>
-        </Field>
-        <Field label="Type"><select name="type">{TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>
-        <Field label={t("spaceM")}><input name="space" type="number" min="1" step="1" /></Field>
-        <Field label="Condition"><select name="condition">{activeValues(settings.data?.finishings ?? []).map((c) => <option key={c}>{c}</option>)}</select></Field>
-        <Field label="Budget"><input name="budget" type="number" min="0" step="1" dir="ltr" /></Field>
-        <Field label="Channel" req>
+        </Field>, true)}
+        {only("type", <Field label="Type"><select name="type">{TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>, true)}
+        {only("space", <Field label={t("spaceM")}><input name="space" type="number" min="1" step="1" /></Field>)}
+        {only("condition", <Field label="Condition"><select name="condition">{activeValues(settings.data?.finishings ?? []).map((c) => <option key={c}>{c}</option>)}</select></Field>)}
+        {only("budget", <Field label="Budget"><input name="budget" type="number" min="0" step="1" dir="ltr" /></Field>)}
+        {only("channel", <Field label="Channel" req>
           <select name="channel" required value={channel} onChange={(e) => setChannel(e.target.value)}>
             <option value="">{t("pick")}</option>{activeValues(settings.data?.channels ?? []).map((c) => <option key={c}>{c}</option>)}
           </select>
-        </Field>
-        <Field label="Campaign name">
+        </Field>, true)}
+        {only("campaign", <Field label="Campaign name">
           <select name="campaignId">
             {channel ? <><option value="">—</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</> : <option value="">{t("channelFirst")}</option>}
           </select>
-        </Field>
+        </Field>)}
         {ownLead && <p className="hint wide">{t("ownLead")}</p>}
         {byHand && (
           <Field label="Sales">
@@ -131,7 +136,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
             <select name="keep"><option value="route">{t("route")}</option><option value="keep">{t("keep")}</option></select>
           </Field>
         )}
-        <Field label="Note" wide><textarea name="note" maxLength={2000} /></Field>
+        {only("note", <Field label="Note" wide><textarea name="note" maxLength={2000} /></Field>)}
         <div className="row end wide">
           <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>
           <button className="btn" disabled={busy}>{dup ? t("sendToOps") : t("saveLead")}</button>

@@ -5,6 +5,8 @@ import type { AccountNode } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { serverText } from "@/lib/server-text";
+import { useFields } from "@/lib/me";
+import { only } from "./field-lock";
 import { SYSTEM_CODES, flatten, useRefreshFinance } from "./use-finance";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
@@ -15,6 +17,7 @@ export function AccountForm({ roots, parentId, onClose }: { roots: AccountNode[]
   const run = useAction();
   const refresh = useRefreshFinance();
   const [busy, setBusy] = useState(false);
+  const fields = useFields("finance"); // M-09: no opening balance from a read-only / hidden amount
   const all = flatten(roots);
   const parents = all.filter(({ node }) => !SYSTEM_CODES.has(node.code));
   const leaves = all.filter(({ leaf, node }) => leaf && node.code !== "34");
@@ -40,7 +43,7 @@ export function AccountForm({ roots, parentId, onClose }: { roots: AccountNode[]
         <Field label={t("accountForm.kind")}>
           <select name="kind" defaultValue=""><option value="">{t("accountKind.normal")}</option><option value="treasury">{t("accountKind.treasury")}</option><option value="bank">{t("accountKind.bank")}</option><option value="wallet">{t("accountKind.wallet")}</option></select>
         </Field>
-        <Field label={t("accountForm.opening")}><input name="opening" inputMode="decimal" pattern="\d+(\.\d{1,2})?" placeholder="0" /></Field>
+        {only(fields, "amount", <Field label={t("accountForm.opening")}><input name="opening" inputMode="decimal" pattern="\d+(\.\d{1,2})?" placeholder="0" /></Field>)}
         <Field label={t("accountForm.counter")}>
           <select name="counterId" defaultValue=""><option value="">{t("accountForm.retained")}</option>{leaves.map(({ node }) => <option key={node.id} value={node.id}>{node.code} · {serverText(node.name)}</option>)}</select>
         </Field>

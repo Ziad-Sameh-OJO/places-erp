@@ -156,4 +156,7 @@ export default [
   // the comment «بعتله واتساب؟» saves on the lead (web features/leads/whatsapp-question.tsx)
   ["No Answer · بعتله واتساب", "No Answer · sent them a WhatsApp"],
   ["No Answer · مابعتلوش واتساب", "No Answer · didn't send a WhatsApp"],
+  // M-09 field permissions: the leads catalog's labels (domain fields/leads.ts)
+  ["الموبايل", "Mobile"],
+  ["الشركة", "Company"],
 ] satisfies Pair[];

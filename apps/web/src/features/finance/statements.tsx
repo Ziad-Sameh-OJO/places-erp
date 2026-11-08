@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { AccountNode, IncomeView, StatementLineView } from "@places/contracts";
 import { Card, Chip, Empty, Icon, Modal, Note, Table } from "@/components/ui";
-import { money, short } from "@/lib/format";
+import { money, short } from "./money";
 import { serverText } from "@/lib/server-text";
 import { useChart, useIncome } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
@@ -34,7 +34,7 @@ export function IncomeStatement() {
   const show = (ls: StatementLineView[]) => ls.filter((l) => range === "year" || Number(l.value));
   const row = (label: string, value: string | number, cls: string, onClick: () => void, sign = 1): ReactNode => {
     const v = Number(value) * sign;
-    return <tr key={label} className={`${cls} ${v < 0 ? "neg" : ""} click`} onClick={onClick}><td>{label} <span className="hint"><Icon name="search" /></span></td><td className="n">{money(v.toFixed(2))}</td></tr>;
+    return <tr key={label} className={`${cls} ${v < 0 ? "neg" : ""} click`} onClick={onClick}><td>{label} <span className="hint"><Icon name="search" /></span></td><td className="n">{money(value === "" ? "" : v.toFixed(2))}</td></tr>; // a hidden amount (M-09) comes blank
   };
   const name = (l: StatementLineView) => `${l.code} · ${serverText(l.name)}`;
   const leaf = (l: StatementLineView, sign: number) => row(name(l), l.value, "sub", () => setLedger(l.id), sign);

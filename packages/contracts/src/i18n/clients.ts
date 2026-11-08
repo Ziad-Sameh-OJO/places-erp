@@ -33,4 +33,13 @@ export default [
   ["طلب مسح البيانات اتبعت للإدارة قبل كده", "The data deletion request was already sent to management"],
   ["{client} طالب يمسح بياناته (حماية البيانات) · {reason} · من {name}", "{client} asks to delete their data (data protection) · {reason} · by {name}"],
   ["نفس الشخص: {name} · أرقامه على ملفين", "Same person: {name} · their numbers are on two files"],
+  // M-09 field permissions (domain fields/clients.ts)
+  ["الاسم", "Name"],
+  ["الشركة", "Company"],
+  ["دفع · عليه", "Paid · Owes"],
+  ["العقود", "Contracts"],
+  ["موافق على التواصل التسويقي", "Agrees to marketing contact"],
+  ["طلب مسح البيانات", "Data deletion request"],
+  ["التاريخ كله", "Full history"],
+  ["الحقل ده مقفول عليك", "This field is locked for you"],
 ] satisfies Pair[];

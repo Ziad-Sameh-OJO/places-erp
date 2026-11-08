@@ -25,7 +25,10 @@ export class LeadImportService {
   /** Old leads come in Fresh and unassigned (Operations hands them out), not through today's rotation or its notifications. */
   leads(me: CurrentUser, sheet: ParsedSheet<LeadImportRow>, save: boolean) {
     const seen = new Set<string>();
-    return this.each(sheet, save, async (tx, r) => {
+    const fixed = me.fields.fixed("leads"); // M-09: a column the person may not set comes in empty
+    return this.each(sheet, save, async (tx, typed) => {
+      const r = { ...typed, ...(fixed.has("space") ? { space: undefined } : {}), ...(fixed.has("budget") ? { budget: undefined } : {}),
+        ...(fixed.has("note") ? { note: undefined } : {}), ...(fixed.has("company") ? { company: undefined } : {}) };
       if (r.phones.some((p) => seen.has(p)) || (await tx.lead.findFirst({ where: { phones: { hasSome: r.phones } }, select: { id: true } }))) return false;
       r.phones.forEach((p) => seen.add(p));
       if (!save) return true;

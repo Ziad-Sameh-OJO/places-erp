@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { DealDetail, DealForm as DealFormData } from "@places/contracts";
 import { DEAL_TYPES } from "@places/domain";
 import { Field, Modal, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useFields } from "@/lib/me";
 import { useDealForm, useDealUnits, useRefreshDeals } from "./use-deals";
 
 /** The company always shows next to the lead's name (demo meeting, 4 Nov). */
@@ -27,12 +28,16 @@ export function DealForm({ onClose, onSaved, leadId }: { onClose: () => void; on
   const drafted = form?.leads.filter((l) => l.draft) ?? [];
   const mine = drafted.every((l) => !l.draft?.from);
   const unit = units.find((u) => u.id === unitId) ?? units[0];
+  // M-09 field permissions: a hidden field has no input, a read-only one is locked; the API sets both itself
+  const fields = useFields("deals");
+  const only = (key: string, node: ReactNode): ReactNode =>
+    !fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
   const leadOption = (l: DealFormData["leads"][number]) => (
     <option key={l.id} value={l.id}>{withCo(l, t("noCompany"))} · {l.code}{l.draft?.from ? t("wasWith", { name: l.draft.from }) : ""}</option>
   );
   const save = onFormSubmit((d) => run(async () => {
     const r = await api.post<DealDetail>("/deals", {
-      leadId: d.get("leadId"), unitId: d.get("unitId"), space: Number(d.get("space")), type: d.get("type"),
+      leadId: d.get("leadId"), unitId: d.get("unitId"), space: Number(d.get("space") ?? (unit?.space || 1)), type: d.get("type") ?? unit?.type,
       commissionOwner: String(d.get("commissionOwner") || "0"), commissionClient: String(d.get("commissionClient") || "0"), withMe: d.getAll("withMe"),
     });
     await refresh();
@@ -59,12 +64,12 @@ export function DealForm({ onClose, onSaved, leadId }: { onClose: () => void; on
           </select>
           {unit?.agent && <small className="hint">{t("seller", { name: unit.agent.name })}</small>}
         </Field>
-        <Field label={t("space")} req><input key={unit?.id} name="space" type="number" min="1" required defaultValue={unit?.space} /></Field>
-        <Field label={t("type")} req>
+        {only("space", <Field label={t("space")} req><input key={unit?.id} name="space" type="number" min="1" required defaultValue={unit?.space || undefined} /></Field>)}
+        {only("type", <Field label={t("type")} req>
           <select key={unit?.id} name="type" defaultValue={unit?.type}>{DEAL_TYPES.map((x) => <option key={x} value={x}>{x}</option>)}</select>
-        </Field>
-        <Field label={t("commOwner")}><input name="commissionOwner" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>
-        <Field label={t("commClient")}><input name="commissionClient" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>
+        </Field>)}
+        {only("commissionOwner", <Field label={t("commOwner")}><input name="commissionOwner" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>)}
+        {only("commissionClient", <Field label={t("commClient")}><input name="commissionClient" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>)}
         <Field label={t("withMe")} wide>
           <select name="withMe" multiple size={3}>{form?.salespeople.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
         </Field>

@@ -27,8 +27,8 @@ export class DealsController {
 
   @Get("units")
   @Requires("deals", "create")
-  units(@Query(new ZodPipe(DealUnitQuery)) q: DealUnitQuery) {
-    return this.deals.units(q.q);
+  units(@Me() me: CurrentUser, @Query(new ZodPipe(DealUnitQuery)) q: DealUnitQuery) {
+    return this.deals.units(me, q.q);
   }
 
   @Get(":id")

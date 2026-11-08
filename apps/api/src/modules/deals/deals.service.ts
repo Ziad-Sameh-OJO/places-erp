@@ -18,6 +18,7 @@ import { LedgerService } from "../finance/ledger.service";
 import { VouchersService } from "../finance/vouchers.service";
 import { TargetsService } from "../kpis/targets.service";
 import { type DealRecord, type DealRowRecord, DealsRepository } from "./deals.repository";
+import { hideDetail, hideRow, mayChange } from "./deal-fields";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the deal exists. */
 const NO_DEAL = "الصفقة دي مش موجودة";
@@ -66,14 +67,15 @@ export class DealsService {
   }
 
   async list(me: CurrentUser, f: DealFilters): Promise<Paged<DealRow>> {
-    const [rows, total] = await this.repo.list(this.scope(me), f, f.status && toDb(f.status));
-    return { items: rows.map(toRow), total, page: f.page, pageSize: f.pageSize };
+    const hidden = me.fields.hidden("deals");
+    const [rows, total] = await this.repo.list(this.scope(me), f, f.status && toDb(f.status), !hidden.has("location"));
+    return { items: rows.map((r) => hideRow(toRow(r), hidden)), total, page: f.page, pageSize: f.pageSize };
   }
 
   async get(me: CurrentUser, id: string): Promise<DealDetail> {
     const d = await this.repo.detail(this.scope(me), id);
     if (!d) throw new NotFoundException(NO_DEAL);
-    return toDetail(d, d.reviewedById ? await this.repo.userName(d.reviewedById) : null);
+    return hideDetail(toDetail(d, d.reviewedById ? await this.repo.userName(d.reviewedById) : null), me.fields.hidden("deals"));
   }
 
   /** M-11 2.1: the deal a contract is uploaded on — in the caller's scope and on the sheet (approved, collected or not). */
@@ -100,23 +102,36 @@ export class DealsService {
     }), salespeople };
   }
 
-  async units(q?: string): Promise<DealUnit[]> {
-    const units = await this.inventory.forDeal(q);
-    const names = await this.names(units.map((u) => u.agentId).filter((x): x is string => !!x));
-    return units.map((u) => ({ id: u.id, code: u.code, project: u.project, space: u.space, type: u.type, agent: u.agentId ? { id: u.agentId, name: names.get(u.agentId) ?? "" } : null }));
+  /** The unit picker follows the inventory's field rules (M-09): a hidden space or agent isn't sent, nor matched by the search. */
+  async units(me: CurrentUser, q?: string): Promise<DealUnit[]> {
+    const hidden = me.fields.hidden("inventory");
+    const bySpace = !!q && /^\d+$/.test(q) && hidden.has("space");
+    const units = (await this.inventory.forDeal(q)).filter((u) => !bySpace || [u.code, u.project].some((x) => x.toLowerCase().includes(q.toLowerCase())));
+    const names = hidden.has("agent") ? new Map<string, string>() : await this.names(units.map((u) => u.agentId).filter((x): x is string => !!x));
+    return units.map((u) => ({
+      id: u.id, code: u.code, project: u.project, space: hidden.has("space") ? 0 : u.space, type: u.type,
+      agent: u.agentId && !hidden.has("agent") ? { id: u.agentId, name: names.get(u.agentId) ?? "" } : null,
+    }));
   }
 
   /**
    * 2.1 steps 1 · 5 · 9: the salesperson registers the deal the day it closes. Company and source come from the lead,
    * the location and the Seller (the unit's agent, waiting for Manar) from the unit. It waits for the Office Manager (Q9).
    */
-  async create(me: CurrentUser, input: CreateDeal): Promise<DealDetail> {
-    const owner = fromDecimal(input.commissionOwner), client = fromDecimal(input.commissionClient);
+  async create(me: CurrentUser, sheet: CreateDeal): Promise<DealDetail> {
+    // M-09: what the person may not set starts empty (the commissions) or as the unit has it (type, space)
+    const fixed = me.fields.fixed("deals");
+    const owner = fixed.has("commissionOwner") ? 0 : fromDecimal(sheet.commissionOwner), client = fixed.has("commissionClient") ? 0 : fromDecimal(sheet.commissionClient);
     if (!expectsCommission(owner, client)) throw new BadRequestException("اكتب العمولة المتوقعة من الـ Owner أو الـ Client");
-    const [lead] = await this.leads.dealLeads(me, input.leadId);
+    const [lead] = await this.leads.dealLeads(me, sheet.leadId);
     if (!lead) throw new NotFoundException("الليد ده مش موجود أو مبقاش معاك");
-    const unit = await this.inventory.openForDeal(input.unitId);
+    const unit = await this.inventory.openForDeal(sheet.unitId);
     if (!unit) throw new BadRequestException("الوحدة دي مش متاحة · اختار من القايمة");
+    const input: CreateDeal = {
+      ...sheet,
+      ...(fixed.has("type") ? { type: unit.type as DealType } : {}),
+      ...(fixed.has("space") ? { space: me.fields.hidden("inventory").has("space") ? 0 : unit.space } : {}),
+    };
     const stay = lead.draft === "draft" ? lead.drafts[0] : undefined;
     // a lead in the Draft is closed by the salesperson it was pulled from (demo: «me = l.draft.from»)
     const closer = stay?.fromId ?? lead.assignedToId ?? me.employeeId;
@@ -158,7 +173,10 @@ export class DealsService {
    * new); approving puts it on the done-deals sheet and tells the accountant to collect, rejecting sends it back to
    * the salespeople with the reason.
    */
-  async review(me: CurrentUser, id: string, input: ReviewDeal): Promise<DealDetail> {
+  async review(me: CurrentUser, id: string, sheet: ReviewDeal): Promise<DealDetail> {
+    // M-09: a field she may not change keeps its stored value (the form sends them all)
+    const fixed = me.fields.fixed("deals");
+    const input: ReviewDeal = Object.fromEntries(Object.entries(sheet).filter(([k]) => !fixed.has(k))) as ReviewDeal;
     const result = await this.db.$transaction(async (tx) => {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
@@ -196,7 +214,12 @@ export class DealsService {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
       if (!takesNote(label(d.status))) throw new BadRequestException("الـ note بتتكتب على صفقة اتوافق عليها بس");
-      const next = { note: input.note || null, targetBase: input.targetBase && toDecimal(fromDecimal(input.targetBase)) };
+      // M-09: the note / its amount the person may not change keep what's stored
+      const fixed = me.fields.fixed("deals");
+      const next = {
+        note: fixed.has("note") ? d.note : input.note || null,
+        targetBase: fixed.has("targetBase") ? d.targetBase?.toFixed(2) ?? null : input.targetBase && toDecimal(fromDecimal(input.targetBase)),
+      };
       const diff = changes({ note: d.note, targetBase: d.targetBase?.toFixed(2) ?? null }, next);
       if (!diff) return;
       await this.repo.update(tx, id, next);
@@ -210,6 +233,7 @@ export class DealsService {
    * recorded once as today's Cairo date. Both audited old → new.
    */
   async setExecution(me: CurrentUser, id: string, input: DealExecution): Promise<DealDetail> {
+    mayChange(me.fields.fixed("deals"), "execution");
     await this.db.$transaction(async (tx) => {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
@@ -235,6 +259,7 @@ export class DealsService {
    * A later review replaces the earlier one (audited); an error tells the Office Manager, like the demo.
    */
   async setPapers(me: CurrentUser, id: string, input: DealPapers): Promise<DealDetail> {
+    mayChange(me.fields.fixed("deals"), "papers");
     const d = await this.db.$transaction(async (tx) => {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
@@ -257,6 +282,7 @@ export class DealsService {
    * client's account = commission − collected. Fully collected: each salesperson's commission becomes due under 21103.
    */
   async collect(me: CurrentUser, id: string, input: CollectDeal): Promise<DealCollected> {
+    mayChange(me.fields.fixed("deals"), "collected"); // a collection changes what's collected (M-09)
     const amount = fromDecimal(input.amount);
     const lines = await this.vouchers.commissionLines();
     const { result, signers } = await this.db.$transaction(async (tx) => {
@@ -298,7 +324,7 @@ export class DealsService {
     await this.notifications.notify({ event: "deal.tcr", userIds, link: link(id), text: `${out.tcr}: TCR جديدة على ${code} · امضي عليها` });
     // 9.15: fully collected → the accountant pays each salesperson's commission («صرف عمولة سيلز»)
     if (out.status === "Fully Collected") await this.notifications.notify({ event: "finance.commission_due", link: "/finance", text: `${code} اتحصّلت بالكامل · عمولات السيلز عليها بقت مستحقة` });
-    return out;
+    return me.fields.hidden("deals").has("remaining") ? { ...out, remaining: "" } : out;
   }
 
   /** 5.12: a salesperson on the TCR signs it, once; the time is kept and audited. */
@@ -334,15 +360,17 @@ export class DealsService {
     const rows = splitDeal(money, (sid) => Number(people.get(sid)?.commissionPct ?? 0));
     const head = await this.letterhead.letterhead("places");
     const code = tcrCode(t.code), date = t.payment.receivedAt.toISOString().slice(0, 10);
-    const kv: [string, string][] = [["الصفقة", `${d.code} · ${d.company}`], ["الوحدة", `${d.unit.code} · ${d.location}`], ["تاريخ التحصيل", date],
+    // M-09: a hidden location, amount or split isn't printed (the amount tells each share too)
+    const hidden = me.fields.hidden("deals"), amount = !hidden.has("payments"), split = amount && !hidden.has("shares");
+    const kv: [string, string][] = [["الصفقة", `${d.code} · ${d.company}`], ["الوحدة", hidden.has("location") ? d.unit.code : `${d.unit.code} · ${d.location}`], ["تاريخ التحصيل", date],
       ["التحصيل", t.payment.side === "owner" ? "تحصيل من الـ Owner" : "تحصيل من الـ Client"]];
     const html = layout(`TCR ${code}`, `
       <div style="display:flex;align-items:center;gap:12pt;margin-bottom:12pt">${head.logo ? `<img src="${esc(head.logo)}" alt="${esc(head.name)}" style="max-height:60pt;max-width:140pt">` : `<b>${esc(head.name)}</b>`}
         <h1 style="margin:0">ورقة TCR <span class="num">${esc(code)}</span></h1></div>
       <table><tbody>${kv.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}
-        <tr><th>المبلغ</th><td><b>${egp(fromDecimal(t.payment.amount.toFixed(2)))}</b></td></tr></tbody></table>
-      <table><thead><tr><th>السيلز</th><th>الجهة</th><th>نصيبه</th><th>نسبته</th><th>العمولة</th><th>الإمضاء</th></tr></thead><tbody>
-        ${rows.map((r) => { const at = signed.get(r.salesId); return `<tr><td>${esc(people.get(r.salesId)?.name)}</td><td>${r.side === "buyer" ? "Buyer" : "Seller"}</td><td>${egp(r.share)}</td><td><span class="num">${r.schemePercent}%</span></td><td><b>${egp(r.commission)}</b></td><td>${at ? `مضى · <span class="num">${esc(localDate(at))}</span>` : "................."}</td></tr>`; }).join("")}
+        ${amount ? `<tr><th>المبلغ</th><td><b>${egp(fromDecimal(t.payment.amount.toFixed(2)))}</b></td></tr>` : ""}</tbody></table>
+      <table><thead><tr><th>السيلز</th><th>الجهة</th>${split ? "<th>نصيبه</th><th>نسبته</th><th>العمولة</th>" : ""}<th>الإمضاء</th></tr></thead><tbody>
+        ${rows.map((r) => { const at = signed.get(r.salesId); return `<tr><td>${esc(people.get(r.salesId)?.name)}</td><td>${r.side === "buyer" ? "Buyer" : "Seller"}</td>${split ? `<td>${egp(r.share)}</td><td><span class="num">${r.schemePercent}%</span></td><td><b>${egp(r.commission)}</b></td>` : ""}<td>${at ? `مضى · <span class="num">${esc(localDate(at))}</span>` : "................."}</td></tr>`; }).join("")}
       </tbody></table>
       <p style="color:#6b7489;font-size:10pt">الـ TCR بتتعمل أوتوماتيك بعد كل تحصيل بكود تسلسلي، ولو اتحصّل باقي المبلغ بعدين بتتعمل TCR تانية لنفس الديل.</p>`);
     return { name: `TCR ${code}.pdf`, html };

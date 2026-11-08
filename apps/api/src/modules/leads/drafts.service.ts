@@ -44,12 +44,13 @@ export class DraftsService {
     await this.mustSee(me, kind);
     const [rows, { draftHours }] = await Promise.all([this.repo.drafts(kind), this.kpis.leadClocks()]);
     const names = new Map((await this.repo.employeeNames([...new Set(rows.map((r) => r.fromId).filter((x): x is string => !!x))])).map((e) => [e.id, e.name]));
+    const hidden = me.fields.hidden("leads"); // M-09
     return rows.map((r) => {
       const l = r.lead;
       const lastAction = [l.assignedAt, l.createdAt, l.activities[0]?.at].filter((d): d is Date => !!d).reduce((a, b) => (b > a ? b : a));
       return {
         id: r.id, at: r.at.toISOString(), days: r.days, kept: !!r.keptAt, lastAction: lastAction.toISOString(),
-        lead: { id: l.id, code: l.code, name: l.name, company: l.company?.name ?? null, stage: STAGE.get(l.stage) ?? l.stage, kind: l.kind === "BROKER" ? "broker" : "client", area: l.area },
+        lead: { id: l.id, code: l.code, name: l.name, company: hidden.has("company") ? null : l.company?.name ?? null, stage: STAGE.get(l.stage) ?? l.stage, kind: l.kind === "BROKER" ? "broker" : "client", area: hidden.has("area") ? "" : l.area },
         from: r.fromId ? { id: r.fromId, name: names.get(r.fromId) ?? "" } : null,
         minutesLeft: r.keptAt ? 0 : draftMinutesLeft(r.at, now, draftHours),
       };

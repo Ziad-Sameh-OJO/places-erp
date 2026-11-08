@@ -8,8 +8,8 @@ import { Card, Chip, Empty, Icon, Modal, Table } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import type { IconName } from "@places/ui";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
-import { money, short } from "@/lib/format";
+import { useFields, useMe } from "@/lib/me";
+import { money, short } from "./money";
 import { serverText } from "@/lib/server-text";
 import { useBills, useBudget, useCash, useIncome, usePayroll } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
@@ -31,6 +31,9 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   const periods = useQuery({ queryKey: ["finance", "periods"], queryFn: () => api.get<PeriodView[]>("/finance/periods") });
   const [advances, setAdvances] = useState(false);
   const [ledger, setLedger] = useState<string | null>(null);
+  // M-09: a hidden amount comes blank, so what's summed here stays blank too (and the waterfall goes)
+  const showsMoney = useFields("finance").shows("amount");
+  const d = (n: number) => (showsMoney ? n.toFixed(2) : "");
   if (!year.data || !cash.data) return <Empty text={t("common.loading")} icon="clock" />;
   const p = year.data, c = cash.data;
   const todo: Todo[] = [];
@@ -60,20 +63,20 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
       <div className="kpis">
         <KpiTile label={t("dash.netToDate")} value={money(p.net)} sub={t("dash.netSub")} icon="trend" tone="ok" onClick={() => go("pnl")} />
         <KpiTile label={t("dash.wf.revenue")} value={money(p.revenue)} sub={serverText(p.label)} icon="handshake" onClick={() => go("pnl")} />
-        <KpiTile label={t("dash.sellingAdmin")} value={money(sa.toFixed(2))} sub={t("dash.sellingAdminSub", { selling: short(p.selling), admin: short((Number(p.admin) + Number(p.other)).toFixed(2)) })} icon="wallet" tone="warn" onClick={() => go("pnl")} />
-        <KpiTile label={t("common.employeeAdvances")} value={money(adv.toFixed(2))} sub={t("dash.advancesSub")} icon="users" onClick={() => setAdvances(true)} />
+        <KpiTile label={t("dash.sellingAdmin")} value={money(d(sa))} sub={t("dash.sellingAdminSub", { selling: short(p.selling), admin: short(d(Number(p.admin) + Number(p.other))) })} icon="wallet" tone="warn" onClick={() => go("pnl")} />
+        <KpiTile label={t("common.employeeAdvances")} value={money(d(adv))} sub={t("dash.advancesSub")} icon="users" onClick={() => setAdvances(true)} />
       </div>
       <div className="cols wide">
-        <Card title={t("dash.wfTitle")} icon="chart" sub={t("dash.wfSub")}>
+        {showsMoney && <Card title={t("dash.wfTitle")} icon="chart" sub={t("dash.wfSub")}>
           <div className="waterfall">{wf.map(([l, v, tone]) => (
             <div key={l} className="wf"><span>{l}</span><div className={`wf-bar ${tone}`} style={{ width: `${(Math.abs(v) / max) * 100}%` }} /><b className="num">{short(v.toFixed(2))}</b></div>
           ))}</div>
-        </Card>
-        <Card title={t("dash.safesTitle")} icon="bank" extra={<Chip tone="acc">{money(total.toFixed(2))}</Chip>}>
+        </Card>}
+        <Card title={t("dash.safesTitle")} icon="bank" extra={<Chip tone="acc">{money(d(total))}</Chip>}>
           {c.accounts.map((a) => (
             <div key={a.id} className="acct click" onClick={() => setLedger(a.id)}><Icon name={a.kind === "treasury" ? "wallet" : "bank"} /><span className="spacer">{serverText(a.name)}<small>{a.code}</small></span><b className="num">{money(a.balance)}</b></div>
           ))}
-          <button className="btn ghost" onClick={() => setAdvances(true)}><Icon name="users" />{t("common.employeeAdvances")} · {money(adv.toFixed(2))}</button>
+          <button className="btn ghost" onClick={() => setAdvances(true)}><Icon name="users" />{t("common.employeeAdvances")} · {money(d(adv))}</button>
         </Card>
       </div>
       {periods.data && <div className="kpis sm">{periods.data.slice(-3).map((x) => <KpiTile key={x.month} label={serverText(x.label)} value={serverText(x.statusLabel)} sub={x.status === "open" ? t("dash.periodOpen") : t("dash.periodClosed")} icon={x.status === "open" ? "clock" : "lock"} tone={x.status === "open" ? "warn" : "ok"} />)}</div>}

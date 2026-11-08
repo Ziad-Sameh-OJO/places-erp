@@ -6,6 +6,7 @@ import { Chip, Empty } from "@/components/ui";
 import { ago, money, num } from "@/lib/format";
 import { SlaBar, StageChip, Who } from "./lead-bits";
 import { serverText } from "@/lib/server-text";
+import { useFields } from "@/lib/me";
 
 /**
  * The demo's list (leads.js listView): one row per lead, on phones a card per lead. With `picked`, a checkbox per row
@@ -15,15 +16,17 @@ export function LeadsTable({ leads, onOpen, picked, onPick }: {
   leads: LeadRow[]; onOpen: (id: string) => void; picked?: string[]; onPick?: (ids: string[]) => void;
 }) {
   const t = useTranslations("leads.table");
-  const HEAD = [t("lead"), "Area · Type", "Budget", "Channel · Campaign", "Sales", "Stage", "SLA"];
+  const fields = useFields("leads"); // M-09: a hidden field has no column / no line (the API blanks it too)
+  const budget = fields.shows("budget");
+  const HEAD = [t("lead"), "Area · Type", ...(budget ? ["Budget"] : []), "Channel · Campaign", "Sales", "Stage", "SLA"];
   const pick = !!picked && !!onPick;
   const all = pick && leads.length > 0 && leads.every((l) => picked.includes(l.id));
   const toggle = (id: string, on: boolean) => onPick?.(on ? [...picked!.filter((x) => x !== id), id] : picked!.filter((x) => x !== id));
   const cells = (l: LeadRow): ReactNode[] => [
-    <span key="l"><b>{l.name}</b><span className="sub"><span className="mono">{l.code}</span></span><span className="sub mono">{l.phones.join(" · ")}</span></span>,
+    <span key="l"><b>{l.name}</b><span className="sub"><span className="mono">{l.code}</span></span>{fields.shows("phones") && <span className="sub mono">{l.phones.join(" · ")}</span>}</span>,
     <span key="a">{l.area ? serverText(l.area) : "—"}<span className="sub">{l.type}{l.space != null && <> · {t.rich("sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>}</span></span>,
-    <span key="b" className="n">{money(l.budget)}</span>,
-    <span key="c">{l.channel}<span className="sub">{l.campaign?.name ?? "—"}</span></span>,
+    ...(budget ? [<span key="b" className="n">{money(l.budget)}</span>] : []),
+    <span key="c">{l.channel || "—"}{fields.shows("campaign") && <span className="sub">{l.campaign?.name ?? "—"}</span>}</span>,
     <span key="s"><Who person={l.assignedTo} />{l.ownedByTelesales && <span className="sub">{t("withTelesales")}</span>}</span>,
     <div key="st" className="row"><StageChip stage={l.stage} />{l.qualified && <Chip tone="ok">Qualified</Chip>}</div>,
     l.sla ? <SlaBar key="sla" sla={l.sla} /> : <span key="sla" className="hint">{ago(l.createdAt)}</span>,

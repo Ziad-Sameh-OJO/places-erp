@@ -5,6 +5,7 @@ import type { ContractDetail, StoredFile } from "@places/contracts";
 import { Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { FileUpload } from "@/components/file-upload";
 import { api } from "@/lib/api";
+import { useFields } from "@/lib/me";
 import { useContractForm, useRefreshContracts } from "./use-contracts";
 
 /**
@@ -17,6 +18,7 @@ export function ContractForm({ onClose, onCreated }: { onClose: () => void; onCr
   const toast = useToast();
   const refresh = useRefreshContracts();
   const form = useContractForm(true);
+  const fields = useFields("contracts");
   const [file, setFile] = useState<StoredFile | null>(null);
   const deals = form.data?.deals ?? [];
   const send = (d: FormData) => {
@@ -45,7 +47,10 @@ export function ContractForm({ onClose, onCreated }: { onClose: () => void; onCr
         <Field label={t("fields.starts")} req><input name="startsOn" type="date" required /></Field>
         <Field label={t("fields.ends")} req><input name="endsOn" type="date" required /></Field>
         <Field label={t("fields.value")} req><input name="value" required inputMode="decimal" type="number" min={1} step="0.01" /></Field>
-        <Field label={t("form.escalation")}><input name="escalation" type="number" min={0} max={100} step="0.01" defaultValue={0} /></Field>
+        {/* M-09: a hidden yearly increase has no input, a read-only one is locked at 0 (the API sets 0 either way) */}
+        {fields.shows("escalation") && (fields.edits("escalation")
+          ? <Field label={t("form.escalation")}><input name="escalation" type="number" min={0} max={100} step="0.01" defaultValue={0} /></Field>
+          : <fieldset className="field-lock" disabled><Field label={t("form.escalation")}><input name="escalation" type="number" defaultValue={0} /></Field></fieldset>)}
         <Field label={t("form.count")} req><input name="count" type="number" required min={1} max={120} defaultValue={12} /></Field>
         <Field label={t("form.every")} req><input name="everyMonths" type="number" required min={1} max={24} defaultValue={1} /></Field>
         <Field label={t("form.file")} req wide>

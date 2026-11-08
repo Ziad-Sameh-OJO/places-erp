@@ -34,13 +34,14 @@ export class SecondCallsService {
     return { today: dayStart(date), from: kpiPeriodStart("quarter", now, quarter), excluded: secondCallExcluded(params) };
   }
 
-  async list(now = new Date()): Promise<SecondCallRow[]> {
+  async list(me: CurrentUser, now = new Date()): Promise<SecondCallRow[]> {
+    const hideChannel = me.fields.hidden("leads").has("channel"); // M-09
     const w = await this.window(now);
     const rows = await this.repo.list(w.from, w.today, w.excluded);
     const names = new Map((await this.repo.employeeNames(rows.flatMap((l) => (l.assignedToId ? [l.assignedToId] : [])))).map((e) => [e.id, e.name]));
     const late = (l: (typeof rows)[number]) => l.createdAt < w.today;
     return rows.sort((a, b) => Number(late(b)) - Number(late(a))).map((l) => ({
-      id: l.id, code: l.code, name: l.name, channel: l.channel, sales: l.assignedToId ? names.get(l.assignedToId) ?? null : null,
+      id: l.id, code: l.code, name: l.name, channel: hideChannel ? "" : l.channel, sales: l.assignedToId ? names.get(l.assignedToId) ?? null : null,
       createdAt: l.createdAt.toISOString(), late: late(l), done: doneOf(l.verification),
     }));
   }

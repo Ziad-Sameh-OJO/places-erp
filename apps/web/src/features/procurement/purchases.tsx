@@ -4,8 +4,9 @@ import { useTranslations } from "next-intl";
 import { PURCHASE_STATUS, type ProcurementOverview } from "@places/contracts";
 import { Card, Chip, ExportButton, Icon, Table } from "@/components/ui";
 import { Fab, KpiTile } from "@/components/blocks";
-import { useMe } from "@/lib/me";
-import { ago, money, short } from "@/lib/format";
+import { useFields, useMe } from "@/lib/me";
+import { ago } from "@/lib/format";
+import { money, short } from "../finance/money";
 import { serverText } from "@/lib/server-text";
 import { STATUS, filterQuery, useOverview, usePurchases, useVendors, type PurchaseFilter } from "./use-purchases";
 import { PurchaseDrawer } from "./purchase-drawer";
@@ -21,28 +22,32 @@ export function Purchases() {
   const list = usePurchases(f, page);
   const [open, setOpen] = useState<string | null>(null);
   const [form, setForm] = useState(false);
-  const buyer = can("procurement", "create");
+  // M-09: a hidden field's column and filter are gone; a request can't be sent without its amount and line
+  const fields = useFields("procurement");
+  const buyer = can("procurement", "create") && fields.edits("amount") && fields.edits("account");
   const items = list.data?.items ?? [];
+  const cols: [string, string, (p: (typeof items)[number]) => React.ReactNode][] = [
+    ["no", t("list.request"), (p) => <span key="n" className="mono">{p.no}</span>],
+    ["item", t("form.item"), (p) => <span key="i"><b>{p.item}</b><span className="sub">{ago(p.createdAt)}{p.attachments.length > 0 && <> · <Icon name="file" />{p.attachments.length}</>}</span></span>],
+    ["amount", t("common.amount"), (p) => money(p.amount)],
+    ["account", t("common.line"), (p) => <span key="l">{serverText(p.account.name)}{p.overBudget && <span className="sub"><Chip tone="bad">{t("list.overBudget")}</Chip></span>}</span>],
+    ["vendor", t("common.vendor"), (p) => p.vendor || "—"],
+    ["status", t("list.status"), (p) => <span key="s"><Chip tone={STATUS[p.status]}>{t(`status.${p.status}`)}</Chip>{p.decidedBy && <span className="sub">{p.decidedBy}</span>}</span>],
+  ];
+  const shown = cols.filter(([k]) => fields.shows(k));
   return (
     <>
       {o.data && <Kpis o={o.data} />}
       <Toolbar f={f} o={o.data} onChange={(k, v) => { setF({ ...f, [k]: v }); setPage(1); }} onNew={buyer ? () => setForm(true) : undefined} />
       <div className="cols wide">
         <div>
-          <Table head={[t("list.request"), t("form.item"), t("common.amount"), t("common.line"), t("common.vendor"), t("list.status")]} empty={list.isPending ? t("common.loading") : t("list.empty")} onRow={(i) => setOpen(items[i]!.id)}
-            rows={items.map((p) => [
-              <span key="n" className="mono">{p.no}</span>,
-              <span key="i"><b>{p.item}</b><span className="sub">{ago(p.createdAt)}{p.attachments.length > 0 && <> · <Icon name="file" />{p.attachments.length}</>}</span></span>,
-              money(p.amount),
-              <span key="l">{serverText(p.account.name)}{p.overBudget && <span className="sub"><Chip tone="bad">{t("list.overBudget")}</Chip></span>}</span>,
-              p.vendor ?? "—",
-              <span key="s"><Chip tone={STATUS[p.status]}>{t(`status.${p.status}`)}</Chip>{p.decidedBy && <span className="sub">{p.decidedBy}</span>}</span>,
-            ])} />
+          <Table head={shown.map(([, h]) => h)} empty={list.isPending ? t("common.loading") : t("list.empty")} onRow={(i) => setOpen(items[i]!.id)}
+            rows={items.map((p) => shown.map(([, , cell]) => cell(p)))} />
           {list.data && list.data.total > list.data.pageSize && (
             <div className="row"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("common.prev")}</button><span className="hint">{t("common.pageOf", { page: String(page), pages: String(Math.ceil(list.data.total / list.data.pageSize)) })}</span><button className="btn ghost sm" disabled={page * list.data.pageSize >= list.data.total} onClick={() => setPage(page + 1)}>{t("common.next")}</button></div>
           )}
         </div>
-        {o.data && <BudgetCard o={o.data} />}
+        {o.data && fields.shows("amount") && <BudgetCard o={o.data} />}
       </div>
       {buyer && <Fab onClick={() => setForm(true)} label={t("form.title")} />}
       {open && <PurchaseDrawer id={open} cash={o.data?.cash ?? []} onClose={() => setOpen(null)} />}
@@ -68,13 +73,14 @@ function Kpis({ o }: { o: ProcurementOverview }) {
 function Toolbar({ f, o, onChange, onNew }: { f: PurchaseFilter; o: ProcurementOverview | undefined; onChange: (k: keyof PurchaseFilter, v: string) => void; onNew: (() => void) | undefined }) {
   const t = useTranslations("procurement");
   const vendors = useVendors();
+  const fields = useFields("procurement");
   const on = (k: keyof PurchaseFilter) => (e: { target: { value: string } }) => onChange(k, e.target.value);
   return (
     <div className="toolbar">
       <select value={f.status ?? ""} onChange={on("status")} aria-label={t("list.status")}><option value="">{t("toolbar.allStatuses")}</option>{PURCHASE_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
-      <select value={f.accountId ?? ""} onChange={on("accountId")} aria-label={t("common.line")}><option value="">{t("toolbar.allLines")}</option>{(o?.lines ?? []).filter((l) => l.budget).map((l) => <option key={l.accountId} value={l.accountId}>{serverText(l.name)}</option>)}</select>
-      <select value={f.group ?? ""} onChange={on("group")} aria-label={t("toolbar.group")}><option value="">{t("toolbar.allGroups")}</option>{(o?.groups ?? []).map((g) => <option key={g.code} value={g.code}>{serverText(g.name)}</option>)}</select>
-      <select value={f.vendor ?? ""} onChange={on("vendor")} aria-label={t("common.vendor")}><option value="">{t("toolbar.allVendors")}</option>{(vendors.data ?? []).map((v) => <option key={v} value={v}>{v}</option>)}</select>
+      {fields.shows("account") && <select value={f.accountId ?? ""} onChange={on("accountId")} aria-label={t("common.line")}><option value="">{t("toolbar.allLines")}</option>{(o?.lines ?? []).filter((l) => l.budget).map((l) => <option key={l.accountId} value={l.accountId}>{serverText(l.name)}</option>)}</select>}
+      {fields.shows("account") && <select value={f.group ?? ""} onChange={on("group")} aria-label={t("toolbar.group")}><option value="">{t("toolbar.allGroups")}</option>{(o?.groups ?? []).map((g) => <option key={g.code} value={g.code}>{serverText(g.name)}</option>)}</select>}
+      {fields.shows("vendor") && <select value={f.vendor ?? ""} onChange={on("vendor")} aria-label={t("common.vendor")}><option value="">{t("toolbar.allVendors")}</option>{(vendors.data ?? []).map((v) => <option key={v} value={v}>{v}</option>)}</select>}
       <label className="date-f"><span>{t("common.from")}</span><input type="date" value={f.from ?? ""} onChange={on("from")} /></label>
       <label className="date-f"><span>{t("common.until")}</span><input type="date" value={f.to ?? ""} onChange={on("to")} /></label>
       <span className="spacer" />

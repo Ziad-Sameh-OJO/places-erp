@@ -2,7 +2,7 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Empty, Icon, Modal, Table } from "@/components/ui";
-import { money } from "@/lib/format";
+import { money } from "./money";
 import { serverText } from "@/lib/server-text";
 import { printBlock } from "./print";
 import { useLedger } from "./use-finance";
