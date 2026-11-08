@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@places/db";
 import type { Achievements, TargetInput, TargetsView, TeamRow, TransactionRow } from "@places/contracts";
 import {
@@ -50,7 +50,8 @@ export class TargetsService {
   }
 
   async view(me: CurrentUser, month?: string): Promise<TargetsView> {
-    return { ...(await this.board(this.scope(me), month)), can: { edit: me.grants.can("reports", "edit"), approve: me.grants.can("reports", "approve") } };
+    const v = hideFields(await this.board(this.scope(me), month), me.fields.hidden(MODULE));
+    return { ...v, can: { edit: me.grants.can("reports", "edit"), approve: me.grants.can("reports", "approve") } };
   }
 
   /** M-02 5.10 «Achievements»: every salesperson's month and rank, which each of them sees (demo deals.js Leaderboard). */
@@ -112,7 +113,9 @@ export class TargetsService {
     if (input.month < cur) throw new ConflictException("الشهر ده خلص · مفيش تعديل");
     const waits = input.month === cur && today.slice(8, 10) !== "01" && !me.grants.can("reports", "approve");
     const before = (await this.repo.targets(input.month, [p.id]))[0] ?? null;
-    const values = { value: input.value, deals: input.deals, visits: input.visits };
+    // M-09: a value the person may not change stays as stored (or the salesperson's own target, for a new month)
+    const value = me.fields.fixed(MODULE).has("value") ? (before?.value ?? p.target).toFixed(2) : input.value;
+    const values = { value, deals: input.deals, visits: input.visits };
     await this.db.$transaction(async (tx) => {
       const where = { employeeId_month: { employeeId: p.id, month: input.month } };
       if (waits) {
@@ -120,15 +123,16 @@ export class TargetsService {
         await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month: input.month, value: p.target, pending }, update: { pending } });
       } else await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month: input.month, ...values }, update: { ...values, pending: Prisma.DbNull } });
       await this.audit.record({ module: MODULE, entity: "SalesTarget", entityId: `${p.id}:${input.month}`, action: "update", userId: me.id,
-        before, after: { ...values, waits, summary: `تارجت ${p.name} (${monthLabel(input.month)}) ${waits ? "مستني موافقة" : "بقى"} ${input.value}` } }, tx);
+        before, after: { ...values, waits, summary: `تارجت ${p.name} (${monthLabel(input.month)}) ${waits ? "مستني موافقة" : "بقى"} ${value}` } }, tx);
     });
-    if (waits) await this.notifications.notify({ event: "target.change", text: `${me.name} عايز يغيّر تارجت ${p.name} (${monthLabel(input.month)}) لـ ${input.value} · مستني موافقتك`, link: LINK });
+    if (waits) await this.notifications.notify({ event: "target.change", text: `${me.name} عايز يغيّر تارجت ${p.name} (${monthLabel(input.month)}) لـ ${value} · مستني موافقتك`, link: LINK });
     return { pending: waits };
   }
 
   /** The approval of a change in the middle of the month («reports: approve»). */
   async approve(me: CurrentUser, employeeId: string, month: string) {
-    const p = (await this.repo.salespeople(this.scope(me))).find((x) => x.id === employeeId);
+    if (me.fields.fixed(MODULE).has("value")) throw new ForbiddenException("مش من حقك تغيّر قيمة التارجت"); // M-09: approving sets the value
+    const p =(await this.repo.salespeople(this.scope(me))).find((x) => x.id === employeeId);
     const t = p ? (await this.repo.targets(month, [employeeId]))[0] : null;
     const pending = pendingOf(t?.pending ?? null);
     if (!p || !t || !pending) throw new NotFoundException("مفيش تغيير مستني موافقة");
@@ -167,15 +171,35 @@ export class TargetsService {
     const cal = await this.time.calendar(), start = dayStart(from, cal), end = new Date(dayStart(to, cal).getTime() + 86_400_000);
     const people = await this.repo.salespeople(this.scope(me));
     const names = new Map(people.map((p) => [p.id, p.name]));
-    const deals = await this.repo.deals([...names.keys()], start, end);
+    const deals = await this.repo.deals([...names.keys()], start, end), hidesCollected = me.fields.hidden(MODULE).has("collected");
     return deals.flatMap((d) => {
       const first = d.payments.reduce<Date | null>((min, p) => (!min || p.receivedAt < min ? p.receivedAt : min), null);
       if (!first || first < start || first >= end) return [];
       return [{
         dealId: d.id, code: d.code, type: d.type, company: d.company, status: DEAL_STATUS[d.status] ?? d.status,
-        collected: toDecimal(d.payments.reduce((s, p) => s + piasters(p.amount), 0)), firstAt: first.toISOString(),
+        collected: hidesCollected ? "" : toDecimal(d.payments.reduce((s, p) => s + piasters(p.amount), 0)), firstAt: first.toISOString(),
         people: d.participants.map((x) => `${names.get(x.employeeId) ?? "—"} (${x.side === "BUYER" ? "Buyer" : "Seller"})`).join("، "),
       }];
     });
   }
+}
+
+/**
+ * M-09 field permissions: a hidden field's value never leaves the API (blank, its kind kept), with what it gives away
+ * (the percent from the target and what's achieved). The ranking stays: it's the order, not the money.
+ */
+function hideFields(v: Omit<TargetsView, "can">, hidden: ReadonlySet<string>): Omit<TargetsView, "can"> {
+  if (!hidden.size) return v;
+  const h = (k: string) => hidden.has(k);
+  return {
+    ...v,
+    rows: v.rows.map((r) => ({
+      ...r, value: h("value") ? "" : r.value, pending: h("pending") ? null : r.pending, achieved: h("achieved") ? "" : r.achieved,
+      percent: h("percent") ? 0 : r.percent, behind: h("behind") ? false : r.behind,
+    })),
+    teams: v.teams.map((x) => ({
+      ...x, goal: h("goal") ? "" : x.goal, achieved: h("achieved") ? "" : x.achieved, percent: h("percent") ? 0 : x.percent, avg: h("avg") ? 0 : x.avg,
+      commission: h("commission") ? "" : x.commission, tierPercent: h("tierPercent") ? 0 : x.tierPercent,
+    })),
+  };
 }

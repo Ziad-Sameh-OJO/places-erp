@@ -48,9 +48,10 @@ export class NotActiveService {
   }
 
   async rows(me: CurrentUser, sheetId: string, f: NotActiveRowFilters): Promise<Paged<NotActiveRowView>> {
-    if (!(await this.repo.sheet(sheetId))) throw new NotFoundException(NO_SHEET);
+    const sheet = await this.repo.sheet(sheetId);
+    if (!sheet) throw new NotFoundException(NO_SHEET);
     const [rows, total] = await this.repo.rows(sheetId, this.scope(me), f.tab, (f.page - 1) * f.pageSize, f.pageSize);
-    return { items: await this.views(rows), total, page: f.page, pageSize: f.pageSize };
+    return { items: await this.views(me, rows, sheet.numberBy), total, page: f.page, pageSize: f.pageSize };
   }
 
   async counts(me: CurrentUser, sheetId: string): Promise<NotActiveCounts> {
@@ -142,20 +143,24 @@ export class NotActiveService {
    * (she sets its status, Q 2.3); otherwise Done means a new unit and goes through `done`.
    */
   async classify(me: CurrentUser, rowId: string, input: NotActiveClassify): Promise<NotActiveRowView> {
-    const s = this.scope(me);
-    const problem = classifyProblem(input.status, input.feedback);
+    const s = this.scope(me), keepsFeedback = me.fields.fixed("notactive").has("feedback");
+    const problem = keepsFeedback ? null : classifyProblem(input.status, input.feedback);
     if (problem) throw new BadRequestException(problem);
     return this.db.$transaction(async (tx) => {
       const row = await this.repo.row(rowId, s, tx);
       if (!row) throw new NotFoundException(NO_ROW);
+      const kept = keepsFeedback ? classifyProblem(input.status, row.feedback) : null; // Not True needs one the person can't write
+      if (kept) throw new BadRequestException(kept);
       if (row.status === "Done") throw new BadRequestException("الصف ده Done خلاص");
       const decides = s.all && !!row.matchedUnitId;
       if (input.status === "Done" && !decides) throw new BadRequestException("Done معناها وحدة جديدة · دخّل بياناتها");
-      const data = { status: input.status, feedback: input.status === "Not True" ? input.feedback!.trim() : null, matchSeen: row.matchSeen || decides };
+      // M-09: a feedback the person may not change keeps its stored value
+      const feedback = keepsFeedback ? row.feedback : input.status === "Not True" ? input.feedback!.trim() : null;
+      const data = { status: input.status, feedback, matchSeen: row.matchSeen || decides };
       if (!(await this.repo.classify(tx, rowId, data)).count) throw new BadRequestException("الصف ده Done خلاص");
       await this.audit.record({ module: "notactive", entity: "NotActiveRow", entityId: rowId, action: "classify", userId: me.id,
         before: { status: row.status, feedback: row.feedback }, after: { status: data.status, feedback: data.feedback } }, tx);
-      return (await this.views([{ ...row, ...data }]))[0]!;
+      return (await this.views(me, [{ ...row, ...data }], (await this.repo.sheet(row.sheetId, tx))?.numberBy ?? null))[0]!;
     });
   }
 
@@ -184,7 +189,13 @@ export class NotActiveService {
     return unit;
   }
 
-  private async views(rows: NotActiveRowRecord[]): Promise<NotActiveRowView[]> {
+  /** M-09 field permissions: a hidden number (the sheet's «Number» column) or feedback never leaves the API. */
+  private async views(me: CurrentUser, rows: NotActiveRowRecord[], numberBy: string | null): Promise<NotActiveRowView[]> {
+    const hidden = me.fields.hidden("notactive");
+    const data = (d: unknown) => {
+      const c = cells(d) as Record<string, string>;
+      return numberBy && hidden.has("number") && numberBy in c ? { ...c, [numberBy]: "" } : c;
+    };
     const unitIds = [...new Set(rows.flatMap((r) => [r.matchedUnitId, r.unitId]).filter((x): x is string => !!x))];
     const userIds = [...new Set(rows.map((r) => r.assignedTo).filter((x): x is string => !!x))];
     const [codes, people] = await Promise.all([this.inventory.codes(unitIds), this.repo.names(userIds)]);
@@ -192,7 +203,7 @@ export class NotActiveService {
     const name = new Map(people.map((p) => [p.userId, p.name]));
     const unit = (id: string | null) => (id ? { id, code: code.get(id) ?? "" } : null);
     return rows.map((r) => ({
-      id: r.id, data: cells(r.data) as Record<string, string>, status: r.status, feedback: r.feedback, createdAt: r.createdAt.toISOString(),
+      id: r.id, data: data(r.data), status: r.status, feedback: hidden.has("feedback") ? null : r.feedback, createdAt: r.createdAt.toISOString(),
       assignedTo: r.assignedTo ? { id: r.assignedTo, name: name.get(r.assignedTo) ?? "" } : null,
       matched: unit(r.matchedUnitId), matchSeen: r.matchSeen, unit: unit(r.unitId),
     }));

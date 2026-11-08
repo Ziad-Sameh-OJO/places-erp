@@ -12,15 +12,15 @@ export class CampaignsController {
 
   @Get()
   @Requires("marketing", "view")
-  list() {
-    return this.campaigns.list();
+  list(@Me() me: CurrentUser) {
+    return this.campaigns.list(me);
   }
 
   /** M-04 3.2 · 6.1 · 4.1: the channel → campaign dashboard is marketing's (and the management's), not sales'. */
   @Get("dashboard")
   @Requires("marketing", "view")
-  dashboard(@Query(new ZodPipe(DashboardQuery)) q: DashboardQuery) {
-    return this.campaigns.dashboard(q);
+  dashboard(@Me() me: CurrentUser, @Query(new ZodPipe(DashboardQuery)) q: DashboardQuery) {
+    return this.campaigns.dashboard(me, q);
   }
 
   @Get("channels")

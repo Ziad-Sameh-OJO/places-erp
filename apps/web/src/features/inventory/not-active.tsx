@@ -6,7 +6,7 @@ import { NOT_ACTIVE_STATUSES, type NotActiveStatus } from "@places/domain";
 import type { CreatedUnit, NotActiveCounts, NotActivePerson, NotActiveRowView, NotActiveSheetView, NotActiveTab, Paged, UnitOptions } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
 import { Chip, Empty, Field, Icon, Modal, Note, Table, Tabs, useAction } from "@/components/ui";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import { num } from "@/lib/format";
 import { UploadSheet } from "./not-active-upload";
@@ -74,8 +74,11 @@ function SheetView({ sheet, manager }: { sheet: NotActiveSheetView; manager: boo
   const list = rows.data?.items ?? [];
   const pages = Math.max(1, Math.ceil((rows.data?.total ?? 0) / PAGE));
   const edit = can("notactive", "edit");
+  // M-09 field permissions: a hidden number column or feedback is left out (the API blanks them anyway)
+  const fields = useFields("notactive"), fb = fields.shows("feedback");
+  const columns = sheet.columns.filter((col) => col !== sheet.numberBy || fields.shows("number"));
   // the headers are the table's keys, so the pick column has a name of its own
-  const head = [...(manager ? [t("notActive.pick")] : []), ...sheet.columns, t("notActive.status"), "Feedback", t("notActive.with"), ""];
+  const head = [...(manager ? [t("notActive.pick")] : []), ...columns, t("notActive.status"), ...(fb ? ["Feedback"] : []), t("notActive.with"), ""];
   return (
     <>
       <div className="kpis">
@@ -95,11 +98,12 @@ function SheetView({ sheet, manager }: { sheet: NotActiveSheetView; manager: boo
         <Table head={head} empty={rows.data ? t("notActive.noRows") : t("common.loading")} rows={list.map((r) => [
           ...(manager ? [<input key="p" type="checkbox" aria-label={t("notActive.pickOne")} disabled={r.status === "Done"} checked={pick.includes(r.id)}
             onChange={(e) => setPick(e.target.checked ? [...pick, r.id] : pick.filter((x) => x !== r.id))} />] : []),
-          ...sheet.columns.map((col) => r.data[col] ?? "—"),
+          ...columns.map((col) => r.data[col] ?? "—"),
           <StatusCell key="s" r={r} />,
-          r.feedback ?? "",
+          ...(fb ? [r.feedback ?? ""] : []),
           r.assignedTo?.name ?? "—",
-          <Actions key="a" r={r} manager={manager} edit={edit} onSet={(s) => (s === "Not True" ? setNotTrue(r) : s === "Done" && !(manager && r.matched) ? setDone(r) : void classify(r, s))} />,
+          // a feedback the person may not write keeps the stored one: Not True goes without the dialog
+          <Actions key="a" r={r} manager={manager} edit={edit} onSet={(s) => (s === "Not True" && fields.edits("feedback") ? setNotTrue(r) :s === "Done" && !(manager && r.matched) ? setDone(r) : void classify(r, s))} />,
         ])} />
       )}
       {pages > 1 && (
