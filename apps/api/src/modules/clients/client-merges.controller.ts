@@ -12,8 +12,8 @@ export class ClientMergesController {
 
   @Get("merges")
   @Requires("clients", "approve")
-  pending() {
-    return this.merges.pending();
+  pending(@Me() me: CurrentUser) {
+    return this.merges.pending(me);
   }
 
   @Post("merges/:id")

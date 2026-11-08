@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AskDeletion, ClientDeal, ClientFile, ClientFilters, ClientRow, ClientSummary, LogInteraction, Paged, SetConsent, TimelineItem } from "@places/contracts";
 import { allowedValue, fromDecimal, isStale, normalizePhone, partyBalance, seesOwnerNumbers, showsNumbers, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
@@ -9,9 +9,11 @@ import { ownedBy } from "../../core/authz/scope";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
-import { ClientsRepository, type ClientRowRecord, type FileDealRecord } from "./clients.repository";
+import { type ClientSearch, ClientsRepository, type ClientRowRecord, type FileDealRecord } from "./clients.repository";
 
 const NO_CLIENT = "الملف ده مش موجود أو مش معاك";
+/** M-09: a field the person may only read (or not see) can't be written through its own endpoint. */
+const LOCKED = "الحقل ده مقفول عليك";
 /** The «أنواع التواصل» value that counts as the owner's update (default list, M-13; locked in the demo's wording). */
 const OWNER_UPDATE = "ابديت مع المالك";
 
@@ -31,7 +33,7 @@ export class ClientsService {
   ) {}
 
   async list(me: CurrentUser, f: ClientFilters): Promise<Paged<ClientRow>> {
-    const [rows, total] = await this.repo.list(visibleTo(me), f, staleBefore(new Date()), seesOwnerNumbers(me.grants));
+    const [rows, total] = await this.repo.list(visibleTo(me), shownFilters(f, me), staleBefore(new Date()), searchable(me));
     const deals = await this.repo.dealsOf(rows.map((r) => r.id));
     return { items: rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me)), total, page: f.page, pageSize: f.pageSize };
   }
@@ -41,7 +43,7 @@ export class ClientsService {
    * scope and the same owner-number rule as the screen (M-10 4.1), so the file never holds a number the reader can't see.
    */
   async exportRows(me: CurrentUser, f: ClientFilters): Promise<ClientRow[]> {
-    const [rows] = await this.repo.list(visibleTo(me), { ...f, page: 1, pageSize: EXPORT_LIMIT }, staleBefore(new Date()), seesOwnerNumbers(me.grants));
+    const [rows] = await this.repo.list(visibleTo(me), { ...shownFilters(f, me), page: 1, pageSize: EXPORT_LIMIT }, staleBefore(new Date()), searchable(me));
     const deals = await this.repo.dealsOf(rows.map((r) => r.id));
     await this.audit.record({ module: "clients", entity: "Client", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
     return rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me));
@@ -49,7 +51,8 @@ export class ClientsService {
 
   async summary(me: CurrentUser): Promise<ClientSummary> {
     const [clients, owners, ownersStale, both] = await this.repo.summary(visibleTo(me), staleBefore(new Date()));
-    return { clients, owners, ownersStale, both };
+    // the tile counts owners by their units' last update: nothing to show when that is hidden from the reader (M-09)
+    return { clients, owners, ownersStale: staleShown(me) ? ownersStale : 0, both };
   }
 
   async file(me: CurrentUser, id: string): Promise<ClientFile> {
@@ -62,22 +65,25 @@ export class ClientsService {
     const balance = partyBalance(deals.map((d) => ({ status: d.status as DealStatus, due: fromDecimal(d.due), paid: fromDecimal(d.paid) })));
     const units = c.units.map((u) => ({ ...u, lastOwnerUpdateAt: u.lastOwnerUpdateAt.toISOString(), stale: isStale(u.lastOwnerUpdateAt, now) }));
     const codeOf = new Map(deals.map((d) => [d.id, d.code]));
+    const h = me.fields.hidden("clients");
+    // the history is the contacts logged and the deals: each part goes with its own field (M-09)
     const timeline: TimelineItem[] = [
-      ...c.interactions.map((i) => ({ at: i.at.toISOString(), text: `${i.kind}: ${i.text}`, by: names.get(i.byId) ?? null })),
-      ...deals.map((d) => ({ at: d.closedAt, text: `صفقة ${d.code} على ${d.unit}`, by: null })),
+      ...(h.has("timeline") ? [] : c.interactions.map((i) => ({ at: i.at.toISOString(), text: `${i.kind}: ${i.text}`, by: names.get(i.byId) ?? null }))),
+      ...(h.has("deals") ? [] : deals.map((d) => ({ at: d.closedAt, text: `صفقة ${d.code} على ${d.unit}`, by: null }))),
     ].sort((a, b) => b.at.localeCompare(a.at));
-    return {
+    return hideFile({
       ...toRow(c, deals.length, me), preferredContact: c.preferredContact, units, deals, marketingConsent: c.marketingConsent,
       deletionAsked: c.deletionAskedAt ? { at: c.deletionAskedAt.toISOString(), by: c.deletionAskedBy ? names.get(c.deletionAskedBy) ?? null : null, reason: c.deletionReason ?? "" } : null,
       contracts: contracts.map((k) => ({ id: k.id, code: k.code, deal: codeOf.get(k.dealId) ?? "", startsOn: day(k.startsOn), endsOn: day(k.endsOn), status: k.status })),
       leads: c.leads.map((l) => ({ id: l.id, code: l.code, stage: l.stage, createdAt: l.createdAt.toISOString() })),
       balance: { paid: toDecimal(balance.paid), remaining: toDecimal(balance.remaining) },
       timeline, interactionKinds: (await this.settings.all()).interactionTypes.filter((k) => k.active).map((k) => k.value),
-    };
+    }, me);
   }
 
   /** M-10 2.1 step 5: a call, a visit, a complaint… on a file the reader sees; it counts as dealing with them (3.3). */
   async logInteraction(me: CurrentUser, id: string, input: LogInteraction) {
+    if (me.fields.fixed("clients").has("timeline")) throw new ForbiddenException(LOCKED);
     const kinds = (await this.settings.all()).interactionTypes;
     if (!allowedValue(kinds, input.kind)) throw new BadRequestException("اختار نوع التواصل من القايمة");
     return this.db.$transaction(async (tx) => {
@@ -87,7 +93,8 @@ export class ClientsService {
       await tx.client.update({ where: { id }, data: { lastContactAt: row.at, status: "active" } });
       await this.audit.record({ module: "clients", entity: "ClientInteraction", entityId: row.id, action: "create", userId: me.id, after: row }, tx);
       // demo clients.js: «ابديت مع المالك» is the owner's monthly update (M-10 2.4 = M-03 «last update») for all their units
-      if (input.kind === OWNER_UPDATE) {
+      // …unless the reader may not change the units' last update (M-09 inventory rules): then the contact is only logged
+      if (input.kind === OWNER_UPDATE && !me.fields.fixed("inventory").has("lastOwnerUpdateAt")) {
         const units = await this.repo.touchOwnerUnits(tx, id, row.at);
         for (const u of units) {
           await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "update", userId: me.id, before: { lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { lastOwnerUpdateAt: row.at } }, tx);
@@ -99,6 +106,7 @@ export class ClientsService {
 
   /** M-10 3.1 «موافقة على التواصل التسويقي»: written by sales (and whoever edits files), audited old → new. */
   async setConsent(me: CurrentUser, id: string, input: SetConsent) {
+    if (me.fields.fixed("clients").has("marketingConsent")) throw new ForbiddenException(LOCKED);
     await this.db.$transaction(async (tx) => {
       const c = await tx.client.findFirst({ where: { AND: [visibleTo(me), { id }] }, select: { marketingConsent: true } });
       if (!c) throw new NotFoundException(NO_CLIENT);
@@ -113,6 +121,7 @@ export class ClientsService {
    * management is told; what management then does with it isn't settled by the client yet, so nothing is erased here.
    */
   async askDeletion(me: CurrentUser, id: string, input: AskDeletion) {
+    if (me.fields.fixed("clients").has("deletionAsked")) throw new ForbiddenException(LOCKED);
     const c = await this.db.$transaction(async (tx) => {
       const file = await tx.client.findFirst({ where: { AND: [visibleTo(me), { id }] }, select: { name: true, deletionAskedAt: true } });
       if (!file) throw new NotFoundException(NO_CLIENT);
@@ -194,13 +203,41 @@ const normalized = (phones: string[]) => [...new Set(phones.map(normalizePhone).
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const belongs = (d: FileDealRecord, id: string) => d.lead?.clientId === id || d.unit.ownerId === id;
 
-/** Owners' numbers never leave the API for people who may not see them (M-10 4.1), not just hidden on the screen. */
+/**
+ * Owners' numbers never leave the API for people who may not see them (M-10 4.1), not just hidden on the screen; and
+ * M-09: a field hidden from the reader is blank (its kind kept) in the list, the file and the export.
+ */
 function toRow(r: ClientRowRecord, deals: number, me: CurrentUser): ClientRow {
+  const h = me.fields.hidden("clients");
   return {
-    id: r.id, name: r.name, company: r.company, kind: r.kind, status: r.status, phones: showsNumbers(r.kind, me.grants) ? r.phones.map((p) => p.phone) : null,
-    units: r._count.units, deals, lastContactAt: r.lastContactAt.toISOString(),
+    id: r.id, name: r.name, company: h.has("company") ? null : r.company, kind: r.kind, status: r.status,
+    phones: showsNumbers(r.kind, me.grants) && !h.has("phones") ? r.phones.map((p) => p.phone) : null,
+    units: h.has("units") ? 0 : r._count.units, deals: h.has("deals") ? 0 : deals, lastContactAt: h.has("lastContactAt") ? "" : r.lastContactAt.toISOString(),
   };
 }
+
+/** M-09 · the rest of the file: what's hidden in «clients» is blank or gone; its units follow the reader's «inventory» rules too. */
+function hideFile(f: ClientFile, me: CurrentUser): ClientFile {
+  const h = me.fields.hidden("clients"), inv = me.fields.hidden("inventory");
+  if (!h.size && !inv.size) return f;
+  return {
+    ...f,
+    units: h.has("units") ? [] : f.units.map((u) => ({ ...u, space: inv.has("space") ? 0 : u.space, lastOwnerUpdateAt: inv.has("lastOwnerUpdateAt") ? "" : u.lastOwnerUpdateAt, stale: inv.has("stale") ? false : u.stale })),
+    deals: h.has("deals") ? [] : h.has("balance") ? f.deals.map((d) => ({ ...d, due: "", paid: "" })) : f.deals,
+    balance: h.has("balance") ? { paid: "", remaining: "" } : f.balance,
+    contracts: h.has("contracts") ? [] : f.contracts,
+    marketingConsent: h.has("marketingConsent") ? null : f.marketingConsent,
+    deletionAsked: h.has("deletionAsked") ? null : f.deletionAsked,
+  };
+}
+
+/** M-09: searching or filtering by a field hidden from the reader would tell its value, so that part is left out. */
+function searchable(me: CurrentUser): ClientSearch {
+  const h = me.fields.hidden("clients");
+  return { numbers: h.has("phones") ? "none" : seesOwnerNumbers(me.grants) ? "all" : "clients", company: !h.has("company"), units: !h.has("units") };
+}
+const staleShown = (me: CurrentUser) => !me.fields.hidden("clients").has("units") && !me.fields.hidden("inventory").has("lastOwnerUpdateAt");
+const shownFilters = (f: ClientFilters, me: CurrentUser): ClientFilters => (staleShown(me) ? f : { ...f, stale: undefined });
 
 /** One deal as this file's person sees it: the client commission if they're the client, the owner's if it's their unit. */
 function toDeal(d: FileDealRecord, id: string): ClientDeal {

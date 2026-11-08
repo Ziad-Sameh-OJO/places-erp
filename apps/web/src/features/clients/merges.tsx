@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import type { ClientFile } from "@places/contracts";
 import { Card, Chip, Icon, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useMe } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { KindChips } from "./client-bits";
 import { useMerges } from "./use-clients";
@@ -47,7 +47,8 @@ export function SuggestMergeForm({ file }: { file: ClientFile }) {
   const run = useAction();
   const qc = useQueryClient();
   const t = useTranslations("clients.suggest");
-  if (!can("clients", "edit")) return null;
+  const fields = useFields("clients"); // M-09: merging by number needs the numbers
+  if (!can("clients", "edit") || !fields.shows("phones")) return null;
   const save = onFormSubmit((d) => run(async () => {
     await api.post(`/clients/${file.id}/merges`, { phone: d.get("phone") });
     await qc.invalidateQueries({ queryKey: ["clients", "merges"] });
