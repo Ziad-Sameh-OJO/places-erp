@@ -11,6 +11,7 @@ import { day, money, num } from "@/lib/format";
 import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { LANES, ST_TONE, live, monthOf, names, onSheet, useAchievements, useCashAccounts, useClaimsAll, useCollectForm, useDeal, useRefreshDeals } from "./use-deals";
+import { useRecent } from "@/lib/quick";
 
 const Head = ({ icon, title, sub, extra }: { icon: "users" | "check" | "file" | "wallet" | "x"; title: string; sub?: string; extra?: ReactNode }) => (
   <div className="card-head"><h3><span className="ico"><Icon name={icon} /></span><span>{title}{sub && <small>{sub}</small>}</span></h3>{extra}</div>
@@ -33,6 +34,7 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
   const { can } = useMe();
   const { fields, only } = useOnly();
   const detail = useDeal(d.id).data;
+  useRecent("deal", d.id, `${d.code} · ${d.company}`); // 0.14
   const mine = useAchievements().data?.mine; // the caller's employee id: their own line on a TCR
   const run = useAction();
   const refresh = useRefreshDeals();

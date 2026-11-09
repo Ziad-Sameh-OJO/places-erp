@@ -12,7 +12,8 @@ import { useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { NAV, SECTIONS, type NavKey } from "@/lib/nav";
 import { LanguageSwitch } from "./language-switch";
-import { Avatar, Icon } from "./ui";
+import { Avatar, Icon, useToast } from "./ui";
+import { RECENT, toggleFav, useQuick } from "@/lib/quick";
 import { BellPanel, useBell } from "./bell";
 import { pushSubscription } from "@/features/notifications/push";
 
@@ -30,6 +31,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const tNav = useTranslations("nav");
   const [menuOpen, setMenuOpen] = useState(false);
   const bell = useBell();
+  const toast = useToast();
+  const quick = useQuick(me?.id);
   useEffect(() => setMenuOpen(false), [path]);
   // mobile.css keys the bottom tab bar off the body class, as in the demo
   useEffect(() => { document.body.classList.add("has-tabbar"); return () => document.body.classList.remove("has-tabbar"); }, []);
@@ -51,11 +54,23 @@ export function Shell({ children }: { children: ReactNode }) {
   const page = current === "profile" ? { label: t("myAccount"), code: "Account", icon: "id" as const, section: "", sub: t("myAccountSub") }
     : nav && { label: label(current as NavKey), code: nav.code, icon: nav.icon, section: nav.section ? tNav(`sections.${nav.section}`) : "", sub: tNav(`modules.${current as NavKey}.sub`) };
   let sec: string | null = null;
+  // 0.14: only pages and records this person may still open
+  const favs = quick.favs.filter((k): k is NavKey => k in NAV && can(k as NavKey));
+  const recent = quick.recent.filter((r) => can(RECENT[r.kind].module));
+  const starred = current in NAV && quick.favs.includes(current);
+  const star = () => { if (me) toast(toggleFav(me.id, current) ? t("favAdded") : t("favRemoved")); };
 
   return (
     <div className="app">
       <aside className={`side ${menuOpen ? "open" : ""}`} aria-label={t("mainMenu")}>
         <div className="brand"><BrandMark /><div className="brand-txt"><strong>Places ERP</strong><small>BY RECA TECH</small></div></div>
+        <div className="side-quick">
+          {favs.length > 0 && <><div className="nav-sec"><Icon name="star" />{t("favs")}</div>
+            {favs.map((k) => <Link key={k} className="q-item" href={k === "home" ? "/" : `/${k}`}><Icon name={NAV[k].icon} /><span className="lbl">{label(k)}</span></Link>)}</>}
+          {recent.length > 0 && <><div className="nav-sec"><Icon name="clock" />{t("recent")}</div>
+            {/* a plain link: a full load, so the page reads «?open=» again even when it's the page already on screen */}
+            {recent.map((r) => <a key={`${r.kind}:${r.id}`} className="q-item" href={RECENT[r.kind].href(r.id)}><Icon name={RECENT[r.kind].icon} /><span className="lbl">{r.label}</span><small className="tag">{t(`recentKind.${r.kind}`)}</small></a>)}</>}
+        </div>
         <nav id="nav" aria-label={t("sections")}>
           {keys.map((k) => {
             const n = NAV[k];
@@ -87,7 +102,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {page && <span className="page-ico" aria-hidden="true"><Icon name={page.icon} /></span>}
           <div className="top-title">
             <nav className="bc" aria-label={t("youAreHere")}><Link href="/">Places</Link>{page?.section && <><span>›</span><span>{page.section}</span></>}<span>›</span><b>{page?.label}</b></nav>
-            <div className="title-row"><h1>{page?.label ?? ""}</h1><span className="crumb">{page?.code}</span></div>
+            <div className="title-row"><h1>{page?.label ?? ""}</h1>{current in NAV && <button className="fav-btn" aria-pressed={starred} title={starred ? t("favRemove") : t("favAdd")} aria-label={starred ? t("favRemove") : t("favAdd")} onClick={star}><Icon name="star" /></button>}<span className="crumb">{page?.code}</span></div>
             {page?.sub && <p>{page.sub}</p>}
           </div>
           <div className="top-actions">

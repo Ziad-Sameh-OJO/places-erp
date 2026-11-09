@@ -13,6 +13,7 @@ import { money } from "../finance/money";
 import { serverText } from "@/lib/server-text";
 import { STATUS, openFile, usePurchase, useRefreshProcurement } from "./use-purchases";
 import { Attachments } from "./purchase-form";
+import { useRecent } from "@/lib/quick";
 
 /** Each status's place on the stepper (Pending · Approved · settled · posted). */
 const STAGE: Record<PurchaseView["status"], number> = { Pending: 0, Rejected: 0, Approved: 1, Settled: 2, Posted: 3 };
@@ -25,6 +26,7 @@ export function PurchaseDrawer({ id, cash, onClose }: { id: string; cash: Custod
   const run = useAction();
   const fields = useFields("procurement");
   const p = q.data;
+  useRecent("purchase", id, p?.item); // 0.14
   if (!p) return <Drawer title={q.error ? t("drawer.notFound") : t("common.loading")} onClose={onClose}><Empty text={q.error?.message ?? t("common.loading")} icon="clock" /></Drawer>;
   const stages = ["Pending", "Approved", t("drawer.stageSettled"), t("drawer.stagePosted")];
   // M-09: a hidden amount / line comes blank, and its rows are left out

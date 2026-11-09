@@ -13,6 +13,7 @@ import { serverText } from "@/lib/server-text";
 import { COLS, UnitChips, cell, columnsFor } from "./unit-bits";
 import { useFields } from "@/lib/me";
 import { UnitTasks, useUnitTasksTab } from "../tasks/unit-tasks";
+import { useRecent } from "@/lib/quick";
 
 const hours = (from: string, to: string) => (Date.parse(to) - Date.parse(from)) / 3_600_000;
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLocale(), { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -30,6 +31,7 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
   const fields = useFields("inventory");
   const [tab, setTab] = useState<"data" | "pdf" | "loc" | "tasks">("data");
   const tasksTab = useUnitTasksTab(id); // 2.30
+  useRecent("unit", id, unit && `${unit.code} · ${unit.project}`); // 0.14
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   if (error) return <Drawer title={t("drawer.notFound")} onClose={onClose}><Empty text={error.message} /></Drawer>;

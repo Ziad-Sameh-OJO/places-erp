@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { day, money } from "@/lib/format";
 import { INSTALLMENT_TONE, openContractFile, statusChip, useContract, useRefreshContracts } from "./use-contracts";
 import { ContractActions } from "./contract-actions";
+import { useRecent } from "@/lib/quick";
 
 /** The demo's contract drawer (clients.js ctDrawer): the renewal note, the details, then the installment table. */
 export function ContractDrawer({ id, onClose }: { id: string; onClose: () => void }) {
@@ -19,6 +20,7 @@ export function ContractDrawer({ id, onClose }: { id: string; onClose: () => voi
   const [paying, setPaying] = useState<InstallmentRow | null>(null);
   const fields = useFields("contracts"); // M-09: hidden rows and columns are gone; read-only ones can't be changed
   const c = q.data;
+  useRecent("contract", id, c?.code); // 0.14
   if (!c) return <Drawer title={q.error ? t("drawer.notFound") : t("loading")} onClose={onClose}><Empty text={q.error?.message ?? t("loading")} icon="clock" /></Drawer>;
   const [tone, label] = statusChip(c, t("endingSoon"));
   const kv = ([
