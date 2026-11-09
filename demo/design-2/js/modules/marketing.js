@@ -34,6 +34,7 @@
               <h4 class="mini-h">البوستات اللي جابت ليدز</h4>${posts.length ? U.hbars(posts.map((x) => ({ label: x.p.title, sub: x.p.channel, value: x.n }))) : `<p class="hint">مفيش ليدز متربطة ببوست في الفترة دي</p>`}</section></div>
           <div class="cols"><section class="card">${head("إعلانات الويبسايت", "trend", chip(webToday() >= 25 ? "ok" : "warn", `${webToday()} من 25 النهارده`), "الويبسايت متربط بالسيستم وبيتعد لوحده")}${U.hbars(Array.from({ length: 7 }, (_, i) => { const d = new Date(A.NOW() - i * 864e5).toISOString().slice(0, 10); return { label: A.fmtDate(d), value: (st.webAds || {})[d] || 0 }; }), (v) => v + " إعلان")}</section>
             <section class="card">${head("تقرير المنافسين الشهري", "file", compDue(), "بينزلوا إيه + تحليل · بيتسلّم يوم 30")}${(st.compReports || []).slice(0, 3).map((x) => `<div class="line-item"><span><b>${esc(x.month)}</b> · ${esc(x.name)}</span><small class="hint">${A.fmtDate(x.at)}</small></div>`).join("") || `<p class="hint">مفيش</p>`}${isMgr() ? `<form class="row" data-form="compNew"><input name="name" required placeholder="اسم الملف / اللينك"><button class="btn ghost sm">${I("upload")}سلّم تقرير الشهر ده</button></form>` : ""}</section></div>
+          ${notQualified(leads)}
           ${note("Qualified = أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتحسب أوتوماتيك هنا، وبيفضل محسوب حتى لو رجع Not Interested أو No Answer.")}`;
       }
       if (t === "camps") body = `<div class="row end">${isMgr() ? `<button class="btn" data-act="campNew">${I("plus")}كامبين جديدة</button>` : ""}</div>
@@ -68,6 +69,23 @@
   };
   const postActs = (p) => p.status === "published" ? "" : !p.approved && isMgr() ? `<button class="btn sm" data-act="postApprove" data-id="${p.id}">موافقة</button>` : p.approved ? `<button class="btn ghost sm" data-act="postPub" data-id="${p.id}">اتنشر</button>` : "";
   A.ACT.mkTab = (d) => { ui("mkTab", d.v); A.render(); };
+  /* the leads that never became Qualified, and why: the action the salesperson took on the lead (its stage) and their latest comment,
+     with who wrote it. Follows the dashboard's date range. */
+  const NQ = { "No Answer": ["warn", "No Answer · مردش"], "Not Interested": ["bad", "Not Interested"], Fresh: ["info", "لسه محدش كلّمه"], Cancellation: ["bad", "Cancellation"], Hold: ["", "Hold"] };
+  const nqLabel = (s) => (NQ[s] || ["", s])[1];
+  const lastAct = (l) => { const c = (l.comments || []).slice().sort((a, b) => (a.at < b.at ? 1 : -1)); return c.find((x) => x.note) || c[0] || null; };
+  function notQualified(leads) {
+    const st = S(), nq = leads.filter((l) => !l.everInterested), f = ui("mkNq") || "", by = {};
+    nq.forEach((l) => (by[l.stage] = (by[l.stage] || 0) + 1));
+    const list = nq.filter((l) => !f || l.stage === f).sort((a, b) => ((lastAct(b) || {}).at || b.created) > ((lastAct(a) || {}).at || a.created) ? 1 : -1);
+    const camp = (id) => (st.campaigns.find((c) => c.id === id) || {}).name || "";
+    return `<section class="card">${head("الليدز اللي ماكانتش Qualified", "users", chip(nq.length ? "bad" : "ok", `${nq.length} من ${leads.length}`), "السبب = الأكشن اللي السيلز عمله على الليد + آخر كومنت ليه، وصاحب الكومنت")}
+      ${nq.length ? `<div class="row">${U.seg("mkNq", [["", `الكل (${nq.length})`], ...Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, `${nqLabel(k)} (${n})`])], f)}</div>
+      ${U.hbars(Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ label: nqLabel(k), sub: `${Math.round((n / nq.length) * 100)}% من اللي ماكانوش Qualified`, value: n })))}
+      ${U.table(["الليد", "Channel · الكامبين", "السبب", "آخر أكشن / كومنت من السيلز", "صاحب الكومنت", "إمتى"], list.slice(0, 60).map((l) => { const c = lastAct(l); return `<tr><td><b>${esc(l.name)}</b><span class="sub mono">${esc(l.id)}</span></td><td>${esc(l.channel || "—")}${l.campaign ? `<span class="sub">${esc(camp(l.campaign))}</span>` : ""}</td><td>${chip((NQ[l.stage] || [""])[0], nqLabel(l.stage))}</td><td class="wrap">${c ? esc(c.text) : `<span class="hint">مفيش كومنت · لسه محدش اتواصل</span>`}</td><td>${c && c.by ? A.who(c.by) : "—"}</td><td>${c ? `${A.fmtDate(c.at)} · ${A.fmtTime(c.at)}` : "—"}</td></tr>`; }))}
+      ${list.length > 60 ? `<p class="hint">ظاهر أحدث 60 من ${list.length}.</p>` : ""}` : `<p class="hint">كل الليدز في الفترة دي بقت Qualified.</p>`}</section>`;
+  }
+  A.ACT.mkNq = (d) => { ui("mkNq", d.v); A.render(); };
   A.ACT.mkRange = (d) => { ui("mkRange", d.v); A.render(); };
   A.CHANGE.mkF = (v, el) => { ui("mkF", Object.assign({}, ui("mkF"), { [el.dataset.k]: v })); A.render(); };
   // فترة مخصصة: picking the dates doesn't filter yet; «بحث» applies them

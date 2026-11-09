@@ -121,6 +121,9 @@ window.SEED = (function () {
     if (l.touched && !l.comments.length) l.comments.push({ by: l.sales, at: l.created, text: `أول تواصل · ${l.stage}` });
     // most leads were followed up this week; a few were left idle so the Draft rule has something to show
     if (l.touched && i % 9 !== 4 && !["Done Deal", "Cancellation", "Not Interested", "No Answer"].includes(l.stage)) l.comments.push({ by: l.sales, at: ago(((i * 7) % 5) * 1440 + 90), text: "متابعة مع العميل" });
+    // why a lead never became Qualified: the salesperson's own comment on the action they took (marketing reads these)
+    if (l.touched && !l.everInterested && ["Not Interested", "No Answer"].includes(l.stage)) { const R = l.stage === "No Answer" ? ["مابيردش · اتصلت 3 مرات", "التليفون مقفول", "بيرن ومحدش بيرد", "ردّ مرة وقال هيكلمني ومكلمش"] : ["مش في المنطقة اللي عايزها · عايز زايد", "الميزانية أقل من الأسعار المتاحة", "بيدوّر على سكني مش إداري", "المساحة صغيرة عليه", "لقى مكان خلاص", "رقم غلط · مش هو"];
+      l.comments.push({ by: l.sales, at: ago(((i * 11) % 6) * 1440 + 45), text: R[i % R.length], note: true }); }
     // No Answer is timed from when the salesperson marked it: these were marked within the last day
     if (l.stage === "No Answer" && !l.noAnswerAt) Object.assign(l, { noAnswerAt: ago(60 * (2 + ((i * 5) % 21))), naBy: l.sales });
     if (i % 8 === 5) l.kind = "broker"; // a few brokers for the Brokers tab
