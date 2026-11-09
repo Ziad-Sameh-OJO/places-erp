@@ -130,6 +130,7 @@
     "lead": "leads",
     "posts": "Posts that brought leads",
     "noPosts": "No leads linked to a post in this period",
+    "competitors": { "title": "Monthly competitors report", "sub": "What they're putting out + analysis · due on day {day}", "done": "Handed in this month", "waiting": "Waiting for day {day}", "none": "None", "name": "File name / link", "submit": "Hand in this month's report", "handed": "Handed in" },
     "note": "Qualified = as soon as a lead reaches Interested or any later stage it's counted here automatically, and it stays counted even if it goes back to Not Interested or No Answer."
   },
   "deals": {

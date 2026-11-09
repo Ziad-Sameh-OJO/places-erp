@@ -1,10 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  KpiWatch, type DailyFieldInput, type DailyForm, type DailyInput, type DayReport, type MyHandIn, type ReportInput, type ReportsPage, type ScheduledReportView,
+  KpiWatch, type DailyFieldInput, type DailyForm, type DailyInput, type DayReport, type HandInCard, type MyHandIn, type ReportInput, type ReportsPage, type ScheduledReportView,
 } from "@places/contracts";
 import {
-  type MetricParams, type Method, type Schedule, type WorkCalendar, METRICS, calcText, dailyAverage, dailySumValue, dailyTotals, dayStart, dayStatus, dueOf, isOffPeriod,
+  type MetricParams, type Method, type Schedule, type WorkCalendar, METRICS, calcText, dailyAverage, dailySumValue, dailyTotals, dayStart, dayStatus, dueOf, handInState, isOffPeriod,
   itemAchievement, localDate, nextDue, pickPeople,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -138,12 +138,12 @@ export class ReportsService {
   }
 
   /** «سلّمت» (11.10). The daily report is handed in with its form (submitDaily). */
-  async handIn(me: CurrentUser, id: string) {
+  async handIn(me: CurrentUser, id: string, note?: string) {
     const r = await this.repo.report(id);
     if (!r || !r.on || r.kind !== "handin") throw new NotFoundException("التقرير ده مش بيتسلّم");
     if (r.daily) throw new BadRequestException("التقرير اليومي بيتسلّم من الفورم بتاعه");
     const [users, cal] = await Promise.all([this.repo.users(), this.time.calendar()]);
-    const res = await this.db.$transaction((tx) => this.handInTx(tx, me, r, users, cal, new Date()));
+    const res = await this.db.$transaction((tx) => this.handInTx(tx, me, r, users, cal, new Date(), note));
     await this.tellHanded(me, r, users, res.onTime);
     return res;
   }
@@ -151,20 +151,38 @@ export class ReportsService {
   /**
    * One hand-in, once per period. On time it counts in the KPI item linked to the report (meeting 4 Nov); late it doesn't.
    */
-  private async handInTx(tx: Prisma.TransactionClient, me: CurrentUser, r: Report, users: User[], cal: WorkCalendar, now: Date) {
+  private async handInTx(tx: Prisma.TransactionClient, me: CurrentUser, r: Report, users: User[], cal: WorkCalendar, now: Date, note?: string) {
     if (!pickPeople(r.preparedBy, users).includes(me.id)) throw new ForbiddenException("التقرير ده مش عليك");
     const { period, due } = dueOf(schedule(r), now, cal);
     if (isOffPeriod(schedule(r), period, cal)) throw new ConflictException("النهارده أجازة · مفيش تقرير");
     const key = { reportId_userId_period: { reportId: r.id, userId: me.id, period } };
     if ((await tx.reportHandIn.findUnique({ where: key }))?.at) throw new ConflictException("سلّمته قبل كده");
-    await tx.reportHandIn.upsert({ where: key, create: { reportId: r.id, userId: me.id, period, at: now }, update: { at: now } });
+    await tx.reportHandIn.upsert({ where: key, create: { reportId: r.id, userId: me.id, period, at: now, note: note || null }, update: { at: now, note: note || null } });
     const onTime = now <= due, q = await this.kpiRepo.currentQuarter(tx);
     const item = onTime && me.employeeId && q ? await this.repo.linkedItem(r.id, me.employeeId, q.id, tx) : null;
     const counted = !!item && item._count.deliveries < (item.required ?? 0);
     if (counted) await tx.kpiDelivery.create({ data: { itemId: item.id, byId: me.id } });
     await this.audit.record({ module: MODULE, entity: "ReportHandIn", entityId: r.id, action: "create", userId: me.id,
-      after: { period, onTime, kpiItem: counted ? item.id : null, summary: `${me.name} سلّم «${r.name}» ${onTime ? "في الميعاد" : "متأخر"}` } }, tx);
+      after: { period, onTime, ...(note ? { note } : {}), kpiItem: counted ? item.id : null, summary: `${me.name} سلّم «${r.name}» ${onTime ? "في الميعاد" : "متأخر"}` } }, tx);
     return { onTime, counted };
+  }
+
+  /**
+   * A hand-in report as a card on another screen (M-04 «تقرير المنافسين الشهري» on the marketing dashboard): this
+   * period's state, the last `take` hand-ins, and whether `me` hands it in. Null when it isn't scheduled.
+   */
+  async card(me: CurrentUser, id: string, take = 3): Promise<HandInCard | null> {
+    const r = await this.repo.report(id);
+    if (!r || !r.on || r.kind !== "handin") return null;
+    const [users, cal] = await Promise.all([this.repo.users(), this.time.calendar()]);
+    const now = new Date(), { period, due } = dueOf(schedule(r), now, cal);
+    const recent = await this.repo.recentHandIns(id, take);
+    const names = new Map(users.map((u) => [u.id, u.name]));
+    return {
+      id: r.id, name: r.name, state: handInState(recent.some((h) => h.period === period), due, now), due: due.toISOString(),
+      canHandIn: pickPeople(r.preparedBy, users).includes(me.id),
+      recent: recent.map((h) => ({ period: h.period, at: h.at!.toISOString(), note: h.note, by: names.get(h.userId) ?? "" })),
+    };
   }
 
   /** The report's recipients (the person's follower too); the watcher only when there's no money in it. */

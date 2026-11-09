@@ -47,6 +47,13 @@ export function handInStep(due: Date, remindMin: number, now: Date, done: { remi
   return !done.reminded && now.getTime() >= due.getTime() - remindMin * 60_000 ? "remind" : null;
 }
 
+export type HandInState = "done" | "waiting" | "late";
+/**
+ * M-04 · the marketing dashboard's «تقرير المنافسين الشهري» card (demo marketing.js `compDue`): handed in for this
+ * period, still waiting for its day, or past it and not handed in.
+ */
+export const handInState = (handed: boolean, due: Date, now: Date): HandInState => (handed ? "done" : now > due ? "late" : "waiting");
+
 /**
  * Who a report names (demo «U.whoEdit»): user ids, role keys, and "follower" = the person's follower (the hand-in's
  * person). Only active people; no duplicates.

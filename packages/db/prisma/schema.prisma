@@ -1926,6 +1926,7 @@ model ReportHandIn {
   userId     String
   period     String // "YYYY-MM-DD", the due date
   at         DateTime?
+  note       String? // what was handed in: the file's name or its link (M-04 «تقرير المنافسين الشهري»)
   remindedAt DateTime?
   lateAt     DateTime?
 
