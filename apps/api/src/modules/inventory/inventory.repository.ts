@@ -8,13 +8,13 @@ import { PRISMA } from "../../core/database/database.module";
 export const UNIT_ROW = {
   id: true, code: true, type: true, alsoType: true, status: true, alsoStatus: true, project: true, area: true, space: true,
   condition: true, floor: true, building: true, parking: true, ownerName: true, ownerPhone: true, pricePerSqm: true,
-  totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, layout: true, comment: true, details: true,
+  totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, comment: true, details: true,
   divisible: true, minSplit: true, location: true, agreementFileId: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
   // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
   locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
   // the main photo (2.4: the first image, never a PDF of the folder, 2.22) and how many files there are
   photos: { where: { pdf: false }, select: { fileId: true }, orderBy: { position: "asc" }, take: 1 },
-  _count: { select: { photos: true } },
+  _count: { select: { photos: true, layouts: true } }, // 2.35: Layout = its Layout file folder has files
 } satisfies Prisma.UnitSelect;
 export const UNIT_DETAIL = { ...UNIT_ROW, ownerId: true, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true, mediaUploadedAt: true } satisfies Prisma.UnitSelect;
 export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
@@ -197,6 +197,11 @@ export class InventoryRepository {
   /** A unit's photos in their order (2.4). */
   photos(unitId: string, tx: Prisma.TransactionClient = this.db) {
     return tx.unitPhoto.findMany({ where: { unitId }, orderBy: { position: "asc" }, select: { id: true, fileId: true, pdf: true } });
+  }
+
+  /** A unit's Layout file folder, oldest first (2.35). */
+  layouts(unitId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.unitLayout.findMany({ where: { unitId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, fileId: true } });
   }
 
   /** A unit's two sides, for closing one (Q16 · Q17). Archived units can't be closed. */

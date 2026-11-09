@@ -910,7 +910,6 @@ model Unit {
   maintenance       String?     // number and text
   commission        String?     // number and text
   paymentMethod     String?     // Resale / Income
-  layout            Boolean     @default(false) // «Layout» Yes / No (Book7, 2.21)
   comment           String?     // «Comment» (Book7, 2.21)
   details           Json        @default("{}") // the columns only one type has (Resale delivery, Income contract…), checked by @places/contracts
   agentId           String?     // hr.Employee: who brought the unit → Seller on a deal (M-02), counted in their activity
@@ -932,6 +931,7 @@ model Unit {
   deals             Deal[]
   locks             UnitLock[]
   photos            UnitPhoto[]
+  layouts           UnitLayout[] // 2.35 · «Layout file»: the unit has a Layout when this folder has files
   suggestedFor      LeadUnit[]
   shownInVisits     VisitUnit[]
   tasks             Task[]
@@ -983,6 +983,18 @@ model UnitPhoto {
   createdAt DateTime @default(now())
 
   @@index([unitId, position])
+  @@schema("inventory")
+}
+
+/// 2.35 · a unit's «Layout file» folder (PDF · DWG · images): its own folder, never read by the PDF or the slide.
+model UnitLayout {
+  id        String   @id @default(cuid())
+  unitId    String
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  fileId    String   @unique // system.File (entity "Unit")
+  createdAt DateTime @default(now())
+
+  @@index([unitId])
   @@schema("inventory")
 }
 

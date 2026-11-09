@@ -33,8 +33,7 @@ const Common = {
   maintenance: optional(text(80, "الصيانة طويلة")),
   commission: optional(text(80, "الـ Commission طويل")),
   location: optional(Location),
-  /** Book7 «Layout» Yes / No and «Comment» (2.21) */
-  layout: z.boolean({ invalid_type_error: "الـ Layout اه أو لا" }).default(false),
+  /** Book7 «Comment» (2.21); «Layout» is the unit's Layout file folder now (2.35), not typed in */
   comment: optional(text(2000, "الـ Comment طويل")),
   /** «last update» with the owner; today when it's left empty */
   lastOwnerUpdateAt: optional(CalendarDay),
@@ -154,7 +153,9 @@ export interface UnitRow {
   project: string; area: string; space: number; condition: string; floor: string | null; building: string | null; parking: number;
   ownerName: string | null; ownerPhone: string | null;
   pricePerSqm: string | null; totalPrice: string | null; leasePerSqm: string | null;
-  maintenance: string | null; commission: string | null; paymentMethod: string | null; layout: boolean; comment: string | null;
+  maintenance: string | null; commission: string | null; paymentMethod: string | null;
+  /** 2.35 · «Layout file»: how many files its Layout folder has; `layout` = it has any */
+  layout: boolean; layoutCount: number; comment: string | null;
   divisible: boolean; minSplit: number | null; location: string | null; areaTabId: string | null;
   agent: Person | null; lastOwnerUpdateAt: string; stale: boolean; pdfStatus: "draft" | "confirmed"; createdAt: string;
   /** the columns only one type has (Resale delivery, Income contract…) */
@@ -229,6 +230,11 @@ export const UnitPhotoOrder = z.object({ fileIds: z.array(Id).max(MAX_UNIT_PHOTO
 export type UnitPhotoOrder = z.infer<typeof UnitPhotoOrder>;
 /** One file of the folder with a short link (5 minutes); `main` = the first image (the PDF's cover), never a `pdf`. 2.22: `download` saves it instead of opening it; `by`/`at` = who uploaded it, when. */
 export interface UnitPhotoView { id: string; name: string; url: string; download: string; pdf: boolean; main: boolean; by: string | null; at: string }
+/** 2.35 · one file of the unit's «Layout file» folder: a PDF opens in the system, an image shows, a DWG / DXF only downloads. */
+export interface UnitLayoutView { id: string; name: string; kind: "image" | "pdf" | "drawing"; url: string; download: string; by: string | null; at: string }
+/** 2.35 · Layout files uploaded with core/files (`folder: "layout"`), added to the unit's folder. */
+export const UnitLayoutInput = z.object({ fileIds: z.array(Id, { required_error: "اختار الملفات" }).min(1, "اختار الملفات").max(20, "لحد 20 ملف في المرة") });
+export type UnitLayoutInput = z.infer<typeof UnitLayoutInput>;
 
 /** 2.16 · a task Manar gives Randa, Sara or Marwa for today (at most 30 each, M-03 3.1). */
 export const TeamTaskInput = z.object({

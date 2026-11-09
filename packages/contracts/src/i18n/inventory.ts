@@ -50,6 +50,9 @@ export default [
   ["الصور اتغيرت · حدّث الصفحة وجرّب تاني", "The photos changed · refresh the page and try again"],
   ["الصورة مش موجودة", "The photo doesn't exist"],
   ["مش مسموح لك ترفع أو تمسح في فولدر الوحدة", "You're not allowed to upload or delete in the unit folder"],
+  ["صور أو PDF أو DWG / DXF بس", "Photos, PDF or DWG / DXF only"],
+  ["الملف مش موجود في فولدر الـ Layout", "The file isn't in the Layout folder"],
+  ["مش مسموح لك تشوف الـ Layout", "You're not allowed to see the Layout"],
   // closing a unit after a Done Deal
   ["منار", "Manar"],
   ["رندا", "Randa"],

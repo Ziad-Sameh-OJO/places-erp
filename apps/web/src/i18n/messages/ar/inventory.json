@@ -371,5 +371,30 @@
     "sent": "اتبعتت",
     "send": "ابعت للـ Team Leader",
     "noUnits": "مفيش وحدات متاحة بالبحث ده"
+  },
+  "layout": {
+    "folderTitle": "فولدر الـ Layout",
+    "folderButton": "Layout file",
+    "modalTitle": "فولدر {code} · Layout file",
+    "files": "{count} ملف",
+    "zip": "نزّل الفولدر كله (ZIP)",
+    "upload": "ارفع Layout (PDF · DWG · صورة)",
+    "uploaded": "اترفع {count} ملف في فولدر Layout file بتاع {code}",
+    "view": "عرض",
+    "download": "تحميل",
+    "replace": "استبدال",
+    "replaced": "{old} اتبدّل بـ {name}",
+    "delete": "امسح {name}",
+    "deleteConfirm": "تمسح الملف ده من فولدر الـ Layout؟",
+    "deleted": "اتمسح {name} من فولدر Layout file",
+    "dwg": "بيتفتح بـ AutoCAD أو DWG viewer",
+    "empty": "الفولدر فاضي",
+    "emptyUp": "ارفع ملف الـ Layout هنا: PDF أو DWG (AutoCAD) أو صورة، وتقدر ترفع أكتر من ملف.",
+    "emptyView": "لسه محدش رفع Layout للوحدة دي.",
+    "note": "ملفات الـ Layout بتتشاف من خانة Layout file في الشيت ومن صفحة الوحدة. الـ PDF والصور بيتعرضوا هنا على طول، وملف الـ DWG بيتحمّل ويتفتح ببرنامج AutoCAD أو أي DWG viewer.",
+    "limits": "صور لحد {image} · PDF لحد {pdf} · DWG لحد {dwg}",
+    "formLabel": "Layout file (PDF · DWG · صورة · بيتحط في فولدر الـ Layout)",
+    "formAdd": "ضيف Layout file (PDF · DWG · صورة)",
+    "picked": "{count} ملف هيترفع بعد الحفظ"
   }
 }
