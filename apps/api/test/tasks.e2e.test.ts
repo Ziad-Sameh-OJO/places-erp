@@ -187,3 +187,20 @@ test("2.30 the unit drawer's «المهام»: GET /tasks?unitId= gives that uni
     await prisma.unit.delete({ where: { id: other } });
   }
 });
+
+test("4.14 the board's sides: Manar's task for Randa is «مهام الفريق», her shoot for Bayoumi «مهام لناس خارجية»", async () => {
+  const r = await call("/inventory/team-tasks", { method: "POST", cookie: manar, body: { toUserId: randaId, title: `ابديت ${stamp}` } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const team = r.body.id as string;
+  tasks.push(team);
+  const shoot = await give(manar, { kind: "photo", toUserId: bayoumiId, unitId, note: "الدور التالت" });
+  const side = async (scope: string) => ((await call(`/tasks?scope=${scope}`, { cookie: manar })).body as Array<{ id: string; side: string }>);
+  const teams = await side("team"), outside = await side("outside");
+  assert.ok(teams.some((t) => t.id === team) && !teams.some((t) => t.id === shoot));
+  assert.ok(outside.some((t) => t.id === shoot) && !outside.some((t) => t.id === team));
+  assert.ok(teams.every((t) => t.side === "team") && outside.every((t) => t.side === "outside"));
+  // Rahma (Marketing) sees the same shoot as outside too: the side is the task's, not the viewer's
+  assert.equal((await board(rahma) as Array<{ id: string; side?: string }>).find((t) => t.id === shoot)?.side, "outside");
+  assert.equal((await call("/tasks?scope=nope", { cookie: manar })).status, 400);
+  assert.equal((await call("/tasks?scope=team", { cookie: sales })).status, 403);
+});

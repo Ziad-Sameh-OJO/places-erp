@@ -10,7 +10,8 @@
     "retouch": "Retouch",
     "followup": "Owner follow-up",
     "toResale": "Resale update",
-    "marketing": "Marketing"
+    "marketing": "Marketing",
+    "team": "Team task"
   },
   "moves": {
     "progress": "Start",
@@ -36,7 +37,8 @@
   "give": {
     "photo": "Photo task",
     "retouch": "Retouch task",
-    "marketing": "Marketing task"
+    "marketing": "Marketing task",
+    "team": "Team task"
   },
   "assignee": "Assignee",
   "allAssignees": "All assignees",
@@ -73,5 +75,10 @@
     "notes": "Notes",
     "photoNote": "The unit's data is sent automatically: code, project, building, floor, location and the owner's number",
     "send": "Send the task"
+  },
+  "sides": {
+    "team": "Team tasks ({count})",
+    "outside": "Tasks for other departments ({count})",
+    "label": "Team tasks or other departments"
   }
 }
