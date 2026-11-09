@@ -9,11 +9,11 @@ import type { CreateLead, LeadDetail, LeadFilters, LeadRow, LeadSide, RecommendA
  */
 type Hidden = ReadonlySet<string>;
 
-export function hideLeadRow<T extends Pick<LeadRow, "phones" | "area" | "type" | "space" | "budget" | "channel" | "campaign">>(r: T, hidden: Hidden): T {
+export function hideLeadRow<T extends Pick<LeadRow, "company" | "phones" | "area" | "type" | "space" | "budget" | "channel" | "campaign">>(r: T, hidden: Hidden): T {
   if (!hidden.size) return r;
   const h = (k: string) => hidden.has(k);
   return {
-    ...r, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type, space: h("space") ? null : r.space,
+    ...r, company: h("company") ? null : r.company, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type, space: h("space") ? null : r.space,
     budget: h("budget") ? null : r.budget, channel: h("channel") ? "" : r.channel, campaign: h("campaign") ? null : r.campaign,
   };
 }
@@ -21,7 +21,7 @@ export function hideLeadRow<T extends Pick<LeadRow, "phones" | "area" | "type" |
 export function hideLeadDetail<T extends Omit<LeadDetail, "canSeeLogs" | "logCount">>(d: T, hidden: Hidden): T {
   if (!hidden.size) return d;
   const h = (k: string) => hidden.has(k);
-  return { ...hideLeadRow(d, hidden), company: h("company") ? null : d.company, condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post };
+  return { ...hideLeadRow(d, hidden), condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post };
 }
 
 /** One side of Operations' duplicate comparison. */

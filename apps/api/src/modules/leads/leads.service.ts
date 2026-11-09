@@ -732,9 +732,10 @@ function hiddenExport(r: { company: { name: string } | null; phones: string[]; a
 
 type SlaClock = (r: Pick<LeadRecord, "stage" | "touched" | "ownedByTelesales" | "assignedAt">) => LeadRow["sla"];
 
-function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<string, string>, sla: SlaClock): LeadRow {
+function toRow({ assignedToId, budget, kind, company, ...r }: LeadRecord, names: Map<string, string>, sla: SlaClock): LeadRow {
   return {
     ...r, kind: kind === "BROKER" ? "broker" : "client", budget: budget?.toFixed(2) ?? null, // money on the wire is a decimal string
+    company: company?.name ?? null, // 1.31: under the name in the list (demo leads.js listView)
     stage: STAGE_LABEL.get(r.stage) ?? r.stage, sla: sla(r),
     assignedTo: assignedToId ? { id: assignedToId, name: names.get(assignedToId) ?? "" } : null,
     assignedAt: iso(r.assignedAt), arrivedAt: r.arrivedAt.toISOString(), createdAt: r.createdAt.toISOString(),
@@ -742,11 +743,11 @@ function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<stri
 }
 
 function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
-  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, ...row } = lead;
+  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, ...row } = lead;
   const now = Date.now();
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
-    company: company?.name ?? null, hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
+    hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,

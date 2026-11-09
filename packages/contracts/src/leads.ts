@@ -73,7 +73,7 @@ export type AddComment = z.infer<typeof AddComment>;
 
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
 export interface LeadRow {
-  id: string; code: string; name: string; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
+  id: string; code: string; name: string; company: string | null; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
   campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean; kind: LeadKind;
   ownedByTelesales: boolean; // demo: «مع Telesales» — she keeps it to call herself, no SLA
   /** the SLA clock while the lead is Fresh and untouched (null otherwise): level, minutes left, % of the way to the pull */
@@ -88,7 +88,7 @@ export interface LeadActivityRow {
 
 /** The lead drawer (M-01): the list row plus the details and the Activity, newest first. */
 export interface LeadDetail extends LeadRow {
-  company: string | null; condition: string | null; note: string | null;
+  condition: string | null; note: string | null;
   /** a deal is registered on it already: the drawer's «سجّل الصفقة» hides (demo) */
   hasDeal: boolean;
   post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
