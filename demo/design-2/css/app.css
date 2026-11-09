@@ -965,12 +965,14 @@ td.na-dup { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
 td.loc-td { max-width: 220px; }
 /* التقارير والتارجت · who else can see it (chosen by the heads) */
 .rp-access { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }
-/* campaign form: units picked straight from the inventory sheet */
-.unit-pick { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r); margin-top: 6px; background: var(--surface); }
-.unit-pick-row { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13px; }
-.unit-pick-row:last-child { border-bottom: 0; }
-.unit-pick-row:hover { background: var(--surface-2); }
+/* campaign form: units picked straight from the inventory sheet, as a table */
+.unit-pick { max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r); margin-top: 6px; background: var(--surface); }
+.unit-pick-t { width: 100%; border-collapse: collapse; font-size: 13px; }
+.unit-pick-t th { position: sticky; top: 0; background: var(--surface-2); text-align: start; font-weight: 600; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.unit-pick-t td { padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.unit-pick-t td.n { text-align: end; }
+.unit-pick-t tr:hover td { background: var(--surface-2); }
+.unit-pick-t label { cursor: pointer; }
 .unit-pick-row[hidden] { display: none; }
-@media (max-width: 600px) { .unit-pick-row { grid-template-columns: auto auto 1fr; } .unit-pick-row small { grid-column: 2 / -1; } }
 /* content plan: a post's video plays in its tile */
 .uf video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }
