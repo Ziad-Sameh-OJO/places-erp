@@ -43,12 +43,13 @@
   A.ACT.invReportSend = () => { const st = S(); (st.invReports = st.invReports || {})[A.today()] = { at: A.nowIso(), by: A.uid, counts: A.ui.invRep }; A.notify(["admin", "officemgr"], `التقرير اليومي للانفنتوري: ${Object.entries(A.ui.invRep).map(([k, v]) => `${k} ${v}`).join(" · ")}`); A.toast("التقرير اتبعت"); A.closeModal(); A.render(); };
 
   // Manar's daily tasks to Randa / Sara / Marwa: at most 30 a day each
-  A.ACT.teamTask = () => A.openModal("مهمة لفريق الانفنتوري", `<form data-form="teamTask" class="grid">${field("لمين", `<select name="to">${TEAM.map((id) => opt(id, `${A.person(id)} · النهارده ${todayCount(id)} من ${CAP}`)).join("")}</select>`, 1)}${field("المهمة", `<input name="title" required placeholder="مثلاً: ارفعي صور U-104 وحدّثي اللينك">`, 1)}${field("الوحدة", `<select name="unit">${opt("", "—")}${S().units.map((u) => opt(u.code, `${u.code} · ${u.project}`)).join("")}</select>`)}<div class="row end wide"><button class="btn">${I("send")}ابعت</button></div></form>`);
+  A.ACT.teamTask = () => A.openModal("مهمة لفريق الانفنتوري", `<form data-form="teamTask" class="grid">${field("لمين", `<select name="to">${TEAM.map((id) => opt(id, `${A.person(id)} · النهارده ${todayCount(id)} من ${CAP}`)).join("")}</select>`, 1)}${field("المهمة", `<input name="title" required placeholder="مثلاً: ارفعي صور U-104 وحدّثي اللينك">`, 1)}${field("الوحدة", `<select name="unit">${opt("", "—")}${S().units.map((u) => opt(u.code, `${u.code} · ${u.project}`)).join("")}</select>`)}${A.taskKpiField ? A.taskKpiField() : ""}<div class="row end wide"><button class="btn">${I("send")}ابعت</button></div></form>`);
   const todayCount = (id) => S().tasks.filter((t) => t.kind === "team" && t.to === id && (t.created || "").slice(0, 10) === A.today()).length;
   A.FORM.teamTask = (f) => {
     if (todayCount(f.to) >= CAP) return A.toast(`${A.person(f.to)} عندها ${CAP} مهمة النهارده (الحد الأقصى)`);
-    S().tasks.unshift({ id: "T-" + Date.now().toString(36).slice(-5), kind: "team", title: f.title, unit: f.unit, by: A.uid, to: f.to, due: A.today(), created: A.nowIso(), status: "todo" });
-    A.notify([((S().users || []).find((u) => u.id === f.to) || {}).role], `مهمة من منار: ${f.title}`); A.toast("المهمة اتبعتت"); A.closeModal(); A.render();
+    const t = { id: "T-" + Date.now().toString(36).slice(-5), kind: "team", title: f.title, unit: f.unit, by: A.uid, to: f.to, due: A.today(), created: A.nowIso(), status: "todo" }, kp = A.taskKpiApply ? A.taskKpiApply(t, f) : "";
+    S().tasks.unshift(t);
+    A.notify([((S().users || []).find((u) => u.id === f.to) || {}).role], `مهمة من منار: ${f.title}`); A.toast("المهمة اتبعتت" + kp); A.closeModal(); A.render();
   };
   A.ACT.teamTaskDone = (d) => { const t = S().tasks.find((x) => x.id === d.id); t.status = "done"; t.doneAt = A.nowIso(); A.audit("tasks", `${A.person(t.to)} خلّصت: ${t.title}`); A.toast("اتعلّمت Done"); A.render(); };
 

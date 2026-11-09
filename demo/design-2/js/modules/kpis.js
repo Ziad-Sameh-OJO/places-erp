@@ -9,6 +9,8 @@
   const pct = (a, b) => (b ? (a / b) * 100 : 0);
   // live measures the demo can take from its own data; other "a" items carry the module's figure as a demo value
   const LIVE = {
+    // tasks sent with «تتحسب في الـ KPIs»: done by their due date ÷ the ones already due (or done)
+    tasksOnTime: (id) => { const t = S().tasks.filter((x) => x.kpi && x.to === id && (x.status === "done" || x.due < A.today())); return t.length ? pct(t.filter((x) => x.status === "done" && (x.doneAt || A.today()).slice(0, 10) <= x.due).length, t.length) : 100; },
     att: (id) => { const r = S().attendance.filter((a) => a.emp === id).map(A.attRow); return r.length ? pct(r.filter((x) => !x.ded).length, r.length) : 100; },
     ownTarget: (id, it) => { const g = A.targetGoal(id), got = A.targetOf(id); return g && got ? pct(got, g) : +(it && it.val) || 0; }, // no collections in the demo yet → its demo figure
     // sales: half for absence (up to 5 days off in the quarter), half for lateness (up to 6 hours in the month); over the limit shrinks in proportion
@@ -90,6 +92,7 @@
   const PER = [["week", "آخر 7 أيام"], ["month", "الشهر ده"], ["quarter", "الربع ده"]], perName = (p) => (p === "today" ? "النهارده" : (PER.find((x) => x[0] === (p || "quarter")) || PER[2])[1]);
   // g = group · u = "%" or "#" · d(p) = exactly what it's calculated from · ps = its settings
   const META = {
+    tasksOnTime: { g: "المهام", l: "المهام في ميعادها", u: "%", d: () => "المهام اللي اتبعتتله بخيار «تتحسب في الـ KPIs» واتعملت Done في ميعادها ÷ كل المهام دي اللي ميعادها جه" },
     ownTarget: { g: "المبيعات", l: "تحقيق التارجت", u: "%", d: () => "نصيبه من الكوميشن في الصفقات اللي دخلت التارجت ÷ التارجت بتاعه" },
     visitsDone: { g: "المبيعات", l: "Visits / Meetings اتعملت", u: "#", d: (p) => `عدد الـ ${p.kind || "Visits والـ Meetings"} اللي اتعلّم عليها Done في ليدزه · ${perName(p.per)}`, ps: ["kind", "per"] },
     calls: { g: "المبيعات", l: "المكالمات", u: "#", d: (p) => `عدد المكالمات اللي سجّلها بنفسه على الليدز · ${perName(p.per)}${p.avg === "week" ? " · متوسط في الأسبوع" : ""}`, ps: ["per", "avg"] },
@@ -340,6 +343,15 @@
   A.kpiInvMissing = () => { const ids = invTeam().filter((id) => !cards()[id]); if (!ids.length || !open()) return "";
     return `<section class="card">${head("في الفريق من غير كارت KPIs", "users", chip("warn", ids.length))}${ids.map((id) => `<div class="line-item"><span>${A.who(id)}<small class="hint">${esc(roleOf(id))}</small></span><button class="btn ghost sm" data-act="kpiNewInv" data-id="${id}">${I("plus")}اعمل كارت</button></div>`).join("")}</section>`; };
   A.ACT.kpiNewInv = (d) => { if (A.role !== "inventory" || !invTeam().includes(d.id) || cards()[d.id]) return; cards()[d.id] = { by: A.uid, items: [], pay: { base: "bonus", period: "quarter", amount: 0 } }; A.audit("kpis", `كارت KPIs جديد لـ ${A.person(d.id)} (يتابعه ${A.person(A.uid)})`); A.ui.kpEdit = true; A.render(); A.ACT.kpiOpen({ id: d.id }); };
+  // a task sent with «تتحسب في الـ KPIs» lands in the assignee's «المهام في ميعادها» item (made with weight 0 the first time, so the
+  // follower decides its weight); someone without a card gets one, followed by the sender when they're in the same department
+  A.kpiForTask = (id, by) => {
+    const dept = (x) => ((S().people || []).find((p) => p.id === x) || {}).dept;
+    let c = cards()[id], made = "";
+    if (!c) { c = cards()[id] = { by: by && dept(by) === dept(id) ? by : "owners", items: [], pay: { base: "bonus", period: "quarter", amount: 0 } }; made = "card"; A.audit("kpis", `كارت KPIs جديد لـ ${A.person(id)} (من المهام)`); }
+    if (!c.items.some((it) => it.m === "tasksOnTime")) { c.items.push({ t: "المهام في ميعادها", w: 0, target: "100% في الميعاد", src: "صفحة المهام", how: "a", m: "tasksOnTime", mod: "Tasks", goal: 100, dir: "min", val: 0 }); made = made || "item"; A.audit("kpis", `KPI ${A.person(id)}: بند «المهام في ميعادها» اتضاف (من المهام)`); }
+    return made;
+  };
   A.ACT.kpiNew = (d) => {
     const p = (S().people || []).find((x) => x.id === d.id) || (S().employees || []).find((x) => x.id === d.id) || {};
     cards()[d.id] = { by: p.tl || "owners", items: [], pay: { base: "bonus", period: "quarter", amount: 0 } };
