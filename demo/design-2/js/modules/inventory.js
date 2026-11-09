@@ -65,11 +65,15 @@
     render() {
       const st = S(), r = A.role, t = ui("invType") || "all", tab = ui("invTab"), f = ui("invF") || {}, mode = ui("invMode") || "table", list = listUnits();
       if (r !== "admin" && !["inventory", "resale"].includes(r) && st.invAccess[A.me()] === "none") return U.empty("منار لسه مفعّلتش ليك صلاحية على الانفنتوري", "lock");
+      // KPIs الفريق: Manar follows her team's cards (and her own) from inside the inventory
+      if (r === "inventory" && ui("invView") === "kpis" && A.kpiBoard) return `<div class="row"><button class="btn ghost" data-act="invView" data-v="">${I("building")}رجوع للوحدات</button><span class="spacer"></span></div>
+        ${note("كارتك وكروت فريق الانفنتوري. افتحي أي كارت وعدّلي أو ضيفي بنود من «عدّل البنود»، ودخّلي القيم اليدوية لفريقك واعتمدي نتايجهم. اعتماد كارتك إنتي بيفضل مع نانسي.")}
+        ${A.kpiBoard("mine")}${A.kpiInvMissing ? A.kpiInvMissing() : ""}`;
       const avail = st.units.filter(A.isAvailable), cols = pub(COLS[t] || COLS.all), as = (x) => st.units.filter((u) => A.availableAs(u, x)).length;
       const types = [["all", "الكل", avail.length], ["Rent", "Rent", as("Rent")], ["Resale", "Resale", as("Resale")], ["Income", "Income", as("Income")], ["rented", "Rented / Sold", st.units.filter((u) => u.status !== "available" || u.alsoStatus === "closed").length]];
       return `<div class="kpis">${U.kpi("وحدات متاحة", avail.length, "Rent · Resale · Income", "building")}${U.kpi("PDF مستني Confirm", st.units.filter((u) => u.pdf === "draft").length, "قبل ما يتنشر للسيلز", "file", "warn")}${U.kpi("محتاجة ابديت", st.units.filter(A.stale).length, "last update أكتر من شهر", "clock", "bad", "invStale")}${U.kpi("ناقصها بيانات", st.units.filter((u) => !u.archived && A.missingOf(u).length).length, "تتكمّل بعدين", "alert", "bad", "invMissing")}</div>
         <div class="row">${U.tabs("invType", types, t)}<span class="spacer"></span>
-          ${A.can("notactive") ? `<a class="btn ghost" href="#notactive">${I("layers")}Not Active Inventory</a>` : ""}${A.canDo("inventory", "import") ? `<button class="btn ghost" data-act="importNew">${I("upload")}استيراد Excel</button>` : ""}${A.canDo("inventory", "approve") ? `<button class="btn ghost" data-act="invReport">${I("file")}التقرير اليومي</button><button class="btn ghost" data-act="teamTask">${I("check")}مهمة للفريق</button>` : ""}${A.canDo("inventory", "approve") || A.role === "tl" ? `<button class="btn ghost" data-act="listReqs">${I("list")}طلبات الـ Lists</button>` : ""}${U.exportBtn("units", "الوحدات")}${A.canDo("inventory", "approve") ? `<button class="btn ghost" data-act="invAccess">${I("lock")}الصلاحيات</button>` : ""}${A.canDo("inventory", "create") || canEdit() ? `<button class="btn" data-act="unitNew">${I("plus")}وحدة جديدة</button>` : ""}</div>
+          ${A.can("notactive") ? `<a class="btn ghost" href="#notactive">${I("layers")}Not Active Inventory</a>` : ""}${r === "inventory" ? `<button class="btn ghost" data-act="invView" data-v="kpis">${I("chart")}KPIs الفريق</button>` : ""}${A.canDo("inventory", "import") ? `<button class="btn ghost" data-act="importNew">${I("upload")}استيراد Excel</button>` : ""}${A.canDo("inventory", "approve") ? `<button class="btn ghost" data-act="invReport">${I("file")}التقرير اليومي</button><button class="btn ghost" data-act="teamTask">${I("check")}مهمة للفريق</button>` : ""}${A.canDo("inventory", "approve") || A.role === "tl" ? `<button class="btn ghost" data-act="listReqs">${I("list")}طلبات الـ Lists</button>` : ""}${U.exportBtn("units", "الوحدات")}${A.canDo("inventory", "approve") ? `<button class="btn ghost" data-act="invAccess">${I("lock")}الصلاحيات</button>` : ""}${A.canDo("inventory", "create") || canEdit() ? `<button class="btn" data-act="unitNew">${I("plus")}وحدة جديدة</button>` : ""}</div>
         <div class="toolbar">
           <label class="search">${I("search")}<input id="iq" type="search" placeholder="${A.seesUnitPrivate() ? "دوّر بأي حاجة: مشروع، كود، مالك، رقم" : "دوّر بأي حاجة: مشروع، كود، مبنى"}" value="${esc(f.q || "")}" data-change="invF" data-k="q"></label>
           <select id="if-a" data-change="invF" data-k="area" aria-label="Area">${opt("", "كل المناطق", f.area)}${st.areas.map((a) => opt(a, a, f.area)).join("")}</select>
@@ -93,6 +97,7 @@
   A.ACT.invType = (d) => { ui("invType", d.v); A.render(); };
   A.ACT.invTab = (d) => { ui("invTab", d.v === "" ? null : +d.v); A.render(); };
   A.ACT.invMode = (d) => { ui("invMode", d.v); A.render(); };
+  A.ACT.invView = (d) => { ui("invView", d.v || null); A.render(); };
   A.ACT.invMissing = () => { location.hash = "#inventory"; ui("invType", "all"); ui("invF", { miss: true }); A.render(); };
   A.ACT.invStale = () => { ui("invF", Object.assign({}, ui("invF"), { stale: true })); A.render(); };
   A.CHANGE.invF = (v, el) => { ui("invF", Object.assign({}, ui("invF"), { [el.dataset.k]: v })); A.render(); };

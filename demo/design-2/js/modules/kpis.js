@@ -166,10 +166,12 @@
   const seesAll = () => A.role === "admin" || A.canDo("kpis", "approve") || watcher();
   const noMoney = () => watcher() && A.role !== "admin" && !A.canDo("kpis", "edit") && !A.canDo("kpis", "approve"); // runs the KPIs, not the pay
   // the card's manager controls everything on it (items, weights, targets, how it's measured); so does whoever has KPI edit rights
-  const canManage = (id) => open() && (isFollower(id) || A.canDo("kpis", "edit") || watcher());
+  // the Inventory Manager also manages her own card (adds / edits its items); approving it stays with her follower
+  const ownInv = (id) => A.role === "inventory" && id === A.uid;
+  const canManage = (id) => open() && (isFollower(id) || A.canDo("kpis", "edit") || watcher() || ownInv(id));
   // a manual value is typed by whoever the item names (the follower by default)
   const canEnter = (id, it) => open() && (it.by || ["follower"]).some((x) => (x === "follower" ? isFollower(id) : x === A.uid || A.rolesOf(A.uid).includes(x)));
-  const visible = (scope) => Object.keys(cards()).filter((id) => (scope === "me" ? id === A.uid : scope === "team" ? isFollower(id) : seesAll() || id === A.uid || isFollower(id)));
+  const visible = (scope) => Object.keys(cards()).filter((id) => (scope === "me" ? id === A.uid : scope === "team" ? isFollower(id) : scope === "mine" ? id === A.uid || isFollower(id) : seesAll() || id === A.uid || isFollower(id)));
   const open = () => K().status !== "closed";
   const tone = (s) => band(s)[2];
   const below = (id) => cards()[id].items.filter((it) => ach(it, valOf(id, it)) < 1);
@@ -333,6 +335,11 @@
     const ids = people().map((u) => u.id).filter((id) => !cards()[id]); if (!ids.length || !(A.canDo("kpis", "edit") || watcher())) return "";
     return `<section class="card">${head("موظفين من غير كارت KPIs", "users", chip("warn", ids.length))}${ids.map((id) => `<div class="line-item"><span>${A.who(id)}<small class="hint">${esc(roleOf(id))}</small></span><button class="btn ghost sm" data-act="kpiNew" data-id="${id}">${I("plus")}اعمل كارت</button></div>`).join("")}</section>`;
   }
+  // Inventory → KPIs الفريق: Manar's own card + the cards she follows, and a card for anyone in the Inventory team who has none
+  const invTeam = () => (S().people || []).filter((p) => p.dept === "Inventory" && p.id !== A.uid && (S().users || []).some((u) => u.id === p.id && u.status === "active")).map((p) => p.id);
+  A.kpiInvMissing = () => { const ids = invTeam().filter((id) => !cards()[id]); if (!ids.length || !open()) return "";
+    return `<section class="card">${head("في الفريق من غير كارت KPIs", "users", chip("warn", ids.length))}${ids.map((id) => `<div class="line-item"><span>${A.who(id)}<small class="hint">${esc(roleOf(id))}</small></span><button class="btn ghost sm" data-act="kpiNewInv" data-id="${id}">${I("plus")}اعمل كارت</button></div>`).join("")}</section>`; };
+  A.ACT.kpiNewInv = (d) => { if (A.role !== "inventory" || !invTeam().includes(d.id) || cards()[d.id]) return; cards()[d.id] = { by: A.uid, items: [], pay: { base: "bonus", period: "quarter", amount: 0 } }; A.audit("kpis", `كارت KPIs جديد لـ ${A.person(d.id)} (يتابعه ${A.person(A.uid)})`); A.ui.kpEdit = true; A.render(); A.ACT.kpiOpen({ id: d.id }); };
   A.ACT.kpiNew = (d) => {
     const p = (S().people || []).find((x) => x.id === d.id) || (S().employees || []).find((x) => x.id === d.id) || {};
     cards()[d.id] = { by: p.tl || "owners", items: [], pay: { base: "bonus", period: "quarter", amount: 0 } };
