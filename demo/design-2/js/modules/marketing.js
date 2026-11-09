@@ -8,7 +8,7 @@
   function range() {
     const p = ui("mkRange") || "all", f = ui("mkF") || {}, t = A.today();
     if (p === "custom") return [f.from || "0000", f.to || "9999"];
-    const back = { "7": 7, "30": 30, "month": new Date(A.NOW()).getDate() - 1 }[p];
+    const back = { today: 0, "7": 7, "30": 30, "month": new Date(A.NOW()).getDate() - 1 }[p];
     return back == null ? ["0000", "9999"] : [new Date(A.NOW() - back * 864e5).toISOString().slice(0, 10), t];
   }
 
@@ -24,7 +24,7 @@
         const ch = {}; leads.forEach((l) => { const c = (ch[l.channel] = ch[l.channel] || { total: 0, q: 0 }); c.total++; if (l.everInterested) c.q++; });
         const tot = leads.length, q = leads.filter((l) => l.everInterested).length, spent = st.campaigns.reduce((s, c) => s + c.spent, 0);
         const posts = st.posts.map((p) => ({ p, n: leads.filter((l) => l.post === p.id).length })).filter((x) => x.n).sort((a, b) => b.n - a.n);
-        body = `<div class="toolbar">${U.seg("mkRange", [["7", "آخر 7 أيام"], ["30", "آخر 30 يوم"], ["month", "الشهر ده"], ["all", "كل الوقت"], ["custom", "فترة مخصصة"]], ui("mkRange") || "all")}
+        body = `<div class="toolbar">${U.seg("mkRange", [["today", "النهارده"], ["7", "آخر 7 أيام"], ["30", "آخر 30 يوم"], ["month", "الشهر ده"], ["all", "كل الوقت"], ["custom", "فترة مخصصة"]], ui("mkRange") || "all")}
           ${ui("mkRange") === "custom" ? `<label class="date-f"><span>من</span><input type="date" id="mk-from" value="${esc((ui("mkF") || {}).from || "")}" data-change="mkF" data-k="from"></label><label class="date-f"><span>لحد</span><input type="date" id="mk-to" value="${esc((ui("mkF") || {}).to || "")}" data-change="mkF" data-k="to"></label>` : ""}</div>
           <div class="kpis">${U.kpi("إجمالي الليدز", A.num(tot), "في الفترة دي", "users", "", "", U.trend(leads, "created", 7))}${U.kpi("Qualified", A.num(q), `${tot ? Math.round((q / tot) * 100) : 0}% نسبة التأهيل`, "star", "ok")}${U.kpi("صرف الكامبينز", A.money(spent), `${st.campaigns.length} كامبين`, "megaphone", "warn")}${U.kpi("تكلفة الـ Qualified", A.money(q ? spent / q : 0), "للّيد الواحد", "trend")}</div>
           <div class="cols wide"><section class="card">${head("Channels ← Campaigns", "layers", "", "إجمالي كل channel ومتفرع منه الكامبينز")}
