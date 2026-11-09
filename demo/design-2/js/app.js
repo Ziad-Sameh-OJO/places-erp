@@ -14,6 +14,8 @@
   if (!(S.schedReports || []).some((r) => r.daily)) S.schedReports.push(clone(window.SEED.schedReports.find((r) => r.daily)));
   const V0 = S.leadRules.visit; if (!V0.postponeInfo) { V0.postponeInfo = { to: ["u6"], ch: ["app"] }; if (V0.postpone.to.join() === "u6") V0.postpone.to = ["ownerTl"]; } // saved demos: the TL approves now, Heba is told
   if (S.leadRules.noAnswer.hours == null) S.leadRules.noAnswer.hours = 24;
+  // saved demos from before the Layout file folder: units get their seeded layout files, and P1901 the client's sheet row (Book, 9 Nov)
+  (S.units || []).forEach((u) => { const s = window.SEED.units.find((x) => x.code === u.code); if (!s || u.seedLayouts || !s.seedLayouts) return; Object.assign(u, { seedLayouts: clone(s.seedLayouts), layouts: [u.layouts, s.layouts].filter(Boolean).join("، "), layout: "Yes" }); ["floor", "building", "parking"].forEach((k) => { if (!u[k]) u[k] = s[k]; }); });
   if (!S.stages.includes("Follow up to Meeting") && S.stages.includes("Meeting")) S.stages.splice(S.stages.indexOf("Meeting"), 0, "Follow up to Meeting"); // saved demos from before this stage
   ["bills", "clientCodes", "receiveSources", "interactionTypes", "finishings", "unitPurposes", "paymentPlans", "mkTaskTypes", "ticketDepts"].forEach((k) => { if (!S[k]) S[k] = clone(window.SEED[k]); }); // saved demos from before these lists were editable
   // saved demos from before the accountant's chart: Property Finder is its own line, and every line of the chart exists

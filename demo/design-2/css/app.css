@@ -939,7 +939,27 @@ table.kpi-items td:first-child { min-width: 220px; }
 .uf-del .i { width: 14px; height: 14px; }
 .uf-dl { display: inline-flex !important; aspect-ratio: auto !important; background: none !important; align-items: center; gap: 3px; font-size: 11px; color: var(--accent, #2442ff) !important; justify-self: start; }
 .uf-dl .i { width: 13px; height: 13px; }
+/* Layout file folder: bigger tiles so a plan is readable, PDFs previewed in place, drawings (DWG) shown as a typed file */
+.ufolder.layout { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.uf .uf-pdf { display: block; width: 100%; aspect-ratio: 4 / 3; border: 0; background: #fff; pointer-events: none; }
+.ufolder.layout .uf-doc { font-size: 15px; letter-spacing: .04em; }
+.uf figcaption .uf-dl + .uf-dl { margin-inline-start: 10px; }
+.uf figcaption { grid-template-columns: auto auto 1fr; }
+.uf figcaption span, .uf figcaption small { grid-column: 1 / -1; }
 /* the unit's PDF preview (cover + spec page, scaled down) */
 .b-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; min-height: 120px; }
 .b-mini-pg { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 4px; box-shadow: 0 6px 16px -8px rgba(0,0,0,.4); }
 .b-mini-pg .b-pg { transform-origin: top left; position: absolute; top: 0; left: 0; }
+/* Not Active Inventory: files grouped in folders, and repeated values flagged in the sheet */
+.na-folder { margin: 14px 0 22px; }
+.na-folder-h { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 0 0 10px; }
+.na-folder-h .i { width: 18px; height: 18px; }
+.u-img.na-file { background: linear-gradient(135deg, #0b1b3f, #23408f); height: 96px; }
+.na-crumb { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; color: var(--ink-3); }
+.na-crumb b { color: var(--ink); }
+.na-crumb .btn { margin-inline-start: auto; }
+.na-cols { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; }
+td.na-dup { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
+/* Location link: shown as the link itself, left-to-right */
+.loc-lnk { direction: ltr; unicode-bidi: isolate; word-break: break-all; }
+td.loc-td { max-width: 220px; }

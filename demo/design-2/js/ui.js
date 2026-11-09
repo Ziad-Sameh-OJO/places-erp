@@ -114,7 +114,8 @@
   const rowsOf = (k) => k === "units" ? S().units : k === "clients" ? [] : (S()[k] || []).filter((x) => !x.archived);
   U.exportBtn = (k, label) => A.canDo(({ leads: "leads", deals: "deals", units: "inventory", audit: "access", attendance: "hr", purchases: "procurement", clients: "clients" })[k] || k, "export") ? `<button class="btn ghost sm" data-act="exportCsv" data-k="${k}" data-l="${esc(label)}">${I("upload")}تصدير ${esc(label)}</button>` : "";
   A.ACT.exportCsv = (d) => {
-    const c = cols[d.k]; if (!c) return;
+    let c = cols[d.k]; if (!c) return;
+    if (d.k === "units" && A.seesUnitPrivate && !A.seesUnitPrivate()) c = c.filter((x) => x[0] !== "Agent"); // the agent is Manar's only
     const data = d.k === "clients" ? (A.clientList ? A.clientList() : []) : rowsOf(d.k);
     const q = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
     const csv = [c.map((x) => q(x[0])).join(","), ...data.map((r) => c.map((x) => q(x[1](r))).join(","))].join("\n");

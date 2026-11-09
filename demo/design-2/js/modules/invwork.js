@@ -61,48 +61,67 @@
   };
   A.invWork = { todayCount, CAP };
 })();
-/* Pic & Info: a folder for every unit. Photos and PDFs are uploaded into it, kept in this browser (IndexedDB, since
-   localStorage can't hold images), and the unit's photo list, PIC and «uploaded within 24h» read from it. */
+/* Unit folders: every unit has a Pic & Info folder (photos + PDF) and a Layout file folder (PDF, DWG, images).
+   Files are uploaded into them, kept in this browser (IndexedDB, since localStorage can't hold images or drawings),
+   and the unit's photo list, PIC, «uploaded within 24h» and Layout read from them. */
 (function () {
   const A = window.APP, U = window.UI, esc = A.esc, I = A.icon, S = () => A.S, { note, chip } = U;
   let dbp;
   const db = () => dbp || (dbp = new Promise((ok, no) => { const r = indexedDB.open("places-d2-unit-files", 1); r.onupgradeneeded = () => r.result.createObjectStore("files", { keyPath: "id" }).createIndex("unit", "unit"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }));
   const tx = async (mode, fn) => { const d = await db(); return new Promise((ok, no) => { const t = d.transaction("files", mode), r = fn(t.objectStore("files")); t.oncomplete = () => ok(r && r.result); t.onerror = () => no(t.error); }); };
   const unitOf = (code) => S().units.find((x) => x.code === code);
-  const names = (u) => (u.photos || "").split("، ").filter(Boolean);
+  // the two folders share one store: a layout file is filed under "<code>#layout", so the PDF and slide (which read the photos) never see it
+  const KINDS = {
+    pic: { key: (c) => c, field: "photos", seed: "seedPhotos", title: "Pic & Info", accept: "image/*,application/pdf", btn: "ارفع صور / PDF", zip: "Pic & Info" },
+    layout: { key: (c) => c + "#layout", field: "layouts", seed: "seedLayouts", title: "Layout file", accept: "", btn: "ارفع Layout (PDF · DWG · صورة)", zip: "Layout" }
+  };
+  const K = (kind) => KINDS[kind] || KINDS.pic;
+  const names = (u, kind) => (u[K(kind).field] || "").split("، ").filter(Boolean);
+  const extOf = (n) => ((/\.([a-z0-9]+)$/i.exec(n || "") || [])[1] || "").toLowerCase();
+  const typeOf = (n) => ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf", dwg: "image/vnd.dwg", dxf: "image/vnd.dxf" })[extOf(n)] || "application/octet-stream";
   const canUpload = () => A.canDo("inventory", "edit") || S().invAccess[A.me()] === "edit" || A.role === "inventory_staff";
   const urls = new Map(); // file id → object URL, kept for the page's life (the folder, the PDF and the slide all show them)
-  // every file of a unit: the seed's photos shipped with the demo (img/units/…) + what was uploaded here, oldest first
-  A.unitFiles = async (code) => {
-    const u = unitOf(code); let up = []; try { up = await tx("readonly", (st) => st.index("unit").getAll(code)); } catch (e) { /* no IndexedDB */ }
+  // every file in one folder of a unit: the seed's files shipped with the demo (img/units/…) + what was uploaded here, oldest first
+  A.unitFiles = async (code, kind) => {
+    const u = unitOf(code), k = K(kind); let up = []; try { up = await tx("readonly", (st) => st.index("unit").getAll(k.key(code))); } catch (e) { /* no IndexedDB */ }
     up.forEach((f) => { if (!urls.has(f.id)) urls.set(f.id, URL.createObjectURL(f.blob)); });
-    return [...(u.seedPhotos || []).map((src) => ({ id: "seed:" + src, name: src.split("/").pop(), type: "image/jpeg", url: src, at: u.created, by: u.agent, seed: true })),
-      ...up.sort((a, b) => (a.at < b.at ? -1 : 1)).map((f) => Object.assign({ url: urls.get(f.id) }, f))];
+    const hidden = (u.seedHidden || {})[kind || "pic"] || [];
+    return [...(u[k.seed] || []).filter((src) => !hidden.includes(src)).map((src) => ({ id: "seed:" + src, name: src.split("/").pop(), type: typeOf(src), url: src, at: u.created, by: u.agent, seed: true })),
+      ...up.sort((a, b) => (a.at < b.at ? -1 : 1)).map((f) => Object.assign({ url: urls.get(f.id) }, f, { type: f.type || typeOf(f.name) }))];
   };
 
-  A.unitFilesAdd = async (code, files) => {
+  A.unitFilesAdd = async (code, files, kind) => {
     files = [...(files || [])].filter((f) => f.size); if (!files.length) return 0;
-    const u = unitOf(code), at = A.nowIso();
-    try { await tx("readwrite", (st) => files.forEach((f, i) => st.put({ id: `${code}/${Date.now()}-${i}`, unit: code, name: f.name, type: f.type, blob: f, at, by: A.uid }))); }
+    const u = unitOf(code), k = K(kind), at = A.nowIso();
+    try { await tx("readwrite", (st) => files.forEach((f, i) => st.put({ id: `${k.key(code)}/${Date.now()}-${i}`, unit: k.key(code), name: f.name, type: f.type || typeOf(f.name), blob: f, at, by: A.uid }))); }
     catch (e) { A.toast("الملفات مااترفعتش: مساحة المتصفح مش كفاية"); return 0; }
-    u.photos = [...names(u), ...files.map((f) => f.name)].join("، ");
-    if (!u.driveAt) { u.drive = `${code} · صور + PDF`; u.driveAt = at; }
+    u[k.field] = [...names(u, kind), ...files.map((f) => f.name)].join("، ");
+    if (kind === "layout") u.layout = "Yes";
+    else if (!u.driveAt) { u.drive = `${code} · صور + PDF`; u.driveAt = at; }
     u.pdf = "draft";
-    A.audit("inventory", `${code}: اترفع ${files.length} ملف في فولدر Pic & Info`); A.save(); return files.length;
+    A.audit("inventory", `${code}: اترفع ${files.length} ملف في فولدر ${k.title}`); A.save(); return files.length;
   };
 
+  // a tile shows what the browser can: images and PDFs are previewed, a drawing (DWG) shows its type and opens in AutoCAD / a DWG viewer
+  const tile = (u, f, kind, up) => {
+    const ext = extOf(f.name), img = /^image\/(jpeg|png|webp|gif)/.test(f.type), pdf = ext === "pdf" || f.type === "application/pdf";
+    const prev = img ? `<img src="${f.url}" alt="${esc(f.name)}">`
+      : pdf && kind === "layout" ? `<object class="uf-pdf" data="${f.url}#toolbar=0&navpanes=0&view=Fit" type="application/pdf" aria-label="${esc(f.name)}"><span class="uf-doc">${I("file")}PDF</span></object>`
+      : `<span class="uf-doc">${I("file")}${esc((ext || "file").toUpperCase())}</span>`;
+    const open = img || pdf ? `<a href="${f.url}" target="_blank" rel="noopener" title="افتح">${prev}</a>` : prev;
+    return `<figure class="uf">${open}<figcaption><span>${esc(f.name)}</span><small>${A.fmtDate(f.at)} · ${esc(A.person(f.by))}${!img && !pdf ? " · بيتفتح بـ AutoCAD أو DWG viewer" : ""}</small>${img || pdf ? `<a class="uf-dl" href="${f.url}" target="_blank" rel="noopener">${I("file")}عرض</a>` : ""}<a class="uf-dl" href="${f.url}" download="${esc(f.name)}">${I("download")}تحميل</a>${up ? `<label class="uf-dl uf-rep">${I("swap")}استبدال<input type="file" ${K(kind).accept ? `accept="${K(kind).accept}"` : ""} data-change="unitFileRep" data-kind="${kind}" data-id="${esc(f.id)}" data-code="${u.code}" hidden></label>` : ""}</figcaption>${up && (!f.seed || kind === "layout") ? `<button class="uf-del" data-act="unitFileDel" data-kind="${kind}" data-id="${esc(f.id)}" data-code="${u.code}" aria-label="امسح ${esc(f.name)}">${I("x")}</button>` : ""}</figure>`;
+  };
   A.ACT.unitFolder = async (d) => {
     const u = unitOf(d.code); if (!u) return;
-    const files = await A.unitFiles(d.code);
-    const left = names(u).slice(); files.forEach((f) => { const i = left.indexOf(f.name); if (i >= 0) left.splice(i, 1); }); // names saved before the folder existed (no file behind them)
+    const kind = d.kind === "layout" ? "layout" : "pic", k = K(kind), files = await A.unitFiles(d.code, kind);
+    const left = names(u, kind).slice(); files.forEach((f) => { const i = left.indexOf(f.name); if (i >= 0) left.splice(i, 1); }); // names saved before the folder existed (no file behind them)
     const up = canUpload(), n = files.length + left.length;
-    const tile = (f) => `<figure class="uf"><a href="${f.url}" target="_blank" rel="noopener" title="افتح">${/^image\//.test(f.type) ? `<img src="${f.url}" alt="${esc(f.name)}">` : `<span class="uf-doc">${I("file")}PDF</span>`}</a><figcaption><span>${esc(f.name)}</span><small>${A.fmtDate(f.at)} · ${esc(A.person(f.by))}</small><a class="uf-dl" href="${f.url}" download="${esc(f.name)}">${I("download")}تحميل</a></figcaption>${up && !f.seed ? `<button class="uf-del" data-act="unitFileDel" data-id="${esc(f.id)}" data-code="${u.code}" aria-label="امسح ${esc(f.name)}">${I("x")}</button>` : ""}</figure>`;
-    A.openModal(`فولدر ${u.code} · Pic & Info`, `<div class="row"><span class="hint">${esc(u.project)} · ${esc(u.area || "")} · ${n} ملف</span><span class="spacer"></span>${files.length ? `<button class="btn ghost" data-act="unitFolderZip" data-code="${u.code}">${I("download")}نزّل الفولدر كله (ZIP)</button>` : ""}${up ? `<label class="btn">${I("upload")}ارفع صور / PDF<input type="file" multiple accept="image/*,application/pdf" data-change="unitFolderUp" data-code="${u.code}" hidden></label>` : ""}</div>
-      ${n ? `<div class="ufolder">${files.map(tile).join("")}${left.map((x) => `<figure class="uf old"><span class="uf-doc">${I("image")}</span><figcaption><span>${esc(x)}</span><small>اسم ملف بس · ارفعه تاني عشان يظهر</small></figcaption></figure>`).join("")}</div>`
-        : `<div class="ufolder empty">${I("folder")}<b>الفولدر فاضي</b><span class="hint">${up ? "ارفع كل صور الوحدة هنا، وتقدر ترفع أكتر من صورة مرة واحدة." : "لسه محدش رفع صور للوحدة دي."}</span></div>`}
-      ${note("الصور دي بتتشاف من خانة Pic & Info في الشيت ومن صفحة الوحدة، ومنها بيتعمل الـ PDF والـ slide. أول رفع بيتسجّل وقته وبيتحسب في «رفع الصور خلال 24 ساعة».")}`);
+    A.openModal(`فولدر ${u.code} · ${k.title}`, `<div class="row"><span class="hint">${esc(u.project)} · ${esc(u.area || "")} · ${n} ملف</span><span class="spacer"></span>${files.length ? `<button class="btn ghost" data-act="unitFolderZip" data-kind="${kind}" data-code="${u.code}">${I("download")}نزّل الفولدر كله (ZIP)</button>` : ""}${up ? `<label class="btn">${I("upload")}${k.btn}<input type="file" multiple ${k.accept ? `accept="${k.accept}"` : ""} data-change="unitFolderUp" data-kind="${kind}" data-code="${u.code}" hidden></label>` : ""}</div>
+      ${n ? `<div class="ufolder${kind === "layout" ? " layout" : ""}">${files.map((f) => tile(u, f, kind, up)).join("")}${left.map((x) => `<figure class="uf old"><span class="uf-doc">${I(kind === "layout" ? "file" : "image")}</span><figcaption><span>${esc(x)}</span><small>اسم ملف بس · ارفعه تاني عشان يظهر</small></figcaption></figure>`).join("")}</div>`
+        : `<div class="ufolder empty">${I("folder")}<b>الفولدر فاضي</b><span class="hint">${up ? (kind === "layout" ? "ارفع ملف الـ Layout هنا: PDF أو DWG (AutoCAD) أو صورة، وتقدر ترفع أكتر من ملف." : "ارفع كل صور الوحدة هنا، وتقدر ترفع أكتر من صورة مرة واحدة.") : (kind === "layout" ? "لسه محدش رفع Layout للوحدة دي." : "لسه محدش رفع صور للوحدة دي.")}</span></div>`}
+      ${note(kind === "layout" ? "ملفات الـ Layout بتتشاف من خانة Layout file في الشيت ومن صفحة الوحدة. الـ PDF والصور بيتعرضوا هنا على طول، وملف الـ DWG بيتحمّل ويتفتح ببرنامج AutoCAD أو أي DWG viewer." : "الصور دي بتتشاف من خانة Pic في الشيت ومن صفحة الوحدة، ومنها بيتعمل الـ PDF والـ slide. أول رفع بيتسجّل وقته وبيتحسب في «رفع الصور خلال 24 ساعة».")}`);
   };
-  // the whole folder as one .zip (stored, no compression: photos and PDFs are compressed already)
+  // the whole folder as one .zip (stored, no compression: photos, PDFs and drawings are compressed already)
   const CRC = new Uint32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
   const crc32 = (b) => { let c = ~0; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return ~c >>> 0; };
   A.zip = (entries) => { // [{ name, data: Uint8Array }] → Blob
@@ -119,16 +138,33 @@
     return new Blob([...parts, ...dir, e], { type: "application/zip" });
   };
   A.ACT.unitFolderZip = async (d) => {
-    const files = await A.unitFiles(d.code), seen = {};
-    const entries = await Promise.all(files.map(async (f) => { const k = f.name in seen ? f.name.replace(/(\.[^.]*)?$/, `-${++seen[f.name]}$1`) : ((seen[f.name] = 0), f.name); return { name: `${d.code}/${k}`, data: new Uint8Array(await (f.blob || (await fetch(f.url)).blob()).arrayBuffer()) }; }));
-    const a = document.createElement("a"); a.href = URL.createObjectURL(A.zip(entries)); a.download = `${d.code} - Pic & Info.zip`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    A.audit("inventory", `${d.code}: اتنزّل فولدر Pic & Info (${entries.length} ملف)`); A.toast(`اتنزّل ${entries.length} ملف`);
+    const k = K(d.kind), files = await A.unitFiles(d.code, d.kind), seen = {};
+    const entries = await Promise.all(files.map(async (f) => { const n = f.name in seen ? f.name.replace(/(\.[^.]*)?$/, `-${++seen[f.name]}$1`) : ((seen[f.name] = 0), f.name); return { name: `${d.code}/${n}`, data: new Uint8Array(await (f.blob || (await fetch(f.url)).blob()).arrayBuffer()) }; }));
+    const a = document.createElement("a"); a.href = URL.createObjectURL(A.zip(entries)); a.download = `${d.code} - ${k.zip}.zip`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    A.audit("inventory", `${d.code}: اتنزّل فولدر ${k.title} (${entries.length} ملف)`); A.toast(`اتنزّل ${entries.length} ملف`);
   };
-  A.CHANGE.unitFolderUp = async (v, el) => { const code = el.dataset.code, n = await A.unitFilesAdd(code, el.files); if (n) { A.toast(`اترفع ${n} ملف في فولدر ${code}`); A.render(); A.ACT.unitFolder({ code }); } };
+  A.CHANGE.unitFolderUp = async (v, el) => { const code = el.dataset.code, kind = el.dataset.kind, n = await A.unitFilesAdd(code, el.files, kind); if (n) { A.toast(`اترفع ${n} ملف في فولدر ${K(kind).title} بتاع ${code}`); A.render(); A.ACT.unitFolder({ code, kind }); } };
+  // remove one file from a folder: an uploaded file leaves the browser store, a file shipped with the demo is hidden for that unit
+  const removeFile = async (u, kind, id) => {
+    const k = K(kind); let name = "";
+    if (id.startsWith("seed:")) { const src = id.slice(5); name = src.split("/").pop(); u.seedHidden = u.seedHidden || {}; (u.seedHidden[kind] = u.seedHidden[kind] || []).push(src); }
+    else { const f = await tx("readonly", (st) => st.get(id)); name = f ? f.name : ""; await tx("readwrite", (st) => st.delete(id)); }
+    const L = names(u, kind), i = L.indexOf(name); if (i >= 0) L.splice(i, 1); u[k.field] = L.join("، ");
+    return name;
+  };
+  const layoutLeft = (u) => names(u, "layout").length > 0;
   A.ACT.unitFileDel = async (d) => {
     if (!confirm("تمسح الملف ده من فولدر الوحدة؟")) return;
-    const u = unitOf(d.code), f = await tx("readonly", (st) => st.get(d.id)); await tx("readwrite", (st) => st.delete(d.id));
-    const L = names(u), i = L.indexOf(f && f.name); if (i >= 0) L.splice(i, 1); u.photos = L.join("، "); u.pdf = "draft";
-    A.audit("inventory", `${u.code}: اتمسح ${f ? f.name : "ملف"} من فولدر Pic & Info`); A.save(); A.render(); A.ACT.unitFolder({ code: u.code });
+    const u = unitOf(d.code), k = K(d.kind), name = await removeFile(u, d.kind, d.id); u.pdf = "draft";
+    if (d.kind === "layout" && !layoutLeft(u)) u.layout = "No";
+    A.audit("inventory", `${u.code}: اتمسح ${name || "ملف"} من فولدر ${k.title}`); A.save(); A.render(); A.ACT.unitFolder({ code: u.code, kind: d.kind });
+  };
+  // replace = the new file takes the old one's place (an updated layout, a better photo); both names go in the Audit Log
+  A.CHANGE.unitFileRep = async (v, el) => {
+    const file = el.files && el.files[0]; if (!file) return;
+    const { code, kind, id } = el.dataset, u = unitOf(code), k = K(kind), old = await removeFile(u, kind, id);
+    const n = await A.unitFilesAdd(code, [file], kind); if (!n) return;
+    A.audit("inventory", `${code}: ${old || "ملف"} اتبدّل بـ ${file.name} في فولدر ${k.title}`); A.save();
+    A.toast(`${old || "الملف"} اتبدّل بـ ${file.name}`); A.render(); A.ACT.unitFolder({ code, kind });
   };
 })();
