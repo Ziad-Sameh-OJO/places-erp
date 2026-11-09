@@ -47,6 +47,8 @@ export function shownLeadFilters(f: LeadFilters, hidden: Hidden): LeadQuery {
   return {
     ...f, ...(hidden.has("area") ? { area: undefined } : {}), ...(hidden.has("channel") ? { channel: undefined } : {}),
     ...(hidden.has("campaignId") ? { campaignId: undefined } : {}), phoneSearch: !hidden.has("phones"),
+    // sorting by a hidden field would tell its value (0.15): the list keeps its default order
+    ...(f.sort && hidden.has(f.sort) ? { sort: undefined } : {}),
   };
 }
 

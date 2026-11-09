@@ -13,6 +13,9 @@ export const CalendarDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاري
 
 export const Page = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) });
 export type Page = z.infer<typeof Page>;
+/** 0.15: a paginated list sorted by one of its columns in the API (across every page); no `dir` = ascending. */
+export const SortDir = z.enum(["asc", "desc"]);
+export type SortDir = z.infer<typeof SortDir>;
 export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number }
 
 /** Excel/CSV import: what the screen shows before «تأكيد» (lines are sheet lines, the header is line 1). */
