@@ -312,7 +312,7 @@
         ${edit ? `${c.items.map((it, i) => editBlock(id, it, i)).join("")}<div class="row"><button class="btn ghost" data-act="kpiAdd" data-id="${id}">${I("plus")}بند جديد</button></div>` : ""}
         ${note("كل بند بيتحسب بالنسبة، ولو عدّى 100% بيتسجّل زي ما هو. البند اللي «صفر» أو «لا يزيد عن» لو زاد بيقل بالنسبة (مقترح لحد تأكيد الكلاينت).")}
 `;
-    const foot = `<div class="row end">${canManage(id) ? `<button class="btn ghost" data-act="kpiEditT">${A.ui.kpEdit ? "خلصت تعديل" : "عدّل البنود"}</button>` : ""}${fol && !ok ? `<button class="btn" data-act="kpiApprove" data-id="${id}">${I("check")}اعتمد النتيجة</button>` : ok ? chip("ok", `اتعتمد من ${A.person(ok.by)}`) : ""}</div>`;
+    const foot = `<div class="row end">${canManage(id) ? `<button class="btn ghost" data-act="kpiEditT">${A.ui.kpEdit ? "خلصت تعديل" : "إضافة أو تعديل KPIs"}</button>` : ""}${fol && !ok ? `<button class="btn" data-act="kpiApprove" data-id="${id}">${I("check")}اعتمد النتيجة</button>` : ok ? chip("ok", `اتعتمد من ${A.person(ok.by)}`) : ""}</div>`;
     return { c, ok, body, foot };
   }
   const people = () => (S().users || []).filter((u) => u.status === "active");

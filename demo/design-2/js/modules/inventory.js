@@ -67,7 +67,7 @@
       if (r !== "admin" && !["inventory", "resale"].includes(r) && st.invAccess[A.me()] === "none") return U.empty("منار لسه مفعّلتش ليك صلاحية على الانفنتوري", "lock");
       // KPIs الفريق: Manar follows her team's cards (and her own) from inside the inventory
       if (r === "inventory" && ui("invView") === "kpis" && A.kpiBoard) return `<div class="row"><button class="btn ghost" data-act="invView" data-v="">${I("building")}رجوع للوحدات</button><span class="spacer"></span></div>
-        ${note("كارتك وكروت فريق الانفنتوري. افتحي أي كارت وعدّلي أو ضيفي بنود من «عدّل البنود»، ودخّلي القيم اليدوية لفريقك واعتمدي نتايجهم. اعتماد كارتك إنتي بيفضل مع نانسي.")}
+        ${note("كارتك وكروت فريق الانفنتوري. افتحي أي كارت وعدّلي أو ضيفي بنود من «إضافة أو تعديل KPIs»، ودخّلي القيم اليدوية لفريقك واعتمدي نتايجهم. اعتماد كارتك إنتي بيفضل مع نانسي.")}
         ${A.kpiBoard("mine")}${A.kpiInvMissing ? A.kpiInvMissing() : ""}`;
       const avail = st.units.filter(A.isAvailable), cols = pub(COLS[t] || COLS.all), as = (x) => st.units.filter((u) => A.availableAs(u, x)).length;
       const types = [["all", "الكل", avail.length], ["Rent", "Rent", as("Rent")], ["Resale", "Resale", as("Resale")], ["Income", "Income", as("Income")], ["rented", "Rented / Sold", st.units.filter((u) => u.status !== "available" || u.alsoStatus === "closed").length]];
