@@ -194,29 +194,46 @@
   A.FORM.unitEdit = (f, form) => { const u = S().units.find((x) => x.code === f.code), ch = []; const pics = form && form.querySelector("[name=photos]"); if (pics && pics.files.length) A.unitFilesAdd(u.code, pics.files).then(() => A.render()); delete f.photos; const lay = form && form.querySelector("[name=layoutFiles]"); if (lay && lay.files.length) A.unitFilesAdd(u.code, lay.files, "layout").then(() => A.render()); delete f.layoutFiles; if (f.also !== undefined && f.also !== (u.also || "")) { u.alsoStatus = f.also ? "available" : ""; } Object.keys(f).forEach((k) => { if (k === "code") return; let v = ["space", "parking", "pricePerSqm", "salePerSqm", "leasePerSqm", "minSplit", "alsoPricePerSqm", "contractYears", "escalation", "serviceUsd"].includes(k) ? +f[k] : k === "divisible" ? f[k] === "yes" : f[k]; if (String(u[k] ?? "") !== String(v ?? "")) { ch.push(`${k}: ${u[k]} ← ${v}`); u[k] = v; } }); if (ch.length) { u.pdf = "draft"; u.lastUpdate = A.today(); A.audit("inventory", `${u.code}: ${ch.join(" · ")}`); } A.closeModal(); A.toast(ch.length ? "اتحفظ · الـ PDF مستني Confirm تاني" : "مفيش تغيير"); A.render(); };
   A.ACT.unitArchive = (d) => { const u = S().units.find((x) => x.code === d.code); u.archived = true; A.audit("inventory", `${u.code} اتأرشفت`); A.closeDrawer(); A.toast(`${u.code} اتأرشفت`, () => { u.archived = false; }); A.render(); };
 
-  /* Excel import with duplicate check */
-  A.ACT.importNew = () => A.openModal("استيراد Excel (القالب الموحّد)", `${note("الأعمدة: project, space, floor, building, contact, number, pricePerSqm, type. السيستم بيكشف التكرار بالبيانات كاملة، والمكرر بيستنى قرار المانجر.")}
-    <form data-form="importNew">${field("ارفع ملف Excel بالقالب الموحّد", `<input type="file" accept=".xlsx,.xls,.csv" data-change="imFile">`)}${field("الصفوف (CSV)", `<textarea name="csv" id="im-csv" style="min-height:160px">${S().importSample.map((r) => [r.project, r.space, r.floor, r.building, r.contact, r.number, r.pricePerSqm, r.type].join(",")).join("\n")}</textarea>`, 1)}
-    <div class="row end"><span class="hint spacer">ارفع ملف Excel أو عدّل الصفوف التجريبية، والسيستم هيفحص التكرار.</span><button class="btn">${I("upload")}افحص وابعت للمراجعة</button></div></form>`);
+  /* Excel import with duplicate check · منع التكرار: Manar picks the column(s) when she imports. A row is a repeat only when ALL the
+     chosen columns match a unit already in the inventory or an earlier row of the same file. Default: the unit itself
+     (Project + Building + Floor + Area), not the owner's number, since one owner often has several units. */
+  const IM_COLS = [["project", "Project"], ["space", "Area"], ["floor", "Floor"], ["building", "Building Number"], ["contact", "Contact"], ["number", "Number"]];
+  const IM_DEFAULT = ["project", "space", "floor", "building"];
+  const imCols = () => S().imDupCols || IM_DEFAULT;
+  const imVal = (k, v) => { const t = String(v == null ? "" : v).trim(); if (!t) return ""; return k === "number" ? A.normPhone(t) : k === "space" ? String(+t || t) : t.toLowerCase().replace(/\s+/g, " "); };
+  const imKey = (r, cols) => { const p = cols.map((k) => imVal(k, r[k])); return p.length && p.every(Boolean) ? p.join("\u0001") : ""; };
+  const imChooser = () => `<div class="na-cols"><span class="hint">منع التكرار بـ:</span>${IM_COLS.map(([k, l]) => `<label class="tog"><input type="checkbox" ${imCols().includes(k) ? "checked" : ""} data-change="imDupCol" data-k="${k}"><span>${esc(l)}</span></label>`).join("")}</div>
+    <p class="hint">الصف بيتحسب مكرر لما ${imCols().length > 1 ? "الخانات المختارة كلها تبقى" : "الخانة دي تبقى"} زي وحدة موجودة أو صف قبله في نفس الملف. مالك بنفس الاسم أو الرقم وعنده وحدة تانية مش بيتحسب مكرر غير لو اخترت Contact أو Number لوحدهم.</p>`;
+  A.ACT.importNew = () => A.openModal("استيراد Excel (القالب الموحّد)", `${note("الأعمدة: project, space, floor, building, contact, number, pricePerSqm, type. اختار خانة منع التكرار، والمكرر بيستنى قرار المانجر.")}
+    <form data-form="importNew">${field("ارفع ملف Excel بالقالب الموحّد", `<input type="file" accept=".xlsx,.xls,.csv" data-change="imFile">`)}<div id="im-dup">${imChooser()}</div>${field("الصفوف (CSV)", `<textarea name="csv" id="im-csv" style="min-height:160px">${S().importSample.map((r) => [r.project, r.space, r.floor, r.building, r.contact, r.number, r.pricePerSqm, r.type].join(",")).join("\n")}</textarea>`, 1)}
+    <div class="row end"><span class="hint spacer">ارفع ملف Excel أو عدّل الصفوف التجريبية، والسيستم هيفحص التكرار بالخانات اللي اخترتها.</span><button class="btn">${I("upload")}افحص وابعت للمراجعة</button></div></form>`);
+  A.CHANGE.imDupCol = (v, el) => { const st = S(), c = imCols().slice(), i = c.indexOf(el.dataset.k); if (v && i < 0) c.push(el.dataset.k); if (!v && i >= 0) c.splice(i, 1); if (!c.length) { el.checked = true; A.toast("لازم خانة واحدة على الأقل"); return; } st.imDupCols = IM_COLS.map(([k]) => k).filter((k) => c.includes(k)); A.save(); const box = document.getElementById("im-dup"); if (box) box.innerHTML = imChooser(); };
   // the Excel file fills the rows box (header row skipped when it isn't data)
   A.CHANGE.imFile = (v, el) => { const f = el.files && el.files[0]; if (!f) return; U.readSheet(f).then((rows) => { const data = rows.filter((r) => /\d/.test(r[1] || "")); document.getElementById("im-csv").value = data.map((r) => r.slice(0, 8).join(",")).join("\n"); A.toast(`اتقرا ${data.length} صف من ${f.name}`); }).catch((e) => A.toast(e.message)); };
   A.FORM.importNew = (f) => {
-    const st = S(), rows = f.csv.split(/\n/).map((x) => x.split(",").map((s) => s.trim())).filter((x) => x.length >= 8).map(([project, space, floor, building, contact, number, pricePerSqm, type]) => ({ project, space: +space, floor, building, contact, number, pricePerSqm: +pricePerSqm, type }));
-    rows.forEach((rw) => { const d = st.units.find((u) => u.project === rw.project && +u.space === rw.space && String(u.floor) === String(rw.floor) && u.building === rw.building && A.normPhone(u.number) === A.normPhone(rw.number)); rw.dupe = d ? d.code : ""; rw.decision = d ? "skip" : "add"; });
-    const job = { id: "IM-" + Date.now(), rows, status: "pending", by: A.me() }; st.imports.push(job);
-    A.notify(["inventory"], `استيراد Excel فيه ${rows.length} صف · ${rows.filter((x) => x.dupe).length} متكرر محتاج قرارك`);
+    const st = S(), cols = imCols(), rows = f.csv.split(/\n/).map((x) => x.split(",").map((s) => s.trim())).filter((x) => x.length >= 8).map(([project, space, floor, building, contact, number, pricePerSqm, type]) => ({ project, space: +space, floor, building, contact, number, pricePerSqm: +pricePerSqm, type }));
+    const inInv = {}; st.units.filter((u) => !u.archived).forEach((u) => { const k = imKey(u, cols); if (k && !inInv[k]) inInv[k] = u.code; });
+    const inFile = {};
+    rows.forEach((rw, i) => { const k = imKey(rw, cols); rw.dupe = ""; rw.dupeRow = null; rw.decision = "add";
+      if (k && inInv[k]) { rw.dupe = inInv[k]; rw.decision = "skip"; } else if (k && inFile[k] != null) { rw.dupeRow = inFile[k] + 1; rw.decision = "skip"; } if (k && inFile[k] == null) inFile[k] = i; });
+    const by = cols.map((k) => IM_COLS.find((c) => c[0] === k)[1]).join(" + "), n = rows.filter((x) => x.dupe || x.dupeRow).length;
+    const job = { id: "IM-" + Date.now(), rows, status: "pending", by: A.me(), dupBy: by }; st.imports.push(job);
+    A.audit("inventory", `استيراد Excel: ${rows.length} صف · منع التكرار بـ ${by} · ${n} مكرر`);
+    A.notify(["inventory"], `استيراد Excel فيه ${rows.length} صف · ${n} متكرر (بـ ${by}) محتاج قرارك`);
     A.closeModal(); A.ACT.importReview({ id: job.id }); A.render();
   };
   A.ACT.importReview = (d) => {
     const job = S().imports.find((x) => x.id === d.id), mgr = A.canDo("inventory", "approve");
-    A.openModal(`مراجعة الاستيراد · ${job.rows.length} صف`, `${table(["المشروع", "المساحة", "الدور", "المبنى", "المالك", "التكرار", "القرار"], job.rows.map((rw, i) => `<tr><td>${esc(rw.project)}</td><td class="n">${rw.space}</td><td>${esc(rw.floor)}</td><td>${esc(rw.building)}</td><td>${esc(rw.contact)}</td><td>${rw.dupe ? chip("warn", "مكرر مع " + rw.dupe) : chip("ok", "جديد")}</td><td>${rw.dupe && mgr ? `<select data-change="imDec" data-id="${job.id}" data-i="${i}">${opt("skip", "استبعد المكرر", rw.decision)}${opt("merge", "ادمج (حدّث القديم)", rw.decision)}</select>` : esc(rw.decision === "add" ? "هيتضاف" : rw.decision)}</td></tr>`))}
+    const dupChip = (rw) => rw.dupe ? chip("warn", "مكرر مع " + rw.dupe) : rw.dupeRow ? chip("warn", `مكرر مع صف ${rw.dupeRow} في الملف`) : chip("ok", "جديد");
+    const dec = (rw, i) => `<select data-change="imDec" data-id="${job.id}" data-i="${i}">${opt("skip", "استبعد المكرر", rw.decision)}${rw.dupe ? opt("merge", "ادمج (حدّث القديم)", rw.decision) : ""}${opt("add", "ضيفها برضه (مش مكررة)", rw.decision)}</select>`;
+    A.openModal(`مراجعة الاستيراد · ${job.rows.length} صف`, `${job.dupBy ? note(`منع التكرار بـ <b>${esc(job.dupBy)}</b>. أي صف متعلّم مكرر بالغلط اختار له «ضيفها برضه».`) : ""}${table(["المشروع", "المساحة", "الدور", "المبنى", "المالك", "التكرار", "القرار"], job.rows.map((rw, i) => `<tr><td>${esc(rw.project)}</td><td class="n">${rw.space}</td><td>${esc(rw.floor)}</td><td>${esc(rw.building)}</td><td>${esc(rw.contact)}</td><td>${dupChip(rw)}</td><td>${(rw.dupe || rw.dupeRow) && mgr ? dec(rw, i) : esc(rw.decision === "add" ? "هيتضاف" : rw.decision)}</td></tr>`))}
       ${mgr ? `<div class="row end"><button class="btn" data-act="importApprove" data-id="${job.id}">وافق ونفّذ</button></div>` : note("مستني موافقة منار (المانجر) على المكرر.")}`);
   };
   A.CHANGE.imDec = (v, el) => { S().imports.find((x) => x.id === el.dataset.id).rows[+el.dataset.i].decision = v; };
   A.ACT.importApprove = (d) => {
     const st = S(), job = st.imports.find((x) => x.id === d.id); let add = 0, merge = 0;
     job.rows.forEach((rw) => {
-      if (rw.decision === "add") { st.units.unshift(Object.assign({ code: "U-" + st.unitSeq++, area: st.areas[0], condition: "متشطب", status: "available", pdf: "draft", lastUpdate: A.today(), created: A.today(), agent: "s1", parking: 0, divisible: false, minSplit: 0, tab: null }, rw)); add++; }
+      if (rw.decision === "add") { const { dupe, dupeRow, decision, ...data } = rw; st.units.unshift(Object.assign({ code: "U-" + st.unitSeq++, area: st.areas[0], condition: "متشطب", status: "available", pdf: "draft", lastUpdate: A.today(), created: A.today(), agent: "s1", parking: 0, divisible: false, minSplit: 0, tab: null }, data)); add++; }
       if (rw.decision === "merge") { const u = st.units.find((x) => x.code === rw.dupe); Object.assign(u, { pricePerSqm: rw.pricePerSqm, contact: rw.contact, lastUpdate: A.today() }); merge++; }
     });
     job.status = "done"; A.closeModal(); A.toast(`اتضاف ${add} وحدة · اتدمج ${merge} · اتستبعد ${job.rows.length - add - merge}`); A.render();
