@@ -963,3 +963,5 @@ td.na-dup { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
 /* Location link: shown as the link itself, left-to-right */
 .loc-lnk { direction: ltr; unicode-bidi: isolate; word-break: break-all; }
 td.loc-td { max-width: 220px; }
+/* التقارير والتارجت · who else can see it (chosen by the heads) */
+.rp-access { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }

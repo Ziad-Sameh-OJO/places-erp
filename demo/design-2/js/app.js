@@ -131,7 +131,12 @@
   const me = () => uid || ROLES[role].user;
   const rolesOf = (id) => { const u = userOf(id); return u ? [u.role, ...(u.extraRoles || [])] : [role]; };
   // permission = the role's matrix + any per-person override (e.g. Manar granting inventory access)
-  const permStr = (mod) => { const base = [...new Set(rolesOf(me()).map((r) => (S.perms[r] && S.perms[r].p[mod]) || "").join(""))].join(""); const u = userOf(me()); const o = u && u.overrides && u.overrides[mod]; return o != null ? o : base; };
+  // التقارير والتارجت: the heads only (Super Admin, Office Manager · e.g. أحمد إسلام، نانسي), and whoever a head opens it for
+  const REPORT_HEADS = ["admin", "officemgr"];
+  const isReportsHead = () => rolesOf(me()).some((r) => REPORT_HEADS.includes(r));
+  const permStr = (mod) => { let base = [...new Set(rolesOf(me()).map((r) => (S.perms[r] && S.perms[r].p[mod]) || "").join(""))].join(""); const u = userOf(me()); const o = u && u.overrides && u.overrides[mod];
+    if (mod === "reports" && !isReportsHead()) base = (S.reportsAccess || []).includes(me()) ? base || "v" : "";
+    return o != null && !(mod === "reports" && !isReportsHead() && !(S.reportsAccess || []).includes(me())) ? o : base; };
   const canDo = (mod, act) => permStr(mod).includes(ACTS[act] || act);
   const can = (view) => view === "profile" || canDo(view, "view"); // everyone can open their own account page
   const navList = () => MODS.filter((m) => can(m));
@@ -546,7 +551,7 @@
   }
 
   window.APP = {
-    get S() { return S; }, set S(v) { S = v; }, get role() { return role; }, get ui() { return ui; }, get uid() { return uid; }, signIn, signOut, userOf, rolesOf, roleLabel, save, ROLES, NAV, MODS, ACTS, canDo, permStr, navList, scope, audit, isHolidayToday, holOn, icon, avatar, who, esc, money, short, num, person, today, nowIso, NOW,
+    get S() { return S; }, set S(v) { S = v; }, get role() { return role; }, get ui() { return ui; }, get uid() { return uid; }, signIn, signOut, userOf, rolesOf, roleLabel, save, isReportsHead, ROLES, NAV, MODS, ACTS, canDo, permStr, navList, scope, audit, isHolidayToday, holOn, icon, avatar, who, esc, money, short, num, person, today, nowIso, NOW,
     fmtDate, fmtTime, fmtHM, minsSince, ago, hm, sales, activeSales, checkIn, dayVisit, manualOrder, onLeave, me, can, log, setStage, nextSales, routeArea, sla, slaLimits, rotateNoAnswer, findDupe, normPhone,
     unitTotal, incomeCalc, availableAs, isAvailable, stale, unitTab, recommend, attRow, dayRate, syncFingerprint, collected, collectedFrom, dealStatus, countsRevenue, inTarget, placesComm, salesShares, salesComm, buyersOf, sellersOf, inDeal, transactions, targetOf, targetGoal, tlStats, assignByHand, workMins, suspicious, notify, toast, forMe, lastTouch, ruleTo, ruleHas, isIn, dur,
     openModal, closeModal, openDrawer, closeDrawer, refreshDrawer, openCmd, render, ACT, FORM, CHANGE, DROP, DEFAULT_DED, CLOSED_OUT, deptOf, init

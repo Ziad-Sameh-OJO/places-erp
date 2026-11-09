@@ -119,7 +119,7 @@
       }
       if (t === "sched") { const ed = A.canDo("reports", "edit"); body = `${note("كل تقرير: إمتى بيتعمل، مين بيحضّره ومين بيستلمه، والتذكير قبل الميعاد، ومين يتبلّغ لو اتأخر، وبيتحسب في أنهي بند KPIs. السيستم بيشتغل بالمواعيد دي على طول.")}
         ${st.schedReports.map((r, i) => rpCard(r, i, ed)).join("")}${ed ? `<div class="row end"><button class="btn ghost" data-act="rpAdd">${I("plus")}تقرير جديد</button></div>` : ""}`; }
-      return `<div class="row">${U.tabs("rpTab", [["targets", "التارجت والـ Transactions"], ["tl", "الـ Team Leaders"], ["pdf", "ورقة الموظف (PDF)"], ["kpis", "الـ KPIs"], ["sched", "التقارير ومواعيدها", st.schedReports.length]], t)}<span class="spacer"></span>${U.exportBtn("deals", "الصفقات")}${U.exportBtn("leads", "الليدز")}</div>${body}`;
+      return `<div class="row">${U.tabs("rpTab", [["targets", "التارجت والـ Transactions"], ["tl", "الـ Team Leaders"], ["pdf", "ورقة الموظف (PDF)"], ["kpis", "الـ KPIs"], ["sched", "التقارير ومواعيدها", st.schedReports.length]], t)}<span class="spacer"></span>${A.isReportsHead() ? `<button class="btn ghost sm" data-act="rpAccess">${I("lock")}مين يشوف التقارير (${(st.reportsAccess || []).length})</button>` : ""}${U.exportBtn("deals", "الصفقات")}${U.exportBtn("leads", "الليدز")}</div>${body}`;
     }
   };
   A.ACT.rpTab = (d) => { ui("rpTab", d.v); A.render(); };
@@ -218,6 +218,19 @@
       <div class="row end">${hand ? "" : `<button class="btn ghost sm" data-act="rpRun" ${at}>${I("send")}ابعته دلوقتي</button>`}${ed ? `<button class="btn ghost sm" data-act="rpDel" ${at}>${I("x")}امسح التقرير</button>` : ""}</div></section>`;
   }
   // the KPIs page shows the same cards (read-only, and without money reports for the KPI watcher)
+  // the heads decide who else sees التقارير والتارجت (everyone else doesn't, whatever their role)
+  A.ACT.rpAccess = () => {
+    if (!A.isReportsHead()) return;
+    const st = S(), on = st.reportsAccess || [], heads = ["admin", "officemgr"], ppl = st.people.filter((p) => p.id !== "system" && !heads.includes(p.role) && (st.users || []).some((u) => u.id === p.id));
+    A.openModal("مين يشوف التقارير والتارجت", `${U.note("التقارير والتارجت للهيد بس (أحمد إسلام ونانسي). علّم على اللي عايزه يشوفها كمان، والتغيير بيتطبّق على طول وبيتسجّل في الـ Audit Log.")}
+      <div class="rp-access">${ppl.map((p) => `<label class="tog"><input type="checkbox" ${on.includes(p.id) ? "checked" : ""} data-change="rpAccessSet" data-id="${p.id}"><span>${esc(p.name)} <small class="hint">${esc(A.roleLabel ? A.roleLabel(p.role) : p.role)}</small></span></label>`).join("")}</div>`);
+  };
+  A.CHANGE.rpAccessSet = (v, el) => {
+    if (!A.isReportsHead()) return;
+    const st = S(), L = (st.reportsAccess = st.reportsAccess || []), id = el.dataset.id, i = L.indexOf(id);
+    if (v && i < 0) L.push(id); if (!v && i >= 0) L.splice(i, 1);
+    A.audit("access", `${A.person(id)} ${v ? "اتفتحله" : "اتقفل عليه"} التقارير والتارجت`); A.save(); A.toast(v ? `${A.person(id)} بقى يشوف التقارير` : `${A.person(id)} مبقاش يشوف التقارير`); A.render();
+  };
   A.reportCards = (hideMoney) => S().schedReports.map((r, i) => (hideMoney && r.money ? "" : rpCard(r, i, A.canDo("reports", "edit")))).join("");
   const rpSave = (r, text) => { A.audit("reports", `«${r.name}»: ${text}`, r.money); A.toast("اتحفظ · بيتطبّق على طول"); A.render(); };
   A.CHANGE.rpSet = (v, el) => {
