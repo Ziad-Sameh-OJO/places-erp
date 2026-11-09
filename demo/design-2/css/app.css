@@ -972,3 +972,5 @@ td.loc-td { max-width: 220px; }
 .unit-pick-row:hover { background: var(--surface-2); }
 .unit-pick-row[hidden] { display: none; }
 @media (max-width: 600px) { .unit-pick-row { grid-template-columns: auto auto 1fr; } .unit-pick-row small { grid-column: 2 / -1; } }
+/* content plan: a post's video plays in its tile */
+.uf video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }
