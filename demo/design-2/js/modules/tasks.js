@@ -29,8 +29,8 @@
     if (t.status === "done" && (t.to === m || ["marketing", "admin"].includes(r)) && t.kind !== "retouch") act = `<button class="btn ghost sm" data-act="taskSt" data-id="${t.id}" data-v="todo">${I("undo")}Undo</button>`;
     const late = t.status !== "done" && t.due < A.today();
     return `<article class="tcard ${late ? "late" : ""}" draggable="true" data-drag="${t.id}"><div class="row">${chip(kc, kl)}<span class="spacer"></span><span class="hint ${late ? "bad-t" : ""}">${I("calendar")}${A.fmtDate(t.due)}</span></div>
-      <b>${esc(t.title || (u ? `${u.code} · ${u.project}` : t.unit))}</b>
-      ${u ? `<span class="hint">${esc(u.area)} · الدور ${esc(u.floor || "—")} · مبنى ${esc(u.building || "—")} · ${esc(u.contact || u.owner || u.name || "")} <span class="mono">${esc(u.number || "")}</span></span>` : ""}
+      <b>${esc(t.title || (u ? u.code : t.unit))}</b>
+      ${""/* nothing about the unit is sent automatically: the person gets the unit code and only what Manar wrote in the notes */}
       ${t.link ? `<span class="lnk mono">${I("image")}${esc(t.link)}</span>` : ""}${t.note ? `<span class="hint">${esc(t.note)}</span>` : ""}
       <div class="row">${t.by === "system" ? `<span class="hint">السيستم</span>` : A.avatar(t.by, 1)}<span class="hint">←</span>${A.who(t.to)}</div><div class="row">${act}</div></article>`;
   }
@@ -55,7 +55,7 @@
       ${kind === "marketing" ? field("مسؤول", `<select name="to" id="tk-to">${["u11", "u12"].map((id) => opt(id, A.person(id))).join("")}</select>`) : `<input type="hidden" name="to" value="${to}">`}
       ${field("الميعاد", `<input name="due" id="tk-due" type="date" value="${A.today()}" required>`, 1)}
       ${kind === "retouch" ? field("صور الوحدة (ترفع على السيستم)", `<input name="link" id="tk-link" type="file" multiple accept="image/*" required>`, 1) : ""}
-      ${field("ملاحظات", `<textarea name="note" id="tk-note" placeholder="${kind === "photo" ? "بيانات الوحدة بتتبعت أوتوماتيك: الكود والبروجكت والمبنى والدور واللوكيشن ورقم المالك" : ""}"></textarea>`, 0, 1)}
+      ${field(kind === "marketing" ? "ملاحظات" : "ملاحظات (ده بس اللي هيوصل مع كود الوحدة)", `<textarea name="note" id="tk-note" ${kind === "marketing" ? "" : "required"} placeholder="${kind === "photo" ? "اكتب للمصوّر كل اللي محتاجه: المكان، الدور، مين هيفتح، الميعاد… مفيش أي بيانات تانية بتتبعت أوتوماتيك" : kind === "marketing" ? "" : "اكتب كل اللي محتاج يوصل · مفيش بيانات بتتبعت أوتوماتيك"}"></textarea>`, kind !== "marketing", 1)}
       <div class="row end wide"><button class="btn">${I("send")}ابعت المهمة</button></div></form>`);
   };
   A.FORM.taskNew = (f) => {
