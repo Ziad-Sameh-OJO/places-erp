@@ -25,7 +25,7 @@
         const tot = leads.length, q = leads.filter((l) => l.everInterested).length, spent = st.campaigns.reduce((s, c) => s + c.spent, 0);
         const posts = st.posts.map((p) => ({ p, n: leads.filter((l) => l.post === p.id).length })).filter((x) => x.n).sort((a, b) => b.n - a.n);
         body = `<div class="toolbar">${U.seg("mkRange", [["today", "النهارده"], ["7", "آخر 7 أيام"], ["30", "آخر 30 يوم"], ["month", "الشهر ده"], ["all", "كل الوقت"], ["custom", "فترة مخصصة"]], ui("mkRange") || "all")}
-          ${ui("mkRange") === "custom" ? `<label class="date-f"><span>من</span><input type="date" id="mk-from" value="${esc((ui("mkF") || {}).from || "")}" data-change="mkF" data-k="from"></label><label class="date-f"><span>لحد</span><input type="date" id="mk-to" value="${esc((ui("mkF") || {}).to || "")}" data-change="mkF" data-k="to"></label>` : ""}</div>
+          ${ui("mkRange") === "custom" ? `<label class="date-f"><span>من</span><input type="date" id="mk-from" value="${esc((ui("mkDraft") || ui("mkF") || {}).from || "")}" data-change="mkDraft" data-k="from"></label><label class="date-f"><span>لحد</span><input type="date" id="mk-to" value="${esc((ui("mkDraft") || ui("mkF") || {}).to || "")}" data-change="mkDraft" data-k="to"></label><button class="btn" data-act="mkApply">${I("search")}بحث</button>` : ""}</div>
           <div class="kpis">${U.kpi("إجمالي الليدز", A.num(tot), "في الفترة دي", "users", "", "", U.trend(leads, "created", 7))}${U.kpi("Qualified", A.num(q), `${tot ? Math.round((q / tot) * 100) : 0}% نسبة التأهيل`, "star", "ok")}${U.kpi("صرف الكامبينز", A.money(spent), `${st.campaigns.length} كامبين`, "megaphone", "warn")}${U.kpi("تكلفة الـ Qualified", A.money(q ? spent / q : 0), "للّيد الواحد", "trend")}</div>
           <div class="cols wide"><section class="card">${head("Channels ← Campaigns", "layers", "", "إجمالي كل channel ومتفرع منه الكامبينز")}
             <div class="tree">${Object.entries(ch).sort((a, b) => b[1].total - a[1].total).map(([name, c]) => { const camps = st.campaigns.filter((x) => x.channel === name); return `<details open><summary><b>${esc(name)}</b><span class="num">${c.total} ليد</span>${chip("ok", c.q + " Qualified")}<span class="num hide-sm">${Math.round((c.q / c.total) * 100)}%</span></summary>
@@ -70,6 +70,9 @@
   A.ACT.mkTab = (d) => { ui("mkTab", d.v); A.render(); };
   A.ACT.mkRange = (d) => { ui("mkRange", d.v); A.render(); };
   A.CHANGE.mkF = (v, el) => { ui("mkF", Object.assign({}, ui("mkF"), { [el.dataset.k]: v })); A.render(); };
+  // فترة مخصصة: picking the dates doesn't filter yet; «بحث» applies them
+  A.CHANGE.mkDraft = (v, el) => { ui("mkDraft", Object.assign({}, ui("mkDraft") || ui("mkF"), { [el.dataset.k]: v })); };
+  A.ACT.mkApply = () => { const d = ui("mkDraft") || ui("mkF") || {}; if (d.from && d.to && d.from > d.to) { A.toast("تاريخ «من» بعد «لحد»"); return; } ui("mkF", Object.assign({}, d)); ui("mkDraft", null); A.render(); A.toast(d.from || d.to ? `الفترة: ${d.from ? A.fmtDate(d.from) : "من الأول"} ← ${d.to ? A.fmtDate(d.to) : "لحد النهارده"}` : "كل الوقت"); };
   A.ACT.ctMode = (d) => { ui("ctMode", d.v); A.render(); };
   A.ACT.ctMonth = (d) => { ui("ctMonth", d.v); A.render(); };
   A.ACT.postOpen = (d) => { const p = S().posts.find((x) => x.id === d.id); A.openModal(p.title, `${U.kv([["Channel", esc(p.channel)], ["الميعاد", `${A.fmtDate(p.at)} · ${A.fmtTime(p.at)}`], ["الحالة", p.status === "published" ? "اتنشر" : p.approved ? "متجدول" : "مستني موافقة"], ["اتنشر فعلاً", p.publishedAt ? A.fmtTime(p.publishedAt) : "—"], ["ليدز جابها", A.num(S().leads.filter((l) => l.post === p.id).length)]])}<div class="row end">${postActs(p)}</div>`); };
