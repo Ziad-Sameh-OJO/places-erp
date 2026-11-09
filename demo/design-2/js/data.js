@@ -160,6 +160,8 @@ window.SEED = (function () {
   ];
   // the seed is complete like a filled sheet, except U-106 / U-112 (no photos yet); P1901 is the client's own row (Book, 9 Nov) with its layout files
   const AREA_LOC = { "التجمع الخامس": "30.0235, 31.4890", "الشيخ زايد": "30.0444, 30.9760", "العاصمة الإدارية": "30.0196, 31.7612", "أكتوبر": "29.9737, 30.9420", "مدينة نصر": "30.0561, 31.3301", "المعادي": "29.9602, 31.2569" };
+  // Website Ads (marketing's column): a few units already posted on the website
+  ["U-101", "U-103", "U-108", "U-201"].forEach((c) => { const u = units.find((x) => x.code === c); if (u) Object.assign(u, { webAd: "posted", webAdAt: ago(60 * 24 * 3), webAdBy: "u11" }); });
   units.forEach((u) => { if (!u.location && u.code !== "U-106") u.location = AREA_LOC[u.area] || ""; if (u.type !== "Rent") { if (!u.commission) u.commission = "2.5%"; if (u.type === "Resale" && !u.maintenance) u.maintenance = "Included"; if (!u.photos) u.photos = u.code + "-01.jpg"; } });
   const areaTabs = [
     { label: "20 to 100", min: 20, max: 100 }, { label: "101 to 200", min: 101, max: 200 },
