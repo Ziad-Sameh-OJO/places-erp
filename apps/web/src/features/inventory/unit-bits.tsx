@@ -19,16 +19,16 @@ export type ColWord = keyof typeof inventory.cols;
 type Col = readonly [key: string, label: string | { w: ColWord }];
 export const w = (k: ColWord) => ({ w: k });
 const RENT: readonly Col[] = [
-  ["project", "Project"], ["code", "Code"], ["photos", "Pic & Info"], ["space", "Area"], ["condition", "Conditions"], ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"],
-  ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["building", "Building Number"], ["parking", "Parking Slots"], ["location", "Location"],
-  ["layout", "Layout"], ["pic", "PIC"], ["resale", "Resale"], ["comment", "Comment"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["agent", "Agent"], ["lastUpdate", "Last update"],
-];
-/**
+  ["project", "Project"], ["code", "Code"], ["photos", "Pic"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["space", "Area"], ["condition", "Conditions"],
+  ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"], ["maintenance", "Maintenance"], ["floor", "Floor"], ["parking", "Parking Slots"], ["building", "Building Number"],
+  ["layout", "Layout file"], ["commission", "Commission"], ["location", "Location"], ["agent", "Agent"], ["lastUpdate", "Last update"],
+];/**
  * The demo's sheet columns per type (M-03 3.1: each type keeps its own sheet's columns and names); «all» is the
  * mixed list and the rented / sold sheet. «Pic / info» counts the unit's photos (2.4); Income's «Agreement» opens its file (2.31).
  */
 export const COLS: Record<UnitTypeName | "all" | "closed", readonly Col[]> = {
-  // 2.21 · the client's Rent sheet (Book7) column for column, then the system's own columns
+  // 2.33 · the client's Rent sheet (Book, 9 Nov) column for column; it lists Location twice, the system shows it once.
+  // PIC, Resale and Comment left the sheet (not in the client's file); the Comment stays on the unit page
   Rent: RENT,
   Resale: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("ownerName")], ["ownerPhone", w("number")], ["space", w("space")], ["floor", w("floor")], ["condition", w("finishing")], ["pricePerSqm", w("pricePerSqm")], ["total", w("totalPrice")], ["paymentMethod", w("paymentMethod")], ["agent", "Agent"], ["maintenance", w("maintenance")], ["building", w("buildingNumber")], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
   Income: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("name")], ["ownerPhone", w("number")], ["link", w("link")], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["agreement", "Agreement"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
@@ -58,9 +58,6 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     case "space": return !u.space ? "—" : <bdi className="num">{u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)}` : num(u.space)}</bdi>;
     case "area": case "condition": return u[key] ? serverText(u[key]) : "—"; // list values: the default ones have English names
     case "layout": return yesNo(u.layout);
-    case "pic": return yesNo(u.photoCount > 0);
-    case "resale": return yesNo(u.type === "Resale" || u.alsoType === "Resale");
-    case "comment": return text(u.comment);
     case "pricePerSqm": case "leasePerSqm": return <span className="num">{amount(u[key])}</span>;
     case "total": return <span className="num">{moneyExact(u.totalPrice)}</span>;
     case "monthly": return <span className="num">{moneyExact(u.income?.monthlyRent ?? null)}</span>;

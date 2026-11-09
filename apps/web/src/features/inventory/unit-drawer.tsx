@@ -43,6 +43,7 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
     // the region (Income's «Area» column is the unit's size, as in its sheet)
     ...(COLS[u.type].some(([k]) => k === "area") || !fields.shows("area") ? [] : [[t("drawer.region"), u.area ? serverText(u.area) : "—"] as [string, ReactNode]]),
     ...cols.map(([k, label]) => [label, cell(u, k, t)] as [string, ReactNode]),
+    ...(u.comment ? [["Comment", u.comment] as [string, ReactNode]] : []), // 2.33: off the sheet, still on the unit page
   ];
   return (
     <Drawer title={`${u.code} · ${u.project}`} sub={fields.shows("area") ? `${u.type} · ${serverText(u.area)}` : u.type} onClose={onClose} chips={<UnitChips u={u} />}
