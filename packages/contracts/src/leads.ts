@@ -217,6 +217,11 @@ export type RoutingCell = z.infer<typeof RoutingCell>;
 /** The routing table: the active areas (M-13 lists), the salespeople, and who covers each area in rotation order. */
 export interface RoutingView { areas: string[]; salespeople: { id: string; name: string }[]; routing: Record<string, string[]> }
 
+/** 1.30 · «بتروح لـ: …» under the new-lead form's Area: who covers it today, in rotation order (empty: Operations). */
+export const AreaRouteQuery = z.object({ area: z.string().trim().min(1, "اختار الـ Area").max(80) });
+export type AreaRouteQuery = z.infer<typeof AreaRouteQuery>;
+export interface AreaRoute { salespeople: { id: string; name: string }[] }
+
 /** «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand a lead to a salesperson. */
 /**
  * The list's bulk bar (demo shell.js renderBulk): the picked leads go to one salesperson («حوّل لسيلز…», the same rule
