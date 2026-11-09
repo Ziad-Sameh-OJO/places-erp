@@ -25,6 +25,7 @@ N = "تحديث الديمو (5 نوفمبر):"  # prefix of the 5 Nov inventory
 F = "`docs/requirements/sources/client-files/2026-11-05/`"  # the client's files they came from
 G = "مقارنة الديمو بالسيستم (8 نوفمبر):"  # prefix of the tasks from comparing the demo with the app (8 Nov)
 H = "تحديث الديمو (9 نوفمبر):"  # prefix of the 9 Nov changes Ahmed made in the demo (inventory, Not Active, tasks, marketing, KPIs, reports)
+F9 = "[`docs/requirements/sources/client-files/2026-11-09/`](../tree/main/docs/requirements/sources/client-files/2026-11-09)"  # the client's files of 9 Nov (Book sheet, P1901 layout PDF + DWG)
 # kinds decide which general checks apply: api · ui · job · domain · infra · data · docs
 # (id, title, card, after, kinds, details, done)
 PARTS = [
@@ -460,7 +461,7 @@ PARTS = [
    "النهارده مفيش حاجة بتكتب في `ListRequest`، فبندين `lists24` و `listsClean` في الـ KPIs (`worker/.../kpi-refresh.ts:169-175`) دايمًا فاضيين: لازم يتملوا."],
   ["e2e: الطلب لحد القفل", "بند lists24 بيطلع رقم"]),
  ("2.33", "شيت الـ Rent زي شيت Book (9 نوفمبر): ترتيب الأعمدة، و Location في مكان واحد", "T-05", "2.21", "ui",
-  [f"{H} تعديل على 2.21 (#364) بعد شيت الكلاينت الجديد `Book.xlsx`. الديمو: `COLS.Rent` في `demo/design-2/js/modules/inventory.js`.",
+  [f"{H} تعديل على 2.21 (#364) بعد شيت الكلاينت الجديد: **`Book (شيت الانفنتوري Rent · 9 نوفمبر).xlsx` في {F9}** (اسم المالك ورقمه متشالين). الديمو: `COLS.Rent` في `demo/design-2/js/modules/inventory.js`.",
    "**الأعمدة بالترتيب ده:** Project · Code · Pic · Contact · Number · Area · Conditions · Price/Sqm · Total Price · Maintenance · Floor · Parking Slots · Building Number · Layout file · Commission · Location · Agent · Last update.",
    "شيت الكلاينت فيه عمودين Location: **السيستم بيعرض واحد بس**.",
    "أعمدة PIC و Resale و Comment **اتشالت من الجدول** (مش في شيت الكلاينت). الـ Comment بيفضل في صفحة الوحدة لو مكتوب، ومفيش حقل اتمسح من الداتابيز.",
@@ -474,7 +475,7 @@ PARTS = [
    "Zod في `packages/contracts/src/inventory.ts`: لينك `https://` أو «lat, lng». المكان: `unit-drawer.tsx` و `unit-map.tsx` و `unit-form.tsx`."],
   ["e2e: تعديل اللينك بيتسجّل في الـ Audit", "مفيش تاب «الموقع» في الدروار", "لوكيشن قديم بالإحداثيات بيفتح صح"]),
  ("2.35", "Layout file: فولدر ملفات لكل وحدة (PDF · DWG · صور) بدل Yes/No", "T-05", "2.22 · 0.9", "data api ui",
-  [f"{H} الديمو: خانة `layout` وفولدر `unitFolder({{kind:\"layout\"}})` في `demo/design-2/js/modules/invwork.js` و `inventory.js`. ملفات التجربة: `demo/design-2/img/units/P1901/layout/` (PDF + DWG من الكلاينت).",
+  [f"{H} الديمو: خانة `layout` وفولدر `unitFolder({{kind:\"layout\"}})` في `demo/design-2/js/modules/invwork.js` و `inventory.js`. ملفات التجربة من الكلاينت في **{F9}**: `Layout P1901 - 25-00-04-03.pdf` و `Layout P1901 - 2D-CAD-MALLE.dwg` (ونفسهم في `demo/design-2/img/units/P1901/layout/`). استخدمهم في الـ e2e والـ seed للوحدة P1901.",
    "حقل `layout` (Boolean) بيتشال من الفورم: **Layout = فيه ملفات في الفولدر** (محسوب). migration واحدة لربط الملفات (`File` من `core/files` بنوع `layout`).",
    "خانة **Layout file** في الشيت (عدد الملفات أو «فاضي») وزرار في الدروار بيفتحوا الفولدر، **زي فولدر Pic & Info (2.22)** بالظبط: رفع أكتر من ملف، **عرض الـ PDF جوه السيستم**، الصور بتتعرض، و **الـ DWG بيتحمّل** (المتصفح مابيعرضوش، ومكتوب «بيتفتح بـ AutoCAD أو DWG viewer»)، وتحميل ملف أو الفولدر كله ZIP.",
    "كل ملف ليه **«استبدال»** (النسخة الجديدة مكان القديمة، والاتنين في الـ Audit) و **مسح**، للي ليه تعديل على الانفنتوري بس.",
@@ -494,7 +495,7 @@ PARTS = [
   ["منار بتشوف الكروت، والتسويق والسيلز والأدمن لأ"]),
  ("2.38", "استيراد Excel للانفنتوري: منع التكرار بخانات يختارها اللي بيرفع، و«ضيفها برضه»", "T-05", "0.12", "domain api ui",
   [f"{H} الديمو: `IM_COLS` و `imKey` و `importReview` في `demo/design-2/js/modules/inventory.js`.",
-   "في شاشة الاستيراد **اللي بيرفع بيختار خانة أو أكتر لمنع التكرار** من: Project · Area · Floor · Building Number · Contact · Number. الافتراضي **Project + Building + Floor + Area** (الوحدة نفسها)، **مش رقم المالك**، لأن المالك الواحد عنده أكتر من وحدة.",
+   f"أعمدة الشيت: `Book` في {F9}. في شاشة الاستيراد **اللي بيرفع بيختار خانة أو أكتر لمنع التكرار** من: Project · Area · Floor · Building Number · Contact · Number. الافتراضي **Project + Building + Floor + Area** (الوحدة نفسها)، **مش رقم المالك**، لأن المالك الواحد عنده أكتر من وحدة.",
    "**القاعدة (في `packages/domain`):** الصف مكرر بس لما **كل** الخانات المختارة تتطابق مع وحدة موجودة أو صف قبله في نفس الملف. الأرقام بتتقارن بالأرقام بس (`normPhone`)، والنص من غير مسافات زيادة ومن غير فرق الحروف الكبيرة.",
    "تست بالمثال: مالك واحد بوحدتين مختلفتين بنفس الرقم ← **مش مكرر** بالافتراضي، ومكرر لو الخانة المختارة Number لوحدها.",
    "المراجعة: كل صف مكرر بيقول **مكرر مع U-xxx** أو **مكرر مع صف N في الملف**، والقرار: استبعد · ادمج (للمكرر مع وحدة) · **ضيفها برضه** (لو اتعلّم بالغلط). الخانات المختارة بتتسجّل مع الاستيراد في الـ Audit.",
