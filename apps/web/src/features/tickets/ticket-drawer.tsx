@@ -10,6 +10,7 @@ import { usePriority, TicketChips } from "./ticket-bits";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { useRefreshTickets, useTicket, useTicketOptions } from "./use-tickets";
+import { useRecent } from "@/lib/quick";
 
 /** Demo «KIND»: what each line of the Audit Trail is (keys of tickets.drawer.kind). */
 const KIND = ["open", "reply", "transfer", "status", "close", "escalate"] as const;
@@ -20,6 +21,7 @@ export function TicketDrawer({ id, onClose }: { id: string; onClose: () => void 
   const tr = useTranslations("tickets.drawer");
   const priority = usePriority();
   const q = useTicket(id);
+  useRecent("ticket", id, q.data?.title); // 0.14
   if (q.error) return <Drawer title={tr("notFound")} onClose={onClose}><Empty text={q.error.message} /></Drawer>;
   const t = q.data;
   if (!t) return <Drawer title="…" onClose={onClose}><p className="hint">{tr("loading")}</p></Drawer>;

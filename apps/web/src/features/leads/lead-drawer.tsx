@@ -20,6 +20,7 @@ import { Visits } from "./visits";
 import { RecommendedUnits, useRecommendations } from "./recommendations";
 import { EditLead } from "./edit-lead";
 import { DealForm } from "../deals/deal-form";
+import { useRecent } from "@/lib/quick";
 
 /** The pipeline the stepper shows (demo PIPE); the side stages (No Answer, Hold…) hide it. */
 const PIPE = LEAD_PIPELINE;
@@ -42,6 +43,7 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   const l = lead.data;
+  useRecent("lead", id, l?.name); // 0.14
   if (lead.error) return <Drawer title={t("drawer.notFound")} onClose={onClose}><Empty text={lead.error.message} /></Drawer>;
   if (!l) return <Drawer title="…" onClose={onClose}><p className="hint">{t("drawer.loading")}</p></Drawer>;
   return (

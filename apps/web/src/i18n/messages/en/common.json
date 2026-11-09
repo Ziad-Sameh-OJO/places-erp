@@ -10,7 +10,22 @@
     "notifications": "Notifications",
     "notificationsUnread": "Notifications ({count} new)",
     "quickNav": "Quick navigation",
-    "more": "More"
+    "more": "More",
+    "favs": "Favourites",
+    "recent": "Recently opened",
+    "favAdd": "Add to favourites",
+    "favRemove": "Remove from favourites",
+    "favAdded": "Added to favourites",
+    "favRemoved": "Removed from favourites",
+    "recentKind": {
+      "lead": "Lead",
+      "unit": "Unit",
+      "deal": "Deal",
+      "client": "Client",
+      "contract": "Contract",
+      "ticket": "Ticket",
+      "purchase": "Purchase"
+    }
   },
   "language": {
     "switchTo": "عربي",

@@ -13,6 +13,7 @@ import { serverText } from "@/lib/server-text";
 import { KindChips } from "./client-bits";
 import { SuggestMergeForm } from "./merges";
 import { PrivacyBits } from "./privacy";
+import { useRecent } from "@/lib/quick";
 
 /**
  * The demo's file drawer (clients.js clDrawer): the details with what they owe, their units with the last update,
@@ -27,6 +28,7 @@ export function ClientDrawer({ ids, id, file, error, onGo, onClose }: {
   const fields = useFields("clients"), inv = useFields("inventory");
   const { can } = useMe();
   const router = useRouter();
+  useRecent("client", id, file?.name); // 0.14
   const at = ids.indexOf(id);
   const prev = at > 0 ? ids[at - 1] : undefined, next = at >= 0 && at < ids.length - 1 ? ids[at + 1] : undefined;
   if (error) return <Drawer title={t("notFound")} onClose={onClose}><Empty text={error.message} /></Drawer>;

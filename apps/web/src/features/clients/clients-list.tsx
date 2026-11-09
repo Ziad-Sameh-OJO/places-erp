@@ -1,5 +1,5 @@
 "use client";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ClientRow } from "@places/contracts";
 import { useFields } from "@/lib/me";
@@ -22,6 +22,8 @@ export function ClientsList() {
   const [f, setF] = useState<ClientQuery>({});
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
+  // «فتحتها مؤخراً» links here (0.14)
+  useEffect(() => { const id = new URLSearchParams(window.location.search).get("open"); if (id) setOpen(id); }, []);
   const rows = useClients(f, page, PAGE);
   const s = useClientSummary().data;
   const file = useClient(open);

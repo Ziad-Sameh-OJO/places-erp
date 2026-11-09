@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PURCHASE_STATUS, type ProcurementOverview } from "@places/contracts";
 import { Card, Chip, ExportButton, Icon, Table } from "@/components/ui";
@@ -21,6 +21,8 @@ export function Purchases() {
   const [page, setPage] = useState(1);
   const list = usePurchases(f, page);
   const [open, setOpen] = useState<string | null>(null);
+  // «فتحتها مؤخراً» links here (0.14)
+  useEffect(() => { const id = new URLSearchParams(window.location.search).get("open"); if (id) setOpen(id); }, []);
   const [form, setForm] = useState(false);
   // M-09: a hidden field's column and filter are gone; a request can't be sent without its amount and line
   const fields = useFields("procurement");

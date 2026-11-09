@@ -10,7 +10,22 @@
     "notifications": "الإشعارات",
     "notificationsUnread": "الإشعارات ({count} جديد)",
     "quickNav": "التنقل السريع",
-    "more": "المزيد"
+    "more": "المزيد",
+    "favs": "المفضلة",
+    "recent": "فتحتها مؤخراً",
+    "favAdd": "ضيف للمفضلة",
+    "favRemove": "شيل من المفضلة",
+    "favAdded": "اتضافت للمفضلة",
+    "favRemoved": "اتشالت من المفضلة",
+    "recentKind": {
+      "lead": "ليد",
+      "unit": "وحدة",
+      "deal": "صفقة",
+      "client": "عميل",
+      "contract": "عقد",
+      "ticket": "تذكرة",
+      "purchase": "طلب شراء"
+    }
   },
   "language": {
     "switchTo": "English",
