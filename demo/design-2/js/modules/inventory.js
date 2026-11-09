@@ -9,7 +9,7 @@
   const PRIVATE = ["contact", "number", "agent", "owner", "name"];
   A.seesUnitPrivate = () => A.role === "inventory";
   const pub = (cols) => { const c = A.seesUnitPrivate() ? cols.slice() : cols.filter(([k]) => !PRIVATE.includes(k)); if (isMk()) c.splice(c.findIndex(([k]) => k === "code") + 1, 0, ["webAd", "Website Ads"]); return c; }; // marketing: Website Ads right after the code, in view without scrolling
-  // Website Ads: marketing's own column (posted on the website or not yet), seen and changed by marketing only
+  // Website Ads: marketing's own column, Yes (posted on the website) or No, seen and changed by marketing only
   const isMk = () => A.role === "marketing";
   // Location is a Google Maps link (or old-style coordinates); the link itself is shown and can be changed when the place changes
   const locUrl = (v) => { const t = String(v || "").trim(); return !t ? "" : /^https?:\/\//i.test(t) ? t : `https://maps.google.com/?q=${encodeURIComponent(t)}`; };
@@ -35,7 +35,7 @@
       code: () => { const m = A.missingOf(u).length; return `<td class="mono">${u.code}${u.pdf === "draft" ? " " + chip("warn", "PDF draft") : ""}${m ? " " + chip("bad", `ناقص ${m}`) : ""}</td>`; },
       type: () => `<td>${chip(u.type === "Rent" ? "info" : u.type === "Resale" ? "acc" : "ok", u.type)}</td>`,
       location: () => `<td class="loc-td">${locLink(u)}</td>`,
-      webAd: () => `<td><button class="lnk web-ad" data-act="unitWebAd" data-code="${u.code}" title="${u.webAd ? `اتنشر ${A.fmtDate(u.webAdAt)}${u.webAdBy ? " · " + esc(A.person(u.webAdBy)) : ""} · دوس عشان ترجّعها «لسه»` : "دوس لما الإعلان يتنشر على الويبسايت"}">${u.webAd ? chip("ok", "Posted") : chip("warn", "لسه")}</button></td>`,
+      webAd: () => `<td><button class="lnk web-ad" data-act="unitWebAd" data-code="${u.code}" title="${u.webAd ? `اتنشر ${A.fmtDate(u.webAdAt)}${u.webAdBy ? " · " + esc(A.person(u.webAdBy)) : ""} · دوس عشان ترجّعها No` : "دوس لما الإعلان يتنشر على الويبسايت (Yes)"}">${u.webAd ? chip("ok", "Yes") : chip("warn", "No")}</button></td>`,
       start: () => `<td>${A.fmtDate(u.start)}</td>`, end: () => `<td>${A.fmtDate(u.end)}</td>`, escalation: () => `<td class="n">${u.escalation || 0}%</td>`,
       space: () => `<td class="n"><bdi>${u.divisible && u.minSplit ? `${A.num(u.minSplit)} UP TO ${A.num(u.space)}` : A.num(u.space)}</bdi></td>`,
       photos: () => { const n = (u.photos || "").split("، ").filter(Boolean).length; return `<td><button class="lnk folder-lnk" data-act="unitFolder" data-code="${u.code}" title="فولدر صور الوحدة">${I("folder")}${n ? `${n} ملف` : "فاضي"}</button></td>`; },
@@ -84,7 +84,7 @@
           <select id="if-a" data-change="invF" data-k="area" aria-label="Area">${opt("", "كل المناطق", f.area)}${st.areas.map((a) => opt(a, a, f.area)).join("")}</select>
           <select id="if-c" data-change="invF" data-k="cond" aria-label="Condition">${opt("", "كل التشطيبات", f.cond)}${S().finishings.map((c) => opt(c, c, f.cond)).join("")}</select>
           ${A.seesUnitPrivate() ? `<select id="if-g" data-change="invF" data-k="agent" aria-label="Agent">${opt("", "كل الـ agents", f.agent)}${A.sales().map((s) => opt(s.id, s.name, f.agent)).join("")}</select>` : ""}
-          ${isMk() ? `<select id="if-w" data-change="invF" data-k="webAd" aria-label="Website Ads">${opt("", "Website Ads: الكل", f.webAd)}${opt("posted", "Posted على الويبسايت", f.webAd)}${opt("no", "لسه مااتنشرتش", f.webAd)}</select>` : ""}
+          ${isMk() ? `<select id="if-w" data-change="invF" data-k="webAd" aria-label="Website Ads">${opt("", "Website Ads: الكل", f.webAd)}${opt("posted", "Website Ads: Yes", f.webAd)}${opt("no", "Website Ads: No", f.webAd)}</select>` : ""}
           <label class="tog"><input type="checkbox" ${f.stale ? "checked" : ""} data-change="invF" data-k="stale"><span>محتاجة ابديت</span></label>
           <label class="tog"><input type="checkbox" ${f.div ? "checked" : ""} data-change="invF" data-k="div"><span>تنفع تتقسم</span></label>
           <label class="tog"><input type="checkbox" ${f.miss ? "checked" : ""} data-change="invF" data-k="miss"><span>ناقصها بيانات</span></label>
@@ -105,7 +105,7 @@
   A.ACT.invMode = (d) => { ui("invMode", d.v); A.render(); };
   A.ACT.unitWebAd = (d) => { if (!isMk()) return; const u = S().units.find((x) => x.code === d.code); if (!u) return;
     if (u.webAd) { u.webAd = ""; u.webAdAt = ""; u.webAdBy = ""; } else { u.webAd = "posted"; u.webAdAt = A.nowIso(); u.webAdBy = A.uid; }
-    A.audit("marketing", `${u.code}: Website Ads ${u.webAd ? "اتنشرت على الويبسايت" : "رجعت «لسه»"}`); A.save(); A.toast(`${u.code}: ${u.webAd ? "Posted على الويبسايت" : "لسه مااتنشرتش"}`); A.render(); if (A.refreshDrawer) A.refreshDrawer(); };
+    A.audit("marketing", `${u.code}: Website Ads ${u.webAd ? "Yes" : "No"}`); A.save(); A.toast(`${u.code}: Website Ads ${u.webAd ? "Yes" : "No"}`); A.render(); if (A.refreshDrawer) A.refreshDrawer(); };
   A.ACT.invView = (d) => { ui("invView", d.v || null); A.render(); };
   A.ACT.invMissing = () => { location.hash = "#inventory"; ui("invType", "all"); ui("invF", { miss: true }); A.render(); };
   A.ACT.invStale = () => { ui("invF", Object.assign({}, ui("invF"), { stale: true })); A.render(); };
