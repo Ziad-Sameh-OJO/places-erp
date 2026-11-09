@@ -716,6 +716,11 @@ model Payment {
   accountId   String
   account     Account  @relation(fields: [accountId], references: [id])
   recordedById String
+  /// 5.15: its receive voucher (finance.TreasuryMove), so a correction can reverse its entry and post the right one
+  moveId      String?  @unique
+  /// 5.15 «اتعدّل يدوي»: the amount before the last manual correction, and why
+  editedFrom  Decimal? @db.Decimal(14, 2)
+  editReason  String?
   tcr         Tcr?
   createdAt   DateTime @default(now())
 

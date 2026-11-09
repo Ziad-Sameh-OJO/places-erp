@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CancelDeal, CollectDeal, CreateDeal, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
-import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
+import type { CancelDeal, CollectDeal, CreateDeal, EditCollection, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
+import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionEditProblem, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
 import { esc, layout } from "../../core/documents/documents.service";
 import { DocumentsSetupService } from "../settings/documents-setup.service";
 import { SettingsService } from "../settings/settings.service";
@@ -304,7 +304,7 @@ export class DealsService {
       }
       const from = input.side === "owner" ? "من الـ Owner" : "من الـ Client";
       const saved = await this.vouchers.recordDealCollection(me, { toId: input.toId, clientAccountId: client.id, amount: input.amount, party: d.company, ref: d.code, memo: `تحصيل عمولة ${d.code} ${from}`, date }, tx);
-      const payment = await this.repo.addPayment(tx, { dealId: id, side: input.side, amount: toDecimal(amount), receivedAt: new Date(`${date}T00:00:00Z`), accountId: input.toId, recordedById: me.id });
+      const payment = await this.repo.addPayment(tx, { dealId: id, side: input.side, amount: toDecimal(amount), receivedAt: new Date(`${date}T00:00:00Z`), accountId: input.toId, recordedById: me.id, moveId: saved.move.id });
       // 5.12 (M-02 2.3 · 3.2): every collection makes a new TCR on the same deal code, for each salesperson on it to sign
       const [{ n }] = (await this.repo.nextTcr(tx)) as [{ n: bigint }];
       const signers = [...money.buyers, ...money.sellers];
@@ -325,6 +325,42 @@ export class DealsService {
     // 9.15: fully collected → the accountant pays each salesperson's commission («صرف عمولة سيلز»)
     if (out.status === "Fully Collected") await this.notifications.notify({ event: "finance.commission_due", link: "/finance", text: `${code} اتحصّلت بالكامل · عمولات السيلز عليها بقت مستحقة` });
     return me.fields.hidden("deals").has("remaining") ? { ...out, remaining: "" } : out;
+  }
+
+  /**
+   * 5.15 «تعديل يدوي» (M-07 · demo deals.js payEdit): Finance corrects a recorded collection and its TCR. Its voucher's
+   * entry is reversed and posted again with the right amount, the deal's status and what's left follow, and the audit
+   * keeps the old and new amount with the reason. Reaching the whole commission makes the salespeople's commission due.
+   */
+  async editCollection(me: CurrentUser, id: string, tcrId: string, input: EditCollection): Promise<DealDetail> {
+    mayChange(me.fields.fixed("deals"), "collected"); // it changes what's collected (M-09)
+    const amount = fromDecimal(input.amount);
+    const out = await this.db.$transaction(async (tx) => {
+      await this.repo.lock(tx, id);
+      const d = await this.repo.detail(this.scope(me), id, tx);
+      const t = d?.tcrs.find((x) => x.id === tcrId);
+      if (!d || !t) throw new NotFoundException(NO_TCR);
+      const money = toMoney(d, await this.repo.payments(tx, id));
+      const old = fromDecimal(t.payment.amount.toFixed(2));
+      const problem = collectionEditProblem(money, old, amount, input.reason);
+      if (problem) throw new BadRequestException(problem);
+      if (!t.payment.moveId) throw new BadRequestException("التحصيل ده مالوش سند قبض متسجّل · عدّله من القيود");
+      const code = tcrCode(t.code);
+      const posted = await this.vouchers.correctDealCollection(me, t.payment.moveId, amount, `تعديل تحصيل ${d.code} · ${code}: ${input.reason}`, tx);
+      await this.repo.correctPayment(tx, t.payment.id, { amount: toDecimal(amount), editedFrom: toDecimal(old), editReason: input.reason });
+      const after: DealMoney = { ...money, payments: [...money.payments.filter((_, i) => i !== money.payments.findIndex((p) => p.side === t.payment.side && p.amount === old)), { side: t.payment.side as "owner" | "client", amount }] };
+      const status = collectionStatus(after);
+      if (status !== money.status) await this.repo.update(tx, id, { status: toDb(status) as never });
+      await this.audit.record({ module: "deals", entity: "Tcr", entityId: tcrId, action: "edit-collection", userId: me.id,
+        before: { amount: toDecimal(old), status: d.status, collected: toDecimal(collected(money)) },
+        after: { amount: toDecimal(amount), status: toDb(status), collected: toDecimal(collected(after)), reason: input.reason, tcr: code, ...posted } }, tx);
+      const date = localDate(new Date());
+      if (status === "Fully Collected" && money.status !== "Fully Collected") await this.commissionsDue(tx, me, d, after, date);
+      await this.tlDue(tx, me, [...after.buyers, ...after.sellers], [t.payment.receivedAt.toISOString().slice(0, 7)], date); // 5.8: the month's collections changed
+      return { full: status === "Fully Collected" && money.status !== "Fully Collected", code: d.code };
+    });
+    if (out.full) await this.notifications.notify({ event: "finance.commission_due", link: "/finance", text: `${out.code} اتحصّلت بالكامل · عمولات السيلز عليها بقت مستحقة` });
+    return this.get(me, id);
   }
 
   /** 5.12: a salesperson on the TCR signs it, once; the time is kept and audited. */
@@ -549,6 +585,7 @@ function toDetail(d: DealRecord, reviewedBy: string | null): DealDetail {
     reviewNote: d.reviewNote, reviewedBy, reviewedAt: d.reviewedAt?.toISOString() ?? null, createdAt: d.createdAt.toISOString(),
     tcrs: d.tcrs.map((t) => ({
       id: t.id, code: tcrCode(t.code), date: t.payment.receivedAt.toISOString().slice(0, 10), side: t.payment.side as "owner" | "client", amount: t.payment.amount.toFixed(2),
+      edited: t.payment.editedFrom ? { from: t.payment.editedFrom.toFixed(2), reason: t.payment.editReason ?? "" } : null,
       signatures: t.signatures.map((s) => {
         const p = d.participants.find((x) => x.employee.id === s.employeeId);
         return { id: s.employeeId, name: p?.employee.name ?? "", side: p?.side === "SELLER" ? "seller" as const : "buyer" as const, signedAt: s.signedAt?.toISOString() ?? null };

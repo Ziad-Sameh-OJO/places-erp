@@ -30,8 +30,13 @@ export class VouchersRepository {
     ]);
   }
 
-  move(id: string) {
-    return this.db.treasuryMove.findUnique({ where: { id }, include: MOVE_INCLUDE });
+  move(id: string, tx: Tx | PrismaClient = this.db) {
+    return tx.treasuryMove.findUnique({ where: { id }, include: MOVE_INCLUDE });
+  }
+
+  /** 5.15: a corrected receive voucher points at its new entry and amount. */
+  correctMove(id: string, data: { amount: string; entryId: string }, tx: Tx) {
+    return tx.treasuryMove.update({ where: { id }, data });
   }
 
   entryNo(entryIds: string[]) {

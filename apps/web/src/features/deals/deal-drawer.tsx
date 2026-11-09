@@ -1,11 +1,11 @@
 "use client";
 import { useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import type { DealCollected, DealSheetRow } from "@places/contracts";
+import type { DealCollected, DealSheetRow, DealTcr } from "@places/contracts";
 import { DEAL_TYPES, execState, localDate } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { NewClaim } from "@/components/new-claim";
-import { Chip, Field, Icon, Note, onFormSubmit, useAction } from "@/components/ui";
+import { Chip, Field, Icon, Modal, Note, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { day, money, num } from "@/lib/format";
 import { useFields, useMe } from "@/lib/me";
@@ -40,6 +40,7 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
   const refresh = useRefreshDeals();
   const post = (path: string, body: unknown, ok: string, method: "post" | "put" = "post") => run(async () => { await api[method](`/deals/${d.id}/${path}`, body); await refresh(); }, ok);
   const sellerWait = d.sellers.some((s) => !s.approved);
+  const [editing, setEditing] = useState<DealTcr | null>(null);
   const fromSide = (side: "owner" | "client") => (side === "owner" ? td("fromOwner") : td("fromClient"));
   // [label, value, field (none = always shown)]: a hidden field's row is left out (M-09)
   const kv = ([
@@ -94,7 +95,9 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
                 {left ? <Chip tone="warn">{t("waitingSigs", { count: String(left) })}</Chip> : <Chip tone="ok">{t("signed")}</Chip>}
                 <a className="btn ghost sm" href={`/api/v1/deals/${d.id}/tcrs/${x.id}/pdf`} target="_blank" rel="noreferrer"><Icon name="file" />TCR</a>
                 {mineOpen && <button className="btn sm" onClick={() => void post(`tcrs/${x.id}/sign`, {}, t("signedToast", { code: x.code }))}>{t("sign")}</button>}
+                {onSheet(d.status) && can("finance", "edit") && fields.edits("collected") && fields.shows("payments") && <button className="btn ghost sm" title={t("editTitle")} onClick={() => setEditing(x)}>{t("edit")}</button>}
               </span>
+              {x.edited && <span className="sub hint" style={{ flexBasis: "100%" }}>{t("edited", { from: money(x.edited.from), to: money(x.amount), reason: x.edited.reason })}</span>}
             </div>
           );
         }) : d.payments.length ? d.payments.map((p, i) => (
@@ -102,6 +105,7 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
         )) : <p className="hint">{t("noCollection")}</p>}
         {live(d.status) && fields.edits("collected") && fields.shows("remaining") && Number(d.remaining) > 0 && can("finance", "create") && <Collect d={d} onDone={refresh} />}
       </section>
+      {editing && <EditCollection dealId={d.id} tcr={editing} onClose={() => setEditing(null)} onDone={refresh} />}
       {live(d.status) && can("deals", "delete") && (
         <form className="card flat" onSubmit={onFormSubmit((f) => post("cancel", { reason: String(f.get("reason") ?? "") }, t("cancelled")))}>
           <Head icon="x" title={t("cancel")} />
@@ -188,6 +192,27 @@ function Review({ d, post }: { d: DealSheetRow; post: (path: string, body: unkno
         <button type="button" className="btn" onClick={() => void send("approve")}>{t("approve")}</button>
       </div>
     </form>
+  );
+}
+
+/** 5.15 «تعديل يدوي» (demo deals.js payEdit): Finance corrects a collection / TCR with a reason; the audit keeps both amounts. */
+function EditCollection({ dealId, tcr, onClose, onDone }: { dealId: string; tcr: DealTcr; onClose: () => void; onDone: () => Promise<unknown> }) {
+  const t = useTranslations("deals.editCollection");
+  const run = useAction();
+  const send = onFormSubmit((f) => run(async () => {
+    await api.put(`/deals/${dealId}/tcrs/${tcr.id}`, { amount: String(f.get("amount") ?? "").trim(), reason: String(f.get("reason") ?? "").trim() });
+    await onDone();
+    onClose();
+  }, t("saved")));
+  return (
+    <Modal title={t("title", { code: tcr.code })} onClose={onClose}>
+      <form className="grid" onSubmit={send}>
+        <Note>{t("note")}</Note>
+        <Field label={t("amount")} req wide><input name="amount" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required defaultValue={tcr.amount} /></Field>
+        <Field label={t("reason")} req wide><input name="reason" required placeholder={t("reasonPh")} /></Field>
+        <div className="row end wide"><button className="btn">{t("save")}</button></div>
+      </form>
+    </Modal>
   );
 }
 

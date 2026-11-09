@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, formatEGP } from "../src/money.ts";
-import { type DealMoney, awaitsCollection, collectionProblem, payoutDue, payoutProblem, payoutState, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
+import { type DealMoney, awaitsCollection, collectionEditProblem, collectionProblem, payoutDue, payoutProblem, payoutState, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult, tlAdjustment } from "../src/team-leader.ts";
 import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, execState, executeProblem, expectsCommission, papersProblem, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
 
@@ -151,6 +151,18 @@ test("12 · 9.6: only a deal on the sheet is cancelled, once, with a reason", ()
   assert.equal(cancelProblem("Cancelled", "x"), "الصفقة دي اتلغت قبل كده");
   assert.equal(cancelProblem("Pending Review", "x"), "الإلغاء بيبقى على صفقة اتوافق عليها");
   assert.equal(cancelProblem("Approved", "  "), "اكتب سبب الإلغاء");
+});
+
+test("5.15 · finance corrects a collection: a reason, above zero, never above the commission, a fully collected deal can't drop back", () => {
+  const part = deal({ status: "Partially Collected", payments: [{ side: "client", amount: egp(30_000) }, { side: "owner", amount: egp(20_000) }] });
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(35_000), "المبلغ اتسجّل غلط"), null);
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(80_000), "x"), null); // 80,000 + 20,000 = the whole 100,000
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(80_001), "x"), `المبلغ أكبر من الباقي (${formatEGP(egp(80_000))})`);
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(35_000), "  "), "اكتب السبب");
+  assert.equal(collectionEditProblem(part, egp(30_000), 0, "x"), "المبلغ لازم يبقى أكبر من صفر");
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(30_000), "x"), "ده نفس المبلغ");
+  assert.match(collectionEditProblem(deal({ status: "Fully Collected" }), egp(50_000), egp(40_000), "x")!, /اتحصّلت بالكامل/);
+  assert.equal(collectionEditProblem(deal({ status: "Cancelled" }), egp(50_000), egp(40_000), "x"), "التعديل بيبقى على تحصيل صفقة شغالة");
 });
 
 test("9.15: commission is payable once fully collected, less what was paid; never above what's due or the 21103 balance", () => {

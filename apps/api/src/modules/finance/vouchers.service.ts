@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import type { BudgetPatch, BudgetRow, BudgetView, CashView, MoveEffect, MoveFilters, MoveSaved, MoveView, MovesView, NewBudgetLine, NewMove } from "@places/contracts";
 import {
   ADVANCES_PARENT, BUDGET_PERIODS, CLIENTS_PARENT, CUSTODY_PARENT, monthOf, OTHER_REVENUE, VOUCHER_LABEL, budgetCrossed, budgetLevel, formatEGP, fromDecimal, localDate,
-  periodStart, toDecimal, voucherLines, voucherProblem, type BudgetPeriod, type Piasters, type VoucherKind, type VoucherSides,
+  periodStart, reversalLines, toDecimal, voucherLines, voucherProblem, type BudgetPeriod, type Piasters, type VoucherKind, type VoucherSides,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import { esc, layout } from "../../core/documents/documents.service";
@@ -84,6 +84,30 @@ export class VouchersService {
   /** 5.3 (4 Nov): a deal's collection is a receive voucher into a safe / bank against the client's own account (113…), inside the caller's transaction. */
   async recordDealCollection(me: CurrentUser, r: { toId: string; clientAccountId: string; amount: string; party: string; ref: string; memo: string; date?: string | undefined }, tx: Tx) {
     return (await this.save(me, { kind: "receive", toId: r.toId, accountId: r.clientAccountId, amount: r.amount, party: r.party, ref: r.ref, memo: r.memo, ...(r.date ? { date: r.date } : {}) }, tx, CLIENTS_PARENT)).saved;
+  }
+
+  /**
+   * 5.15 (M-07 «تعديل يدوي»): a deal collection's voucher takes the right amount — its entry is reversed and a new one
+   * posted (both dated today), inside the caller's transaction. Taking money back out of the safe needs it to be there.
+   */
+  async correctDealCollection(me: CurrentUser, moveId: string, amount: Piasters, memo: string, tx: Tx): Promise<{ reversal: string; entry: string }> {
+    const move = await this.repo.move(moveId, tx);
+    if (!move || move.kind !== "receive" || !move.toId || !move.accountId) throw new BadRequestException("سند التحصيل ده مش موجود");
+    const old = dec(move.amount), date = localDate(new Date());
+    await this.ledger.lockBalances([move.toId], tx);
+    if (amount < old) {
+      const { accounts, balance } = await this.ledger.balances(tx);
+      const left = balance.get(move.toId) ?? 0;
+      if (left < old - amount) throw new BadRequestException(`الرصيد في ${accounts.find((a) => a.id === move.toId)?.name ?? ""} (${formatEGP(left)}) مش كفاية`);
+    }
+    const sides = (v: Piasters): VoucherSides => ({ to: move.toId!, account: move.accountId!, amount: v });
+    const reversal = await this.ledger.post(me, { date, nature: `عكس ${VOUCHER_LABEL.receive}`, source: "reversal", sourceId: move.entryId, memo: `${memo} · عكس MV-${move.no}`, lines: reversalLines(voucherLines("receive", sides(old))) }, tx);
+    const entry = await this.ledger.post(me, { date, nature: VOUCHER_LABEL.receive, source: "voucher", memo, lines: voucherLines("receive", sides(amount)) }, tx);
+    await this.repo.correctMove(move.id, { amount: toDecimal(amount), entryId: entry.id }, tx);
+    await this.ledger.linkEntry(entry.id, move.id, tx);
+    await this.audit.record({ module: "finance", entity: "TreasuryMove", entityId: move.id, action: "correct", userId: me.id,
+      before: { amount: toDecimal(old), entry: move.entryId }, after: { no: `MV-${move.no}`, amount: toDecimal(amount), reversal: reversal.no, entry: entry.no, memo } }, tx);
+    return { reversal: reversal.no, entry: entry.no };
   }
 
   /**
