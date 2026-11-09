@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma, PrismaClient } from "@places/db";
+import { type Prisma, type PrismaClient, performanceRows } from "@places/db";
 import {
   KpiWatch, type DailyFieldInput, type DailyForm, type DailyInput, type DayReport, type MyHandIn, type ReportInput, type ReportsPage, type ScheduledReportView,
 } from "@places/contracts";
@@ -122,6 +122,30 @@ export class ReportsService {
     const r = await this.repo.run(id);
     if (!r || (r.report.money && (await this.kpis.who(me)).noMoney)) throw new NotFoundException("الملف مش موجود");
     return { title: r.title, rows: Array.isArray(r.rows) ? (r.rows as Record<string, string | number>[]) : [] };
+  }
+
+  /**
+   * «ابعته دلوقتي» (11.17, demo clients.js rpRun): an auto report built now for its latest period and sent to the same
+   * recipients as the worker would (the KPI watcher too, unless it has money), logged under the report like a scheduled run.
+   * Anyone who sees the page may press it, as in the demo. The inventory report isn't sent before Manar approves it (M-03 3.1).
+   */
+  async runNow(me: CurrentUser, id: string) {
+    const r = await this.repo.report(id);
+    const [w, watchers] = await Promise.all([this.kpis.who(me), this.watchers()]);
+    if (!r || (r.money && w.noMoney)) throw new NotFoundException("التقرير مش موجود");
+    if (r.kind !== "auto" || r.content !== "performance") throw new BadRequestException("التقرير ده مش بيتبعت أوتوماتيك");
+    const [users, cal] = await Promise.all([this.repo.users(), this.time.calendar()]);
+    const now = new Date(), s = schedule(r), { period } = dueOf(s, now, cal);
+    const built = await performanceRows(this.db, s, period, cal);
+    const to = [...new Set([...pickPeople(r.recipients, users), ...(r.money ? [] : watchers)])];
+    const run = await this.db.$transaction(async (tx) => {
+      // a manual run never takes the period's key: the worker still sends the scheduled one at its time
+      const made = await tx.reportRun.create({ data: { reportId: r.id, period: `${period} · ${now.toISOString()}`, title: built.title, rows: built.rows } });
+      await this.audit.record({ module: MODULE, entity: "ScheduledReport", entityId: r.id, action: "run", userId: me.id, after: { run: made.id, to, summary: `«${r.name}» اتبعت دلوقتي` } }, tx);
+      return made;
+    });
+    if (to.length) await this.notifications.notify({ event: "report.sent", text: `اتبعت تقرير «${r.name}» (${r.fmt}) · ${built.title}`, link: LINK, userIds: to });
+    return { id: run.id, title: run.title, sent: to.length };
   }
 
   /** The home's «سلّم» tasks: what's due today and not handed in (demo «reportInbox»). */

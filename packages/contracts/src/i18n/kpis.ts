@@ -90,6 +90,8 @@ export default [
   ["تقرير جديد «{name}»", "New report «{name}»"],
   ["اتمسح التقرير «{name}»", "Report «{name}» deleted"],
   ["التقرير ده مش بيتسلّم", "This report isn't handed in"],
+  ["التقرير ده مش بيتبعت أوتوماتيك", "This report isn't sent automatically"],
+  ["«{name}» اتبعت دلوقتي", "«{name}» sent now"],
   ["التقرير اليومي بيتسلّم من الفورم بتاعه", "The daily report is handed in from its own form"],
   ["التقرير ده مش عليك", "This report isn't yours to hand in"],
   ["النهارده أجازة · مفيش تقرير", "Today is a day off · no report"],

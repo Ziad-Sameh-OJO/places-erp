@@ -204,6 +204,10 @@ function ReportCard({ r, d, onDone }: { r: ScheduledReportView; d: ReportsData; 
     await refresh(); onDone?.();
   }, tr("sched.saved"));
   const del = () => { if (confirm(tr("sched.confirmDelete", { name: x.name }))) void run(async () => { await api.del(`/reports/scheduled/${x.id}`); await refresh(); }, tr("sched.deleted")); };
+  // «ابعته دلوقتي» (11.17): a saved auto report the system builds; the inventory one waits for its approval.
+  // Only an editor gets the people list, so the others' toast doesn't name the recipients.
+  const sendable = !!r.id && r.kind === "auto" && r.content === "performance";
+  const sendNow = () => void run(async () => { await api.post(`/reports/scheduled/${r.id}/run`); await refresh(); }, o ? tr("sched.sentNow", { name: r.name, to: names(r.recipients) }) : tr("sched.sentNowShort", { name: r.name }));
   const extra = [["follower", tr("sched.follower")]] as const;
   const who = (k: "preparedBy" | "recipients" | "lateNotify", label: string, follower: boolean) => (
     <div className="field wide"><span>{label}</span>
@@ -252,15 +256,16 @@ function ReportCard({ r, d, onDone }: { r: ScheduledReportView; d: ReportsData; 
           <label className="tog wide"><input type="checkbox" checked={x.money} onChange={(e) => set("money", e.target.checked)} /><span>{tr("sched.money")}</span></label>
         </div>
       )}
-      {x.runs.length > 0 && (
+      {r.runs.length > 0 && (
         <div className="timeline">
-          {x.runs.map((f) => <div key={f.id}><button className="btn ghost sm" onClick={() => void run(() => api.download(`/reports/runs/${f.id}/file`, `${f.title}.xlsx`))}><Icon name="file" />{serverText(f.title)}</button><small>{dayTime(f.at)}</small></div>)}
+          {r.runs.map((f) => <div key={f.id}><button className="btn ghost sm" onClick={() => void run(() => api.download(`/reports/runs/${f.id}/file`, `${f.title}.xlsx`))}><Icon name="file" />{serverText(f.title)}</button><small>{dayTime(f.at)}</small></div>)}
         </div>
       )}
-      {ed && <div className="row end">
-        {onDone && <button className="btn ghost sm" onClick={onDone}>{tr("cancel")}</button>}
-        {x.id && <button className="btn ghost sm" onClick={del}><Icon name="x" />{tr("sched.delete")}</button>}
-        <button className="btn sm" onClick={save}><Icon name="check" />{tr("save")}</button>
+      {(ed || sendable) && <div className="row end">
+        {sendable && <button className="btn ghost sm" onClick={sendNow}><Icon name="send" />{tr("sched.sendNow")}</button>}
+        {ed && onDone && <button className="btn ghost sm" onClick={onDone}>{tr("cancel")}</button>}
+        {ed && x.id && <button className="btn ghost sm" onClick={del}><Icon name="x" />{tr("sched.delete")}</button>}
+        {ed && <button className="btn sm" onClick={save}><Icon name="check" />{tr("save")}</button>}
       </div>}
     </Card>
   );

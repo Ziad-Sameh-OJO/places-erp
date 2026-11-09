@@ -41,6 +41,12 @@ export class ReportsController {
     return this.reports.remove(me, id);
   }
 
+  @Post("scheduled/:id/run")
+  @Requires("reports", "view")
+  runNow(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.reports.runNow(me, id);
+  }
+
   @Get("runs/:id/file")
   @Requires("reports", "view")
   async runFile(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
