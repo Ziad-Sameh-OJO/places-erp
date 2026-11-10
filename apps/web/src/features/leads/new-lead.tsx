@@ -2,7 +2,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { activeValues, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
+import { activeValues, type AreaRoute, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
@@ -45,6 +45,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
     !fields.shows(key) ? null : required || fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
   const [phones, setPhones] = useState("");
   const [channel, setChannel] = useState("");
+  const [area, setArea] = useState("");
   const [company, setCompany] = useState("");
   const [busy, setBusy] = useState(false);
   const checked = phonesOf(useSettled(phones)).filter((p) => /^01[0-25]\d{8}$/.test(p));
@@ -56,6 +57,11 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   const ownLead = me?.scope === "own" && !isTelesales;
   const byHand = can("leads", "approve") && !!options.data?.salespeople.length;
   const campaigns = (options.data?.campaigns ?? []).filter((c) => c.channel === channel);
+  // demo «بتروح لـ: …» (1.30): who the area's rotation would send it to — not shown on a salesperson's own lead
+  const route = useQuery({
+    queryKey: ["area-route", area], enabled: !!area && !ownLead,
+    queryFn: () => api.get<AreaRoute>(`/leads/routing/area?area=${encodeURIComponent(area)}`),
+  }).data?.salespeople;
   // «اكتب أو اختار من شيت الشركات» (1.20): a name that isn't in the sheet is a new company
   const typedCompany = useSettled(company.trim());
   const sheetNames = useQuery({ queryKey: ["company-names", typedCompany], enabled: !!typedCompany, queryFn: () => api.get<string[]>(`/companies/names?q=${encodeURIComponent(typedCompany)}`) }).data;
@@ -108,7 +114,8 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
           </div>
         )}
         {only("area", <Field label="Area" req>
-          <select name="area" required defaultValue=""><option value="">{t("pick")}</option>{activeValues(settings.data?.areas ?? []).map((a) => <option key={a}>{a}</option>)}</select>
+          <select name="area" required value={area} onChange={(e) => setArea(e.target.value)}><option value="">{t("pick")}</option>{activeValues(settings.data?.areas ?? []).map((a) => <option key={a}>{a}</option>)}</select>
+          {route && <small className="hint">{route.length ? t("routesTo", { names: route.map((p) => p.name).join(t("nameSep")) }) : t("routesToOps")}</small>}
         </Field>, true)}
         {only("type", <Field label="Type"><select name="type">{TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>, true)}
         {only("space", <Field label={t("spaceM")}><input name="space" type="number" min="1" step="1" /></Field>)}
