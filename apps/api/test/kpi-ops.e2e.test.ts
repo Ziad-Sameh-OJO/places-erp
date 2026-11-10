@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { isWorkingDay, localDate } from "@places/domain";
 import { kpiRefreshTick } from "../../worker/src/processors/kpi-refresh.ts";
-import { call, session } from "./helpers.ts";
+import { call, kpiQuarterLock, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const NAME = `E2E ${stamp} K15`;
@@ -56,7 +56,7 @@ after(async () => {
 test("11.15 · New Lead within 30 minutes and Draft decisions within 24 hours on Operations' card", async () => {
   const now = new Date();
   if (isWorkingDay(localDate(now))) {
-    await kpiRefreshTick(now, [heba.id]);
+    await kpiQuarterLock(() => kpiRefreshTick(now, [heba.id])); // the job measures the current quarter: Q4 2026
     const items = await prisma.kpiItem.findMany({ where: { cardId, metric: { in: ["newLeadRoute", "draftAction"] } }, select: { value: true } });
     for (const it of items) assert.ok(it.value != null && Number(it.value) < 100, "the late ones pull both items under 100%");
   }

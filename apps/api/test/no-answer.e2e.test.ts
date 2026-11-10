@@ -12,7 +12,7 @@ import { prisma } from "@places/db";
 import { DEFAULT_LEAD_RULES, type LeadRules } from "@places/domain";
 import { noAnswerTick } from "../../worker/src/processors/no-answer.ts";
 import { noAnswerReminderTick } from "../../worker/src/processors/no-answer-reminder.ts";
-import { call, session } from "./helpers.ts";
+import { call, kpiQuarterLock, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const AREA = `E2E NA ${stamp}`;
@@ -157,9 +157,9 @@ test("Operations picks a salesperson by hand: the lead goes to them and their ne
 
 // Here, not in a file of its own: this file's queue check above expects the 30 minutes, and tests in one file run in turn.
 // 40 minutes / 26 hours leave kpi-ops.e2e's in-time and late rows as they are while it runs.
-test("4 Nov meeting: the New Lead and Draft clocks follow Operations' KPI items (11.15), not a number in the code", async () => {
-  // every quarter's: kpis.e2e may start the next quarter (a copy of these cards) while this runs
-  const items = await prisma.kpiItem.findMany({ where: { card: { employeeId: heba.id }, metric: { in: ["newLeadRoute", "draftAction"] } }, select: { id: true, metric: true, params: true } });
+test("4 Nov meeting: the New Lead and Draft clocks follow Operations' KPI items (11.15), not a number in the code", () => kpiQuarterLock(async () => {
+  // under the KPI-quarter lock: kpis.e2e can't start the next quarter (a copy of these cards, deleted again) meanwhile
+  const items = await prisma.kpiItem.findMany({ where: { card: { quarter: "2026-Q4", employeeId: heba.id }, metric: { in: ["newLeadRoute", "draftAction"] } }, select: { id: true, metric: true, params: true } });
   assert.ok(items.length >= 2);
   const MIN = 60_000;
   try {
@@ -184,7 +184,7 @@ test("4 Nov meeting: the New Lead and Draft clocks follow Operations' KPI items 
   } finally {
     for (const it of items) await prisma.kpiItem.update({ where: { id: it.id }, data: { params: it.params as object } });
   }
-});
+}));
 
 test("a No Answer someone else marked doesn't move the lead: the salesperson who has it must try first", async () => {
   await noAnswerTick(at("2021-01-20T12:00:00"), rules);
