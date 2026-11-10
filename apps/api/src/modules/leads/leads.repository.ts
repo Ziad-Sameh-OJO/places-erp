@@ -321,7 +321,7 @@ const LEAD_HOLDERS = ["sales", "tl", "telesales"] as const;
 
 const LEAD_ROW = {
   id: true, code: true, name: true, phones: true, area: true, type: true, space: true, budget: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true, kind: true,
-  assignedToId: true, assignedAt: true, arrivedAt: true, createdAt: true, campaign: { select: { id: true, name: true } },
+  assignedToId: true, assignedAt: true, arrivedAt: true, createdAt: true, campaign: { select: { id: true, name: true } }, company: { select: { name: true } },
 } satisfies Prisma.LeadSelect;
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
