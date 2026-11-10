@@ -25,10 +25,49 @@
       "contract": "عقد",
       "ticket": "تذكرة",
       "purchase": "طلب شراء"
-    }
+    },
+    "searchPill": "دوّر على ليد، وحدة، موظف…",
+    "searchLabel": "بحث في السيستم"
   },
   "language": {
     "switchTo": "English",
     "label": "غيّر اللغة"
+  },
+  "create": {
+    "button": "جديد",
+    "title": "اعمل حاجة جديدة",
+    "items": {
+      "lead": "ليد جديد",
+      "bulk": "إدخال جماعي (أرقام)",
+      "deal": "صفقة",
+      "unit": "وحدة جديدة",
+      "campaign": "كامبين",
+      "post": "بوست في الـ Content plan",
+      "purchase": "طلب شراء / دفع",
+      "user": "مستخدم جديد",
+      "ticket": "تذكرة لقسم تاني",
+      "leave": "طلب إجازة"
+    }
+  },
+  "search": {
+    "label": "بحث",
+    "placeholder": "اكتب اسم ليد، رقم موبايل، كود وحدة، موظف، أو صفحة",
+    "kinds": {
+      "page": "صفحة",
+      "action": "أكشن",
+      "lead": "ليد",
+      "unit": "وحدة",
+      "client": "عميل",
+      "deal": "صفقة",
+      "ticket": "تذكرة",
+      "employee": "موظف"
+    },
+    "newLead": "ليد جديد",
+    "meters": "{n} م",
+    "none": "مفيش نتايج لـ «{q}»",
+    "searching": "بيدوّر…",
+    "move": "تنقّل",
+    "open": "افتح",
+    "close": "قفل"
   }
 }

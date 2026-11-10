@@ -55,6 +55,11 @@ export class ReportsRepository {
     return rows.map((r) => r.userId);
   }
 
+  /** The latest hand-ins of a report, newest first. */
+  recentHandIns(reportId: string, take: number) {
+    return this.db.reportHandIn.findMany({ where: { reportId, at: { not: null } }, orderBy: { at: "desc" }, take, select: { period: true, at: true, note: true, userId: true } });
+  }
+
   handIns(reportId: string, period: string) {
     return this.db.reportHandIn.findMany({ where: { reportId, period, at: { not: null } }, select: { userId: true, at: true } });
   }

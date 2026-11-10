@@ -69,6 +69,8 @@ export default [
   ["{tcr}: TCR جديدة على {code} · امضي عليها", "{tcr}: new TCR on {code} · sign it"],
   ["{code} اتحصّلت بالكامل · عمولات السيلز عليها بقت مستحقة", "{code} fully collected · its sales commissions are now due"],
   ["مضيت عليها قبل كده", "You already signed it"],
+  ["التحصيل ده مالوش سند قبض متسجّل · عدّله من القيود", "This collection has no receive voucher on record · correct it from the journal"],
+  ["تعديل تحصيل {code} · {tcr}: {reason}", "Collection correction {code} · {tcr}: {reason}"],
   ["تاريخ التحصيل", "Collection date"],
   ["التحصيل", "Collection"],
   ["تحصيل من الـ Owner", "Collection from the Owner"],

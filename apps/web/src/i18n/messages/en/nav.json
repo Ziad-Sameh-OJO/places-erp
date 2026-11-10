@@ -44,7 +44,7 @@
     "notactive": {
       "label": "Not Active Inventory",
       "short": "Not Active",
-      "sub": "Sheets uploaded as Excel · merged without duplicates · Marwa classifies every number · Done adds a new unit"
+      "sub": "Files and folders · each file is named when it is made · the sheet is uploaded into the file · Marwa classifies every number · Done adds a new unit"
     },
     "tasks": {
       "label": "Tasks",

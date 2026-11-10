@@ -2,10 +2,12 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { UnitDetail, UnitRow } from "@places/contracts";
+import { locationUrl } from "@places/domain";
 import { Avatar, Chip, Icon } from "@/components/ui";
 import { amount, day, moneyExact, num } from "@/lib/format";
 import type inventory from "@/i18n/messages/ar/inventory.json";
 import { UnitFolder } from "./unit-photos";
+import { UnitLayoutFolder } from "./unit-layout";
 import { serverText } from "@/lib/server-text";
 
 export type UnitTypeName = UnitRow["type"];
@@ -19,16 +21,16 @@ export type ColWord = keyof typeof inventory.cols;
 type Col = readonly [key: string, label: string | { w: ColWord }];
 export const w = (k: ColWord) => ({ w: k });
 const RENT: readonly Col[] = [
-  ["project", "Project"], ["code", "Code"], ["photos", "Pic & Info"], ["space", "Area"], ["condition", "Conditions"], ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"],
-  ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["building", "Building Number"], ["parking", "Parking Slots"], ["location", "Location"],
-  ["layout", "Layout"], ["pic", "PIC"], ["resale", "Resale"], ["comment", "Comment"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["agent", "Agent"], ["lastUpdate", "Last update"],
-];
-/**
+  ["project", "Project"], ["code", "Code"], ["photos", "Pic"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["space", "Area"], ["condition", "Conditions"],
+  ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"], ["maintenance", "Maintenance"], ["floor", "Floor"], ["parking", "Parking Slots"], ["building", "Building Number"],
+  ["layout", "Layout file"], ["commission", "Commission"], ["location", "Location"], ["agent", "Agent"], ["lastUpdate", "Last update"],
+];/**
  * The demo's sheet columns per type (M-03 3.1: each type keeps its own sheet's columns and names); «all» is the
  * mixed list and the rented / sold sheet. «Pic / info» counts the unit's photos (2.4); Income's «Agreement» opens its file (2.31).
  */
 export const COLS: Record<UnitTypeName | "all" | "closed", readonly Col[]> = {
-  // 2.21 · the client's Rent sheet (Book7) column for column, then the system's own columns
+  // 2.33 · the client's Rent sheet (Book, 9 Nov) column for column; it lists Location twice, the system shows it once.
+  // PIC, Resale and Comment left the sheet (not in the client's file); the Comment stays on the unit page
   Rent: RENT,
   Resale: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("ownerName")], ["ownerPhone", w("number")], ["space", w("space")], ["floor", w("floor")], ["condition", w("finishing")], ["pricePerSqm", w("pricePerSqm")], ["total", w("totalPrice")], ["paymentMethod", w("paymentMethod")], ["agent", "Agent"], ["maintenance", w("maintenance")], ["building", w("buildingNumber")], ["parking", "Parking"], ["commission", "Commission"], ["delivery", "Delivery date"], ["photos", "Pictures"], ["lastUpdate", "Last update"]],
   Income: [["project", w("buildingName")], ["code", w("code")], ["ownerName", w("name")], ["ownerPhone", w("number")], ["link", w("link")], ["space", "Area"], ["floor", "Floor"], ["pricePerSqm", "Sale / m"], ["total", "Sale total"], ["leasePerSqm", "Lease / m"], ["monthly", "Monthly rent"], ["annual", "Annual rent"], ["yield", "Yield %"], ["contract", "Contract"], ["start", "Start"], ["end", "End"], ["escalation", "Escalation"], ["paymentMethod", "Payment"], ["building", "Building"], ["serviceUsd", "Service $/m"], ["tenant", "Tenant"], ["parking", "Parking"], ["commission", "Commission"], ["agreement", "Agreement"], ["note", "Note"], ["agent", "Agent"], ["lastUpdate", "Last update"]],
@@ -47,7 +49,6 @@ export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boole
 
 // English values sit in <bdi> so «1,5 Month» keeps its order in the RTL table
 const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : <bdi>{String(v)}</bdi>);
-const yesNo = (v: boolean) => <Chip tone={v ? "ok" : ""}>{v ? "Yes" : "No"}</Chip>;
 
 /** One cell, as the demo's cell(): money grouped, late updates in red, the map link, Income's figures. */
 export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
@@ -57,10 +58,7 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     case "type": return <TypeChip type={u.type} />;
     case "space": return !u.space ? "—" : <bdi className="num">{u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)}` : num(u.space)}</bdi>;
     case "area": case "condition": return u[key] ? serverText(u[key]) : "—"; // list values: the default ones have English names
-    case "layout": return yesNo(u.layout);
-    case "pic": return yesNo(u.photoCount > 0);
-    case "resale": return yesNo(u.type === "Resale" || u.alsoType === "Resale");
-    case "comment": return text(u.comment);
+    case "layout": return <UnitLayoutFolder u={u} label={<><Icon name="file" />{u.layoutCount ? t("cell.files", { count: u.layoutCount }) : t("cell.empty")}</>} />; // 2.35: opens the Layout folder
     case "pricePerSqm": case "leasePerSqm": return <span className="num">{amount(u[key])}</span>;
     case "total": return <span className="num">{moneyExact(u.totalPrice)}</span>;
     case "monthly": return <span className="num">{moneyExact(u.income?.monthlyRent ?? null)}</span>;
@@ -70,9 +68,7 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     case "agent": return u.agent ? <span className="who"><Avatar id={u.agent.id} name={u.agent.name} sm /><span>{u.agent.name}</span></span> : "—";
     case "lastUpdate": return u.stale ? <Chip tone="bad">{t("cell.late", { day: day(u.lastOwnerUpdateAt) })}</Chip> : day(u.lastOwnerUpdateAt);
     case "divisible": return u.divisible ? <Chip tone="info">{u.minSplit ? t("cell.yesFrom", { min: num(u.minSplit) }) : t("cell.yes")}</Chip> : "—";
-    case "location": return u.location
-      ? <a className="lnk" href={`https://maps.google.com/?q=${encodeURIComponent(u.location)}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><Icon name="pin" />{t("cell.map")}</a>
-      : "—";
+    case "location": return <LocationLink location={u.location} />;
     case "delivery": return typeof d.delivery === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.delivery) ? day(d.delivery) : text(d.delivery);
     case "contract": return text(d.contractDuration);
     case "start": return day(d.startsOn as string | undefined);
@@ -90,6 +86,18 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
       : u.alsoType && u.alsoStatus !== "available" && u.status === "available" ? <Chip tone="acc">{u.type}</Chip> : "—";
     default: return text((u as unknown as Record<string, unknown>)[key]);
   }
+}
+
+/**
+ * 2.34 · the Google Maps link itself (demo `locLink`): shortened in the sheet, whole in the drawer; an old «lat, lng»
+ * opens as a search for the point (domain locationUrl). A new tab, never the app's.
+ */
+export function LocationLink({ location, full }: { location: string | null; full?: boolean }) {
+  const url = locationUrl(location);
+  if (!url) return <>—</>;
+  const bare = url.replace(/^https?:\/\/(www\.)?/, "");
+  const shown = full ? url : bare.slice(0, 26) + (url.length > 34 ? "…" : "");
+  return <a className="lnk loc-lnk" href={url} target="_blank" rel="noopener noreferrer" dir="ltr" title={url} onClick={(e) => e.stopPropagation()}><Icon name="pin" />{shown}</a>;
 }
 
 /** 2.31 · an Income unit's Agreement: the API checks who may open it and sends them to the file. */

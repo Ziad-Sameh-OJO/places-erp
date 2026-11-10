@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { LEAD_STAGES } from "@places/domain";
-import { CalendarDay, EgyptianMobile, Id, Money, Page } from "./common.ts";
+import { CalendarDay, EgyptianMobile, Id, Money, Page, SortDir } from "./common.ts";
 
 /** A lead is a client or a broker (client meeting 4 Nov · 1.28): brokers have their own tab, same stages. */
 export const LeadKind = z.enum(["client", "broker"]);
@@ -42,6 +42,10 @@ export type ChangeStage = z.infer<typeof ChangeStage>;
 /** Query strings are text: "false" must mean false (z.coerce.boolean() would read any non-empty text as true). */
 const QueryBool = z.enum(["true", "false"]).transform((v) => v === "true");
 
+/** The leads table's columns the API sorts by (0.15): Lead, Area, Budget, Channel, Stage (pipeline order), SLA (arrival). */
+export const LEAD_SORTS = ["name", "area", "budget", "channel", "stage", "createdAt"] as const;
+export type LeadSort = (typeof LEAD_SORTS)[number];
+
 /** The leads list (M-01): filters of the demo's toolbar + search by name, mobile or code. */
 export const LeadFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
@@ -54,6 +58,8 @@ export const LeadFilters = Page.extend({
   kind: LeadKind.optional(), // the page's tab: «الليدز» (client) or «البروكرز»
   from: CalendarDay.optional(), // Cairo days, both ends included
   to: CalendarDay.optional(),
+  sort: z.enum(LEAD_SORTS).optional(), // 0.15: by a column, across every page
+  dir: SortDir.optional(),
 }).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" });
 export type LeadFilters = z.infer<typeof LeadFilters>;
 
@@ -73,7 +79,7 @@ export type AddComment = z.infer<typeof AddComment>;
 
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
 export interface LeadRow {
-  id: string; code: string; name: string; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
+  id: string; code: string; name: string; company: string | null; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
   campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean; kind: LeadKind;
   ownedByTelesales: boolean; // demo: «مع Telesales» — she keeps it to call herself, no SLA
   /** the SLA clock while the lead is Fresh and untouched (null otherwise): level, minutes left, % of the way to the pull */
@@ -88,7 +94,7 @@ export interface LeadActivityRow {
 
 /** The lead drawer (M-01): the list row plus the details and the Activity, newest first. */
 export interface LeadDetail extends LeadRow {
-  company: string | null; condition: string | null; note: string | null;
+  condition: string | null; note: string | null;
   /** a deal is registered on it already: the drawer's «سجّل الصفقة» hides (demo) */
   hasDeal: boolean;
   post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
@@ -222,6 +228,11 @@ export const RoutingCell = z.object({
 export type RoutingCell = z.infer<typeof RoutingCell>;
 /** The routing table: the active areas (M-13 lists), the salespeople, and who covers each area in rotation order. */
 export interface RoutingView { areas: string[]; salespeople: { id: string; name: string }[]; routing: Record<string, string[]> }
+
+/** 1.30 · «بتروح لـ: …» under the new-lead form's Area: who covers it today, in rotation order (empty: Operations). */
+export const AreaRouteQuery = z.object({ area: z.string().trim().min(1, "اختار الـ Area").max(80) });
+export type AreaRouteQuery = z.infer<typeof AreaRouteQuery>;
+export interface AreaRoute { salespeople: { id: string; name: string }[] }
 
 /** «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand a lead to a salesperson. */
 /**

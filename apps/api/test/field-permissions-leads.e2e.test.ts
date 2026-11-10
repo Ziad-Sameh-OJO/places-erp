@@ -38,6 +38,7 @@ after(async () => {
   const leads = (await prisma.lead.findMany({ where: { name: { startsWith: P } }, select: { id: true } })).map((l) => l.id);
   await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: [roleId, ...leads] } }, { userId }, ...leads.map((id) => ({ after: { path: ["leadId"], equals: id } }))] } });
   await prisma.lead.deleteMany({ where: { id: { in: leads } } });
+  await prisma.company.deleteMany({ where: { name: { startsWith: P } } });
   await prisma.unit.deleteMany({ where: { code: `U-LF${stamp}` } });
   await prisma.campaign.deleteMany({ where: { id: campaignId } });
   await prisma.notification.deleteMany({ where: { text: { contains: P } } });
@@ -127,4 +128,15 @@ test("a role that doesn't create can have the mobile hidden: not shown, not sear
   assert.equal((await call(`/leads/${leadId}`, { method: "PUT", cookie: person, body })).status, 200);
   assert.equal((await call(`/leads/${leadId}`, { method: "PUT", cookie: person, body: { ...body, phones: ["01011111111"] } })).status, 200);
   assert.deepEqual((await prisma.lead.findUniqueOrThrow({ where: { id: leadId } })).phones, [phone]);
+});
+
+test("the company under the name in the list (1.31): shown to whoever may see it, hidden when the field is", async () => {
+  const company = await prisma.company.create({ data: { name: `${P} شركة الليست`, category: "Other" } });
+  await prisma.lead.update({ where: { id: leadId }, data: { companyId: company.id } });
+  assert.equal((await row(admin, `q=${encodeURIComponent(P)}`))?.company, company.name);
+  const board = (await call(`/leads/board?q=${encodeURIComponent(P)}`, { cookie: admin })).body as { lanes: { items: Record<string, unknown>[] }[] };
+  assert.equal(board.lanes.flatMap((l) => l.items).find((l) => l.id === leadId)?.company, company.name);
+  assert.equal((await fields({ module: "leads", rules: { company: "hide" } })).status, 204);
+  assert.equal((await row(person, `q=${encodeURIComponent(P)}`))?.company, null);
+  assert.equal(((await call(`/leads/${leadId}`, { cookie: person })).body as Record<string, unknown>).company, null);
 });

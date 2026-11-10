@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PostInput, PostRow } from "@places/contracts";
@@ -27,6 +28,7 @@ export function ContentPlan() {
   const [month, setMonth] = useState(() => cairoDay(new Date().toISOString()).slice(0, 7));
   const [open, setOpen] = useState<PostRow | null>(null);
   const [creating, setCreating] = useState(false);
+  useNewParam("post", () => setCreating(true), can("marketing", "create")); // «جديد ← بوست في الـ Content plan» (0.16)
   const posts = useQuery({ queryKey: ["posts", month], queryFn: () => api.get<PostRow[]>(`/marketing/posts?month=${month}`) });
   const items = posts.data ?? [];
   const label = new Date(`${month}-15T12:00:00Z`).toLocaleDateString(dateLocale(), { month: "long", year: "numeric" });

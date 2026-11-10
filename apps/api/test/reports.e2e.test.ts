@@ -137,6 +137,23 @@ test("11.10 · the job with a set clock: a reminder before the deadline, one lat
   assert.equal((await prisma.reportHandIn.findFirstOrThrow({ where: { reportId: h.id } })).at, null);
 });
 
+test("11.17 · «ابعته دلوقتي»: whoever sees the page sends an auto report now, to its recipients, logged under it; a salesperson can't", async () => {
+  const a = await prisma.scheduledReport.create({ data: { name: `${RUN} دلوقتي`, kind: "auto", freq: "monthly", day: 1, time: "09:00", fmt: "Excel", content: "performance", recipients: [ids.adminUser] } });
+  assert.equal((await call(`/reports/scheduled/${a.id}/run`, { method: "POST", cookie: amr })).status, 403);
+  assert.equal((await call(`/reports/scheduled/${ids.report}/run`, { method: "POST", cookie: nancy })).status, 400); // a hand-in report isn't sent
+  const sent = await call(`/reports/scheduled/${a.id}/run`, { method: "POST", cookie: nancy });
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  assert.ok(sent.body.sent >= 1);
+  const again = await call(`/reports/scheduled/${a.id}/run`, { method: "POST", cookie: nancy });
+  assert.equal(again.status, 201, JSON.stringify(again.body)); // twice the same period is fine: each press is its own run
+  const listed = (await call("/reports/scheduled", { cookie: admin })).body.reports.find((x: { id: string }) => x.id === a.id);
+  assert.equal(listed.runs.length, 2);
+  assert.ok(listed.runs.some((x: { id: string }) => x.id === sent.body.id));
+  assert.equal(await prisma.notification.count({ where: { userId: ids.adminUser, text: { contains: `«${RUN} دلوقتي»` } } }), 2);
+  assert.equal(await prisma.auditLog.count({ where: { module: "reports", entityId: a.id, action: "run" } }), 2);
+  assert.equal((await call(`/reports/runs/${sent.body.id}/file`, { cookie: amr })).status, 403);
+});
+
 test("11.12 · extra fields: the admin adds one, it shows in the form and in the day's report; the TL of another team can't look", async () => {
   assert.equal((await call("/reports/daily/fields", { method: "POST", cookie: amr, body: { userId: ids.hosnyUser, label: `${RUN} x`, type: "number" } })).status, 403);
   const f = await call("/reports/daily/fields", { method: "POST", cookie: admin, body: { userId: ids.hosnyUser, label: `${RUN} عدد الشركات`, type: "number" } });

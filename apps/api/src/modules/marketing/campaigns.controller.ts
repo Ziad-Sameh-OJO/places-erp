@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
-import { CampaignInput, DashboardQuery } from "@places/contracts";
+import { CampaignInput, DashboardQuery, NotQualifiedQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -21,6 +21,13 @@ export class CampaignsController {
   @Requires("marketing", "view")
   dashboard(@Me() me: CurrentUser, @Query(new ZodPipe(DashboardQuery)) q: DashboardQuery) {
     return this.campaigns.dashboard(me, q);
+  }
+
+  /** 4.18 · the leads that never became Qualified and why: marketing's (and the management's), without the mobiles. */
+  @Get("not-qualified")
+  @Requires("marketing", "view")
+  notQualified(@Query(new ZodPipe(NotQualifiedQuery)) q: NotQualifiedQuery) {
+    return this.campaigns.notQualified(q);
   }
 
   @Get("channels")

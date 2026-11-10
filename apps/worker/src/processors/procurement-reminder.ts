@@ -22,9 +22,9 @@ export async function procurementReminderTick(now = new Date()): Promise<number>
       const claimed = await tx.purchase.updateMany({ where: { id: p.id, status: "Pending", remindedAt: null }, data: { remindedAt: now } });
       if (!claimed.count) return [];
       const rule = await tx.notificationRule.findUnique({ where: { event: EVENT } });
-      if (!(rule?.channels ?? event.channels).includes("app")) return [];
       const people = await tx.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: [...(rule?.toRoles ?? event.toRoles)] } } } } }, select: { id: true } });
-      await tx.notification.createMany({ data: people.map((u) => ({ userId: u.id, event: EVENT, text, link: "/procurement", important: event.important })) });
+      // the in-app line only when the rule has that channel; the push below follows the rule's channels on its own
+      if ((rule?.channels ?? event.channels).includes("app")) await tx.notification.createMany({ data: people.map((u) => ({ userId: u.id, event: EVENT, text, link: "/procurement", important: event.important })) });
       sent++;
       return people.map((u) => u.id);
     });

@@ -2,10 +2,10 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import type { Prisma, PrismaClient } from "@places/db";
 import {
   type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
-  type MissingUnitsToday, type UnitRow, type UnitSummary, type UnitTabCounts,
+  type MissingUnitsToday, type UnitImportOptions, type UnitImportReviewRow, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, findDuplicates, importDecision, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -128,7 +128,7 @@ export class InventoryService {
   }
 
   private scope(me: CurrentUser, now = new Date()): UnitScope {
-    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now) };
+    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now), hidden: me.fields.hidden("inventory") };
   }
 
   async list(me: CurrentUser, filters: UnitFilters): Promise<Paged<UnitRow>> {
@@ -202,33 +202,59 @@ export class InventoryService {
   }
 
   /**
-   * 13.1 · old units from the template, in one transaction. A row is a duplicate when a unit (or an earlier row) has the
-   * same project, space, floor, building and owner number (the demo's key for «البيانات كاملة», M-03 7.1): it's skipped.
-   * Rows the form would refuse are skipped and reported. `save` false = the preview's counts, nothing written.
-   * No Live Alert per unit: an old sheet isn't news for marketing.
+   * 13.1 · 2.38 · units from the template, in one transaction. A repeat is told by the column(s) the uploader picked
+   * (domain findDuplicates: all of them match a unit or an earlier row); each repeat is left out unless the reviewer
+   * says «ادمج» (a repeat of a unit: its price, owner name and last update) or «ضيفها برضه». Rows the form would refuse
+   * are skipped and reported. `save` false = the preview, nothing written. The import (with the picked columns) is
+   * audited, and marketing gets one Live Alert with how many units came in (4.4).
    */
-  async importUnits(me: CurrentUser, sheet: ParsedSheet<UnitInput>, save: boolean): Promise<ImportReport> {
+  async importUnits(me: CurrentUser, sheet: ParsedSheet<UnitInput>, opts: UnitImportOptions, save: boolean): Promise<ImportReport & { merged: number; review: UnitImportReviewRow[] }> {
     const errors = [...sheet.errors];
     const agents = new Map((await this.repo.agents()).map((a) => [a.name.trim().toLowerCase(), a.id]));
-    const seen = new Set<string>();
-    let added = 0, duplicates = 0;
+    const valid: { line: number; input: UnitInput }[] = [];
+    for (const { line, data } of sheet.rows) {
+      const name = data.agentId?.trim().toLowerCase();
+      const input = keepFixed({ ...data, agentId: name ? agents.get(name) ?? "" : undefined }, null, me.fields.fixed("inventory")); // the sheet has the agent's name (may be empty, 2.21)
+      if (input.agentId === "") { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
+      try { await this.check(input, null); } catch (e) { errors.push({ line, column: "", message: (e as Error).message }); continue; }
+      valid.push({ line, input });
+    }
+    const dups = findDuplicates(valid.map((v) => ({ line: v.line, ...v.input })), await this.repo.importKeys(), opts.dupBy);
+    const hidden = me.fields.hidden("inventory");
+    const review = valid.map(({ line, input }, i): UnitImportReviewRow => ({
+      line, project: input.project, space: input.space, floor: input.floor ?? null, building: input.building ?? null,
+      ownerName: hidden.has("ownerName") ? null : input.ownerName ?? null, dupOf: dups[i] ?? null,
+    }));
+    let added = 0, merged = 0;
     const run = async (tx: Prisma.TransactionClient) => {
-      for (const { line, data } of sheet.rows) {
-        const name = data.agentId?.trim().toLowerCase();
-        const input = keepFixed({ ...data, agentId: name ? agents.get(name) ?? "" : undefined }, null, me.fields.fixed("inventory")); // the sheet has the agent's name (may be empty, 2.21)
-        if (input.agentId === "") { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
-        try { await this.check(input, null); } catch (e) { errors.push({ line, column: "", message: (e as Error).message }); continue; }
-        const key = { project: input.project, space: input.space, floor: input.floor ?? null, building: input.building ?? null, ownerPhone: input.ownerPhone ?? null };
-        const id = JSON.stringify({ ...key, project: key.project.toLowerCase() });
-        if (seen.has(id) || (await tx.unit.findFirst({ where: { ...key, project: { equals: key.project, mode: "insensitive" }, archivedAt: null }, select: { id: true } }))) { duplicates++; continue; }
-        seen.add(id);
-        if (save) await this.insert(tx, me, input);
-        added++;
+      for (const [i, { line, input }] of valid.entries()) {
+        const dup = dups[i] ?? null, decision = importDecision(dup, opts.decisions[String(line)]);
+        if (decision === "add") { if (save) await this.insert(tx, me, input); added++; }
+        if (decision === "merge" && dup && "unit" in dup) { if (save) await this.mergeImported(tx, me, dup.unit, input); merged++; }
+      }
+      if (save) {
+        await this.audit.record({ module: "inventory", entity: "UnitImport", entityId: me.id, action: "import", userId: me.id,
+          after: { dupBy: opts.dupBy, rows: sheet.total, added, merged, duplicates: dups.filter(Boolean).length, decisions: opts.decisions } }, tx);
       }
     };
     if (save) await this.db.$transaction(run, IMPORT_TX);
     else await run(this.db);
-    return { added, duplicates, errors };
+    if (save && added) await this.notifications.notify({ event: "unit.new", text: `Live Alert: ${added} وحدة جديدة اتضافت للانفنتوري من استيراد Excel`, link: "/marketing?tab=units" });
+    return { added, merged, duplicates: dups.filter(Boolean).length, errors, review };
+  }
+
+  /** «ادمج (حدّث القديم)» (demo importApprove): the row's price and owner name go on the unit it repeats, updated today; audited, the PDF waits again (Q19). */
+  private async mergeImported(tx: Prisma.TransactionClient, me: CurrentUser, code: string, input: UnitInput) {
+    const u = await tx.unit.findUniqueOrThrow({ where: { code }, select: { id: true, space: true, pricePerSqm: true, ownerName: true, lastOwnerUpdateAt: true } });
+    const price = input.pricePerSqm ? fromDecimal(input.pricePerSqm) : null;
+    const data = {
+      ...(price !== null ? { pricePerSqm: toDecimal(price), totalPrice: u.space ? toDecimal(unitTotal(price, u.space)) : null } : {}),
+      ...(input.ownerName ? { ownerName: input.ownerName } : {}),
+      lastOwnerUpdateAt: dayStart(localDate(new Date())), pdfStatus: "draft",
+    };
+    await tx.unit.update({ where: { id: u.id }, data });
+    await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "update", userId: me.id,
+      before: { pricePerSqm: u.pricePerSqm?.toFixed(2) ?? null, ownerName: u.ownerName, lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { ...data, merged: "import" } }, tx);
   }
 
   /** The serial code, the owner's file and the audit, in the caller's transaction. */
@@ -296,6 +322,25 @@ export class InventoryService {
     return this.get(me, id);
   }
 
+  /**
+   * 2.34 · the demo's unitLoc: the unit's Google Maps link changes from its page (the place moved, or the link was
+   * wrong). The old and new link go in the Audit Log; like any edit the PDF waits for Manar's confirm again (Q19), and
+   * the unit's Last update is today. The same link → nothing changes.
+   */
+  async setLocation(me: CurrentUser, id: string, location: string): Promise<UnitDetail> {
+    if (me.fields.fixed("inventory").has("location")) throw new ForbiddenException("الـ Location مقفول على دورك");
+    await this.db.$transaction(async (tx) => {
+      const u = await this.repo.detail(this.scope(me), id, tx);
+      if (!u) throw new NotFoundException(NO_UNIT);
+      if (locationUrl(u.location) === locationUrl(location)) return;
+      const now = new Date();
+      await tx.unit.update({ where: { id }, data: { location, pdfStatus: "draft", lastOwnerUpdateAt: now } });
+      await this.audit.record({ module: "inventory", entity: "Unit", entityId: id, action: "location", userId: me.id,
+        before: { location: u.location, pdfStatus: u.pdfStatus, lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { location, pdfStatus: "draft", lastOwnerUpdateAt: now } }, tx);
+    });
+    return this.get(me, id);
+  }
+
   /** Archived, never deleted: deals and visits still point at it. */
   async archive(me: CurrentUser, id: string) {
     await this.db.$transaction(async (tx) => {
@@ -342,7 +387,7 @@ export class InventoryService {
       project: u.project, area: u.area, space: u.space, condition: u.condition, floor: u.floor, building: u.building, parking: u.parking,
       ownerName: s.insider ? u.ownerName : null, ownerPhone: s.insider ? u.ownerPhone : null,
       pricePerSqm: money(u.pricePerSqm), totalPrice: money(u.totalPrice), leasePerSqm: money(u.leasePerSqm),
-      maintenance: u.maintenance, commission: u.commission, paymentMethod: u.paymentMethod, layout: u.layout, comment: u.comment,
+      maintenance: u.maintenance, commission: u.commission, paymentMethod: u.paymentMethod, layout: u._count.layouts > 0, layoutCount: u._count.layouts, comment: u.comment,
       divisible: u.divisible, minSplit: u.minSplit, location: u.location, areaTabId: u.areaTabId,
       agent: u.agentId ? { id: u.agentId, name: agents.get(u.agentId) ?? "" } : null,
       lastOwnerUpdateAt: u.lastOwnerUpdateAt.toISOString(), stale: isStale(u.lastOwnerUpdateAt, new Date()),
@@ -371,7 +416,7 @@ function hideFields(r: UnitRow, hidden: ReadonlySet<string>): UnitRow {
     pricePerSqm: h("pricePerSqm") ? null : r.pricePerSqm, totalPrice: h("totalPrice") ? null : r.totalPrice, leasePerSqm: h("leasePerSqm") ? null : r.leasePerSqm,
     income: h("income") || !r.income ? null : h("yield") ? { ...r.income, yieldPct: null } : r.income,
     maintenance: h("maintenance") ? null : r.maintenance, commission: h("commission") ? null : r.commission, paymentMethod: h("paymentMethod") ? null : r.paymentMethod,
-    layout: h("layout") ? false : r.layout, comment: h("comment") ? null : r.comment, location: h("location") ? null : r.location, agreement: h("agreement") ? false : r.agreement,
+    layout: h("layout") ? false : r.layout, layoutCount: h("layout") ? 0 : r.layoutCount, comment: h("comment") ? null : r.comment, location: h("location") ? null : r.location, agreement: h("agreement") ? false : r.agreement,
     divisible: h("divisible") ? false : r.divisible, minSplit: h("minSplit") ? null : r.minSplit, agent: h("agent") ? null : r.agent,
     lastOwnerUpdateAt: h("lastOwnerUpdateAt") ? "" : r.lastOwnerUpdateAt, stale: h("stale") ? false : r.stale,
     details: Object.fromEntries(Object.entries(r.details).filter(([k]) => !h(k))),
@@ -379,19 +424,21 @@ function hideFields(r: UnitRow, hidden: ReadonlySet<string>): UnitRow {
 }
 
 /** Filtering by a hidden field would tell its value: such a filter is dropped. */
-function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitFilters {
+export function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitFilters {
   if (!hidden.size) return f;
   const drop = (on: boolean, ...keys: (keyof UnitFilters)[]) => (on ? Object.fromEntries(keys.map((k) => [k, undefined])) : {});
   return {
     ...f, ...drop(hidden.has("area"), "area"), ...drop(hidden.has("condition"), "condition"), ...drop(hidden.has("agent"), "agentId"),
     ...drop(hidden.has("space"), "minSpace", "maxSpace", "tabId"), ...drop(hidden.has("totalPrice"), "minPrice", "maxPrice"),
     ...drop(hidden.has("lastOwnerUpdateAt"), "stale"), ...drop(hidden.has("divisible"), "divisible"),
+    // sorting by a hidden field would tell its value too (0.15)
+    ...drop(!!f.sort && hidden.has(f.sort === "total" ? "totalPrice" : f.sort === "lastUpdate" ? "lastOwnerUpdateAt" : f.sort), "sort"),
   };
 }
 
 /** A field the person may not set: its value as stored (an edit), or empty (a new unit). Keys a type doesn't have are ignored by toData. */
-const EMPTY: Record<string, unknown> = { area: "", space: 0, condition: "", parking: 0, layout: false, divisible: false };
-const INPUT_KEYS = ["area", "space", "areaTabId", "condition", "floor", "building", "parking", "agentId", "maintenance", "commission", "location", "layout", "comment",
+const EMPTY: Record<string, unknown> = { area: "", space: 0, condition: "", parking: 0, divisible: false };
+const INPUT_KEYS = ["area", "space", "areaTabId", "condition", "floor", "building", "parking", "agentId", "maintenance", "commission", "location", "comment",
   "lastOwnerUpdateAt", "divisible", "minSplit", "splitNote", "ownerName", "ownerPhone", "pricePerSqm", "leasePerSqm", "paymentMethod", "delivery", "upfront",
   "security", "payment", "term", "grace", "escalationPct", "link", "contractDuration", "startsOn", "endsOn", "serviceChargeUsd", "tenant", "note"] as const;
 function keepFixed(input: UnitInput, before: UnitRecord | null, fixed: ReadonlySet<string>): UnitInput {
@@ -413,7 +460,7 @@ function keepFixed(input: UnitInput, before: UnitRecord | null, fixed: ReadonlyS
  */
 async function missingUnits(repo: InventoryRepository, s: UnitScope) {
   return (await repo.forMissingCheck(s))
-    .map((u) => ({ id: u.id, code: u.code, type: u.type, missing: missingFields({ ...u, photoCount: u._count.photos }) }))
+    .map((u) => ({ id: u.id, code: u.code, type: u.type, missing: missingFields({ ...u, photoCount: u._count.photos }, s.hidden) }))
     .filter((u) => u.missing.length);
 }
 
@@ -452,7 +499,7 @@ function toData(u: UnitInput) {
     parking: u.parking, agentId: u.agentId ?? null, ownerName: u.ownerName ?? null, ownerPhone: u.ownerPhone ?? null,
     pricePerSqm: price ? toDecimal(fromDecimal(price)) : null, totalPrice: price && u.space ? toDecimal(unitTotal(fromDecimal(price), u.space)) : null,
     leasePerSqm: u.type === "Income" && u.leasePerSqm ? toDecimal(fromDecimal(u.leasePerSqm)) : null,
-    maintenance: u.maintenance ?? null, commission: u.commission ?? null, layout: u.layout, comment: u.comment ?? null,
+    maintenance: u.maintenance ?? null, commission: u.commission ?? null, comment: u.comment ?? null,
     paymentMethod: u.type === "Rent" ? null : (u.paymentMethod ?? null),
     details, location: u.location ?? null, areaTabId: u.areaTabId ?? null,
     divisible: u.divisible, minSplit: u.divisible ? (u.minSplit ?? null) : null, splitNote: u.divisible ? (u.splitNote ?? null) : null,

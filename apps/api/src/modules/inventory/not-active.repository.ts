@@ -3,7 +3,9 @@ import type { Prisma, PrismaClient } from "@places/db";
 import type { NotActiveTab } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 
-const SHEET = { id: true, name: true, dedupeBy: true, numberBy: true, columns: true, _count: { select: { rows: true } } } satisfies Prisma.NotActiveSheetSelect;
+const SHEET = {
+  id: true, name: true, dedupeBy: true, numberBy: true, columns: true, folder: true, createdById: true, createdAt: true, _count: { select: { rows: true } },
+} satisfies Prisma.NotActiveSheetSelect;
 const ROW = {
   id: true, sheetId: true, data: true, status: true, feedback: true, createdAt: true, assignedTo: true, matchedUnitId: true, matchSeen: true, unitId: true,
 } satisfies Prisma.NotActiveRowSelect;
@@ -20,8 +22,30 @@ const scoped = (s: RowScope): Prisma.NotActiveRowWhereInput => (s.all ? {} : { a
 export class NotActiveRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  sheets() {
-    return this.db.notActiveSheet.findMany({ select: SHEET, orderBy: { createdAt: "asc" } });
+  /** 2.39 · the files the person sees: Manar all of them, the others the ones with rows sent to them. */
+  sheets(s: RowScope) {
+    return this.db.notActiveSheet.findMany({ where: s.all ? {} : { rows: { some: { assignedTo: s.userId } } }, select: { ...SHEET, _count: { select: { rows: { where: scoped(s) } } } }, orderBy: { createdAt: "asc" } });
+  }
+
+  /** Per file: rows not classified yet, and numbers in the inventory waiting for Manar — in what the person sees. */
+  sheetCounts(s: RowScope) {
+    return this.db.$transaction([
+      this.db.notActiveRow.groupBy({ by: ["sheetId"], where: { status: null, ...scoped(s) }, _count: { _all: true }, orderBy: { sheetId: "asc" } }),
+      this.db.notActiveRow.groupBy({ by: ["sheetId"], where: { matchedUnitId: { not: null }, matchSeen: false, ...scoped(s) }, _count: { _all: true }, orderBy: { sheetId: "asc" } }),
+    ]);
+  }
+
+  folders() {
+    return this.db.notActiveSheet.findMany({ where: { folder: { not: null } }, select: { folder: true }, distinct: ["folder"] });
+  }
+
+  /** 2.39 · a new, empty file: its columns and the column that tells rows apart come with its first sheet. */
+  createFile(tx: Prisma.TransactionClient, name: string, folder: string | null, createdById: string) {
+    return tx.notActiveSheet.create({ data: { name, folder, createdById }, select: SHEET });
+  }
+
+  renameFile(tx: Prisma.TransactionClient, id: string, name: string, folder: string | null) {
+    return tx.notActiveSheet.update({ where: { id }, data: { name, folder }, select: SHEET });
   }
 
   sheet(id: string, tx: Prisma.TransactionClient = this.db) {
@@ -59,8 +83,8 @@ export class NotActiveRepository {
     return tx.notActiveRow.findFirst({ where: { id, ...scoped(s) }, select: ROW });
   }
 
-  createSheet(tx: Prisma.TransactionClient, name: string, dedupeBy: string, numberBy: string | null, columns: string[]) {
-    return tx.notActiveSheet.create({ data: { name, dedupeBy, numberBy, columns }, select: SHEET });
+  createSheet(tx: Prisma.TransactionClient, name: string, dedupeBy: string, numberBy: string | null, columns: string[], createdById: string) {
+    return tx.notActiveSheet.create({ data: { name, dedupeBy, numberBy, columns, createdById }, select: SHEET });
   }
 
   updateSheet(tx: Prisma.TransactionClient, id: string, dedupeBy: string, numberBy: string | null, columns: string[]) {

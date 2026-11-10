@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ExportButton, Icon, Note, Tabs } from "@/components/ui";
@@ -39,6 +40,7 @@ export function LeadsList() {
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState<LeadKind>("client"); // the tab; the filters stay when it changes (1.28)
   const [open, setOpen] = useState<string | null>(null);
+  const [visit, setVisit] = useState<"Visit" | "Meeting" | undefined>(); // the drawer opened by a Kanban drop on Visit / Meeting (1.32)
   const [creating, setCreating] = useState(false);
   const [bulk, setBulk] = useState(false);
   const [companies, setCompanies] = useState(false);
@@ -53,7 +55,9 @@ export function LeadsList() {
     if (q.get("companies") === "1") setCompanies(true); // the new-company notification's link (1.20)
     if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32)
   }, []);
-  useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
+  // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
+  useNewParam("1", () => setCreating(true), canCreate);
+  useNewParam("bulk", () => setBulk(true), can("leads", "import"));
   const [draftTab, setDraftTab] = useState<DraftKind | null>(null);
   // «/leads?draft=admin»: the Draft Admin Alarm on «مهامي النهارده» (1.34) opens that tab (only shown to whom may see it)
   useEffect(() => { const d = new URLSearchParams(window.location.search).get("draft"); if (d === "draft" || d === "admin") setDraftTab(d); }, []);
@@ -66,7 +70,9 @@ export function LeadsList() {
   const options = useLeadOptions();
   const settings = useSettings();
   const saved = useSavedViews();
-  const leads = useLeads({ ...f, kind }, page, PAGE);
+  // 0.15: a header click sorts every page in the API (back to page 1); not a filter, so saved views don't keep it
+  const [sort, setSort] = useState<Pick<LeadQuery, "sort" | "dir">>({});
+  const leads = useLeads({ ...f, kind, ...sort }, page, PAGE);
   const board = useLeadBoard({ ...f, kind }, mode === "board");
   const tabs = useTabCounts(f).data;
   // a filter the API refuses (e.g. «لحد» before «من») says why, instead of quietly keeping the previous results
@@ -119,19 +125,19 @@ export function LeadsList() {
         {(keepsSheet || can("leads", "import")) && <button className="btn ghost" onClick={() => setCompanies(true)}><Icon name="building" />{t("companies")}</button>}
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />{t("bulk")}</button>}
         {can("leads", "import") && <><OldDataImport kind="leads" /><OldDataImport kind="companies" /></>}{/* 13.1 */}
-        <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind }, 1, 100)} filename={t("exportFile")} label={t("export")} />
+        <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind, ...sort }, 1, 100)} filename={t("exportFile")} label={t("export")} />
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{t("newLead")}</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
-        ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
-        : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} {...(canPick ? { picked, onPick: setPicked } : {})} />}
+        ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={(id) => { setVisit(undefined); setOpen(id); }} onVisit={(id, k) => { setVisit(k); setOpen(id); }} />
+        : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} sort={sort} onSort={(by, dir) => { setSort({ sort: by, dir }); setPage(1); }} {...(canPick ? { picked, onPick: setPicked } : {})} />}
       {mode === "list" && picked.length > 0 && <BulkBar ids={picked} onDone={() => setPicked([])} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
       {companies && <CompaniesSheet onClose={() => setCompanies(false)} />}
       {lists && <ListRequestsModal onClose={() => setLists(false)} />}
       {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}
       {can("leads", "create") && <Fab onClick={() => setCreating(true)} label={t("newLead")} />}
-      {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
+      {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => { setOpen(null); setVisit(undefined); }} visit={visit} />}
       {!failed && mode === "list" && pages > 1 && (
         <div className="row end">
           <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("prev")}</button>

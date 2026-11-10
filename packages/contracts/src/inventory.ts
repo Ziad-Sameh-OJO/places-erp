@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_UNIT_PHOTOS, UNIT_TYPES, areaRangeProblem, fromDecimal, unitFiguresFit, type UnitStatus, type UnitType } from "@places/domain";
-import { CalendarDay, Id, Money, Page } from "./common.ts";
+import { CalendarDay, Id, Money, Page, SortDir } from "./common.ts";
 import type { ListItem } from "./settings.ts";
 
 /** M-03 · the inventory: one unit's sheet per type (sources/inventory-unit-fields.md, M-03 3.1), the list's filters. */
@@ -17,7 +17,9 @@ const Phone = z.string({ required_error: "اكتب الرقم", invalid_type_err
 const PRICE = /^\d{1,10}(\.\d{1,2})?$/;
 const Price = (missing: string) => z.string({ required_error: missing, invalid_type_error: missing }).pipe(Money)
   .refine((m) => !m.startsWith("-"), "السعر مايبقاش بالسالب").refine((m) => PRICE.test(m), "السعر كبير أوي").refine((m) => Number(m) > 0, missing);
-const Location = z.string().trim().regex(/^-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$/, "اللوكيشن «خط العرض, خط الطول» من الخريطة");
+/** 2.34 · a Google Maps link (https://…), or the old map picker's «lat, lng» (it still opens, domain locationUrl). */
+const Location = z.string().trim().max(500, "لينك اللوكيشن طويل")
+  .regex(/^(https:\/\/\S+|-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?)$/, "اللوكيشن لينك Google Maps (https://…)");
 
 /** What every type has (the demo's form top): the agent is who brought the unit → Seller on the deal (M-02). */
 const Common = {
@@ -33,8 +35,7 @@ const Common = {
   maintenance: optional(text(80, "الصيانة طويلة")),
   commission: optional(text(80, "الـ Commission طويل")),
   location: optional(Location),
-  /** Book7 «Layout» Yes / No and «Comment» (2.21) */
-  layout: z.boolean({ invalid_type_error: "الـ Layout اه أو لا" }).default(false),
+  /** Book7 «Comment» (2.21); «Layout» is the unit's Layout file folder now (2.35), not typed in */
   comment: optional(text(2000, "الـ Comment طويل")),
   /** «last update» with the owner; today when it's left empty */
   lastOwnerUpdateAt: optional(CalendarDay),
@@ -116,10 +117,18 @@ export type UnitInput = z.infer<typeof UnitInput>;
 export const OwnerUpdateInput = z.object({ comment: z.string().trim().max(1000, "الكومنت طويل").optional() });
 export type OwnerUpdateInput = z.infer<typeof OwnerUpdateInput>;
 
+/** 2.34 · «عدّل اللينك» from the unit's drawer: the new Google Maps link (the old one stays in the Audit Log). */
+export const UnitLocationInput = z.object({ location: z.string({ required_error: "اكتب لينك Google Maps" }).pipe(Location) });
+export type UnitLocationInput = z.infer<typeof UnitLocationInput>;
+
 const QueryBool = z.enum(["true", "false"]).transform((v) => v === "true");
 const QueryInt = z.coerce.number().int().min(0).max(1_000_000);
 /** «closed» = the rented / sold sheet (M-03 5.2): rented or sold, or one side of a dual unit closed. */
 export const UnitView = z.enum(["available", "closed"]);
+
+/** The sheet's columns the API sorts by (0.15), as the screens name them: «total» = Total Price, «lastUpdate» = Last update. */
+export const UNIT_SORTS = ["project", "code", "type", "area", "space", "condition", "floor", "building", "parking", "pricePerSqm", "total", "leasePerSqm", "lastUpdate"] as const;
+export type UnitSort = (typeof UNIT_SORTS)[number];
 
 /** The list's filters (the demo's toolbar + 2.2: type, area, space, price, status). */
 export const UnitFilters = Page.extend({
@@ -140,6 +149,8 @@ export const UnitFilters = Page.extend({
   /** the rented / sold sheet (M-03 5.2): closed between these Cairo days, both included */
   closedFrom: CalendarDay.optional(),
   closedTo: CalendarDay.optional(),
+  sort: z.enum(UNIT_SORTS).optional(), // 0.15: by a column, across every page
+  dir: SortDir.optional(),
 })
   .refine((f) => f.minSpace == null || f.maxSpace == null || f.minSpace <= f.maxSpace, { path: ["maxSpace"], message: "أقصى مساحة أصغر من أقل مساحة" })
   .refine((f) => f.minPrice == null || f.maxPrice == null || Number(f.minPrice) <= Number(f.maxPrice), { path: ["maxPrice"], message: "أقصى سعر أصغر من أقل سعر" })
@@ -154,7 +165,9 @@ export interface UnitRow {
   project: string; area: string; space: number; condition: string; floor: string | null; building: string | null; parking: number;
   ownerName: string | null; ownerPhone: string | null;
   pricePerSqm: string | null; totalPrice: string | null; leasePerSqm: string | null;
-  maintenance: string | null; commission: string | null; paymentMethod: string | null; layout: boolean; comment: string | null;
+  maintenance: string | null; commission: string | null; paymentMethod: string | null;
+  /** 2.35 · «Layout file»: how many files its Layout folder has; `layout` = it has any */
+  layout: boolean; layoutCount: number; comment: string | null;
   divisible: boolean; minSplit: number | null; location: string | null; areaTabId: string | null;
   agent: Person | null; lastOwnerUpdateAt: string; stale: boolean; pdfStatus: "draft" | "confirmed"; createdAt: string;
   /** the columns only one type has (Resale delivery, Income contract…) */
@@ -229,12 +242,19 @@ export const UnitPhotoOrder = z.object({ fileIds: z.array(Id).max(MAX_UNIT_PHOTO
 export type UnitPhotoOrder = z.infer<typeof UnitPhotoOrder>;
 /** One file of the folder with a short link (5 minutes); `main` = the first image (the PDF's cover), never a `pdf`. 2.22: `download` saves it instead of opening it; `by`/`at` = who uploaded it, when. */
 export interface UnitPhotoView { id: string; name: string; url: string; download: string; pdf: boolean; main: boolean; by: string | null; at: string }
+/** 2.35 · one file of the unit's «Layout file» folder: a PDF opens in the system, an image shows, a DWG / DXF only downloads. */
+export interface UnitLayoutView { id: string; name: string; kind: "image" | "pdf" | "drawing"; url: string; download: string; by: string | null; at: string }
+/** 2.35 · Layout files uploaded with core/files (`folder: "layout"`), added to the unit's folder. */
+export const UnitLayoutInput = z.object({ fileIds: z.array(Id, { required_error: "اختار الملفات" }).min(1, "اختار الملفات").max(20, "لحد 20 ملف في المرة") });
+export type UnitLayoutInput = z.infer<typeof UnitLayoutInput>;
 
 /** 2.16 · a task Manar gives Randa, Sara or Marwa for today (at most 30 each, M-03 3.1). */
 export const TeamTaskInput = z.object({
   toUserId: Id.refine(Boolean, "اختار لمين"),
   title: z.string({ required_error: "اكتب المهمة" }).trim().min(1, "اكتب المهمة").max(300, "المهمة طويلة"),
   unitId: optional(Id),
+  /** 4.15 «تتحسب في الـ KPIs؟» */
+  countsInKpi: z.boolean().optional(),
 });
 export type TeamTaskInput = z.infer<typeof TeamTaskInput>;
 /** Someone on Manar's team with how many tasks she gave them today, and how many more she can. */

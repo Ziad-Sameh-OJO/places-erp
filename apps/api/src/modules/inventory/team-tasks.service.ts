@@ -1,11 +1,12 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { TeamMember, TeamTaskInput, TeamTaskView } from "@places/contracts";
+import type { TaskKpiEffect, TeamMember, TeamTaskInput, TeamTaskView } from "@places/contracts";
 import { TEAM_TASKS_PER_DAY, dayStart, localDate, teamTaskRoom } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
+import { KpisService } from "../kpis/kpis.service";
 
 const KIND = "team"; // domain TASK_KINDS: given only here, capped at 30 a day
 type TaskRow = Prisma.TaskGetPayload<object>;
@@ -22,6 +23,7 @@ export class TeamTasksService {
     @Inject(PRISMA) private readonly db: PrismaClient,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly kpis: KpisService,
   ) {}
 
   /** The people who report to me, with today's count. */
@@ -48,7 +50,7 @@ export class TeamTasksService {
     }));
   }
 
-  async give(me: CurrentUser, input: TeamTaskInput): Promise<TeamTaskView> {
+  async give(me: CurrentUser, input: TeamTaskInput): Promise<TeamTaskView & { kpi: TaskKpiEffect }> {
     const to = (await this.reports(me)).find((p) => p.userId === input.toUserId);
     if (!to) throw new BadRequestException("المهمة لحد من فريقك بس");
     if (input.unitId && !(await this.db.unit.count({ where: { id: input.unitId, archivedAt: null } }))) throw new BadRequestException("الوحدة مش موجودة");
@@ -58,12 +60,13 @@ export class TeamTasksService {
       await tx.$queryRaw`SELECT id FROM access."User" WHERE id = ${to.userId} FOR UPDATE`;
       const today = await tx.task.count({ where: { kind: KIND, toUserId: to.userId, dueOn: calendarDay(now) } });
       if (!teamTaskRoom(today)) throw new BadRequestException(`${to.name} عندها ${TEAM_TASKS_PER_DAY} مهمة النهارده (الحد الأقصى)`);
-      const t = await tx.task.create({ data: { kind: KIND, title: input.title, unitId: input.unitId ?? null, byUserId: me.id, toUserId: to.userId, dueOn: calendarDay(now) } });
-      await this.audit.record({ module: "inventory", entity: "Task", entityId: t.id, action: "create", userId: me.id, after: { to: to.name, title: t.title, unitId: t.unitId } }, tx);
-      return t;
+      const countsInKpi = input.countsInKpi ?? false; // 4.15: Skip unless «أيوه»
+      const t = await tx.task.create({ data: { kind: KIND, title: input.title, unitId: input.unitId ?? null, byUserId: me.id, toUserId: to.userId, dueOn: calendarDay(now), countsInKpi } });
+      await this.audit.record({ module: "inventory", entity: "Task", entityId: t.id, action: "create", userId: me.id, after: { to: to.name, title: t.title, unitId: t.unitId, countsInKpi } }, tx);
+      return { t, kpi: countsInKpi ? await this.kpis.countTask(tx, to.userId, me.id, me.id) : null };
     });
     await this.notifications.notify({ event: "inventory.team_task", userIds: [to.userId], link: "/", text: `مهمة من ${me.name}: ${input.title}` });
-    return (await this.views([task]))[0]!;
+    return { ...(await this.views([task.t]))[0]!, kpi: task.kpi };
   }
 
   /** Only the person it's for marks it done. */

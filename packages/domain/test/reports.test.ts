@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PLACES_CALENDAR } from "../src/business-time.ts";
-import { dailyAverage, dailySumValue, dailyTotals, dayStatus, dueOf, handInStep, isOffPeriod, nextDue, pickPeople } from "../src/reports.ts";
+import { dailyAverage, dailySumValue, dailyTotals, dayStatus, dueOf, handInState, handInStep, isOffPeriod, nextDue, pickPeople } from "../src/reports.ts";
 import { behindPace, dealRowOf, monthBounds, periodFigures, ranked, targetPercent, tlTiersOf, type DealRow } from "../src/targets.ts";
 
 // Cairo is UTC+2 in November 2026
@@ -107,4 +107,12 @@ test("11.8 · Cairo months across the year, a stored deal as the rules read it, 
     payments: [{ side: "owner", amount: "250.50", receivedAt: at("2026-11-03T10:00:00Z") }] });
   assert.deepEqual([d.status, d.buyers, d.sellers, d.sellerApproved, d.payments[0]!.amount], ["Partially Collected", ["s1"], ["s2"], false, 25_050]);
   assert.deepEqual(tlTiersOf([{ below: 70, percent: 4 }, { below: null, percent: 6 }]), [{ below: 70, percent: 4 }, { below: Infinity, percent: 6 }]);
+});
+
+test("M-04 · the competitors report card: handed in this month, waiting for the 30th, or late after it", () => {
+  const due = dueOf({ freq: "monthly", day: 30, time: "17:00" }, at("2026-11-09T10:00:00Z")).due; // 30 Nov 17:00 Cairo
+  assert.equal(handInState(true, due, at("2026-11-09T10:00:00Z")), "done");
+  assert.equal(handInState(false, due, at("2026-11-09T10:00:00Z")), "waiting");
+  assert.equal(handInState(false, due, at("2026-11-30T14:59:00Z")), "waiting");
+  assert.equal(handInState(false, due, at("2026-11-30T15:01:00Z")), "late");
 });

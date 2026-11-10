@@ -4,7 +4,7 @@ import type { Settings } from "@places/contracts";
 import type { Channel } from "@places/domain";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { Card, Field, Note, Table, Tick, useAction } from "@/components/ui";
+import { Card, Field, Note, onFormSubmit, Table, Tick, useAction } from "@/components/ui";
 import { MailLog } from "./mail-log";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -30,7 +30,7 @@ export function NotificationRules() {
     <>
       <div className="cols">
         <Card title={t("from.title")} icon="send" sub={t("from.sub")}>
-          {s.data && <form className="form" action={(f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, t("saved"))}>
+          {s.data && <form className="form" onSubmit={onFormSubmit((f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, t("saved")))}>
             <Field label={t("from.label")}><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!canSet("notificationsFrom")} /></Field>
             {canSet("notificationsFrom") && <div className="row end"><button className="btn ghost sm">{t("save")}</button></div>}
           </form>}

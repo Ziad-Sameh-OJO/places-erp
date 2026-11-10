@@ -71,6 +71,12 @@ export const CollectDeal = z.object({
   date: CalendarDay.optional(),
 });
 export type CollectDeal = z.infer<typeof CollectDeal>;
+/** 5.15 «تعديل يدوي» (demo deals.js payEdit): the right amount of a recorded collection / TCR, and why (required). */
+export const EditCollection = z.object({
+  amount: Money,
+  reason: z.string().trim().min(1, "اكتب السبب").max(500, "السبب طويل"),
+});
+export type EditCollection = z.infer<typeof EditCollection>;
 /** «الغي الصفقة» (M-02 2.3 (12) · 9.6): the reason is required; its revenue and commission entries are reversed. */
 export const CancelDeal = z.object({ reason: z.string().trim().min(1, "اكتب سبب الإلغاء").max(1000, "السبب طويل") });
 export type CancelDeal = z.infer<typeof CancelDeal>;
@@ -137,6 +143,8 @@ export interface DealRow {
 /** 5.12: the TCR made by one collection, with each salesperson on the deal and whether they signed. */
 export interface DealTcr {
   id: string; code: string; date: string; side: "owner" | "client"; amount: string;
+  /** 5.15 «اتعدّل يدوي»: the amount before the last manual correction, and why */
+  edited: { from: string; reason: string } | null;
   signatures: Array<DealPerson & { side: "buyer" | "seller"; signedAt: string | null }>;
 }
 export interface DealDetail extends Omit<DealRow, "tcrs"> {

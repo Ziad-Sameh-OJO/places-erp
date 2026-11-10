@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CostCenterFilters, DealFilters, Page } from "@places/contracts";
+import { dayStart } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 
 const PERSON = { select: { id: true, name: true } } as const;
@@ -13,7 +14,7 @@ export const DEAL_ROW = {
   tcrs: { select: { code: true }, orderBy: { code: "asc" } },
 } satisfies Prisma.DealSelect;
 const TCR = {
-  id: true, code: true, payment: { select: { side: true, amount: true, receivedAt: true } },
+  id: true, code: true, payment: { select: { id: true, side: true, amount: true, receivedAt: true, moveId: true, editedFrom: true, editReason: true } },
   signatures: { select: { employeeId: true, signedAt: true } },
 } satisfies Prisma.TcrSelect;
 const DEAL_DETAIL = {
@@ -130,13 +131,14 @@ export class DealsRepository {
 
   /** 9.10: the collected deals (revenue booked, not cancelled) with their lead's area and campaign, by the report's filters. */
   costCenter(f: CostCenterFilters) {
-    const day = (d: string) => new Date(`${d}T00:00:00Z`);
+    // the report's days are Cairo days (a deal closed at 1 a.m. belongs to that day, not the UTC one before)
+    const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
     return this.db.deal.findMany({
       where: {
         status: { in: ["PARTIALLY_COLLECTED", "FULLY_COLLECTED"] },
         ...(f.channel ? { source: f.channel } : {}),
         ...(f.salesId ? { participants: { some: { employeeId: f.salesId } } } : {}),
-        ...(f.from || f.to ? { closedAt: { ...(f.from ? { gte: day(f.from) } : {}), ...(f.to ? { lt: new Date(day(f.to).getTime() + 86_400_000) } : {}) } } : {}),
+        ...(f.from || f.to ? { closedAt: { ...(f.from ? { gte: dayStart(f.from) } : {}), ...(f.to ? { lt: dayStart(nextDay(f.to)) } : {}) } } : {}),
         ...(f.area || f.campaignId ? { lead: { ...(f.area ? { area: f.area } : {}), ...(f.campaignId ? { campaignId: f.campaignId } : {}) } } : {}),
       },
       select: {
@@ -171,6 +173,11 @@ export class DealsRepository {
 
   addPayment(tx: Prisma.TransactionClient, data: Prisma.PaymentUncheckedCreateInput) {
     return tx.payment.create({ data, select: { id: true } });
+  }
+
+  /** 5.15: the corrected amount, and the one it replaced with the reason («اتعدّل يدوي»). */
+  correctPayment(tx: Prisma.TransactionClient, id: string, data: { amount: string; editedFrom: string; editReason: string }) {
+    return tx.payment.update({ where: { id }, data, select: { id: true } });
   }
 
   nextTcr(tx: Prisma.TransactionClient) {

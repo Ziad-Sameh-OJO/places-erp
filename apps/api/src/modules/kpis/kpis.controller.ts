@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { sendPdf } from "../../core/documents/documents.service";
 import {
   ActivityInput, ActivityResultInput, KpiBandsInput, KpiCopyInput, KpiDeliveryInput, KpiFollowerInput, KpiItemsInput, KpiNewCardInput, KpiPayInput, KpiPlanInput, KpiScope, KpiValueInput,
-  KpiWatchInput,
+  KpiWatchInput, KpiSheetFieldsInput, KpiBonusInput,
 } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -113,6 +113,27 @@ export class KpisController {
   @Requires("kpis", "edit")
   setBands(@Me() me: CurrentUser, @Body(new ZodPipe(KpiBandsInput)) body: KpiBandsInput) {
     return this.kpis.setBands(me, body);
+  }
+
+  /** 11.18: the quarterly sheet's lines and award rules. */
+  @Put("sheet/fields")
+  @HttpCode(204)
+  @Requires("kpis", "edit")
+  setSheetFields(@Me() me: CurrentUser, @Body(new ZodPipe(KpiSheetFieldsInput)) body: KpiSheetFieldsInput) {
+    return this.kpis.setSheetFields(me, body.fields);
+  }
+
+  @Post("sheet/bonuses")
+  @Requires("kpis", "edit")
+  addBonus(@Me() me: CurrentUser, @Body(new ZodPipe(KpiBonusInput)) body: KpiBonusInput) {
+    return this.kpis.addBonus(me, body);
+  }
+
+  @Delete("sheet/bonuses/:id")
+  @HttpCode(204)
+  @Requires("kpis", "edit")
+  removeBonus(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.kpis.removeBonus(me, id);
   }
 
   @Put("watchers")

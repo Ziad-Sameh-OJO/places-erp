@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CampaignInput, CampaignRow, DashboardQuery, MarketingDashboard } from "@places/contracts";
-import { allowedValue, channelTree, qualificationRate, costPerLead, dayStart, fromDecimal, isCampaignLive, leadsByPost, localDate, toDecimal } from "@places/domain";
+import { NOT_QUALIFIED_ROWS, type CampaignInput, type CampaignRow, type DashboardQuery, type MarketingDashboard, type NotQualifiedQuery, type NotQualifiedView } from "@places/contracts";
+import {
+  LEAD_STAGES, allowedValue, channelTree, countByReason, qualificationRate, costPerLead, dayStart, fromDecimal, isCampaignLive, lastSalesAct, leadsByPost, localDate, toDecimal,
+} from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -34,9 +36,7 @@ export class CampaignsService {
    */
   async dashboard(me: CurrentUser, q: DashboardQuery): Promise<MarketingDashboard> {
     const hidden = me.fields.hidden("marketing"), h = (k: string) => hidden.has(k);
-    const at = { ...(q.from ? { gte: dayStart(q.from) } : {}), ...(q.to ? { lt: dayStart(nextDay(q.to)) } : {}) };
-    const pick = { ...(q.channel ? { channel: q.channel } : {}), ...(q.campaignId ? { campaignId: q.campaignId } : {}) };
-    const rows = await this.repo.arrivals({ ...pick, ...(q.from || q.to ? { at } : {}) });
+    const rows = await this.repo.arrivals(arrivalsIn(q));
     const arrivals = rows.map((r) => ({ channel: r.channel, campaignId: r.campaignId, qualified: r.lead.qualified, post: r.lead.post }));
     const tree = channelTree(arrivals);
     const camps = new Map((await this.repo.byIds(tree.flatMap((c) => c.campaigns.map((x) => x.campaignId)))).map((c) => [c.id, c]));
@@ -60,6 +60,35 @@ export class CampaignsService {
         }),
       })),
       posts: leadsByPost(arrivals),
+    };
+  }
+
+  /**
+   * 4.18 · «الليدز اللي ماكانتش Qualified» (demo marketing.js `notQualified`), with the dashboard's filter: how many per
+   * reason (the lead's stage = what the salesperson did), and the latest ones with the salesperson's last comment and who
+   * wrote it. Marketing sees the comment and the stage, never the client's mobile.
+   */
+  async notQualified(q: NotQualifiedQuery): Promise<NotQualifiedView> {
+    const where = arrivalsIn(q);
+    const [total, leads] = await Promise.all([this.repo.leadsIn(where), this.repo.notQualified(where)]);
+    const all = leads.map((l) => ({ ...l, reason: STAGE_LABEL.get(l.stage) ?? l.stage }));
+    const list = all.filter((l) => !q.reason || l.reason === q.reason);
+    const acts = await this.repo.peopleActs(list.map((l) => l.id));
+    const byLead = new Map<string, typeof acts>();
+    for (const a of acts) byLead.set(a.leadId, [...(byLead.get(a.leadId) ?? []), a]);
+    const last = new Map(list.map((l) => [l.id, lastSalesAct(byLead.get(l.id) ?? [])]));
+    const when = (l: (typeof list)[number]) => (last.get(l.id)?.at ?? l.arrivedAt).getTime();
+    const shown = list.sort((a, b) => when(b) - when(a)).slice(0, NOT_QUALIFIED_ROWS);
+    const names = await this.repo.names([...new Set(shown.map((l) => last.get(l.id)?.byUserId).filter((x): x is string => !!x))]);
+    return {
+      total, notQualified: all.length, byReason: countByReason(all.map((l) => l.reason)), matching: list.length,
+      rows: shown.map((l) => {
+        const c = last.get(l.id);
+        return {
+          id: l.id, code: l.code, name: l.name, channel: l.channel, campaign: l.campaign?.name ?? null, reason: l.reason,
+          comment: c ? { text: c.text, by: names.get(c.byUserId!) ?? "", at: c.at.toISOString() } : null,
+        };
+      }),
     };
   }
 
@@ -109,6 +138,13 @@ export class CampaignsService {
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+/** sales.LeadStage (FOLLOW_UP_TO_VISIT) → its name (Follow up to Visit). */
+const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
+/** The dashboard's filter as arrivals: a period of Cairo days (the «to» day whole), a channel, a campaign. */
+function arrivalsIn(q: DashboardQuery): Prisma.LeadArrivalWhereInput {
+  const at = { ...(q.from ? { gte: dayStart(q.from) } : {}), ...(q.to ? { lt: dayStart(nextDay(q.to)) } : {}) };
+  return { ...(q.channel ? { channel: q.channel } : {}), ...(q.campaignId ? { campaignId: q.campaignId } : {}), ...(q.from || q.to ? { at } : {}) };
+}
 /** The calendar day after «YYYY-MM-DD» (a «to» filter includes its whole day). */
 const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 const money = (d: Prisma.Decimal) => d.toFixed(2);
