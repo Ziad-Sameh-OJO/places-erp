@@ -132,8 +132,8 @@ export class LedgerRepository {
     ]);
   }
 
-  entry(id: string) {
-    return this.db.journalEntry.findUnique({ where: { id }, include: { lines: { orderBy: { debit: "desc" } } } });
+  entry(id: string, tx: Tx | PrismaClient = this.db) {
+    return tx.journalEntry.findUnique({ where: { id }, include: { lines: { orderBy: { debit: "desc" } } } });
   }
 
   accountLines(accountId: string) {

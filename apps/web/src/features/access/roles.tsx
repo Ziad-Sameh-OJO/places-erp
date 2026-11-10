@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ACTIONS, MODULES } from "@places/domain";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { Card, Chip, Field, Modal, Note, Tabs, useAction } from "@/components/ui";
+import { Card, Chip, Field, Modal, Note, onFormSubmit, Tabs, useAction } from "@/components/ui";
 import { Matrix, type MatrixValue } from "./matrix";
 import { RoleFields } from "./role-fields";
 import { SCOPES, TIERS, type RoleRow } from "./types";
@@ -94,7 +94,7 @@ function RoleForm({ mode, role, roles, onClose, onSaved }: { mode: "new" | "edit
   }
   return (
     <Modal title={title} onClose={onClose}>
-      <form className="form" action={submit}>
+      <form className="form" onSubmit={onFormSubmit(submit)}>
         <Field label={t("label")} req><input name="label" required minLength={2} defaultValue={role ? role.label + (mode === "copy" ? t("copySuffix") : "") : ""} /></Field>
         <Field label={t("tier")}><select name="tier" defaultValue={role?.tier ?? "Executive Staff"}>{TIERS.map(([tier, k]) => <option key={tier} value={tier}>{tier} · {tTier(k)}</option>)}</select></Field>
         <Field label={t("scope")}><select name="scope" defaultValue={role?.scope.toLowerCase() ?? "own"}>{SCOPES.map((k) => <option key={k} value={k}>{tScope(k)}</option>)}</select></Field>

@@ -11,20 +11,23 @@ type Db = PrismaClient | Prisma.TransactionClient;
 const shift = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 /** Every active salesperson's achievement in [from, to) against his monthly target (11.8 rules). */
-export async function salesFigures(db: Db, month: string, from: Date, to: Date) {
+/** `month`: the target's month, or the months of a quarter — the goal is the sum of their targets. */
+export async function salesFigures(db: Db, month: string | readonly string[], from: Date, to: Date) {
+  const months = typeof month === "string" ? [month] : [...month];
   const people = await db.employee.findMany({
     where: { user: { status: "ACTIVE", roles: { some: { role: { key: "sales" } } } } },
     select: { id: true, name: true, team: true, target: true, teamLeaderId: true, teamLeader: { select: { name: true, userId: true } } }, orderBy: { name: "asc" },
   });
   const ids = people.map((p) => p.id);
   const [targets, deals] = await Promise.all([
-    db.salesTarget.findMany({ where: { month, employeeId: { in: ids } } }),
+    db.salesTarget.findMany({ where: { month: { in: months }, employeeId: { in: ids } } }),
     db.deal.findMany({ where: { participants: { some: { employeeId: { in: ids } } }, payments: { some: { receivedAt: { gte: from, lt: to } } } }, include: { participants: true, payments: true } }),
   ]);
   const rows = deals.map((d) => dealRowOf({ ...d, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), targetBase: d.targetBase?.toFixed(2) ?? null,
     payments: d.payments.map((p) => ({ side: p.side, amount: p.amount.toFixed(2), receivedAt: p.receivedAt })) }));
   return people.map((p) => {
-    const t = targets.find((x) => x.employeeId === p.id), goal = fromDecimal((t?.value ?? p.target).toFixed(2));
+    // each month's own target, the employee's monthly figure for a month without one
+    const goal = months.reduce((s, m) => s + fromDecimal((targets.find((x) => x.employeeId === p.id && x.month === m)?.value ?? p.target).toFixed(2)), 0);
     return { ...p, goal, ...periodFigures(p.id, rows, from, to) };
   });
 }
@@ -40,7 +43,11 @@ function windows(s: Schedule, period: string, cal: WorkCalendar) {
   for (let i = 0; i < months; i++) first = monthBounds(first, cal).prev;
   let before = first;
   for (let i = 0; i < months; i++) before = monthBounds(before, cal).prev;
-  return { month: first, label: monthLabel(first), cur: [monthBounds(first, cal).from, dayStart(`${period.slice(0, 7)}-01`, cal)] as const, prev: [monthBounds(before, cal).from, monthBounds(first, cal).from] as const };
+  const next = (m: string) => { const [y, mm] = m.split("-").map(Number) as [number, number]; return `${y + Math.floor(mm / 12)}-${String((mm % 12) + 1).padStart(2, "0")}`; };
+  const span = [first];
+  while (span.length < months) span.push(next(span.at(-1)!));
+  const label = months === 1 ? monthLabel(first) : `${monthLabel(first)} → ${monthLabel(span[months - 1]!)}`;
+  return { month: span, label, cur: [monthBounds(first, cal).from, dayStart(`${period.slice(0, 7)}-01`, cal)] as const, prev: [monthBounds(before, cal).from, monthBounds(first, cal).from] as const };
 }
 
 /** 11.10 «تقرير الأداء»: every salesperson and every team, against the period before. Column names are the Excel headers. */

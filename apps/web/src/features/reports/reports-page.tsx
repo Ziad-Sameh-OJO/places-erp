@@ -116,7 +116,7 @@ function TargetForm({ r, month, onClose }: { r: TargetRow; month: string; onClos
 function Transactions({ month }: { month: string }) {
   const tr = useTranslations("reports");
   const [range, setRange] = useState<[string, string] | null>(null);
-  const today = new Date().toISOString().slice(0, 10), last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }), last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const [from, to] = range ?? [`${month}-01`, today < last ? today : last];
   const q = useQuery({ queryKey: ["reports", "tx", from, to], queryFn: () => api.get<TransactionRow[]>(`/reports/transactions?from=${from}&to=${to}`) });
   const collected = useFields("reports").shows("collected");
@@ -175,7 +175,8 @@ function Schedules() {
   return (
     <>
       <Note>{tr("sched.note")}</Note>
-      {q.data.reports.map((r) => <ReportCard key={r.id} r={r} d={q.data} />)}
+      {/* keyed by what the server recomputes too, so a saved card shows the new «next» and its runs */}
+      {q.data.reports.map((r) => <ReportCard key={`${r.id}:${r.next}:${r.runs.length}`} r={r} d={q.data} />)}
       {draft && <ReportCard r={draft} d={q.data} onDone={() => setDraft(null)} />}
       {q.data.can.edit && !draft && <div className="row end"><button className="btn ghost" onClick={() => setDraft(blank(tr("sched.newReport")))}><Icon name="plus" />{tr("sched.newReport")}</button></div>}
     </>

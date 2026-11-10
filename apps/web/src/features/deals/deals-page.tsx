@@ -10,6 +10,7 @@ import { serverText } from "@/lib/server-text";
 import { DealDrawer } from "./deal-drawer";
 import { DealForm } from "./deal-form";
 import { LANES, ST_TONE, monthOf, names, onSheet, useAchievements, useDealSheet } from "./use-deals";
+import { fromDecimal, toDecimal } from "@places/domain";
 
 type Tab = "me" | "board" | "sheet" | "split" | "achv";
 const pct = (a: string, b: string) => (Number(b) > 0 ? Math.min(100, (Number(a) / Number(b)) * 100) : 0);
@@ -63,8 +64,8 @@ export function DealsPage() {
             <>
               <div className="row"><b className="spacer">{d.company}</b>{d.offTarget && <Chip tone="bad">Alarm</Chip>}{d.sellers.some((s) => !s.approved) && <Chip tone="warn">{tr("board.sellerWaiting")}</Chip>}</div>
               <span className="hint mono">{d.code} · {d.unitCode}{fields.shows("type") && ` · ${d.type}`}</span>
-              {fields.shows("expected") && <b className="num">{money((Number(d.commissionOwner) + Number(d.commissionClient)).toFixed(2))}</b>}
-              {fields.shows("expected") && fields.shows("collected") && <Bar p={pct(d.collected, (Number(d.commissionOwner) + Number(d.commissionClient)).toFixed(2))} tone={Number(d.remaining) > 0 ? "warn" : ""} />}
+              {fields.shows("expected") && <b className="num">{money(toDecimal(fromDecimal(d.commissionOwner) + fromDecimal(d.commissionClient)))}</b>}
+              {fields.shows("expected") && fields.shows("collected") && <Bar p={pct(d.collected, toDecimal(fromDecimal(d.commissionOwner) + fromDecimal(d.commissionClient)))} tone={fromDecimal(d.remaining) > 0 ? "warn" : ""} />}
               <div className="row"><span className="hint spacer">Buyer: {names(d.buyers)}</span><span className="hint">{day(d.closedAt)}</span></div>
             </>
           )} />

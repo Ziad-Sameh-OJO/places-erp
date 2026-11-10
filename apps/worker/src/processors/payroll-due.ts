@@ -25,9 +25,14 @@ export async function payrollDueTick(now = new Date()): Promise<void> {
   const rule = await prisma.notificationRule.findUnique({ where: { event: event.key } });
   const to = await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: rule?.toRoles ?? [...event.toRoles] } } } } }, select: { id: true } });
   const text = `اصرف مرتبات ${monthLabel(month)} · ${people.length} موظف · إجمالي ${formatEGP(gross)}`;
-  await prisma.$transaction(async (tx) => {
-    await tx.setting.upsert({ where: { key: NOTIFIED }, create: { key: NOTIFIED, value: month }, update: { value: month } });
+  const told = await prisma.$transaction(async (tx) => {
+    // claimed under a row lock: a second worker (or a retry) sees the month already taken
+    await tx.$executeRaw`INSERT INTO "system"."Setting" ("key", "value", "updatedAt") VALUES (${NOTIFIED}, '""'::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
+    const [row] = await tx.$queryRaw<Array<{ value: unknown }>>`SELECT "value" FROM "system"."Setting" WHERE "key" = ${NOTIFIED} FOR UPDATE`;
+    if (row?.value === month) return false;
+    await tx.setting.update({ where: { key: NOTIFIED }, data: { value: month } });
     await tx.notification.createMany({ data: to.map((u) => ({ userId: u.id, event: event.key, text, link: "/finance", important: event.important })) });
+    return true;
   });
-  await pushEvent(event.key, { userIds: to.map((u) => u.id), text, link: "/finance" });
+  if (told) await pushEvent(event.key, { userIds: to.map((u) => u.id), text, link: "/finance" });
 }
