@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@places/db";
 import type { EmployeeFile, EmployeeFilters, EmployeePatch, EmployeeRow, EmployeesView } from "@places/contracts";
-import { fromDecimal, tiersProblem, toDecimal } from "@places/domain";
+import { fromDecimal, localDate, tiersProblem, toDecimal } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { HrRepository, type EmployeeRowDb, type Tx } from "./hr.repository";
 import { hideEmployee, keepEmployee } from "./hr-fields";
+import { LeavesService } from "./leaves.service";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const money = (v: { toFixed(n: number): string }) => toDecimal(fromDecimal(v.toFixed(2)));
@@ -17,7 +18,7 @@ const money = (v: { toFixed(n: number): string }) => toDecimal(fromDecimal(v.toF
  */
 @Injectable()
 export class HrService {
-  constructor(private readonly repo: HrRepository, private readonly audit: AuditService) {}
+  constructor(private readonly repo: HrRepository, private readonly audit: AuditService, private readonly leaves: LeavesService) {}
 
   /** The data scope as a filter on employees: all · my department · my team · me (M-09 2.7). */
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
@@ -44,7 +45,7 @@ export class HrService {
   async file(me: CurrentUser, id: string): Promise<EmployeeFile> {
     const e = await this.repo.employee(id, this.scope(me));
     if (!e) throw new NotFoundException("الموظف مش موجود");
-    return hideEmployee(this.view(e), me.fields.hidden("hr"));
+    return hideEmployee({ ...this.view(e), month: await this.month(e) }, me.fields.hidden("hr"));
   }
 
   async update(me: CurrentUser, id: string, sent: EmployeePatch, run: Run): Promise<EmployeeFile> {
@@ -54,7 +55,7 @@ export class HrService {
     const p = stored ? keepEmployee(sent, this.view(stored), fixed) : sent;
     if (p.deductionTiers) { const bad = tiersProblem(p.deductionTiers); if (bad) throw new BadRequestException(bad); }
     if (fromDecimal(p.salary) < 0 || (p.target && fromDecimal(p.target) < 0)) throw new BadRequestException("المبالغ مابتبقاش بالسالب");
-    return run(async (tx) => {
+    const saved = await run(async (tx) => {
       const before = await this.repo.employee(id, this.scope(me), tx);
       if (!before) throw new NotFoundException("الموظف مش موجود");
       const data: Prisma.EmployeeUncheckedUpdateInput = {
@@ -74,8 +75,19 @@ export class HrService {
       const changed = keys.filter((k) => JSON.stringify(b[k]) !== JSON.stringify(a[k]));
       if (changed.length) await this.audit.record({ module: "hr", entity: "Employee", entityId: id, action: "update", userId: me.id,
         before: Object.fromEntries(changed.map((k) => [k, b[k]])), after: Object.fromEntries(changed.map((k) => [k, a[k]])) }, tx);
-      return hideEmployee(a, me.fields.hidden("hr"));
+      return after;
     });
+    return hideEmployee({ ...this.view(saved), month: await this.month(saved) }, me.fields.hidden("hr"));
+  }
+
+  /** 7.16 (demo empDrawer «الفايل»): the month's numbers on the file. */
+  private async month(e: EmployeeRowDb): Promise<EmployeeFile["month"]> {
+    const today = localDate(new Date());
+    const [att, excuses, annual, advance] = await Promise.all([
+      this.repo.attendanceMonth(e.id, today.slice(0, 7)), this.repo.excusesMonth(e.id, today.slice(0, 7)),
+      this.leaves.annual({ id: e.id, leaveBalance: e.leaveBalance }, today.slice(0, 4)), this.repo.advanceOwed(e.userId),
+    ]);
+    return { ...att, excuses, leaveLeft: annual.left, leaveTotal: annual.total, advance: toDecimal(advance) };
   }
 
   private row(e: EmployeeRowDb): EmployeeRow {
@@ -83,7 +95,7 @@ export class HrService {
       salary: money(e.salary), target: money(e.target), commissionPct: e.commissionPct.toFixed(2), leaveBalance: e.leaveBalance, customTiers: e.deductionTiers != null };
   }
 
-  private view(e: EmployeeRowDb): EmployeeFile {
+  private view(e: EmployeeRowDb): Omit<EmployeeFile, "month"> {
     return { ...this.row(e), email: e.user.email, manager: e.manager, team: e.team, joinedAt: e.joinedAt ? e.joinedAt.toISOString().slice(0, 10) : null,
       partTimeDeductions: e.partTimeDeductions, deductionTiers: (e.deductionTiers as EmployeeFile["deductionTiers"]) ?? null, fixedSchedule: e.fixedSchedule };
   }

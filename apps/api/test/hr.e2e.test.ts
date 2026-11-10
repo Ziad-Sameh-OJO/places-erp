@@ -25,6 +25,8 @@ before(async () => {
 });
 after(async () => {
   if (target) {
+    await prisma.attendanceDay.deleteMany({ where: { employeeId: target.id } });
+    await prisma.excuseRequest.deleteMany({ where: { employeeId: target.id } });
     await prisma.auditLog.deleteMany({ where: { entity: "Employee", entityId: target.id } });
     await prisma.employee.deleteMany({ where: { id: target.id } });
     await prisma.user.deleteMany({ where: { id: target.userId } });
@@ -68,4 +70,19 @@ test("refusals: tiers out of order, a negative salary; the Super Admin and a TL 
   assert.equal((await call(`/hr/employees/${target.id}`, { cookie: admin })).status, 200); // views
   assert.equal((await call(`/hr/employees/${target.id}`, { method: "PATCH", cookie: admin, body: { salary: "1" } })).status, 403);
   assert.equal((await call(`/hr/employees/${target.id}`, { method: "PATCH", cookie: tl, body: { salary: "1" } })).status, 403);
+});
+
+test("7.16 · the file's month: late minutes, deduction days, the Excuses that count (red from 3), annual leave left, the advance", async () => {
+  const month = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 7);
+  const day = (d: string) => new Date(`${month}-${d}T00:00:00Z`);
+  await prisma.attendanceDay.createMany({ data: [
+    { employeeId: target.id, day: day("02"), lateMinutes: 20, deduction: 0.25, source: "sheet" },
+    { employeeId: target.id, day: day("03"), lateMinutes: 7, deduction: 0, source: "sheet" },
+    { employeeId: target.id, day: new Date("2026-01-05T00:00:00Z"), lateMinutes: 90, deduction: 1, source: "sheet" }, // another month
+  ] });
+  await prisma.excuseRequest.createMany({ data: ["confirmed", "approved_tl", "pending_tl", "rejected"].map((status, i) => ({ employeeId: target.id, day: day(`0${i + 4}`), reason: "e2e", number: i + 1, status, createdById: "e2e" })) });
+  const r = await call(`/hr/employees/${target.id}`, { cookie: basant });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.month, { lateMinutes: 27, deductionDays: 0.25, excuses: 3, leaveLeft: r.body.leaveBalance, leaveTotal: r.body.leaveBalance, advance: "0.00" });
+  assert.equal((await call(`/hr/employees/${target.id}`, { cookie: sales })).status, 403);
 });

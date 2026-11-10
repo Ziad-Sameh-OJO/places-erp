@@ -41,6 +41,11 @@ export class LeavesService {
     });
   }
 
+  /** 7.16: the annual leave on the employee's file (total in their file, used this year, left). */
+  async annual(employee: { id: string; leaveBalance: number }, year: string): Promise<LeaveBalance> {
+    return (await this.balances(employee, year)).find((b) => b.type === "سنوية") ?? { type: "سنوية", total: employee.leaveBalance, used: 0, left: employee.leaveBalance };
+  }
+
   private view(r: Row, me: CurrentUser | null): LeaveView {
     const st = r.status as LeaveStatusKey;
     const hr = !!me && me.grants.scope === "all" && me.grants.can("hr", "approve");
