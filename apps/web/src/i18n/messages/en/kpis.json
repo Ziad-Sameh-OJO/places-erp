@@ -123,7 +123,7 @@
     "approvedOk": "Score approved",
     "scoreToday": "Card score to date · {tier}",
     "note": "Each item is scored as a percentage, and above 100% it is recorded as it is. An item that is «zero» or «at most» goes down proportionally if it goes over.",
-    "editItems": "Edit items",
+    "editItems": "Add or edit KPIs",
     "approve": "Approve score",
     "approvedBy": "Approved by {by}",
     "sheet": "Quarter sheet PDF"
@@ -211,5 +211,10 @@
     "enteredBy": "Who enters the number",
     "roles": "Roles",
     "people": "People"
+  },
+  "inv": {
+    "back": "Back to the units",
+    "note": "Your card and the inventory team's cards. Open any card and edit or add items from «Add or edit KPIs», enter your team's manual values and approve their results. Your own card is still approved by Nancy.",
+    "missing": "On the team without a KPIs card"
   }
 }

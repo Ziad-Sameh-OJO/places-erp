@@ -5,6 +5,7 @@ import {
   type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
 } from "@places/contracts";
 import {
+  INVENTORY_DEPARTMENT, INVENTORY_MANAGER, canManageCard, invManagerMakesCard,
   type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -112,9 +113,9 @@ export class KpisService {
     return r;
   }
 
-  /** The item list, weights, targets and sources: the follower, «kpis: edit», and the watcher (meeting 4 Nov). */
+  /** The item list, weights, targets and sources: the follower, «kpis: edit», the watcher (meeting 4 Nov), and the Inventory Manager on her own card (11.19). */
   private canManage(w: Who, c: CardRecord) {
-    return this.isFollower(w, c) || w.edit || w.watcher;
+    return canManageCard({ isFollower: this.isFollower(w, c), edit: w.edit, watcher: w.watcher, roles: w.me.roles, ownCard: c.employeeId === w.me.employeeId });
   }
 
   private score(c: CardRecord) {
@@ -143,17 +144,22 @@ export class KpisService {
   }
 
   /** «كارتي» · «فريقي» · «كل الشركة»: the scope goes into the query. */
-  async board(me: CurrentUser, scope: "me" | "team" | "all"): Promise<KpiBoard> {
+  async board(me: CurrentUser, scope: "me" | "team" | "mine" | "all"): Promise<KpiBoard> {
     const w = await this.who(me);
     if (scope === "all" && !w.all) throw new ForbiddenException("كل الشركة للإدارة والـ Office Manager ومسؤول الـ KPIs");
     const q = await this.current();
     const mine: Prisma.KpiCardWhereInput = me.employeeId ? { followerId: me.employeeId } : { id: "-" };
     // «الملاك» follow the cards with no follower: a Super Admin sees them under «فريقي», except his own
     const team: Prisma.KpiCardWhereInput = me.roles.includes("admin") ? { OR: [mine, { followerId: null, employeeId: { not: me.employeeId ?? "-" } }] } : mine;
-    const where = scope === "me" ? { employeeId: me.employeeId ?? "-" } : scope === "team" ? team : {};
-    const [cards, bands] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands()]);
+    const own: Prisma.KpiCardWhereInput = { employeeId: me.employeeId ?? "-" };
+    const where = scope === "me" ? own : scope === "team" ? team : scope === "mine" ? { OR: [own, team] } : {};
+    // 11.19: the Inventory Manager also sees who on her team has no card yet, to make one she follows
+    const inv = scope === "mine" && q.status === "open" && me.employeeId && me.roles.includes(INVENTORY_MANAGER);
+    const [cards, bands, missing] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands(),
+      inv ? this.repo.invWithoutCard(q.id, INVENTORY_DEPARTMENT, me.employeeId!) : Promise.resolve([])]);
     const b = bandsOf(bands);
-    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all };
+    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all,
+      missing: missing.map((p) => ({ id: p.id, name: p.name, title: p.jobTitle })) };
   }
 
   async card(me: CurrentUser, id: string): Promise<KpiCardView> {
@@ -364,20 +370,23 @@ export class KpisService {
   /** 11.4 · 11.11: a card for someone who has none: empty, or with another card's items (nothing achieved). */
   async createCard(me: CurrentUser, employeeId: string, copyFrom?: string) {
     const w = await this.who(me);
-    if (!w.edit && !w.watcher) throw new ForbiddenException("الكروت بيعملها الأدمن أو مسؤول الـ KPIs");
+    const emp = await this.repo.employee(employeeId);
+    // 11.19: the Inventory Manager makes one for her team from the inventory, and follows it
+    const inv = !w.edit && !w.watcher && !!emp && invManagerMakesCard(me.roles, me.employeeId, emp);
+    if (!w.edit && !w.watcher && !inv) throw new ForbiddenException("الكروت بيعملها الأدمن أو مسؤول الـ KPIs");
     const q = await this.current();
     if (q.status !== "open") throw new ConflictException(CLOSED);
-    const emp = await this.repo.employee(employeeId);
     if (!emp) throw new BadRequestException("الموظف مش موجود");
+    if (inv && copyFrom) throw new ForbiddenException("الكروت بيعملها الأدمن أو مسؤول الـ KPIs");
     if (await this.repo.cardOf(q.id, employeeId)) throw new ConflictException(`${emp.name} عنده كارت`);
     const from = copyFrom ? (await this.visibleCard(w, copyFrom)).c : null;
     const card = await this.db.$transaction(async (tx) => {
       const created = await tx.kpiCard.create({ data: {
-        quarter: q.id, employeeId, followerId: from?.followerId ?? null,
+        quarter: q.id, employeeId, followerId: inv ? me.employeeId : from?.followerId ?? null,
         items: { create: (from?.items ?? []).map((it) => this.copyItem(it)) },
       } });
       await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: created.id, action: "create", userId: me.id,
-        after: { summary: `كارت KPIs جديد لـ ${emp.name}${from ? ` من بنود ${from.employee.name}` : ""}` } }, tx);
+        after: { summary: inv ? `كارت KPIs جديد لـ ${emp.name} (يتابعه ${me.name})` : `كارت KPIs جديد لـ ${emp.name}${from ? ` من بنود ${from.employee.name}` : ""}` } }, tx);
       return created;
     });
     await this.tell(me, `كارت KPIs جديد لـ ${emp.name}`);

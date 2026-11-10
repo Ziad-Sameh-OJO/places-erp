@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness } from "../src/kpi.ts";
+import { bandLabel, calcText, canEnterManual, canManageCard, invManagerMakesCard, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness } from "../src/kpi.ts";
 import { monthDeduction } from "../src/attendance.ts";
 
 test("11.6 · the client's bands reach payroll: 102% on a 10,000 bonus → +1,500, 65% on a 12,000 salary → −1,800", () => {
@@ -141,4 +141,16 @@ test("M-08 3.1 · «الالتزام بسقف العهدة»: Mokhtar's safe at 
   assert.equal(pettyCapScore([{ balance: 50_000_01, cap: 50_000_00 }]), 0);
   assert.equal(pettyCapScore([{ balance: 12_000_00, cap: 50_000_00 }, { balance: 9_000_00, cap: 5_000_00 }]), 0); // one safe over is enough
   assert.equal(pettyCapScore([]), null);
+});
+
+test("11.19 · Manar manages her own card's items (not anyone else's own card); she makes cards for her inventory team only", () => {
+  const base = { isFollower: false, edit: false, watcher: false, roles: ["inventory"], ownCard: true };
+  assert.equal(canManageCard(base), true);
+  assert.equal(canManageCard({ ...base, roles: ["sales"] }), false); // a salesperson doesn't change his own card
+  assert.equal(canManageCard({ ...base, ownCard: false }), false);
+  assert.equal(canManageCard({ ...base, roles: ["sales"], isFollower: true }), true);
+  assert.equal(invManagerMakesCard(["inventory"], "manar", { id: "randa", department: "Inventory" }), true);
+  assert.equal(invManagerMakesCard(["inventory"], "manar", { id: "manar", department: "Inventory" }), false);
+  assert.equal(invManagerMakesCard(["inventory"], "manar", { id: "x", department: "Sales" }), false);
+  assert.equal(invManagerMakesCard(["tl"], "y", { id: "randa", department: "Inventory" }), false);
 });

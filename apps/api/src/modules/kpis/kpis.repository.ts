@@ -72,7 +72,13 @@ export class KpisRepository {
   }
 
   employee(id: string) {
-    return this.db.employee.findUnique({ where: { id }, select: { id: true, name: true } });
+    return this.db.employee.findUnique({ where: { id }, select: { id: true, name: true, department: true } });
+  }
+
+  /** 11.19 · the inventory team still working here with no card this quarter (not the Inventory Manager herself). */
+  invWithoutCard(quarter: string, department: string, self: string) {
+    return this.db.employee.findMany({ where: { department, id: { not: self }, user: { status: "ACTIVE" }, kpiCards: { none: { quarter } } },
+      select: { id: true, name: true, jobTitle: true }, orderBy: { name: "asc" } });
   }
 
   delivery(id: string) {

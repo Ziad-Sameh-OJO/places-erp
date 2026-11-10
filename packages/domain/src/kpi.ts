@@ -112,6 +112,22 @@ export const quarterLabel = (q: string): string => q.replace(/^(\d+)-Q(\d)$/, "Q
 export const canEnterManual = (enteredBy: readonly string[], who: { userId: string; roles: readonly string[]; isFollower: boolean }): boolean =>
   (enteredBy.length ? enteredBy : ["follower"]).some((x) => (x === "follower" ? who.isFollower : x === who.userId || who.roles.includes(x)));
 
+/** 11.19 · the Inventory Manager's role key: she follows her team's cards from inside the inventory. */
+export const INVENTORY_MANAGER = "inventory";
+/** 11.19 · the department whose people she makes cards for and follows. */
+export const INVENTORY_DEPARTMENT = "Inventory";
+
+/**
+ * Who changes a card's items, weights and targets (demo kpis.js canManage): its follower, «kpis: edit», the KPI watcher,
+ * and the Inventory Manager on her own card (11.19, 9 Nov). Approving her own card stays with her follower.
+ */
+export const canManageCard = (who: { isFollower: boolean; edit: boolean; watcher: boolean; roles: readonly string[]; ownCard: boolean }): boolean =>
+  who.isFollower || who.edit || who.watcher || (who.ownCard && who.roles.includes(INVENTORY_MANAGER));
+
+/** 11.19 · «اعمل كارت» from the inventory: the Inventory Manager, for someone else on the inventory team. */
+export const invManagerMakesCard = (roles: readonly string[], self: string | null, target: { id: string; department: string }): boolean =>
+  roles.includes(INVENTORY_MANAGER) && target.id !== self && target.department === INVENTORY_DEPARTMENT;
+
 /** "2026-Q4" → "2026-Q3": the quarter before, for «ربعين ورا بعض». */
 export function previousQuarter(q: string): string {
   const [y, n] = q.split("-Q").map(Number) as [number, number];

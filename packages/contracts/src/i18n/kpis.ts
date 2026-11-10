@@ -34,6 +34,7 @@ export default [
   ["اتعتمد KPI {name} · {score}%", "{name}'s KPI approved · {score}%"],
   ["{name} اعتمد KPI {owner} · {score}%", "{name} approved {owner}'s KPI · {score}%"],
   ["فلوس KPI {name} اتعدّلت", "{name}'s KPI money was edited"],
+  ["كارت KPIs جديد لـ {name} (يتابعه {by})", "New KPIs card for {name} (followed by {by})"],
   ["شرايح الفلوس اتعدّلت", "The money bands were edited"],
   ["الكروت بيعملها الأدمن أو مسؤول الـ KPIs", "Cards are created by the admin or the KPIs owner"],
   ["الموظف مش موجود", "The employee doesn't exist"],

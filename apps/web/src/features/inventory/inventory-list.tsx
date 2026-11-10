@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { keepsInventory } from "@places/domain";
+import { INVENTORY_MANAGER, keepsInventory } from "@places/domain";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -16,6 +16,7 @@ import { OldDataImport } from "../imports/old-data-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
+import { InventoryKpis } from "@/features/kpis/kpis-page";
 import { ListOfOptionsBar } from "./list-of-options";
 import { ListRequestsModal, useListRequests } from "./list-requests";
 import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
@@ -49,6 +50,9 @@ export function InventoryList() {
   }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   const [teamTask, setTeamTask] = useState(false);
+  // 11.19 «KPIs الفريق»: the Inventory Manager only (demo inventory.js invView)
+  const [kpis, setKpis] = useState(false);
+  const invManager = !!me.me?.roles.includes(INVENTORY_MANAGER);
   const [report, setReport] = useState(false);
   // 2.32 · the inventory team's «طلبات الـ Lists» (who prepares them is the API's answer)
   const [lists, setLists] = useState(false);
@@ -90,6 +94,7 @@ export function InventoryList() {
     ["closed", "Rented / Sold", tabs?.closed],
   ];
 
+  if (kpis) return <InventoryKpis onBack={() => setKpis(false)} />;
   return (
     <>
       <div className="kpis">
@@ -102,6 +107,7 @@ export function InventoryList() {
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); }} items={types} />
         <span className="spacer" />
+        {invManager && <button className="btn ghost" onClick={() => setKpis(true)}><Icon name="chart" />{t("list.teamKpis")}</button>}
         {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}
