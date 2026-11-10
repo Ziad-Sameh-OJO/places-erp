@@ -8,7 +8,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { isWorkingDay, localDate } from "@places/domain";
-import { call, session } from "./helpers.ts";
+import { call, kpiQuarterLock, session } from "./helpers.ts";
 import { scheduledReportsTick } from "../../worker/src/processors/scheduled-reports.ts";
 
 const RUN = `E2E-RPT-${Date.now()}`;
@@ -18,6 +18,8 @@ const ids = { hosny: "", hosnyUser: "", amrUser: "", amrEmp: "", tlCEmp: "", tlC
   rahmaUser: "", report: "", unit: "", deal: "" };
 const today = localDate(new Date());
 const month = today.slice(0, 7);
+const weekday = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay();
+const cairoTime = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit" });
 
 before(async () => {
   [admin, nancy, tlC, tlB, hosny, amr] = await Promise.all(["ahmed.islam@places.com", "nancy.islam@places.com", "abdelrahman.younes@places.com",
@@ -26,7 +28,7 @@ before(async () => {
   const [h, a, t, ad] = await Promise.all([emp("youssef.hosny@places.com"), emp("ahmed.amr@places.com"), emp("abdelrahman.younes@places.com"), emp("ahmed.islam@places.com")]);
   Object.assign(ids, { hosny: h.id, hosnyUser: h.userId, amrUser: a.userId, amrEmp: a.id, tlCEmp: t.id, tlCUser: t.userId, adminUser: ad.userId });
   // a hand-in item and a «typed in the daily report» item on Hosny's card this quarter (weight 0: the card stays at 100%)
-  const q = await prisma.kpiQuarter.findFirstOrThrow({ orderBy: { id: "desc" } });
+  const q = await kpiQuarterLock(() => prisma.kpiQuarter.findFirstOrThrow({ orderBy: { id: "desc" } })); // not kpis.e2e's Q1 copy for a while
   const card = await prisma.kpiCard.findUniqueOrThrow({ where: { quarter_employeeId: { quarter: q.id, employeeId: h.id } } });
   const base = { cardId: card.id, weight: 0, targetText: RUN, direction: "at-least", goal: 10 };
   ids.item = (await prisma.kpiItem.create({ data: { ...base, position: 901, title: `${RUN} تسليم`, method: "report", required: 5 } })).id;
@@ -56,7 +58,7 @@ after(async () => {
 });
 
 const report = (over: Record<string, unknown> = {}) => ({
-  name: `${RUN} تقرير أسبوعي`, kind: "handin", freq: "weekly", day: new Date(`${today}T12:00:00Z`).getUTCDay(), time: "23:59",
+  name: `${RUN} تقرير أسبوعي`, kind: "handin", freq: "weekly", day: weekday(today), time: "23:59",
   preparedBy: [ids.hosnyUser], recipients: ["follower"], lateNotify: ["follower"], remindMin: 60, kpiItems: [ids.item], ...over,
 });
 
@@ -78,7 +80,11 @@ test("11.10 · «التقارير ومواعيدها»: the TL sees them, only �
   assert.equal((await prisma.auditLog.count({ where: { module: "reports", entityId: ids.report, action: "create" } })), 1);
 });
 
-test("11.10 · «سلّمت»: only the one it names, once per period; on time it counts in the linked KPI item", async () => {
+// under the KPI-quarter lock: «counted» looks for the item on the current quarter's card (Q4 2026, kpis.e2e closes it a while)
+test("11.10 · «سلّمت»: only the one it names, once per period; on time it counts in the linked KPI item", () => kpiQuarterLock(async () => {
+  // the report is due today at 23:59 Cairo: in that last minute it's late, and after midnight «today» moved on
+  if (cairoTime() === "23:59") await new Promise((r) => setTimeout(r, 61_000 - (Date.now() % 60_000)));
+  await prisma.scheduledReport.update({ where: { id: ids.report }, data: { day: weekday(localDate(new Date())) } });
   const mine = await call("/reports/mine", { cookie: hosny });
   assert.ok(mine.body.some((x: { reportId: string; kpi: boolean }) => x.reportId === ids.report && x.kpi));
   assert.equal((await call(`/reports/scheduled/${ids.report}/hand-in`, { method: "POST", cookie: amr })).status, 403);
@@ -90,7 +96,7 @@ test("11.10 · «سلّمت»: only the one it names, once per period; on time i
   assert.ok(!(await call("/reports/mine", { cookie: hosny })).body.some((x: { reportId: string }) => x.reportId === ids.report));
   // the follower (team C's TL) heard of it
   assert.equal(await prisma.notification.count({ where: { userId: ids.tlCUser, text: { contains: `سلّم «${RUN}` } } }), 1);
-});
+}));
 
 test("11.9 · the monthly competitors report: Rahma hands it in by the 30th and it counts in her KPI item; nobody else can", async () => {
   const r = await prisma.scheduledReport.findUniqueOrThrow({ where: { id: "sr-competitors" } });
