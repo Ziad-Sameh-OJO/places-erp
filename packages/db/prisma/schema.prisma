@@ -928,6 +928,8 @@ model Unit {
   mediaUploadedAt   DateTime?
   lastOwnerUpdateAt DateTime    @default(now()) // «last update»: older than a month = late (M-03 2.4)
   marketingDoneAt   DateTime?   // marketing pressed Done on the new unit: off the marketing board (M-03 6.2 · 7.1, M-04 4.4)
+  websiteAdAt       DateTime?   // 4.13 «Website Ads»: when marketing marked the ad posted on the website (null = No)
+  websiteAdById     String?     // the user who marked it (the tooltip; the Audit Log has every switch)
   createdById       String?     // the user who entered it (Manar / Randa activity)
   deals             Deal[]
   locks             UnitLock[]

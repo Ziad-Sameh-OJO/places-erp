@@ -371,5 +371,10 @@
     "sent": "Sent",
     "send": "Send to the Team Leader",
     "noUnits": "No available units for this search"
+  },
+  "webAd": {
+    "all": "Website Ads: All",
+    "posted": "Posted {day}{by} · press to set it back to No",
+    "notPosted": "Press once the ad is posted on the website (Yes)"
   }
 }

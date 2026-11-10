@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { egp, fromDecimal, toDecimal } from "../src/money.ts";
-import { TEAM_TASKS_PER_DAY, asksForLists, unconfirmedUnits, fillsUnitFolder, UNIT_SHEET_FIELDS, carrySides, missingFields, seesMissingOf, inventoryReportText, mediaOnTime, teamTaskRoom, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
+import { TEAM_TASKS_PER_DAY, asksForLists, seesWebsiteAds, unconfirmedUnits, fillsUnitFolder, UNIT_SHEET_FIELDS, carrySides, missingFields, seesMissingOf, inventoryReportText, mediaOnTime, teamTaskRoom, closedStatus, confirmsClose, incomeFigures, isStale, photoOrder, sideFor, sideOpen, splitPrice, staleBefore, unitTotal } from "../src/units.ts";
 
 // The numbers are the client-approved demo's units (demo/design-2/js/data.js) and the requirements' examples (M-03 7.1).
 
@@ -259,4 +259,10 @@ test("Lists (M-12 Marwa): a Team Leader asks, sales don't; a unit 41 days withou
   // U-101 updated 3 days ago, U-104 41 days ago (demo data.js): only U-104 counts against the List
   assert.deepEqual(unconfirmedUnits([{ code: "U-101", lastOwnerUpdateAt: daysAgo(3) }, { code: "U-104", lastOwnerUpdateAt: daysAgo(41) }], now), ["U-104"]);
   assert.deepEqual(unconfirmedUnits([], now), []);
+});
+
+test("4.13 · «Website Ads» is marketing's only: not Manar, not the Super Admin, not sales", () => {
+  assert.equal(seesWebsiteAds(["marketing"]), true);
+  assert.equal(seesWebsiteAds(["tl", "marketing"]), true);
+  for (const roles of [["inventory"], ["admin"], ["sales"], ["photographer"], []]) assert.equal(seesWebsiteAds(roles), false, roles.join());
 });
