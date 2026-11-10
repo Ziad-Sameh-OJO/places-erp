@@ -120,6 +120,9 @@ export type OwnerUpdateInput = z.infer<typeof OwnerUpdateInput>;
 /** 2.34 · «عدّل اللينك» from the unit's drawer: the new Google Maps link (the old one stays in the Audit Log). */
 export const UnitLocationInput = z.object({ location: z.string({ required_error: "اكتب لينك Google Maps" }).pipe(Location) });
 export type UnitLocationInput = z.infer<typeof UnitLocationInput>;
+/** 4.13 · marketing's «Website Ads» switch on a unit: Yes = the ad is on the website. */
+export const WebsiteAdInput = z.object({ posted: z.boolean({ required_error: "Website Ads: Yes أو No", invalid_type_error: "Website Ads: Yes أو No" }) });
+export type WebsiteAdInput = z.infer<typeof WebsiteAdInput>;
 
 const QueryBool = z.enum(["true", "false"]).transform((v) => v === "true");
 const QueryInt = z.coerce.number().int().min(0).max(1_000_000);
@@ -146,6 +149,7 @@ export const UnitFilters = Page.extend({
   divisible: QueryBool.optional(), // «تنفع تتقسم»
   missing: QueryBool.optional(), // «ناقصها بيانات» (2.20)
   tabId: Id.optional(), // an area tab (2.5)
+  websiteAd: z.enum(["yes", "no"]).optional(), // 4.13 «Website Ads»: marketing's filter (ignored for anyone else)
   /** the rented / sold sheet (M-03 5.2): closed between these Cairo days, both included */
   closedFrom: CalendarDay.optional(),
   closedTo: CalendarDay.optional(),
@@ -170,6 +174,8 @@ export interface UnitRow {
   layout: boolean; layoutCount: number; comment: string | null;
   divisible: boolean; minSplit: number | null; location: string | null; areaTabId: string | null;
   agent: Person | null; lastOwnerUpdateAt: string; stale: boolean; pdfStatus: "draft" | "confirmed"; createdAt: string;
+  /** 4.13 «Website Ads», marketing's only (absent for anyone else): when and by whom it was marked posted; null = No */
+  websiteAd?: { at: string; by: Person | null } | null;
   /** the columns only one type has (Resale delivery, Income contract…) */
   details: Record<string, string | number | null>;
   /** Income: monthly / annual rent and yield (2.3) */

@@ -38,7 +38,9 @@ test("without «tickets» permission: 403 everywhere; the response report needs 
   assert.equal((await call("/tickets", { cookie: noTickets })).status, 403);
   assert.equal((await call("/tickets", { method: "POST", cookie: noTickets, body: { type: "request", department: "HR", title: "ممنوع" } })).status, 403);
   assert.equal((await call("/tickets/report", { cookie: sales })).status, 403);
-  assert.equal((await call("/tickets/report", { cookie: manar })).status, 200);
+  // 11.20 (9 Nov): «reports» is the heads' and whoever they list — the Inventory Manager isn't any more
+  assert.equal((await call("/tickets/report", { cookie: manar })).status, 403);
+  assert.equal((await call("/tickets/report", { cookie: admin })).status, 200);
 });
 
 test("each type goes to its own department (M-06 2.2); a plain request goes where it was sent, from «أقسام التذاكر»", async () => {

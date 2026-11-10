@@ -30,7 +30,7 @@
     "channels": { "app": "In the system", "push": "Push", "email": "Email" },
     "saved": "Saved",
     "save": "Save",
-    "from": { "title": "Sending email", "sub": "The address every notification is sent from", "label": "From" },
+    "from": { "title": "Sending email", "sub": "The address every notification is sent from", "label": "From" , "test": "Send a test email", "testSent": "A test email was sent from {from} to {to}" },
     "prefs": {
       "title": "My preferences",
       "sub": "From the «My account» page",

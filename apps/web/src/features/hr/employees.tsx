@@ -2,13 +2,13 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EmployeeFile, EmployeesView } from "@places/contracts";
-import { DEFAULT_TIERS } from "@places/domain";
+import { DEFAULT_TIERS, excuseDeduction } from "@places/domain";
 import { Chip, Empty, Field, Icon, Note, Table, Tabs, onFormSubmit, useAction } from "@/components/ui";
-import { Drawer } from "@/components/blocks";
+import { Drawer, KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
-import { money, short } from "@/lib/format";
+import { day, money, short } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { OneOnOneTab } from "./people-care";
 
@@ -32,6 +32,8 @@ export function Employees() {
     ["target", t("employees.target"), (e) => (Number(e.target) ? short(e.target) : "—")],
     ["commissionPct", t("employees.commission"), (e) => (Number(e.commissionPct) ? `${Number(e.commissionPct)}%` : "—")],
     ["leaveBalance", t("employees.leaveBalance"), (e) => e.leaveBalance],
+    ["lastOneOnOne", t("employees.lastOne"), (e) => (e.lastOneOnOne ? day(e.lastOneOnOne) : <Chip key="o" tone="warn">{t("common.none")}</Chip>)],
+    ["hrAction", t("employees.hrAction"), (e) => (e.hrAction ? <Chip key="a" tone={e.hrAction.overdue ? "bad" : "warn"}>{day(e.hrAction.due)}</Chip> : "")],
     ["deductionTiers", t("employees.tiers"), (e) => (e.customTiers ? <Chip key="t" tone="acc">{t("employees.custom")}</Chip> : t("employees.default"))],
   ] as [string, string, (e: EmployeesView["items"][number]) => ReactNode][]).filter(([k]) => fields.shows(k));
   return (
@@ -83,12 +85,22 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
     ["manager", tr("employees.manager"), e.manager?.name ?? "—"], ["team", tr("employees.team"), e.team ?? "—"], ["joinedAt", tr("employees.joined"), e.joinedAt ?? "—"], ["leaveBalance", tr("employees.annualLeave"), String(e.leaveBalance)],
     ["deductionTiers", tr("employees.tiers"), e.deductionTiers ? tr("employees.customTiers", { quarter: e.deductionTiers.quarterFrom, half: e.deductionTiers.halfFrom, day: e.deductionTiers.dayFrom }) : tr("employees.default")],
     ["fixedSchedule", tr("employees.specialSchedule"), e.fixedSchedule ?? "—"],
+    ["advance", tr("employees.advance"), money(e.month.advance)],
   ] as [string, string, string][]).filter(([k]) => fields.shows(k)).map(([, k, v]) => [k, v] as const);
   return (
     <Drawer title={e.name} sub={`${serverText(e.department)} · ${tr("employees.file")}`} onClose={onClose} chips={e.partTime ? <Chip tone="info">Part-time</Chip> : <Chip plain>Full-time</Chip>}>
       <Tabs items={[["file", tr("employees.tabFile")], ["one", "1-to-1"], ...(can("hr", "edit") ? [["edit", tr("employees.tabData")] as ["edit", string]] : [])]} value={tab} onChange={setTab} />
       {tab === "file" ? (
-        <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+        <>
+          {/* 7.16 (demo empDrawer): the month's numbers; three Excuses or more cost half a day each (Q31) */}
+          <div className="kpis sm">
+            <KpiTile label={tr("employees.monthLate")} value={e.month.lateMinutes} icon="clock" tone="warn" />
+            <KpiTile label={tr("common.deductionDays")} value={e.month.deductionDays} icon="wallet" tone="bad" />
+            <KpiTile label={tr("employees.monthExcuses")} value={e.month.excuses} icon="ticket" {...(excuseDeduction(e.month.excuses) ? { sub: tr("employees.charged"), tone: "bad" as const } : {})} />
+            <KpiTile label={tr("employees.leaveBalance")} value={e.month.leaveLeft} sub={tr("employees.ofTotal", { total: e.month.leaveTotal })} icon="calendar" tone="ok" />
+          </div>
+          <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+        </>
       ) : tab === "one" ? <OneOnOneTab employeeId={id} /> : (
         <form className="grid" onSubmit={save}>
           {only("salary", <Field label={tr("common.salary")} req><input name="salary" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue={Number(e.salary) ? e.salary : ""} required /></Field>)}

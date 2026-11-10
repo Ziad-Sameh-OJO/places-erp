@@ -113,7 +113,7 @@ export class AuthService {
     const passwordHash = await hashPassword(password);
     await this.db.$transaction(async (tx) => {
       // a link issued before the account was stopped must not bring it back
-      const { count } = await tx.user.updateMany({ where: { id: userId, status: { not: "DISABLED" } }, data: { passwordHash, status: "ACTIVE", failedLogins: 0 } });
+      const { count } = await tx.user.updateMany({ where: { id: userId, status: { not: "DISABLED" } }, data: { passwordHash, status: "ACTIVE", failedLogins: 0, passwordChangedAt: new Date() } });
       if (!count) throw new BadRequestException("اللينك خلص أو اتستخدم قبل كده");
       await tx.session.deleteMany({ where: { userId } });
       await this.audit.record({ module: "access", entity: "User", entityId: userId, action: kind === "INVITE" ? "activated" : "password-reset", userId }, tx);
@@ -136,12 +136,22 @@ export class AuthService {
     await this.mail.send({ to: email, subject: "فعّل حسابك على Places ERP", text: `اتعملك حساب بدور ${roleLabel}. افتح اللينك ده واعمل الباسورد بتاعك (صالح 7 أيام):\n${env.WEB_ORIGIN}/activate?token=${t}` });
   }
 
+  /** 12.15 «حسابي» (demo auth.js V.profile): my mobile, department, Team Leader, last sign-in and last password change. */
+  async profile(userId: string) {
+    const u = await this.db.user.findUniqueOrThrow({ where: { id: userId },
+      select: { phone: true, lastLoginAt: true, passwordChangedAt: true, employee: { select: { department: true, teamLeader: { select: { name: true } } } } } });
+    return {
+      phone: u.phone, department: u.employee?.department ?? null, teamLeader: u.employee?.teamLeader?.name ?? null,
+      lastLoginAt: u.lastLoginAt?.toISOString() ?? null, passwordChangedAt: u.passwordChangedAt?.toISOString() ?? null,
+    };
+  }
+
   async changePassword(userId: string, current: string, next: string, keepToken: string) {
     const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
     if (!user.passwordHash || !(await verifyPassword(user.passwordHash, current))) throw new BadRequestException("الباسورد الحالي غلط");
     const passwordHash = await hashPassword(next);
     await this.db.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+      await tx.user.update({ where: { id: userId }, data: { passwordHash, passwordChangedAt: new Date() } });
       // every other device is signed out; this one stays
       await tx.session.deleteMany({ where: { userId, id: { not: sha256(keepToken) } } });
       await this.audit.record({ module: "access", entity: "User", entityId: userId, action: "password-changed", userId }, tx);

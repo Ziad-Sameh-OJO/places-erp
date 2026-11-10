@@ -1,3 +1,4 @@
+import { KpisTodayController } from "./today.controller";
 import { Module } from "@nestjs/common";
 import { KpisController } from "./kpis.controller";
 import { KpisRepository } from "./kpis.repository";
@@ -14,5 +15,5 @@ import { TargetsService } from "./targets.service";
  * ReportsService for marketing: the «تقرير المنافسين الشهري» card on its dashboard (4.11);
  * TargetsService for deals: the TL's commission that becomes due with each collection (5.8) and Achievements (5.10).
  */
-@Module({ controllers: [KpisController, ReportsController], providers: [KpisService, KpisRepository, ReportsService, ReportsRepository, TargetsService], exports: [KpisService, TargetsService, ReportsService] })
+@Module({ controllers: [KpisController, ReportsController, KpisTodayController], providers: [KpisService, KpisRepository, ReportsService, ReportsRepository, TargetsService], exports: [KpisService, TargetsService, ReportsService] })
 export class KpisModule {}

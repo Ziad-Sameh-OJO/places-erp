@@ -52,11 +52,36 @@ export function effectiveGrants(
   };
 }
 
+/** 11.20 · «التقارير والتارجت» belong to the heads (Super Admin, Office Manager: demo app.js REPORT_HEADS). */
+export const REPORTS_HEADS = ["admin", "officemgr"] as const;
+export const isReportsHead = (roles: readonly string[]): boolean => roles.some((r) => (REPORTS_HEADS as readonly string[]).includes(r));
+
+/**
+ * 11.20 (9 Nov): «reports» is the heads' whatever the roles say; anyone else only if a head listed them — then with
+ * their role's actions, or at least «view» (demo app.js permStr). Everything else is untouched.
+ */
+export function gateReports(g: Grants, roles: readonly string[], listed: boolean): Grants {
+  if (isReportsHead(roles)) return g;
+  const own = g.actions("reports");
+  const reports: ReadonlySet<Action> = listed ? (own.size ? own : new Set<Action>(["view"])) : new Set<Action>();
+  return {
+    scope: g.scope,
+    can: (m, a) => (m === "reports" ? reports.has(a) : g.can(m, a)),
+    actions: (m) => (m === "reports" ? reports : g.actions(m)),
+  };
+}
+
 /**
  * Whoever manages permissions can't take that right away from themselves (would lock everyone out).
  * Returns true when the proposed change is allowed.
  */
 export const keepsAccessAdmin = (after: Grants): boolean => after.can("access", "edit");
+
+/**
+ * 12.13 · a reset link goes to an account that has a password: an active one, or one locked after 5 wrong tries (the new
+ * password opens it again — demo admin.js «باسورد» for active or locked). An invited one gets its invite again instead.
+ */
+export const canSendReset = (status: string): boolean => status === "ACTIVE" || status === "LOCKED";
 
 /** M-09 2.4: a new sign-in code can be asked for one minute after the last one was sent. */
 export const OTP_RESEND_SECONDS = 60;

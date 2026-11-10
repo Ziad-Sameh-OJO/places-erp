@@ -4,7 +4,7 @@ import { egp } from "../src/money.ts";
 import { attendanceDay } from "../src/attendance.ts";
 import { achievement, cardScore, payoutDelta, bandOf } from "../src/kpi.ts";
 import { idealEmployee } from "../src/ideal-employee.ts";
-import { effectiveGrants } from "../src/permissions.ts";
+import { canSendReset, effectiveGrants, gateReports, isReportsHead } from "../src/permissions.ts";
 
 test("attendance tiers from the requirements (work starts 11:00)", () => {
   const at = (m: number) => attendanceDay({ kind: "checkin", minutesAfterStart: m });
@@ -133,4 +133,21 @@ test("handover (M-09 2.2 · 7.1): a stopped account's work goes to a working acc
   assert.match(handoverRefusal({ ...ok, managerUserId: null })!, /مدير مباشر/);
   assert.match(handoverRefusal({ ...ok, toId: "a" })!, /حد تاني/);
   assert.match(handoverRefusal({ ...ok, toActive: false })!, /حسابه يكون شغال/);
+});
+
+test("12.13 · a reset link: active or locked accounts, never invited or stopped ones", () => {
+  assert.deepEqual(["ACTIVE", "LOCKED", "INVITED", "DISABLED"].map(canSendReset), [true, true, false, false]);
+});
+
+test("11.20 · «التقارير والتارجت»: the heads only, whatever the role says; a head lists anyone else (at least «view»)", () => {
+  const tl = effectiveGrants([{ scope: "team", modules: { reports: ["view", "edit"], leads: ["view"] } }]);
+  assert.equal(gateReports(tl, ["tl"], false).can("reports", "view"), false);
+  assert.equal(gateReports(tl, ["tl"], false).can("leads", "view"), true);
+  assert.deepEqual([...gateReports(tl, ["tl"], true).actions("reports")].sort(), ["edit", "view"]);
+  const hr = effectiveGrants([{ scope: "all", modules: { hr: ["view"] } }]);
+  assert.deepEqual([...gateReports(hr, ["hr"], true).actions("reports")], ["view"]);
+  const om = effectiveGrants([{ scope: "all", modules: { reports: ["view", "approve"] } }]);
+  assert.equal(gateReports(om, ["officemgr"], false).can("reports", "approve"), true);
+  assert.equal(isReportsHead(["sales", "admin"]), true);
+  assert.equal(isReportsHead(["accountant"]), false);
 });

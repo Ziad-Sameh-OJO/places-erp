@@ -80,3 +80,35 @@ test("M-04 2.2: a post from someone who can't approve waits — no Reminder unti
   assert.equal(await reminders(rahmaId, "بوست مستني"), 1);
   assert.equal(await reminders(writerId, "بوست مستني"), 1); // whoever planned it hears too
 });
+
+// 4.21 · locally it waits for file storage; in CI (where it always runs) a missing store is a failure
+const storage = await fetch(process.env.S3_ENDPOINT ?? "http://localhost:9000").then(() => true, () => false);
+const noStorage = !storage && !process.env.CI ? "file storage isn't running (pnpm files:local or pnpm infra:up)" : false;
+
+test("4.21 · a post's design / video: a video only for a post, added, listed, removed; audited; sales 403", { skip: noStorage }, async () => {
+  const id = await plan(rahma, "بوست بفيديو", 600);
+  // the smallest mp4 header: a box whose type at bytes 4–8 is «ftyp»
+  const MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypmp42"), Buffer.alloc(12)]);
+  const video = { name: `ريلز ${stamp}.mp4`, mime: "video/mp4", size: MP4.length };
+  assert.equal((await call("/files/uploads", { method: "POST", cookie: rahma, body: video })).status, 400); // a video only for a post
+  assert.equal((await call("/files/uploads", { method: "POST", cookie: rahma, body: { ...video, size: 201 * 1024 * 1024, purpose: "post" } })).status, 400);
+  const t = await call("/files/uploads", { method: "POST", cookie: rahma, body: { ...video, purpose: "post" } });
+  assert.equal(t.status, 201, JSON.stringify(t.body));
+  assert.equal((await fetch(t.body.url, { method: "PUT", headers: t.body.headers, body: MP4 })).status, 200);
+  assert.equal((await call(`/files/${t.body.id}/complete`, { method: "POST", cookie: rahma })).status, 200);
+  assert.equal((await call(`/marketing/posts/${id}/media`, { method: "POST", cookie: sales, body: { fileIds: [t.body.id] } })).status, 403);
+  const added = await call(`/marketing/posts/${id}/media`, { method: "POST", cookie: rahma, body: { fileIds: [t.body.id] } });
+  assert.equal(added.status, 201, JSON.stringify(added.body));
+  assert.equal((await call(`/marketing/posts/${id}/media`, { method: "POST", cookie: rahma, body: { fileIds: [t.body.id] } })).status, 400); // already on it
+  assert.equal((await call(`/marketing/posts/${id}/media`, { cookie: sales })).status, 403);
+  const media = await call(`/marketing/posts/${id}/media`, { cookie: rahma });
+  assert.deepEqual(media.body.map((m: { name: string; mime: string }) => [m.name, m.mime]), [[video.name, "video/mp4"]]);
+  assert.ok(media.body[0].url && media.body[0].download);
+  const row = (await call(`/marketing/posts`, { cookie: rahma })).body.find((p: { id: string }) => p.id === id);
+  assert.equal(row?.media ?? 1, 1);
+  assert.equal((await call(`/marketing/posts/${id}/media/${t.body.id}`, { method: "DELETE", cookie: sales })).status, 403);
+  assert.equal((await call(`/marketing/posts/${id}/media/${t.body.id}`, { method: "DELETE", cookie: rahma })).status, 204);
+  assert.deepEqual((await call(`/marketing/posts/${id}/media`, { cookie: rahma })).body, []);
+  assert.equal(await prisma.file.count({ where: { id: t.body.id } }), 0);
+  assert.deepEqual((await prisma.auditLog.findMany({ where: { entity: "Post", entityId: id, action: { startsWith: "media" } }, orderBy: { at: "asc" } })).map((a) => a.action), ["media-add", "media-delete"]);
+});

@@ -1,12 +1,13 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { BroadcastBoard, BroadcastDone, BroadcastInput, MyBroadcast } from "@places/contracts";
-import { BROADCASTS_PER_WEEK, broadcastsThisWeek } from "@places/domain";
+import { BROADCASTS_PER_WEEK, broadcastsThisWeek, dayStart, localDate, whatsappLimitTone, whatsappSentToday } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryService } from "../inventory/inventory.service";
+import { SettingsService } from "../settings/settings.service";
 
 const NO_BROADCAST = "الـ Broadcast ده مش موجود";
 /** M-04 1.2 · 4.1: the Broadcast goes to sales; they see only their own Broadcast tasks. */
@@ -24,13 +25,17 @@ export class BroadcastsService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly inventory: InventoryService,
+    private readonly settings: SettingsService,
   ) {}
 
   async board(now = new Date()): Promise<BroadcastBoard> {
-    const [rows, sales] = await Promise.all([
+    const [rows, sales, donesToday, settings] = await Promise.all([
       this.db.broadcast.findMany({ orderBy: { createdAt: "desc" }, take: BOARD_SIZE, include: { sends: { orderBy: { doneAt: "asc" } } } }),
       this.salesIds(),
+      this.db.broadcastSend.count({ where: { doneAt: { gte: dayStart(localDate(now)) } } }), // the whole company's, today (Cairo)
+      this.settings.all(),
     ]);
+    const sentToday = whatsappSentToday(donesToday), limit = settings.whatsappDailyLimit;
     const names = await this.names(rows.flatMap((b) => b.sends.map((s) => s.userId)));
     const codes = await this.codes(rows.flatMap((b) => b.hotUnitIds));
     return {
@@ -41,6 +46,7 @@ export class BroadcastsService {
         pending: sales.filter((id) => !b.sends.some((s) => s.userId === id)).length,
       })),
       week: { sent: broadcastsThisWeek(rows.map((b) => ({ createdAt: b.createdAt, approved: b.approved, hotUnits: b.hotUnitIds.length })), now), of: BROADCASTS_PER_WEEK },
+      whatsapp: { sent: sentToday, limit, tone: whatsappLimitTone(sentToday, limit) },
     };
   }
 

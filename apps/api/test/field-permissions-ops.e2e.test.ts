@@ -31,11 +31,12 @@ before(async () => {
   const email = `fields-ops-${stamp}@places.test`;
   userId = (await prisma.user.create({ data: { email, status: "ACTIVE", passwordHash: await hash(PW), roles: { create: [{ roleId, primary: true }] } } })).id;
   person = await session(email);
+  await prisma.reportsAccess.create({ data: { userId, grantedById: userId } }); // 11.20: a head opened «التقارير والتارجت» for this role's person
   channel = ((await call("/marketing/campaigns/channels", { cookie: admin })).body as string[])[0]!;
   const id = async (e: string) => (await prisma.user.findUniqueOrThrow({ where: { email: e } })).id;
   [rahmaId, bayoumiId] = await Promise.all([id("rahma.hassan@places.com"), id("abdelrahman.bayoumi@places.com")]);
   unitId = (await prisma.unit.create({ data: { code: `U-F${stamp}`, type: "Rent", project: `${P} مشروع`, area: "التجمع الخامس", space: 120, condition: "Finished", floor: "3", building: "B7", ownerName: "أ. سمير", ownerPhone: "01000000777" } })).id;
-  sheetId = (await prisma.notActiveSheet.create({ data: { name: P, dedupeBy: "الكود", numberBy: "الرقم", columns: ["الكود", "المالك", "الرقم"] } })).id;
+  sheetId = (await prisma.notActiveSheet.create({ data: { name: P, dedupeBy: ["الكود"], numberBy: "الرقم", columns: ["الكود", "المالك", "الرقم"] } })).id;
   // not the two reports.e2e works on (it clears their targets while running beside this file)
   salesIds = (await prisma.employee.findMany({ where: { user: { status: "ACTIVE", email: { notIn: ["youssef.hosny@places.com", "ahmed.amr@places.com"] }, roles: { some: { role: { key: "sales" } } } } }, select: { id: true }, orderBy: { name: "asc" }, take: 2 })).map((e) => e.id);
 });

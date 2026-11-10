@@ -51,33 +51,33 @@ test("Manar uploads a CFC sheet: its own columns, every row, audited", async () 
   assert.deepEqual({ added: r.body.added, duplicates: r.body.duplicates }, { added: 40, duplicates: 0 });
   const sheets = (await call("/not-active/sheets", { cookie: manar })).body;
   const sheet = sheets.find((s: { name: string }) => s.name === NAME);
-  assert.deepEqual({ rows: sheet.rows, dedupeBy: sheet.dedupeBy, columns: sheet.columns }, { rows: 40, dedupeBy: "رقم الوحدة", columns: ["رقم الوحدة", "المالك", "الرقم"] });
+  assert.deepEqual({ rows: sheet.rows, dedupeBy: sheet.dedupeBy, columns: sheet.columns }, { rows: 40, dedupeBy: ["رقم الوحدة"], columns: ["رقم الوحدة", "المالك", "الرقم"] });
   const rows = (await call(`/not-active/sheets/${sheet.id}/rows`, { cookie: manar })).body;
   assert.equal(rows.total, 40);
   assert.deepEqual(rows.items[0].data, { "رقم الوحدة": "C-100", "المالك": "أ. مالك 100", "الرقم": "01000000100" });
   assert.ok(await prisma.auditLog.findFirst({ where: { entityId: sheet.id, action: "create", module: "notactive" } }));
 });
 
-test("M-03 7.1 · a second CFC sheet of 50 rows, 20 already there: only the 30 new ones are added; the same file again adds nothing", async () => {
+test("M-03 7.1 · a second CFC sheet of 50 rows, 20 already there: «متدخلش» adds only the 30 new ones; the same file again adds nothing", async () => {
   // C-120…C-139 are in the sheet, C-200…C-229 aren't; the new file has a new column too, and «cfc» is the same sheet
   const second = csv([...range(120, 20), ...range(200, 30)], "مكتب");
-  const p = await upload("preview", second, manar, { name: NAME.toLowerCase(), dedupeBy: "رقم الوحدة" });
+  const p = await upload("preview", second, manar, { name: NAME.toLowerCase(), dedupeBy: "رقم الوحدة", skipDupes: "true" });
   assert.equal(p.body.sheet?.name, NAME);
   assert.deepEqual({ added: p.body.added, duplicates: p.body.duplicates }, { added: 30, duplicates: 20 });
-  const r = await upload("import", second, manar, { name: NAME.toLowerCase(), dedupeBy: "رقم الوحدة" });
+  const r = await upload("import", second, manar, { name: NAME.toLowerCase(), dedupeBy: "رقم الوحدة", skipDupes: "true" });
   assert.deepEqual({ added: r.body.added, duplicates: r.body.duplicates }, { added: 30, duplicates: 20 });
   const sheet = await prisma.notActiveSheet.findFirstOrThrow({ where: { name: NAME }, include: { _count: { select: { rows: true } } } });
   assert.equal(sheet._count.rows, 70);
   assert.deepEqual(sheet.columns, ["رقم الوحدة", "المالك", "الرقم", "ملاحظات"]);
   assert.equal(await prisma.notActiveSheet.count({ where: { name: { equals: NAME, mode: "insensitive" } } }), 1);
   // the same file again: nothing new
-  const again = await upload("import", second, manar, { name: NAME, dedupeBy: "رقم الوحدة" });
+  const again = await upload("import", second, manar, { name: NAME, dedupeBy: "رقم الوحدة", skipDupes: "true" });
   assert.deepEqual({ added: again.body.added, duplicates: again.body.duplicates }, { added: 0, duplicates: 50 });
   // by the owner's number instead (Manar picks the column): written differently, still the same number
   const byNumber = new Blob([["رقم الوحدة,الرقم", "C-900,+20 100 000 0100", "C-901,01099999999"].join("\n")], { type: "text/csv" });
-  const n = await upload("import", byNumber, manar, { name: NAME, dedupeBy: "الرقم" });
+  const n = await upload("import", byNumber, manar, { name: NAME, dedupeBy: "الرقم", skipDupes: "true" });
   assert.deepEqual({ added: n.body.added, duplicates: n.body.duplicates }, { added: 1, duplicates: 1 });
-  assert.equal((await prisma.notActiveSheet.findFirstOrThrow({ where: { name: NAME } })).dedupeBy, "الرقم");
+  assert.deepEqual((await prisma.notActiveSheet.findFirstOrThrow({ where: { name: NAME } })).dedupeBy, ["الرقم"]);
 });
 
 test("the column must be in the file, the name is required, and a sheet without rows is refused", async () => {

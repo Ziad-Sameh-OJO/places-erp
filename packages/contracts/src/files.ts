@@ -7,6 +7,8 @@ export const FILE_KINDS = {
   pdf: { mimes: ["application/pdf"], maxBytes: 20 * MB, label: "الملف", max: "20 ميجا" },
   /** 2.35 · AutoCAD drawings, for a unit's Layout file folder only (`folder: "layout"`) */
   drawing: { mimes: ["image/vnd.dwg", "image/vnd.dxf"], maxBytes: 50 * MB, label: "ملف الـ DWG", max: "50 ميجا" },
+  // 4.21 · a Content plan post's video (mp4 / mov): only with `purpose: "post"`, and only a post takes it (FilesService.attach)
+  video: { mimes: ["video/mp4", "video/quicktime"], maxBytes: 200 * MB, label: "الفيديو", max: "200 ميجا" },
 } as const;
 export type FileKind = keyof typeof FILE_KINDS;
 export const fileKind = (mime: string): FileKind | undefined =>
@@ -22,8 +24,11 @@ export const UploadRequest = z.object({
   size: z.number({ invalid_type_error: "حجم الملف ناقص" }).int().positive("الملف فاضي"),
   /** 2.35 · the only place a DWG / DXF may go */
   folder: z.literal("layout").optional(),
+  /** what it's for: "post" also allows a video (4.21) */
+  purpose: z.enum(["post"]).optional(),
 }).superRefine((f, ctx) => {
   const kind = fileKind(f.mime);
+  if (kind === "video" && f.purpose !== "post") return ctx.addIssue({ code: "custom", path: ["mime"], message: "نوع الملف مش مسموح · صور jpg/png/webp أو PDF" });
   if (!kind) return ctx.addIssue({ code: "custom", path: ["mime"], message: "نوع الملف مش مسموح · صور jpg/png/webp أو PDF" });
   if (kind === "drawing" && f.folder !== "layout") return ctx.addIssue({ code: "custom", path: ["mime"], message: "ملفات الـ DWG / DXF لفولدر الـ Layout بس" });
   if (f.size > FILE_KINDS[kind].maxBytes) ctx.addIssue({ code: "custom", path: ["size"], message: `${FILE_KINDS[kind].label} أكبر من ${FILE_KINDS[kind].max}` });

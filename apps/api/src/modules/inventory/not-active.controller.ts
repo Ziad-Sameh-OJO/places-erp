@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { Id, NotActiveAssign, NotActiveClassify, NotActiveFileInput, NotActiveImport, NotActiveRowFilters, UnitInput } from "@places/contracts";
+import { Id, NotActiveAssign, NotActiveClassify, NotActiveDedupe, NotActiveFileInput, NotActiveImport, NotActiveRowFilters, UnitInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { IMPORT_MAX_BYTES, readTable, type UploadedSheet } from "../../core/http/import";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -72,13 +72,26 @@ export class NotActiveController {
     return this.notActive.renameFile(me, id, body);
   }
 
+  /** 2.40 · «غيّر خانة منع التكرار»: the count first (`?columns=["…"]`), then saving it. */
+  @Get("sheets/:id/dedupe")
+  @Requires("notactive", "view")
+  dedupePreview(@Param("id", new ZodPipe(Id)) id: string, @Query(new ZodPipe(NotActiveDedupe)) q: NotActiveDedupe) {
+    return this.notActive.dedupePreview(id, q.columns);
+  }
+
+  @Put("sheets/:id/dedupe")
+  @Requires("notactive", "view")
+  setDedupe(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string, @Body(new ZodPipe(NotActiveDedupe)) body: NotActiveDedupe) {
+    return this.notActive.setDedupe(me, id, body.columns);
+  }
+
   /** Step 1: the file's columns and rows, and what merging it would add; nothing saved. */
   @Post("preview")
   @HttpCode(200)
   @Requires("notactive", "view")
   @UseInterceptors(sheet)
   async preview(@Me() me: CurrentUser, @UploadedFile() file: UploadedSheet | undefined, @Body(new ZodPipe(NotActiveImport.partial())) body: Partial<NotActiveImport>) {
-    return this.notActive.preview(me, await readTable(file), body.name, body.dedupeBy);
+    return this.notActive.preview(me, await readTable(file), body.name, body.dedupeBy, body.skipDupes);
   }
 
   /** Step 2 («ادمج»): the same file again with the name and the columns. */

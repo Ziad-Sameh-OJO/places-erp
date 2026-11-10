@@ -2,8 +2,9 @@
 import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { INVENTORY_MANAGER, keepsInventory } from "@places/domain";
+import { INVENTORY_MANAGER, keepsInventory, seesInventoryTiles, seesWebsiteAds } from "@places/domain";
 import { UNIT_SORTS } from "@places/contracts";
+import { WebsiteAdCell } from "./website-ad";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -71,7 +72,9 @@ export function InventoryList() {
   const sorted: UnitQuery = { ...query, ...sort };
   const units = useUnits(sorted, page, PAGE);
   const tabs = useUnitTabs(f).data;
-  const s = useUnitSummary().data;
+  // 2.37 · the tiles are the Inventory Manager's; everyone else opens straight on the sheet (demo render())
+  const tiles = seesInventoryTiles(me.me?.roles ?? []);
+  const s = useUnitSummary(tiles).data;
   const options = useUnitOptions().data;
   const unit = useUnit(open);
   const areaTabs = useAreaTabs(query).data ?? [];
@@ -92,7 +95,11 @@ export function InventoryList() {
   const pages = Math.max(1, Math.ceil(total / PAGE));
   // M-09 field permissions: hidden fields have no column and no filter (the API drops such filters too)
   const fields = useFields("inventory");
-  const cols = columnsFor(tab === "all" ? "all" : tab, insider, t, fields.hidden);
+  // 4.13 · marketing's «Website Ads» right after the code, in view without scrolling (demo pub())
+  const marketing = seesWebsiteAds(me.me?.roles ?? []);
+  const base = columnsFor(tab === "all" ? "all" : tab, insider, t, fields.hidden);
+  const at = base.findIndex(([k]) => k === "code") + 1;
+  const cols: [string, string][] = marketing && tab !== "closed" ? [...base.slice(0, at), ["webAd", "Website Ads"], ...base.slice(at)] : base;
   const onClosed = (k: keyof typeof closedBy) => (e: { target: { value: string } }) => { setClosedBy({ ...closedBy, [k]: e.target.value || undefined }); setPage(1); };
   // Primary isn't confirmed by the client as a sheet yet: its tab shows once there are Primary units
   const types: [TypeTab, string, number | undefined][] = [
@@ -104,13 +111,12 @@ export function InventoryList() {
   if (kpis) return <InventoryKpis onBack={() => setKpis(false)} />;
   return (
     <>
-      <div className="kpis">
+      {tiles && <div className="kpis">
         <KpiTile label={t("list.available")} value={s ? num(s.available) : "…"} sub="Rent · Resale · Income" icon="building" />
-        {insider && <KpiTile label={t("chips.pdfDraft")} value={s ? num(s.pdfDraft) : "…"} sub={t("list.pdfDraftSub")} icon="file" tone="warn" />}
+        <KpiTile label={t("chips.pdfDraft")} value={s ? num(s.pdfDraft) : "…"} sub={t("list.pdfDraftSub")} icon="file" tone="warn" />
         <KpiTile label={t("chips.stale")} value={s ? num(s.stale) : "…"} sub={t("list.staleSub")} icon="clock" tone="bad" onClick={() => filter({ ...f, stale: "true" })} />
-        <KpiTile label={t("list.divisible")} value={s ? num(s.divisible) : "…"} sub={t("list.divisibleSub")} icon="layers" tone="ok" />
         <KpiTile label={t("list.missing")} value={s ? num(s.missing) : "…"} sub={t("list.missingSub")} icon="alert" tone="bad" onClick={() => filter({ ...f, missing: "true" })} />
-      </div>
+      </div>}
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); }} items={types} />
         <span className="spacer" />
@@ -124,7 +130,7 @@ export function InventoryList() {
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
       <div className="toolbar">
-        <label className="search"><Icon name="search" /><input type="search" placeholder={insider ? t("list.searchInsider") : t("list.search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("list.searchLabel")} /></label>
+        <label className="search"><Icon name="search" /><input type="search" placeholder={insider && fields.shows("ownerName") ? t("list.searchInsider") : t("list.search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("list.searchLabel")} /></label>
         {fields.shows("area") && <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
           <option value="">{t("list.allAreas")}</option>{options?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
         </select>}
@@ -133,6 +139,9 @@ export function InventoryList() {
         </select>}
         {fields.shows("agent") && <select value={f.agentId ?? ""} onChange={on("agentId")} aria-label="Agent">
           <option value="">{t("list.allAgents")}</option>{options?.agents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>}
+        {marketing && <select value={f.websiteAd ?? ""} onChange={on("websiteAd")} aria-label="Website Ads">
+          <option value="">{t("webAd.all")}</option><option value="yes">Website Ads: Yes</option><option value="no">Website Ads: No</option>
         </select>}
         {tab === "closed" && <>
           <select value={closedBy.type ?? ""} onChange={onClosed("type")} aria-label={t("list.closedAs")}>
@@ -165,7 +174,7 @@ export function InventoryList() {
             </article>
           ))}</div>
           : <Empty text={t("list.empty")} />)
-        : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k, t)))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)}
+        : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => (k === "webAd" ? <WebsiteAdCell u={u} /> : cell(u, k, t))))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)}
           sort={{ keys: cols.map(([k]) => (SORTABLE.has(k) ? k : null)), by: sort.sort, dir: sort.dir, onChange: (by, dir) => { setSort({ sort: by, dir }); setPage(1); } }}
           pick={{ ids: list.map((u) => u.id), picked, onChange: setPicked, all: t("listOfOptions.pickAll"), one: (i) => t("listOfOptions.pickOne", { code: list[i]!.code }) }} />}
       {picked.length > 0 && <ListOfOptionsBar ids={picked} onClear={() => setPicked([])} />}

@@ -1,11 +1,11 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
+  type CampaignUnitOption, type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
   type MissingUnitsToday, type UnitImportOptions, type UnitImportReviewRow, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, findDuplicates, importDecision, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
+  FIELDS, UNIT_TYPES, allowedValue, seesWebsiteAds, carrySides, closedStatus, dayStart, findDuplicates, importDecision, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -107,6 +107,15 @@ export class InventoryService {
     return { code: u.code };
   }
 
+  /**
+   * 4.20 · «الوحدات المستهدفة (من شيت الانفنتوري)»: the available units plus the ones a campaign already has (`keep`).
+   * The area and space follow the person's inventory field rules (M-09).
+   */
+  async forCampaigns(me: CurrentUser, keep: string[] = []): Promise<CampaignUnitOption[]> {
+    const hidden = me.fields.hidden("inventory");
+    return (await this.repo.forCampaigns(keep)).map((u) => ({ ...u, area: hidden.has("area") ? "" : u.area, space: hidden.has("space") ? 0 : u.space }));
+  }
+
   /** For a task (M-04 4.2): open units, drafts included, by code, project or space. */
   forTasks(q?: string) {
     return this.repo.forTasks(q, 30);
@@ -128,14 +137,44 @@ export class InventoryService {
   }
 
   private scope(me: CurrentUser, now = new Date()): UnitScope {
-    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now), hidden: me.fields.hidden("inventory") };
+    const hidden = me.fields.hidden("inventory");
+    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now), hidden, owners: { name: !hidden.has("ownerName"), phone: !hidden.has("ownerPhone") } };
   }
 
   async list(me: CurrentUser, filters: UnitFilters): Promise<Paged<UnitRow>> {
-    const s = this.scope(me), hidden = me.fields.hidden("inventory"), f = shownFilters(filters, hidden);
+    const s = this.scope(me), hidden = me.fields.hidden("inventory"), f = webAdFilter(shownFilters(filters, hidden), me);
     const [rows, total] = await this.repo.list(s, await withMissing(this.repo, s, f), f.tabId ? await this.repo.areaTabs() : []);
     const [agents, links] = await Promise.all([this.names(rows.map((r) => r.agentId)), this.photos.links(rows.flatMap((r) => r.photos.map((p) => p.fileId)))]);
-    return { items: rows.map((r) => this.row(r, s, agents, links, hidden)), total, page: f.page, pageSize: f.pageSize };
+    const items = rows.map((r) => this.row(r, s, agents, links, hidden));
+    return { items: await this.withWebAds(me, rows, items), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** 4.13 · marketing's «Website Ads» (Yes = when and who), on the rows marketing reads; nobody else gets the field. */
+  private async withWebAds(me: CurrentUser, rows: UnitRowRecord[], items: UnitRow[]): Promise<UnitRow[]> {
+    if (!seesWebsiteAds(me.roles)) return items;
+    const by = new Map((await this.repo.namesByUser([...new Set(rows.flatMap((r) => (r.websiteAdById ? [r.websiteAdById] : [])))])).map((e) => [e.userId, e.name]));
+    return items.map((u, i) => {
+      const r = rows[i]!;
+      return { ...u, websiteAd: r.websiteAdAt ? { at: r.websiteAdAt.toISOString(), by: r.websiteAdById ? { id: r.websiteAdById, name: by.get(r.websiteAdById) ?? "" } : null } : null };
+    });
+  }
+
+  /**
+   * 4.13 · the demo's unitWebAd: marketing marks a unit's ad as posted on the website (Yes) or takes it back (No).
+   * Who and when are kept for the tooltip; every switch is audited in its transaction.
+   */
+  async setWebsiteAd(me: CurrentUser, id: string, posted: boolean): Promise<UnitDetail> {
+    if (!seesWebsiteAds(me.roles)) throw new ForbiddenException("الـ Website Ads للتسويق بس");
+    await this.db.$transaction(async (tx) => {
+      const u = await this.repo.detail(this.scope(me), id, tx);
+      if (!u) throw new NotFoundException(NO_UNIT);
+      if (!!u.websiteAdAt === posted) return;
+      const at = posted ? new Date() : null, by = posted ? me.id : null;
+      await tx.unit.update({ where: { id }, data: { websiteAdAt: at, websiteAdById: by } });
+      await this.audit.record({ module: "marketing", entity: "Unit", entityId: id, action: posted ? "website-ad" : "website-ad-undo", userId: me.id,
+        before: { websiteAdAt: u.websiteAdAt, websiteAdById: u.websiteAdById }, after: { websiteAdAt: at, websiteAdById: by } }, tx);
+    });
+    return this.get(me, id);
   }
 
   /**
@@ -143,7 +182,7 @@ export class InventoryService {
    * scope (sales: confirmed units only, Q15) and with the same hidden fields blank (M-09). Audited.
    */
   async exportRows(me: CurrentUser, filters: UnitFilters): Promise<UnitRow[]> {
-    const s = this.scope(me), hidden = me.fields.hidden("inventory"), f = { ...shownFilters(filters, hidden), page: 1, pageSize: EXPORT_LIMIT };
+    const s = this.scope(me), hidden = me.fields.hidden("inventory"), f = { ...webAdFilter(shownFilters(filters, hidden), me), page: 1, pageSize: EXPORT_LIMIT };
     const [rows] = await this.repo.list(s, await withMissing(this.repo, s, f), f.tabId ? await this.repo.areaTabs() : []);
     const agents = await this.names(rows.map((r) => r.agentId));
     await this.audit.record({ module: "inventory", entity: "Unit", entityId: "export", action: "export", userId: me.id, after: { filters, rows: rows.length } });
@@ -166,7 +205,7 @@ export class InventoryService {
   }
 
   async tabs(me: CurrentUser, filters: UnitFilters): Promise<UnitTabCounts> {
-    const s = this.scope(me), f = shownFilters(filters, me.fields.hidden("inventory"));
+    const s = this.scope(me), f = webAdFilter(shownFilters(filters, me.fields.hidden("inventory")), me);
     const [all, ...rest] = await this.repo.tabCounts(s, await withMissing(this.repo, s, f), UNIT_TYPES, f.tabId ? await this.repo.areaTabs() : []);
     const closed = rest.pop()!;
     return { all, ...(Object.fromEntries(UNIT_TYPES.map((t, i) => [t, rest[i]!])) as Record<(typeof UNIT_TYPES)[number], number>), closed };
@@ -184,8 +223,9 @@ export class InventoryService {
     const [agents, links] = await Promise.all([this.names([u.agentId]), this.photos.links(u.photos.map((p) => p.fileId))]);
     const by = u.createdById ? await this.repo.userName(u.createdById) : null;
     const locks = s.insider ? await this.units.locks(me, id) : []; // the deals on it are the inventory team's business
+    const [row] = await this.withWebAds(me, [u], [this.row(u, s, agents, links, hidden)]);
     return {
-      ...this.row(u, s, agents, links, hidden), splitNote: hidden.has("splitNote") ? null : u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
+      ...row!, splitNote: hidden.has("splitNote") ? null : u.splitNote, receivedAt: u.receivedAt?.toISOString() ?? null, enteredAt: u.enteredAt.toISOString(),
       createdBy: u.createdById && by ? { id: u.createdById, name: by.name } : null, updatedAt: u.updatedAt.toISOString(), locks,
       mediaUploadedAt: u.mediaUploadedAt?.toISOString() ?? null, mediaOnTime: u.mediaUploadedAt ? mediaOnTime(u.enteredAt, u.mediaUploadedAt) : null,
     };
@@ -423,6 +463,9 @@ function hideFields(r: UnitRow, hidden: ReadonlySet<string>): UnitRow {
   };
 }
 
+/** 4.13: the «Website Ads» filter is marketing's; anyone else's is dropped (a match would tell them the field). */
+export const webAdFilter = (f: UnitFilters, me: CurrentUser): UnitFilters => (seesWebsiteAds(me.roles) ? f : { ...f, websiteAd: undefined });
+
 /** Filtering by a hidden field would tell its value: such a filter is dropped. */
 export function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitFilters {
   if (!hidden.size) return f;
@@ -441,13 +484,15 @@ const EMPTY: Record<string, unknown> = { area: "", space: 0, condition: "", park
 const INPUT_KEYS = ["area", "space", "areaTabId", "condition", "floor", "building", "parking", "agentId", "maintenance", "commission", "location", "comment",
   "lastOwnerUpdateAt", "divisible", "minSplit", "splitNote", "ownerName", "ownerPhone", "pricePerSqm", "leasePerSqm", "paymentMethod", "delivery", "upfront",
   "security", "payment", "term", "grace", "escalationPct", "link", "contractDuration", "startsOn", "endsOn", "serviceChargeUsd", "tenant", "note"] as const;
+const WRITE_ON_CREATE = new Set((FIELDS.inventory ?? []).filter((f) => f.writeOnCreate).flatMap((f) => [f.key, ...(f.covers ?? [])]));
 function keepFixed(input: UnitInput, before: UnitRecord | null, fixed: ReadonlySet<string>): UnitInput {
   if (!fixed.size) return input;
   const out: Record<string, unknown> = { ...input };
   const stored = (before ?? {}) as Record<string, unknown>, details = (before?.details ?? {}) as Record<string, unknown>;
   for (const k of INPUT_KEYS) {
     if (!fixed.has(k)) continue;
-    if (!before) { out[k] = EMPTY[k]; continue; }
+    // 2.36: the unit's owner and agent are entered on a new unit by whoever adds it, even when they can't see them after
+    if (!before) { if (!WRITE_ON_CREATE.has(k)) out[k] = EMPTY[k]; continue; }
     const v = k in stored ? stored[k] : details[k];
     out[k] = v instanceof Date ? localDate(v) : v != null && typeof v === "object" && "toFixed" in v ? (v as Prisma.Decimal).toFixed(2) : v ?? undefined;
   }

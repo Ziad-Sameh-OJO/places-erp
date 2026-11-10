@@ -91,6 +91,20 @@ export interface KpiBoard {
   missing: { id: string; name: string; title: string }[];
 }
 
+/**
+ * 11.16 · home (demo kpis.js kpiMine / kpiInbox): «الـ KPIs بتاعتي» (my card, the first 3 items under target) and the
+ * KPI lines of «مهامي النهارده». `score` null when the person's field rules hide it (M-09).
+ */
+export interface KpiMineView {
+  id: string; quarter: string; score: number | null; tone: "ok" | "warn" | "bad"; follower: string; belowCount: number;
+  below: { title: string; targetText: string; method: "system" | "report" | "manual"; value: number | null; delivered: number; required: number | null }[];
+}
+export type KpiTodayLineView = { cardId: string; name: string; score: number | null } & (
+  | { kind: "approve" | "enter"; manual: number }
+  | { kind: "deliver"; item: string; delivered: number; required: number }
+);
+export interface KpiToday { mine: KpiMineView | null; lines: KpiTodayLineView[] }
+
 export interface KpiItemView {
   id: string; key: string; title: string; weight: number; targetText: string; source: string;
   method: "system" | "report" | "manual"; module: string | null; direction: "at-least" | "at-most"; goal: number;
@@ -152,3 +166,8 @@ export interface ActivityView {
 }
 /** «نشاطاتي»: shown to sales and to anyone whose card counts these activities. */
 export interface MyActivities { show: boolean; items: ActivityView[] }
+
+/** 11.20 · «مين يشوف التقارير»: the heads tick who else opens «التقارير والتارجت». */
+export const ReportsAccessInput = z.object({ on: z.boolean() });
+export type ReportsAccessInput = z.infer<typeof ReportsAccessInput>;
+export interface ReportsAccessView { people: { userId: string; name: string; role: string }[]; on: string[] }

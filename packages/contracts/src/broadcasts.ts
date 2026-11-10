@@ -30,6 +30,8 @@ export interface BroadcastBoard {
   items: BroadcastRow[];
   /** M-12: this week's Broadcasts with Hot Inventory, of 2 */
   week: { sent: number; of: number };
+  /** M-04 2.3 · «حد الواتساب اليومي»: today's messages (each Done counts WHATSAPP_PER_DONE) of the daily limit; it warns only */
+  whatsapp: { sent: number; limit: number; tone: "ok" | "warn" | "bad" };
 }
 
 /** A salesperson's Broadcast task. */

@@ -9,7 +9,7 @@ import { Chip, Empty, Field, Icon, Modal, Note, Table, Tabs, useAction } from "@
 import { useFields, useMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import { day, num } from "@/lib/format";
-import { UploadSheet } from "./not-active-upload";
+import { DedupeChooser, UploadSheet } from "./not-active-upload";
 import { UnitForm } from "./unit-form";
 
 const PAGE = 100;
@@ -103,7 +103,7 @@ function FileView({ sheet, sheets, manager, canFile, first, onBack, onUploaded }
       </nav>
       <Note>{manager || canFile ? t("files.inNote") : t("teamNote")}</Note>
       {canFile && <div className="row"><button className="btn" onClick={() => setUploading(true)}><Icon name="upload" />{sheet.rows ? t("files.uploadMore") : t("files.upload")}</button></div>}
-      {sheet.rows ? <SheetView sheet={sheet} manager={manager} />
+      {sheet.rows ? <SheetView sheet={sheet} manager={manager} canFile={canFile} />
         : <div className="ufolder empty"><Icon name="upload" /><b>{t("files.emptyTitle")}</b><span className="hint">{canFile ? t("files.emptyUp") : t("files.emptyView")}</span></div>}
       {renaming && <FileForm file={sheet} onClose={() => setRenaming(false)} onSaved={() => setRenaming(false)} />}
       {uploading && <UploadSheet sheets={sheets} file={sheet} initial={first} onClose={() => { setUploading(false); onUploaded(); }} onDone={() => { setUploading(false); onUploaded(); }} />}
@@ -148,7 +148,7 @@ function FileForm({ file, onClose, onSaved }: { file?: NotActiveSheetView; onClo
   );
 }
 
-function SheetView({ sheet, manager }: { sheet: NotActiveSheetView; manager: boolean }) {
+function SheetView({ sheet, manager, canFile }: { sheet: NotActiveSheetView; manager: boolean; canFile: boolean }) {
   const t = useTranslations("inventory");
   const { can } = useMe();
   const qc = useQueryClient();
@@ -158,10 +158,12 @@ function SheetView({ sheet, manager }: { sheet: NotActiveSheetView; manager: boo
   const [pick, setPick] = useState<string[]>([]);
   const [notTrue, setNotTrue] = useState<NotActiveRowView | null>(null);
   const [done, setDone] = useState<NotActiveRowView | null>(null);
+  const [dup, setDup] = useState<"" | "any" | "none">(""); // 2.40 · «التكرار»
+  const [dedupe, setDedupe] = useState(false);
   const counts = useQuery({ queryKey: ["not-active", "counts", sheet.id], queryFn: () => api.get<NotActiveCounts>(`/not-active/sheets/${sheet.id}/counts`) });
   const rows = useQuery({
-    queryKey: ["not-active", "rows", sheet.id, tab, page],
-    queryFn: () => api.get<Paged<NotActiveRowView>>(`/not-active/sheets/${sheet.id}/rows?page=${page}&pageSize=${PAGE}&tab=${encodeURIComponent(tab)}`),
+    queryKey: ["not-active", "rows", sheet.id, tab, page, dup],
+    queryFn: () => api.get<Paged<NotActiveRowView>>(`/not-active/sheets/${sheet.id}/rows?page=${page}&pageSize=${PAGE}&tab=${encodeURIComponent(tab)}&dup=${dup}`),
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ["not-active"] });
   const classify = (r: NotActiveRowView, status: NotActiveStatus, feedback?: string) =>
@@ -175,28 +177,42 @@ function SheetView({ sheet, manager }: { sheet: NotActiveSheetView; manager: boo
   const fields = useFields("notactive"), fb = fields.shows("feedback");
   const columns = sheet.columns.filter((col) => col !== sheet.numberBy || fields.shows("number"));
   // the headers are the table's keys, so the pick column has a name of its own
+  const by = sheet.dedupeBy.join(" + ");
+  const showDup = (d: "" | "any" | "none") => { setDup(d); setPage(1); setPick([]); };
   const head = [...(manager ? [t("notActive.pick")] : []), ...columns, t("notActive.status"), ...(fb ? ["Feedback"] : []), t("notActive.with"), ""];
   return (
     <>
       <div className="kpis">
         <KpiTile label={t("notActive.all")} value={c ? num(c.all) : "…"} sub={sheet.name} icon="layers" />
         <KpiTile label={t("notActive.pending")} value={c ? num(c.pending) : "…"} sub={manager ? t("notActive.pendingManager") : t("notActive.pendingMine")} icon="clock" tone="warn" />
-        <KpiTile label="Done" value={c ? num(c.Done) : "…"} sub={t("notActive.newUnits")} icon="check" tone="ok" />
+        {/* 2.40 · the tile filters to the repeats */}
+        <KpiTile label={t("notActive.dupRows")} value={c ? num(c.dupes) : "…"} sub={t("notActive.dupBy", { by: by || "—" })} icon="alert" tone="bad" onClick={() => { setTab("all"); showDup("any"); }} />
         <KpiTile label={t("notActive.matched")} value={c ? num(c.matched) : "…"} sub={t("notActive.matchedSub")} icon="alert" tone="bad" />
       </div>
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); setPick([]); }}
           items={[["all", "All Sheet", c?.all], ...NOT_ACTIVE_STATUSES.map((s) => [s, s, c?.[s]] as [NotActiveTab, string, number | undefined])]} />
         <span className="spacer" />
-        <span className="hint">{t("notActive.dedupe", { column: sheet.dedupeBy })}{sheet.numberBy ? ` · ${t("notActive.compare", { column: sheet.numberBy })}` : ""}</span>
+        <label className="field inline"><span>{t("notActive.dupFilter")}</span>
+          <select value={dup} onChange={(e) => showDup(e.target.value as "" | "any" | "none")}>
+            <option value="">{t("notActive.dupAll")}</option>
+            <option value="any">{t("notActive.dupOnly", { count: num(c?.dupes ?? 0) })}</option>
+            <option value="none">{t("notActive.dupNone")}</option>
+          </select>
+        </label>
+      </div>
+      <div className="na-cols"><span className="hint">{t("notActive.dupByLabel")}</span><b>{by || "—"}</b>
+        <span className="hint">{t("notActive.dupRule", { all: sheet.dedupeBy.length > 1 ? "true" : "false" })}{sheet.numberBy ? ` · ${t("notActive.compare", { column: sheet.numberBy })}` : ""}</span>
+        {canFile && <button className="btn ghost sm" onClick={() => setDedupe(true)}>{t("notActive.dupChange")}</button>}
       </div>
       {manager && pick.length > 0 && <AssignBar sheetId={sheet.id} rowIds={pick} onDone={() => { setPick([]); void refresh(); }} />}
       {rows.error ? <Note kind="warn">{rows.error.message}</Note> : (
         <Table head={head} empty={rows.data ? t("notActive.noRows") : t("common.loading")} rows={list.map((r) => [
           ...(manager ? [<input key="p" type="checkbox" aria-label={t("notActive.pickOne")} disabled={r.status === "Done"} checked={pick.includes(r.id)}
             onChange={(e) => setPick(e.target.checked ? [...pick, r.id] : pick.filter((x) => x !== r.id))} />] : []),
-          ...columns.map((col) => r.data[col] ?? "—"),
-          <StatusCell key="s" r={r} />,
+          // 2.40 · a repeat's picked cells in red
+          ...columns.map((col) => (r.dupes && sheet.dedupeBy.includes(col) ? <span key={col} className="na-dup">{r.data[col] || "—"}</span> : r.data[col] || "—")),
+          <StatusCell key="s" r={r} by={by} />,
           ...(fb ? [r.feedback ?? ""] : []),
           r.assignedTo?.name ?? "—",
           // a feedback the person may not write keeps the stored one: Not True goes without the dialog
@@ -212,15 +228,17 @@ function SheetView({ sheet, manager }: { sheet: NotActiveSheetView; manager: boo
       )}
       {notTrue && <NotTrueDialog onClose={() => setNotTrue(null)} onSave={(fb) => { const r = notTrue; setNotTrue(null); void classify(r, "Not True", fb); }} />}
       {done && <DoneForm sheet={sheet} row={done} onClose={() => setDone(null)} onSaved={() => { setDone(null); void refresh(); }} />}
+      {dedupe && <DedupeDialog sheet={sheet} onClose={() => setDedupe(false)} />}
     </>
   );
 }
 
-function StatusCell({ r }: { r: NotActiveRowView }) {
+function StatusCell({ r, by }: { r: NotActiveRowView; by: string }) {
   const t = useTranslations("inventory.notActive");
   return (
     <>
       {r.status ? <Chip tone={TONE[r.status as NotActiveStatus] ?? ""}>{r.status}</Chip> : <Chip>{t("notYet")}</Chip>}
+      {r.dupes > 0 && <span className="sub"><Chip tone="bad">{t("dupChip", { by, count: num(r.dupes) })}</Chip></span>}
       {r.matched && <span className="sub"><Chip tone="bad">{t("matchedCode", { code: r.matched.code })}</Chip></span>}
       {r.unit && <span className="sub mono">{r.unit.code}</span>}
     </>
@@ -242,6 +260,32 @@ function Actions({ r, manager, edit, onSet }: { r: NotActiveRowView; manager: bo
     <div className="row">
       {NOT_ACTIVE_STATUSES.map((s) => <button key={s} className={`btn ${s === "Done" ? "" : "ghost"} sm`} onClick={() => onSet(s)}>{s}</button>)}
     </div>
+  );
+}
+
+/** 2.40 · «غيّر خانة منع التكرار» (demo naDupPick): the same chooser as the upload, the count before saving. */
+function DedupeDialog({ sheet, onClose }: { sheet: NotActiveSheetView; onClose: () => void }) {
+  const t = useTranslations("inventory");
+  const run = useAction();
+  const qc = useQueryClient();
+  const [cols, setCols] = useState(sheet.dedupeBy);
+  const count = useQuery({
+    queryKey: ["not-active", "dedupe", sheet.id, cols], enabled: cols.length > 0,
+    queryFn: () => api.get<{ marked: number }>(`/not-active/sheets/${sheet.id}/dedupe?columns=${encodeURIComponent(JSON.stringify(cols))}`),
+  }).data;
+  const save = () => void run(async () => {
+    await api.put(`/not-active/sheets/${sheet.id}/dedupe`, { columns: cols });
+    await qc.invalidateQueries({ queryKey: ["not-active"] });
+    onClose();
+  }, t("notActive.files.saved"));
+  return (
+    <Modal title={t("notActive.dupTitle")} onClose={onClose}>
+      <DedupeChooser headers={sheet.columns} cols={cols} onToggle={(h, on) => setCols(sheet.columns.filter((x) => (x === h ? on : cols.includes(x))))} />
+      {cols.length
+        ? <Note>{t.rich("upload.counts2", { marked: count ? num(count.marked) : "…", by: cols.join(" + "), all: cols.length > 1 ? "true" : "false", b: (s) => <b>{s}</b> })}</Note>
+        : <Note kind="warn">{t("upload.pickOne")}</Note>}
+      <div className="row end"><button className="btn" disabled={!cols.length} onClick={save}>{t("notActive.save")}</button></div>
+    </Modal>
   );
 }
 

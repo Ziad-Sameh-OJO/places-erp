@@ -4,7 +4,7 @@ import type { Settings } from "@places/contracts";
 import type { Channel } from "@places/domain";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
-import { Card, Field, Note, onFormSubmit, Table, Tick, useAction } from "@/components/ui";
+import { Card, Field, Icon, Note, onFormSubmit, Table, Tick, useAction, useToast } from "@/components/ui";
 import { MailLog } from "./mail-log";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -17,7 +17,7 @@ export function NotificationRules() {
   const t = useTranslations("notifications.rules");
   const chLabel = (c: Channel) => t(`channels.${c}`);
   const qc = useQueryClient();
-  const run = useAction();
+  const run = useAction(), toast = useToast();
   const { can, canSet } = useMe();
   const ed = can("integrations", "edit");
   const rules = useQuery({ queryKey: ["notif-rules"], queryFn: () => api.get<Rule[]>("/notifications/rules") });
@@ -26,13 +26,22 @@ export function NotificationRules() {
     await api.put(`/notifications/rules/${r.key}`, { channels: on ? [...r.channels, c] : r.channels.filter((x) => x !== c) });
     await qc.invalidateQueries({ queryKey: ["notif-rules"] });
   }, t("saved"));
+  const testMail = () => run(async () => {
+    const r = await api.post<{ to: string; from: string }>("/notifications/mail/test");
+    await qc.invalidateQueries({ queryKey: ["mail-log"] });
+    toast(t("from.testSent", { from: r.from, to: r.to }));
+  });
   return (
     <>
       <div className="cols">
         <Card title={t("from.title")} icon="send" sub={t("from.sub")}>
           {s.data && <form className="form" onSubmit={onFormSubmit((f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, t("saved")))}>
             <Field label={t("from.label")}><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!canSet("notificationsFrom")} /></Field>
-            {canSet("notificationsFrom") && <div className="row end"><button className="btn ghost sm">{t("save")}</button></div>}
+            <div className="row end">
+              {/* 12.14 · demo admin.js nfTest: to my own address; the result shows in «سجل الإيميلات» */}
+              <button type="button" className="btn ghost sm" onClick={() => void testMail()}><Icon name="send" />{t("from.test")}</button>
+              {canSet("notificationsFrom") && <button className="btn ghost sm">{t("save")}</button>}
+            </div>
           </form>}
         </Card>
         <Card title={t("prefs.title")} icon="bell" sub={t("prefs.sub")}>

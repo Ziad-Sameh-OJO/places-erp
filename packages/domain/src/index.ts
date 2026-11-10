@@ -44,3 +44,4 @@ export * from "./campaigns.ts";
 export * from "./posts.ts";
 export * from "./broadcasts.ts";
 export * from "./table-sort.ts";
+export * from "./kpi-today.ts";

@@ -53,7 +53,25 @@ export function leadsByPost(arrivals: readonly Arrival[]): Array<{ post: string;
 }
 
 /** Running on `today` (a Cairo calendar day «YYYY-MM-DD»): the demo's «شغالة» / «خلصت». */
-export const isCampaignLive = (c: { startsOn: string; endsOn: string }, today: string): boolean => c.startsOn <= today && today <= c.endsOn;
+export const isCampaignLive = (c: { startsOn: string; endsOn: string | null }, today: string): boolean =>
+  c.startsOn <= today && (c.endsOn === null || today <= c.endsOn);
+
+/**
+ * 4.20 · a campaign has no end date when it's made: it runs («مستمرة») until it's stopped from «تعديل». Its days so far:
+ * from the start to its end or today, whichever comes first, both days counted (demo marketing.js `campDays`).
+ */
+export function campaignDays(c: { startsOn: string; endsOn: string | null }, today: string): number {
+  const to = c.endsOn !== null && c.endsOn < today ? c.endsOn : today;
+  return c.startsOn > to ? 0 : Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${c.startsOn}T00:00:00Z`)) / 86_400_000) + 1;
+}
+
+/**
+ * 4.20 · the budget is per day: what it adds up to so far (per day × the days, demo `campCap`), which what was spent is
+ * compared with and which any report reads as the campaign's budget. A campaign from before keeps its total.
+ */
+export function campaignBudget(c: { startsOn: string; endsOn: string | null; dailyBudget: Piasters | null; budget: Piasters }, today: string): Piasters {
+  return c.dailyBudget !== null ? c.dailyBudget * campaignDays(c, today) : c.budget;
+}
 
 // ───────── 4.18 · the leads that never became Qualified, and why ─────────
 
@@ -75,4 +93,14 @@ export function countByReason(stages: readonly string[]): Array<{ reason: string
   const m = new Map<string, number>();
   for (const s of stages) m.set(s, (m.get(s) ?? 0) + 1);
   return [...m].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
+}
+
+/**
+ * 4.19 · «أسماء الصفحات» (demo marketing.js `pageAdd` · `pageRen`): why a new name or a rename can't be saved (Arabic, shown
+ * as is), or null. Names are compared trimmed and without case, so «website» isn't a second «Website».
+ */
+export function pageNameProblem(names: readonly string[], name: string, current: string | null = null): string | null {
+  const n = name.trim().toLowerCase();
+  if (!n) return "اكتب اسم الصفحة";
+  return names.some((x) => x !== current && x.trim().toLowerCase() === n) ? "الاسم ده موجود" : null;
 }

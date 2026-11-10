@@ -154,6 +154,21 @@ test("locked after 5 wrong passwords → the admin unlocks", async () => {
   assert.equal((await login(email, NEW_PW)).status, 200);
 });
 
+test("12.13 · the status cards count every account; a locked one can get a reset link, and the new password opens it", async () => {
+  assert.equal((await call("/access/users/counts", { cookie: sales })).status, 403);
+  for (let i = 0; i < 5; i++) await login(email, "wrong-password-1");
+  const after = await call("/access/users/counts", { cookie: nancy });
+  assert.equal(after.status, 200, JSON.stringify(after.body));
+  // other files add and lock accounts at the same time: the database's own count, not a difference
+  assert.ok(after.body.LOCKED >= 1 && after.body.ACTIVE > 1);
+  assert.equal((await call(`/access/users/${newId}/reset`, { method: "POST", cookie: sales })).status, 403);
+  const since = Date.now();
+  assert.equal((await call(`/access/users/${newId}/reset`, { method: "POST", cookie: nancy })).status, 204);
+  assert.equal((await call("/auth/reset", { method: "POST", body: { token: tokenIn(lastMail(email, since).text), password: NEW_PW } })).status, 204);
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: newId } })).status, "ACTIVE");
+  assert.equal((await login(email, NEW_PW)).status, 200);
+});
+
 test("forgot password: same answer for any email, the link works once, old sessions end", async () => {
   const old = await session(email, NEW_PW);
   const since = Date.now();
@@ -351,6 +366,24 @@ test("change my password: the old one stops working", async () => {
   assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: PW, next: "Changed12345" } })).status, 204);
   assert.equal((await login(own)).status, 401);
   assert.equal((await login(own, "Changed12345")).status, 200);
+});
+
+test("12.15 · «حسابي»: my mobile, department, Team Leader, last sign-in and last password change; signed out → 401", async () => {
+  assert.equal((await call("/auth/me")).status, 401);
+  const own = `me-${stamp}@places.test`;
+  const u = await prisma.user.create({ data: { email: own, phone: "01000009876", status: "ACTIVE", passwordHash: await hash(PW) } });
+  await prisma.employee.create({ data: { userId: u.id, name: "تجربة E2E حسابي", jobTitle: "Sales", department: "المبيعات", salary: 0, teamLeaderId: tlEmployeeId } });
+  const cookie = await session(own);
+  const tl = await prisma.employee.findUniqueOrThrow({ where: { id: tlEmployeeId }, select: { name: true } });
+  const before = (await call("/auth/me", { cookie })).body.profile;
+  assert.equal(before.phone, "01000009876");
+  assert.equal(before.department, "المبيعات");
+  assert.equal(before.teamLeader, tl.name);
+  assert.ok(before.lastLoginAt, "signing in sets it");
+  assert.equal(before.passwordChangedAt, null);
+  assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: PW, next: "Changed12345" } })).status, 204);
+  const after = (await call("/auth/me", { cookie })).body.profile;
+  assert.ok(after.passwordChangedAt && Date.parse(after.passwordChangedAt) > Date.now() - 60_000);
 });
 
 test("Excel export: the filtered users as .xlsx for whoever has «export»; others get 403; it's audited", async () => {

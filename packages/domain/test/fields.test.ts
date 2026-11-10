@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fieldAccess, fieldRuleProblem, mergeFieldRules } from "../src/fields.ts";
+import { FIELDS, defaultFieldRules, fieldAccess, fieldRuleProblem, mergeFieldRules } from "../src/fields.ts";
 
 test("several roles: the most permissive wins, a role without a rule shows the field", () => {
   const sales = { inventory: { ownerPhone: "hide", pricePerSqm: "hide", commission: "read" } } as const;
@@ -24,4 +24,17 @@ test("the unit's identity can't be hidden; an unknown field is refused", () => {
   assert.match(fieldRuleProblem("inventory", "project", "hide", false) ?? "", /لازم يفضل ظاهر/);
   assert.equal(fieldRuleProblem("inventory", "ownerPhone", "hide", true), null);
   assert.equal(fieldRuleProblem("inventory", "nope", "hide", false), "الحقل ده مش موجود");
+});
+
+test("2.36 · the unit's owner and agent are Manar's (Inventory Manager) only: every other role starts with them hidden", () => {
+  assert.deepEqual(defaultFieldRules("inventory"), []);
+  for (const role of ["admin", "resale", "sales", "marketing", "custom-abc"]) {
+    const a = fieldAccess(mergeFieldRules([{ inventory: Object.fromEntries(defaultFieldRules(role).map((r) => [r.field, r.mode])) }]));
+    assert.deepEqual([...a.hidden("inventory")].sort(), ["agent", "agentId", "ownerName", "ownerPhone"], role);
+  }
+  // Manar's role with another one: the most permissive wins, she still sees them
+  assert.equal(mergeFieldRules([{ inventory: { ownerName: "hide" } }, {}]).inventory, undefined);
+  // they are entered on a new unit by whoever adds it (write, not read)
+  assert.deepEqual(FIELDS.inventory!.filter((f) => f.writeOnCreate).map((f) => f.key), ["ownerName", "ownerPhone", "agent"]);
+  assert.equal(fieldRuleProblem("inventory", "ownerPhone", "hide", true), null);
 });

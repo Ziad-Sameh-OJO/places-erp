@@ -28,6 +28,21 @@ after(async () => {
   await prisma.$disconnect();
 });
 
+test("12.14 · «ابعت إيميل تجربة»: to the one pressing it, named from the sending address, and in the send log; sales 403", async () => {
+  assert.equal((await call("/notifications/mail/test", { method: "POST", cookie: sales })).status, 403);
+  const since = new Date(Date.now() - 2_000);
+  const r = await call("/notifications/mail/test", { method: "POST", cookie: admin });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.to, "ahmed.islam@places.com");
+  assert.ok(r.body.from.includes("@"));
+  const row = await prisma.mailLog.findFirst({ where: { to: "ahmed.islam@places.com", subject: "إيميل تجربة · Places ERP", createdAt: { gte: since } } });
+  assert.ok(row, "the test email is in the send log");
+  assert.ok(row.text.includes(r.body.from));
+  const log = await call("/notifications/mail-log?pageSize=100", { cookie: admin });
+  assert.ok(log.body.items.some((m: { id: string }) => m.id === row.id));
+  await prisma.mailLog.deleteMany({ where: { id: row.id } });
+});
+
 test("the send log is the Super Admin's: sales 403; an email the API sends shows as «اتبعت»", async () => {
   assert.equal((await call("/notifications/mail-log", { cookie: sales })).status, 403);
   const since = new Date(Date.now() - 2_000);

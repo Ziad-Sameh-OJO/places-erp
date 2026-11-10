@@ -34,7 +34,7 @@ export class UnitLayoutsService {
     const people = new Map((await this.repo.namesByUser([...new Set(files.map((f) => f.uploadedById))])).map((e) => [e.userId, e.name]));
     return ids.flatMap((id) => {
       const url = links.get(id), download = saves.get(id), f = files.find((n) => n.id === id), kind = f && fileKind(f.mime);
-      return url && download && f && kind ? [{ id, name: f.name, kind: kind, url, download, by: people.get(f.uploadedById) ?? null, at: f.createdAt.toISOString() }] : [];
+      return url && download && f && kind && kind !== "video" ? [{ id, name: f.name, kind: kind, url, download, by: people.get(f.uploadedById) ?? null, at: f.createdAt.toISOString() }] : [];
     });
   }
 

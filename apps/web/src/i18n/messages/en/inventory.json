@@ -14,7 +14,6 @@
     "pdfDraftSub": "Before it's published to sales",
     "staleSub": "Last update over a month ago",
     "divisible": "Divisible",
-    "divisibleSub": "Large spaces",
     "missing": "Missing data",
     "missingSub": "To be completed later",
     "dailyReport": "Daily report",
@@ -272,7 +271,19 @@
     "sample": "Showing the first {shown} rows of {total}.",
     "merge": "Merge",
     "rows": "{count} rows",
-    "intoTitle": "Upload a sheet into {name}"
+    "intoTitle": "Upload a sheet into {name}",
+    "intro": "The sheet has <b>{count}</b> rows. Pick the duplicate-check column before the rows go in.",
+    "counts": "With this choice: <b>{marked}</b> rows will be marked as duplicates ({by}{all, select, true { · all must match} other {}}) of existing rows or each other · and if you choose «Leave out», only <b>{skip}</b> are left out (the first row of each repeat goes in). An owner with the same name and another number or unit is not a duplicate unless you pick the name alone.",
+    "counts2": "With this choice: <b>{marked}</b> rows will be marked as duplicates ({by}{all, select, true { · all must match} other {}}). An owner with the same name and another number or unit is not a duplicate unless you pick the name alone.",
+    "pickOne": "Pick at least one column.",
+    "dupRows": "Duplicate rows",
+    "mark": "Go in, marked in red (you can filter them)",
+    "skip": "Leave out",
+    "go": "Upload the rows",
+    "mergeIntoFile": "They go into «{name}» ({rows} rows).",
+    "added": "{count} rows added",
+    "skipped": "{count} duplicates left out",
+    "markedCount": "{count} duplicate rows (marked in red)"
   },
   "teamTasks": {
     "sent": "Task sent",
@@ -328,7 +339,7 @@
     "save": "Save",
     "doneTitle": "Done · new unit from {name}",
     "files": {
-      "note": "Every Not Active sheet has a file with its name, and files are grouped in folders. Make a new file, name it, and upload the sheet straight into it.",
+      "note": "Every Not Active sheet has a file with its name, and files are grouped in folders. Make a new file, name it, and upload the sheet straight into it; any duplicates in the data show and can be filtered.",
       "mineNote": "These are the files with numbers Manar sent you. Open a file and classify each number.",
       "search": "Search by file or folder name",
       "new": "New file",
@@ -342,7 +353,7 @@
       "empty": "Empty · upload a sheet",
       "all": "All files",
       "rename": "Rename / move",
-      "inNote": "Upload the sheet straight into this file. Any number already in the main inventory sends you an Alarm to set its status.",
+      "inNote": "Upload the sheet straight into this file: every row goes in, and rows that repeat a value in the columns below are marked in red and can be filtered. Any number already in the main inventory sends you an Alarm to set its status.",
       "upload": "Upload the sheet (Excel / CSV)",
       "uploadMore": "Upload another sheet into the file (Excel / CSV)",
       "emptyTitle": "The file is empty",
@@ -359,7 +370,18 @@
       "make": "Make the file",
       "saved": "Saved",
       "made2": "The file «{name}» was made · upload the sheet into it"
-    }
+    },
+    "dupRows": "Duplicate rows",
+    "dupBy": "by {by}",
+    "dupFilter": "Duplicates",
+    "dupAll": "All rows",
+    "dupOnly": "Duplicates only ({count})",
+    "dupNone": "Without duplicates",
+    "dupByLabel": "Duplicate check by:",
+    "dupRule": "· a row is a duplicate when {all, select, true {all these columns match} other {this column matches}} another row",
+    "dupChange": "Change the duplicate-check column",
+    "dupChip": "Duplicate ({by}) with {count} rows",
+    "dupTitle": "Duplicate-check column"
   },
   "listOfOptions": {
     "bar": "Picked units",
@@ -434,5 +456,10 @@
     "formLabel": "Layout file (PDF · DWG · image · goes in the Layout folder)",
     "formAdd": "Add a Layout file (PDF · DWG · image)",
     "picked": "{count, plural, one {# file} other {# files}} will upload after saving"
+  },
+  "webAd": {
+    "all": "Website Ads: All",
+    "posted": "Posted {day}{by} · press to set it back to No",
+    "notPosted": "Press once the ad is posted on the website (Yes)"
   }
 }

@@ -10,6 +10,7 @@ export const UNIT_ROW = {
   condition: true, floor: true, building: true, parking: true, ownerName: true, ownerPhone: true, pricePerSqm: true,
   totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, comment: true, details: true,
   divisible: true, minSplit: true, location: true, agreementFileId: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
+  websiteAdAt: true, websiteAdById: true, // 4.13, sent to marketing only
   // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
   locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
   // the main photo (2.4: the first image, never a PDF of the folder, 2.22) and how many files there are
@@ -21,8 +22,8 @@ export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
 export type UnitRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_DETAIL }>;
 
 /** Who the list is for: drafts and owners' details are for the people who keep the inventory (domain keepsInventory). */
-/** `hidden`: the reader's hidden fields (M-09): not searched, not counted as missing. */
-export interface UnitScope { insider: boolean; staleBefore: Date; hidden?: ReadonlySet<string> }
+/** `hidden`: the reader's hidden fields (M-09): not searched, not counted as missing. `owners`: the owner name / number the person may search by (2.36). */
+export interface UnitScope { insider: boolean; staleBefore: Date; hidden?: ReadonlySet<string>; owners?: { name: boolean; phone: boolean } }
 export type Tab = AreaRange & { id: string };
 /** The list's filters, with «ناقصها بيانات» (2.20) resolved to the units it names (the service works them out). */
 export type ListFilters = UnitFilters & { missingIds?: string[] };
@@ -71,6 +72,14 @@ export class InventoryRepository {
   /** A task's unit (M-04 4.2): open units, drafts too — a new unit's shoot is given before Manar confirms its PDF (M-03 2.1 steps 4-5). */
   forTasks(q: string | undefined, take: number) {
     return this.db.unit.findMany({ where: openSearch(q, true), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
+  }
+
+  /** 4.20 · a campaign's unit picker: the available units (drafts too), and the ones it already targets whatever their state. */
+  forCampaigns(keep: string[]) {
+    return this.db.unit.findMany({
+      where: { OR: [openSearch(undefined, true), ...(keep.length ? [{ id: { in: keep } }] : [])] },
+      select: { id: true, code: true, project: true, type: true, area: true, space: true }, orderBy: { code: "asc" },
+    });
   }
 
   /** «سجّل صفقة» (M-02): the same open, confirmed units, with what the deal takes from them (type, agent = Seller). */
@@ -291,9 +300,11 @@ function unitWhere(s: UnitScope, f: Omit<ListFilters, "page" | "pageSize">, tabs
       { code: q }, { project: q },
       // a hidden field can't be searched either: the hits would tell its value
       ...(s.hidden?.has("area") ? [] : [{ area: q }]), ...(s.hidden?.has("building") ? [] : [{ building: q }]),
-      // owners are searched only by the people who see them
-      ...(s.insider ? [{ ownerName: q }, ...(digits.length >= 4 ? [{ ownerPhone: { contains: digits } }] : [])] : []),
+      // owners are searched only by the people who see them (a hidden field is never searched: a match would tell it)
+      ...(s.insider && s.owners?.name !== false ? [{ ownerName: q }] : []),
+      ...(s.insider && s.owners?.phone !== false && digits.length >= 4 ? [{ ownerPhone: { contains: digits } }] : []),
     ] });
   }
+  if (f.websiteAd) and.push({ websiteAdAt: f.websiteAd === "yes" ? { not: null } : null }); // 4.13 (the service drops it for non-marketing)
   return { AND: and };
 }

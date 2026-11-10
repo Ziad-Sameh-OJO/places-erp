@@ -6,6 +6,11 @@ export default [
   ["الليد ده مش موجود أو مبقاش معاك", "This lead doesn't exist or isn't yours any more"],
   ["الـ Logs للأدمن والأدوار اللي اختارها بس", "The Logs are for the admin and the roles they chose only"],
   ["مكالمة اتسجّلت", "Call logged"],
+  // 1.33 · the Team Leader's note
+  ["الـ Team Leader كتب على {name}: {note}", "The Team Leader wrote on {name}: {note}"],
+  ["ملاحظة TL: {note}", "TL note: {note}"],
+  ["ملاحظة الـ TL اتشالت", "The TL note was removed"],
+  ["ملاحظة الـ Team Leader بيكتبها الـ TL أو مدير المبيعات بس", "Only the Team Leader or the Sales Director writes the Team Leader's note"],
   ["فيه وحدة مش متاحة · اختار من الـ Recommendations", "A unit isn't available · pick from the Recommendations"],
   ["فيه وحدة مش متاحة · اختار من القايمة", "A unit isn't available · pick from the list"],
   ["العميل ده موجود ({code}) · اتبعت للأوبريشن تقرر", "This client already exists ({code}) · sent to Operations to decide"],

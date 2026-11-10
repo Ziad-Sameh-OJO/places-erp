@@ -23,7 +23,7 @@ export function hideEmployee<T extends EmployeeRow>(e: T, h: Keys): T {
 }
 
 /** The file's «البيانات» save: a field the person may not change keeps its stored value. */
-export function keepEmployee(p: EmployeePatch, before: EmployeeFile, fixed: Keys): EmployeePatch {
+export function keepEmployee(p: EmployeePatch, before: Omit<EmployeeFile, "month">, fixed: Keys): EmployeePatch {
   if (!fixed.size) return p;
   const k = (key: string) => fixed.has(key);
   return {

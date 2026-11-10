@@ -109,6 +109,9 @@ export interface LeadDetail extends LeadRow {
   newLeadPending: boolean;
   /** «الزيارات» (1.9): every Visit / Meeting, newest time first */
   visits: VisitRow[];
+  /** 1.33 · «ملاحظة الـ Team Leader»: what he needs on this lead, and whether this person may write it */
+  tlNote: { text: string; by: string | null; at: string } | null;
+  canWriteTlNote: boolean;
 }
 
 /** A unit as the Visit form lists it (demo: «U-101 · المشروع · 120 م»). */
@@ -210,6 +213,9 @@ export interface LeadOptions {
 }
 
 /** «مين يشوف الـ Logs» (demo: a card in the lead's Logs tab, for whoever manages access): the roles besides the admin. */
+/** 1.33 · «ملاحظة الـ Team Leader على الليد»: empty clears it. */
+export const TlNoteInput = z.object({ note: z.string({ invalid_type_error: "اكتب الملاحظة" }).trim().max(500, "الملاحظة طويلة") });
+export type TlNoteInput = z.infer<typeof TlNoteInput>;
 export const LogRoles = z.object({ roles: z.array(z.string().trim().min(1).max(40)).max(30).transform((r) => [...new Set(r)]) });
 export type LogRoles = z.infer<typeof LogRoles>;
 
@@ -292,9 +298,24 @@ export interface Recommendations {
  * Visit / Meeting due today or late and not marked yet. `tone`: «bad» = late, "" = today.
  */
 export interface LeadTodayItem {
-  kind: "sla" | "visit"; tone: "bad" | "warn" | "";
-  lead: { id: string; name: string }; salesperson: string | null;
+  /**
+   * 1.34 adds: «newLead» (Operations: a New Lead from Telesales and its clock) · «telesales» (back to her on the 3rd
+   * rotation) · «draftAdmin» (the daily Alarm, no single lead) · «postpone» (a postponement waiting for the TL) ·
+   * «noAnswer» (the salesperson's «كلّمه» every remindH hours).
+   */
+  kind: "sla" | "visit" | "tlNote" | "newLead" | "telesales" | "draftAdmin" | "postpone" | "noAnswer"; tone: "bad" | "warn" | "";
+  /** 1.33: the Team Leader's note, on the salesperson's board until they open the lead */
+  tlNote: string | null;
+  lead: { id: string; name: string } | null; salesperson: string | null;
   sla: LeadRow["sla"]; visit: { id: string; kind: "Visit" | "Meeting"; at: string } | null;
+  /** newLead: minutes left on Operations' clock (negative = late) */
+  minutesLeft?: number;
+  /** postpone: the salesperson's reason */
+  reason?: string;
+  /** draftAdmin: how many wait, how many came today, and the first few («name (stage · from)») */
+  drafts?: { waiting: number; today: number; leads: { name: string; stage: string; from: string | null }[] };
+  /** noAnswer: the rules' «كل N ساعات» */
+  remindH?: number;
 }
 
 /**

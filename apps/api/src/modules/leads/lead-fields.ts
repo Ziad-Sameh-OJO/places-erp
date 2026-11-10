@@ -18,7 +18,7 @@ export function hideLeadRow<T extends Pick<LeadRow, "company" | "phones" | "area
   };
 }
 
-export function hideLeadDetail<T extends Omit<LeadDetail, "canSeeLogs" | "logCount">>(d: T, hidden: Hidden): T {
+export function hideLeadDetail<T extends Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote">>(d: T, hidden: Hidden): T {
   if (!hidden.size) return d;
   const h = (k: string) => hidden.has(k);
   // the duplicate-attempt line repeats the typed mobiles: gone with the phones

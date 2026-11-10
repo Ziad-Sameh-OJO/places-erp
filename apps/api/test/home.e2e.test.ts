@@ -46,14 +46,14 @@ after(async () => {
   await prisma.$disconnect();
 });
 
-interface Item { kind: string; tone: string; lead: { id: string; name: string }; salesperson: string | null; sla: { level: string } | null; visit: { id: string; kind: string } | null }
+interface Item { kind: string; tone: string; lead: { id: string; name: string } | null; salesperson: string | null; sla: { level: string } | null; visit: { id: string; kind: string } | null }
 const mine = async (cookie: string) => {
   const r = await call("/home/leads", { cookie });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   const all = r.body as Item[];
-  return all.filter((x) => x.lead.name.startsWith(`E2E-H ${stamp}`));
+  return all.filter((x) => x.lead?.name.startsWith(`E2E-H ${stamp}`)); // the Draft Admin Alarm (1.34) has no lead
 };
-const keys = (items: Item[]) => items.map((x) => `${x.kind}:${x.visit ? Object.keys(visitIds).find((k) => visitIds[k] === x.visit!.id) : x.lead.name.split(" ").at(-1)}`);
+const keys = (items: Item[]) => items.map((x) => `${x.kind}:${x.visit ? Object.keys(visitIds).find((k) => visitIds[k] === x.visit!.id) : x.lead!.name.split(" ").at(-1)}`);
 
 test("a salesperson: his own late lead and his visits due today or late, the late ones first; not tomorrow's, not a marked one", async () => {
   const items = await mine(mohsen);

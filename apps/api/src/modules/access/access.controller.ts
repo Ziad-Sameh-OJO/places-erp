@@ -16,6 +16,10 @@ export class AccessController {
   @Get("users") @Requires("access", "view")
   users(@Me() me: CurrentUser, @Query(new ZodPipe(UserFilters)) f: UserFilters) { return this.access.listUsers(me, f); }
 
+  // 12.13 · the status cards; before users/:id
+  @Get("users/counts") @Requires("access", "view")
+  counts() { return this.access.statusCounts(); }
+
   // before users/:id, or "export" would be read as an id
   @Get("users/export") @Requires("access", "export")
   async exportUsers(@Me() me: CurrentUser, @Query(new ZodPipe(UserFilters)) f: UserFilters, @Res() res: Response) {

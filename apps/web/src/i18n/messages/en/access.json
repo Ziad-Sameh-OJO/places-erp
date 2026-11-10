@@ -102,6 +102,7 @@
     "save": "Save"
   },
   "users": {
+    "cards": {"ACTIVE": {"label": "Active", "sub": "Working accounts"}, "INVITED": {"label": "Awaiting activation", "sub": "Emailed an invite"}, "LOCKED": {"label": "Locked", "sub": "After 5 wrong tries"}, "DISABLED": {"label": "Stopped", "sub": "Left or stopped"}},
     "searchPlaceholder": "Name, email, mobile, department",
     "search": "Search",
     "status": "Status",

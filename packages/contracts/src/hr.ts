@@ -9,8 +9,15 @@ export interface EmployeeRow {
 export interface EmployeeFile extends EmployeeRow {
   email: string; manager: { id: string; name: string } | null; team: string | null; joinedAt: string | null;
   partTimeDeductions: boolean; deductionTiers: { quarterFrom: number; halfFrom: number; dayFrom: number } | null; fixedSchedule: string | null;
+  /**
+   * 7.16 (demo hr.js empDrawer): this month's late minutes, deduction days and Excuses (not rejected), the annual leave
+   * left of its total this year, and what's still owed on their advances (131…, decimal string).
+   */
+  month: { lateMinutes: number; deductionDays: number; excuses: number; leaveLeft: number; leaveTotal: number; advance: string };
 }
-export interface EmployeesView { items: EmployeeRow[]; departments: string[] }
+/** 7.15 (demo hr.js emps()): «آخر 1-to-1» (null = «مفيش») and «حل HR» — the first open action, red once its day came. */
+export interface EmployeeListRow extends EmployeeRow { lastOneOnOne: string | null; hrAction: { due: string; overdue: boolean } | null }
+export interface EmployeesView { items: EmployeeListRow[]; departments: string[] }
 
 export const EmployeeFilters = z.object({ q: z.string().trim().max(80).optional(), department: z.string().max(80).optional() });
 export type EmployeeFilters = z.infer<typeof EmployeeFilters>;

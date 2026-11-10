@@ -16,7 +16,8 @@ import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
 import { MyTeamTasks } from "@/features/inventory/team-tasks";
 import { useMissingUnitLines } from "@/features/inventory/today";
-import { useCollectLines } from "@/features/finance/today";
+import { useFinanceTodo } from "@/features/finance/today";
+import { MyKpisCard, useKpiLines } from "@/features/kpis/today";
 
 /**
  * Home = «مهامي النهارده» (1.22, demo home.js): everything waiting for this person's action now, the late first.
@@ -30,16 +31,18 @@ export default function HomePage() {
   const bulks = useBulkLines(!!me && can("leads", "approve"));
   const companies = useNewCompanyLines(keepsCompaniesSheet(me?.roles ?? []));
   const missingUnits = useMissingUnitLines(!!me && keepsInventory({ can })); // 2.20 · the API keeps Manar's and Randa's apart
-  const collect = useCollectLines(!!me && can("finance", "create")); // M-02 · the accountant's «حصّل عمولة»
+  const collect = useFinanceTodo(!!me && can("finance", "create")); // 9.19 · the accountant's whole «مستنيك النهارده»
+  const kpis = useKpiLines(); // 11.16 · approve / enter / hand in (everyone: the API answers with their own)
   const unread = useMyNotifications().data?.unread ?? 0;
   if (!me) return <p className="hint">{t("loading")}</p>;
-  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect]); // each module's lines, the late first
+  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect, ...kpis]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
   const pages = (Object.keys(NAV) as NavKey[]).filter((k) => k !== "home" && can(k));
 
   return (
     <>
       <Hero name={me.name} total={lines.length} urgent={urgent} unread={unread} canCreateLead={can("leads", "create")} />
+      <MyKpisCard />
       <MyHandIns />
       <HandoversCard />
       <MyBroadcasts />

@@ -43,10 +43,12 @@ model User {
   emailNotifications Boolean  @default(true)  // M-14 «my preferences»: important ones always reach the bell anyway
   tokens        AuthToken[]
   lastLoginAt   DateTime?
+  passwordChangedAt DateTime? // 12.15 «آخر تغيير للباسورد»: activation, reset, change
   endDate       DateTime?     // last working day: the account stops by itself
   employee      Employee?
   roles         UserRole[]
   overrides     PermissionOverride[]
+  reportsAccess ReportsAccess?
   sessions      Session[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -165,6 +167,16 @@ model PermissionOverride {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, module])
+  @@schema("access")
+}
+
+/// 11.20 · someone a head (Super Admin / Office Manager) opened «التقارير والتارجت» for; nobody else but the heads gets in.
+model ReportsAccess {
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedById String
+  grantedAt   DateTime @default(now())
+
   @@schema("access")
 }
 
@@ -391,6 +403,10 @@ model Lead {
   post           String?       // the campaign post it came from (M-04: channel → campaign → post)
   answers        Json?         // answers to the recommendation questions, they narrow the suggested units
   verification   Json?         // Second Call (11.15): { called, sent, note, byUserId, at }
+  tlNote         String?       // 1.33 · M-01: «حاجة محتاجينها» the Team Leader / Sales Director wrote on it
+  tlNoteAt       DateTime?
+  tlNoteById     String?       // user id
+  tlNoteSeenAt   DateTime?     // the salesperson opened it since: off «مهامي النهارده»
   activities     LeadActivity[]
   arrivals       LeadArrival[]
   calls          LeadCall[]
@@ -932,6 +948,8 @@ model Unit {
   mediaUploadedAt   DateTime?
   lastOwnerUpdateAt DateTime    @default(now()) // «last update»: older than a month = late (M-03 2.4)
   marketingDoneAt   DateTime?   // marketing pressed Done on the new unit: off the marketing board (M-03 6.2 · 7.1, M-04 4.4)
+  websiteAdAt       DateTime?   // 4.13 «Website Ads»: when marketing marked the ad posted on the website (null = No)
+  websiteAdById     String?     // the user who marked it (the tooltip; the Audit Log has every switch)
   createdById       String?     // the user who entered it (Manar / Randa activity)
   deals             Deal[]
   locks             UnitLock[]
@@ -940,6 +958,7 @@ model Unit {
   suggestedFor      LeadUnit[]
   shownInVisits     VisitUnit[]
   tasks             Task[]
+  campaigns         CampaignUnit[] // 4.20 · the campaigns that target it
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   archivedAt        DateTime?
@@ -1037,7 +1056,7 @@ model NotActiveSheet {
   name      String         @unique // e.g. CFC · the file's name, given when it's made (2.39)
   folder    String?        // 2.39: the folder the file is grouped in (none = «من غير فولدر»)
   createdById String?      // 2.39: who made the file
-  dedupeBy  String         @default("") // column used to merge without duplicates ("" = no sheet uploaded yet)
+  dedupeBy  String[]       @default([]) // 2.40: the column(s) a repeat is told by (all must match); none until its first sheet
   columns   String[]       @default([]) // the sheet's own headers, in order (its columns aren't fixed yet, M-03 3.1)
   numberBy  String?        // the «Number» column compared with the owners' numbers in the inventory (M-03 1.1)
   rows      NotActiveRow[]
@@ -1051,7 +1070,7 @@ model NotActiveRow {
   sheetId    String
   sheet      NotActiveSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
   data       Json
-  dedupeKey  String
+  dedupeKey  String         // the row's key under the sheet's columns when it came in (2.40: repeats are kept and marked)
   status     String?        // No Answer · Not True · Done
   feedback   String?        // required for Not True
   assignedTo String?        // the user Manar sent the row to as a task (Marwa, M-03 1.1)
@@ -1060,7 +1079,7 @@ model NotActiveRow {
   matchSeen  Boolean        @default(false) // Manar set the matched row's status
   createdAt  DateTime       @default(now()) // rows are listed in the order they came in
 
-  @@unique([sheetId, dedupeKey])
+  @@index([sheetId, dedupeKey])
   @@index([sheetId, status])
   @@schema("inventory")
 }
@@ -1088,20 +1107,44 @@ model Campaign {
   name      String
   channel   String
   startsOn  DateTime @db.Date
-  endsOn    DateTime @db.Date
-  budget    Decimal  @db.Decimal(14, 2)
+  endsOn    DateTime? @db.Date // 4.20: none at creation = «مستمرة» until it's stopped from «تعديل»
+  budget    Decimal  @db.Decimal(14, 2) // a campaign from before the per-day budget: its total
+  dailyBudget Decimal? @db.Decimal(14, 2) // 4.20 · «الميزانية per day»: the budget so far = per day × its days (domain campaignBudget)
   spent     Decimal  @default(0) @db.Decimal(14, 2) // what it actually cost (Finance / the cost center read it, 4.5)
   target    String?  // «المشروع / الوحدات المستهدفة»
+  page      String?  // «Page name» from the CampaignPage list (4.19); kept as text: removing a name leaves its campaigns as they are
   adUrl     String?
   note      String?
   leads     Lead[]
   arrivals  LeadArrival[]
   bulks     LeadBulk[]
   posts     Post[]
+  units     CampaignUnit[]
   createdAt DateTime @default(now())
   archivedAt DateTime? // archived, never deleted: leads point at it
 
   @@index([archivedAt])
+  @@schema("marketing")
+}
+
+/// 4.20 · «الوحدات المستهدفة (من شيت الانفنتوري)»: the units a campaign targets.
+model CampaignUnit {
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  unitId     String
+  unit       Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, unitId])
+  @@index([unitId])
+  @@schema("marketing")
+}
+
+/// 4.19 · «أسماء الصفحات»: the list marketing keeps for a campaign's «Page name» (Website · Property Finder · Dubizzle …).
+model CampaignPage {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
   @@schema("marketing")
 }
 

@@ -9,6 +9,7 @@ export interface UnitQuery {
   type?: "Rent" | "Resale" | "Income" | "Primary" | undefined; view?: "available" | "closed" | undefined;
   closedFrom?: string; closedTo?: string; // the rented / sold sheet (M-03 5.2)
   sort?: string; dir?: "asc" | "desc"; // 0.15: the column the API sorts by, across every page
+  websiteAd?: "yes" | "no" | undefined; // 4.13 · marketing's filter
 }
 
 export function toParams(f: UnitQuery, page: number, pageSize: number) {
@@ -29,7 +30,7 @@ export function useUnitTabs(f: UnitQuery) {
   return useQuery({ queryKey: ["units", "tabs", qs], queryFn: () => api.get<UnitTabCounts>(`/inventory/units/tabs?${qs}`), placeholderData: keepPreviousData });
 }
 
-export const useUnitSummary = () => useQuery({ queryKey: ["units", "summary"], queryFn: () => api.get<UnitSummary>("/inventory/units/summary") });
+export const useUnitSummary = (enabled = true) => useQuery({ queryKey: ["units", "summary"], queryFn: () => api.get<UnitSummary>("/inventory/units/summary"), enabled });
 export const useUnitOptions = () => useQuery({ queryKey: ["units-options"], queryFn: () => api.get<UnitOptions>("/inventory/units/options"), staleTime: 60_000 });
 /** One unit, for its drawer (only while one is open). */
 export const useUnit = (id: string | null) => useQuery({ queryKey: ["unit", id], queryFn: () => api.get<UnitDetail>(`/inventory/units/${id}`), retry: false, enabled: !!id });

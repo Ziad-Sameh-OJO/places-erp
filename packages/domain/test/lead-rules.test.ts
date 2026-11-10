@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_LEAD_RULES as R, calendarOf, durationText, holidayDays, leadRulesProblem, slaRulesOf } from "../src/lead-rules.ts";
+import { DEFAULT_LEAD_RULES as R, backToTelesales, calendarOf, durationText, holidayDays, leadRulesProblem, slaRulesOf } from "../src/lead-rules.ts";
 import { PLACES_CALENDAR, workingMinutesBetween } from "../src/business-time.ts";
 import { leadSla } from "../src/leads.ts";
 
@@ -237,4 +237,13 @@ test("1.27 Not Interested / Cancellation → the Draft Admin (from the salespers
   const now = winter("2026-11-05T11:00:00");
   assert.equal(draftAdminAlarm([], now), null);
   assert.deepEqual(draftAdminAlarm([{ at: winter("2026-11-05T00:30:00") }, { at: winter("2026-11-04T23:30:00") }, { at: winter("2026-11-01T12:00:00") }], now), { waiting: 3, today: 1 });
+});
+
+test("1.34: back to Telesales on the 3rd rotation (the rules' number), until she sends it as a New Lead", () => {
+  const l = { ownedByTelesales: true, rotation: 3, newLeadRequestedAt: null, newLeadRoutedAt: null };
+  assert.equal(backToTelesales(l, R), true);
+  assert.equal(backToTelesales({ ...l, rotation: 2 }, R), false);
+  assert.equal(backToTelesales({ ...l, ownedByTelesales: false }, R), false);
+  assert.equal(backToTelesales({ ...l, newLeadRequestedAt: new Date() }, R), false); // waiting for Operations
+  assert.equal(backToTelesales({ ...l, rotation: 2 }, { ...R, noAnswer: { ...R.noAnswer, toTelesalesAt: 2 } }), true);
 });

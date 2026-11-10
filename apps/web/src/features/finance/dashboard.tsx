@@ -11,9 +11,9 @@ import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { money, short } from "./money";
 import { serverText } from "@/lib/server-text";
-import { useBills, useBudget, useCash, useIncome, usePayroll } from "./use-finance";
+import { useCash, useIncome } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
-import { useCollectLines } from "./today";
+import { useFinanceTodo } from "./today";
 import { fromDecimal, toDecimal } from "@places/domain";
 
 export type FinanceTab = "dash" | "cash" | "custody" | "journal" | "bills" | "claims" | "pnl" | "bs" | "budget" | "cost" | "payroll" | "tree";
@@ -27,8 +27,8 @@ interface Todo { tone: "warn" | "bad"; icon: IconName; title: string; sub: strin
 export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   const t = useTranslations("finance");
   const { can } = useMe();
-  const collect = useCollectLines(can("finance", "create"));
-  const year = useIncome("year"), cash = useCash(), bills = useBills(), budget = useBudget(), payroll = usePayroll();
+  const lines = useFinanceTodo(can("finance", "create"));
+  const year = useIncome("year"), cash = useCash();
   const periods = useQuery({ queryKey: ["finance", "periods"], queryFn: () => api.get<PeriodView[]>("/finance/periods") });
   const [advances, setAdvances] = useState(false);
   const [ledger, setLedger] = useState<string | null>(null);
@@ -37,15 +37,11 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   const d = (n: number) => (showsMoney ? n.toFixed(2) : "");
   if (!year.data || !cash.data) return <Empty text={t("common.loading")} icon="clock" />;
   const p = year.data, c = cash.data;
-  const todo: Todo[] = [];
-  if (can("finance", "create")) {
-    const pr = payroll.data;
-    if (pr?.due && pr.rows.length) todo.push({ tone: "warn", icon: "wallet", title: t("dash.payrollTitle", { label: serverText(pr.label) }), sub: t("dash.payrollSub", { count: pr.totals.people, n: String(pr.totals.people), net: money(pr.totals.net) }), tab: "payroll", btn: t("dash.open") });
-    for (const b of bills.data?.items.filter((x) => x.state === "due") ?? []) todo.push({ tone: "warn", icon: "calendar", title: t("dash.billTitle", { name: b.name }), sub: t("dash.billSub", { amount: money(b.amount), vendor: b.vendor }), tab: "cash", btn: t("dash.open") });
-    for (const r of budget.data?.rows.filter((x) => x.level === "bad" || x.level === "warn") ?? [])
-      todo.push({ tone: r.level === "bad" ? "bad" : "warn", icon: "wallet", title: r.level === "bad" ? t("dash.lineOver", { name: serverText(r.name) }) : t("dash.lineNear", { name: serverText(r.name) }), sub: t("dash.lineSub", { spent: money(r.spent), budget: money(r.budget ?? "0") }), tab: "budget", btn: t("dash.open") });
-    for (const x of collect) todo.push({ tone: "warn", icon: x.icon, title: x.title, sub: x.sub, href: x.href, btn: x.button }); // M-02 · «حصّل عمولة»
-  }
+  // 9.19: the same lines as the home page; a finance tab opens in place, anything else (a deal) by its link
+  const todo: Todo[] = lines.map((x) => {
+    const inTab = x.href.startsWith("/finance?tab=") ? (x.href.slice("/finance?tab=".length) as FinanceTab) : undefined;
+    return { tone: x.tone === "bad" ? "bad" : "warn", icon: x.icon, title: x.title, sub: x.sub, btn: x.button, ...(inTab ? { tab: inTab } : { href: x.href }) };
+  });
   const sa = Number(p.selling) + Number(p.admin) + Number(p.other);
   const wf: [string, number, "acc" | "bad" | "ok"][] = [[t("dash.wf.revenue"), Number(p.revenue), "acc"], [t("dash.wf.direct"), -Number(p.direct), "bad"], [t("dash.wf.selling"), -Number(p.selling), "bad"], [t("dash.wf.admin"), -(Number(p.admin) + Number(p.other)), "bad"], [t("dash.wf.net"), Number(p.net), "ok"]];
   const max = Math.max(1, ...wf.map(([, v]) => Math.abs(v)));

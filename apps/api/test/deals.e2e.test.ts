@@ -75,7 +75,7 @@ test("«سجّل صفقة»: the salesperson's own leads with their company, ope
   const units = await call(`/deals/units?q=${encodeURIComponent(`${C} مشروع`)}`, { cookie: mohsen });
   assert.equal(units.status, 200);
   assert.deepEqual(units.body.map((u: { id: string }) => u.id).sort(), [unitId, unit2Id, unit4Id].sort()); // the draft isn't offered
-  assert.equal(units.body[0].agent.id, emp.ali!.id);
+  assert.equal(units.body[0].agent, null); // 2.36: the unit's agent is the Inventory Manager's only (M-09, the picker follows it)
 
   assert.equal((await call("/deals/form", { cookie: hr })).status, 403);
   assert.equal((await call("/deals", { cookie: hr })).status, 403);
@@ -177,31 +177,22 @@ test("the note (Office Manager / Finance) on an approved deal: target only, audi
   assert.equal((await call(`/deals/${pending.id}/note`, { method: "PUT", cookie: nancy, body })).status, 400);
 });
 
-test("4.9 · Q26: marketing is told of the approved deal and sees only location, space, company, type and the Buyer; attaches a logo", async () => {
+test("4.9 · Q26: marketing is told of the approved deal and sees only location, space, company, type and the Buyer (4.22: no logo)", async () => {
   const told = (await unread(emp.rahma!.userId)).find((n) => n.text.startsWith("Done Deal اتسجّلت في الشيت"));
   assert.equal(told!.text, `Done Deal اتسجّلت في الشيت: Rent · ${C} مشروع 1 · 401 م · ${C} شركة · ${C} عميل`);
 
   const list = await call("/deals/marketing?pageSize=100", { cookie: rahma });
   assert.equal(list.status, 200);
   const row = list.body.items.find((d: { id: string }) => d.id === dealId);
-  assert.deepEqual(Object.keys(row).sort(), ["buyer", "code", "company", "id", "location", "logo", "space", "type"]); // no money, no salespeople
-  assert.deepEqual([row.buyer, row.company, row.type, row.space, row.logo], [`${C} عميل`, `${C} شركة`, "Rent", 401, null]);
+  assert.deepEqual(Object.keys(row).sort(), ["buyer", "code", "company", "id", "location", "space", "type"]); // no money, no salespeople, no logo
+  assert.deepEqual([row.buyer, row.company, row.type, row.space], [`${C} عميل`, `${C} شركة`, "Rent", 401]);
   assert.equal(list.body.items.some((d: { company: string }) => d.company === `${C} عميل جديد`), false); // still waiting for review
   assert.equal((await call("/deals/marketing", { cookie: mohsen })).status, 403);
   assert.equal((await call(`/deals/${dealId}`, { cookie: rahma })).status, 403); // never the deal itself
 
-  // an upload rahma finished (0.9); the bytes aren't needed to attach it
-  const file = await prisma.file.create({ data: { key: `e2e/${stamp}.png`, name: `${C} logo.png`, mime: "image/png", size: 10, status: "READY", uploadedById: emp.rahma!.userId } });
-  assert.equal((await call(`/deals/marketing/${dealId}/logo`, { method: "PUT", cookie: mohsen, body: { fileId: file.id } })).status, 403);
-  const set = await call(`/deals/marketing/${dealId}/logo`, { method: "PUT", cookie: rahma, body: { fileId: file.id } });
-  assert.equal(set.status, 200, JSON.stringify(set.body));
-  assert.deepEqual(set.body, { id: file.id, name: `${C} logo.png` });
-  const after = (await call("/deals/marketing?pageSize=100", { cookie: rahma })).body.items.find((d: { id: string }) => d.id === dealId);
-  assert.equal(after.logo.id, file.id);
-  const url = await call(`/deals/marketing/${dealId}/logo`, { cookie: rahma });
-  assert.equal(url.status, 200);
-  assert.match(url.body.url, /^https?:\/\//);
-  assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "logo" } }));
+  // 4.22 · attaching a logo is gone (demo 9 Nov)
+  assert.equal((await call(`/deals/marketing/${dealId}/logo`, { method: "PUT", cookie: rahma, body: { fileId: "x" } })).status, 404);
+  assert.equal((await call(`/deals/marketing/${dealId}/logo`, { cookie: rahma })).status, 404);
 });
 
 test("5.5 · M-02 6.2: the approved deal locks its unit; Manar confirms and the unit is rented, out of the list and of new deals", async () => {

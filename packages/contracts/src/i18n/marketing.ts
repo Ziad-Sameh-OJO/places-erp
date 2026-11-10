@@ -12,8 +12,15 @@ export default [
   // campaigns.service.ts
   ["الكامبين دي مش موجودة", "This campaign doesn't exist"],
   ["اختار الـ Channel من القايمة", "Pick the Channel from the list"],
+  ["اختار الـ Page name من القايمة", "Pick the Page name from the list"],
+  ["فيه وحدة مش متاحة في الانفنتوري", "A unit isn't available in the inventory"],
+  ["اسم الصفحة ده مش موجود", "This page name doesn't exist"],
+  ["اكتب اسم الصفحة", "Write the page name"],
+  ["الاسم ده موجود", "This name already exists"],
   // posts.service.ts
   ["البوست ده مش موجود", "This post doesn't exist"],
+  ["ارفع صورة أو فيديو بس", "Upload an image or a video only"],
+  ["ارفع صورة أو فيديو", "Upload an image or a video"],
   ["البوست ده اتوافق عليه قبل كده", "This post was already approved"],
   ["البوست ده اتسجّل إنه اتنشر", "This post is already marked as published"],
   ["البوست لسه مستني موافقة مدير التسويق", "The post is still waiting for the marketing manager's approval"],

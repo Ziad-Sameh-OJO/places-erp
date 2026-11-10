@@ -1,13 +1,15 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { PostInput, PostQuery, PostRow } from "@places/contracts";
+import type { PostInput, PostMedia, PostQuery, PostRow } from "@places/contracts";
 import { allowedValue, dayStart, postState } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
+import { FilesService } from "../../core/files/files.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { SettingsService } from "../settings/settings.service";
 
 const NO_POST = "البوست ده مش موجود";
+const POST = "Post"; // system.File.entity of a post's images / videos (4.21)
 const ROW = { id: true, title: true, channel: true, at: true, description: true, approved: true, publishedAt: true, reminderSentAt: true, campaign: { select: { id: true, name: true } } } satisfies Prisma.PostSelect;
 type PostRecord = Prisma.PostGetPayload<{ select: typeof ROW }>;
 
@@ -21,12 +23,51 @@ export class PostsService {
     @Inject(PRISMA) private readonly db: PrismaClient,
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
+    private readonly files: FilesService,
   ) {}
+
+  /** 4.21 · the post's design / video, oldest first, with short links (inline for the player, attachment for «تحميل»). */
+  async media(id: string): Promise<PostMedia[]> {
+    await this.find(id);
+    const rows = await this.files.of(POST, id);
+    const names = await this.db.user.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.uploadedById))] } }, select: { id: true, email: true, employee: { select: { name: true } } } });
+    const who = new Map(names.map((u) => [u.id, u.employee?.name ?? u.email]));
+    const link = (fid: string, inline: boolean) => this.files.downloadUrl(fid, inline).then((l) => l.url, () => null);
+    return Promise.all(rows.map(async (f) => ({
+      id: f.id, name: f.name, mime: f.mime, at: f.createdAt.toISOString(), by: who.get(f.uploadedById) ?? "", url: await link(f.id, true), download: await link(f.id, false),
+    })));
+  }
+
+  /** «ضيف صورة / فيديو»: the person's own finished uploads (images or videos only) join the post; audited. */
+  async addMedia(me: CurrentUser, id: string, fileIds: string[]): Promise<{ count: number }> {
+    const p = await this.find(id);
+    const picked = await this.files.names(fileIds);
+    if (picked.length !== new Set(fileIds).size || picked.some((f) => !/^(image|video)\//.test(f.mime))) throw new BadRequestException("ارفع صورة أو فيديو بس");
+    await this.db.$transaction(async (tx) => {
+      await this.files.attach(me, fileIds, POST, id, tx);
+      await this.audit.record({ module: "marketing", entity: "Post", entityId: id, action: "media-add", userId: me.id, after: { files: picked.map((f) => f.name), summary: `${p.title}: اترفع ${picked.length} صورة / فيديو` } }, tx);
+    });
+    return { count: picked.length };
+  }
+
+  /** Removes one image / video from the post for good; audited. */
+  async removeMedia(me: CurrentUser, id: string, fileId: string) {
+    const p = await this.find(id);
+    const [f] = await this.files.names([fileId]);
+    const purge = await this.db.$transaction(async (tx) => {
+      const done = await this.files.remove(fileId, POST, id, tx);
+      await this.audit.record({ module: "marketing", entity: "Post", entityId: id, action: "media-delete", userId: me.id, before: { file: f?.name ?? fileId }, after: { summary: `${p.title}: اتمسح ملف` } }, tx);
+      return done;
+    });
+    await purge();
+  }
 
   async list(q: PostQuery, now = new Date()): Promise<PostRow[]> {
     const at = q.month ? { gte: dayStart(`${q.month}-01`), lt: dayStart(`${nextMonth(q.month)}-01`) } : undefined;
     const rows = await this.db.post.findMany({ where: { archivedAt: null, ...(at ? { at } : {}) }, select: ROW, orderBy: { at: "asc" } });
-    return rows.map((p) => toRow(p, now));
+    const counts = await this.db.file.groupBy({ by: ["entityId"], where: { entity: POST, status: "READY", entityId: { in: rows.map((p) => p.id) } }, _count: { _all: true } });
+    const media = new Map(counts.map((c) => [c.entityId, c._count._all]));
+    return rows.map((p) => toRow(p, now, media.get(p.id) ?? 0));
   }
 
   /** M-04 2.2 «(مقترح)»: a post from someone who can't approve waits for the marketing manager; the manager's own is approved. */
@@ -87,9 +128,9 @@ const cairo = (local: string) => {
   return new Date(dayStart(d).getTime() + (h * 60 + m) * 60_000);
 };
 
-function toRow(p: PostRecord, now: Date): PostRow {
+function toRow(p: PostRecord, now: Date, media = 0): PostRow {
   return {
     id: p.id, title: p.title, channel: p.channel, campaign: p.campaign, at: p.at.toISOString(), description: p.description,
-    approved: p.approved, publishedAt: p.publishedAt?.toISOString() ?? null, state: postState(p, now),
+    approved: p.approved, publishedAt: p.publishedAt?.toISOString() ?? null, state: postState(p, now), media,
   };
 }

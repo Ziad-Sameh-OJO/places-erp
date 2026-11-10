@@ -1,5 +1,5 @@
 "use client";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { KpiBandsInput, KpiCardSummary, KpiCompany, KpiSheetSetup } from "@places/contracts";
 import { SHEET_FIELD_KEYS, type SheetField } from "@places/domain";
 import { Avatar, Card, Chip, Empty, Icon, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
@@ -36,6 +36,9 @@ export function KpisPage() {
     ...(me.data?.seesMoney && can("hr", "view") ? [["ideal", t("tabs.ideal")] as [Tab, string]] : []),
   ];
   const [pick, setPick] = useState<Tab | null>(null);
+  // 11.16: «افتح الكارت» from home and its KPI lines: «/kpis?card=<id>»
+  const [deep, setDeep] = useState<string | null>(null);
+  useEffect(() => { setDeep(new URLSearchParams(window.location.search).get("card")); }, []);
   const tab = tabs.find((x) => x[0] === pick)?.[0] ?? tabs[0]?.[0];
   if (me.isPending || team.isPending) return <Empty text={t("common.loading")} />;
   if (!tab) return <Card><Empty text={t("noCard")} icon="chart" /></Card>;
@@ -43,6 +46,7 @@ export function KpisPage() {
     <>
       <div className="row"><Tabs<Tab> items={tabs} value={tab} onChange={setPick} /></div>
       {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : tab === "ideal" ? <IdealEmployee /> : <Log />}
+      {deep && <KpiDrawer id={deep} onClose={() => setDeep(null)} />}
     </>
   );
 }

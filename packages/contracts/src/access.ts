@@ -44,6 +44,8 @@ export const UserFilters = Page.extend({
   department: z.string().trim().max(60).optional(), // M-09 5.2: search by department
 });
 export type UserFilters = z.infer<typeof UserFilters>;
+/** 12.13 · accounts per status, for the cards over «المستخدمين». */
+export type UserStatusCounts = Record<"ACTIVE" | "INVITED" | "LOCKED" | "DISABLED", number>;
 
 /** Per-person exceptions: a module set here replaces what the person's roles give; null removes the exception. */
 export const Overrides = z.record(z.enum(MODULES), ModuleActions.nullable());

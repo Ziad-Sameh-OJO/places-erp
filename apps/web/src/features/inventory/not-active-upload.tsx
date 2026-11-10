@@ -1,9 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { NotActiveImportDone, NotActivePreview, NotActiveSheetView } from "@places/contracts";
-import { Chip, Field, Icon, Modal, Note, Table, useAction, useToast } from "@/components/ui";
+import { Field, Icon, Modal, Note, Table, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { num } from "@/lib/format";
 
@@ -16,8 +16,8 @@ const form = (file: File, fields: Record<string, string>) => {
 
 /**
  * «ارفع / ادمج شيت (Excel)» (M-03 1.1 · 2.1 step 12): the file, the sheet's name (an existing one merges into it) and
- * the column that tells rows apart («منع التكرار بخانة», e.g. the unit number). The preview says how many rows are
- * new before anything is saved.
+ * 2.40 · the column(s) that tell a repeat (all must match) and what happens to repeats: in and marked red, or left out.
+ * The preview counts both before anything is saved (demo dupModal).
  */
 export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
   sheets: NotActiveSheetView[]; onClose: () => void; onDone: (sheetId: string) => void;
@@ -30,28 +30,40 @@ export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState(into?.name ?? sheets[0]?.name ?? "");
-  const [column, setColumn] = useState("");
+  const [cols, setCols] = useState<string[]>([]);
+  const [skip, setSkip] = useState(false);
   const [numberCol, setNumberCol] = useState("");
   const [p, setP] = useState<NotActivePreview | null>(null);
   const [busy, setBusy] = useState(false);
+  const latest = useRef(0); // only the last check's answer is shown
   const step = async (fn: () => Promise<void>) => { setBusy(true); try { await run(fn); } finally { setBusy(false); } };
-  const look = (f: File, n: string, c: string) => step(async () => {
-    const r = await api.post<NotActivePreview>("/not-active/preview", form(f, { name: n.trim(), dedupeBy: c }));
-    // the column: the one picked if the file has it, else the sheet's own, else the file's first
-    const col = r.headers.includes(c) ? c : r.sheet && r.headers.includes(r.sheet.dedupeBy) ? r.sheet.dedupeBy : r.headers[0] ?? "";
-    setColumn(col);
-    setNumberCol((n) => (n && r.headers.includes(n) ? n : r.numberGuess ?? ""));
-    setP(col !== c ? await api.post<NotActivePreview>("/not-active/preview", form(f, { name: n.trim(), dedupeBy: col })) : r);
-  });
-  const pick = (f: File | undefined) => { setFile(f ?? null); setP(null); if (f) void look(f, name, column); };
+  // 2.40 · the column(s): the ones picked, else the file's own, else the number column (the API decides and says which)
+  const look = (f: File, n: string, c: string[]) => {
+    const at = ++latest.current;
+    return step(async () => {
+      const r = await api.post<NotActivePreview>("/not-active/preview", form(f, { name: n.trim(), ...(c.length ? { dedupeBy: JSON.stringify(c) } : {}) }));
+      if (at !== latest.current) return;
+      setCols(r.dedupeBy);
+      setNumberCol((x) => (x && r.headers.includes(x) ? x : r.numberGuess ?? ""));
+      setP(r);
+    });
+  };
+  const pick = (f: File | undefined) => { setFile(f ?? null); setP(null); if (f) void look(f, name, cols); };
   // the file picked in «ملف جديد» goes in once, when the dialog opens
   useEffect(() => { if (initial) pick(initial); }, []);
+  const toggle = (h: string, on: boolean) => {
+    const next = p!.headers.filter((x) => (x === h ? on : cols.includes(x)));
+    setCols(next);
+    if (next.length && file) void look(file, name, next);
+  };
   const merge = () => step(async () => {
-    const r = await api.post<NotActiveImportDone>("/not-active/import", form(file!, { name: name.trim(), dedupeBy: column, numberBy: numberCol }));
+    const r = await api.post<NotActiveImportDone>("/not-active/import", form(file!, { name: name.trim(), dedupeBy: JSON.stringify(cols), numberBy: numberCol, skipDupes: String(skip) }));
     await qc.invalidateQueries({ queryKey: ["not-active"] });
-    toast(`${t("upload.merged", { added: num(r.added), duplicates: num(r.duplicates) })}${r.noKey ? ` · ${t("upload.noKeyCount", { count: num(r.noKey), column })}` : ""}${r.inInventory ? ` · ${t("upload.inInventory", { count: num(r.inInventory) })}` : ""}`);
+    const dup = r.skipped ? ` · ${t("upload.skipped", { count: num(r.skipped) })}` : r.marked ? ` · ${t("upload.markedCount", { count: num(r.marked) })}` : "";
+    toast(`${t("upload.added", { count: num(r.added) })}${dup}${r.inInventory ? ` · ${t("upload.inInventory", { count: num(r.inInventory) })}` : ""}`);
     onDone(r.sheetId);
   });
+  const by = cols.join(" + ");
   return (
     <Modal title={into ? t("upload.intoTitle", { name: into.name }) : t("upload.title")} onClose={onClose}>
       <div className="row">
@@ -60,42 +72,52 @@ export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
           <input type="file" hidden accept=".xlsx,.csv" aria-label={t("upload.fileLabel")} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
       </div>
-      <div className="grid">
-        {!into && <Field label={t("upload.sheetName")} req>
-          <input value={name} list="na-sheets" maxLength={60} placeholder={t("upload.sheetExample")} onChange={(e) => setName(e.target.value)} onBlur={() => file && void look(file, name, column)} />
+      {!into && <div className="grid">
+        <Field label={t("upload.sheetName")} req>
+          <input value={name} list="na-sheets" maxLength={60} placeholder={t("upload.sheetExample")} onChange={(e) => setName(e.target.value)} onBlur={() => file && void look(file, name, cols)} />
           <datalist id="na-sheets">{sheets.map((s) => <option key={s.id} value={s.name} />)}</datalist>
-        </Field>}
-        {p && <Field label={t("upload.dedupeBy")} req>
-          <select value={column} onChange={(e) => { setColumn(e.target.value); if (file) void look(file, name, e.target.value); }}>
-            {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
-          </select>
-        </Field>}
-        {/* M-03 1.1: the «Number» column is compared with the owners' numbers in the inventory */}
-        {p && <Field label={t("upload.numberBy")}>
-          <select value={numberCol} onChange={(e) => setNumberCol(e.target.value)}>
-            <option value="">{t("upload.noCompare")}</option>
-            {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
-          </select>
-        </Field>}
-      </div>
+        </Field>
+      </div>}
       {busy && !p && <p className="hint">{t("upload.reading")}</p>}
       {p && <>
-        <Note>{p.sheet ? t("upload.mergeInto", { name: p.sheet.name, rows: num(p.sheet.rows), column }) : name.trim() ? t("upload.newNamed", { name: name.trim() }) : t("upload.newUnnamed")}</Note>
-        <div className="row">
-          <Chip plain>{t("upload.inFile", { count: num(p.total) })}</Chip>
-          {p.added != null && <Chip tone="ok">{t("upload.toAdd", { count: num(p.added) })}</Chip>}
-          {!!p.duplicates && <Chip tone="warn">{t("upload.dupes", { count: num(p.duplicates) })}</Chip>}
-          {!!p.noKey && <Chip tone="bad">{t("upload.noKey", { column, count: num(p.noKey) })}</Chip>}
+        <Note>{t.rich("upload.intro", { count: num(p.total), b: (s) => <b>{s}</b> })}</Note>
+        {/* 2.40 · «منع التكرار»: one or more columns, all must match (demo dupChooser) */}
+        <DedupeChooser headers={p.headers} cols={cols} onToggle={toggle} />
+        {cols.length
+          ? <Note>{t.rich("upload.counts", { marked: num(p.marked), skip: num(p.duplicates), by, all: cols.length > 1 ? "true" : "false", b: (s) => <b>{s}</b> })}</Note>
+          : <Note kind="warn">{t("upload.pickOne")}</Note>}
+        <div className="grid">
+          <Field label={t("upload.dupRows")}>
+            <select value={skip ? "skip" : "mark"} onChange={(e) => setSkip(e.target.value === "skip")}>
+              <option value="mark">{t("upload.mark")}</option>
+              <option value="skip">{t("upload.skip")}</option>
+            </select>
+          </Field>
+          {/* M-03 1.1: the «Number» column is compared with the owners' numbers in the inventory */}
+          <Field label={t("upload.numberBy")}>
+            <select value={numberCol} onChange={(e) => setNumberCol(e.target.value)}>
+              <option value="">{t("upload.noCompare")}</option>
+              {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </Field>
         </div>
+        {p.sheet && <p className="hint">{t("upload.mergeIntoFile", { name: p.sheet.name, rows: num(p.sheet.rows) })}</p>}
         <Table head={p.headers} rows={p.sample.map((r) => p.headers.map((h) => r[h] ?? ""))} />
         {p.total > p.sample.length && <p className="hint">{t("upload.sample", { shown: p.sample.length, total: num(p.total) })}</p>}
       </>}
       <div className="row end">
         <button type="button" className="btn ghost" onClick={onClose}>{t("common.cancel")}</button>
-        <button type="button" className="btn" disabled={!p || busy || !name.trim() || !column || !p.added} onClick={() => void merge()}>
-          {busy && p ? t("common.saving") : `${t("upload.merge")}${p?.added ? ` · ${t("upload.rows", { count: num(p.added) })}` : ""}`}
+        <button type="button" className="btn" disabled={!p || busy || !name.trim() || !cols.length || !p.total} onClick={() => void merge()}>
+          {busy && p ? t("common.saving") : <><Icon name="upload" />{t("upload.go")}</>}
         </button>
       </div>
     </Modal>
   );
+}
+
+/** «منع التكرار بـ:» the file's columns as checkboxes (the demo's na-cols). */
+export function DedupeChooser({ headers, cols, onToggle }: { headers: string[]; cols: string[]; onToggle: (h: string, on: boolean) => void }) {
+  return <div className="na-cols">
+    {headers.map((h) => <label key={h} className="tog"><input type="checkbox" checked={cols.includes(h)} onChange={(e) => onToggle(h, e.target.checked)} /><span>{h}</span></label>)}
+  </div>;
 }

@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { canEditSetting, fieldAccess, type Action, type FieldMode, type FieldRules, type ModuleKey } from "@places/domain";
 import { api } from "./api";
 
-export interface Me { id: string; name: string; email: string; emailNotifications: boolean; roles: string[]; roleLabels: string[]; scope: string; permissions: Partial<Record<ModuleKey, Action[]>>; fields: FieldRules }
+export interface Me {
+  id: string; name: string; email: string; emailNotifications: boolean; roles: string[]; roleLabels: string[]; scope: string; permissions: Partial<Record<ModuleKey, Action[]>>; fields: FieldRules;
+  /** 12.15 «حسابي» */
+  profile: { phone: string | null; department: string | null; teamLeader: string | null; lastLoginAt: string | null; passwordChangedAt: string | null };
+}
 
 /** The signed-in person and what they may do. Hiding buttons is for comfort; the API checks every call. */
 export function useMe() {
