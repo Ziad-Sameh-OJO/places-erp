@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@places/db";
 import type { EmployeeFile, EmployeeFilters, EmployeePatch, EmployeeRow, EmployeesView } from "@places/contracts";
-import { fromDecimal, tiersProblem, toDecimal } from "@places/domain";
+import { fromDecimal, localDate, openHrAction, tiersProblem, toDecimal } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { HrRepository, type EmployeeRowDb, type Tx } from "./hr.repository";
@@ -38,7 +38,16 @@ export class HrService {
     ] };
     const [rows, deps] = await Promise.all([this.repo.employees(where), this.repo.departments(this.scope(me))]);
     const hidden = me.fields.hidden("hr");
-    return { items: rows.map((e) => hideEmployee(this.row(e), hidden)), departments: deps.map((d) => d.department) };
+    const [last, open] = await this.repo.oneOnOnes(rows.map((e) => e.id));
+    const day = (d: Date) => d.toISOString().slice(0, 10), today = localDate(new Date());
+    const held = new Map(last.map((l) => [l.employeeId, l._max.heldOn ? day(l._max.heldOn) : null]));
+    return {
+      items: rows.map((e) => ({
+        ...hideEmployee(this.row(e), hidden), lastOneOnOne: held.get(e.id) ?? null,
+        hrAction: openHrAction(open.filter((o) => o.employeeId === e.id).map((o) => day(o.hrActionDue!)), today),
+      })),
+      departments: deps.map((d) => d.department),
+    };
   }
 
   async file(me: CurrentUser, id: string): Promise<EmployeeFile> {

@@ -15,6 +15,14 @@ export class HrRepository {
     return this.db.employee.findMany({ where: { AND: [{ user: { status: { not: "DISABLED" } } }, where] }, ...FILE, orderBy: { name: "asc" } });
   }
 
+  /** 7.15: each employee's last 1-to-1 day and the due days of their open «حل HR». */
+  oneOnOnes(ids: string[]) {
+    return Promise.all([
+      this.db.oneOnOne.groupBy({ by: ["employeeId"], where: { employeeId: { in: ids } }, _max: { heldOn: true } }),
+      this.db.oneOnOne.findMany({ where: { employeeId: { in: ids }, hrAction: { not: null }, hrActionDone: false, hrActionDue: { not: null } }, select: { employeeId: true, hrActionDue: true } }),
+    ]);
+  }
+
   departments(where: Prisma.EmployeeWhereInput) {
     return this.db.employee.findMany({ where, distinct: ["department"], select: { department: true }, orderBy: { department: "asc" } });
   }

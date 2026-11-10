@@ -121,6 +121,8 @@
     "target": "Target",
     "commission": "Commission",
     "leaveBalance": "Leave balance",
+    "lastOne": "Last 1-to-1",
+    "hrAction": "HR action",
     "tiers": "Deduction brackets",
     "noSalary": "No salary",
     "custom": "Custom",

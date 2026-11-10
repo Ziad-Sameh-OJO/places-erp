@@ -138,6 +138,14 @@ export function oneOnOneDue(lastHeld: string | null, today: string): "due" | "do
   if (!lastHeld) return "due";
   return lastHeld.slice(0, 7) >= today.slice(0, 7) ? "done" : "due";
 }
+/**
+ * 7.15 · the employees list's «حل HR» (demo hr.js emps()): the first open action's date, red once its day came (`<=`
+ * today, like the alarm), null when nothing is open.
+ */
+export function openHrAction(dues: readonly string[], today: string): { due: string; overdue: boolean } | null {
+  const first = [...dues].sort()[0];
+  return first ? { due: first, overdue: first <= today } : null;
+}
 /** «حل الـ HR» rings on its day, once, until it's done. */
 export const actionAlarm = (due: string | null, today: string, done: boolean, alarmed: boolean): boolean => !!due && !done && !alarmed && due <= today;
 
