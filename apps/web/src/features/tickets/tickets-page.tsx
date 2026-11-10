@@ -11,6 +11,7 @@ import { TicketChips } from "./ticket-bits";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { TicketDrawer } from "./ticket-drawer";
+import { LeaveAskModal } from "@/features/hr/leaves";
 import { useRefreshTickets, useSlaReport, useTicketOptions, useTicketSummary, useTickets } from "./use-tickets";
 
 const PAGE = 50;
@@ -28,6 +29,8 @@ export function TicketsPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   useNewParam("1", () => setCreating(true), can("tickets", "create")); // «جديد ← تذكرة لقسم تاني» (0.16)
+  const [selfReq, setSelfReq] = useState<"leave" | "outside" | null>(null); // 8.5: the same forms as «حسابي» (demo tickets.js selfReq)
+  const tl = useTranslations("hr");
   const list = useTickets(view, q, page, PAGE);
   const s = useTicketSummary().data;
   const options = useTicketOptions().data;
@@ -51,6 +54,8 @@ export function TicketsPage() {
       <div className="row">
         <Tabs value={view} onChange={go} items={tabs} />
         <span className="spacer" />
+        <button className="btn ghost" onClick={() => setSelfReq("leave")}><Icon name="calendar" />{tl("leaves.request")}</button>
+        <button className="btn ghost" onClick={() => setSelfReq("outside")}><Icon name="pin" />{tl("leaves.outside")}</button>
         {can("tickets", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{t("newTicket")}</button>}
       </div>
       <div className="toolbar">
@@ -78,6 +83,7 @@ export function TicketsPage() {
       <Note>{t("slaNote")}</Note>
       {can("reports") && <ResponseRate />}
       {can("tickets", "create") && <Fab onClick={() => setCreating(true)} label={t("newTicket")} />}
+      {selfReq && <LeaveAskModal kind={selfReq} onClose={() => setSelfReq(null)} />}
       {creating && <NewTicket onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); setOpen(id); }} />}
       {open && <TicketDrawer id={open} onClose={() => setOpen(null)} />}
     </>
