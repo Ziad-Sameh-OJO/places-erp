@@ -14,7 +14,7 @@ export const DEAL_ROW = {
   tcrs: { select: { code: true }, orderBy: { code: "asc" } },
 } satisfies Prisma.DealSelect;
 const TCR = {
-  id: true, code: true, payment: { select: { side: true, amount: true, receivedAt: true } },
+  id: true, code: true, payment: { select: { id: true, side: true, amount: true, receivedAt: true, moveId: true, editedFrom: true, editReason: true } },
   signatures: { select: { employeeId: true, signedAt: true } },
 } satisfies Prisma.TcrSelect;
 const DEAL_DETAIL = {
@@ -173,6 +173,11 @@ export class DealsRepository {
 
   addPayment(tx: Prisma.TransactionClient, data: Prisma.PaymentUncheckedCreateInput) {
     return tx.payment.create({ data, select: { id: true } });
+  }
+
+  /** 5.15: the corrected amount, and the one it replaced with the reason («اتعدّل يدوي»). */
+  correctPayment(tx: Prisma.TransactionClient, id: string, data: { amount: string; editedFrom: string; editReason: string }) {
+    return tx.payment.update({ where: { id }, data, select: { id: true } });
   }
 
   nextTcr(tx: Prisma.TransactionClient) {

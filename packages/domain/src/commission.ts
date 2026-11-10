@@ -63,6 +63,22 @@ export function collectionProblem(d: DealMoney, amount: Piasters): string | null
 }
 
 /**
+ * 5.15 · M-07 «تعديل يدوي لحد عنده صلاحية» (demo deals.js payEdit): why a recorded collection (and its TCR) can't take
+ * `amount` instead of `old`, or null. A reason is required, the deal's total never goes above its commission, and a
+ * fully collected deal can't drop back: its salespeople's commission is already due (open question in the PR).
+ */
+export function collectionEditProblem(d: DealMoney, old: Piasters, amount: Piasters, reason: string): string | null {
+  if (d.status !== "Partially Collected" && d.status !== "Fully Collected") return "التعديل بيبقى على تحصيل صفقة شغالة";
+  if (!reason.trim()) return "اكتب السبب";
+  if (!(amount > 0)) return "المبلغ لازم يبقى أكبر من صفر";
+  if (amount === old) return "ده نفس المبلغ";
+  const total = collected(d) - old + amount;
+  if (total > placesCommission(d)) return `المبلغ أكبر من الباقي (${formatEGP(placesCommission(d) - collected(d) + old)})`;
+  if (d.status === "Fully Collected" && total < placesCommission(d)) return "الصفقة اتحصّلت بالكامل وعمولات السيلز اتثبتت عليها · مينفعش تقلّ";
+  return null;
+}
+
+/**
  * M-02 «محسوم في ميتنج 4 نوفمبر»: once the Office Manager approves, the accountant gets «حصّل عمولة» (demo finance.js
  * financeInbox) and keeps it while the deal still takes a collection (the same rule as `collectionProblem`).
  */
