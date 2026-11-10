@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PostInput, PostRow } from "@places/contracts";
-import { Chip, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { Chip, Field, Icon, Modal, Note, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { dateLocale, dayTime } from "@/lib/format";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { useMe } from "@/lib/me";
-import { useCampaigns, useChannels } from "./use-campaigns";
+import { useChannels } from "./use-campaigns";
+import { PostMediaFolder, uploadPostMedia } from "./post-media";
 
 type Tone = "ok" | "warn" | "acc" | "bad";
 /** The demo's chip per state: متجدول · مستني موافقة · اتنشر, and «Reminder النهارده». */
@@ -62,6 +63,7 @@ export function ContentPlan() {
               [t("actuallyPublished"), open.publishedAt ? dayTime(open.publishedAt) : "—"], ...(open.description ? [[t("description"), open.description]] : [])] as [string, string][])
               .map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
           </dl>
+          <PostMediaFolder postId={open.id} />
           <div className="row end"><PostActions p={open} onDone={() => setOpen(null)} /></div>
         </Modal>
       )}
@@ -114,27 +116,35 @@ function PostActions({ p, onDone }: { p: PostRow; onDone?: () => void }) {
   return can("marketing", "edit") ? <button className="btn ghost sm" onClick={() => act("published", t("publishedToast"))}>{t("published")}</button> : null;
 }
 
-/** «بوست في الـ Content plan» (M-04 2.1 step 6): the design / video, channel, campaign, the publish time, the description. */
+/**
+ * «بوست في الـ Content plan» (M-04 2.1 step 6): the post, channel, the publish time, the description, and its images /
+ * videos (4.21). The campaign field is gone (demo 9 Nov); old posts keep theirs.
+ */
 function NewPost({ onClose }: { onClose: () => void }) {
   const t = useTranslations("marketing.content.new");
+  const tm = useTranslations("marketing.content.media");
   const run = useAction();
+  const toast = useToast();
   const qc = useQueryClient();
   const channels = useChannels().data ?? [];
-  const campaigns = useCampaigns().data ?? [];
   return (
     <Modal title={t("title")} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
         const text = (k: string) => String(f.get(k) ?? "").trim();
-        const body: PostInput = { title: text("title"), channel: text("channel"), at: text("at"), ...(text("campaignId") ? { campaignId: text("campaignId") } : {}), ...(text("description") ? { description: text("description") } : {}) };
-        await api.post("/marketing/posts", body);
-        await qc.invalidateQueries({ queryKey: ["posts"] });
+        const files = f.getAll("media").filter((x): x is File => x instanceof File && x.size > 0);
+        if (files.some((x) => !/^(image|video)\//.test(x.type))) throw new Error(tm("onlyMedia"));
+        const body: PostInput = { title: text("title"), channel: text("channel"), at: text("at"), ...(text("description") ? { description: text("description") } : {}) };
+        const { id } = await api.post<{ id: string }>("/marketing/posts", body);
+        // the post is saved first; a failed upload leaves it scheduled, and «ضيف صورة / فيديو» in it tries again
+        const n = await uploadPostMedia(id, files, tm("onlyMedia")).finally(() => qc.invalidateQueries({ queryKey: ["posts"] }));
         onClose();
-      }, t("scheduled")))}>
+        toast(n ? t("scheduledWith", { n }) : t("scheduled"));
+      }))}>
         <Field label={t("post")} req wide><input name="title" required /></Field>
         <Field label="Channel"><select name="channel">{channels.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select></Field>
-        <Field label={t("campaign")}><select name="campaignId"><option value="">—</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
         <Field label={t("at")} req wide><input name="at" type="datetime-local" required /></Field>
         <Field label={t("description")} wide><textarea name="description" /></Field>
+        <Field label={t("media")} wide><input name="media" type="file" multiple accept="image/*,video/*" /></Field>
         <div className="row end wide"><button className="btn">{t("save")}</button></div>
       </form>
     </Modal>

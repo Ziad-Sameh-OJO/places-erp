@@ -75,6 +75,9 @@ export default [
   ["نوع الملف مش مسموح · صور jpg/png/webp أو PDF", "File type not allowed · jpg/png/webp photos or PDF"],
   ["الصورة أكبر من 10 ميجا", "The photo is larger than 10 MB"],
   ["الملف أكبر من 20 ميجا", "The file is larger than 20 MB"],
+  ["الفيديو", "The video"],
+  ["200 ميجا", "200 MB"],
+  ["الفيديو أكبر من 200 ميجا", "The video is larger than 200 MB"],
   // finance.ts
   ["اكتب اسم الحساب", "Enter the account name"],
   ["اكتب رصيد حساب واحد على الأقل", "Enter the balance of at least one account"],

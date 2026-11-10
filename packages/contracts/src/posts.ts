@@ -10,6 +10,12 @@ export const PostInput = z.object({
 });
 export type PostInput = z.infer<typeof PostInput>;
 
+/** 4.21 · «صورة أو فيديو (التصميم)»: the uploaded files (images / videos, purpose "post") to add to a post. */
+export const PostMediaInput = z.object({ fileIds: z.array(z.string().min(1).max(40)).min(1, "ارفع صورة أو فيديو").max(20) });
+export type PostMediaInput = z.infer<typeof PostMediaInput>;
+/** One design / video of a post: a short inline link (the video plays in the page) and a download link. */
+export interface PostMedia { id: string; name: string; mime: string; at: string; by: string; url: string | null; download: string | null }
+
 export const PostQuery = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "الشهر لازم يبقى YYYY-MM").optional() });
 export type PostQuery = z.infer<typeof PostQuery>;
 
@@ -27,4 +33,6 @@ export interface PostRow {
   publishedAt: string | null;
   /** published · waiting (the manager's review) · today (Reminder today) · scheduled */
   state: "published" | "waiting" | "today" | "scheduled";
+  /** 4.21 · how many images / videos it has */
+  media: number;
 }

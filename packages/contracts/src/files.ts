@@ -5,6 +5,8 @@ const MB = 1024 * 1024;
 export const FILE_KINDS = {
   image: { mimes: ["image/jpeg", "image/png", "image/webp"], maxBytes: 10 * MB, label: "الصورة", max: "10 ميجا" },
   pdf: { mimes: ["application/pdf"], maxBytes: 20 * MB, label: "الملف", max: "20 ميجا" },
+  // 4.21 · a Content plan post's video (mp4 / mov): only with `purpose: "post"`, and only a post takes it (FilesService.attach)
+  video: { mimes: ["video/mp4", "video/quicktime"], maxBytes: 200 * MB, label: "الفيديو", max: "200 ميجا" },
 } as const;
 export type FileKind = keyof typeof FILE_KINDS;
 export const fileKind = (mime: string): FileKind | undefined =>
@@ -15,8 +17,11 @@ export const UploadRequest = z.object({
   name: z.string().trim().min(1, "اسم الملف ناقص").max(200, "اسم الملف طويل"),
   mime: z.string(),
   size: z.number({ invalid_type_error: "حجم الملف ناقص" }).int().positive("الملف فاضي"),
+  /** what it's for: "post" also allows a video (4.21) */
+  purpose: z.enum(["post"]).optional(),
 }).superRefine((f, ctx) => {
   const kind = fileKind(f.mime);
+  if (kind === "video" && f.purpose !== "post") return ctx.addIssue({ code: "custom", path: ["mime"], message: "نوع الملف مش مسموح · صور jpg/png/webp أو PDF" });
   if (!kind) return ctx.addIssue({ code: "custom", path: ["mime"], message: "نوع الملف مش مسموح · صور jpg/png/webp أو PDF" });
   if (f.size > FILE_KINDS[kind].maxBytes) ctx.addIssue({ code: "custom", path: ["size"], message: `${FILE_KINDS[kind].label} أكبر من ${FILE_KINDS[kind].max}` });
 });

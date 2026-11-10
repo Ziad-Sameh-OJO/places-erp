@@ -961,3 +961,5 @@ table.je { width: 100%; border-collapse: collapse; } table.je td, table.je th { 
 .uf-acts .btn.sm { flex: 1; min-height: 26px; padding: 2px 6px; font-size: 11.5px; justify-content: center; }
 .uf-acts .lnk { flex-basis: 100%; font-size: 11.5px; text-align: start; }
 .btn.disabled { opacity: .6; pointer-events: none; }
+/* content plan: a post's video plays in its tile */
+.uf video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }

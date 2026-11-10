@@ -10,13 +10,19 @@ import type { CurrentUser } from "../auth/current-user.decorator";
 
 /** Links live five minutes: long enough to upload 20 MB on a phone, short enough that a leaked link is useless. */
 const LINK_TTL = 300;
-const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf", "video/mp4": "mp4", "video/quicktime": "mov" };
+/** 4.21 · videos only ever belong to a Content plan post. */
+const VIDEO = ["video/mp4", "video/quicktime"];
+/** An ISO-BMFF box type at bytes 4–8: mp4 starts with «ftyp»; a QuickTime file may start with any of these. */
+const MOV_BOXES = ["ftyp", "moov", "mdat", "wide", "free", "skip", "pnot"];
 /** The first bytes each allowed type must start with: the declared type alone is the uploader's word. */
 const SIGNATURE: Record<string, (b: Uint8Array) => boolean> = {
   "image/jpeg": (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
   "image/png": (b) => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((x, i) => b[i] === x),
   "image/webp": (b) => ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP",
   "application/pdf": (b) => ascii(b, 0, 5) === "%PDF-",
+  "video/mp4": (b) => ascii(b, 4, 8) === "ftyp",
+  "video/quicktime": (b) => MOV_BOXES.includes(ascii(b, 4, 8)),
 };
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 const ROW = { id: true, name: true, mime: true, size: true, status: true, createdAt: true } as const;
@@ -129,8 +135,22 @@ export class FilesService implements OnModuleInit {
   async attach(me: CurrentUser, ids: string[], entity: string, entityId: string, tx: Prisma.TransactionClient) {
     const unique = [...new Set(ids)];
     if (!unique.length) return;
-    const n = await tx.file.updateMany({ where: { id: { in: unique }, uploadedById: me.id, status: "READY", entity: null }, data: { entity, entityId } });
+    const kind = entity === "Post" ? {} : { mime: { notIn: VIDEO } };
+    const n = await tx.file.updateMany({ where: { id: { in: unique }, uploadedById: me.id, status: "READY", entity: null, ...kind }, data: { entity, entityId } });
     if (n.count !== unique.length) throw new BadRequestException("فيه مرفق مش موجود أو لسه مترفعش");
+  }
+
+  /** The files tied to a record, oldest first. */
+  of(entity: string, entityId: string) {
+    return this.db.file.findMany({ where: { entity, entityId, status: "READY" }, orderBy: { createdAt: "asc" }, select: { id: true, name: true, mime: true, uploadedById: true, createdAt: true } });
+  }
+
+  /** Takes a record's file away for good: the row inside the caller's transaction, the object after it (best effort). */
+  async remove(id: string, entity: string, entityId: string, tx: Prisma.TransactionClient) {
+    const f = await tx.file.findFirst({ where: { id, entity, entityId } });
+    if (!f) throw new NotFoundException("الملف مش موجود");
+    await tx.file.delete({ where: { id } });
+    return () => this.s3.send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET, Key: f.key })).then(() => undefined, (e: Error) => this.log.warn(`couldn't delete ${id} (${e.name})`));
   }
 
   names(ids: string[]) {
