@@ -153,6 +153,12 @@ test("11.4 · 11.11 · a card for someone without one, the editor, the follower 
   assert.equal(saved.body.items[0].id, first.id, "the kept item keeps its id (and key)");
   assert.equal(saved.body.items[0].calc, "عدد المكالمات اللي سجّلها بنفسه على الليدز · آخر 7 أيام · متوسط في الأسبوع");
   assert.equal(saved.body.items[1].calc, "بيدخّله نانسي إسلام بإيده · من مراجعة نانسي");
+  // an item that names its people (`ids`, the CEO's «القادة الأربعة + رحمة») saves from the editor with its list
+  const named = { items: [{ ...items(60).items[0], metric: "team", params: { ids: [ids.nancyEmp] }, goal: 90 }, items(60).items[1]] };
+  const withIds = await put(admin, named);
+  assert.equal(withIds.status, 200, JSON.stringify(withIds.body));
+  assert.deepEqual((await call(`/kpis/cards/${ids.testCard}`, { cookie: admin })).body.items[0].params.ids, [ids.nancyEmp]);
+  assert.equal((await put(admin, items(60))).status, 200);
 
   assert.equal((await call(`/kpis/cards/${ids.testCard}/follower`, { method: "PATCH", cookie: youssef, body: { followerId: ids.nancyEmp } })).status, 403);
   assert.equal((await call(`/kpis/cards/${ids.testCard}/follower`, { method: "PATCH", cookie: admin, body: { followerId: ids.nancyEmp } })).status, 204);

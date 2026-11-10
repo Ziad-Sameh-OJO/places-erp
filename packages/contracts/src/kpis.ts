@@ -18,7 +18,8 @@ export const KpiItemInput = z.object({
   direction: z.enum(["at-least", "at-most"]).default("at-least"),
   goal: z.number({ invalid_type_error: "المستهدف بالرقم ناقص" }).min(0, "المستهدف مايبقاش سالب").max(1e9),
   metric: z.string().max(40).nullable().default(null),
-  params: z.record(z.union([z.string().max(200), z.number()])).default({}),
+  // `ids`: the people an item names (the CEO's «متوسط تقييم القادة الأربعة + رحمة», metric team) — a list, not one value
+  params: z.object({ ids: z.array(z.string().min(1).max(40)).max(50).optional() }).catchall(z.union([z.string().max(200), z.number()])).default({}),
   enteredBy: z.array(z.string().min(1).max(40)).max(10).default(["follower"]),
   required: z.number().int().min(1, "مطلوب كام مرة؟").max(400).nullable().default(null),
 }).superRefine((it, ctx) => {
@@ -108,7 +109,7 @@ export interface KpiToday { mine: KpiMineView | null; lines: KpiTodayLineView[] 
 export interface KpiItemView {
   id: string; key: string; title: string; weight: number; targetText: string; source: string;
   method: "system" | "report" | "manual"; module: string | null; direction: "at-least" | "at-most"; goal: number;
-  metric: string | null; params: Record<string, string | number>; enteredBy: string[]; report: string | null; required: number | null;
+  metric: string | null; params: Record<string, string | number> & { ids?: string[] }; enteredBy: string[]; report: string | null; required: number | null;
   value: number | null; delivered: number; deliveries: { id: string; at: string; link: string | null; file: boolean }[];
   /** 11.15 · «5 في الميعاد من 8 · اتأخرت في: …» under a timed item; null for the rest */
   detail: string | null;
