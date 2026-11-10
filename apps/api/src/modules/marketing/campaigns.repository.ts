@@ -2,17 +2,20 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { PRISMA } from "../../core/database/database.module";
 
+/** A campaign with the units it targets (4.20). */
+export const CAMPAIGN = { include: { units: { select: { unit: { select: { id: true, code: true, project: true } } } } } } as const satisfies Prisma.CampaignDefaultArgs;
+
 /** Data access only. Archived campaigns are gone from the screen; leads keep pointing at them. */
 @Injectable()
 export class CampaignsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
   list() {
-    return this.db.campaign.findMany({ where: { archivedAt: null }, orderBy: [{ startsOn: "desc" }, { createdAt: "desc" }] });
+    return this.db.campaign.findMany({ where: { archivedAt: null }, orderBy: [{ startsOn: "desc" }, { createdAt: "desc" }], ...CAMPAIGN });
   }
 
   find(id: string) {
-    return this.db.campaign.findFirst({ where: { id, archivedAt: null } });
+    return this.db.campaign.findFirst({ where: { id, archivedAt: null }, ...CAMPAIGN });
   }
 
   /** Every arrival per campaign, duplicates too (M-04 Q22), and how many of them are Qualified leads. */
@@ -97,6 +100,12 @@ export class CampaignsRepository {
 
   create(tx: Prisma.TransactionClient, data: Prisma.CampaignUncheckedCreateInput) {
     return tx.campaign.create({ data });
+  }
+
+  /** 4.20 · the units it targets, as picked now. */
+  async setUnits(tx: Prisma.TransactionClient, campaignId: string, unitIds: string[]) {
+    await tx.campaignUnit.deleteMany({ where: { campaignId } });
+    if (unitIds.length) await tx.campaignUnit.createMany({ data: unitIds.map((unitId) => ({ campaignId, unitId })) });
   }
 
   update(tx: Prisma.TransactionClient, id: string, data: Prisma.CampaignUncheckedUpdateInput) {

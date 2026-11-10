@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
-import { CampaignInput, DashboardQuery, NotQualifiedQuery, PageNameInput } from "@places/contracts";
+import { CampaignInput, CampaignUnitsQuery, DashboardQuery, NotQualifiedQuery, PageNameInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -34,6 +34,13 @@ export class CampaignsController {
   @Requires("marketing", "view")
   channels() {
     return this.campaigns.channels();
+  }
+
+  /** 4.20 · the unit picker: available units from the inventory sheet, and the ones this campaign already targets. */
+  @Get("units")
+  @Requires("marketing", "view")
+  units(@Me() me: CurrentUser, @Query(new ZodPipe(CampaignUnitsQuery)) q: CampaignUnitsQuery) {
+    return this.campaigns.unitOptions(me, q.campaignId);
   }
 
   /** 4.19 · «أسماء الصفحات»: the list the campaign's «Page name» comes from. */

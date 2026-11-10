@@ -951,6 +951,7 @@ model Unit {
   suggestedFor      LeadUnit[]
   shownInVisits     VisitUnit[]
   tasks             Task[]
+  campaigns         CampaignUnit[] // 4.20 · the campaigns that target it
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   archivedAt        DateTime?
@@ -1099,8 +1100,9 @@ model Campaign {
   name      String
   channel   String
   startsOn  DateTime @db.Date
-  endsOn    DateTime @db.Date
-  budget    Decimal  @db.Decimal(14, 2)
+  endsOn    DateTime? @db.Date // 4.20: none at creation = «مستمرة» until it's stopped from «تعديل»
+  budget    Decimal  @db.Decimal(14, 2) // a campaign from before the per-day budget: its total
+  dailyBudget Decimal? @db.Decimal(14, 2) // 4.20 · «الميزانية per day»: the budget so far = per day × its days (domain campaignBudget)
   spent     Decimal  @default(0) @db.Decimal(14, 2) // what it actually cost (Finance / the cost center read it, 4.5)
   target    String?  // «المشروع / الوحدات المستهدفة»
   page      String?  // «Page name» from the CampaignPage list (4.19); kept as text: removing a name leaves its campaigns as they are
@@ -1110,10 +1112,23 @@ model Campaign {
   arrivals  LeadArrival[]
   bulks     LeadBulk[]
   posts     Post[]
+  units     CampaignUnit[]
   createdAt DateTime @default(now())
   archivedAt DateTime? // archived, never deleted: leads point at it
 
   @@index([archivedAt])
+  @@schema("marketing")
+}
+
+/// 4.20 · «الوحدات المستهدفة (من شيت الانفنتوري)»: the units a campaign targets.
+model CampaignUnit {
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  unitId     String
+  unit       Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, unitId])
+  @@index([unitId])
   @@schema("marketing")
 }
 

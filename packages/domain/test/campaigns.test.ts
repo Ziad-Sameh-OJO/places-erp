@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelTree, costPerLead, countByReason, isCampaignLive, lastSalesAct, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
+import { campaignBudget, campaignDays, channelTree, costPerLead, countByReason, isCampaignLive, lastSalesAct, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
 import { fromDecimal, toDecimal } from "../src/money.ts";
 
 test("M-04 3.2: qualification rate = Qualified ÷ Total × 100 (campaign «X» 120 leads, 30 Qualified → 25%)", () => {
@@ -58,4 +58,17 @@ test("4.19 · page names: Website · Property Finder · Dubizzle; a name twice (
   assert.equal(pageNameProblem(names, "  "), "اكتب اسم الصفحة");
   assert.equal(pageNameProblem(names, "Dubizzle", "Dubizzle"), null);
   assert.equal(pageNameProblem(names, "Website", "Dubizzle"), "الاسم ده موجود");
+});
+
+test("4.20 · no end date = «مستمرة»; 1,500 per day from 1 Nov is 13,500 by 9 Nov; stopped on the 5th it stays 7,500; an old total stays", () => {
+  const c = { startsOn: "2026-11-01", endsOn: null, dailyBudget: fromDecimal("1500"), budget: 0 };
+  assert.equal(isCampaignLive(c, "2027-03-01"), true);
+  assert.equal(isCampaignLive(c, "2026-10-31"), false);
+  assert.equal(campaignDays(c, "2026-11-09"), 9);
+  assert.equal(toDecimal(campaignBudget(c, "2026-11-09")), "13500.00");
+  const stopped = { ...c, endsOn: "2026-11-05" };
+  assert.equal(isCampaignLive(stopped, "2026-11-09"), false);
+  assert.equal(toDecimal(campaignBudget(stopped, "2026-11-09")), "7500.00");
+  assert.equal(campaignDays({ ...c, startsOn: "2026-11-20" }, "2026-11-09"), 0);
+  assert.equal(toDecimal(campaignBudget({ ...c, dailyBudget: null, budget: fromDecimal("20000") }, "2026-11-09")), "20000.00");
 });

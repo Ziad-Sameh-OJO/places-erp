@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
+  type CampaignUnitOption, type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
   type MissingUnitsToday, type UnitImportOptions, type UnitImportReviewRow, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
@@ -105,6 +105,15 @@ export class InventoryService {
       await this.audit.record({ module: "marketing", entity: "Unit", entityId: id, action: done ? "marketing-done" : "marketing-undo", userId: me.id, before: { marketingDoneAt: u.marketingDoneAt }, after: { marketingDoneAt: at } }, tx);
     });
     return { code: u.code };
+  }
+
+  /**
+   * 4.20 · «الوحدات المستهدفة (من شيت الانفنتوري)»: the available units plus the ones a campaign already has (`keep`).
+   * The area and space follow the person's inventory field rules (M-09).
+   */
+  async forCampaigns(me: CurrentUser, keep: string[] = []): Promise<CampaignUnitOption[]> {
+    const hidden = me.fields.hidden("inventory");
+    return (await this.repo.forCampaigns(keep)).map((u) => ({ ...u, area: hidden.has("area") ? "" : u.area, space: hidden.has("space") ? 0 : u.space }));
   }
 
   /** For a task (M-04 4.2): open units, drafts included, by code, project or space. */
