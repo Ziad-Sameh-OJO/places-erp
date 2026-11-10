@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { keepsInventory } from "@places/domain";
@@ -50,6 +51,7 @@ export function InventoryList() {
     if (q.get("missing")) setF({ missing: "true" }); // «مهامي النهارده»: «N وحدة تانية ناقصها بيانات» (2.20)
   }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
+  useNewParam("1", () => setForm("new"), me.can("inventory", "create")); // «جديد ← وحدة جديدة» from any page (0.16)
   const [teamTask, setTeamTask] = useState(false);
   const [report, setReport] = useState(false);
   // 2.32 · the inventory team's «طلبات الـ Lists» (who prepares them is the API's answer)

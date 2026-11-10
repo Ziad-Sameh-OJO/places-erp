@@ -1,4 +1,5 @@
 "use client";
+import { newParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Tabs } from "@/components/ui";
@@ -22,7 +23,11 @@ export function MarketingPage() {
   const broadcasts = useBroadcasts().data;
   const deals = useMarketingDeals().data;
   // a Reminder links to /marketing?tab=content, a Live Alert to ?tab=units, a Done Deal alarm to ?tab=deals
-  useEffect(() => { const q = new URLSearchParams(window.location.search).get("tab"); if (TABS.includes(q as Tab)) setTab(q as Tab); }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("tab"), n = newParam();
+    if (TABS.includes(q as Tab)) setTab(q as Tab);
+    if (n === "campaign" || n === "post") setTab(n === "post" ? "content" : "camps"); // «جديد» (0.16): the tab, then its form opens
+  }, []);
   return (
     <>
       <div className="row">

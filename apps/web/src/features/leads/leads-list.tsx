@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ExportButton, Icon, Note, Tabs } from "@/components/ui";
@@ -53,7 +54,9 @@ export function LeadsList() {
     if (q.get("companies") === "1") setCompanies(true); // the new-company notification's link (1.20)
     if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32)
   }, []);
-  useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
+  // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
+  useNewParam("1", () => setCreating(true), canCreate);
+  useNewParam("bulk", () => setBulk(true), can("leads", "import"));
   const [draftTab, setDraftTab] = useState<DraftKind | null>(null);
   // the bulk bar's picks (demo shell.js): whoever may change leads or hand them out; cleared when the list changes
   const [picked, setPicked] = useState<string[]>([]);

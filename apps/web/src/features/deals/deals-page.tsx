@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { Achievements, DealSheetRow } from "@places/contracts";
@@ -28,6 +29,7 @@ export function DealsPage() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  useNewParam("1", () => setCreating(true), can("deals", "create")); // «جديد ← صفقة» from any page (0.16)
   const sheet = useDealSheet();
   const fields = useFields("deals"); // M-09: what the role doesn't see has no tile, column or tab
   // a notification links to /deals?open=…
