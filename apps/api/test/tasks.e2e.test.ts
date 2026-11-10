@@ -204,3 +204,38 @@ test("4.14 the board's sides: Manar's task for Randa is «مهام الفريق�
   assert.equal((await call("/tasks?scope=nope", { cookie: manar })).status, 400);
   assert.equal((await call("/tasks?scope=team", { cookie: sales })).status, 403);
 });
+
+test("4.15 «تتحسب في الـ KPIs؟»: Skip by default; «أيوه» adds «المهام في ميعادها» to the assignee's card with weight 0, once", async () => {
+  const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
+  assert.equal(q?.status, "open", "the seed opens the current quarter");
+  const emp = await prisma.employee.findUniqueOrThrow({ where: { userId: bayoumiId } });
+  const before = await prisma.kpiCard.findUnique({ where: { quarter_employeeId: { quarter: q!.id, employeeId: emp.id } }, include: { items: true } });
+  const items = () => prisma.kpiItem.findMany({ where: { metric: "tasksOnTime", card: { quarter: q!.id, employeeId: emp.id } } });
+  try {
+    const send = async (body: Record<string, unknown>) => {
+      const r = await call("/tasks", { method: "POST", cookie: rahma, body: { kind: "marketing", toUserId: bayoumiId, dueOn: today, title: (await call("/tasks/options", { cookie: rahma })).body.marketingTypes[0], ...body } });
+      assert.equal(r.status, 201, JSON.stringify(r.body));
+      tasks.push(r.body.id);
+      return r.body as { id: string; kpi: string | null };
+    };
+    const skip = await send({});
+    assert.equal(skip.kpi, null);
+    assert.equal((await call(`/tasks/${skip.id}`, { cookie: rahma })).body.countsInKpi, false);
+    assert.equal((await items()).length, before?.items.some((i) => i.metric === "tasksOnTime") ? 1 : 0);
+
+    const yes = await send({ countsInKpi: true });
+    assert.equal(yes.kpi, before ? "item" : "card");
+    assert.equal((await call(`/tasks/${yes.id}`, { cookie: rahma })).body.countsInKpi, true);
+    const [item] = await items();
+    assert.equal(item?.weight, 0);
+    assert.equal(item?.method, "system");
+    assert.equal((await send({ countsInKpi: true })).kpi, "counted");
+    assert.equal((await items()).length, 1); // the second «أيوه» doesn't add it again
+    const card = await prisma.kpiCard.findUniqueOrThrow({ where: { quarter_employeeId: { quarter: q!.id, employeeId: emp.id } } });
+    if (!before) assert.equal(card.followerId, (await prisma.employee.findUniqueOrThrow({ where: { userId: rahmaId } })).id); // same department: Rahma follows
+    assert.ok(await prisma.auditLog.findFirst({ where: { module: "kpis", entityId: card.id, after: { path: ["summary"], string_contains: "المهام في ميعادها" } } }));
+  } finally {
+    if (before) await prisma.kpiItem.deleteMany({ where: { cardId: before.id, metric: "tasksOnTime", id: { notIn: before.items.map((i) => i.id) } } });
+    else await prisma.kpiCard.deleteMany({ where: { quarter: q!.id, employeeId: emp.id } });
+  }
+});

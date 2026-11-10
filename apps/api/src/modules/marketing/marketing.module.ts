@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { InventoryModule } from "../inventory/inventory.module";
+import { KpisModule } from "../kpis/kpis.module";
 import { SettingsModule } from "../settings/settings.module";
 import { CampaignsController } from "./campaigns.controller";
 import { CampaignsRepository } from "./campaigns.repository";
@@ -15,7 +16,7 @@ import { TasksService } from "./tasks.service";
 
 /** M-04 · التسويق والحملات: the tasks board (4.1-4.3) and the campaigns and their dashboard (4.5-4.6), the content plan (4.7). */
 @Module({
-  imports: [InventoryModule, SettingsModule], // the task's unit · «أنواع تاسكات التسويق» and «الـ Channels» (M-13)
+  imports: [InventoryModule, SettingsModule, KpisModule], // the task's unit · «أنواع تاسكات التسويق» and «الـ Channels» (M-13) · 4.15 a task counted in the KPIs
   controllers: [TasksController, CampaignsController, PostsController, NewUnitsController, BroadcastsController],
   providers: [TasksService, TasksRepository, CampaignsService, CampaignsRepository, PostsService, BroadcastsService],
   exports: [TasksService],

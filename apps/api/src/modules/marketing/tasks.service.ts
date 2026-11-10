@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
+import type { CreateTask, EditTask, MoveTask, TaskCreated, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
 import {
   TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
 } from "@places/domain";
@@ -9,6 +9,7 @@ import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryService } from "../inventory/inventory.service";
+import { KpisService } from "../kpis/kpis.service";
 import { UnitPhotosService } from "../inventory/unit-photos.service";
 import { SettingsService } from "../settings/settings.service";
 import { type TaskRecord, TasksRepository } from "./tasks.repository";
@@ -32,6 +33,7 @@ export class TasksService {
     private readonly inventory: InventoryService,
     private readonly unitPhotos: UnitPhotosService,
     private readonly settings: SettingsService,
+    private readonly kpis: KpisService,
   ) {}
 
   /**
@@ -100,7 +102,7 @@ export class TasksService {
   }
 
   /** M-04 2.1 step 4: give a task; the assignee is told, with the unit's data. */
-  async create(me: CurrentUser, input: CreateTask): Promise<{ id: string; warning: string | null }> {
+  async create(me: CurrentUser, input: CreateTask): Promise<TaskCreated> {
     const kind = taskKind(input.kind)!; // the contract refused unknown and system-only kinds
     if (!mayGive(me, kind.key)) throw new ForbiddenException(`مش من حقك تدّي مهمة ${kind.label}`);
     await this.checkAssignee(kind.key, input.toUserId);
@@ -118,17 +120,18 @@ export class TasksService {
       kind: kind.key, toUserId: input.toUserId, byUserId: me.id, dueOn: dayStartUtc(input.dueOn),
       unitId: kind.withUnit ? input.unitId! : null, title: kind.key === "marketing" ? input.title! : null,
       note: me.fields.fixed("tasks").has("note") ? null : input.note ?? null, // M-09: a note the person may not set starts empty
+      countsInKpi: input.countsInKpi ?? false, // 4.15: Skip unless «أيوه»
     };
     const warning = kind.key === "photo" ? photoDayWarning(kind.key, await this.repo.openSameDay(kind.key, me.id, input.toUserId, data.dueOn)) : null;
     const created = await this.db.$transaction(async (tx) => {
       const t = await this.repo.create(tx, data);
       await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: "create", userId: me.id, after: { ...data, dueOn: input.dueOn } }, tx);
-      return t;
+      return { ...t, kpi: data.countsInKpi ? await this.kpis.countTask(tx, input.toUserId, me.id, me.id) : null };
     });
     if (input.toUserId !== me.id) {
       await this.notifications.notify({ event: "task.new", text: `مهمة ${kind.label} جديدة: ${unitCode ?? input.title} من ${me.name}`, link: link(created.id), userIds: [input.toUserId] });
     }
-    return { id: created.id, warning };
+    return { id: created.id, warning, kpi: created.kpi };
   }
 
   /** M-04 3.3: To Do → In Progress → Done, Undo (7.1), and the Retouch's upload → Manar approves or sends it back (2.2). */
@@ -257,7 +260,7 @@ export class TasksService {
       by: t.byUserId ? { id: t.byUserId, name: names.get(t.byUserId) ?? "—" } : null,
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },
       dueOn: day(t.dueOn), status, returned: t.returned, note: hide("note", t.note, null), doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
-      late: isTaskLate({ status, dueOn: day(t.dueOn) }, now),
+      late: isTaskLate({ status, dueOn: day(t.dueOn) }, now), countsInKpi: t.countsInKpi,
       side: isTeamTask(t.byUserId ? depts.get(t.byUserId) ?? "" : null, depts.get(t.toUserId) ?? "") ? "team" : "outside",
       can: {
         moves: me.grants.can("tasks", "edit") ? taskMovesFor(t.kind, status, a) : [], edit: me.grants.can("tasks", "edit") && a.manager && status !== "done",

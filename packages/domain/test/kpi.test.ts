@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness } from "../src/kpi.ts";
+import { bandLabel, calcText, canEnterManual, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness, tasksOnTime, taskCardFollower, METRICS } from "../src/kpi.ts";
 import { monthDeduction } from "../src/attendance.ts";
 
 test("11.6 · the client's bands reach payroll: 102% on a 10,000 bonus → +1,500, 65% on a 12,000 salary → −1,800", () => {
@@ -141,4 +141,23 @@ test("M-08 3.1 · «الالتزام بسقف العهدة»: Mokhtar's safe at 
   assert.equal(pettyCapScore([{ balance: 50_000_01, cap: 50_000_00 }]), 0);
   assert.equal(pettyCapScore([{ balance: 12_000_00, cap: 50_000_00 }, { balance: 9_000_00, cap: 5_000_00 }]), 0); // one safe over is enough
   assert.equal(pettyCapScore([]), null);
+});
+
+test("4.15 «المهام في ميعادها»: Done by the end of its Cairo day counts on time; a late one, and an open one past its day, late; one still on its day waits", () => {
+  const now = new Date("2026-11-10T10:00:00Z"); // 10 Nov, 12:00 Cairo
+  const onTime = { dueOn: "2026-11-08", doneAt: new Date("2026-11-08T20:30:00Z") }; // 8 Nov 22:30 Cairo
+  const lateDone = { dueOn: "2026-11-08", doneAt: new Date("2026-11-08T22:30:00Z") }; // 9 Nov 00:30 Cairo
+  const openPast = { dueOn: "2026-11-09", doneAt: null };
+  const today = { dueOn: "2026-11-10", doneAt: null }; // its day hasn't passed: not counted yet
+  const early = { dueOn: "2026-11-12", doneAt: new Date("2026-11-09T09:00:00Z") }; // Done before its day: counted, on time
+  assert.equal(tasksOnTime([onTime, lateDone, openPast, today, early], now), 50); // 2 on time of the 4 counted
+  assert.equal(tasksOnTime([today], now), 100); // only one still on its day: nothing counted yet
+});
+
+test("4.15: the card made for a task's assignee is followed by the sender in the same department, else by the owners", () => {
+  assert.equal(taskCardFollower({ id: "manar", department: "Inventory" }, "Inventory"), "manar");
+  assert.equal(taskCardFollower({ id: "manar", department: "Inventory" }, "Marketing"), null);
+  assert.equal(taskCardFollower(null, "Inventory"), null);
+  assert.equal(METRICS.tasksOnTime?.label, "المهام في ميعادها");
+  assert.equal(tasksOnTime([], new Date()), 100); // nothing sent with «أيوه» yet: 100, as the demo
 });

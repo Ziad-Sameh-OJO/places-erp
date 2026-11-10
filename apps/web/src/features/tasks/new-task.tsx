@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import type { TaskOptions } from "@places/contracts";
+import type { TaskKpiEffect, TaskOptions } from "@places/contracts";
 import { taskKind } from "@places/domain";
 import { Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { serverText } from "@/lib/server-text";
@@ -28,6 +28,7 @@ export function NewTask({ kind, options, unit, onClose }: {
   const units = useTaskUnits(q, withUnit).data ?? [];
   const assignees = options?.kinds.find((k) => k.key === kind)?.assignees ?? [];
   const fields = useFields("tasks");
+  const kpiNote = useKpiNote();
   return (
     <Modal title={titled(kind) ? t(`titles.${kind}`) : t("titles.default")} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
@@ -36,10 +37,11 @@ export function NewTask({ kind, options, unit, onClose }: {
           kind, toUserId: text("toUserId"), dueOn: text("dueOn"),
           ...(withUnit ? { unitId: text("unitId") } : { title: text("title") }),
           ...(text("note") ? { note: text("note") } : {}),
+          countsInKpi: text("countsInKpi") === "yes",
         });
         onClose();
         // M-04 2.1 step 4 «وحدة في اليوم»: the demo warns on a second photo task for the day but still sends it
-        const done = kind === "photo" ? t("sentPhoto") : t("sent");
+        const done = (kind === "photo" ? t("sentPhoto") : t("sent")) + kpiNote(r.kpi, assignees.find((a) => a.id === text("toUserId"))?.name ?? "");
         toast(r.warning ? `${serverText(r.warning)} · ${done}` : done);
       }))}>
         {withUnit ? (
@@ -62,8 +64,29 @@ export function NewTask({ kind, options, unit, onClose }: {
         {fields.edits("note") && <Field label={t("notes")} wide>
           <textarea name="note" maxLength={1000} placeholder={kind === "photo" ? t("photoNote") : ""} />
         </Field>}
+        <KpiField />
         <div className="row end wide"><button className="btn"><Icon name="send" />{t("send")}</button></div>
       </form>
     </Modal>
   );
+}
+
+/** 4.15 «تتحسب في الـ KPIs؟» in every task form (demo tasks.js `taskKpiField`): «لأ · Skip» by default. */
+export function KpiField() {
+  const t = useTranslations("tasks.newTask");
+  return (
+    <Field label={t("kpi")}>
+      <select name="countsInKpi" defaultValue="skip">
+        <option value="skip">{t("kpiSkip")}</option>
+        <option value="yes">{t("kpiYes")}</option>
+      </select>
+    </Field>
+  );
+}
+
+/** 4.15: what «أيوه» did to the assignee's card, after the «sent» toast (demo `taskKpiApply`). */
+export function useKpiNote() {
+  const t = useTranslations("tasks.newTask");
+  return (effect: TaskKpiEffect, name: string) =>
+    effect === "card" ? ` · ${t("kpiCard", { name })}` : effect === "item" ? ` · ${t("kpiItem", { name })}` : effect === "counted" ? ` · ${t("kpiCounted")}` : "";
 }

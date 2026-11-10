@@ -235,6 +235,8 @@ export const TeamTaskInput = z.object({
   toUserId: Id.refine(Boolean, "اختار لمين"),
   title: z.string({ required_error: "اكتب المهمة" }).trim().min(1, "اكتب المهمة").max(300, "المهمة طويلة"),
   unitId: optional(Id),
+  /** 4.15 «تتحسب في الـ KPIs؟» */
+  countsInKpi: z.boolean().optional(),
 });
 export type TeamTaskInput = z.infer<typeof TeamTaskInput>;
 /** Someone on Manar's team with how many tasks she gave them today, and how many more she can. */

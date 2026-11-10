@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CreateTask, TaskOptions, TaskRow, TaskUnitOption } from "@places/contracts";
+import type { CreateTask, TaskCreated, TaskOptions, TaskRow, TaskUnitOption } from "@places/contracts";
 import { api } from "@/lib/api";
 
 /** The whole board (the API sends the open tasks and a month of Done ones, already in the caller's scope). */
@@ -18,6 +18,6 @@ export function useTaskActions() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["tasks"] });
   return {
     move: async (id: string, status: string) => { await api.post(`/tasks/${id}/status`, { status }); await refresh(); },
-    create: async (body: CreateTask) => { const r = await api.post<{ id: string; warning: string | null }>("/tasks", body); await refresh(); return r; },
+    create: async (body: CreateTask) => { const r = await api.post<TaskCreated>("/tasks", body); await refresh(); return r; },
   };
 }

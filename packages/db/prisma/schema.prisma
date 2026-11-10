@@ -1147,6 +1147,7 @@ model Task {
   returned  Int       @default(0)      // sent back for changes (KPI: accepted first time)
   note      String?
   doneAt    DateTime?
+  countsInKpi Boolean @default(false) // 4.15 «تتحسب في الـ KPIs؟»: «أيوه» → the assignee's «المهام في ميعادها» item
   createdAt DateTime  @default(now())
 
   @@index([toUserId, status])

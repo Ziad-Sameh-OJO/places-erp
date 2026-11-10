@@ -19,6 +19,8 @@ export const CreateTask = z.object({
   unitId: Id.optional(), // photo / Retouch / rent → resale: the unit; its data reaches the assignee with the task
   title: z.string().trim().min(1).max(120).optional(), // a marketing task: its type from «أنواع تاسكات التسويق»
   note: z.string().trim().max(1000, "الملاحظات طويلة · 1000 حرف بالكتير").optional(),
+  /** 4.15 «تتحسب في الـ KPIs؟»: «لأ · Skip» by default */
+  countsInKpi: z.boolean().optional(),
 });
 export type CreateTask = z.infer<typeof CreateTask>;
 
@@ -53,6 +55,8 @@ export interface TaskRow {
   late: boolean;
   /** 4.14: the board's side, by the sender's and the assignee's department (domain isTeamTask) */
   side: TaskSide;
+  /** 4.15: sent with «تتحسب في الـ KPIs» (the card's «بتتحسب في الـ KPIs» chip) */
+  countsInKpi: boolean;
   /** M-12: a shoot 72 h from the unit's registration, a Retouch 48 h from being given; null for other kinds */
   sla: { due: string; hoursLeft: number; met: boolean | null } | null;
   /** the stages the caller may move it to, and whether they may reassign it (the server checks again) */
@@ -62,6 +66,13 @@ export interface TaskRow {
     folder: { open: boolean; upload: boolean };
   };
 }
+
+/**
+ * 4.15 · what a task «تتحسب في الـ KPIs» did to the assignee's card (demo `taskKpiApply`): made a card, added the
+ * «المهام في ميعادها» item, or it was there already; null = Skip, or no open quarter / no employee record.
+ */
+export type TaskKpiEffect = "card" | "item" | "counted" | null;
+export interface TaskCreated { id: string; warning: string | null; kpi: TaskKpiEffect }
 
 export interface TaskOptions {
   /** the kinds the caller may give, each with the people it can go to */

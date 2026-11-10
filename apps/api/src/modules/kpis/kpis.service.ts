@@ -2,10 +2,10 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import {
   KpiWatch, type ActivityInput, type ActivityResultInput, type ActivityView, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView,
-  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
+  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities, type TaskKpiEffect,
 } from "@places/contracts";
 import {
-  type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
+  type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, taskCardFollower, timedTasks, toDecimal, TASKS_ON_TIME_ITEM, type ActivityKind,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -459,6 +459,34 @@ export class KpisService {
     const next = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)).toISOString().slice(0, 10);
     const from = dayStart(`${month}-01`), to = dayStart(next); // Cairo month
     return new Map((await this.repo.closedAmounts(from, to, tx)).map((c) => [c.employeeId, piasters(c.finalAmount)]));
+  }
+
+  /**
+   * 4.15 (demo kpis.js `kpiForTask`): a task sent with «تتحسب في الـ KPIs» lands in the assignee's «المهام في ميعادها»
+   * item. Inside the task's own transaction: the item is added once, with weight 0 (the follower sets it); someone with
+   * no card gets one, followed by the sender when they share a department, else by the owners. Audited here.
+   */
+  async countTask(tx: Prisma.TransactionClient, assigneeUserId: string, senderUserId: string | null, actorUserId: string): Promise<TaskKpiEffect> {
+    const q = await this.repo.currentQuarter(tx);
+    const emp = await tx.employee.findUnique({ where: { userId: assigneeUserId }, select: { id: true, name: true, department: true } });
+    if (!q || q.status !== "open" || !emp) return null;
+    // one task at a time per person, so two «أيوه» tasks at once can't both add the item or both make the card
+    await tx.$queryRaw`SELECT id FROM hr."Employee" WHERE id = ${emp.id} FOR UPDATE`;
+    const card = await tx.kpiCard.findUnique({ where: { quarter_employeeId: { quarter: q.id, employeeId: emp.id } }, select: { id: true, items: { select: { metric: true, position: true } } } });
+    const item = { ...TASKS_ON_TIME_ITEM, params: {} };
+    if (!card) {
+      const sender = senderUserId ? await tx.employee.findUnique({ where: { userId: senderUserId }, select: { id: true, department: true } }) : null;
+      const created = await tx.kpiCard.create({ data: { quarter: q.id, employeeId: emp.id, followerId: taskCardFollower(sender, emp.department), items: { create: [{ ...item, position: 0 }] } } });
+      await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: created.id, action: "create", userId: actorUserId,
+        after: { summary: `كارت KPIs جديد لـ ${emp.name} (من المهام) وفيه بند «${item.title}»` } }, tx);
+      return "card";
+    }
+    if (card.items.some((it) => it.metric === item.metric)) return "counted";
+    const position = Math.max(-1, ...card.items.map((it) => it.position)) + 1;
+    await tx.kpiItem.create({ data: { ...item, position, cardId: card.id } });
+    await this.audit.record({ module: MODULE, entity: "KpiItems", entityId: card.id, action: "update", userId: actorUserId,
+      after: { summary: `KPI ${emp.name}: بند «${item.title}» اتضاف (من المهام) بوزن 0` } }, tx);
+    return "item";
   }
 
   /** 7.11: the current quarter's cards: who follows whom (a team) and the live score (the ideal employee needs ≥ 80%). */
