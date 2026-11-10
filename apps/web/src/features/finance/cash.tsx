@@ -13,6 +13,7 @@ import { MoveForm } from "./move-form";
 import { Voucher, VoucherById } from "./voucher";
 import { LedgerModal } from "./ledger-modal";
 import { DueBillsCard } from "./bills";
+import { SettledPurchasesCard } from "../procurement/settled-card";
 import { fromDecimal, toDecimal } from "@places/domain";
 
 const ACCOUNT_KINDS = ["treasury", "bank", "wallet"] as const;
@@ -41,6 +42,7 @@ export function Cash() {
   return (
     <>
       <DueBillsCard cash={c} />
+      <SettledPurchasesCard /> {/* 9.18 (demo finance.js prCard): what procurement settled, posted from here */}
       <div className="kpis">
         <KpiTile label={t("cash.safes")} value={money(sum(c.accounts))} sub={t("cash.accounts", { count: c.accounts.length, n: String(c.accounts.length) })} icon="bank" />
         <KpiTile label={t("cash.today")} value={c.today.count} sub={t("cash.todaySub", { paid: short(c.today.paid), received: short(c.today.received) })} icon="list" />
