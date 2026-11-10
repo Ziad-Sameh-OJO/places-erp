@@ -48,4 +48,5 @@ export default [
   // notifications/notifications.controller.ts
   ["إشعار تجربة", "Test notification"],
   ["الإشعارات شغالة على الجهاز ده", "Notifications work on this device"],
+  ["إيميل تجربة · Places ERP", "Test email · Places ERP"],
 ] satisfies Pair[];

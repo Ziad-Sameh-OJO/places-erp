@@ -59,6 +59,12 @@ export class NotificationsController {
     return { devices: await this.push.devices(me.id), sent: await this.push.send([me.id], { title: "إشعار تجربة", body: "الإشعارات شغالة على الجهاز ده", link: "/profile" }) };
   }
 
+  /** 12.14 «ابعت إيميل تجربة»: to my own address only, from the integrations page (whoever opens it). */
+  @Requires("integrations", "view") @Post("mail/test") @HttpCode(200)
+  mailTest(@Me() me: CurrentUser) {
+    return this.n.sendTestMail(me);
+  }
+
   /** The send log is the Super Admin's (M-14 2.3 · 6.1: «تقرير بالإيميلات اللي فشلت»): whoever sets the rules. */
   @Requires("integrations", "edit") @Get("mail-log")
   mailLog(@Query(new ZodPipe(MailLogQuery)) q: MailLogQuery) {
