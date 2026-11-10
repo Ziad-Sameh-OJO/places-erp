@@ -183,11 +183,7 @@
     "note": "Qualified = as soon as a lead reaches Interested or any later stage it's counted here automatically, and it stays counted even if it goes back to Not Interested or No Answer."
   },
   "deals": {
-    "notImage": "It must be an image",
-    "uploaded": "Logo uploaded to the deal",
-    "uploading": "Uploading…",
-    "upload": "Upload Logo",
-    "note": "Done Deals show here after the Office Manager approves them. You may see only the location, space, company name, type and the Buyer's name, and you can attach a Logo to each deal.",
+    "note": "Done Deals show here after the Office Manager approves them. You may see only the location, space, company name, type and the Buyer's name.",
     "head": { "buyer": "Buyer", "company": "Company", "space": "Space" },
     "empty": "No deals yet",
     "space": "{space} m²"

@@ -183,11 +183,7 @@
     "note": "Qualified = أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتحسب أوتوماتيك هنا، وبيفضل محسوب حتى لو رجع Not Interested أو No Answer."
   },
   "deals": {
-    "notImage": "لازم صورة",
-    "uploaded": "الـ Logo اترفع على الديل",
-    "uploading": "بيترفع…",
-    "upload": "ارفع Logo",
-    "note": "الـ Done Deals بتظهر هنا بعد موافقة الـ Office Manager. مسموح تشوفي: الـ location، والمساحة، واسم الشركة، والـ type، واسم الـ Buyer بس، وتقدري ترفقي Logo لكل ديل.",
+    "note": "الـ Done Deals بتظهر هنا بعد موافقة الـ Office Manager. مسموح تشوفي: الـ location، والمساحة، واسم الشركة، والـ type، واسم الـ Buyer بس.",
     "head": { "buyer": "الـ Buyer", "company": "الشركة", "space": "المساحة" },
     "empty": "مفيش صفقات لسه",
     "space": "{space} م"
