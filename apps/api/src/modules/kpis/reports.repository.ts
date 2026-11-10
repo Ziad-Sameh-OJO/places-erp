@@ -33,6 +33,17 @@ export class ReportsRepository {
     return rows.map((u) => ({ id: u.id, roles: u.roles.map((r) => r.role.key), employeeId: u.employee?.id ?? null, name: u.employee?.name ?? "" }));
   }
 
+  /** 11.20 · everyone active with a name, and their primary role, for «مين يشوف التقارير». */
+  accessPeople() {
+    return this.db.user.findMany({ where: { status: "ACTIVE", employee: { isNot: null } },
+      select: { id: true, employee: { select: { name: true } }, roles: { select: { primary: true, role: { select: { key: true, label: true } } } } },
+      orderBy: { employee: { name: "asc" } } });
+  }
+
+  accessList() {
+    return this.db.reportsAccess.findMany({ select: { userId: true } });
+  }
+
   roles() {
     return this.db.role.findMany({ select: { key: true, label: true }, orderBy: { label: "asc" } });
   }

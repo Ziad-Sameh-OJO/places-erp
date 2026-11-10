@@ -15,7 +15,7 @@ const stamp = String(Date.now());
 const C = `E2E-PAY ${stamp}`;
 const code = `D-P${stamp}`;
 const since = new Date();
-let mohsen: string, nancy: string, ashraf: string;
+let mohsen: string, nancy: string, ashraf: string, ashrafListed = "";
 let dealId: string, bankId: string, revenueId: string, otherDealTcr: string;
 const people: Record<"tl" | "buyer", { userId: string; id: string }> = {} as never;
 
@@ -33,6 +33,9 @@ async function person(key: "tl" | "buyer", pct: number) {
 
 before(async () => {
   [mohsen, nancy, ashraf] = await Promise.all(["m.mohsen@places.com", "nancy.islam@places.com", "ahmed.ashraf@places.com"].map((e) => session(e)));
+  // 11.20: «التقارير والتارجت» is the heads' — a head opened it for the accountant (the Transactions sheet)
+  const a = await prisma.user.findUniqueOrThrow({ where: { email: "ahmed.ashraf@places.com" } });
+  if (!(await prisma.reportsAccess.findUnique({ where: { userId: a.id } }))) { await prisma.reportsAccess.create({ data: { userId: a.id, grantedById: a.id } }); ashrafListed = a.id; }
   await person("tl", 0);
   await person("buyer", 30);
   const unitId = (await prisma.unit.create({ data: { code: `U-P${stamp}`, type: "Rent", project: `${C} مشروع`, area: "التجمع الخامس", space: 200, condition: "Finished", pdfStatus: "confirmed" } })).id;
@@ -47,6 +50,7 @@ before(async () => {
 });
 
 after(async () => {
+  if (ashrafListed) await prisma.reportsAccess.deleteMany({ where: { userId: ashrafListed } });
   const users = Object.values(people).map((p) => p.userId);
   const ids = Object.values(people).map((p) => p.id);
   const payouts = (await prisma.commissionPayout.findMany({ where: { employeeId: { in: ids } }, select: { id: true } })).map((p) => p.id);

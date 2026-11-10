@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import { type Action, type DataScope, type FieldMode, type FieldRules, type ModuleKey, effectiveGrants, fieldAccess, mergeFieldRules } from "@places/domain";
+import { type Action, type DataScope, type FieldMode, type FieldRules, type ModuleKey, effectiveGrants, fieldAccess, gateReports, mergeFieldRules } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import type { CurrentUser } from "../auth/current-user.decorator";
 
@@ -13,7 +13,7 @@ export class GrantsService {
   async currentUser(userId: string, db: Pick<PrismaClient, "user"> = this.db): Promise<CurrentUser> {
     const u = await db.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { roles: { include: { role: { include: { permissions: true, fieldRules: true } } } }, overrides: true, employee: { include: { teamMembers: { select: { id: true } } } } },
+      include: { roles: { include: { role: { include: { permissions: true, fieldRules: true } } } }, overrides: true, reportsAccess: { select: { userId: true } }, employee: { include: { teamMembers: { select: { id: true } } } } },
     });
     const roles = u.roles.map(({ role }) => ({
       scope: role.scope.toLowerCase() as DataScope,
@@ -34,7 +34,8 @@ export class GrantsService {
       roles: [...u.roles].sort((a, b) => Number(b.primary) - Number(a.primary)).map(({ role }) => role.key),
       roleLabels: [...u.roles].sort((a, b) => Number(b.primary) - Number(a.primary)).map(({ role }) => role.label),
       employeeId: u.employee?.id ?? null,
-      grants: effectiveGrants(roles, overrides),
+      // 11.20: «التقارير والتارجت» is the heads' and whoever they listed, whatever the roles say
+      grants: gateReports(effectiveGrants(roles, overrides), u.roles.map(({ role }) => role.key), !!u.reportsAccess),
       fieldRules,
       fields: fieldAccess(fieldRules),
       teamIds: u.employee ? [u.employee.id, ...u.employee.teamMembers.map((m) => m.id)] : [],

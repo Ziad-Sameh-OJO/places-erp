@@ -152,3 +152,8 @@ export interface ActivityView {
 }
 /** «نشاطاتي»: shown to sales and to anyone whose card counts these activities. */
 export interface MyActivities { show: boolean; items: ActivityView[] }
+
+/** 11.20 · «مين يشوف التقارير»: the heads tick who else opens «التقارير والتارجت». */
+export const ReportsAccessInput = z.object({ on: z.boolean() });
+export type ReportsAccessInput = z.infer<typeof ReportsAccessInput>;
+export interface ReportsAccessView { people: { userId: string; name: string; role: string }[]; on: string[] }

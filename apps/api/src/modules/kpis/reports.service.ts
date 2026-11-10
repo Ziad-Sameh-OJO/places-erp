@@ -1,11 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Prisma, type PrismaClient, performanceRows } from "@places/db";
 import {
-  KpiWatch, type DailyFieldInput, type DailyForm, type DailyInput, type DayReport, type HandInCard, type MyHandIn, type ReportInput, type ReportsPage, type ScheduledReportView,
+  KpiWatch, type ReportsAccessView, type DailyFieldInput, type DailyForm, type DailyInput, type DayReport, type HandInCard, type MyHandIn, type ReportInput, type ReportsPage, type ScheduledReportView,
 } from "@places/contracts";
 import {
   type MetricParams, type Method, type Schedule, type WorkCalendar, METRICS, calcText, dailyAverage, dailySumValue, dailyTotals, dayStart, dayStatus, dueOf, handInState, isOffPeriod,
-  itemAchievement, localDate, nextDue, pickPeople,
+  itemAchievement, isReportsHead, localDate, nextDue, pickPeople,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -81,6 +81,39 @@ export class ReportsService {
         items: items.map((it) => ({ id: it.id, label: `${it.card.employee.name} · ${it.title}` })),
       } : null,
     };
+  }
+
+  // ───────── 11.20 · who else sees «التقارير والتارجت» ─────────
+
+  private head(me: CurrentUser) {
+    if (!isReportsHead(me.roles)) throw new ForbiddenException("ده للهيد بس");
+  }
+
+  /** The people a head may open the page for (not the heads: they always see it), and who's ticked. */
+  async access(me: CurrentUser): Promise<ReportsAccessView> {
+    this.head(me);
+    const [people, on] = await Promise.all([this.repo.accessPeople(), this.repo.accessList()]);
+    return {
+      people: people.filter((u) => !isReportsHead(u.roles.map((r) => r.role.key))).map((u) => {
+        const primary = u.roles.find((r) => r.primary) ?? u.roles[0];
+        return { userId: u.id, name: u.employee?.name ?? "", role: primary?.role.label ?? "" };
+      }),
+      on: on.map((x) => x.userId),
+    };
+  }
+
+  /** A tick applies at once (the grants are read on every request) and is audited under «access» (demo rpAccessSet). */
+  async setAccess(me: CurrentUser, userId: string, on: boolean) {
+    this.head(me);
+    const person = (await this.repo.accessPeople()).find((u) => u.id === userId);
+    if (!person || isReportsHead(person.roles.map((r) => r.role.key))) throw new NotFoundException("الشخص ده مش موجود");
+    const name = person.employee?.name ?? "";
+    await this.db.$transaction(async (tx) => {
+      if (on) await tx.reportsAccess.upsert({ where: { userId }, create: { userId, grantedById: me.id }, update: {} });
+      else await tx.reportsAccess.deleteMany({ where: { userId } });
+      await this.audit.record({ module: "access", entity: "ReportsAccess", entityId: userId, action: on ? "grant" : "revoke", userId: me.id,
+        after: { on, summary: on ? `${name} اتفتحله التقارير والتارجت` : `${name} اتقفل عليه التقارير والتارجت` } }, tx);
+    });
   }
 
   /** «تقرير جديد» or a change to one (11.10): applies at once; the worker reads it on its next tick. */

@@ -31,6 +31,7 @@ before(async () => {
   const email = `fields-ops-${stamp}@places.test`;
   userId = (await prisma.user.create({ data: { email, status: "ACTIVE", passwordHash: await hash(PW), roles: { create: [{ roleId, primary: true }] } } })).id;
   person = await session(email);
+  await prisma.reportsAccess.create({ data: { userId, grantedById: userId } }); // 11.20: a head opened «التقارير والتارجت» for this role's person
   channel = ((await call("/marketing/campaigns/channels", { cookie: admin })).body as string[])[0]!;
   const id = async (e: string) => (await prisma.user.findUniqueOrThrow({ where: { email: e } })).id;
   [rahmaId, bayoumiId] = await Promise.all([id("rahma.hassan@places.com"), id("abdelrahman.bayoumi@places.com")]);
