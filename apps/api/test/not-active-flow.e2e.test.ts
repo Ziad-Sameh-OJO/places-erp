@@ -54,7 +54,7 @@ test("M-03 1.1 · a number already in the inventory: marked with its unit, Alarm
   const row = (await call(`/not-active/sheets/${sheetId}/rows`, { cookie: manar })).body.items.find((x: { id: string }) => x.id === rowOf["C-1"]);
   assert.deepEqual(row.matched, { id: knownUnit, code: `U-NA${stamp}` });
   assert.equal(row.matchSeen, false);
-  assert.deepEqual(await counts(manar), { all: 4, "No Answer": 0, "Not True": 0, Done: 0, pending: 4, matched: 1 });
+  assert.deepEqual(await counts(manar), { all: 4, "No Answer": 0, "Not True": 0, Done: 0, pending: 4, matched: 1, dupes: 0 });
   const manarUser = (await prisma.user.findUniqueOrThrow({ where: { email: "manar.ahmed@places.com" } })).id;
   assert.ok(await prisma.notification.findFirst({ where: { userId: manarUser, text: { contains: `شيت ${NAME} موجود في الانفنتوري` } } }));
   // Manar sets its status (here: Done, it's already a unit); it stays in the sheet
@@ -87,7 +87,7 @@ test("M-03 2.3 · Marwa classifies: No Answer; Not True only with a feedback; Do
   assert.equal(r.body.feedback, "مش صاحب الوحدة");
   assert.equal((await classify(marwa, rowOf["C-4"]!, { status: "Done" })).status, 400);
   assert.equal((await classify(marwa, rowOf["C-1"]!, { status: "No Answer" })).status, 404); // not sent to her
-  assert.deepEqual(await counts(marwa), { all: 3, "No Answer": 1, "Not True": 1, Done: 0, pending: 1, matched: 0 });
+  assert.deepEqual(await counts(marwa), { all: 3, "No Answer": 1, "Not True": 1, Done: 0, pending: 1, matched: 0, dupes: 0 });
   const tab = (await call(`/not-active/sheets/${sheetId}/rows?tab=Not%20True`, { cookie: marwa })).body;
   assert.deepEqual(tab.items.map((x: { id: string }) => x.id), [rowOf["C-3"]]);
   assert.ok(await prisma.auditLog.findFirst({ where: { entityId: rowOf["C-3"], action: "classify" } }));
