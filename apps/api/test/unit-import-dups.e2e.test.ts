@@ -25,7 +25,7 @@ before(async () => {
 
 after(async () => {
   const units = await prisma.unit.findMany({ where: { project: { startsWith: P } }, select: { id: true, ownerId: true } });
-  await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: units.map((u) => u.id) } }, { entity: "UnitImport", userId: manarId, createdAt: { gte: STARTED } }] } });
+  await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: units.map((u) => u.id) } }, { entity: "UnitImport", userId: manarId, at: { gte: STARTED } }] } });
   await prisma.notification.deleteMany({ where: { createdAt: { gte: STARTED }, text: { contains: "من استيراد Excel" } } });
   await prisma.unit.deleteMany({ where: { id: { in: units.map((u) => u.id) } } });
   const owners = units.flatMap((u) => (u.ownerId ? [u.ownerId] : []));
@@ -72,7 +72,7 @@ test("«ضيفها برضه» adds a repeat, «ادمج» updates the unit, the 
   assert.equal(units[2]!.totalPrice?.toFixed(2), "655500.00"); // 690 × 950, merged into P1901
   assert.equal(units[2]!.pdfStatus, "draft");
 
-  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entity: "UnitImport", userId: manarId, createdAt: { gte: STARTED } } });
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entity: "UnitImport", userId: manarId, at: { gte: STARTED } } });
   assert.deepEqual((audit.after as { dupBy: string[] }).dupBy, ["project", "space", "floor", "building"]);
   const alert = await prisma.notification.findMany({ where: { event: "unit.new", createdAt: { gte: STARTED }, text: { contains: "من استيراد Excel" } } });
   assert.ok(alert.length > 0 && alert.every((n) => n.text.includes("2 وحدة جديدة")), "marketing gets the count");
