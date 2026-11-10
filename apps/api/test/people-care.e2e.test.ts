@@ -60,8 +60,17 @@ test("the 1-to-1: HR's questions, the last session first, «حل الـ HR» wit
   assert.equal(v.due, false);
   assert.equal(v.items[0].id, r.body.id);
   assert.ok((await call("/hr/one-on-one/actions", { cookie: basant })).body.items.some((x: { id: string }) => x.id === r.body.id));
+  // 7.15: the employees list shows «آخر 1-to-1» and the open «حل HR», red on its day; sales can't see the list
+  type Row = { id: string; lastOneOnOne: string | null; hrAction: { due: string; overdue: boolean } | null };
+  const row = async () => ((await call("/hr/employees", { cookie: basant })).body.items as Row[]).find((e) => e.id === mohsen)!;
+  let listed = await row();
+  assert.equal(listed.lastOneOnOne, today());
+  assert.deepEqual(listed.hrAction, { due: today(), overdue: true });
+  assert.equal((await call("/hr/employees", { cookie: sales })).status, 403);
   assert.equal((await call(`/hr/one-on-one/${r.body.id}/done`, { method: "POST", cookie: basant })).status, 201);
   assert.ok(!(await call("/hr/one-on-one/actions", { cookie: basant })).body.items.some((x: { id: string }) => x.id === r.body.id));
+  listed = await row();
+  assert.equal(listed.hrAction, null); // done → off the list
   assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie: tl, body: { heldOn: today(), answers } })).status, 403);
 });
 

@@ -10,7 +10,9 @@ export interface EmployeeFile extends EmployeeRow {
   email: string; manager: { id: string; name: string } | null; team: string | null; joinedAt: string | null;
   partTimeDeductions: boolean; deductionTiers: { quarterFrom: number; halfFrom: number; dayFrom: number } | null; fixedSchedule: string | null;
 }
-export interface EmployeesView { items: EmployeeRow[]; departments: string[] }
+/** 7.15 (demo hr.js emps()): «آخر 1-to-1» (null = «مفيش») and «حل HR» — the first open action, red once its day came. */
+export interface EmployeeListRow extends EmployeeRow { lastOneOnOne: string | null; hrAction: { due: string; overdue: boolean } | null }
+export interface EmployeesView { items: EmployeeListRow[]; departments: string[] }
 
 export const EmployeeFilters = z.object({ q: z.string().trim().max(80).optional(), department: z.string().max(80).optional() });
 export type EmployeeFilters = z.infer<typeof EmployeeFilters>;

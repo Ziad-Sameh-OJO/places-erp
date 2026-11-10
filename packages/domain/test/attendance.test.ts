@@ -44,6 +44,13 @@ test("penalties: a quarter-day step up to 3 days, counted only once HR approved;
   assert.equal(actionAlarm("2026-11-04", "2026-11-05", false, true), false);
 });
 
+test("7.15 · the list's «حل HR»: the first open action's date, red from its day", async () => {
+  const { openHrAction } = await import("../src/index.ts");
+  assert.deepEqual(openHrAction(["2026-11-20", "2026-11-12"], "2026-11-10"), { due: "2026-11-12", overdue: false });
+  assert.deepEqual(openHrAction(["2026-11-20", "2026-11-10"], "2026-11-10"), { due: "2026-11-10", overdue: true });
+  assert.equal(openHrAction([], "2026-11-10"), null);
+});
+
 test("the Excuse: 1–2 free, 3–4 half a day, the 5th refused; on the day it replaces «متأخر» (7.4, Q31)", async () => {
   const { excuseNumber, excuseRefused, excuseDeduction, attendanceDay } = await import("../src/index.ts");
   assert.equal(excuseNumber(0), 1);

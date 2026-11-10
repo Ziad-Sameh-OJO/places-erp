@@ -8,7 +8,7 @@ import { Drawer } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
-import { money, short } from "@/lib/format";
+import { day, money, short } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { OneOnOneTab } from "./people-care";
 
@@ -31,6 +31,8 @@ export function Employees() {
     ["target", t("employees.target"), (e) => (Number(e.target) ? short(e.target) : "—")],
     ["commissionPct", t("employees.commission"), (e) => (Number(e.commissionPct) ? `${Number(e.commissionPct)}%` : "—")],
     ["leaveBalance", t("employees.leaveBalance"), (e) => e.leaveBalance],
+    ["lastOneOnOne", t("employees.lastOne"), (e) => (e.lastOneOnOne ? day(e.lastOneOnOne) : <Chip key="o" tone="warn">{t("common.none")}</Chip>)],
+    ["hrAction", t("employees.hrAction"), (e) => (e.hrAction ? <Chip key="a" tone={e.hrAction.overdue ? "bad" : "warn"}>{day(e.hrAction.due)}</Chip> : "")],
     ["deductionTiers", t("employees.tiers"), (e) => (e.customTiers ? <Chip key="t" tone="acc">{t("employees.custom")}</Chip> : t("employees.default"))],
   ] as [string, string, (e: EmployeesView["items"][number]) => ReactNode][]).filter(([k]) => fields.shows(k));
   return (
