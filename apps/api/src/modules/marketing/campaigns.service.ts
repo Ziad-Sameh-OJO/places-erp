@@ -1,8 +1,8 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import { NOT_QUALIFIED_ROWS, type CampaignInput, type CampaignRow, type DashboardQuery, type MarketingDashboard, type NotQualifiedQuery, type NotQualifiedView } from "@places/contracts";
+import { NOT_QUALIFIED_ROWS, type CampaignInput, type CampaignRow, type DashboardQuery, type MarketingDashboard, type NotQualifiedQuery, type NotQualifiedView, type PageNameRow } from "@places/contracts";
 import {
-  LEAD_STAGES, allowedValue, channelTree, countByReason, qualificationRate, costPerLead, dayStart, fromDecimal, isCampaignLive, lastSalesAct, leadsByPost, localDate, toDecimal,
+  LEAD_STAGES, allowedValue, channelTree, countByReason, qualificationRate, costPerLead, dayStart, fromDecimal, isCampaignLive, lastSalesAct, leadsByPost, localDate, pageNameProblem, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -12,6 +12,7 @@ import { CampaignsRepository } from "./campaigns.repository";
 
 type Campaign = Prisma.CampaignGetPayload<object>;
 const NO_CAMPAIGN = "الكامبين دي مش موجودة";
+const NO_PAGE = "اسم الصفحة ده مش موجود";
 
 /** M-04 2.1 step 1 · 3.1: the campaigns screen — add, edit, archive, with their leads, Qualified and cost. */
 @Injectable()
@@ -99,6 +100,7 @@ export class CampaignsService {
 
   async create(me: CurrentUser, input: CampaignInput): Promise<{ id: string }> {
     await this.checkChannel(input.channel, null);
+    await this.checkPage(input.page, null);
     input = keepFixed(input, null, me.fields.fixed("marketing"));
     const data = toData(input);
     return this.db.$transaction(async (tx) => {
@@ -113,6 +115,7 @@ export class CampaignsService {
     const before = await this.repo.find(id);
     if (!before) throw new NotFoundException(NO_CAMPAIGN);
     await this.checkChannel(input.channel, before.channel);
+    await this.checkPage(input.page, before.page);
     input = keepFixed(input, before, me.fields.fixed("marketing"));
     await this.db.$transaction(async (tx) => {
       await this.repo.update(tx, id, toData(input));
@@ -129,6 +132,55 @@ export class CampaignsService {
       await this.repo.update(tx, id, { archivedAt: new Date() });
       await this.audit.record({ module: "marketing", entity: "Campaign", entityId: id, action: "archive", userId: me.id, before: plain(before) }, tx);
     });
+  }
+
+  /** «Page name» comes from «أسماء الصفحات»; a campaign keeps a name removed from the list since. */
+  private async checkPage(page: string | undefined, before: string | null) {
+    if (!page || page === before) return;
+    if (!(await this.repo.pages()).some((p) => p.name === page)) throw new BadRequestException("اختار الـ Page name من القايمة");
+  }
+
+  // ───────── 4.19 · «أسماء الصفحات» ─────────
+
+  pages(): Promise<PageNameRow[]> {
+    return this.repo.pages();
+  }
+
+  async addPage(me: CurrentUser, name: string): Promise<PageNameRow> {
+    this.checkName(await this.repo.pages(), name, null);
+    return this.db.$transaction(async (tx) => {
+      const p = await this.repo.addPage(tx, name);
+      await this.audit.record({ module: "marketing", entity: "CampaignPage", entityId: p.id, action: "create", userId: me.id, after: { name, summary: `اسم صفحة جديد: ${name}` } }, tx);
+      return { id: p.id, name: p.name, campaigns: 0 };
+    });
+  }
+
+  /** A rename applies to the campaigns on it (demo «تغيير اسم بيتطبّق على الكامبينز اللي عليه»). */
+  async renamePage(me: CurrentUser, id: string, name: string): Promise<void> {
+    const p = await this.repo.page(id);
+    if (!p) throw new NotFoundException(NO_PAGE);
+    if (p.name === name) return;
+    this.checkName(await this.repo.pages(), name, p.name);
+    await this.db.$transaction(async (tx) => {
+      const moved = await this.repo.renamePage(tx, id, p.name, name);
+      await this.audit.record({ module: "marketing", entity: "CampaignPage", entityId: id, action: "update", userId: me.id,
+        before: { name: p.name }, after: { name, campaigns: moved, summary: `اسم صفحة: ${p.name} ← ${name}` } }, tx);
+    });
+  }
+
+  /** Off the list; the campaigns on it keep the name (demo «الكامبينز اللي عليه هتفضل باسمها»). */
+  async removePage(me: CurrentUser, id: string): Promise<void> {
+    const p = await this.repo.page(id);
+    if (!p) throw new NotFoundException(NO_PAGE);
+    await this.db.$transaction(async (tx) => {
+      await this.repo.removePage(tx, id);
+      await this.audit.record({ module: "marketing", entity: "CampaignPage", entityId: id, action: "delete", userId: me.id, before: { name: p.name }, after: { summary: `اتشال اسم صفحة: ${p.name}` } }, tx);
+    });
+  }
+
+  private checkName(list: PageNameRow[], name: string, current: string | null) {
+    const problem = pageNameProblem(list.map((p) => p.name), name, current);
+    if (problem) throw new BadRequestException(problem);
   }
 
   private async checkChannel(channel: string, before: string | null) {
@@ -152,14 +204,14 @@ const money = (d: Prisma.Decimal) => d.toFixed(2);
 function toData(c: CampaignInput) {
   return {
     name: c.name, channel: c.channel, startsOn: new Date(`${c.startsOn}T00:00:00Z`), endsOn: new Date(`${c.endsOn}T00:00:00Z`),
-    budget: c.budget, spent: c.spent, target: c.target ?? null, adUrl: c.adUrl ?? null, note: c.note ?? null,
+    budget: c.budget, spent: c.spent, target: c.target ?? null, page: c.page ?? null, adUrl: c.adUrl ?? null, note: c.note ?? null,
   };
 }
 
 /** The audit's «before»: days and money as on the wire. */
 const plain = (c: Campaign) => ({
   name: c.name, channel: c.channel, startsOn: day(c.startsOn), endsOn: day(c.endsOn), budget: money(c.budget), spent: money(c.spent),
-  target: c.target, adUrl: c.adUrl, note: c.note,
+  target: c.target, page: c.page, adUrl: c.adUrl, note: c.note,
 });
 
 function toRow(c: Campaign, n: { leads: number; qualified: number }, today: string): CampaignRow {

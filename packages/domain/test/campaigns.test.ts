@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelTree, costPerLead, countByReason, isCampaignLive, lastSalesAct, leadsByPost, qualificationRate } from "../src/campaigns.ts";
+import { channelTree, costPerLead, countByReason, isCampaignLive, lastSalesAct, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
 import { fromDecimal, toDecimal } from "../src/money.ts";
 
 test("M-04 3.2: qualification rate = Qualified ÷ Total × 100 (campaign «X» 120 leads, 30 Qualified → 25%)", () => {
@@ -49,4 +49,13 @@ test("4.18 · not Qualified: the reason's latest comment by a person, else his l
   assert.equal(lastSalesAct([acts[0]!]), null);
   assert.deepEqual(countByReason(["No Answer", "Fresh", "No Answer", "Not Interested", "No Answer"]),
     [{ reason: "No Answer", count: 3 }, { reason: "Fresh", count: 1 }, { reason: "Not Interested", count: 1 }]);
+});
+
+test("4.19 · page names: Website · Property Finder · Dubizzle; a name twice (any case) or empty is refused, renaming to itself isn't", () => {
+  const names = ["Website", "Property Finder", "Dubizzle"];
+  assert.equal(pageNameProblem(names, "Bayut"), null);
+  assert.equal(pageNameProblem(names, " website "), "الاسم ده موجود");
+  assert.equal(pageNameProblem(names, "  "), "اكتب اسم الصفحة");
+  assert.equal(pageNameProblem(names, "Dubizzle", "Dubizzle"), null);
+  assert.equal(pageNameProblem(names, "Website", "Dubizzle"), "الاسم ده موجود");
 });

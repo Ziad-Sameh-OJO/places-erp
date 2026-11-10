@@ -76,3 +76,13 @@ export function countByReason(stages: readonly string[]): Array<{ reason: string
   for (const s of stages) m.set(s, (m.get(s) ?? 0) + 1);
   return [...m].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
 }
+
+/**
+ * 4.19 · «أسماء الصفحات» (demo marketing.js `pageAdd` · `pageRen`): why a new name or a rename can't be saved (Arabic, shown
+ * as is), or null. Names are compared trimmed and without case, so «website» isn't a second «Website».
+ */
+export function pageNameProblem(names: readonly string[], name: string, current: string | null = null): string | null {
+  const n = name.trim().toLowerCase();
+  if (!n) return "اكتب اسم الصفحة";
+  return names.some((x) => x !== current && x.trim().toLowerCase() === n) ? "الاسم ده موجود" : null;
+}
