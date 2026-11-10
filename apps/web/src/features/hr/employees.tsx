@@ -1,5 +1,5 @@
 "use client";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EmployeeFile, EmployeesView } from "@places/contracts";
 import { DEFAULT_TIERS } from "@places/domain";
@@ -18,6 +18,7 @@ export function Employees() {
   const [q, setQ] = useState("");
   const [dep, setDep] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => { const id = new URLSearchParams(window.location.search).get("employee"); if (id) setOpen(id); }, []); // «بحث سريع» (0.17)
   const qs = new URLSearchParams({ ...(q ? { q } : {}), ...(dep ? { department: dep } : {}) }).toString();
   const list = useQuery({ queryKey: ["hr", "employees", qs], queryFn: () => api.get<EmployeesView>(`/hr/employees?${qs}`), placeholderData: keepPreviousData });
   const d = list.data;

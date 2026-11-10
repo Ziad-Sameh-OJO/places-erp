@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import type { TicketView } from "@places/contracts";
 import { Fab, KpiTile } from "@/components/blocks";
@@ -26,6 +27,7 @@ export function TicketsPage() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  useNewParam("1", () => setCreating(true), can("tickets", "create")); // «جديد ← تذكرة لقسم تاني» (0.16)
   const list = useTickets(view, q, page, PAGE);
   const s = useTicketSummary().data;
   const options = useTicketOptions().data;

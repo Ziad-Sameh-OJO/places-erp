@@ -112,7 +112,10 @@
     "recipients": "مين بيستلمه",
     "lateNotify": "لو اتأخر يتبلّغ",
     "money": "فيه أرقام فلوس (مايظهرش لمسؤول الـ KPIs)",
-    "delete": "امسح التقرير"
+    "delete": "امسح التقرير",
+    "sendNow": "ابعته دلوقتي",
+    "sentNow": "اتبعت «{name}» لـ {to}",
+    "sentNowShort": "اتبعت «{name}»"
   },
   "daily": {
     "item": "البند",

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelTree, costPerLead, isCampaignLive, leadsByPost, qualificationRate } from "../src/campaigns.ts";
+import { channelTree, costPerLead, countByReason, isCampaignLive, lastSalesAct, leadsByPost, qualificationRate } from "../src/campaigns.ts";
 import { fromDecimal, toDecimal } from "../src/money.ts";
 
 test("M-04 3.2: qualification rate = Qualified ÷ Total × 100 (campaign «X» 120 leads, 30 Qualified → 25%)", () => {
@@ -35,4 +35,18 @@ test("M-04 3.2: Facebook = 320 leads, campaign «X» = 120 and «Y» = 200; Qual
   assert.equal(fb!.noCampaign, 0);
   assert.deepEqual([ig!.leads, ig!.noCampaign, ig!.rate], [2, 2, 0]);
   assert.deepEqual(leadsByPost(arrivals), [{ post: "ريلز المول", leads: 10 }, { post: "ستوري", leads: 2 }]);
+});
+
+test("4.18 · not Qualified: the reason's latest comment by a person, else his latest action; nobody touched it → none", () => {
+  const at = (h: number) => new Date(`2026-11-09T${String(h).padStart(2, "0")}:00:00Z`);
+  const acts = [
+    { kind: "assign", text: "اتوزّع", byUserId: null, at: at(9) },
+    { kind: "comment", text: "مش محتاج مكتب دلوقتي", byUserId: "u5", at: at(10) },
+    { kind: "stage", text: "Not Interested", byUserId: "u5", at: at(11) },
+  ];
+  assert.equal(lastSalesAct(acts)?.text, "مش محتاج مكتب دلوقتي");
+  assert.equal(lastSalesAct(acts.filter((a) => a.kind !== "comment"))?.text, "Not Interested");
+  assert.equal(lastSalesAct([acts[0]!]), null);
+  assert.deepEqual(countByReason(["No Answer", "Fresh", "No Answer", "Not Interested", "No Answer"]),
+    [{ reason: "No Answer", count: 3 }, { reason: "Fresh", count: 1 }, { reason: "Not Interested", count: 1 }]);
 });

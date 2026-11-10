@@ -40,6 +40,7 @@
   .fab svg.i { width: 26px; height: 26px; stroke-width: 2.4; }
   .fab:active { transform: scale(.94); }
   body:has(#createMenu:not([hidden])) .fab, body:has(#demoPanel:not([hidden])) .fab, body:has(.drawer:not([hidden])) .fab, body:has(.modal-wrap:not([hidden])) .fab, body:has(.scn:not([hidden])) .fab { display: none; }
+  body:has(#view .fab) #fab { display: none; } /* a page with its own «+» (leads, deals, units, tickets, purchases, contracts) keeps it for its main form (0.16) */
 
   /* «المزيد»: the full menu as a sheet from the side */
   .side { width: min(320px, 86vw) !important; z-index: 32 !important; border-radius: var(--r-xl) 0 0 var(--r-xl); }

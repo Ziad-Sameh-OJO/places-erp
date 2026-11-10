@@ -10,13 +10,16 @@ import type { CurrentUser } from "../auth/current-user.decorator";
 
 /** Links live five minutes: long enough to upload 20 MB on a phone, short enough that a leaked link is useless. */
 const LINK_TTL = 300;
-const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf", "image/vnd.dwg": "dwg", "image/vnd.dxf": "dxf" };
 /** The first bytes each allowed type must start with: the declared type alone is the uploader's word. */
 const SIGNATURE: Record<string, (b: Uint8Array) => boolean> = {
   "image/jpeg": (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
   "image/png": (b) => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((x, i) => b[i] === x),
   "image/webp": (b) => ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP",
   "application/pdf": (b) => ascii(b, 0, 5) === "%PDF-",
+  // 2.35 · AutoCAD: a DWG starts with its version («AC1032»…); a DXF is text that opens with group code 0, or binary
+  "image/vnd.dwg": (b) => ascii(b, 0, 4) === "AC10",
+  "image/vnd.dxf": (b) => /^\s*0\s*\r?\n/.test(ascii(b, 0, 12)) || ascii(b, 0, 12) === "AutoCAD Bina",
 };
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 const ROW = { id: true, name: true, mime: true, size: true, status: true, createdAt: true } as const;

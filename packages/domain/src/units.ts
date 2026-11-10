@@ -258,3 +258,13 @@ export const asksForLists = (roles: readonly string[], g: Pick<Grants, "can">): 
 export function unconfirmedUnits(units: readonly { code: string; lastOwnerUpdateAt: Date }[], now: Date): string[] {
   return units.filter((u) => isStale(u.lastOwnerUpdateAt, now)).map((u) => u.code);
 }
+
+/**
+ * 2.34 · the unit's Location is a Google Maps link (demo inventory.js `locUrl`). Units entered before it hold «lat, lng»
+ * from the old map picker: those open as a Google Maps search for the point. Empty → "".
+ */
+export function locationUrl(v: string | null | undefined): string {
+  const t = (v ?? "").trim();
+  if (!t) return "";
+  return /^https?:\/\//i.test(t) ? t : `https://maps.google.com/?q=${encodeURIComponent(t)}`;
+}

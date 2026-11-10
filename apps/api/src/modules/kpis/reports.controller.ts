@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { DailyFieldInput, DailyInput, DayQuery, TargetMonthQuery, ReportInput, TargetInput, TransactionsQuery } from "@places/contracts";
+import { DailyFieldInput, DailyInput, DayQuery, HandInInput, TargetMonthQuery, ReportInput, TargetInput, TransactionsQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendXlsx } from "../../core/http/excel";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -41,6 +41,12 @@ export class ReportsController {
     return this.reports.remove(me, id);
   }
 
+  @Post("scheduled/:id/run")
+  @Requires("reports", "view")
+  runNow(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.reports.runNow(me, id);
+  }
+
   @Get("runs/:id/file")
   @Requires("reports", "view")
   async runFile(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
@@ -57,8 +63,8 @@ export class ReportsController {
 
   @Post("scheduled/:id/hand-in")
   @SignedIn()
-  handIn(@Me() me: CurrentUser, @Param("id") id: string) {
-    return this.reports.handIn(me, id);
+  handIn(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(HandInInput)) body: HandInInput) {
+    return this.reports.handIn(me, id, body.note);
   }
 
   @Get("daily/me")

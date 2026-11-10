@@ -38,6 +38,8 @@ before(async () => {
 
 after(async () => {
   await prisma.employee.update({ where: { id: mohsenId }, data: { commissionPct: oldPct as number } });
+  const tcrs = (await prisma.tcr.findMany({ where: { dealId }, select: { id: true } })).map((t) => t.id);
+  await prisma.auditLog.deleteMany({ where: { entityId: { in: tcrs } } }); // 5.15's corrections
   await prisma.tcr.deleteMany({ where: { dealId } }); // each collection's TCR (5.12)
   await prisma.payment.deleteMany({ where: { dealId } });
   const tl = (await prisma.employee.findUniqueOrThrow({ where: { id: mohsenId } })).teamLeaderId ?? "-";
@@ -112,6 +114,37 @@ test("5.3 · 9.12: collecting 30,000 → Partially Collected, the client's accou
   assert.equal(cents(ar.balance), ar.children.reduce((s, c) => s + cents(c.balance), 0));
   assert.equal((await call(`/deals/${dealId}`, { cookie: ashraf })).body.status, "Partially Collected");
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "collect" } }));
+});
+
+test("5.15: finance corrects the 30,000 to 35,000 and back — the entry is reversed and posted again, the audit keeps both", async () => {
+  const tcr = (await call(`/deals/${dealId}`, { cookie: ashraf })).body.tcrs[0] as { id: string; amount: string };
+  const edit = (cookie: string, body: object) => call(`/deals/${dealId}/tcrs/${tcr.id}`, { method: "PUT", cookie, body });
+  assert.equal((await edit(mohsen, { amount: "35000", reason: "المبلغ اتسجّل غلط" })).status, 403); // sales: no finance edit
+  assert.equal((await edit(nancy, { amount: "35000", reason: "المبلغ اتسجّل غلط" })).status, 403);
+  assert.equal((await edit(ashraf, { amount: "35000", reason: " " })).status, 400); // the reason is required
+  assert.equal((await edit(ashraf, { amount: "100000.01", reason: "x" })).status, 400); // never above the commission
+  const r = await edit(ashraf, { amount: "35000", reason: "المبلغ اتسجّل غلط" });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.status, "Partially Collected");
+  assert.equal(r.body.tcrs[0].amount, "35000.00");
+  assert.deepEqual(r.body.tcrs[0].edited, { from: "30000.00", reason: "المبلغ اتسجّل غلط" });
+  assert.equal(await balance(ashraf, bankId), cents("35000"));
+  assert.equal(await balance(ashraf, clientAccountId), cents("65000"));
+  assert.equal(await balance(ashraf, revenueId), cents("100000")); // the revenue was booked on the whole commission
+  assert.equal((await task(ashraf))?.remaining, "65000.00");
+  const payment = await prisma.payment.findFirstOrThrow({ where: { dealId } });
+  const move = await prisma.treasuryMove.findUniqueOrThrow({ where: { id: payment.moveId! } });
+  assert.equal(move.amount.toFixed(2), "35000.00");
+  // the old entry has its reversal; every entry stays balanced
+  const reversal = await prisma.journalEntry.findFirstOrThrow({ where: { source: "reversal", memo: { contains: "المبلغ اتسجّل غلط" } }, include: { lines: true } });
+  assert.equal(reversal.lines.reduce((s, l) => s + cents(l.debit.toFixed(2)) - cents(l.credit.toFixed(2)), 0), 0);
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: tcr.id, action: "edit-collection" } });
+  assert.equal((audit.before as { amount: string }).amount, "30000.00");
+  assert.equal((audit.after as { amount: string }).amount, "35000.00");
+  const back = await edit(ashraf, { amount: "30000", reason: "رجوع للمبلغ الصح" });
+  assert.equal(back.status, 200, JSON.stringify(back.body));
+  assert.equal(await balance(ashraf, bankId), cents("30000"));
+  assert.equal(await balance(ashraf, clientAccountId), cents("70000"));
 });
 
 test("5.3 · 9.12: the rest → Fully Collected; each salesperson's commission is due under 21103; nothing more to collect", async () => {

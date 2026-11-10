@@ -38,8 +38,10 @@ async function download(path: string, fallbackName: string, body?: unknown): Pro
   const name = decodeURIComponent(/filename\*=UTF-8''([^;]+)/.exec(cd)?.[1] ?? fallbackName);
   const url = URL.createObjectURL(await res.blob());
   const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.append(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000); // Firefox / Safari cancel a download whose URL is revoked at once
 }
 
 export const api = {
@@ -47,7 +49,7 @@ export const api = {
   get: <T>(p: string) => request<T>("GET", p),
   post: <T>(p: string, b?: unknown) => request<T>("POST", p, b),
   /** One file as multipart field `file` (Excel import, attachments). */
-  upload: <T>(p: string, file: File) => { const f = new FormData(); f.append("file", file); return request<T>("POST", p, f); },
+  upload: <T>(p: string, file: File, fields: Record<string, string> = {}) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.append(k, v); f.append("file", file); return request<T>("POST", p, f); },
   put: <T>(p: string, b?: unknown) => request<T>("PUT", p, b),
   patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
   del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),

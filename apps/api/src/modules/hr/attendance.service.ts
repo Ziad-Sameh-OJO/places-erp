@@ -166,14 +166,17 @@ export class AttendanceService {
   /** Weekly Delay (M-05): every minute after 11:16 per person per day, Excuse / Visit included, sorted by the most. */
   async weeklyDelay(me: CurrentUser, f: AttendanceRange): Promise<WeeklyDelayView> {
     if (f.from > f.to) throw new BadRequestException("«من» لازم تبقى قبل «لحد»");
-    const [emps, rows] = await Promise.all([
+    const [emps, rows, sums] = await Promise.all([
       this.db.employee.findMany({ where: { AND: [this.scope(me), { user: { status: "ACTIVE" }, partTime: false }] }, select: EMP }),
       this.db.attendanceDay.findMany({ where: { day: { gte: asDay(f.from), lte: asDay(f.to) }, employee: this.scope(me) }, orderBy: { day: "asc" } }),
+      // 7.14 «التراكمي»: all of their days, from the first one they worked
+      this.db.attendanceDay.groupBy({ by: ["employeeId"], where: { employee: this.scope(me) }, _sum: { lateMinutes: true } }),
     ]);
+    const allTime = new Map(sums.map((s) => [s.employeeId, s._sum.lateMinutes ?? 0]));
     const days = [...new Set(rows.map((r) => isoDay(r.day)))].sort();
     const people = emps.map((e) => {
       const mine = rows.filter((r) => r.employeeId === e.id).map((r) => this.row(e, r));
-      return { employeeId: e.id, name: e.name, byDay: Object.fromEntries(mine.map((r) => [r.day, { late: r.lateMinutes, label: r.label }])), total: mine.reduce((s, r) => s + r.lateMinutes, 0) };
+      return { employeeId: e.id, name: e.name, byDay: Object.fromEntries(mine.map((r) => [r.day, { late: r.lateMinutes, label: r.label }])), total: mine.reduce((s, r) => s + r.lateMinutes, 0), allTime: allTime.get(e.id) ?? 0 };
     }).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "ar"));
     return { days, people };
   }

@@ -17,10 +17,12 @@ export default [
   ["الوحدة دي اتشالت من لوحة التسويق قبل كده", "This unit was already removed from the marketing board"],
   ["الوحدة دي لسه على لوحة التسويق", "This unit is still on the marketing board"],
   ["Live Alert: وحدة جديدة {code} ({project}) اتضافت للانفنتوري", "Live Alert: new unit {code} ({project}) added to the Inventory"],
+  ["Live Alert: {n} وحدة جديدة اتضافت للانفنتوري من استيراد Excel", "Live Alert: {n} new units added to the Inventory from an Excel import"],
   ["الـ Agent", "Agent"],
   ["الـ Agent ده مش موجود", "This Agent doesn't exist"],
   ["الـ Last update مايبقاش في المستقبل", "The Last update can't be in the future"],
   ["الـ Last update مقفول على دورك", "The Last update is locked for your role"], // 2.29
+  ["الـ Location مقفول على دورك", "The Location is locked for your role"], // 2.34
   ["الكومنت طويل", "The comment is too long"],
   ["تاب المساحة ده اتشال · اختار تاب تاني", "This area tab was removed · pick another tab"],
   ["اختار Area من القايمة", "Pick an Area from the list"],
@@ -50,6 +52,9 @@ export default [
   ["الصور اتغيرت · حدّث الصفحة وجرّب تاني", "The photos changed · refresh the page and try again"],
   ["الصورة مش موجودة", "The photo doesn't exist"],
   ["مش مسموح لك ترفع أو تمسح في فولدر الوحدة", "You're not allowed to upload or delete in the unit folder"],
+  ["صور أو PDF أو DWG / DXF بس", "Photos, PDF or DWG / DXF only"],
+  ["الملف مش موجود في فولدر الـ Layout", "The file isn't in the Layout folder"],
+  ["مش مسموح لك تشوف الـ Layout", "You're not allowed to see the Layout"],
   // closing a unit after a Done Deal
   ["منار", "Manar"],
   ["رندا", "Randa"],

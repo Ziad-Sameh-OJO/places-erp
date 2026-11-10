@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PURCHASE_STATUS, type ProcurementOverview } from "@places/contracts";
@@ -27,6 +28,7 @@ export function Purchases() {
   // M-09: a hidden field's column and filter are gone; a request can't be sent without its amount and line
   const fields = useFields("procurement");
   const buyer = can("procurement", "create") && fields.edits("amount") && fields.edits("account");
+  useNewParam("1", () => setForm(true), buyer); // «جديد ← طلب شراء / دفع» (0.16)
   const items = list.data?.items ?? [];
   const cols: [string, string, (p: (typeof items)[number]) => React.ReactNode][] = [
     ["no", t("list.request"), (p) => <span key="n" className="mono">{p.no}</span>],

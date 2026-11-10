@@ -88,6 +88,22 @@ test("changing who covers the area changes where the next lead goes (Q1)", async
   assert.equal(await newLead(3), undefined);
 });
 
+test("«بتروح لـ: …» under the form's Area follows the area's people; anyone who adds leads may ask, HR can't (1.30)", async () => {
+  const hr = await session("basant.elsawy@places.com");
+  const telesales = await session("hadeer.tarek@places.com");
+  const route = (cookie: string, area = AREA) => call(`/leads/routing/area?area=${encodeURIComponent(area)}`, { cookie });
+  for (const id of await pool()) await tick(admin, AREA, id, false);
+  assert.deepEqual((await route(ops)).body, { salespeople: [] }); // nobody: «هتروح للأوبريشن»
+  await tick(admin, AREA, a, true);
+  await tick(admin, AREA, b, true);
+  const names = await Promise.all([a, b].map(async (id) => (await prisma.employee.findUniqueOrThrow({ where: { id } })).name));
+  const got = await route(telesales);
+  assert.equal(got.status, 200, JSON.stringify(got.body));
+  assert.deepEqual([...got.body.salespeople.map((p: { name: string }) => p.name)].sort(), [...names].sort());
+  assert.equal((await route(hr)).status, 403);
+  assert.equal((await route(ops, "")).status, 400);
+});
+
 /* ---------------- 1.13 · the rotation and «ليد جديد اتوزع» ---------------- */
 
 test("three leads in the same area go round its salespeople in order, then start again (1.13)", async () => {

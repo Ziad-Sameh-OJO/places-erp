@@ -1,7 +1,9 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { keepsInventory } from "@places/domain";
+import { INVENTORY_MANAGER, keepsInventory } from "@places/domain";
+import { UNIT_SORTS } from "@places/contracts";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -12,16 +14,18 @@ import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
 import { UnitForm } from "./unit-form";
 import { OwnerUpdateButton } from "./owner-update";
-import { OldDataImport } from "../imports/old-data-import";
+import { UnitImport } from "../imports/unit-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
+import { InventoryKpis } from "@/features/kpis/kpis-page";
 import { ListOfOptionsBar } from "./list-of-options";
 import { ListRequestsModal, useListRequests } from "./list-requests";
 import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 import { serverText } from "@/lib/server-text";
 
 const PAGE = 50;
+const SORTABLE: ReadonlySet<string> = new Set(UNIT_SORTS);
 type TypeTab = "all" | "Rent" | "Resale" | "Income" | "Primary" | "closed";
 
 /**
@@ -48,7 +52,11 @@ export function InventoryList() {
     if (q.get("missing")) setF({ missing: "true" }); // «مهامي النهارده»: «N وحدة تانية ناقصها بيانات» (2.20)
   }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
+  useNewParam("1", () => setForm("new"), me.can("inventory", "create")); // «جديد ← وحدة جديدة» from any page (0.16)
   const [teamTask, setTeamTask] = useState(false);
+  // 11.19 «KPIs الفريق»: the Inventory Manager only (demo inventory.js invView)
+  const [kpis, setKpis] = useState(false);
+  const invManager = !!me.me?.roles.includes(INVENTORY_MANAGER);
   const [report, setReport] = useState(false);
   // 2.32 · the inventory team's «طلبات الـ Lists» (who prepares them is the API's answer)
   const [lists, setLists] = useState(false);
@@ -57,8 +65,11 @@ export function InventoryList() {
   const run = useAction();
   // the rented / sold sheet keeps its own type and dates (M-03 5.2); the other tabs don't use them
   const [closedBy, setClosedBy] = useState<Pick<UnitQuery, "type" | "closedFrom" | "closedTo">>({});
+  // 0.15: a header click sorts every page in the API (back to page 1)
+  const [sort, setSort] = useState<Pick<UnitQuery, "sort" | "dir">>({});
   const query: UnitQuery = { ...f, ...(tab === "closed" ? { view: "closed", ...closedBy } : tab !== "all" ? { type: tab } : {}) };
-  const units = useUnits(query, page, PAGE);
+  const sorted: UnitQuery = { ...query, ...sort };
+  const units = useUnits(sorted, page, PAGE);
   const tabs = useUnitTabs(f).data;
   const s = useUnitSummary().data;
   const options = useUnitOptions().data;
@@ -90,6 +101,7 @@ export function InventoryList() {
     ["closed", "Rented / Sold", tabs?.closed],
   ];
 
+  if (kpis) return <InventoryKpis onBack={() => setKpis(false)} />;
   return (
     <>
       <div className="kpis">
@@ -102,12 +114,13 @@ export function InventoryList() {
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); }} items={types} />
         <span className="spacer" />
-        {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
+        {invManager && <button className="btn ghost" onClick={() => setKpis(true)}><Icon name="chart" />{t("list.teamKpis")}</button>}
+        {me.can("inventory", "import") && <UnitImport />}{/* 13.1 · 2.38 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}
         {prepares && <button className="btn ghost" onClick={() => setLists(true)}><Icon name="list" />{t("list.listRequests")}</button>}
         {/* 2.28: the sheet as filtered now, every page (the API drops what the reader may not see) */}
-        <ExportButton module="inventory" path="/inventory/units/export" query={toParams(query, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
+        <ExportButton module="inventory" path="/inventory/units/export" query={toParams(sorted, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
       <div className="toolbar">
@@ -153,6 +166,7 @@ export function InventoryList() {
           ))}</div>
           : <Empty text={t("list.empty")} />)
         : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k, t)))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)}
+          sort={{ keys: cols.map(([k]) => (SORTABLE.has(k) ? k : null)), by: sort.sort, dir: sort.dir, onChange: (by, dir) => { setSort({ sort: by, dir }); setPage(1); } }}
           pick={{ ids: list.map((u) => u.id), picked, onChange: setPicked, all: t("listOfOptions.pickAll"), one: (i) => t("listOfOptions.pickOne", { code: list[i]!.code }) }} />}
       {picked.length > 0 && <ListOfOptionsBar ids={picked} onClear={() => setPicked([])} />}
       {fields.shows("space") && <AreaTabsBar tabs={areaTabs} value={f.tabId} onChange={(tabId) => filter({ ...f, tabId })} editable={me.can("inventory", "edit")} />}

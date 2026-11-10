@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { NotActiveImportDone, NotActivePreview, NotActiveSheetView } from "@places/contracts";
@@ -19,13 +19,17 @@ const form = (file: File, fields: Record<string, string>) => {
  * the column that tells rows apart («منع التكرار بخانة», e.g. the unit number). The preview says how many rows are
  * new before anything is saved.
  */
-export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveSheetView[]; onClose: () => void; onDone: (sheetId: string) => void }) {
+export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
+  sheets: NotActiveSheetView[]; onClose: () => void; onDone: (sheetId: string) => void;
+  /** 2.39 · uploading inside a file: its name is fixed (no name field), and the file picked in «ملف جديد» starts it */
+  file?: NotActiveSheetView; initial?: File | null;
+}) {
   const t = useTranslations("inventory");
   const run = useAction();
   const toast = useToast();
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
-  const [name, setName] = useState(sheets[0]?.name ?? "");
+  const [name, setName] = useState(into?.name ?? sheets[0]?.name ?? "");
   const [column, setColumn] = useState("");
   const [numberCol, setNumberCol] = useState("");
   const [p, setP] = useState<NotActivePreview | null>(null);
@@ -40,6 +44,8 @@ export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveShee
     setP(col !== c ? await api.post<NotActivePreview>("/not-active/preview", form(f, { name: n.trim(), dedupeBy: col })) : r);
   });
   const pick = (f: File | undefined) => { setFile(f ?? null); setP(null); if (f) void look(f, name, column); };
+  // the file picked in «ملف جديد» goes in once, when the dialog opens
+  useEffect(() => { if (initial) pick(initial); }, []);
   const merge = () => step(async () => {
     const r = await api.post<NotActiveImportDone>("/not-active/import", form(file!, { name: name.trim(), dedupeBy: column, numberBy: numberCol }));
     await qc.invalidateQueries({ queryKey: ["not-active"] });
@@ -47,7 +53,7 @@ export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveShee
     onDone(r.sheetId);
   });
   return (
-    <Modal title={t("upload.title")} onClose={onClose}>
+    <Modal title={into ? t("upload.intoTitle", { name: into.name }) : t("upload.title")} onClose={onClose}>
       <div className="row">
         <label className="btn ghost">
           <Icon name="upload" />{file ? file.name : t("upload.pickFile")}
@@ -55,10 +61,10 @@ export function UploadSheet({ sheets, onClose, onDone }: { sheets: NotActiveShee
         </label>
       </div>
       <div className="grid">
-        <Field label={t("upload.sheetName")} req>
+        {!into && <Field label={t("upload.sheetName")} req>
           <input value={name} list="na-sheets" maxLength={60} placeholder={t("upload.sheetExample")} onChange={(e) => setName(e.target.value)} onBlur={() => file && void look(file, name, column)} />
           <datalist id="na-sheets">{sheets.map((s) => <option key={s.id} value={s.name} />)}</datalist>
-        </Field>
+        </Field>}
         {p && <Field label={t("upload.dedupeBy")} req>
           <select value={column} onChange={(e) => { setColumn(e.target.value); if (file) void look(file, name, e.target.value); }}>
             {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}

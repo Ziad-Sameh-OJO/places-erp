@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { CancelDeal, CollectDeal, CreateDeal, DealExecution, DealFilters, DealNote, DealPapers, DealUnitQuery, ReviewDeal } from "@places/contracts";
+import { CancelDeal, CollectDeal, CreateDeal, EditCollection, DealExecution, DealFilters, DealNote, DealPapers, DealUnitQuery, ReviewDeal } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -56,6 +56,13 @@ export class DealsController {
   @Requires("finance", "create")
   collect(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(CollectDeal)) body: CollectDeal) {
     return this.deals.collect(me, id, body);
+  }
+
+  /** 5.15 «تعديل يدوي»: whoever may edit in Finance corrects a collection / TCR (M-07, demo `finance: edit`). */
+  @Put(":id/tcrs/:tcrId")
+  @Requires("finance", "edit")
+  editCollection(@Me() me: CurrentUser, @Param("id") id: string, @Param("tcrId") tcrId: string, @Body(new ZodPipe(EditCollection)) body: EditCollection) {
+    return this.deals.editCollection(me, id, tcrId, body);
   }
 
   /** «وافقي على الـ Seller» (5.4): Manar, like the demo (`inventory: approve`). */

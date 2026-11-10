@@ -9,11 +9,11 @@ import type { CreateLead, LeadDetail, LeadFilters, LeadRow, LeadSide, RecommendA
  */
 type Hidden = ReadonlySet<string>;
 
-export function hideLeadRow<T extends Pick<LeadRow, "phones" | "area" | "type" | "space" | "budget" | "channel" | "campaign">>(r: T, hidden: Hidden): T {
+export function hideLeadRow<T extends Pick<LeadRow, "company" | "phones" | "area" | "type" | "space" | "budget" | "channel" | "campaign">>(r: T, hidden: Hidden): T {
   if (!hidden.size) return r;
   const h = (k: string) => hidden.has(k);
   return {
-    ...r, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type, space: h("space") ? null : r.space,
+    ...r, company: h("company") ? null : r.company, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type, space: h("space") ? null : r.space,
     budget: h("budget") ? null : r.budget, channel: h("channel") ? "" : r.channel, campaign: h("campaign") ? null : r.campaign,
   };
 }
@@ -21,7 +21,9 @@ export function hideLeadRow<T extends Pick<LeadRow, "phones" | "area" | "type" |
 export function hideLeadDetail<T extends Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote">>(d: T, hidden: Hidden): T {
   if (!hidden.size) return d;
   const h = (k: string) => hidden.has(k);
-  return { ...hideLeadRow(d, hidden), company: h("company") ? null : d.company, condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post };
+  // the duplicate-attempt line repeats the typed mobiles: gone with the phones
+  const activities = h("phones") ? d.activities.filter((a) => a.kind !== "duplicate") : d.activities;
+  return { ...hideLeadRow(d, hidden), activities, condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post };
 }
 
 /** One side of Operations' duplicate comparison. */
@@ -47,6 +49,8 @@ export function shownLeadFilters(f: LeadFilters, hidden: Hidden): LeadQuery {
   return {
     ...f, ...(hidden.has("area") ? { area: undefined } : {}), ...(hidden.has("channel") ? { channel: undefined } : {}),
     ...(hidden.has("campaignId") ? { campaignId: undefined } : {}), phoneSearch: !hidden.has("phones"),
+    // sorting by a hidden field would tell its value (0.15): the list keeps its default order
+    ...(f.sort && hidden.has(f.sort) ? { sort: undefined } : {}),
   };
 }
 

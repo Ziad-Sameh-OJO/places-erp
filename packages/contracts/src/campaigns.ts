@@ -35,13 +35,38 @@ export interface CampaignRow {
 }
 
 /** M-04 3.2 · 6.1: the dashboard's filters — a period of Cairo days (day / week / month / dates), a channel, a campaign. */
-export const DashboardQuery = z.object({
+const DashboardFilter = z.object({
   from: CalendarDay.optional(),
   to: CalendarDay.optional(),
   channel: z.string().trim().max(60).optional(),
   campaignId: z.string().max(40).optional(),
-}).refine((q) => !q.from || !q.to || q.from <= q.to, { message: "«من» لازم تبقى قبل «لحد»", path: ["to"] });
+});
+export const DashboardQuery = DashboardFilter.refine((q) => !q.from || !q.to || q.from <= q.to, { message: "«من» لازم تبقى قبل «لحد»", path: ["to"] });
 export type DashboardQuery = z.infer<typeof DashboardQuery>;
+
+/** 4.18 · «الليدز اللي ماكانتش Qualified»: the dashboard's filter, and one reason (a stage) to list. */
+export const NotQualifiedQuery = DashboardFilter.extend({ reason: z.string().max(40).optional() })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, { message: "«من» لازم تبقى قبل «لحد»", path: ["to"] });
+export type NotQualifiedQuery = z.infer<typeof NotQualifiedQuery>;
+
+/** One lead that never became Qualified, without the client's private data (no mobile): its reason and the salesperson's last word. */
+export interface NotQualifiedRow {
+  id: string; code: string; name: string; channel: string; campaign: string | null;
+  /** its stage: the action the salesperson took (No Answer, Not Interested, Fresh = nobody called yet, Cancellation, Hold) */
+  reason: string;
+  /** the latest comment a person wrote on it (else his latest action), who and when; null = nobody touched it */
+  comment: { text: string; by: string; at: string } | null;
+}
+export interface NotQualifiedView {
+  /** leads that arrived in the filter, and how many of them never became Qualified */
+  total: number;
+  notQualified: number;
+  byReason: Array<{ reason: string; count: number }>;
+  /** the latest first, at most `NOT_QUALIFIED_ROWS`; `matching` = how many the reason filter has */
+  rows: NotQualifiedRow[];
+  matching: number;
+}
+export const NOT_QUALIFIED_ROWS = 60;
 
 export interface SourceCountView { leads: number; qualified: number; rate: number | null }
 export interface MarketingDashboard {

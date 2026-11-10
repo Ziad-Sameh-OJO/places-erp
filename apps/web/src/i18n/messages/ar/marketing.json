@@ -106,8 +106,10 @@
   },
   "dashboard": {
     "period": "الفترة",
-    "ranges": { "r7": "آخر 7 أيام", "r30": "آخر 30 يوم", "rmonth": "الشهر ده", "rall": "كل الوقت", "rcustom": "فترة مخصصة" },
+    "ranges": { "rtoday": "النهارده", "r7": "آخر 7 أيام", "r30": "آخر 30 يوم", "rmonth": "الشهر ده", "rall": "كل الوقت", "rcustom": "فترة مخصصة" },
     "from": "من",
+    "search": "بحث",
+    "badRange": "تاريخ «من» بعد «لحد»",
     "to": "لحد",
     "allChannels": "كل الـ Channels",
     "campaign": "الكامبين",
@@ -130,6 +132,20 @@
     "lead": "ليد",
     "posts": "البوستات اللي جابت ليدز",
     "noPosts": "مفيش ليدز متربطة ببوست في الفترة دي",
+    "competitors": { "title": "تقرير المنافسين الشهري", "sub": "بينزلوا إيه + تحليل · بيتسلّم يوم {day}", "done": "اتسلّم الشهر ده", "waiting": "مستني يوم {day}", "none": "مفيش", "name": "اسم الملف / اللينك", "submit": "سلّم تقرير الشهر ده", "handed": "اتسلّم" },
+    "notQualified": {
+      "title": "الليدز اللي ماكانتش Qualified",
+      "sub": "السبب = الأكشن اللي السيلز عمله على الليد + آخر كومنت ليه، وصاحب الكومنت",
+      "of": "{n} من {total}",
+      "reason": "السبب",
+      "all": "الكل ({n})",
+      "share": "{pct}% من اللي ماكانوش Qualified",
+      "reasons": { "noAnswer": "No Answer · مردش", "notInterested": "Not Interested", "fresh": "لسه محدش كلّمه", "cancellation": "Cancellation", "hold": "Hold" },
+      "head": { "lead": "الليد", "source": "Channel · الكامبين", "reason": "السبب", "comment": "آخر أكشن / كومنت من السيلز", "by": "صاحب الكومنت", "when": "إمتى" },
+      "noComment": "مفيش كومنت · لسه محدش اتواصل",
+      "more": "ظاهر أحدث {n} من {total}.",
+      "allQualified": "كل الليدز في الفترة دي بقت Qualified."
+    },
     "note": "Qualified = أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتحسب أوتوماتيك هنا، وبيفضل محسوب حتى لو رجع Not Interested أو No Answer."
   },
   "deals": {

@@ -2,8 +2,9 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import type { TeamMember, TeamTaskView, UnitRow } from "@places/contracts";
-import { Card, Chip, Field, Icon, Modal, useAction } from "@/components/ui";
+import type { TaskKpiEffect, TeamMember, TeamTaskView, UnitRow } from "@places/contracts";
+import { KpiField, useKpiNote } from "@/features/tasks/new-task";
+import { Card, Chip, Field, Icon, Modal, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { dayTime } from "@/lib/format";
 
@@ -13,13 +14,15 @@ const CAP = 30; // domain TEAM_TASKS_PER_DAY (the API refuses the 31st)
  * 2.16 · «مهمة للفريق» (demo invwork.js teamTask): Manar picks who (with today's count out of 30), the task and the unit;
  * under it, what she gave today and what's still open.
  */
-export function TeamTaskModal({ units, onClose }: { units: UnitRow[]; onClose: () => void }) {
+export function TeamTaskModal({ units, onClose }: { units: Pick<UnitRow, "id" | "code" | "project">[]; onClose: () => void }) {
   const t = useTranslations("inventory.teamTasks");
   const qc = useQueryClient();
   const run = useAction();
   const team = useQuery({ queryKey: ["team-tasks", "team"], queryFn: () => api.get<TeamMember[]>("/inventory/team-tasks/team") }).data ?? [];
   const given = useQuery({ queryKey: ["team-tasks", "given"], queryFn: () => api.get<TeamTaskView[]>("/inventory/team-tasks") }).data ?? [];
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const kpiNote = useKpiNote();
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -27,11 +30,12 @@ export function TeamTaskModal({ units, onClose }: { units: UnitRow[]; onClose: (
     setBusy(true);
     void run(async () => {
       try {
-        await api.post("/inventory/team-tasks", { toUserId: f.get("to"), title: f.get("title"), unitId: f.get("unit") || undefined });
+        const r = await api.post<{ kpi: TaskKpiEffect }>("/inventory/team-tasks", { toUserId: f.get("to"), title: f.get("title"), unitId: f.get("unit") || undefined, countsInKpi: f.get("countsInKpi") === "yes" });
         form.reset();
         await qc.invalidateQueries({ queryKey: ["team-tasks"] });
+        toast(t("sent") + kpiNote(r.kpi, team.find((p) => p.id === f.get("to"))?.name ?? ""));
       } finally { setBusy(false); }
-    }, t("sent"));
+    });
   };
   return (
     <Modal title={t("title")} onClose={onClose}>
@@ -43,6 +47,7 @@ export function TeamTaskModal({ units, onClose }: { units: UnitRow[]; onClose: (
         <Field label={t("unit")}>
           <select name="unit"><option value="">—</option>{units.map((u) => <option key={u.id} value={u.id}>{u.code} · {u.project}</option>)}</select>
         </Field>
+        <KpiField />
         <div className="row end wide"><button className="btn" disabled={busy || !team.length}><Icon name="send" />{t("send")}</button></div>
       </form>
       {!!given.length && <TaskLines tasks={given} who="to" />}

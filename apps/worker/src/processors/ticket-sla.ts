@@ -26,6 +26,7 @@ export async function ticketSlaTick(now = new Date()): Promise<number> {
     const text = dispute
       ? `نزاع TK-${t.number} عدّى ${type.slaHours} ساعة من غير ما يتحسم: ${t.title}`
       : `تذكرة TK-${t.number} لقسم ${t.department} اتأخرت من غير رد · اتصعّدت ليك: ${t.title}`;
+    if (!to.length) continue; // no active manager to tell yet: leave it for a later tick instead of marking it escalated to nobody
     const told = await prisma.$transaction(async (tx) => {
       // only if nobody escalated or answered it meanwhile
       const done = await tx.ticket.updateMany({ where: { id: t.id, escalatedAt: null, status: { in: [...OPEN_TICKET_STATUSES] } }, data: { escalatedAt: now } });

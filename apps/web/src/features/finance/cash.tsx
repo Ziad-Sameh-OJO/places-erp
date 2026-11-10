@@ -13,6 +13,7 @@ import { MoveForm } from "./move-form";
 import { Voucher, VoucherById } from "./voucher";
 import { LedgerModal } from "./ledger-modal";
 import { DueBillsCard } from "./bills";
+import { fromDecimal, toDecimal } from "@places/domain";
 
 const ACCOUNT_KINDS = ["treasury", "bank", "wallet"] as const;
 
@@ -32,7 +33,7 @@ export function Cash() {
   if (!cash.data) return <Empty text={t("common.loading")} icon="clock" />;
   // M-09: a hidden amount comes blank: no sums of it here either, and no vouchers without it
   const c = cash.data, canPost = can("finance", "create") && fields.edits("amount");
-  const sum = (xs: { balance: string }[]) => (fields.shows("amount") ? xs.reduce((s, x) => s + Number(x.balance), 0).toFixed(2) : "");
+  const sum = (xs: { balance: string }[]) => (fields.shows("amount") ? toDecimal(xs.reduce((s, x) => s + fromDecimal(x.balance), 0)) : ""); // piasters, never floats
   const holders = c.custody.filter((h) => Number(h.balance)).length;
   const kindLabel = (k: string) => ((ACCOUNT_KINDS as readonly string[]).includes(k) ? t(`accountKind.${k as (typeof ACCOUNT_KINDS)[number]}`) : k);
   const btn = (k: MoveKind, icon: Parameters<typeof Icon>[0]["name"], ghost = true) => <button className={`btn ${ghost ? "ghost" : ""}`} onClick={() => setForm(k)}><Icon name={icon} />{t(`kind.${k}`)}</button>;

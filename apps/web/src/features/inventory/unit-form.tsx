@@ -10,14 +10,14 @@ import { moneyExact } from "@/lib/format";
 import { AgreementLink, type ColWord, type UnitTypeName, w } from "./unit-bits";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
-import { MapView, parseLocation } from "./unit-map";
 import { FileUpload } from "@/components/file-upload";
+import { FolderUpload } from "./unit-photos";
 
 type Key =
   | "type" | "project" | "area" | "space" | "condition" | "floor" | "building" | "parking" | "agentId" | "areaTabId" | "location"
   | "receivedAt" | "lastOwnerUpdateAt" | "divisible" | "minSplit" | "splitNote" | "ownerName" | "ownerPhone" | "pricePerSqm"
   | "leasePerSqm" | "maintenance" | "commission" | "paymentMethod" | "delivery" | "link" | "contractDuration" | "startsOn"
-  | "endsOn" | "escalationPct" | "serviceChargeUsd" | "tenant" | "note" | "alsoType" | "layout" | "comment" | "upfront" | "security" | "payment" | "term" | "grace";
+  | "endsOn" | "escalationPct" | "serviceChargeUsd" | "tenant" | "note" | "alsoType" | "comment" | "upfront" | "security" | "payment" | "term" | "grace";
 type Form = Record<Key, string>;
 
 /** [field, label, input type, required]: the demo's TYPE_FIELDS, with the requirements' names (M-03 3.1). Nothing is required (2.21). */
@@ -44,7 +44,7 @@ const TEXT_KEYS: Key[] = ["project", "area", "space", "floor", "building", "agen
 /** A new unit: today's «last update», received now (the demo's defaults). */
 function empty(type: UnitTypeName): Form {
   const blank = Object.fromEntries(TEXT_KEYS.map((k) => [k, ""])) as Record<Key, string>;
-  return { ...blank, type, alsoType: "", condition: "", parking: "0", divisible: "no", layout: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
+  return { ...blank, type, alsoType: "", condition: "", parking: "0", divisible: "no", receivedAt: localStamp(new Date()), lastOwnerUpdateAt: cairoDay(new Date()) };
 }
 
 /** An existing unit as the form's text fields (edit). */
@@ -57,13 +57,13 @@ function fromUnit(u: UnitDetail): Form {
     receivedAt: u.receivedAt ? localStamp(new Date(u.receivedAt)) : "", lastOwnerUpdateAt: cairoDay(new Date(u.lastOwnerUpdateAt)),
     divisible: u.divisible ? "yes" : "no", minSplit: s(u.minSplit), splitNote: s(u.splitNote), ownerName: s(u.ownerName), ownerPhone: s(u.ownerPhone),
     pricePerSqm: s(u.pricePerSqm), leasePerSqm: s(u.leasePerSqm), maintenance: s(u.maintenance), commission: s(u.commission),
-    paymentMethod: s(u.paymentMethod), layout: u.layout ? "yes" : "no", comment: s(u.comment), ...Object.fromEntries(DETAIL_KEYS.map((k) => [k, s(u.details[k])])),
+    paymentMethod: s(u.paymentMethod), comment: s(u.comment), ...Object.fromEntries(DETAIL_KEYS.map((k) => [k, s(u.details[k])])),
   };
 }
 
 /** The form's text → the API's sheet: numbers as numbers, empty = not filled. The API checks it all again. */
 function toBody(f: Form, sendReceived: boolean) {
-  const body: Record<string, unknown> = { type: f.type, divisible: f.divisible === "yes", layout: f.layout === "yes" };
+  const body: Record<string, unknown> = { type: f.type, divisible: f.divisible === "yes" };
   const keys: Key[] = ["alsoType", "project", "area", "space", "condition", "floor", "building", "parking", "agentId", "areaTabId", "location", "lastOwnerUpdateAt", "maintenance", "commission",
     ...TYPE_FIELDS[f.type as UnitTypeName].map(([k]) => k), ...(f.divisible === "yes" ? (["minSplit", "splitNote"] as Key[]) : [])];
   for (const k of new Set(keys)) {
@@ -121,8 +121,8 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
     if (!unit && first) setF((x) => (x.condition ? x : { ...x, condition: first }));
   }, [options, unit]);
   const [busy, setBusy] = useState(false);
-  const [picking, setPicking] = useState(false); // 2.27: the map under the Location field
   const [agreement, setAgreement] = useState<string | null>(null); // 2.31: the Income unit's new Agreement file, set after saving
+  const [layouts, setLayouts] = useState<string[]>([]); // 2.35: Layout files uploaded here, put in the unit's Layout folder after saving
   const original = unit ? fromUnit(unit).receivedAt : null;
   const set = (k: Key) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   const type = f.type as UnitTypeName;
@@ -139,6 +139,13 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
     return true;
   };
 
+  /** 2.35: the Layout files go in the unit's Layout file folder once it's saved. */
+  const putLayouts = async (id: string) => {
+    if (!layouts.length) return false;
+    await api.post(`/inventory/units/${id}/layout`, { fileIds: layouts });
+    return true;
+  };
+
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (busy) return;
@@ -149,12 +156,13 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
       try {
         if (unit) {
           const saved = await api.put<UnitDetail>(`/inventory/units/${unit.id}`, body);
-          const file = await putAgreement(unit.id);
-          toast(saved.updatedAt !== unit.updatedAt ? t("form.saved") : file ? t("form.agreementSaved") : t("form.noChange"));
+          const file = await putAgreement(unit.id), layout = await putLayouts(unit.id);
+          toast(saved.updatedAt !== unit.updatedAt || layout ? t("form.saved") : file ? t("form.agreementSaved") : t("form.noChange"));
           onSaved(unit.id);
         } else {
           const made = fromSheet ? await fromSheet.save(body) : await api.post<CreatedUnit>("/inventory/units", body);
           await putAgreement(made.id);
+          await putLayouts(made.id);
           toast(t("form.created", { code: made.code }));
           onSaved(made.id);
         }
@@ -222,21 +230,14 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
             {tabs.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
           </select>
         </Field>)}
-        {only("location", <Field label={t("form.location")}>
-          <div className="row">
-            <input name="location" dir="ltr" placeholder="30.02, 31.48" value={f.location} onChange={set("location")} />
-            <button type="button" className="btn ghost sm" aria-pressed={picking} onClick={() => setPicking(!picking)}><Icon name="pin" />{t("form.pick")}</button>
-          </div>
-        </Field>)}
-        {/* 2.27 · the demo's pickLoc (M-03 «بيفتح ماب و منار او رندا بيختارو اللوكيشن»): a click on the map writes «30.02, 31.48» */}
-        {picking && fields.edits("location") && <div className="wide">
-          <MapView at={parseLocation(f.location)} onPick={(location) => setF((x) => ({ ...x, location }))} />
-          <p className="hint">{t("form.mapHint")}</p>
-        </div>}
+        {/* 2.34 · a Google Maps link (an old unit's «lat, lng» still saves and opens) */}
+        {only("location", <Field label={t("form.location")}><input name="location" dir="ltr" placeholder="https://maps.app.goo.gl/…" value={f.location} onChange={set("location")} /></Field>)}
         {only("lastOwnerUpdateAt", <Field label={t("form.lastUpdate")}><input name="lastOwnerUpdateAt" type="date" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>)}
         {TYPE_FIELDS[type].map((x) => (type === "Income" && x[0] === "commission" ? [agreementField, input(x)] : input(x)))}
-        {only("layout", <Field label="Layout">
-          <select name="layout" value={f.layout} onChange={set("layout")}><option value="no">No</option><option value="yes">Yes</option></select>
+        {/* 2.35 · «Layout file»: files for the unit's Layout folder instead of Yes / No */}
+        {only("layout", <Field label={unit ? t("layout.formAdd") : t("layout.formLabel")}>
+          <FolderUpload layout left={20 - layouts.length} label={<><Icon name="upload" />{t("layout.upload")}</>} onDone={async (ids) => setLayouts((x) => [...x, ...ids])} />
+          {layouts.length > 0 && <span className="hint">{t("layout.picked", { count: layouts.length })}</span>}
         </Field>)}
         <Field label={t("form.receivedAt")}><input name="receivedAt" type="datetime-local" value={f.receivedAt} onChange={set("receivedAt")} /></Field>
         {only("divisible", <Field label={t("form.divisibleQ")}>

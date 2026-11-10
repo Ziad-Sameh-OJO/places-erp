@@ -1,14 +1,15 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
+import type { CreateTask, EditTask, MoveTask, TaskCreated, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, photoDayWarning, retouchFolder, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryService } from "../inventory/inventory.service";
+import { KpisService } from "../kpis/kpis.service";
 import { UnitPhotosService } from "../inventory/unit-photos.service";
 import { SettingsService } from "../settings/settings.service";
 import { type TaskRecord, TasksRepository } from "./tasks.repository";
@@ -32,6 +33,7 @@ export class TasksService {
     private readonly inventory: InventoryService,
     private readonly unitPhotos: UnitPhotosService,
     private readonly settings: SettingsService,
+    private readonly kpis: KpisService,
   ) {}
 
   /**
@@ -54,23 +56,25 @@ export class TasksService {
 
   async list(me: CurrentUser, f: TaskFilters, now = new Date()): Promise<TaskRow[]> {
     const recent = new Date(now.getTime() - BOARD_DONE_DAYS * 86_400_000);
+    const depts = await this.repo.departments();
     const where: Prisma.TaskWhereInput = {
       AND: [
         await this.scope(me),
         f.kind ? { kind: f.kind } : {},
         f.toUserId ? { toUserId: f.toUserId } : {},
+        f.scope ? sideWhere(depts, f.scope) : {},
         // one unit's tasks (its drawer, 2.30) are few: all of them, the old Done ones too, as in the demo's tab
         f.unitId ? { unitId: f.unitId } : { OR: [{ status: { not: "done" } }, { doneAt: { gte: recent } }] },
       ],
     };
     const rows = await this.repo.list(where, BOARD_MAX);
     const names = await this.repo.names(rows.flatMap((t) => [t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]));
-    return rows.map((t) => this.row(me, t, names, now));
+    return rows.map((t) => this.row(me, t, names, depts, now));
   }
 
   async get(me: CurrentUser, id: string): Promise<TaskRow> {
     const t = await this.find(me, id);
-    return this.row(me, t, await this.repo.names([t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]), new Date());
+    return this.row(me, t, await this.repo.names([t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]), await this.repo.departments(), new Date());
   }
 
   /** M-12 (Bayoumi 1-2, Rahma 6): shoots in 72 h, Retouch in 48 h, Retouch accepted the first time — of a month's Done tasks in the scope. */
@@ -98,7 +102,7 @@ export class TasksService {
   }
 
   /** M-04 2.1 step 4: give a task; the assignee is told, with the unit's data. */
-  async create(me: CurrentUser, input: CreateTask): Promise<{ id: string; warning: string | null }> {
+  async create(me: CurrentUser, input: CreateTask): Promise<TaskCreated> {
     const kind = taskKind(input.kind)!; // the contract refused unknown and system-only kinds
     if (!mayGive(me, kind.key)) throw new ForbiddenException(`مش من حقك تدّي مهمة ${kind.label}`);
     await this.checkAssignee(kind.key, input.toUserId);
@@ -112,21 +116,25 @@ export class TasksService {
       const types = (await this.settings.all()).mkTaskTypes.filter((t) => t.active).map((t) => t.value);
       if (!input.title || !types.includes(input.title)) throw new BadRequestException("اختار المهمة من «أنواع تاسكات التسويق»");
     }
+    // 4.16: the notes are all that goes with the unit's code (unless M-09 keeps this person from writing them)
+    const noNote = me.fields.fixed("tasks").has("note") ? null : taskNoteProblem(kind.key, input.note);
+    if (noNote) throw new BadRequestException(noNote);
     const data = {
       kind: kind.key, toUserId: input.toUserId, byUserId: me.id, dueOn: dayStartUtc(input.dueOn),
       unitId: kind.withUnit ? input.unitId! : null, title: kind.key === "marketing" ? input.title! : null,
       note: me.fields.fixed("tasks").has("note") ? null : input.note ?? null, // M-09: a note the person may not set starts empty
+      countsInKpi: input.countsInKpi ?? false, // 4.15: Skip unless «أيوه»
     };
     const warning = kind.key === "photo" ? photoDayWarning(kind.key, await this.repo.openSameDay(kind.key, me.id, input.toUserId, data.dueOn)) : null;
     const created = await this.db.$transaction(async (tx) => {
       const t = await this.repo.create(tx, data);
       await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: "create", userId: me.id, after: { ...data, dueOn: input.dueOn } }, tx);
-      return t;
+      return { ...t, kpi: data.countsInKpi ? await this.kpis.countTask(tx, input.toUserId, me.id, me.id) : null };
     });
     if (input.toUserId !== me.id) {
       await this.notifications.notify({ event: "task.new", text: `مهمة ${kind.label} جديدة: ${unitCode ?? input.title} من ${me.name}`, link: link(created.id), userIds: [input.toUserId] });
     }
-    return { id: created.id, warning };
+    return { id: created.id, warning, kpi: created.kpi };
   }
 
   /** M-04 3.3: To Do → In Progress → Done, Undo (7.1), and the Retouch's upload → Manar approves or sends it back (2.2). */
@@ -236,26 +244,29 @@ export class TasksService {
     if (userIds.length) await this.notifications.notify({ event: "task.changed", text, link: link(t.id), userIds: [...new Set(userIds)] });
   }
 
-  private row(me: CurrentUser, t: TaskRecord, names: Map<string, string>, now: Date): TaskRow {
+  private row(me: CurrentUser, t: TaskRecord, names: Map<string, string>, depts: Map<string, string>, now: Date): TaskRow {
     const a = actor(me, t);
     const status = t.status as TaskStatus;
     const u = t.unit;
     const sla = taskSla({ kind: t.kind, status, createdAt: t.createdAt, doneAt: t.doneAt, returned: t.returned, unitEnteredAt: u?.enteredAt ?? null }, now);
-    // the owner's number: the photographer of a shoot calls him (M-04 2.1 step 5); otherwise only who sees owner numbers (M-10 4.1)
-    // M-09 field permissions on top of that: a hidden field's value never leaves the API (the screens leave it out too)
-    const h = me.fields.hidden("tasks"), hide = <V,>(k: string, v: V, blank: V) => (h.has(k) ? blank : v);
-    const ownerPhone = (t.kind === "photo" && t.toUserId === me.id) || seesOwnerNumbers(me.grants) ? hide("ownerPhone", u?.ownerPhone ?? null, null) : null;
+    // 4.16 (demo tasks.js `card`): nothing about the unit goes with a task — outside the inventory the person gets its
+    // code and the sender's notes only (the photographer too: Manar writes what he needs). Inside it, the owner's number
+    // only for who sees owner numbers (M-10 4.1); M-09 field permissions on top: a hidden field never leaves the API.
+    const inv = me.grants.can("inventory", "view");
+    const h = me.fields.hidden("tasks"), hide = <V,>(k: string, v: V, blank: V) => (!inv || h.has(k) ? blank : v);
+    const ownerPhone = seesOwnerNumbers(me.grants) ? hide("ownerPhone", u?.ownerPhone ?? null, null) : null;
     return {
       id: t.id, kind: t.kind, kindLabel: taskKind(t.kind)?.label ?? t.kind, title: t.title,
       unit: u && {
-        id: u.id, code: u.code, project: u.project, area: hide("area", u.area, ""), floor: hide("floor", u.floor, null), building: hide("building", u.building, null),
+        id: u.id, code: u.code, project: inv ? u.project : "", area: hide("area", u.area, ""), floor: hide("floor", u.floor, null), building: hide("building", u.building, null),
         ownerName: hide("ownerName", u.ownerName, null), ownerPhone,
       },
       sla: sla && { due: sla.due.toISOString(), hoursLeft: sla.hoursLeft, met: sla.met },
       by: t.byUserId ? { id: t.byUserId, name: names.get(t.byUserId) ?? "—" } : null,
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },
-      dueOn: day(t.dueOn), status, returned: t.returned, note: hide("note", t.note, null), doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
-      late: isTaskLate({ status, dueOn: day(t.dueOn) }, now),
+      dueOn: day(t.dueOn), status, returned: t.returned, note: h.has("note") ? null : t.note, doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
+      late: isTaskLate({ status, dueOn: day(t.dueOn) }, now), countsInKpi: t.countsInKpi,
+      side: isTeamTask(t.byUserId ? depts.get(t.byUserId) ?? "" : null, depts.get(t.toUserId) ?? "") ? "team" : "outside",
       can: {
         moves: me.grants.can("tasks", "edit") ? taskMovesFor(t.kind, status, a) : [], edit: me.grants.can("tasks", "edit") && a.manager && status !== "done",
         folder: folder(me, t),
@@ -283,6 +294,19 @@ function actor(me: CurrentUser, t: Pick<TaskRecord, "toUserId" | "byUserId">): T
 function folder(me: CurrentUser, t: TaskRecord): { open: boolean; upload: boolean } {
   const f = retouchFolder(t.kind, t.status as TaskStatus, actor(me, t));
   return { open: f.open && !!t.unit, upload: f.upload && !!t.unit && me.grants.can("tasks", "edit") };
+}
+
+/**
+ * 4.14 · the side as a query (domain isTeamTask): the team's = sender and assignee in one department, or no sender
+ * (the system's); the rest goes outside. One OR branch per department: there are only a handful.
+ */
+function sideWhere(depts: Map<string, string>, side: TaskSide): Prisma.TaskWhereInput {
+  const groups = new Map<string, string[]>();
+  for (const [id, d] of depts) groups.set(d, [...(groups.get(d) ?? []), id]);
+  const team: Prisma.TaskWhereInput = {
+    OR: [{ byUserId: null }, ...[...groups.values()].map((ids) => ({ toUserId: { in: ids }, byUserId: { in: ids } }))],
+  };
+  return side === "team" ? team : { NOT: team };
 }
 
 const label = (t: Pick<TaskRecord, "kind" | "title" | "unit">) => `${taskKind(t.kind)?.label ?? t.kind} ${t.unit?.code ?? t.title ?? ""}`.trim();

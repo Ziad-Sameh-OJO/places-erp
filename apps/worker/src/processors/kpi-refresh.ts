@@ -8,7 +8,7 @@ import { prisma, type Prisma } from "@places/db";
 import {
   type DealMoney, type DealStatus, type MetricParams, type Method, type WorkCalendar,
   type Nature, closedInSla, endOfLocalDay, fromDecimal, isTicketLate, pettyCapScore, rollUp, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
-  kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, timedTasks, timeliness,
+  kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, tasksOnTime, timedTasks, timeliness,
 } from "@places/domain";
 import { workCalendar } from "../calendar.ts";
 
@@ -113,7 +113,8 @@ const MEASURES: Record<string, Measure> = {
   }), from, c.now),
   dealsCount: async (c, p, from, who) => prisma.deal.count({ where: { status: NOT_DONE_DEAL, closedAt: { gte: from }, participants: { some: { employeeId: who.id, side: "BUYER" } } } }),
   ownTarget: async (c, p, from, who) => targetShare(c, [who]),
-  teamTarget: async (c, p, from, who) => targetShare(c, await prisma.employee.findMany({ where: { OR: [{ teamLeaderId: who.id }, { id: who.id }] }, select: { id: true, target: true } })),
+  // the team is its salespeople (domain team-leader.ts, demo tlStats): the Team Leader's own target and deals stay out
+  teamTarget: async (c, p, from, who) => targetShare(c, await prisma.employee.findMany({ where: { teamLeaderId: who.id }, select: { id: true, target: true } })),
   att: async (c, p, from, who) => {
     const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(c.qStart, c) } }, select: { deduction: true } });
     return pct(days.filter((d) => Number(d.deduction) === 0).length, days.length);
@@ -176,6 +177,11 @@ const MEASURES: Record<string, Measure> = {
     const l = await prisma.listRequest.findMany({ where: { createdAt: { gte: c.qStart }, doneAt: { not: null } }, select: { unconfirmed: true } });
     return pct(l.filter((x) => x.unconfirmed === 0).length, l.length);
   },
+  // 4.15: the tasks sent to this person with «تتحسب في الـ KPIs», of the quarter (by their day)
+  tasksOnTime: async (c, p, from, who) => {
+    const t = await prisma.task.findMany({ where: { toUserId: who.userId, countsInKpi: true, dueOn: { gte: dateOnly(c.qStart, c) } }, select: { dueOn: true, doneAt: true } });
+    return tasksOnTime(t.map((x) => ({ dueOn: day(x.dueOn), doneAt: x.doneAt })), c.now, c.cal);
+  },
   tickets: async (c) => ticketsOnTime(c, { type: { not: "dispute" } }),
   disputes: async (c) => ticketsOnTime(c, { type: "dispute" }),
   proc48: async (c) => {
@@ -199,7 +205,7 @@ const MEASURES: Record<string, Measure> = {
   },
 };
 /** Company-wide metrics are the same on every card: measured once per run and settings. */
-const PER_PERSON = new Set(["newLeadRoute", "calls", "visitsDone", "unitsBrought", "firstAction", "qualifiedRate", "activitiesDone", "dealsCount", "ownTarget", "teamTarget", "att", "attSales"]);
+const PER_PERSON = new Set(["tasksOnTime", "newLeadRoute", "calls", "visitsDone", "unitsBrought", "firstAction", "qualifiedRate", "activitiesDone", "dealsCount", "ownTarget", "teamTarget", "att", "attSales"]);
 
 /** `only`: write just these people's cards (a test, or re-running one person); everything is still measured for «team». */
 export async function kpiRefreshTick(now = new Date(), only?: readonly string[]): Promise<number> {
