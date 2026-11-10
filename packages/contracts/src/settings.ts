@@ -112,7 +112,8 @@ export const Preferences = z.object({ emailNotifications: z.boolean() });
  * M-14 (51): a device's push subscription, as the browser's PushSubscription.toJSON() gives it. Only https push
  * services: the API posts to this address, so it may never point inside the network.
  */
-const PushEndpoint = z.string().url("عنوان الجهاز غلط").max(1000).refine((u) => u.startsWith("https://"), "عنوان الجهاز لازم يبقى https");
+const PRIVATE_HOST = /^(localhost|\[?[0-9a-f:.]+\]?|.*\.(local|internal|lan))$/i; // an IP literal or a local name: never a public push service
+const PushEndpoint = z.string().url("عنوان الجهاز غلط").max(1000).refine((u) => u.startsWith("https://") && !PRIVATE_HOST.test(new URL(u).hostname), "عنوان الجهاز لازم يبقى https لخدمة إشعارات عامة");
 export const PushSubscriptionInput = z.object({
   endpoint: PushEndpoint,
   keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),

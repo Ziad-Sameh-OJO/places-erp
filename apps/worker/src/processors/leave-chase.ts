@@ -17,6 +17,7 @@ export async function leaveChaseTick(): Promise<void> {
     const to = step === "remind" ? (r.tlUserId ? [r.tlUserId] : [])
       : (await prisma.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: (await prisma.notificationRule.findUnique({ where: { event: esc.key } }))?.toRoles ?? [...esc.toRoles] } } } } }, select: { id: true } })).map((u) => u.id);
     const event = step === "escalate" ? "hr.leave_escalated" : "hr.leave_request";
+    if (!to.length) continue; // nobody to tell (a request without a Team Leader): don't stamp it as reminded
     const told = await prisma.$transaction(async (tx) => {
       const claimed = await tx.leaveRequest.updateMany({ where: { id: r.id, ...(step === "remind" ? { remindedAt: null } : { escalatedAt: null }) }, data: step === "remind" ? { remindedAt: now } : { escalatedAt: now } });
       if (!claimed.count || !to.length) return false;

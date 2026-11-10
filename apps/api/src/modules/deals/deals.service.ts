@@ -177,6 +177,7 @@ export class DealsService {
     // M-09: a field she may not change keeps its stored value (the form sends them all)
     const fixed = me.fields.fixed("deals");
     const input: ReviewDeal = Object.fromEntries(Object.entries(sheet).filter(([k]) => !fixed.has(k))) as ReviewDeal;
+    let lockNotify: (() => Promise<unknown>) | undefined;
     const result = await this.db.$transaction(async (tx) => {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
@@ -194,11 +195,12 @@ export class DealsService {
       if (buyers) await this.repo.setBuyers(tx, id, buyers as string[]);
       await this.clientAccount(tx, me, d); // 9.12: the client's own account under 113 opens with the approval
       // 5.5 · M-02 6.2 · Q16: the approved deal locks its unit's side; Manar (Rent) / Randa (Resale, Income) confirm the close
-      await this.unitLocks.lock(d.unit.id, id, { type: (input.type ?? d.type) as DealType, userId: me.id }, tx);
+      lockNotify = (await this.unitLocks.lock(d.unit.id, id, { type: (input.type ?? d.type) as DealType, userId: me.id }, tx)).notify;
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "approve", userId: me.id,
         before: { status: d.status, ...edits?.before }, after: { status: "APPROVED", ...edits?.after } }, tx);
       return d;
     });
+    await lockNotify?.(); // «أكّد قفل الوحدة» for Manar / Randa, now that the approval is committed
     await this.announce(result, input);
     return this.get(me, id);
   }
@@ -286,9 +288,9 @@ export class DealsService {
     const amount = fromDecimal(input.amount);
     const lines = await this.vouchers.commissionLines();
     const { result, signers } = await this.db.$transaction(async (tx) => {
+      await this.repo.lock(tx, id); // then read: the status must be the one after any collection running right now
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
-      await this.repo.lock(tx, id);
       const money = toMoney(d, await this.repo.payments(tx, id));
       const problem = collectionProblem(money, amount);
       if (problem) throw new BadRequestException(problem);
@@ -411,9 +413,9 @@ export class DealsService {
    */
   async approveSeller(me: CurrentUser, id: string): Promise<DealDetail> {
     const { code, sellers } = await this.db.$transaction(async (tx) => {
+      await this.repo.lock(tx, id); // then read: a collection finishing right now decides whether the seller's commission posts
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
-      await this.repo.lock(tx, id);
       const waiting = d.participants.filter((p) => p.side === "SELLER" && !p.approved).map((p) => p.employee);
       if (!waiting.length) throw new BadRequestException("مفيش Seller مستني موافقة على الصفقة دي");
       await this.repo.approveSellers(tx, id);

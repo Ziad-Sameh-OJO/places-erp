@@ -21,7 +21,9 @@ export function hideLeadRow<T extends Pick<LeadRow, "phones" | "area" | "type" |
 export function hideLeadDetail<T extends Omit<LeadDetail, "canSeeLogs" | "logCount">>(d: T, hidden: Hidden): T {
   if (!hidden.size) return d;
   const h = (k: string) => hidden.has(k);
-  return { ...hideLeadRow(d, hidden), company: h("company") ? null : d.company, condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post };
+  // the duplicate-attempt line repeats the typed mobiles: gone with the phones
+  const activities = h("phones") ? d.activities.filter((a) => a.kind !== "duplicate") : d.activities;
+  return { ...hideLeadRow(d, hidden), activities, company: h("company") ? null : d.company, condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post };
 }
 
 /** One side of Operations' duplicate comparison. */
