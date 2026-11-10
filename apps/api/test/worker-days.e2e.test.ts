@@ -14,7 +14,7 @@ import { recurringBillsTick } from "../../worker/src/processors/recurring-bills.
 import { draftAdminAlarmTick } from "../../worker/src/processors/draft-admin-alarm.ts";
 import { kpiRefreshTick } from "../../worker/src/processors/kpi-refresh.ts";
 import { workingDay } from "../../worker/src/calendar.ts";
-import { workingNow } from "./helpers.ts";
+import { kpiQuarterLock, workingNow } from "./helpers.ts";
 
 const START = new Date();
 const P = `E2E-WD ${Date.now()}`;
@@ -84,15 +84,11 @@ test("M-07 9.16: a fixed bill whose day is a Friday is announced the next workin
   assert.equal(new Set(n.map((x) => x.userId)).size, n.length, "once each");
 });
 
-test("M-08 3.1 · M-12: «الالتزام بسقف العهدة» is measured — a safe over its ceiling makes it 0%", async () => {
-  // kpis.e2e closes the quarter and opens the next for a moment; the job measures the current quarter
-  for (let i = 0; i < 50; i++) {
-    const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
-    if (q?.id === "2026-Q4" && q.status === "open") break;
-    await new Promise((r) => setTimeout(r, 200));
-  }
+// under the KPI-quarter lock: the job measures the current quarter, Q4 2026, which kpis.e2e closes for a while
+test("M-08 3.1 · M-12: «الالتزام بسقف العهدة» is measured — a safe over its ceiling makes it 0%", () => kpiQuarterLock(async () => {
   const item = await prisma.kpiItem.findFirstOrThrow({ where: { metric: "pettyCap", card: { quarter: "2026-Q4" } }, select: { id: true, value: true, card: { select: { employeeId: true } } } });
-  const bank = await prisma.account.findFirstOrThrow({ where: { kind: "bank", archivedAt: null }, orderBy: { code: "desc" }, select: { id: true, cap: true } });
+  // a seeded bank: the finance files add banks of their own and delete them in their `after`, maybe while this runs
+  const bank = await prisma.account.findFirstOrThrow({ where: { kind: "bank", archivedAt: null, createdAt: { lt: START } }, orderBy: [{ createdAt: "asc" }, { code: "asc" }], select: { id: true, cap: true } });
   const day = await workingNow();
   try {
     // a ceiling no balance can be under: whatever the other safes hold, one over its ceiling is enough
@@ -105,4 +101,4 @@ test("M-08 3.1 · M-12: «الالتزام بسقف العهدة» is measured �
     // only the refresh lines that wrote this item: kpi-job / kpi-ops check their own at the same time
     await prisma.auditLog.deleteMany({ where: { module: "kpis", entity: "KpiItem", action: "refresh", at: { gte: START }, after: { path: ["items"], array_contains: [{ id: item.id }] } } });
   }
-});
+}));
