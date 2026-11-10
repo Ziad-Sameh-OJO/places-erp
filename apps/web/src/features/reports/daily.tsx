@@ -106,7 +106,7 @@ export function DailyBoard() {
   const q = useDay(id, day);
   const d = q.data ?? (id === me?.id ? first.data : undefined);
   if (!d) return <Card><Empty text={q.isError ? t("none") : td("loading")} icon="list" /></Card>;
-  const today = new Date().toISOString().slice(0, 10), shown = d.form.day, dayLbl = shown === today ? td("today") : new Date(shown).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }), shown = d.form.day, dayLbl = shown === today ? td("today") : new Date(shown).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
   return (
     <Card title={t("title")} icon="list" extra={<Chip tone="info">{t("handedAt", { time: d.time })}</Chip>} sub={t("sub", { to: serverText(d.to) })}>
       <div className="row">

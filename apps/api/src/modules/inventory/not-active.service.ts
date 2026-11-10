@@ -43,8 +43,8 @@ export class NotActiveService {
     return { all: me.grants.can("notactive", "approve"), userId: me.id };
   }
 
-  async sheets(): Promise<NotActiveSheetView[]> {
-    return (await this.repo.sheets()).map(view);
+  async sheets(me: CurrentUser): Promise<NotActiveSheetView[]> {
+    return (await this.repo.sheets(this.scope(me))).map(view);
   }
 
   async rows(me: CurrentUser, sheetId: string, f: NotActiveRowFilters): Promise<Paged<NotActiveRowView>> {

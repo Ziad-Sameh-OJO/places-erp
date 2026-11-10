@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { serverText } from "@/lib/server-text";
 import { useMe } from "@/lib/me";
-import { Card, Chip, Field, useAction } from "@/components/ui";
+import { Card, Chip, Field, onFormSubmit, useAction } from "@/components/ui";
 import { MyLeavesCard } from "@/features/hr/leaves";
 import { MyExcusesCard } from "@/features/hr/excuses";
 import { PushCard } from "@/features/notifications/push";
@@ -30,10 +30,10 @@ export default function ProfilePage() {
       </Card>
       <PushCard />
       <Card title={t("profile.passwordTitle")} icon="lock" sub={t("profile.passwordSub")}>
-        <form className="form" action={(f) => {
+        <form className="form" onSubmit={onFormSubmit((f) => {
           if (f.get("next") !== f.get("next2")) return void run(async () => { throw new Error(t("profile.mismatch")); });
           void run(() => api.post("/auth/password", { current: f.get("current"), next: f.get("next") }), t("profile.changed"));
-        }}>
+        })}>
           <Field label={t("profile.current")} req><input name="current" type="password" autoComplete="current-password" required /></Field>
           <Field label={t("profile.next")} req><input name="next" type="password" autoComplete="new-password" required minLength={10} /></Field>
           <Field label={t("profile.next2")} req><input name="next2" type="password" autoComplete="new-password" required /></Field>

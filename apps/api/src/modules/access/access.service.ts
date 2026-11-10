@@ -127,7 +127,7 @@ export class AccessService {
     if (!u) throw new NotFoundException();
     await this.db.$transaction(async (tx) => {
       await tx.user.update({ where: { id }, data: active ? { status: u.passwordHash ? "ACTIVE" : "INVITED", endDate: null, failedLogins: 0 } : { status: "DISABLED" } });
-      if (!active) await tx.session.deleteMany({ where: { userId: id } });
+      if (!active) { await tx.session.deleteMany({ where: { userId: id } }); await tx.authToken.deleteMany({ where: { userId: id } }); } // a live reset / invite link must not reopen it
       await this.audit.record({ module: "access", entity: "User", entityId: id, action: active ? "enable" : "disable", userId: me.id }, tx);
     });
   }
@@ -324,6 +324,7 @@ export class AccessService {
    * its roles together plus its own exceptions (3.2), the same rule the API checks on every call.
    */
   async permissionsReport(me: CurrentUser) {
+    const hidden = me.fields.hidden("access"); // M-09 field permissions: a hidden field never leaves the API
     const users = await this.repo.permissionHolders();
     await this.audit.record({ module: "access", entity: "User", entityId: "permissions-report", action: "export", userId: me.id, after: { rows: users.length } });
     return users.map((u) => {
@@ -332,7 +333,7 @@ export class AccessService {
         Object.fromEntries(u.overrides.map((o) => [o.module, o.actions as Action[]])),
       );
       return {
-        name: u.employee?.name ?? u.email, email: u.email, department: u.employee?.department ?? "", status: u.status,
+        name: u.employee?.name ?? (hidden.has("email") ? "" : u.email), email: hidden.has("email") ? "" : u.email, department: hidden.has("department") ? "" : u.employee?.department ?? "", status: u.status,
         roles: u.roles.map((r) => r.role.label).join(" + "), scope: grants.scope,
         overrides: u.overrides.map((o) => MODULE_LABEL[o.module as ModuleKey] ?? o.module).join("، "),
         modules: Object.fromEntries(MODULES.map((m) => [m, ACTIONS.filter((a) => grants.can(m, a)).map((a) => ACTION_LABEL[a]).join(" · ")])) as Record<ModuleKey, string>,
