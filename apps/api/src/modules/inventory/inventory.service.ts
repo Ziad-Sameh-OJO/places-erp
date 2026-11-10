@@ -5,7 +5,7 @@ import {
   type MissingUnitsToday, type UnitImportOptions, type UnitImportReviewRow, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, findDuplicates, importDecision, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
+  FIELDS, UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, findDuplicates, importDecision, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -128,7 +128,8 @@ export class InventoryService {
   }
 
   private scope(me: CurrentUser, now = new Date()): UnitScope {
-    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now), hidden: me.fields.hidden("inventory") };
+    const hidden = me.fields.hidden("inventory");
+    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now), hidden, owners: { name: !hidden.has("ownerName"), phone: !hidden.has("ownerPhone") } };
   }
 
   async list(me: CurrentUser, filters: UnitFilters): Promise<Paged<UnitRow>> {
@@ -441,13 +442,15 @@ const EMPTY: Record<string, unknown> = { area: "", space: 0, condition: "", park
 const INPUT_KEYS = ["area", "space", "areaTabId", "condition", "floor", "building", "parking", "agentId", "maintenance", "commission", "location", "comment",
   "lastOwnerUpdateAt", "divisible", "minSplit", "splitNote", "ownerName", "ownerPhone", "pricePerSqm", "leasePerSqm", "paymentMethod", "delivery", "upfront",
   "security", "payment", "term", "grace", "escalationPct", "link", "contractDuration", "startsOn", "endsOn", "serviceChargeUsd", "tenant", "note"] as const;
+const WRITE_ON_CREATE = new Set((FIELDS.inventory ?? []).filter((f) => f.writeOnCreate).flatMap((f) => [f.key, ...(f.covers ?? [])]));
 function keepFixed(input: UnitInput, before: UnitRecord | null, fixed: ReadonlySet<string>): UnitInput {
   if (!fixed.size) return input;
   const out: Record<string, unknown> = { ...input };
   const stored = (before ?? {}) as Record<string, unknown>, details = (before?.details ?? {}) as Record<string, unknown>;
   for (const k of INPUT_KEYS) {
     if (!fixed.has(k)) continue;
-    if (!before) { out[k] = EMPTY[k]; continue; }
+    // 2.36: the unit's owner and agent are entered on a new unit by whoever adds it, even when they can't see them after
+    if (!before) { if (!WRITE_ON_CREATE.has(k)) out[k] = EMPTY[k]; continue; }
     const v = k in stored ? stored[k] : details[k];
     out[k] = v instanceof Date ? localDate(v) : v != null && typeof v === "object" && "toFixed" in v ? (v as Prisma.Decimal).toFixed(2) : v ?? undefined;
   }

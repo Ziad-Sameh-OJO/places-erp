@@ -21,8 +21,8 @@ export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
 export type UnitRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_DETAIL }>;
 
 /** Who the list is for: drafts and owners' details are for the people who keep the inventory (domain keepsInventory). */
-/** `hidden`: the reader's hidden fields (M-09): not searched, not counted as missing. */
-export interface UnitScope { insider: boolean; staleBefore: Date; hidden?: ReadonlySet<string> }
+/** `hidden`: the reader's hidden fields (M-09): not searched, not counted as missing. `owners`: the owner name / number the person may search by (2.36). */
+export interface UnitScope { insider: boolean; staleBefore: Date; hidden?: ReadonlySet<string>; owners?: { name: boolean; phone: boolean } }
 export type Tab = AreaRange & { id: string };
 /** The list's filters, with «ناقصها بيانات» (2.20) resolved to the units it names (the service works them out). */
 export type ListFilters = UnitFilters & { missingIds?: string[] };
@@ -291,8 +291,9 @@ function unitWhere(s: UnitScope, f: Omit<ListFilters, "page" | "pageSize">, tabs
       { code: q }, { project: q },
       // a hidden field can't be searched either: the hits would tell its value
       ...(s.hidden?.has("area") ? [] : [{ area: q }]), ...(s.hidden?.has("building") ? [] : [{ building: q }]),
-      // owners are searched only by the people who see them
-      ...(s.insider ? [{ ownerName: q }, ...(digits.length >= 4 ? [{ ownerPhone: { contains: digits } }] : [])] : []),
+      // owners are searched only by the people who see them (a hidden field is never searched: a match would tell it)
+      ...(s.insider && s.owners?.name !== false ? [{ ownerName: q }] : []),
+      ...(s.insider && s.owners?.phone !== false && digits.length >= 4 ? [{ ownerPhone: { contains: digits } }] : []),
     ] });
   }
   return { AND: and };

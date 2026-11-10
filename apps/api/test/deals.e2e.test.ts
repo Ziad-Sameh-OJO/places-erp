@@ -75,7 +75,7 @@ test("«سجّل صفقة»: the salesperson's own leads with their company, ope
   const units = await call(`/deals/units?q=${encodeURIComponent(`${C} مشروع`)}`, { cookie: mohsen });
   assert.equal(units.status, 200);
   assert.deepEqual(units.body.map((u: { id: string }) => u.id).sort(), [unitId, unit2Id, unit4Id].sort()); // the draft isn't offered
-  assert.equal(units.body[0].agent.id, emp.ali!.id);
+  assert.equal(units.body[0].agent, null); // 2.36: the unit's agent is the Inventory Manager's only (M-09, the picker follows it)
 
   assert.equal((await call("/deals/form", { cookie: hr })).status, 403);
   assert.equal((await call("/deals", { cookie: hr })).status, 403);
