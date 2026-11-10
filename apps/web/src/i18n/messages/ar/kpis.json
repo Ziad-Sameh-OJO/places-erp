@@ -233,5 +233,20 @@
     "back": "رجوع للوحدات",
     "note": "كارتك وكروت فريق الانفنتوري. افتحي أي كارت وعدّلي أو ضيفي بنود من «إضافة أو تعديل KPIs»، ودخّلي القيم اليدوية لفريقك واعتمدي نتايجهم. اعتماد كارتك إنتي بيفضل مع نانسي.",
     "missing": "في الفريق من غير كارت KPIs"
+  },
+  "home": {
+    "mine": "الـ KPIs بتاعتي",
+    "mineSub": "{quarter} · يتابعني: {follower}",
+    "allMet": "كل البنود محققة لحد دلوقتي.",
+    "openCard": "افتح الكارت",
+    "open": "افتح الكارت",
+    "ofTarget": "{value} من {target}",
+    "ofRequired": "{done} من {need}",
+    "approveSub": "{count} بند يدوي بتدخّله · ومستني اعتمادك",
+    "enterTitle": "دخّل أرقام KPIs {name}",
+    "enterSub": "{count} بند بتدخّله بإيدك",
+    "deliverTitle": "تسليم: {item}",
+    "deliverSub": "{done} من {need} · بند في الـ KPIs بتاعتك",
+    "deliver": "سلّم"
   }
 }
