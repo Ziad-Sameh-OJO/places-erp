@@ -134,7 +134,7 @@ export class LeadsService {
     const canSeeLogs = canSeeLeadLogs(me.roles, leadLogRoles);
     // the same lines the Logs tab lists: the lead's own records plus its audit trail
     const logCount = canSeeLogs ? lead.activities.length + (await this.repo.auditCount(id)) : null;
-    const detail = toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla);
+    const detail = toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla, me.fields.hidden("inventory"));
     // 1.24: «وافق على التأجيل» only for whom the lead rules name (the salesperson's TL by default)
     if (lead.assignedToId && detail.visits.some((v) => v.postpone?.status === "pending") && (await this.canDecidePostpone(me, lead.assignedToId))) for (const v of detail.visits) if (v.postpone) v.postpone.canDecide = v.postpone.status === "pending";
     return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount };
@@ -287,6 +287,11 @@ export class LeadsService {
       throw new ConflictException(`العميل ده موجود (${dup.code}) · اتبعت للأوبريشن تقرر`); // demo wording
     }
 
+    // choosing the salesperson by hand is Operations' (the screen hides the choice from a salesperson; the API refuses it too)
+    if (input.assignToId) {
+      if (me.grants.scope === "own") throw new BadRequestException("الليد اللي بتدخّله بيفضل معاك · التحويل للأوبريشن");
+      if (!(await this.repo.routingPeople()).some((p) => p.id === input.assignToId)) throw new BadRequestException("اختار سيلز من القايمة");
+    }
     const created = await this.db.$transaction(async (tx) => {
       const router = new LeadRouter(await this.repo.lockRouting(tx)); // first: leads created at the same moment take their turns one after the other
       const placement = placeNewLead(
@@ -507,7 +512,7 @@ export class LeadsService {
   async changeStage(me: CurrentUser, id: string, input: ChangeStage) {
     const rules = await this.rules.get();
     const moved = await this.db.$transaction(async (tx) => {
-      const lead = await tx.lead.findFirst({ where: { id, ...(ownedBy(me) as object) } });
+      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] } }); // an archived lead has left every list
       if (!lead) throw new NotFoundException(NO_LEAD);
       const noAnswer = input.stage === "No Answer";
       // 1.27: Not Interested / Cancellation leaves whoever had it for the Draft Admin, where Operations decides
@@ -586,8 +591,9 @@ export class LeadsService {
   }
 
   /** The Visit form's unit search (1.9): through the inventory's own rule of what a salesperson may see. */
-  visitUnits(q?: string) {
-    return this.inventory.forVisit(q);
+  async visitUnits(me: CurrentUser, q?: string) {
+    const noSpace = me.fields.hidden("inventory").has("space"); // M-09: the inventory's hidden field stays hidden here too
+    return (await this.inventory.forVisit(q)).map((u) => (noSpace ? { ...u, space: 0 } : u));
   }
 
   /**
@@ -732,28 +738,29 @@ function hiddenExport(r: { company: { name: string } | null; phones: string[]; a
 
 type SlaClock = (r: Pick<LeadRecord, "stage" | "touched" | "ownedByTelesales" | "assignedAt">) => LeadRow["sla"];
 
-function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<string, string>, sla: SlaClock): LeadRow {
+function toRow({ assignedToId, budget, kind, company, ...r }: LeadRecord, names: Map<string, string>, sla: SlaClock): LeadRow {
   return {
     ...r, kind: kind === "BROKER" ? "broker" : "client", budget: budget?.toFixed(2) ?? null, // money on the wire is a decimal string
+    company: company?.name ?? null, // 1.31: under the name in the list (demo leads.js listView)
     stage: STAGE_LABEL.get(r.stage) ?? r.stage, sla: sla(r),
     assignedTo: assignedToId ? { id: assignedToId, name: names.get(assignedToId) ?? "" } : null,
     assignedAt: iso(r.assignedAt), arrivedAt: r.arrivedAt.toISOString(), createdAt: r.createdAt.toISOString(),
   };
 }
 
-function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
-  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, ...row } = lead;
+function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock, inv: ReadonlySet<string> = new Set()): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
+  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, ...row } = lead;
   const now = Date.now();
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
-    company: company?.name ?? null, hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
+    hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,
     })),
     visits: visits.map((v): VisitRow => ({
       id: v.id, kind: kindOf(v.kind), at: v.at.toISOString(), extra: v.extra, outcome: v.outcome === "done" || v.outcome === "not_done" ? v.outcome : null,
-      due: !v.outcome && v.postponeStatus !== "pending" && v.postponeStatus !== "approved" && v.at.getTime() <= now, units: v.units.map((u) => u.unit),
+      due: !v.outcome && v.postponeStatus !== "pending" && v.postponeStatus !== "approved" && v.at.getTime() <= now, units: v.units.map((u) => (inv.has("space") ? { ...u.unit, space: 0 } : u.unit)), // M-09: the inventory's hidden space
       postpone: v.postponeStatus === "pending" || v.postponeStatus === "approved" || v.postponeStatus === "rejected" ? { status: v.postponeStatus, reason: v.postponeReason ?? "", canDecide: false } : null,
     })),
   };

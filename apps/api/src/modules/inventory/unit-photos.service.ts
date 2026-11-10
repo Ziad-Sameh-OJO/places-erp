@@ -60,8 +60,13 @@ export class UnitPhotosService {
   async zipOf(me: CurrentUser, u: { id: string; code: string }): Promise<{ filename: string; entries: AsyncIterable<{ name: string; data: Buffer }> }> {
     const unitId = u.id;
     const ids = (await this.repo.photos(unitId)).map((p) => p.fileId);
-    const files = await this.files.names(ids);
     await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "photos-zip", userId: me.id, after: { files: ids.length } });
+    return { filename: `${u.code} - Pic & Info.zip`, entries: await this.zipEntries(u.code, ids) };
+  }
+
+  /** A folder's files as ZIP entries under `<code>/`, read one at a time while the ZIP streams (2.22, and the Layout folder 2.35). */
+  async zipEntries(code: string, ids: string[]): Promise<AsyncIterable<{ name: string; data: Buffer }>> {
+    const files = await this.files.names(ids);
     const safe = (x: string) => x.replace(/[\\/]/g, "_"); // a name is a name, never a path inside the ZIP
     const read = (id: string) => this.files.bytes(id);
     async function* entries() {
@@ -71,10 +76,10 @@ export class UnitPhotosService {
         if (!f || !got) continue;
         const n = seen.get(f.name) ?? 0;
         seen.set(f.name, n + 1);
-        yield { name: `${safe(u.code)}/${safe(n ? f.name.replace(/(\.[^.]*)?$/, `-${n}$1`) : f.name)}`, data: got.body };
+        yield { name: `${safe(code)}/${safe(n ? f.name.replace(/(\.[^.]*)?$/, `-${n}$1`) : f.name)}`, data: got.body };
       }
     }
-    return { filename: `${u.code} - Pic & Info.zip`, entries: entries() };
+    return entries();
   }
 
   /** Your own finished uploads, images or PDFs (2.22), appended after the unit's files. */

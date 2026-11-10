@@ -1,7 +1,7 @@
 {
   "close": "Close",
   "error": "Something went wrong",
-  "table": { "empty": "No data" },
+  "table": { "empty": "No data", "sortHint": "<b>{n}</b> {n, plural, one {row} other {rows}} · click any column title to sort", "sortedBy": "<b>{n}</b> {n, plural, one {row} other {rows}} · sorted by «{col}»" },
   "export": { "label": "Export Excel", "busy": "Preparing the file…" },
   "import": {
     "done": "{imported} added · {duplicates} duplicates · {skipped} errors",

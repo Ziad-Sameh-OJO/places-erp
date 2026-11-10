@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SHEET_FIELD_KEYS, type SheetField } from "@places/domain";
 import { Id, Money } from "./common.ts";
 
 /** M-12 · KPI cards (11.1–11.4 · 11.11 · 11.14). Wording from demo kpis.js. */
@@ -54,6 +55,16 @@ export const KpiBandsInput = z.object({ top: pct, full: pct, partial: pct, low: 
   .refine((b) => b.top >= b.full && b.full > b.partial && b.partial > b.low, { message: "الشرايح لازم تبقى بالترتيب: المكافأة ≥ الكامل > الجزئي > الـ Threshold" });
 export type KpiBandsInput = z.infer<typeof KpiBandsInput>;
 
+/** 11.18 · «الخانات اللي في الورقة» and «الجوايز» of the quarterly sheet. */
+export const KpiSheetFieldsInput = z.object({ fields: z.array(z.enum(SHEET_FIELD_KEYS as [SheetField, ...SheetField[]])).max(SHEET_FIELD_KEYS.length) });
+export type KpiSheetFieldsInput = z.infer<typeof KpiSheetFieldsInput>;
+export const KpiBonusInput = z.object({
+  minPct: z.number({ invalid_type_error: "% من التارجت" }).int("% من التارجت رقم صحيح").min(1, "% من التارجت").max(1000, "% من التارجت"),
+  amount: Money.refine((x) => Number(x) > 0, "الجايزة"),
+});
+export type KpiBonusInput = z.infer<typeof KpiBonusInput>;
+export interface KpiSheetSetup { fields: SheetField[]; bonuses: { id: string; minPct: number; amount: string }[] }
+
 /** «اعمل كارت» for someone without one (11.4): empty, or with another card's items. */
 export const KpiNewCardInput = z.object({ employeeId: Id, copyFrom: Id.optional() });
 export type KpiNewCardInput = z.infer<typeof KpiNewCardInput>;
@@ -63,7 +74,8 @@ export type KpiCopyInput = z.infer<typeof KpiCopyInput>;
 export const KpiWatch = z.array(Id).max(20);
 export const KpiWatchInput = z.object({ userIds: KpiWatch });
 export type KpiWatchInput = z.infer<typeof KpiWatchInput>;
-export const KpiScope = z.object({ scope: z.enum(["me", "team", "all"]).default("me") });
+/** «mine» (11.19): my card and the ones I follow, Manar's «KPIs الفريق» in the inventory. */
+export const KpiScope = z.object({ scope: z.enum(["me", "team", "mine", "all"]).default("me") });
 export type KpiScope = z.infer<typeof KpiScope>;
 
 export interface KpiQuarterView { id: string; label: string; status: "open" | "closed" }
@@ -73,7 +85,11 @@ export interface KpiCardSummary {
   /** reward (+) or deduction (−); null for whoever doesn't see money (11.14) */
   money: string | null;
 }
-export interface KpiBoard { quarter: KpiQuarterView; cards: KpiCardSummary[]; seesMoney: boolean; seesAll: boolean }
+export interface KpiBoard {
+  quarter: KpiQuarterView; cards: KpiCardSummary[]; seesMoney: boolean; seesAll: boolean;
+  /** 11.19 · scope «mine» for the Inventory Manager: her team's people without a card this quarter (else empty) */
+  missing: { id: string; name: string; title: string }[];
+}
 
 export interface KpiItemView {
   id: string; key: string; title: string; weight: number; targetText: string; source: string;
@@ -108,6 +124,8 @@ export interface KpiCompany {
   can: { edit: boolean; close: boolean; sheets: boolean };
   /** 11.7: when the Office Manager approved and emailed the current quarter's sheets */
   sheets: { by: string; at: string } | null;
+  /** 11.18: the sheet's lines and award rules; null for the watcher (money) */
+  sheetSetup: KpiSheetSetup | null;
 }
 export interface KpiLogEntry { at: string; by: string; text: string }
 

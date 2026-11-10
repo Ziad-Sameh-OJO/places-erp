@@ -174,12 +174,12 @@ export class ContractsService {
    * inventory (UnitsService.release, 2.9), in the same transaction.
    */
   async terminate(me: CurrentUser, id: string, input: TerminateContract): Promise<ContractDetail> {
-    const c = await this.load(me, id);
     // M-09: a penalty the person may not set stays empty (0)
     const penalty = me.fields.fixed("contracts").has("penalty") ? 0 : fromDecimal(input.penalty);
-    const problem = terminationProblem(label(c.status), input.reason, penalty);
-    if (problem) throw new BadRequestException(problem);
     await this.db.$transaction(async (tx) => {
+      const c = await this.load(me, id, tx); // read inside: a second «فسخ» at the same time sees the first
+      const problem = terminationProblem(label(c.status), input.reason, penalty);
+      if (problem) throw new BadRequestException(problem);
       const data = { status: "TERMINATED" as const, endedOn: new Date(localDate(new Date())), endReason: input.reason, penalty: toDecimal(penalty) };
       await this.repo.update(tx, id, data);
       await this.units.release(c.deal.unit.id, c.deal.id, { userId: me.id }, tx);
@@ -211,14 +211,14 @@ export class ContractsService {
    */
   async decideValue(me: CurrentUser, id: string, input: DecideValue): Promise<ContractDetail> {
     if (me.fields.fixed("contracts").has("value")) throw new ForbiddenException(LOCKED);
-    const c = await this.load(me, id);
-    if (!c.pendingValue) throw new BadRequestException("مفيش طلب تغيير قيمة على العقد ده");
-    if (c.pendingById === me.id) throw new ForbiddenException("الموافقة لحد غير اللي طلب التغيير");
     const clear = { pendingValue: null, pendingReason: null, pendingById: null, pendingAt: null };
-    const lines = c.installments.map((i) => ({ amount: fromDecimal(i.amount.toFixed(2)), paid: fromDecimal(i.paid.toFixed(2)) }));
-    const spread = input.decision === "approve" ? respread(lines, fromDecimal(c.pendingValue.toFixed(2))) : null;
-    if (spread && "problem" in spread) throw new BadRequestException(spread.problem);
     await this.db.$transaction(async (tx) => {
+      const c = await this.load(me, id, tx); // read inside: a payment recorded right now must count in the respread
+      if (!c.pendingValue) throw new BadRequestException("مفيش طلب تغيير قيمة على العقد ده");
+      if (c.pendingById === me.id) throw new ForbiddenException("الموافقة لحد غير اللي طلب التغيير");
+      const lines = c.installments.map((i) => ({ amount: fromDecimal(i.amount.toFixed(2)), paid: fromDecimal(i.paid.toFixed(2)) }));
+      const spread = input.decision === "approve" ? respread(lines, fromDecimal(c.pendingValue.toFixed(2))) : null;
+      if (spread && "problem" in spread) throw new BadRequestException(spread.problem);
       if (spread && "amounts" in spread) {
         await this.repo.update(tx, id, { value: c.pendingValue!.toFixed(2), ...clear });
         for (const [k, i] of c.installments.entries()) {
@@ -233,8 +233,8 @@ export class ContractsService {
     return this.get(me, id);
   }
 
-  private async load(me: CurrentUser, id: string) {
-    const c = await this.repo.detail(this.scope(me), id);
+  private async load(me: CurrentUser, id: string, tx?: Prisma.TransactionClient) {
+    const c = await this.repo.detail(this.scope(me), id, tx);
     if (!c) throw new NotFoundException(NO_CONTRACT);
     return c;
   }

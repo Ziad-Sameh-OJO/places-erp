@@ -185,6 +185,9 @@
     "channelFirst": "اختار الـ channel الأول",
     "ownLead": "الليد اللي بتدخّله بنفسك بيفضل بتاعك ومش بيدخل التوزيع.",
     "autoByArea": "أوتوماتيك من الـ area",
+    "routesTo": "بتروح لـ: {names}",
+    "routesToOps": "مفيش حد على المنطقة دي · هتروح للأوبريشن",
+    "nameSep": "، ",
     "byHandNote": "لو اخترت سيلز بالاسم، بيتعدّى دوره في التوزيع الجاي.",
     "goesTo": "الليد يروح لـ",
     "route": "التوزيع (حسب الـ area)",
@@ -246,7 +249,6 @@
     "logRolesSub": "الأدمن بيشوفها دايماً · بيتطبّق على كل الليدز"
   },
   "board": {
-    "setVisit": "حدد ميعاد الـ Visit والوحدات",
     "movedQualified": "{name} بقى {stage} واتعلّم Qualified",
     "moved": "{name} بقى {stage}",
     "dropHere": "اسحب ليد هنا",

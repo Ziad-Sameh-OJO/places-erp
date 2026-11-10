@@ -122,7 +122,7 @@ function TargetForm({ r, month, onClose }: { r: TargetRow; month: string; onClos
 function Transactions({ month }: { month: string }) {
   const tr = useTranslations("reports");
   const [range, setRange] = useState<[string, string] | null>(null);
-  const today = new Date().toISOString().slice(0, 10), last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }), last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const [from, to] = range ?? [`${month}-01`, today < last ? today : last];
   const q = useQuery({ queryKey: ["reports", "tx", from, to], queryFn: () => api.get<TransactionRow[]>(`/reports/transactions?from=${from}&to=${to}`) });
   const collected = useFields("reports").shows("collected");
@@ -181,7 +181,8 @@ function Schedules() {
   return (
     <>
       <Note>{tr("sched.note")}</Note>
-      {q.data.reports.map((r) => <ReportCard key={r.id} r={r} d={q.data} />)}
+      {/* keyed by what the server recomputes too, so a saved card shows the new «next» and its runs */}
+      {q.data.reports.map((r) => <ReportCard key={`${r.id}:${r.next}:${r.runs.length}`} r={r} d={q.data} />)}
       {draft && <ReportCard r={draft} d={q.data} onDone={() => setDraft(null)} />}
       {q.data.can.edit && !draft && <div className="row end"><button className="btn ghost" onClick={() => setDraft(blank(tr("sched.newReport")))}><Icon name="plus" />{tr("sched.newReport")}</button></div>}
     </>
@@ -237,6 +238,10 @@ function ReportCard({ r, d, onDone }: { r: ScheduledReportView; d: ReportsData; 
     await refresh(); onDone?.();
   }, tr("sched.saved"));
   const del = () => { if (confirm(tr("sched.confirmDelete", { name: x.name }))) void run(async () => { await api.del(`/reports/scheduled/${x.id}`); await refresh(); }, tr("sched.deleted")); };
+  // «ابعته دلوقتي» (11.17): a saved auto report the system builds; the inventory one waits for its approval.
+  // Only an editor gets the people list, so the others' toast doesn't name the recipients.
+  const sendable = !!r.id && r.kind === "auto" && r.content === "performance";
+  const sendNow = () => void run(async () => { await api.post(`/reports/scheduled/${r.id}/run`); await refresh(); }, o ? tr("sched.sentNow", { name: r.name, to: names(r.recipients) }) : tr("sched.sentNowShort", { name: r.name }));
   const extra = [["follower", tr("sched.follower")]] as const;
   const who = (k: "preparedBy" | "recipients" | "lateNotify", label: string, follower: boolean) => (
     <div className="field wide"><span>{label}</span>
@@ -285,15 +290,16 @@ function ReportCard({ r, d, onDone }: { r: ScheduledReportView; d: ReportsData; 
           <label className="tog wide"><input type="checkbox" checked={x.money} onChange={(e) => set("money", e.target.checked)} /><span>{tr("sched.money")}</span></label>
         </div>
       )}
-      {x.runs.length > 0 && (
+      {r.runs.length > 0 && (
         <div className="timeline">
-          {x.runs.map((f) => <div key={f.id}><button className="btn ghost sm" onClick={() => void run(() => api.download(`/reports/runs/${f.id}/file`, `${f.title}.xlsx`))}><Icon name="file" />{serverText(f.title)}</button><small>{dayTime(f.at)}</small></div>)}
+          {r.runs.map((f) => <div key={f.id}><button className="btn ghost sm" onClick={() => void run(() => api.download(`/reports/runs/${f.id}/file`, `${f.title}.xlsx`))}><Icon name="file" />{serverText(f.title)}</button><small>{dayTime(f.at)}</small></div>)}
         </div>
       )}
-      {ed && <div className="row end">
-        {onDone && <button className="btn ghost sm" onClick={onDone}>{tr("cancel")}</button>}
-        {x.id && <button className="btn ghost sm" onClick={del}><Icon name="x" />{tr("sched.delete")}</button>}
-        <button className="btn sm" onClick={save}><Icon name="check" />{tr("save")}</button>
+      {(ed || sendable) && <div className="row end">
+        {sendable && <button className="btn ghost sm" onClick={sendNow}><Icon name="send" />{tr("sched.sendNow")}</button>}
+        {ed && onDone && <button className="btn ghost sm" onClick={onDone}>{tr("cancel")}</button>}
+        {ed && x.id && <button className="btn ghost sm" onClick={del}><Icon name="x" />{tr("sched.delete")}</button>}
+        {ed && <button className="btn sm" onClick={save}><Icon name="check" />{tr("save")}</button>}
       </div>}
     </Card>
   );

@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import { activeValues, type RoutingCell, type RoutingView } from "@places/contracts";
+import { activeValues, type AreaRoute, type RoutingCell, type RoutingView } from "@places/contracts";
 import { setAreaMember, type AreaRouting } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -26,6 +26,16 @@ export class RoutingService {
   async view(): Promise<RoutingView> {
     const [settings, salespeople, row] = await Promise.all([this.settings.all(), this.repo.routingPeople(), this.db.setting.findUnique({ where: { key: KEY } })]);
     return { areas: activeValues(settings.areas), salespeople, routing: (row?.value ?? {}) as AreaRouting };
+  }
+
+  /**
+   * 1.30 · who a new lead in this area would go to: today's pool as the rotation sees it (no one switched off or on
+   * leave, 1.13/1.15), in its order. Empty means nobody covers it and the lead waits for Operations.
+   */
+  async forArea(area: string): Promise<AreaRoute> {
+    const ids = await this.repo.areaPool(this.db, area);
+    const names = new Map((await this.repo.employeeNames(ids)).map((p) => [p.id, p.name]));
+    return { salespeople: ids.flatMap((id) => { const name = names.get(id); return name ? [{ id, name }] : []; }) };
   }
 
   /** One tick. The row is locked while it changes, so two ticks at once (two areas, or two people) both stay. */

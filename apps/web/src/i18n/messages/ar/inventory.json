@@ -19,6 +19,7 @@
     "missingSub": "تتكمّل بعدين",
     "dailyReport": "التقرير اليومي",
     "teamTask": "مهمة للفريق",
+    "teamKpis": "KPIs الفريق",
     "export": "تصدير الوحدات",
     "exportFile": "الوحدات.xlsx",
     "newUnit": "وحدة جديدة",
@@ -72,7 +73,6 @@
     "late": "متأخر · {day}",
     "yesFrom": "اه · من {min} م",
     "yes": "اه",
-    "map": "خريطة",
     "files": "{count} ملف",
     "empty": "فاضي"
   },
@@ -90,7 +90,6 @@
   "drawer": {
     "notFound": "الوحدة مش موجودة",
     "region": "المنطقة",
-    "location": "الموقع",
     "data": "البيانات",
     "missingTitle": "بيانات ناقصة ({count}):",
     "missingBody": ". الوحدة اتسجّلت عادي، وفيه تنبيه في «مهامي النهارده» لحد ما تتكمّل.",
@@ -108,8 +107,14 @@
     "enteredBy": "دخّلها: {name}"
   },
   "location": {
-    "none": "مفيش لوكيشن",
-    "google": "افتح في Google Maps"
+    "title": "لينك اللوكيشن",
+    "link": "لينك Google Maps",
+    "current": "اللينك الحالي:",
+    "save": "حفظ اللينك",
+    "edit": "عدّل اللينك",
+    "add": "ضيف لينك",
+    "same": "مفيش تغيير",
+    "done": "لينك اللوكيشن اتحدّث · الـ PDF مستني Confirm تاني"
   },
   "ownerUpdate": {
     "button": "ابديت مع المالك النهارده",
@@ -138,10 +143,9 @@
     "agent": "Agent (السيلز اللي جاب الوحدة)",
     "areaTab": "تاب المساحة",
     "auto": "أوتوماتيك من المساحة",
-    "mapHint": "دوس على مكان الوحدة في الخريطة، والإحداثيات بتتكتب في الخانة",
     "agreement": "Agreement (ملف · يترفع على السيستم)",
     "agreementSaved": "الـ Agreement اترفع",
-    "location": "Location (من الخريطة)",
+    "location": "Location (لينك Google Maps)",
     "lastUpdate": "Last update (ابديت مع المالك)",
     "receivedAt": "اتستلمت إمتى (من المالك / الواتساب)",
     "divisibleQ": "تنفع تتقسم؟",
@@ -267,7 +271,8 @@
     "noKey": "من غير «{column}» {count}",
     "sample": "ظاهر أول {shown} صف من {total}.",
     "merge": "ادمج",
-    "rows": "{count} صف"
+    "rows": "{count} صف",
+    "intoTitle": "رفع شيت في {name}"
   },
   "teamTasks": {
     "sent": "المهمة اتبعتت",
@@ -321,7 +326,40 @@
     "reason": "السبب",
     "reasonExample": "مثلاً: مش صاحب الوحدة",
     "save": "احفظ",
-    "doneTitle": "Done · وحدة جديدة من {name}"
+    "doneTitle": "Done · وحدة جديدة من {name}",
+    "files": {
+      "note": "كل شيت Not Active ليه ملف باسمه، والملفات بتتجمّع في فولدرات. اعمل ملف جديد وسمّيه، وارفع الشيت جوّاه على طول.",
+      "mineNote": "دي الملفات اللي فيها أرقام منار بعتتهالك. افتحي الملف وصنّفي كل رقم.",
+      "search": "دوّر باسم الملف أو الفولدر",
+      "new": "ملف جديد",
+      "noFolder": "من غير فولدر",
+      "noMatch": "مفيش ملف بالاسم ده",
+      "none": "مفيش ملفات لسه · اعمل ملف جديد وارفع الشيت جوّاه",
+      "rows": "{count} صف",
+      "made": "اتعمل {day}",
+      "waiting": "{count} مستني تصنيف",
+      "allDone": "كله اتصنّف",
+      "empty": "فاضي · ارفع شيت",
+      "all": "كل الملفات",
+      "rename": "تغيير الاسم / الفولدر",
+      "inNote": "ارفع الشيت جوه الملف ده على طول. وأي رقم موجود في الانفنتوري الأصلي بيجيلك Alarm تحدد حالته.",
+      "upload": "ارفع الشيت (Excel / CSV)",
+      "uploadMore": "ارفع شيت تاني في الملف (Excel / CSV)",
+      "emptyTitle": "الملف فاضي",
+      "emptyUp": "ارفع الشيت (Excel أو CSV) وأعمدته هتبقى أعمدة الملف.",
+      "emptyView": "لسه محدش رفع شيت في الملف ده.",
+      "renameTitle": "تغيير اسم الملف",
+      "newTitle": "ملف جديد · Not Active Inventory",
+      "name": "اسم الملف",
+      "nameExample": "مثلاً: CFC · نوفمبر",
+      "folder": "الفولدر (اختياري)",
+      "folderHint": "اختار فولدر أو اكتب اسم فولدر جديد",
+      "sheet": "الشيت (Excel / CSV · اختياري، وتقدر ترفعه بعدين)",
+      "pickSheet": "اختار ملف Excel أو CSV",
+      "make": "اعمل الملف",
+      "saved": "اتحفظ",
+      "made2": "الملف «{name}» اتعمل · ارفع الشيت جوّاه"
+    }
   },
   "listOfOptions": {
     "bar": "الوحدات المختارة",
@@ -371,5 +409,30 @@
     "sent": "اتبعتت",
     "send": "ابعت للـ Team Leader",
     "noUnits": "مفيش وحدات متاحة بالبحث ده"
+  },
+  "layout": {
+    "folderTitle": "فولدر الـ Layout",
+    "folderButton": "Layout file",
+    "modalTitle": "فولدر {code} · Layout file",
+    "files": "{count} ملف",
+    "zip": "نزّل الفولدر كله (ZIP)",
+    "upload": "ارفع Layout (PDF · DWG · صورة)",
+    "uploaded": "اترفع {count} ملف في فولدر Layout file بتاع {code}",
+    "view": "عرض",
+    "download": "تحميل",
+    "replace": "استبدال",
+    "replaced": "{old} اتبدّل بـ {name}",
+    "delete": "امسح {name}",
+    "deleteConfirm": "تمسح الملف ده من فولدر الـ Layout؟",
+    "deleted": "اتمسح {name} من فولدر Layout file",
+    "dwg": "بيتفتح بـ AutoCAD أو DWG viewer",
+    "empty": "الفولدر فاضي",
+    "emptyUp": "ارفع ملف الـ Layout هنا: PDF أو DWG (AutoCAD) أو صورة، وتقدر ترفع أكتر من ملف.",
+    "emptyView": "لسه محدش رفع Layout للوحدة دي.",
+    "note": "ملفات الـ Layout بتتشاف من خانة Layout file في الشيت ومن صفحة الوحدة. الـ PDF والصور بيتعرضوا هنا على طول، وملف الـ DWG بيتحمّل ويتفتح ببرنامج AutoCAD أو أي DWG viewer.",
+    "limits": "صور لحد {image} · PDF لحد {pdf} · DWG لحد {dwg}",
+    "formLabel": "Layout file (PDF · DWG · صورة · بيتحط في فولدر الـ Layout)",
+    "formAdd": "ضيف Layout file (PDF · DWG · صورة)",
+    "picked": "{count} ملف هيترفع بعد الحفظ"
   }
 }

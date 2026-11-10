@@ -29,12 +29,13 @@ const PIPE = LEAD_PIPELINE;
  * The demo's lead drawer: «نظرة عامة» (stepper, details, change the stage) and «Activity» (comment + timeline).
  * «الوحدات» (2.12), «الزيارات» (1.9). Prev / next walk the list the drawer was opened from.
  */
-export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: string; onGo: (id: string) => void; onClose: () => void }) {
+/** `visit`: opened by a drop on the Kanban's Visit / Meeting lane (1.32) — straight on «الزيارات» with that kind. */
+export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; id: string; onGo: (id: string) => void; onClose: () => void; visit?: "Visit" | "Meeting" | undefined }) {
   const t = useTranslations("leads");
   const lead = useLead(id);
-  const [tab, setTab] = useState<"overview" | "units" | "visits" | "activity" | "logs">("overview");
+  const [tab, setTab] = useState<"overview" | "units" | "visits" | "activity" | "logs">(visit ? "visits" : "overview");
   const recs = useRecommendations(id);
-  const [visitKind, setVisitKind] = useState<"Visit" | "Meeting">("Visit");
+  const [visitKind, setVisitKind] = useState<"Visit" | "Meeting">(visit ?? "Visit");
   const [dealFor, setDealFor] = useState<string | null>(null); // «سجّل الصفقة» open on this lead
   const qc = useQueryClient();
   const refresh = useRefreshLead();
@@ -64,7 +65,7 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
       ]} />
       {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
       {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
-        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
+        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity key={l.id} l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
 }

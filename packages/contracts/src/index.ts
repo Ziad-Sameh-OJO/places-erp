@@ -26,3 +26,4 @@ export * from "./campaigns.ts";
 export * from "./posts.ts";
 export * from "./broadcasts.ts";
 export * from "./i18n/index.ts";
+export * from "./search.ts";

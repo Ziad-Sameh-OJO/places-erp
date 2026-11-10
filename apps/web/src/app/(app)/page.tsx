@@ -11,6 +11,7 @@ import { ActivitiesCard } from "@/features/kpis/activities-card";
 import { HandoversCard } from "@/features/access/handovers";
 import { MyBroadcasts } from "@/features/marketing/broadcast";
 import { Inbox, type InboxLine } from "@/components/inbox";
+import { openSearch } from "@/components/command-palette";
 import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads/today";
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
 import { MyTeamTasks } from "@/features/inventory/team-tasks";
@@ -73,7 +74,10 @@ function Hero({ name, total, urgent, unread, canCreateLead }: { name: string; to
         <span className="eyebrow">{date}</span>
         <h2>{t(hour < 12 ? "morning" : "evening", { name: name.split(" ")[0] ?? "" })}</h2>
         <p>{total ? <>{t.rich("waiting", { total, b: (c) => <b>{c}</b> })}{urgent ? t.rich("waitingLate", { urgent, b: (c) => <b>{c}</b> }) : null}.</> : t("nothing")}</p>
-        {canCreateLead && <div className="hero-actions"><Link className="btn" href="/leads?new=1"><Icon name="plus" />{t("newLead")}</Link></div>}
+        <div className="hero-actions">
+          {canCreateLead && <Link className="btn" href="/leads?new=1"><Icon name="plus" />{t("newLead")}</Link>}
+          <button className="btn ghost" onClick={openSearch}><Icon name="search" />{t("quickSearch")} <kbd>⌘K</kbd></button>
+        </div>
       </div>
       <div className="hero-stats">
         <div><b className="num">{total}</b><span>{t("statToday")}</span></div>

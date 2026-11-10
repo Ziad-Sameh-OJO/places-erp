@@ -33,7 +33,7 @@ export function hideSheetRow(r: DealSheetRow, hidden: ReadonlySet<string>): Deal
 
 export function hideDetail(d: DealDetail, hidden: ReadonlySet<string>): DealDetail {
   if (!hidden.size) return d;
-  return { ...hideRow(d, hidden), source: hidden.has("source") ? "" : d.source, tcrs: hidden.has("payments") ? d.tcrs.map((t) => ({ ...t, amount: "" })) : d.tcrs };
+  return { ...hideRow(d, hidden), source: hidden.has("source") ? "" : d.source, tcrs: hidden.has("payments") ? d.tcrs.map((t) => ({ ...t, amount: "", edited: null })) : d.tcrs };
 }
 
 export function hideTotals(t: DealSheet["totals"], hidden: ReadonlySet<string>): DealSheet["totals"] {

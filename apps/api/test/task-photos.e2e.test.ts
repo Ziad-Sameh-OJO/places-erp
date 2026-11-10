@@ -33,7 +33,7 @@ after(async () => {
 });
 
 async function give(kind: string) {
-  const r = await call("/tasks", { method: "POST", cookie: manar, body: { kind, toUserId: bayoumiId, dueOn: today, unitId } });
+  const r = await call("/tasks", { method: "POST", cookie: manar, body: { kind, toUserId: bayoumiId, dueOn: today, unitId, note: "الصور على السيستم" } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   tasks.push(r.body.id);
   return r.body.id as string;

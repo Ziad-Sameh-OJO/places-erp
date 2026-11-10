@@ -1,18 +1,19 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { type ReactNode, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Paged } from "@places/contracts";
 import type { ModuleKey } from "@places/domain";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
-import { Avatar, Chip, ExportButton, Field, Icon, Modal, Note, Table, useAction } from "@/components/ui";
+import { Avatar, Chip, ExportButton, Field, Icon, Modal, Note, onFormSubmit, Table, useAction } from "@/components/ui";
 import { Matrix, type MatrixValue } from "./matrix";
 import { STATUS, type RoleRow, type UserRow } from "./types";
 import { useTranslations } from "next-intl";
-import { dateLocale } from "@/lib/format";
+import { dayTime } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString(dateLocale(), { dateStyle: "medium", timeStyle: "short" }) : "—");
+const fmt = (iso: string | null) => (iso ? dayTime(iso) : "—");
 
 /** M-09 users: search (name, email, mobile, department — 5.2), filter, new account (activation email), edit, exceptions, stop / unlock / resend / reset. */
 export function UsersTab() {
@@ -27,6 +28,7 @@ export function UsersTab() {
   const [dept, setDept] = useState("");
   const [page, setPage] = useState(1);
   const [form, setForm] = useState<UserRow | "new" | null>(null);
+  useNewParam("1", () => setForm("new"), can("access", "create")); // «جديد ← مستخدم جديد» (0.16)
   const [perms, setPerms] = useState<UserRow | null>(null);
   const [handover, setHandover] = useState<UserRow | null>(null);
   const filters = { ...(q ? { q } : {}), ...(status ? { status } : {}), ...(dept ? { department: dept } : {}) };
@@ -115,7 +117,7 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
   }
   return (
     <Modal title={user ? t("editTitle", { name: user.employee?.name ?? "" }) : t("newTitle")} onClose={onClose}>
-      <form className="grid" action={submit}>
+      <form className="grid" onSubmit={onFormSubmit(submit)}>
         <Field label={t("name")} req><input name="name" required minLength={2} defaultValue={user?.employee?.name ?? ""} /></Field>
         {only("email", <Field label={t("email")} req><input name="email" type="email" required defaultValue={user?.email ?? ""} /></Field>, true)}
         {only("phone", <Field label={t("phone")}><input name="phone" inputMode="tel" defaultValue={user?.phone ?? ""} /></Field>)}
@@ -148,7 +150,7 @@ function Handover({ user, onClose }: { user: UserRow; onClose: () => void }) {
   const submit = (f: FormData) => run(async () => { await api.post(`/access/users/${user.id}/handover`, { to: f.get("to") }); onClose(); }, t("sent"));
   return (
     <Modal title={t("title", { name: user.employee?.name ?? user.email })} onClose={onClose}>
-      <form className="grid" action={submit}>
+      <form className="grid" onSubmit={onFormSubmit(submit)}>
         <Field label={t("to")} req><select name="to" required defaultValue=""><option value="" disabled>{t("choose")}</option>{active.data?.items.filter((x) => x.employee && x.id !== user.id).map((x) => <option key={x.id} value={x.id}>{x.employee!.name}</option>)}</select></Field>
         <div className="row end wide">
           <span className="hint spacer">{t("hint")}</span>

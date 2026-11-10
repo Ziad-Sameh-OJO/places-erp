@@ -149,11 +149,11 @@ export function WeeklyDelay() {
         {preset === "custom" && <><label className="date-f"><span>{t("common.from")}</span><input type="date" value={cf} onChange={(e) => setCf(e.target.value)} /></label><label className="date-f"><span>{t("common.to")}</span><input type="date" value={ct} onChange={(e) => setCt(e.target.value)} /></label></>}
       </div>
       {!d ? <Empty text={t("common.loading")} icon="clock" /> : (
-        <div className="tbl-wrap"><table className="heat"><thead><tr><th>{t("common.employee")}</th>{d.days.map((x) => <th key={x} className="n">{dayName(x)}</th>)}<th>{t("delay.period")}</th></tr></thead>
+        <div className="tbl-wrap"><table className="heat"><thead><tr><th>{t("common.employee")}</th>{d.days.map((x) => <th key={x} className="n">{dayName(x)}</th>)}<th>{t("delay.period")}</th><th>{t("delay.allTime")}</th></tr></thead>
           <tbody>{d.people.map((p) => (
             <tr key={p.employeeId}><td>{p.name}</td>
               {d.days.map((x) => { const c = p.byDay[x]; return <td key={x} className={`n hc ${!c ? "" : c.late > 30 ? "h3" : c.late > 10 ? "h2" : c.late > 0 ? "h1" : "h0"}`} title={c ? serverText(c.label) : undefined}>{c ? c.late : "·"}</td>; })}
-              <td><div className="cell-bar"><b className="num">{t("common.minutes", { n: p.total })}</b><div className={`bar ${p.total > 60 ? "bad" : p.total > 20 ? "warn" : ""}`}><i style={{ width: `${(p.total / max) * 100}%` }} /></div></div></td></tr>
+              <td><div className="cell-bar"><b className="num">{t("common.minutes", { n: p.total })}</b><div className={`bar ${p.total > 60 ? "bad" : p.total > 20 ? "warn" : ""}`}><i style={{ width: `${(p.total / max) * 100}%` }} /></div></div></td><td className="n">{t("common.minutes", { n: p.allTime })}</td></tr>
           ))}</tbody></table></div>
       )}
       <Note>{t("delay.note")}</Note>

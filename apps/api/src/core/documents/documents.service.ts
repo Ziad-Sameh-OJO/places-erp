@@ -81,7 +81,9 @@ export class DocumentsService implements OnModuleDestroy {
       const seal = await this.seal();
       html = html.replace("</body>", () => `${seal}</body>`);
     }
-    this.browser ??= chromium.launch();
+    // a launch that failed, or a browser that crashed, must not poison every later PDF until a restart
+    if (this.browser && !(await this.browser.catch(() => null))?.isConnected()) this.browser = null;
+    this.browser ??= chromium.launch().catch((e: unknown) => { this.browser = null; throw e; });
     const page = await (await this.browser).newPage();
     try {
       // a PDF never fetches anything (fonts and logo are inline): a value that slipped past esc() can't reach the network

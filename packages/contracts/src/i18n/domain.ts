@@ -55,6 +55,9 @@ export default [
   ["التحصيل بيتسجّل على صفقة اتوافق عليها ولسه متحصّلتش بالكامل", "Collections are recorded on an approved deal that isn't fully collected yet"],
   ["المبلغ لازم يبقى أكبر من صفر", "The amount must be more than zero"],
   ["المبلغ أكبر من الباقي ({left})", "The amount is more than what's left ({left})"],
+  ["التعديل بيبقى على تحصيل صفقة شغالة", "Only a collection on a live deal can be corrected"],
+  ["ده نفس المبلغ", "That's the same amount"],
+  ["الصفقة اتحصّلت بالكامل وعمولات السيلز اتثبتت عليها · مينفعش تقلّ", "The deal is fully collected and its sales commissions are booked · it can't go down"],
   ["مستحقة · اتحصّلت بالكامل", "Due · fully collected"],
   ["اتصرفت", "Paid out"],
   ["مستنية باقي التحصيل {left}", "Waiting for the rest of the collection {left}"],
@@ -208,6 +211,10 @@ export default [
   ["رصيد العهدة تحت الحد = 100%، فوقه = 0%", "Petty cash balance under the limit = 100%, over it = 0%"],
   ["الفواتير", "Invoices"],
   ["% من المشتريات فوق 10,000 اللي ليها فاتورة متعلّقة", "% of purchases over 10,000 with an attached invoice"],
+  ["المهام في ميعادها", "Tasks on time"],
+  ["المهام اللي اتبعتتله بخيار «تتحسب في الـ KPIs» واتعملت Done في ميعادها ÷ كل المهام دي اللي ميعادها جه", "Tasks sent to them with «counts in the KPIs» that were Done on time ÷ all those tasks that came due"],
+  ["100% في الميعاد", "100% on time"],
+  ["صفحة المهام", "Tasks page"],
   // kpi.ts · problems and the «بيتحسب: …» line
   ["الإعدادات من غير مقياس", "Settings without a metric"],
   ["المقياس ده مش في الكتالوج", "This metric isn't in the catalog"],
@@ -473,6 +480,7 @@ export default [
   ["الـ Retouch اتوافق عليه من منار · مفيش Undo", "The Retouch was approved by Manar · no Undo"],
   ["الـ Retouch مبيبقاش Done غير بموافقة منار · ارفع الصور على صفحة الوحدة الأول", "A Retouch is only Done with Manar's approval · upload the photos on the unit page first"],
   ["تنبيه: إنت مدياه وحدة النهارده قبل كده (وحدة في اليوم)", "Note: you already gave them a unit today (one unit a day)"],
+  ["اكتب الملاحظات · ده بس اللي هيوصل مع كود الوحدة", "Write the notes · they're all that goes with the unit code"],
 
   // tickets.ts
   ["طلب عادي", "Regular request"],

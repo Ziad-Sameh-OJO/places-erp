@@ -727,6 +727,11 @@ model Payment {
   accountId   String
   account     Account  @relation(fields: [accountId], references: [id])
   recordedById String
+  /// 5.15: its receive voucher (finance.TreasuryMove), so a correction can reverse its entry and post the right one
+  moveId      String?  @unique
+  /// 5.15 «اتعدّل يدوي»: the amount before the last manual correction, and why
+  editedFrom  Decimal? @db.Decimal(14, 2)
+  editReason  String?
   tcr         Tcr?
   createdAt   DateTime @default(now())
 
@@ -921,7 +926,6 @@ model Unit {
   maintenance       String?     // number and text
   commission        String?     // number and text
   paymentMethod     String?     // Resale / Income
-  layout            Boolean     @default(false) // «Layout» Yes / No (Book7, 2.21)
   comment           String?     // «Comment» (Book7, 2.21)
   details           Json        @default("{}") // the columns only one type has (Resale delivery, Income contract…), checked by @places/contracts
   agentId           String?     // hr.Employee: who brought the unit → Seller on a deal (M-02), counted in their activity
@@ -943,6 +947,7 @@ model Unit {
   deals             Deal[]
   locks             UnitLock[]
   photos            UnitPhoto[]
+  layouts           UnitLayout[] // 2.35 · «Layout file»: the unit has a Layout when this folder has files
   suggestedFor      LeadUnit[]
   shownInVisits     VisitUnit[]
   tasks             Task[]
@@ -997,6 +1002,18 @@ model UnitPhoto {
   @@schema("inventory")
 }
 
+/// 2.35 · a unit's «Layout file» folder (PDF · DWG · images): its own folder, never read by the PDF or the slide.
+model UnitLayout {
+  id        String   @id @default(cuid())
+  unitId    String
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  fileId    String   @unique // system.File (entity "Unit")
+  createdAt DateTime @default(now())
+
+  @@index([unitId])
+  @@schema("inventory")
+}
+
 /// M-03 3.1 · 2.18 · the inventory's daily report: made by the reports engine (11.10, content «inventory») at its time,
 /// Manar approves it (the approval time is her KPI, M-12) and then its recipients get it.
 model InventoryReport {
@@ -1028,8 +1045,10 @@ model AreaTab {
 
 model NotActiveSheet {
   id        String         @id @default(cuid())
-  name      String         @unique // e.g. CFC
-  dedupeBy  String         // column used to merge without duplicates
+  name      String         @unique // e.g. CFC · the file's name, given when it's made (2.39)
+  folder    String?        // 2.39: the folder the file is grouped in (none = «من غير فولدر»)
+  createdById String?      // 2.39: who made the file
+  dedupeBy  String         @default("") // column used to merge without duplicates ("" = no sheet uploaded yet)
   columns   String[]       @default([]) // the sheet's own headers, in order (its columns aren't fixed yet, M-03 3.1)
   numberBy  String?        // the «Number» column compared with the owners' numbers in the inventory (M-03 1.1)
   rows      NotActiveRow[]
@@ -1158,6 +1177,7 @@ model Task {
   returned  Int       @default(0)      // sent back for changes (KPI: accepted first time)
   note      String?
   doneAt    DateTime?
+  countsInKpi Boolean @default(false) // 4.15 «تتحسب في الـ KPIs؟»: «أيوه» → the assignee's «المهام في ميعادها» item
   createdAt DateTime  @default(now())
 
   @@index([toUserId, status])
@@ -1457,6 +1477,18 @@ model KpiBands {
   low        Int    @default(50)
   rewardPct  Int    @default(15)
   cutPct     Int    @default(15)
+  /// 11.18 · the lines of the employee's quarterly sheet (domain SHEET_FIELDS); demo data.js pdfFields
+  sheetFields String[] @default(["salary", "target", "achieved", "scheme", "commission", "bonus"])
+
+  @@schema("kpi")
+}
+
+/// 11.18 · «لو حقق X% من التارجت ← جايزة» on the quarterly sheet: the biggest rule reached counts (demo clients.js sheetOf).
+model KpiBonusRule {
+  id        String   @id @default(cuid())
+  minPct    Int
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
 
   @@schema("kpi")
 }
@@ -1937,6 +1969,7 @@ model ReportHandIn {
   userId     String
   period     String // "YYYY-MM-DD", the due date
   at         DateTime?
+  note       String? // what was handed in: the file's name or its link (M-04 «تقرير المنافسين الشهري»)
   remindedAt DateTime?
   lateAt     DateTime?
 

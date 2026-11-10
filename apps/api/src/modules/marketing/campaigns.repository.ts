@@ -30,6 +30,33 @@ export class CampaignsRepository {
     return this.db.leadArrival.findMany({ where, select: { channel: true, campaignId: true, lead: { select: { qualified: true, post: true } } } });
   }
 
+  /**
+   * 4.18 · the leads with an arrival in the filter that never became Qualified: what the dashboard may show of them,
+   * never the mobile (the client's private data).
+   */
+  notQualified(where: Prisma.LeadArrivalWhereInput) {
+    return this.db.lead.findMany({
+      where: { qualified: false, arrivals: { some: where } },
+      select: { id: true, code: true, name: true, channel: true, stage: true, arrivedAt: true, campaign: { select: { name: true } } },
+    });
+  }
+
+  /** How many distinct leads arrived in the filter («X من Y»). */
+  leadsIn(where: Prisma.LeadArrivalWhereInput) {
+    return this.db.lead.count({ where: { arrivals: { some: where } } });
+  }
+
+  /** What people did on these leads (the system's own entries left out), for the latest comment and who wrote it. */
+  peopleActs(leadIds: string[]) {
+    return this.db.leadActivity.findMany({ where: { leadId: { in: leadIds }, byUserId: { not: null } }, select: { leadId: true, kind: true, text: true, byUserId: true, at: true } });
+  }
+
+  /** The names of these users (their employee file). */
+  async names(userIds: string[]): Promise<Map<string, string>> {
+    const rows = await this.db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true, employee: { select: { name: true } } } });
+    return new Map(rows.map((u) => [u.id, u.employee?.name ?? u.email]));
+  }
+
   /** Name, target and cost of these campaigns (archived ones too: their old leads still count). */
   byIds(ids: string[]) {
     return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, target: true, spent: true } });

@@ -12,9 +12,10 @@ import { kpiMidQuarterTick } from "../../worker/src/processors/kpi-mid-quarter.t
 const start = new Date();
 const LINK = `https://e2e.test/${Date.now()}`;
 let admin: string, nancy: string, heba: string, mahmoud: string, youssef: string, mokhtar: string, hadeer: string;
-let watchBefore: unknown, salaryBefore: string | null = null;
+let watchBefore: unknown, salaryBefore: string | null = null, fieldsBefore: string[] | null = null;
 const ids = { mahmoud: "", nancyUser: "", nancyEmp: "", hebaUser: "", testCard: "", youssefEmp: "", youssefUser: "", basantUser: "" };
 const touched: string[] = []; // seeded cards whose value / plan / approval the file changes
+const invTemp = { emp: "", user: "" }; // 11.19: someone on the inventory team with no card
 
 before(async () => {
   [admin, nancy, heba, mahmoud, youssef, mokhtar, hadeer] = await Promise.all([
@@ -44,6 +45,10 @@ after(async () => {
   await prisma.kpiDelivery.deleteMany({ where: { link: LINK } });
   if (watchBefore == null) await prisma.setting.deleteMany({ where: { key: "kpiWatch" } });
   else await prisma.setting.update({ where: { key: "kpiWatch" }, data: { value: watchBefore as never } });
+  await prisma.kpiBonusRule.deleteMany({ where: { createdAt: { gte: start } } });
+  if (fieldsBefore) await prisma.kpiBands.update({ where: { id: "default" }, data: { sheetFields: fieldsBefore } });
+  if (invTemp.emp) { await prisma.kpiCard.deleteMany({ where: { employeeId: invTemp.emp } }); await prisma.employee.delete({ where: { id: invTemp.emp } }); }
+  if (invTemp.user) await prisma.user.delete({ where: { id: invTemp.user } });
   await prisma.auditLog.deleteMany({ where: { module: "kpis", at: { gte: start } } });
   // the quarter's results and sheets were mailed to everyone too (with or without an in-app copy)
   await prisma.mailLog.deleteMany({ where: { createdAt: { gte: start }, OR: [
@@ -200,6 +205,65 @@ test("11.6 · mid-quarter: items under target are told to the owner and the foll
   assert.ok(await prisma.notification.count({ where: { userId: follower, link: "/kpis", text: { startsWith: "نص Q4 2026" } } }) >= 1);
   assert.equal(await kpiMidQuarterTick(new Date("2026-11-17T09:00:00Z")), 0); // idempotent: once per card
   assert.equal(await told(), 1);
+});
+
+test("11.18 · the sheet's lines and award rules: the KPI admin sets them, a salesperson can't, the watcher doesn't see them (money)", async () => {
+  fieldsBefore = (await prisma.kpiBands.findUniqueOrThrow({ where: { id: "default" } })).sheetFields;
+  const c = (await call("/kpis/company", { cookie: admin })).body;
+  assert.deepEqual(c.sheetSetup.fields, ["salary", "target", "achieved", "scheme", "commission", "bonus"].filter((k) => fieldsBefore!.includes(k)));
+  assert.equal((await call("/kpis/company", { cookie: heba })).body.sheetSetup, null);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: youssef, body: { fields: ["salary"] } })).status, 403);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: admin, body: { fields: ["nope"] } })).status, 400);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: admin, body: { fields: ["bonus", "salary", "transactions"] } })).status, 204);
+  assert.deepEqual((await prisma.kpiBands.findUniqueOrThrow({ where: { id: "default" } })).sheetFields, ["salary", "transactions", "bonus"]);
+  assert.equal((await call("/kpis/sheet/bonuses", { method: "POST", cookie: youssef, body: { minPct: 100, amount: "5000" } })).status, 403);
+  assert.equal((await call("/kpis/sheet/bonuses", { method: "POST", cookie: admin, body: { minPct: 0, amount: "5000" } })).status, 400);
+  const b = await call("/kpis/sheet/bonuses", { method: "POST", cookie: admin, body: { minPct: 120, amount: "10000" } });
+  assert.equal(b.status, 201, JSON.stringify(b.body));
+  const setup = (await call("/kpis/company", { cookie: admin })).body.sheetSetup;
+  assert.ok(setup.bonuses.some((x: { id: string; minPct: number; amount: string }) => x.id === b.body.id && x.minPct === 120 && x.amount === "10000.00"));
+  assert.equal(await prisma.auditLog.count({ where: { module: "kpis", entity: "KpiBonusRule", entityId: b.body.id, action: "create" } }), 1);
+  assert.equal((await call(`/kpis/sheet/bonuses/${b.body.id}`, { method: "DELETE", cookie: youssef })).status, 403);
+  assert.equal((await call(`/kpis/sheet/bonuses/${b.body.id}`, { method: "DELETE", cookie: admin })).status, 204);
+  assert.equal((await call(`/kpis/sheet/bonuses/${b.body.id}`, { method: "DELETE", cookie: admin })).status, 404);
+  // a rule stays for the sheets the close test makes below (the PDF carries the picked lines)
+  assert.equal((await call("/kpis/sheet/bonuses", { method: "POST", cookie: admin, body: { minPct: 100, amount: "5000" } })).status, 201);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: admin, body: { fields: ["salary", "target", "achieved", "scheme", "commission", "transactions", "bonus"] } })).status, 204);
+});
+
+test("11.19 · Manar: her card and her team's from the inventory, edits her own items but can't approve them, makes a card for her team", async () => {
+  const manar = await session("manar.ahmed@places.com");
+  const manarEmp = await prisma.employee.findFirstOrThrow({ where: { user: { email: "manar.ahmed@places.com" } }, select: { id: true } });
+  const mine = await board(manar, "mine");
+  assert.equal(mine.status, 200, JSON.stringify(mine.body));
+  const own = mine.body.cards.find((c: { employeeId: string }) => c.employeeId === manarEmp.id);
+  assert.ok(own, "her own card is on the board");
+  // her own card: items yes (the same items saved back change nothing), approval no
+  const view = (await call(`/kpis/cards/${own.id}`, { cookie: manar })).body;
+  assert.equal(view.can.manage, true);
+  assert.equal(view.can.approve, false);
+  const items = view.items.map((it: Record<string, unknown>) => ({ id: it.id, title: it.title, weight: it.weight, targetText: it.targetText, source: it.source, method: it.method,
+    module: it.module, direction: it.direction, goal: it.goal, metric: it.metric, params: it.params, enteredBy: it.enteredBy, required: it.required }));
+  const saved = await call(`/kpis/cards/${own.id}/items`, { method: "PUT", cookie: manar, body: { items } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.equal((await call(`/kpis/cards/${own.id}/approve`, { method: "POST", cookie: manar })).status, 403);
+  // a salesperson still can't change his own card's items
+  const ys = (await board(youssef, "me")).body.cards[0];
+  assert.equal((await call(`/kpis/cards/${ys.id}`, { cookie: youssef })).body.can.manage, false);
+
+  // someone new on the inventory team: listed under «في الفريق من غير كارت KPIs», Manar makes his card and follows it
+  const u = await prisma.user.create({ data: { email: `e2e-inv-${Date.now()}@e2e.test`, status: "ACTIVE" } });
+  invTemp.user = u.id;
+  invTemp.emp = (await prisma.employee.create({ data: { userId: u.id, name: "موظف انفنتوري تجربة", jobTitle: "Data Entry", department: "Inventory", salary: 0 } })).id;
+  assert.ok((await board(manar, "mine")).body.missing.some((p: { id: string }) => p.id === invTemp.emp));
+  assert.deepEqual((await board(youssef, "mine")).body.missing, []);
+  assert.equal((await call("/kpis/cards", { method: "POST", cookie: youssef, body: { employeeId: invTemp.emp } })).status, 403);
+  assert.equal((await call("/kpis/cards", { method: "POST", cookie: manar, body: { employeeId: ids.youssefEmp } })).status, 403); // not her team
+  const made = await call("/kpis/cards", { method: "POST", cookie: manar, body: { employeeId: invTemp.emp } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  assert.equal((await prisma.kpiCard.findUniqueOrThrow({ where: { id: made.body.id } })).followerId, manarEmp.id);
+  assert.ok((await board(manar, "mine")).body.cards.some((c: { id: string }) => c.id === made.body.id));
+  assert.equal(await prisma.auditLog.count({ where: { module: "kpis", entity: "KpiCard", entityId: made.body.id, action: "create" } }), 1);
 });
 
 // Under the KPI-quarter lock, and Q4 is open again before it's let go: the other files' KPI tests need it open.

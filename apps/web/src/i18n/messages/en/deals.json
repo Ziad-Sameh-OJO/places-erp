@@ -127,7 +127,10 @@
     "noCollection": "No collections yet · Finance logs the collections",
     "cancelled": "Deal cancelled · the revenue, Achievements and commissions were deducted automatically",
     "cancel": "Cancel deal",
-    "cancelReason": "Cancellation reason"
+    "cancelReason": "Cancellation reason",
+    "edit": "Edit",
+    "editTitle": "Manual correction",
+    "edited": "Corrected manually: {from} ← {to} · {reason}"
   },
   "exec": {
     "chip": { "onTime": "Carried out on time", "late": "Carried out late", "overdue": "Past its execution date" },
@@ -179,5 +182,14 @@
     "claim": "Claim",
     "receipt": "Receipt {no}",
     "ask": "Request a claim"
+  },
+  "editCollection": {
+    "title": "Manual correction · {code}",
+    "note": "Only a user who may edit in Finance can make a manual correction, and the Audit Log keeps the old and the new amount.",
+    "amount": "The right amount",
+    "reason": "Reason",
+    "reasonPh": "e.g. the amount was entered wrong",
+    "save": "Save the correction",
+    "saved": "The correction is in the Audit Log"
   }
 }

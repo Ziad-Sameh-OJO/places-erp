@@ -112,6 +112,22 @@ export const quarterLabel = (q: string): string => q.replace(/^(\d+)-Q(\d)$/, "Q
 export const canEnterManual = (enteredBy: readonly string[], who: { userId: string; roles: readonly string[]; isFollower: boolean }): boolean =>
   (enteredBy.length ? enteredBy : ["follower"]).some((x) => (x === "follower" ? who.isFollower : x === who.userId || who.roles.includes(x)));
 
+/** 11.19 · the Inventory Manager's role key: she follows her team's cards from inside the inventory. */
+export const INVENTORY_MANAGER = "inventory";
+/** 11.19 · the department whose people she makes cards for and follows. */
+export const INVENTORY_DEPARTMENT = "Inventory";
+
+/**
+ * Who changes a card's items, weights and targets (demo kpis.js canManage): its follower, «kpis: edit», the KPI watcher,
+ * and the Inventory Manager on her own card (11.19, 9 Nov). Approving her own card stays with her follower.
+ */
+export const canManageCard = (who: { isFollower: boolean; edit: boolean; watcher: boolean; roles: readonly string[]; ownCard: boolean }): boolean =>
+  who.isFollower || who.edit || who.watcher || (who.ownCard && who.roles.includes(INVENTORY_MANAGER));
+
+/** 11.19 · «اعمل كارت» from the inventory: the Inventory Manager, for someone else on the inventory team. */
+export const invManagerMakesCard = (roles: readonly string[], self: string | null, target: { id: string; department: string }): boolean =>
+  roles.includes(INVENTORY_MANAGER) && target.id !== self && target.department === INVENTORY_DEPARTMENT;
+
 /** "2026-Q4" → "2026-Q3": the quarter before, for «ربعين ورا بعض». */
 export function previousQuarter(q: string): string {
   const [y, n] = q.split("-Q").map(Number) as [number, number];
@@ -198,6 +214,7 @@ export const METRICS: Readonly<Record<string, MetricDef>> = {
   disputes: { group: "التذاكر", label: "الشكاوى في ميعادها", unit: "%", describe: () => "% من الشكاوى اللي اتحلّت في ميعادها" },
   proc48: { group: "المشتريات", label: "الدفع خلال 48 ساعة", unit: "%", describe: () => "% من طلبات الشراء اللي اتدفعت خلال 48 ساعة" },
   pettyCap: { group: "المشتريات", label: "العهدة تحت الحد", unit: "%", describe: () => "رصيد العهدة تحت الحد = 100%، فوقه = 0%" },
+  tasksOnTime: { group: "المهام", label: "المهام في ميعادها", unit: "%", describe: () => "المهام اللي اتبعتتله بخيار «تتحسب في الـ KPIs» واتعملت Done في ميعادها ÷ كل المهام دي اللي ميعادها جه" },
   receipts: { group: "المشتريات", label: "الفواتير", unit: "%", describe: () => "% من المشتريات فوق 10,000 اللي ليها فاتورة متعلّقة" },
 };
 
@@ -288,6 +305,29 @@ export function endOfLocalDay(at: Date, cal: WorkCalendar = PLACES_CALENDAR): Da
   const next = new Date(Date.parse(`${localDate(at, cal)}T00:00:00Z`) + 24 * 60 * 60_000).toISOString().slice(0, 10);
   return dayStart(next, cal);
 }
+
+/**
+ * 4.15 · «المهام في ميعادها» (demo kpis.js `tasksOnTime`): of the tasks sent to the person with «تتحسب في الـ KPIs»,
+ * the ones Done by the end of their day (Cairo) ÷ all of them that are Done or whose day has passed. One still open on
+ * its day doesn't count yet; none at all = 100, as in the demo. `doneAt` is null while not Done (Undo clears it).
+ */
+export function tasksOnTime(tasks: readonly { dueOn: string; doneAt: Date | null }[], now: Date, cal: WorkCalendar = PLACES_CALENDAR): number | null {
+  const dayAfter = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 24 * 60 * 60_000).toISOString().slice(0, 10);
+  return onTimeShare(tasks.map((t) => timeliness(t.doneAt, dayStart(dayAfter(t.dueOn), cal), now)), 100);
+}
+
+/**
+ * 4.15 (demo kpis.js `kpiForTask`): the item a task «تتحسب في الـ KPIs» adds to the assignee's card when it isn't there,
+ * with weight 0 — the follower sets its weight; the card's weights aren't changed without a decision.
+ */
+export const TASKS_ON_TIME_ITEM = {
+  title: "المهام في ميعادها", weight: 0, targetText: "100% في الميعاد", source: "صفحة المهام", method: "system", module: "M-04",
+  direction: "at-least", goal: 100, metric: "tasksOnTime",
+} as const;
+
+/** 4.15: a new card made for a task's assignee is followed by the sender when they're in one department, else by the owners (null). */
+export const taskCardFollower = <T>(sender: { id: T; department: string } | null, assigneeDepartment: string): T | null =>
+  sender && sender.department === assigneeDepartment ? sender.id : null;
 
 /**
  * «الحضور (السيلز)»: half the weight for absence (up to 5 days in the quarter), half for lateness (up to 6 hours this
