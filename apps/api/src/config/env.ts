@@ -24,6 +24,6 @@ const Env = z.object({
   S3_BUCKET: z.string().min(3),
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(8),
-});
+}).refine((e) => e.NODE_ENV !== "production" || !!e.SMTP_URL, { message: "SMTP_URL is required in production", path: ["SMTP_URL"] });
 export type Env = z.infer<typeof Env>;
 export const env: Env = Env.parse(process.env);

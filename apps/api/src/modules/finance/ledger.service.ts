@@ -136,7 +136,7 @@ export class LedgerService {
   /** M-07 (43): editing a manual entry after it posted — only someone with finance «approve», in an open month, audited before → after. */
   async editManual(me: CurrentUser, id: string, input: ManualEntry, run: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>): Promise<EntrySaved> {
     const before = await run(async (tx) => {
-      const old = await this.repo.entry(id);
+      const old = await this.repo.entry(id, tx); // read inside the transaction: the «before» is what is really there
       if (!old) throw new NotFoundException("القيد مش موجود");
       if (old.source !== "manual") throw new BadRequestException("القيود الأوتوماتيك بتتعدّل من السند بتاعها · اعمل قيد تسوية");
       const today = localDate(new Date()), closed = await this.closed(tx);
@@ -223,7 +223,9 @@ export class LedgerService {
       // the leaf's own movements go to «<name> (عام)» so the parent stays the sum of its children
       if (!parent._count.children && parent._count.lines) {
         const general = await this.repo.createAccount({ code: nextChildCode(parent.code, codes), name: `${parent.name} (عام)`, parentId: parent.id, nature, kind: parent.kind }, tx);
-        await this.repo.moveLines(parent.id, general.id, tx);
+        const moved = await this.repo.moveLines(parent.id, general.id, tx);
+        // posted lines changed account: that is money history, so it leaves a trail like the account itself
+        await this.audit.record({ module: "finance", entity: "Account", entityId: general.id, action: "create", userId: me.id, after: { code: general.code, name: general.name, parent: parent.code, general: true, movedLines: moved.count } }, tx);
         codes.push(general.code);
       }
       const kind = input.kind ?? (parent.code.startsWith("111") ? "treasury" : parent.code.startsWith("112") ? "bank" : null);
@@ -249,7 +251,10 @@ export class LedgerService {
     const parent = await this.repo.accountByCode(parentCode, tx);
     if (!parent) throw new BadRequestException(NO_ACCOUNT);
     const found = await this.repo.holderAccount(parent.id, holder.userId, tx);
-    return found ?? this.subAccount(me, parentCode, holder.name, tx, holder.userId);
+    if (found) return found;
+    // two advances to one person at the same moment must not open two accounts: one at a time, then look again
+    await this.repo.lockChildren(parent.code, tx);
+    return (await this.repo.holderAccount(parent.id, holder.userId, tx)) ?? this.subAccount(me, parentCode, holder.name, tx, holder.userId);
   }
 
   /** A sub-account opened by the system inside the caller's transaction (a person's 131/134, a new budget line under 52/53). */

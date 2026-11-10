@@ -113,7 +113,8 @@ const MEASURES: Record<string, Measure> = {
   }), from, c.now),
   dealsCount: async (c, p, from, who) => prisma.deal.count({ where: { status: NOT_DONE_DEAL, closedAt: { gte: from }, participants: { some: { employeeId: who.id, side: "BUYER" } } } }),
   ownTarget: async (c, p, from, who) => targetShare(c, [who]),
-  teamTarget: async (c, p, from, who) => targetShare(c, await prisma.employee.findMany({ where: { OR: [{ teamLeaderId: who.id }, { id: who.id }] }, select: { id: true, target: true } })),
+  // the team is its salespeople (domain team-leader.ts, demo tlStats): the Team Leader's own target and deals stay out
+  teamTarget: async (c, p, from, who) => targetShare(c, await prisma.employee.findMany({ where: { teamLeaderId: who.id }, select: { id: true, target: true } })),
   att: async (c, p, from, who) => {
     const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(c.qStart, c) } }, select: { deduction: true } });
     return pct(days.filter((d) => Number(d.deduction) === 0).length, days.length);

@@ -13,9 +13,9 @@ import { AuthService } from "./auth.service";
 export const SESSION_COOKIE = "places_session";
 const meta = (req: Request) => ({ ip: req.ip, userAgent: req.get("user-agent") });
 
-/** Sign-in endpoints are rate-limited harder than the rest: 10 a minute per IP. */
+/** Sign-in endpoints are rate-limited harder than the rest: 10 a minute per IP (not «me», which every page load calls). */
+const SIGN_IN_LIMIT = { default: { ttl: 60_000, limit: 10 } };
 @Controller("auth")
-@Throttle({ default: { ttl: 60_000, limit: 10 } })
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
@@ -23,36 +23,36 @@ export class AuthController {
     res.cookie(SESSION_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" });
   }
 
-  @Public() @Post("login") @HttpCode(200)
+  @Public() @Post("login") @HttpCode(200) @Throttle(SIGN_IN_LIMIT)
   async login(@Body(new ZodPipe(Login)) b: z.infer<typeof Login>, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { token, otpRequired } = await this.auth.login(b.email, b.password, meta(req));
     if (token) this.setCookie(res, token);
     return { otpRequired };
   }
 
-  @Public() @Post("otp") @HttpCode(200)
+  @Public() @Post("otp") @HttpCode(200) @Throttle(SIGN_IN_LIMIT)
   async otp(@Body(new ZodPipe(Otp)) b: z.infer<typeof Otp>, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     this.setCookie(res, await this.auth.verifyOtp(b.email, b.code, meta(req)));
     return { ok: true };
   }
 
   /** «ابعت كود تاني» on the code screen (M-09 2.4). Public: the person has no session yet. */
-  @Public() @Post("otp/resend") @HttpCode(204)
+  @Public() @Post("otp/resend") @HttpCode(204) @Throttle(SIGN_IN_LIMIT)
   resendOtp(@Body(new ZodPipe(Forgot)) b: z.infer<typeof Forgot>) {
     return this.auth.resendOtp(b.email);
   }
 
-  @Public() @Post("activate") @HttpCode(204)
+  @Public() @Post("activate") @HttpCode(204) @Throttle(SIGN_IN_LIMIT)
   activate(@Body(new ZodPipe(SetPassword)) b: z.infer<typeof SetPassword>) {
     return this.auth.setPassword(b.token, b.password, "INVITE");
   }
 
-  @Public() @Post("forgot") @HttpCode(204)
+  @Public() @Post("forgot") @HttpCode(204) @Throttle(SIGN_IN_LIMIT)
   forgot(@Body(new ZodPipe(Forgot)) b: z.infer<typeof Forgot>) {
     return this.auth.forgot(b.email);
   }
 
-  @Public() @Post("reset") @HttpCode(204)
+  @Public() @Post("reset") @HttpCode(204) @Throttle(SIGN_IN_LIMIT)
   reset(@Body(new ZodPipe(SetPassword)) b: z.infer<typeof SetPassword>) {
     return this.auth.setPassword(b.token, b.password, "RESET");
   }

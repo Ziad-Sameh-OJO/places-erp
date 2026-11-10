@@ -6,7 +6,7 @@ import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryRepository } from "./inventory.repository";
-import { withMissing } from "./inventory.service";
+import { shownFilters, withMissing } from "./inventory.service";
 
 const NO_TAB = "التاب ده مش موجود";
 
@@ -19,9 +19,10 @@ export class AreaTabsService {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly repo: InventoryRepository, private readonly audit: AuditService) {}
 
   /** The tabs in order, each with the available units in it under the list's other filters. */
-  async list(me: CurrentUser, f: UnitFilters): Promise<AreaTabView[]> {
+  async list(me: CurrentUser, filters: UnitFilters): Promise<AreaTabView[]> {
     const tabs = await this.repo.areaTabs();
-    const s = { insider: keepsInventory(me.grants), staleBefore: staleBefore(new Date()) };
+    const hidden = me.fields.hidden("inventory"), f = shownFilters(filters, hidden); // the same rule as the list: no filtering by a hidden field
+    const s = { insider: keepsInventory(me.grants), staleBefore: staleBefore(new Date()), hidden };
     const counts = await this.repo.areaTabCounts(s, await withMissing(this.repo, s, f), tabs);
     return tabs.map((t, i) => ({ ...t, label: areaTabLabel(t), count: counts[i]! }));
   }

@@ -161,6 +161,14 @@ test("a new lead's Activity starts with who entered it and who it went to (demo 
   assert.equal(r.body.firstActionAt, null); // entering a lead isn't the salesperson's action
 });
 
+test("choosing the salesperson by hand is Operations': a salesperson can't, and the id must be someone in the rotation", async () => {
+  const body = (n: number, assignToId: string) => ({ name: `E2E-H ${stamp} ${n}`, phones: [`011${stamp.slice(-7)}${n}`], area: "التجمع الخامس", type: "Rent", channel: "Facebook", assignToId });
+  const tlId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "mahmoud.ali@places.com" } } })).id;
+  assert.equal((await call("/leads", { method: "POST", cookie: mohsen, body: body(1, tlId) })).status, 400); // sales: his lead stays his
+  assert.equal((await call("/leads", { method: "POST", cookie: ops, body: body(2, "not-an-employee") })).status, 400); // was a 500
+  assert.equal(await prisma.lead.count({ where: { name: { startsWith: `E2E-H ${stamp}` } } }), 0);
+});
+
 test("lead codes come from the sequence: L-1001…, never shared even when created at the same moment", async () => {
   const mohsenId = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "m.mohsen@places.com" } } })).id;
   const made = await Promise.all([1, 2, 3].map((i) => call("/leads", { method: "POST", cookie: ops, body: {

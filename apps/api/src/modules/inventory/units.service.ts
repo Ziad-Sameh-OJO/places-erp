@@ -31,7 +31,7 @@ export class UnitsService {
    * it closes). Pass the caller's transaction so the deal and the request are saved together; calling it again for
    * the same deal changes nothing. Refused when the unit isn't open on that side or another deal is already on it.
    */
-  async lock(unitId: string, dealId: string, by: { type: UnitType; userId: string }, tx?: Tx): Promise<{ status: "pending" | "locked" }> {
+  async lock(unitId: string, dealId: string, by: { type: UnitType; userId: string }, tx?: Tx): Promise<{ status: "pending" | "locked"; notify?: () => Promise<unknown> }> {
     const work = async (t: Tx) => {
       const u = await this.repo.sides(unitId, t);
       if (!u) throw new NotFoundException(NO_UNIT);
@@ -49,14 +49,13 @@ export class UnitsService {
       return { unit: u, lock, fresh: true };
     };
     const { unit, lock, fresh } = tx ? await work(tx) : await this.db.$transaction(work);
-    if (fresh) {
-      const role = closeConfirmer(lock.type);
-      await this.notifications.notify({
-        event: "unit.close", to: [role], link: `/inventory?unit=${unit.id}`,
-        text: `Done Deal على ${unit.code} (${unit.project}) اتوافق عليها · أكّد قفل الوحدة (${closedStatus(lock.type) === "sold" ? "Sold" : "Rented"})`,
-      });
-    }
-    return { status: lock.status === "locked" ? "locked" : "pending" };
+    const notify = fresh ? () => this.notifications.notify({
+      event: "unit.close", to: [closeConfirmer(lock.type)], link: `/inventory?unit=${unit.id}`,
+      text: `Done Deal على ${unit.code} (${unit.project}) اتوافق عليها · أكّد قفل الوحدة (${closedStatus(lock.type) === "sold" ? "Sold" : "Rented"})`,
+    }) : undefined;
+    // inside a caller's transaction the alert waits for its commit (a rolled-back deal must not page Manar)
+    if (notify && !tx) await notify();
+    return { status: lock.status === "locked" ? "locked" : "pending", ...(tx && notify ? { notify } : {}) };
   }
 
   /**
