@@ -76,6 +76,12 @@ test("HR links an unknown name once; that day is written; HR fills a missing day
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "AttendanceDay", action: "update", at: { gte: START } } }));
   const wd = (await call(`/hr/attendance/weekly-delay?from=${DAY}&to=${DAY}`, { cookie: basant })).body;
   assert.equal(wd.people.find((p: { employeeId: string }) => p.employeeId === hr.id).total, 54); // 12:10 − 11:16
+  // 7.14 «التراكمي»: every late minute of all their days, not just the period's
+  const all = await prisma.attendanceDay.aggregate({ where: { employeeId: hr.id }, _sum: { lateMinutes: true } });
+  const mine = wd.people.find((p: { employeeId: string }) => p.employeeId === hr.id);
+  assert.equal(mine.allTime, all._sum.lateMinutes);
+  assert.ok(mine.allTime >= mine.total);
+  assert.equal((await call(`/hr/attendance/weekly-delay?from=${DAY}&to=${DAY}`, { cookie: sales })).status, 403);
   const h = (await call(`/hr/attendance/history?from=2026-10-01&to=2026-10-31&employeeId=${hr.id}`, { cookie: basant })).body;
   assert.equal(h.totals.deductionDays, 1);
   // a TL doesn't see someone outside his team

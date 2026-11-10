@@ -50,8 +50,8 @@ export type AttendanceExport = z.infer<typeof AttendanceExport>;
 export const AttendanceRange = z.object({ from: CalendarDay, to: CalendarDay, employeeId: z.string().min(1).optional() });
 export type AttendanceRange = z.infer<typeof AttendanceRange>;
 export interface AttendanceHistoryView { employee: { id: string; name: string } | null; rows: AttendanceRowView[]; totals: { late: number; deductionDays: number; deductions: string } }
-/** «Weekly Delay»: every minute after 11:16 per person per day, whatever the reason. */
-export interface WeeklyDelayView { days: string[]; people: { employeeId: string; name: string; byDay: Record<string, { late: number; label: string }>; total: number }[] }
+/** «Weekly Delay»: every minute after 11:16 per person per day, whatever the reason; `allTime` «التراكمي» (7.14) = every late minute since they started. */
+export interface WeeklyDelayView { days: string[]; people: { employeeId: string; name: string; byDay: Record<string, { late: number; label: string }>; total: number; allTime: number }[] }
 
 /** The fingerprint sheet (Excel / CSV from the device): name, date, in, out. */
 export const FINGERPRINT_COLUMNS = { name: "الاسم", day: "التاريخ", checkIn: "الدخول", checkOut: "الخروج" } as const;
