@@ -101,6 +101,17 @@ export class NotificationsService {
   }
 
   /** M-14 3.1 · 3.3 · 6.1: the send log, newest first: اتبعت · اتقرا · الإيميل فشل · مستني. */
+  /**
+   * 12.14 «ابعت إيميل تجربة» (demo admin.js nfTest): one mail to the person pressing it, through the same outbox as every
+   * notification, so it shows in «سجل الإيميلات» as sent or failed. It names the sending address set above it.
+   */
+  async sendTestMail(me: CurrentUser) {
+    const row = await this.db.setting.findUnique({ where: { key: "notificationsFrom" } });
+    const from = typeof row?.value === "string" && row.value ? row.value : "notifications@places.com";
+    await this.mail.send({ to: me.email, subject: "إيميل تجربة · Places ERP", text: `أهلاً ${me.name}،\nده إيميل تجربة من ${from}: الإيميلات اللي السيستم بيبعتها شغالة.` });
+    return { to: me.email, from };
+  }
+
   async mailLog(q: MailLogQuery): Promise<Paged<MailLogRow>> {
     const where = MAIL_FILTER[q.status ?? "all"];
     const [rows, total] = await this.db.$transaction([
