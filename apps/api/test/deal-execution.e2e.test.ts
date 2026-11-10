@@ -11,7 +11,7 @@ import { hash } from "@node-rs/argon2";
 import { prisma } from "@places/db";
 import { isWorkingDay, localDate } from "@places/domain";
 import { kpiRefreshTick } from "../../worker/src/processors/kpi-refresh.ts";
-import { API, PW, call, mark, session } from "./helpers.ts";
+import { API, PW, call, kpiQuarterLock, mark, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E-EXEC ${stamp}`;
@@ -131,17 +131,8 @@ test("«تصدير الصفقات»: the filtered list as .xlsx for «deals: exp
   assert.equal((await fetch(`${API}/deals/export`, { headers: { cookie: mohsen } })).status, 403);
 });
 
-/** kpis.e2e closes the quarter and opens the next for a moment; the job measures the current quarter. */
-async function q4Current() {
-  for (let i = 0; i < 50; i++) {
-    const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
-    if (q?.id === "2026-Q4" && q.status === "open") return;
-    await new Promise((r) => setTimeout(r, 200));
-  }
-}
-
-test("M-12: the KPI job now has numbers for «تنفيذ الصفقات في ميعادها» and «أخطاء الورق»", async () => {
-  await q4Current();
+// the job measures the current quarter: Q4 2026, which kpis.e2e closes for a while under the same lock
+test("M-12: the KPI job now has numbers for «تنفيذ الصفقات في ميعادها» and «أخطاء الورق»", () => kpiQuarterLock(async () => {
   const items = await prisma.kpiItem.findMany({ where: { metric: { in: ["dealExec", "paperErrors"] }, card: { quarter: "2026-Q4" } }, select: { id: true, value: true, metric: true, card: { select: { employeeId: true } } } });
   assert.ok(items.some((i) => i.metric === "dealExec") && items.some((i) => i.metric === "paperErrors"), "the seeded Q4 cards carry both items");
   kpiBefore = items.map((i) => ({ id: i.id, value: i.value }));
@@ -153,4 +144,4 @@ test("M-12: the KPI job now has numbers for «تنفيذ الصفقات في م�
     if (it.metric === "paperErrors") assert.ok(Number(it.value) >= 1, "this deal's papers error counts");
     if (it.metric === "dealExec") assert.ok(Number(it.value) > 0, "this deal was executed on time");
   }
-});
+}));

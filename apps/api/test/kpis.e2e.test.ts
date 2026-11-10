@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { API, call, lastMail, session } from "./helpers.ts";
+import { API, call, kpiQuarterLock, lastMail, session } from "./helpers.ts";
 import { kpiMidQuarterTick } from "../../worker/src/processors/kpi-mid-quarter.ts";
 
 const start = new Date();
@@ -26,12 +26,16 @@ before(async () => {
   watchBefore = (await prisma.setting.findUnique({ where: { key: "kpiWatch" } }))?.value ?? null;
 });
 
-after(async () => {
-  // the quarter: back to Q4 2026 open, without the copies the new quarter made (the TLs' seeded Q1 cards stay)
+/** The quarter: back to Q4 2026 open, without the copies the new quarter made (the TLs' seeded Q1 cards stay). */
+async function reopenQ4() {
   await prisma.kpiCard.deleteMany({ where: { quarter: "2027-Q1", items: { none: { title: "تحقيق تارجت الفريق" } } } });
   await prisma.kpiQuarter.deleteMany({ where: { id: "2027-Q1" } });
   await prisma.kpiQuarter.update({ where: { id: "2026-Q4" }, data: { status: "open", closedAt: null, closedById: null, sheetsAt: null, sheetsById: null } });
   await prisma.kpiCard.updateMany({ where: { quarter: "2026-Q4" }, data: { finalScore: null, finalAmount: null, midAlertAt: null } });
+}
+
+after(async () => {
+  await reopenQ4();
   await prisma.kpiCard.deleteMany({ where: { quarter: "2026-Q3" } }); // the past quarter the 11.6 test makes
   if (salaryBefore != null) await prisma.employee.update({ where: { id: ids.youssefEmp }, data: { salary: salaryBefore } });
   if (ids.testCard) await prisma.kpiCard.deleteMany({ where: { id: ids.testCard } });
@@ -224,7 +228,12 @@ test("11.18 · the sheet's lines and award rules: the KPI admin sets them, a sal
   assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: admin, body: { fields: ["salary", "target", "achieved", "scheme", "commission", "transactions", "bonus"] } })).status, 204);
 });
 
-test("11.4 · 11.6 · 11.7 · 11.11 · Nancy closes the quarter (alerts, payroll), approves the sheets, then a new quarter starts from a copy", async () => {
+// Under the KPI-quarter lock, and Q4 is open again before it's let go: the other files' KPI tests need it open.
+test("11.4 · 11.6 · 11.7 · 11.11 · Nancy closes the quarter (alerts, payroll), approves the sheets, then a new quarter starts from a copy", () => kpiQuarterLock(async () => {
+  try { await closeAndStartNext(); } finally { await reopenQ4(); }
+}));
+
+async function closeAndStartNext() {
   // Youssef was under 50% last quarter too: under 50% twice → HR review
   await prisma.kpiCard.create({ data: { quarter: "2026-Q3", employeeId: ids.youssefEmp, finalScore: 30 } });
   // the seed has no salaries: give Youssef one so his KPI amount and payroll line aren't zero (put back in `after`)
@@ -289,4 +298,4 @@ test("11.4 · 11.6 · 11.7 · 11.11 · Nancy closes the quarter (alerts, payroll
   assert.equal(tl.items[0]!.title, "تحقيق تارجت الفريق", "the TLs' seeded card isn't replaced");
   const company = (await call("/kpis/company", { cookie: admin })).body;
   assert.ok(company.quarters.some((q: { id: string; status: string }) => q.id === "2026-Q4" && q.status === "closed"));
-});
+}
