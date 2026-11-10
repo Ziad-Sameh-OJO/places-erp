@@ -3,7 +3,6 @@
  * The bell (demo app.js «notif»), M-14 5.1 · 5.3 · 12.11: updates the moment a notification is written (the API's
  * event stream; the slow refresh is only the fallback), and filters by type and by «الجديد».
  */
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eventLabel } from "@places/domain";
@@ -73,7 +72,8 @@ export function BellPanel({ bell }: { bell: ReturnType<typeof useBell> }) {
       <div id="notifList">
         {items.length ? items.map((x) => (
           <div key={x.id} className={`ntf ${x.readAt && !bell.fresh.has(x.id) ? "" : "new"}`}>
-            {x.link ? <Link href={x.link} onClick={() => bell.setOpen(false)}>{serverText(x.text)}</Link> : serverText(x.text)}
+            {/* a plain link, as in the side menu's «فتحتها مؤخراً»: the page reads «?open=» only on load, so /leads → /leads?open=… needs one */}
+            {x.link ? <a href={x.link} onClick={() => bell.setOpen(false)}>{serverText(x.text)}</a> : serverText(x.text)}
             <small>{serverText(eventLabel(x.event))} · {ago(x.createdAt, t)}</small>
           </div>
         )) : <p className="empty">{t("empty")}</p>}

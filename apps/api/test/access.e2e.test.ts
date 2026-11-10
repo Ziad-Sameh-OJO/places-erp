@@ -136,6 +136,17 @@ test("disabling signs the person out everywhere; enabling brings them back", asy
   assert.equal((await login(email, NEW_PW)).status, 200);
 });
 
+test("a reset link sent before the account was stopped can't bring it back", async () => {
+  const since = Date.now();
+  assert.equal((await call("/auth/forgot", { method: "POST", body: { email } })).status, 204);
+  const token = tokenIn(lastMail(email, since).text);
+  assert.equal((await call(`/access/users/${newId}/disable`, { method: "POST", cookie: nancy })).status, 204);
+  assert.equal((await call("/auth/reset", { method: "POST", body: { token, password: "Sneaky123456" } })).status, 400);
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: newId } })).status, "DISABLED");
+  assert.equal((await call(`/access/users/${newId}/enable`, { method: "POST", cookie: nancy })).status, 204);
+  assert.equal((await login(email, NEW_PW)).status, 200); // the old password still stands
+});
+
 test("locked after 5 wrong passwords → the admin unlocks", async () => {
   for (let i = 0; i < 5; i++) await login(email, "wrong-password-1");
   assert.equal((await login(email, NEW_PW)).status, 401);
@@ -204,7 +215,7 @@ test("roles: copy, edit the matrix, built-in and in-use roles can't be deleted",
 });
 
 test("every change is in the audit log", async () => {
-  const r = await call(`/access/audit?entityId=${newId}`, { cookie: nancy });
+  const r = await call(`/access/audit?entityId=${newId}&pageSize=100`, { cookie: nancy });
   const actions = r.body.items.map((x: { action: string }) => x.action);
   for (const a of ["create", "activated", "update", "disable", "enable", "locked", "unlock", "password-reset"]) assert.ok(actions.includes(a), a);
 });

@@ -65,10 +65,10 @@ async function failed(m: { id: string; to: string; subject: string }, attempts: 
   const told = await prisma.$transaction(async (tx) => {
     await tx.mailLog.update({ where: { id: m.id }, data: { status: "failed", error: message } });
     const rule = await tx.notificationRule.findUnique({ where: { event: e.key } });
-    if (!(rule?.channels ?? e.channels).includes("app")) return [];
     const admins = await tx.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: rule?.toRoles ?? [...e.toRoles] } } } } }, select: { id: true } });
-    // M-14 7.1 «إيميل موظف غلط»: the Super Admin hears of it; the person still has the notification in the bell
-    await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.id, event: e.key, text, link: "/integrations", important: e.important })) });
+    // M-14 7.1 «إيميل موظف غلط»: the Super Admin hears of it; the person still has the notification in the bell.
+    // The in-app line only when the rule has that channel; the push below follows the rule's channels on its own
+    if ((rule?.channels ?? e.channels).includes("app")) await tx.notification.createMany({ data: admins.map((a) => ({ userId: a.id, event: e.key, text, link: "/integrations", important: e.important })) });
     return admins.map((a) => a.id);
   });
   if (told.length) await pushEvent(e.key, { userIds: told, text, link: "/integrations" });

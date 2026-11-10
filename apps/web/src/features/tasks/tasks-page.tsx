@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { TaskRow } from "@places/contracts";
 import { TASK_STATUSES, TASK_STATUS_LABEL } from "@places/domain";
@@ -47,6 +47,10 @@ export function TasksPage() {
   const [kind, setKind] = useState("");
   const [to, setTo] = useState("");
   const [giving, setGiving] = useState<string | null>(null);
+  // a notification links to one task («/tasks?id=…», task.new): it is marked on the board and scrolled to
+  const [focus, setFocus] = useState<string | null>(null);
+  useEffect(() => { setFocus(new URLSearchParams(window.location.search).get("id")); }, []);
+  useEffect(() => { if (focus && tasks.data) document.querySelector(".tcard.selected")?.scrollIntoView({ block: "center" }); }, [focus, tasks.data]);
   const all = tasks.data ?? [];
   const inKind = all.filter((x) => !kind || x.kind === kind);
   const list = inKind.filter((x) => !to || x.to.id === to);
@@ -82,7 +86,7 @@ export function TasksPage() {
         </div>
       )}
       {tasks.error && <Note kind="warn">{tasks.error.message}</Note>}
-      <Kanban lanes={lanes} itemKey={(x) => x.id} cardClass={(x) => (x.late ? "late" : "")}
+      <Kanban lanes={lanes} itemKey={(x) => x.id} cardClass={(x) => `${x.late ? "late" : ""} ${x.id === focus ? "selected" : ""}`}
         {...(can("tasks", "edit") ? { onMove: go } : {})}
         card={(x) => <TaskCard t={x} onMove={(s) => go(x, s)} />} />
       {giving && <NewTask kind={giving} options={options} onClose={() => setGiving(null)} />}

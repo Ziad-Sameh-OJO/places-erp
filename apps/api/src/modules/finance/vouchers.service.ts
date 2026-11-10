@@ -73,7 +73,14 @@ export class VouchersService {
 
   /** 10.2 → finance: a settled purchase posts as a payment voucher inside the caller's transaction. */
   async recordExpense(me: CurrentUser, e: ExpenseInput, tx: Tx) {
-    return (await this.save(me, { kind: "pay", fromId: e.fromId, accountId: e.accountId, amount: e.amount, party: e.party, memo: e.memo, ...(e.date ? { date: e.date } : {}), ...(e.ref ? { ref: e.ref } : {}) }, tx)).saved;
+    // `crossed`: the line passed its alert / budget with this payment — the caller tells the accountant after its commit (9.9)
+    const r = await this.save(me, { kind: "pay", fromId: e.fromId, accountId: e.accountId, amount: e.amount, party: e.party, memo: e.memo, ...(e.date ? { date: e.date } : {}), ...(e.ref ? { ref: e.ref } : {}) }, tx);
+    return { ...r.saved, crossed: r.crossed };
+  }
+
+  /** The «بند … وصل N%» notice `recordExpense` / `create` worked out, once the caller's transaction is committed. */
+  async tellBudgetCrossed(crossed: { line: string; text: string; ownerId: string | null } | null) {
+    if (crossed) await this.notifications.notify({ event: "finance.budget", text: crossed.text, link: "/finance", ...(crossed.ownerId ? { userIds: [crossed.ownerId] } : {}) });
   }
 
   /** 9.17 → a collected claim posts as a receive voucher on a commission revenue line (41…), inside the caller's transaction. */
@@ -274,12 +281,12 @@ export class VouchersService {
 
   /** «بند جديد بالبادجت بتاعه» (9.9): a sub-account under 52 / 53 with its budget, in one transaction. */
   async newBudgetLine(me: CurrentUser, input: NewBudgetLine, run: Run) {
-    const accountId = await run(async (tx) => {
+    if (fromDecimal(input.budget) < 0) throw new BadRequestException("البادجت مايبقاش بالسالب"); // before any account is opened
+    return run(async (tx) => {
       const account = await this.ledger.subAccount(me, input.parent, input.name, tx);
-      return account.id;
+      // the same transaction: a refused budget leaves no account behind
+      return this.setBudget(me, account.id, { budget: input.budget, period: input.period, alert: input.alert, ...(input.ownerId ? { ownerId: input.ownerId } : {}) }, (fn) => fn(tx));
     });
-    await this.setBudget(me, accountId, { budget: input.budget, period: input.period, alert: input.alert, ...(input.ownerId ? { ownerId: input.ownerId } : {}) }, run);
-    return { accountId };
   }
 
   /** The budget page as rows for «تصدير Excel». */

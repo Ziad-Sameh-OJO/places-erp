@@ -19,8 +19,8 @@ export class NotActiveController {
 
   @Get("sheets")
   @Requires("notactive", "view")
-  sheets() {
-    return this.notActive.sheets();
+  sheets(@Me() me: CurrentUser) {
+    return this.notActive.sheets(me);
   }
 
   @Get("sheets/:id/rows")

@@ -20,8 +20,9 @@ const scoped = (s: RowScope): Prisma.NotActiveRowWhereInput => (s.all ? {} : { a
 export class NotActiveRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  sheets() {
-    return this.db.notActiveSheet.findMany({ select: SHEET, orderBy: { createdAt: "asc" } });
+  /** The row count is the reader's rows (Marwa sees only what was sent to her). */
+  sheets(s: RowScope) {
+    return this.db.notActiveSheet.findMany({ select: { ...SHEET, _count: { select: { rows: { where: scoped(s) } } } }, orderBy: { createdAt: "asc" } });
   }
 
   sheet(id: string, tx: Prisma.TransactionClient = this.db) {
