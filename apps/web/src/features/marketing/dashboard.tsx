@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { useFields } from "@/lib/me";
 import { useCampaigns } from "./use-campaigns";
+import { CompetitorsReport } from "./competitors";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 
@@ -91,6 +92,7 @@ export function Dashboard() {
           {d?.posts.length ? <HBars rows={d.posts.map((p) => ({ label: p.post, value: p.leads }))} /> : <p className="hint">{t("noPosts")}</p>}
         </Card>
       </div>
+      <div className="cols"><CompetitorsReport /></div>
       <Note>{t("note")}</Note>
     </>
   );
