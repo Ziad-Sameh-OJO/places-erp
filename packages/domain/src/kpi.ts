@@ -3,7 +3,8 @@
  * Each item is scored proportionally and may pass 100% (recorded as is). The card score = Σ weight × achievement.
  * The money bands (salary or quarter bonus, per person) are the same for everyone and editable in settings.
  */
-import { PLACES_CALENDAR, type WorkCalendar, dayStart, localDate } from "./business-time.ts";
+import { PLACES_CALENDAR, type WorkCalendar, dayStart, isWorkingDay, localDate } from "./business-time.ts";
+import { quarterMonths } from "./kpi-sheet.ts";
 import type { Piasters } from "./money.ts";
 
 /** Where an item's number comes from (meeting 4 Nov): the system measures it, a report is handed in, or a person types it. */
@@ -151,7 +152,7 @@ export function closeAlert(score: number, previous: number | null, b: Bands = DE
 
 // ───────── 11.11 · the catalog of system metrics (demo kpis.js `META`) ─────────
 
-export type MetricParam = "per" | "kind" | "avg" | "type" | "min" | "hours" | "excl" | "akind";
+export type MetricParam = "per" | "kind" | "avg" | "type" | "min" | "hours" | "excl" | "akind" | "of" | "tkind" | "ttype" | "dept" | "by";
 export type MetricParams = Readonly<Partial<Record<MetricParam, string | number>>>;
 export interface MetricDef {
   readonly group: string;
@@ -176,12 +177,23 @@ export const METRIC_PARAMS: Record<MetricParam, { label: string; options: readon
   hours: { label: "خلال كام ساعة", options: null },
   excl: { label: "Channels مش محسوبة (افصل بينها بفاصلة)", options: "text" },
   akind: { label: "النشاط", options: [["", "الاتنين"], ["Farming", "Farming"], ["Approach", "Approach"]] },
+  // T-34: the Team Leader's card measures his team (M-12 «Showings الفريق · متوسط 30 لكل بياع في الربع»)
+  of: { label: "ليدز مين", options: [["", "ليدزه هو"], ["team", "فريقه (متوسط لكل بياع)"]] },
+  tkind: { label: "المهام", options: [["", "اللي بتتحسب في الـ KPIs"], ["team", "مهمة من منار"], ["photo", "تصوير"], ["retouch", "Retouch"]] },
+  ttype: { label: "نوع التذكرة", options: [["", "كل الأنواع"], ["hr_letter", "HR Letter"], ["list", "List"], ["request", "طلب عادي"], ["purchase", "شراء"]] },
+  dept: { label: "القسم (فاضي = كل الأقسام)", options: "text" },
+  by: { label: "مين دخّلها", options: [["", "كل الوحدات"], ["me", "اللي دخّلها هو"]] },
 };
+
+const optionName = (k: MetricParam, v: string | number) => (METRIC_PARAMS[k].options as readonly (readonly [string, string])[]).find((o) => o[0] === v)?.[1] ?? String(v);
 
 export const METRICS: Readonly<Record<string, MetricDef>> = {
   ownTarget: { group: "المبيعات", label: "تحقيق التارجت", unit: "%", describe: () => "نصيبه من الكوميشن في الصفقات اللي دخلت التارجت ÷ التارجت بتاعه" },
-  visitsDone: { group: "المبيعات", label: "Visits / Meetings اتعملت", unit: "#", params: ["kind", "per"], describe: (p) => `عدد الـ ${p.kind || "Visits والـ Meetings"} اللي اتعلّم عليها Done في ليدزه · ${perName(p)}` },
+  visitsDone: { group: "المبيعات", label: "Visits / Meetings اتعملت", unit: "#", params: ["kind", "per", "of"], describe: (p) => p.of === "team"
+    ? `متوسط عدد الـ ${p.kind || "Visits والـ Meetings"} اللي اتعلّم عليها Done لكل بياع في فريقه · ${perName(p)}`
+    : `عدد الـ ${p.kind || "Visits والـ Meetings"} اللي اتعلّم عليها Done في ليدزه · ${perName(p)}` },
   calls: { group: "المبيعات", label: "المكالمات", unit: "#", params: ["per", "avg"], describe: (p) => `عدد المكالمات اللي سجّلها بنفسه على الليدز · ${perName(p)}${weekly(p)}` },
+  callsDaily: { group: "المبيعات", label: "المكالمات في اليوم", unit: "#", params: ["per"], describe: (p) => `متوسط المكالمات اللي سجّلها بنفسه على الليدز في يوم الشغل · ${perName(p)}` },
   unitsBrought: { group: "المبيعات", label: "وحدات جابها للانفنتوري", unit: "#", params: ["type", "per"], describe: (p) => `عدد الوحدات${p.type ? ` ${p.type}` : ""} اللي هو الـ Agent بتاعها ودخلت الانفنتوري · ${perName(p)}` },
   broadcasts: { group: "المبيعات", label: "الـ Broadcasts اللي بعتها", unit: "#", describe: () => "عدد رسايل الـ Broadcast المعتمدة اللي علّم إنه بعتها" },
   firstAction: { group: "المبيعات", label: "أول أكشن على الليد", unit: "%", params: ["min", "per"], describe: (p) => `% من ليدزه (${perName(p)}) اللي عمل عليها أول أكشن خلال ${p.min || 30} دقيقة من دخولها` },
@@ -189,6 +201,7 @@ export const METRICS: Readonly<Record<string, MetricDef>> = {
   activitiesDone: { group: "المبيعات", label: "Farming / Approach اتعمل", unit: "#", params: ["akind", "per", "avg"], describe: (p) => `عدد نشاطات الـ ${p.akind || "Farming والـ Approach"} اللي سجّلها وعلّم إنه عملها · ${perName(p)}${weekly(p)}` },
   dailySum: { group: "التقرير اليومي", label: "اللي بيكتبه في التقرير اليومي", unit: "#", params: ["per", "avg"], describe: (p) => `مجموع الرقم اللي بيكتبه للبند ده في تقريره اليومي · ${perName(p)}${weekly(p)}` },
   dealsCount: { group: "المبيعات", label: "الصفقات", unit: "#", params: ["per"], describe: (p) => `عدد الصفقات اللي هو Buyer فيها (مش مرفوضة ولا ملغية) · ${perName(p)}` },
+  teamSla: { group: "المبيعات", label: "التزام الفريق بالـ SLA", unit: "%", params: ["per"], describe: (p) => `% من ليدز فريقه (${perName(p)}) اللي اتعمل عليها أول أكشن قبل تنبيه الساعتين ونص للـ Team Leader` },
   teamTarget: { group: "المبيعات", label: "تارجت الفريق", unit: "%", describe: () => "تحقيق تارجت الفريق اللي بيقوده (للـ Team Leader)" },
   company: { group: "المبيعات", label: "تارجت الشركة", unit: "%", describe: () => "مجموع اللي حققه كل السيلز ÷ مجموع تارجتهم" },
   newLeadRoute: { group: "الليدز", label: "توزيع الـ New Lead في ميعاده", unit: "%", params: ["min", "per"], describe: (p) => `% من الـ New Leads اللي Telesales بعتتها (${perName(p)}) واتبعتت للسيلز خلال ${p.min || 30} دقيقة من وصولها · اللي لسه مستني وعدّى الـ ${p.min || 30} دقيقة بيتحسب متأخر` },
@@ -210,11 +223,25 @@ export const METRICS: Readonly<Record<string, MetricDef>> = {
   listsClean: { group: "الانفنتوري", label: "Lists من غير وحدات مش مؤكدة", unit: "%", describe: () => "% من الـ Lists اللي مافيهاش وحدات مش مؤكدة" },
   big500: { group: "الصفقات", label: "إقفال الليدز المؤهلة فوق 500 متر", unit: "%", params: ["per"], describe: (p) => `عدد الصفقات اللي مساحتها 500 متر أو أكتر ÷ عدد الليدز المؤهلة اللي طالبة 500 متر أو أكتر · ${perName(p)}` },
   webAds: { group: "التسويق", label: "إعلانات الموقع", unit: "#", describe: () => "متوسط إعلانات الموقع في اليوم آخر 7 أيام · من الرقم اللي بيكتبه في التقرير اليومي" },
-  tickets: { group: "التذاكر", label: "التذاكر في ميعادها", unit: "%", describe: () => "% من التذاكر اللي اتقفلت في ميعادها" },
+  tickets: { group: "التذاكر", label: "التذاكر في ميعادها", unit: "%", params: ["ttype", "dept"], describe: (p) => `% من التذاكر${p.ttype ? ` «${optionName("ttype", p.ttype)}»` : ""}${p.dept ? ` بتاعة قسم ${p.dept}` : ""} اللي اتقفلت في ميعادها` },
   disputes: { group: "التذاكر", label: "الشكاوى في ميعادها", unit: "%", describe: () => "% من الشكاوى اللي اتحلّت في ميعادها" },
   proc48: { group: "المشتريات", label: "الدفع خلال 48 ساعة", unit: "%", describe: () => "% من طلبات الشراء اللي اتدفعت خلال 48 ساعة" },
   pettyCap: { group: "المشتريات", label: "العهدة تحت الحد", unit: "%", describe: () => "رصيد العهدة تحت الحد = 100%، فوقه = 0%" },
-  tasksOnTime: { group: "المهام", label: "المهام في ميعادها", unit: "%", describe: () => "المهام اللي اتبعتتله بخيار «تتحسب في الـ KPIs» واتعملت Done في ميعادها ÷ كل المهام دي اللي ميعادها جه" },
+  tasksOnTime: { group: "المهام", label: "المهام في ميعادها", unit: "%", params: ["tkind"], describe: (p) => p.tkind
+    ? `مهام «${optionName("tkind", p.tkind)}» اللي اتبعتتله واتعملت Done في ميعادها ÷ كل المهام دي اللي ميعادها جه`
+    : "المهام اللي اتبعتتله بخيار «تتحسب في الـ KPIs» واتعملت Done في ميعادها ÷ كل المهام دي اللي ميعادها جه" },
+  tasksFirstTime: { group: "المهام", label: "مهام اتقبلت من أول مرة", unit: "%", describe: () => "% من مهام التصوير والـ Retouch بتاعته اللي اتقفلت الربع ده من غير ما ترجعله للتعديل" },
+  photo72: { group: "التسويق", label: "تصوير الوحدات الجديدة خلال 72 ساعة", unit: "%", describe: () => "% من مهام التصوير بتاعته اللي اتقفلت خلال 72 ساعة من دخول الوحدة للانفنتوري" },
+  retouch48: { group: "التسويق", label: "الـ Retouch خلال 48 ساعة", unit: "%", describe: () => "% من مهام الـ Retouch بتاعته اللي اتقفلت خلال 48 ساعة من إنشائها" },
+  postsOnTime: { group: "التسويق", label: "البوستات في ميعادها", unit: "%", describe: () => "البوستات المعتمدة اللي اتنشرت في يومها ÷ كل البوستات المعتمدة اللي يومها جه في الربع ده" },
+  broadcastPlan: { group: "التسويق", label: "الـ Broadcast مرتين في الأسبوع", unit: "%", describe: () => "رسايل الـ Broadcast المعتمدة اللي فيها Hot Inventory ÷ مرتين في كل أسبوع عدّى من الربع" },
+  unitsEntered: { group: "الانفنتوري", label: "الوحدات الجديدة", unit: "#", params: ["by"], describe: (p) => `عدد الوحدات${p.by === "me" ? " اللي دخّلها هو" : ""} اللي دخلت الانفنتوري الربع ده` },
+  budgetUse: { group: "المالية", label: "الصرف من الموازنة", unit: "%", describe: () => "المصروف الفعلي ÷ الموازنة المعتمدة، لكل بنود الموازنة الشغالة (كل بند في فترته)" },
+  payrollOnTime: { group: "المالية", label: "صرف المرتبات في أول 5 أيام", unit: "%", describe: () => "% من شهور الربع اللي مرتباتها اتصرفت في أول 5 أيام من الشهر" },
+  commissionSameDay: { group: "المالية", label: "العمولة في نفس يوم التحصيل", unit: "%", describe: () => "% من تحصيلات الربع اللي اتعملها TCR في نفس يوم ظهورها في الحساب" },
+  monthClose: { group: "المالية", label: "قفل الشهر قبل يوم 5", unit: "%", describe: () => "% من شهور الربع اللي اتقفلت قبل يوم 5 من الشهر اللي بعده" },
+  sheetsOnTime: { group: "الإدارة", label: "إرسال ورق الموظفين في ميعاده", unit: "%", describe: () => "ورق الموظفين بتاع الربع اللي فات اتبعت لحد آخر أول يوم شغل في الربع ده = 100%، بعده = 0%" },
+  oneOnOnes: { group: "الإدارة", label: "جلسات الـ One-to-One", unit: "%", describe: () => "عدد الموظفين اللي اتعملهم One-to-One الشهر ده ÷ كل الموظفين" },
   receipts: { group: "المشتريات", label: "الفواتير", unit: "%", describe: () => "% من المشتريات فوق 10,000 اللي ليها فاتورة متعلّقة" },
 };
 
@@ -336,6 +363,61 @@ export const taskCardFollower = <T>(sender: { id: T; department: string } | null
 export function salesAttendance(absentDays: number, lateHours: number): number {
   const half = (n: number, limit: number) => (n <= limit ? 50 : (50 * limit) / n);
   return Math.round((half(absentDays, 5) + half(lateHours, 6)) * 10) / 10;
+}
+
+// ───────── T-34 · the automatic items that had no number yet (M-12 «[أوتوماتيك]», requirements 6.2) ─────────
+
+/** The working days (Cairo) from `from`'s day through `now`'s day, at least one. */
+export function workingDaysSince(from: Date, now: Date, cal: WorkCalendar = PLACES_CALENDAR): number {
+  let n = 0;
+  for (let d = localDate(from, cal), end = localDate(now, cal); d <= end; d = new Date(Date.parse(`${d}T00:00:00Z`) + 24 * 60 * 60_000).toISOString().slice(0, 10)) {
+    if (isWorkingDay(d, cal)) n++;
+  }
+  return Math.max(1, n);
+}
+
+/** Hadeer «عدد المكالمات اليومية · 100 مكالمة في اليوم»: the calls over the working days since `from`, to one decimal. */
+export const perWorkingDay = (count: number, from: Date, now: Date, cal: WorkCalendar = PLACES_CALENDAR): number =>
+  Math.round((count / workingDaysSince(from, now, cal)) * 10) / 10;
+
+/**
+ * Rahma «الـ Broadcast في مواعيده الثابتة (يومين في الأسبوع) مع قايمة Hot Inventory»: the ones sent with Hot units ÷ two
+ * for every week gone by since `from` (at least one week). May pass 100 (answers 28/10: «لو عدا 100% يتسجل»).
+ */
+export const twiceWeekly = (sent: number, from: Date, now: Date): number | null =>
+  pct(sent, 2 * Math.max(1, Math.floor((now.getTime() - from.getTime()) / WEEK_MS)));
+
+/**
+ * The quarter's months whose deadline came, each done in time or late (one not due yet isn't counted): Ahmed Ashraf
+ * «صرف المرتبات في أول 5 أيام من الشهر» and «التقرير المالي الشهري قبل يوم 5» (the next month's). No month due = null.
+ */
+export function monthlyOnTime(quarter: string, doneAt: (month: string) => Date | null, deadline: (month: string) => Date, now: Date): number | null {
+  return onTimeShare(quarterMonths(quarter).map((m) => timeliness(doneAt(m), deadline(m), now)), null);
+}
+/** The payroll of month `m` is due by the end of its 5th day (Cairo). */
+export const payrollDeadline = (m: string, cal: WorkCalendar = PLACES_CALENDAR): Date => dayStart(`${m}-06`, cal);
+/** Month `m` is closed before the 5th of the month after it. */
+export function monthCloseDeadline(m: string, cal: WorkCalendar = PLACES_CALENDAR): Date {
+  const [y, n] = m.split("-").map(Number) as [number, number];
+  return dayStart(`${n === 12 ? y + 1 : y}-${String((n % 12) + 1).padStart(2, "0")}-05`, cal);
+}
+
+/** The quarter's first working day («2026-Q4» → 1 Oct, or the next working day). */
+export function firstWorkingDay(quarter: string, cal: WorkCalendar = PLACES_CALENDAR): string {
+  let d = `${quarterMonths(quarter)[0]}-01`;
+  while (!isWorkingDay(d, cal)) d = new Date(Date.parse(`${d}T00:00:00Z`) + 24 * 60 * 60_000).toISOString().slice(0, 10);
+  return d;
+}
+/**
+ * Nancy «إصدار وإرسال ملف التارجت الفصلي للسيلز · 100% في أول يوم عمل من الربع · [أوتوماتيك] تاريخ إرسال ورقة الموظف»:
+ * the last quarter's sheets sent by the end of this quarter's first working day = 100, after it (or not yet past it) = 0,
+ * not yet and still in time = null.
+ */
+export function sheetsOnTime(sentAt: Date | null, quarter: string, now: Date, cal: WorkCalendar = PLACES_CALENDAR): number | null {
+  const first = firstWorkingDay(quarter, cal);
+  const end = dayStart(new Date(Date.parse(`${first}T00:00:00Z`) + 24 * 60 * 60_000).toISOString().slice(0, 10), cal);
+  const s = timeliness(sentAt, end, now);
+  return s === "waiting" ? null : s === "ok" ? 100 : 0;
 }
 
 // ───────── 11.13 · Farming / Approach ─────────

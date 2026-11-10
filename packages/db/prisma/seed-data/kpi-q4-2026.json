@@ -68,7 +68,8 @@
           "module": "M-07",
           "direction": "at-most",
           "goal": 100,
-          "metric": null
+          "metric": "budgetUse",
+          "params": {}
         },
         {
           "title": "مواضيع مبيعات وصلته من غير القائد",
@@ -177,11 +178,12 @@
           "weight": 15,
           "targetText": "100% في أول يوم عمل من الربع",
           "source": "تاريخ الإرسال",
-          "method": "report",
+          "method": "system",
           "module": "M-12",
           "direction": "at-least",
           "goal": 100,
-          "required": 1
+          "metric": "sheetsOnTime",
+          "params": {}
         },
         {
           "title": "دقة أوراق الصفقات (عقود، تفويضات، تسجيل)",
@@ -241,7 +243,8 @@
           "module": "M-07",
           "direction": "at-least",
           "goal": 100,
-          "metric": null
+          "metric": "payrollOnTime",
+          "params": {}
         },
         {
           "title": "حساب العمولة في نفس يوم ظهور التحصيل",
@@ -252,7 +255,8 @@
           "module": "M-02",
           "direction": "at-least",
           "goal": 100,
-          "metric": null
+          "metric": "commissionSameDay",
+          "params": {}
         },
         {
           "title": "دقة حساب العمولات",
@@ -270,11 +274,12 @@
           "weight": 10,
           "targetText": "100%",
           "source": "تاريخ التسليم",
-          "method": "report",
+          "method": "system",
           "module": "M-07",
           "direction": "at-least",
           "goal": 100,
-          "required": 2
+          "metric": "monthClose",
+          "params": {}
         },
         {
           "title": "تسوية العهدة الأسبوعية",
@@ -306,7 +311,8 @@
           "module": "M-05",
           "direction": "at-least",
           "goal": 100,
-          "metric": null
+          "metric": "att",
+          "params": {}
         }
       ]
     },
@@ -344,7 +350,8 @@
           "module": "M-05",
           "direction": "at-least",
           "goal": 90,
-          "metric": null
+          "metric": "oneOnOnes",
+          "params": {}
         },
         {
           "title": "تنفيذ خطة التدريب الربعية + الترفيه",
@@ -399,7 +406,10 @@
           "module": "M-06",
           "direction": "at-least",
           "goal": 95,
-          "metric": null
+          "metric": "tickets",
+          "params": {
+            "ttype": "hr_letter"
+          }
         },
         {
           "title": "الحضور (5% غياب + 5% تأخير)",
@@ -448,7 +458,8 @@
           "module": "M-04",
           "direction": "at-least",
           "goal": 90,
-          "metric": null
+          "metric": "postsOnTime",
+          "params": {}
         },
         {
           "title": "الـ Broadcast في مواعيده (يومين في الأسبوع) + Hot Inventory",
@@ -459,7 +470,8 @@
           "module": "M-04",
           "direction": "at-least",
           "goal": 100,
-          "metric": null
+          "metric": "broadcastPlan",
+          "params": {}
         },
         {
           "title": "تسجيل توقيت وصول كل ليد على واتساب الحملة",
@@ -531,7 +543,8 @@
           "module": "M-04",
           "direction": "at-least",
           "goal": 90,
-          "metric": null
+          "metric": "photo72",
+          "params": {}
         },
         {
           "title": "تسليم المواد متعدّلة خلال 48 ساعة",
@@ -542,27 +555,34 @@
           "module": "M-04",
           "direction": "at-least",
           "goal": 90,
-          "metric": null
+          "metric": "retouch48",
+          "params": {}
         },
         {
           "title": "تنفيذ خطة التصوير الأسبوعية",
           "weight": 20,
           "targetText": "100%",
           "source": "مراجعة رحمة",
-          "method": "manual",
+          "method": "system",
           "module": null,
           "direction": "at-least",
-          "goal": 100
+          "goal": 100,
+          "metric": "tasksOnTime",
+          "params": {
+            "tkind": "photo"
+          }
         },
         {
           "title": "جودة المواد (اتقبلت من أول مرة)",
           "weight": 10,
           "targetText": "≥85%",
           "source": "مراجعة رحمة",
-          "method": "manual",
+          "method": "system",
           "module": null,
           "direction": "at-least",
-          "goal": 85
+          "goal": 85,
+          "metric": "tasksFirstTime",
+          "params": {}
         },
         {
           "title": "الحضور (5% غياب + 5% تأخير)",
@@ -698,7 +718,10 @@
           "module": "M-01",
           "direction": "at-least",
           "goal": 100,
-          "metric": null
+          "metric": "callsDaily",
+          "params": {
+            "per": "quarter"
+          }
         },
         {
           "title": "ليدز مؤهلة متسلّمة",
@@ -768,7 +791,8 @@
           "module": "M-03",
           "direction": "at-least",
           "goal": 100,
-          "metric": null
+          "metric": "unitsEntered",
+          "params": {}
         },
         {
           "title": "إدخال الوحدات الجديدة خلال 24 ساعة",
@@ -790,7 +814,10 @@
           "module": "M-06",
           "direction": "at-least",
           "goal": 90,
-          "metric": null
+          "metric": "tickets",
+          "params": {
+            "dept": "Inventory"
+          }
         },
         {
           "title": "التقرير اليومي (جديد / متحدّث / اتأجر / مش مؤكد)",
@@ -861,7 +888,10 @@
           "module": "M-03",
           "direction": "at-least",
           "goal": 100,
-          "metric": null
+          "metric": "unitsEntered",
+          "params": {
+            "by": "me"
+          }
         },
         {
           "title": "إدخال وحدات Resale / Primary خلال 24 ساعة + PDF",
@@ -920,7 +950,10 @@
           "module": "M-03",
           "direction": "at-least",
           "goal": 95,
-          "metric": null
+          "metric": "tasksOnTime",
+          "params": {
+            "tkind": "team"
+          }
         },
         {
           "title": "الرفع على Drive خلال 24 ساعة من الإدخال",
@@ -979,7 +1012,10 @@
           "module": "M-03",
           "direction": "at-least",
           "goal": 95,
-          "metric": null
+          "metric": "tasksOnTime",
+          "params": {
+            "tkind": "team"
+          }
         },
         {
           "title": "طلبات الـ Team Leaders من الـ Lists خلال 24 ساعة",
@@ -1089,10 +1125,12 @@
           "weight": 10,
           "targetText": "حسب المهام",
           "source": "تقرير نانسي",
-          "method": "manual",
+          "method": "system",
           "module": null,
           "direction": "at-least",
-          "goal": 100
+          "goal": 100,
+          "metric": "tasksOnTime",
+          "params": {}
         }
       ]
     }
@@ -1120,7 +1158,11 @@
         "module": "M-01",
         "direction": "at-least",
         "goal": 30,
-        "metric": null
+        "metric": "visitsDone",
+        "params": {
+          "kind": "Visit",
+          "per": "quarter"
+        }
       },
       {
         "title": "Meetings",
@@ -1131,7 +1173,11 @@
         "module": "M-01",
         "direction": "at-least",
         "goal": 15,
-        "metric": null
+        "metric": "visitsDone",
+        "params": {
+          "kind": "Meeting",
+          "per": "quarter"
+        }
       },
       {
         "title": "Inventory (وحدات جابها)",
@@ -1142,7 +1188,10 @@
         "module": "M-03",
         "direction": "at-least",
         "goal": 30,
-        "metric": null
+        "metric": "unitsBrought",
+        "params": {
+          "per": "quarter"
+        }
       },
       {
         "title": "Farming",
@@ -1169,7 +1218,11 @@
         "module": "M-01",
         "direction": "at-least",
         "goal": 50,
-        "metric": null
+        "metric": "calls",
+        "params": {
+          "per": "quarter",
+          "avg": "week"
+        }
       },
       {
         "title": "الحضور (5% غياب + 5% تأخير)",
@@ -1226,7 +1279,10 @@
           "module": "M-01",
           "direction": "at-least",
           "goal": 90,
-          "metric": null
+          "metric": "teamSla",
+          "params": {
+            "per": "quarter"
+          }
         },
         {
           "title": "One-to-One شهري مع كل سيلز في الفريق",
@@ -1248,7 +1304,12 @@
           "module": "M-01",
           "direction": "at-least",
           "goal": 30,
-          "metric": null
+          "metric": "visitsDone",
+          "params": {
+            "kind": "Visit",
+            "per": "quarter",
+            "of": "team"
+          }
         },
         {
           "title": "الحضور (5% غياب + 5% تأخير)",
