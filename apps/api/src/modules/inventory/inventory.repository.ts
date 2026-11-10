@@ -26,6 +26,15 @@ export interface UnitScope { insider: boolean; staleBefore: Date; hidden?: Reado
 export type Tab = AreaRange & { id: string };
 /** The list's filters, with «ناقصها بيانات» (2.20) resolved to the units it names (the service works them out). */
 export type ListFilters = UnitFilters & { missingIds?: string[] };
+/** The sheet's sortable columns (0.15) → the unit's fields; the nullable ones keep their empty cells last either way. */
+const SORT_FIELD = { total: "totalPrice", lastUpdate: "lastOwnerUpdateAt" } as const;
+const NULLABLE = new Set(["floor", "building", "pricePerSqm", "totalPrice", "leasePerSqm"]);
+function unitOrder(f: UnitFilters): Prisma.UnitOrderByWithRelationInput[] {
+  const dir = f.dir ?? "asc";
+  const field = f.sort ? (SORT_FIELD as Record<string, string>)[f.sort] ?? f.sort : null;
+  const by = !field ? [] : [{ [field]: NULLABLE.has(field) ? { sort: dir, nulls: "last" } : dir }];
+  return [...by, { createdAt: "desc" }, { id: "desc" }];
+}
 /** What the missing-data check (domain missingFields) reads of a unit. */
 const MISSING_CHECK = {
   id: true, code: true, type: true, project: true, space: true, condition: true, building: true, ownerName: true, ownerPhone: true,
@@ -132,7 +141,7 @@ export class InventoryRepository {
   list(s: UnitScope, f: ListFilters, tabs: Tab[]) {
     const where = unitWhere(s, f, tabs);
     return this.db.$transaction([
-      this.db.unit.findMany({ where, select: UNIT_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
+      this.db.unit.findMany({ where, select: UNIT_ROW, orderBy: unitOrder(f), skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.unit.count({ where }),
     ]);
   }

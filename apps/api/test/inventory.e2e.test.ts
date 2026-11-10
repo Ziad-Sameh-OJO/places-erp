@@ -402,3 +402,16 @@ test("hard cases: huge amounts refused (no 500), every refusal in Arabic, no fut
     await prisma.user.delete({ where: { id: user.id } });
   }
 });
+
+test("0.15 sort by a column in the API, across pages (Area 60 < 95 < 400, empty prices last); unknown column 400; HR 403", async () => {
+  const S = `${P} Sort`;
+  for (const [space, price] of [[95, "1100"], [400, "900"], [60, undefined]] as const) await create(manar, rent({ project: S, space, pricePerSqm: price }));
+  const page = async (n: number, s: string) =>
+    (await call(`/inventory/units?q=${encodeURIComponent(S)}&pageSize=2&page=${n}${s}`, { cookie: manar })).body.items.map((u: { space: number }) => u.space);
+  assert.deepEqual([...await page(1, "&sort=space"), ...await page(2, "&sort=space")], [60, 95, 400]);
+  assert.deepEqual([...await page(1, "&sort=space&dir=desc"), ...await page(2, "&sort=space&dir=desc")], [400, 95, 60]);
+  assert.deepEqual([...await page(1, "&sort=total&dir=desc"), ...await page(2, "&sort=total&dir=desc")], [400, 95, 60]); // no price = last
+  assert.deepEqual([...await page(1, "&sort=total"), ...await page(2, "&sort=total")], [95, 400, 60]);
+  assert.equal((await call("/inventory/units?sort=ownerPhone", { cookie: manar })).status, 400);
+  assert.equal((await call("/inventory/units?sort=space", { cookie: hr })).status, 403);
+});

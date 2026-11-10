@@ -1,7 +1,7 @@
 {
   "close": "قفل",
   "error": "حصل خطأ",
-  "table": { "empty": "مفيش بيانات" },
+  "table": { "empty": "مفيش بيانات", "sortHint": "<b>{n}</b> صف · دوس على عنوان أي عمود عشان ترتّب", "sortedBy": "<b>{n}</b> صف · مترتب بـ «{col}»" },
   "export": { "label": "تصدير Excel", "busy": "بيجهّز الملف…" },
   "import": {
     "done": "اتضاف {imported} · متكرر {duplicates} · أخطاء {skipped}",

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { keepsInventory } from "@places/domain";
+import { UNIT_SORTS } from "@places/contracts";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -22,6 +23,7 @@ import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnit
 import { serverText } from "@/lib/server-text";
 
 const PAGE = 50;
+const SORTABLE: ReadonlySet<string> = new Set(UNIT_SORTS);
 type TypeTab = "all" | "Rent" | "Resale" | "Income" | "Primary" | "closed";
 
 /**
@@ -57,8 +59,11 @@ export function InventoryList() {
   const run = useAction();
   // the rented / sold sheet keeps its own type and dates (M-03 5.2); the other tabs don't use them
   const [closedBy, setClosedBy] = useState<Pick<UnitQuery, "type" | "closedFrom" | "closedTo">>({});
+  // 0.15: a header click sorts every page in the API (back to page 1)
+  const [sort, setSort] = useState<Pick<UnitQuery, "sort" | "dir">>({});
   const query: UnitQuery = { ...f, ...(tab === "closed" ? { view: "closed", ...closedBy } : tab !== "all" ? { type: tab } : {}) };
-  const units = useUnits(query, page, PAGE);
+  const sorted: UnitQuery = { ...query, ...sort };
+  const units = useUnits(sorted, page, PAGE);
   const tabs = useUnitTabs(f).data;
   const s = useUnitSummary().data;
   const options = useUnitOptions().data;
@@ -107,7 +112,7 @@ export function InventoryList() {
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}
         {prepares && <button className="btn ghost" onClick={() => setLists(true)}><Icon name="list" />{t("list.listRequests")}</button>}
         {/* 2.28: the sheet as filtered now, every page (the API drops what the reader may not see) */}
-        <ExportButton module="inventory" path="/inventory/units/export" query={toParams(query, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
+        <ExportButton module="inventory" path="/inventory/units/export" query={toParams(sorted, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
       <div className="toolbar">
@@ -153,6 +158,7 @@ export function InventoryList() {
           ))}</div>
           : <Empty text={t("list.empty")} />)
         : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => cell(u, k, t)))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)}
+          sort={{ keys: cols.map(([k]) => (SORTABLE.has(k) ? k : null)), by: sort.sort, dir: sort.dir, onChange: (by, dir) => { setSort({ sort: by, dir }); setPage(1); } }}
           pick={{ ids: list.map((u) => u.id), picked, onChange: setPicked, all: t("listOfOptions.pickAll"), one: (i) => t("listOfOptions.pickOne", { code: list[i]!.code }) }} />}
       {picked.length > 0 && <ListOfOptionsBar ids={picked} onClear={() => setPicked([])} />}
       {fields.shows("space") && <AreaTabsBar tabs={areaTabs} value={f.tabId} onChange={(tabId) => filter({ ...f, tabId })} editable={me.can("inventory", "edit")} />}

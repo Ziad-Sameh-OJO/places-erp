@@ -386,6 +386,8 @@ export function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitF
     ...f, ...drop(hidden.has("area"), "area"), ...drop(hidden.has("condition"), "condition"), ...drop(hidden.has("agent"), "agentId"),
     ...drop(hidden.has("space"), "minSpace", "maxSpace", "tabId"), ...drop(hidden.has("totalPrice"), "minPrice", "maxPrice"),
     ...drop(hidden.has("lastOwnerUpdateAt"), "stale"), ...drop(hidden.has("divisible"), "divisible"),
+    // sorting by a hidden field would tell its value too (0.15)
+    ...drop(!!f.sort && hidden.has(f.sort === "total" ? "totalPrice" : f.sort === "lastUpdate" ? "lastOwnerUpdateAt" : f.sort), "sort"),
   };
 }
 

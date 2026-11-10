@@ -64,7 +64,9 @@ export function LeadsList() {
   const options = useLeadOptions();
   const settings = useSettings();
   const saved = useSavedViews();
-  const leads = useLeads({ ...f, kind }, page, PAGE);
+  // 0.15: a header click sorts every page in the API (back to page 1); not a filter, so saved views don't keep it
+  const [sort, setSort] = useState<Pick<LeadQuery, "sort" | "dir">>({});
+  const leads = useLeads({ ...f, kind, ...sort }, page, PAGE);
   const board = useLeadBoard({ ...f, kind }, mode === "board");
   const tabs = useTabCounts(f).data;
   // a filter the API refuses (e.g. «لحد» before «من») says why, instead of quietly keeping the previous results
@@ -117,12 +119,12 @@ export function LeadsList() {
         {(keepsSheet || can("leads", "import")) && <button className="btn ghost" onClick={() => setCompanies(true)}><Icon name="building" />{t("companies")}</button>}
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />{t("bulk")}</button>}
         {can("leads", "import") && <><OldDataImport kind="leads" /><OldDataImport kind="companies" /></>}{/* 13.1 */}
-        <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind }, 1, 100)} filename={t("exportFile")} label={t("export")} />
+        <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind, ...sort }, 1, 100)} filename={t("exportFile")} label={t("export")} />
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{t("newLead")}</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
         ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
-        : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} {...(canPick ? { picked, onPick: setPicked } : {})} />}
+        : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} sort={sort} onSort={(by, dir) => { setSort({ sort: by, dir }); setPage(1); }} {...(canPick ? { picked, onPick: setPicked } : {})} />}
       {mode === "list" && picked.length > 0 && <BulkBar ids={picked} onDone={() => setPicked([])} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
       {companies && <CompaniesSheet onClose={() => setCompanies(false)} />}

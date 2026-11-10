@@ -16,7 +16,7 @@ export class LeadsRepository {
   list(scope: Prisma.LeadWhereInput, f: LeadQuery) {
     const where = leadWhere(scope, f);
     return this.db.$transaction([
-      this.db.lead.findMany({ where, select: LEAD_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
+      this.db.lead.findMany({ where, select: LEAD_ROW, orderBy: leadOrder(f), skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.lead.count({ where }),
     ]);
   }
@@ -44,9 +44,9 @@ export class LeadsRepository {
       .then((rows) => new Map(rows.map((r) => [r.id, r])));
   }
 
-  /** «تصدير الليدز»: the list under the same scope and filters, newest first, up to `limit` rows. */
+  /** «تصدير الليدز»: the list under the same scope, filters and sort (newest first by default), up to `limit` rows. */
   exportRows(scope: Prisma.LeadWhereInput, f: LeadQuery, limit: number) {
-    return this.db.lead.findMany({ where: leadWhere(scope, f), select: { ...LEAD_ROW, company: { select: { name: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit });
+    return this.db.lead.findMany({ where: leadWhere(scope, f), select: { ...LEAD_ROW, company: { select: { name: true } } }, orderBy: leadOrder(f), take: limit });
   }
 
   /**
@@ -348,6 +348,15 @@ export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DU
 
 /** The list's filters; `phoneSearch` false (M-09: the mobile is hidden from the caller): the search doesn't look at the mobiles. */
 export type LeadQuery = LeadFilters & { phoneSearch?: boolean };
+
+/** 0.15: the column clicked, across every page (empty budgets last either way); then newest first, the id keeps pages stable. */
+function leadOrder(f: LeadQuery): Prisma.LeadOrderByWithRelationInput[] {
+  const dir = f.dir ?? "asc";
+  const by: Prisma.LeadOrderByWithRelationInput[] = !f.sort ? []
+    : f.sort === "budget" ? [{ budget: { sort: dir, nulls: "last" } }]
+      : [{ [f.sort]: dir }];
+  return [...by, { createdAt: "desc" }, { id: "desc" }];
+}
 
 function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhereInput {
   const digits = f.q?.replace(/\D/g, "") ?? "";

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_UNIT_PHOTOS, UNIT_TYPES, areaRangeProblem, fromDecimal, unitFiguresFit, type UnitStatus, type UnitType } from "@places/domain";
-import { CalendarDay, Id, Money, Page } from "./common.ts";
+import { CalendarDay, Id, Money, Page, SortDir } from "./common.ts";
 import type { ListItem } from "./settings.ts";
 
 /** M-03 · the inventory: one unit's sheet per type (sources/inventory-unit-fields.md, M-03 3.1), the list's filters. */
@@ -120,6 +120,10 @@ const QueryInt = z.coerce.number().int().min(0).max(1_000_000);
 /** «closed» = the rented / sold sheet (M-03 5.2): rented or sold, or one side of a dual unit closed. */
 export const UnitView = z.enum(["available", "closed"]);
 
+/** The sheet's columns the API sorts by (0.15), as the screens name them: «total» = Total Price, «lastUpdate» = Last update. */
+export const UNIT_SORTS = ["project", "code", "type", "area", "space", "condition", "floor", "building", "parking", "pricePerSqm", "total", "leasePerSqm", "lastUpdate"] as const;
+export type UnitSort = (typeof UNIT_SORTS)[number];
+
 /** The list's filters (the demo's toolbar + 2.2: type, area, space, price, status). */
 export const UnitFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
@@ -139,6 +143,8 @@ export const UnitFilters = Page.extend({
   /** the rented / sold sheet (M-03 5.2): closed between these Cairo days, both included */
   closedFrom: CalendarDay.optional(),
   closedTo: CalendarDay.optional(),
+  sort: z.enum(UNIT_SORTS).optional(), // 0.15: by a column, across every page
+  dir: SortDir.optional(),
 })
   .refine((f) => f.minSpace == null || f.maxSpace == null || f.minSpace <= f.maxSpace, { path: ["maxSpace"], message: "أقصى مساحة أصغر من أقل مساحة" })
   .refine((f) => f.minPrice == null || f.maxPrice == null || Number(f.minPrice) <= Number(f.maxPrice), { path: ["maxPrice"], message: "أقصى سعر أصغر من أقل سعر" })
