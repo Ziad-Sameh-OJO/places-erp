@@ -106,8 +106,10 @@
   },
   "dashboard": {
     "period": "Period",
-    "ranges": { "r7": "Last 7 days", "r30": "Last 30 days", "rmonth": "This month", "rall": "All time", "rcustom": "Custom period" },
+    "ranges": { "rtoday": "Today", "r7": "Last 7 days", "r30": "Last 30 days", "rmonth": "This month", "rall": "All time", "rcustom": "Custom period" },
     "from": "From",
+    "search": "Search",
+    "badRange": "The «From» date is after «To»",
     "to": "To",
     "allChannels": "All Channels",
     "campaign": "Campaign",
