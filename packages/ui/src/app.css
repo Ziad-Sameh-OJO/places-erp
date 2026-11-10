@@ -513,6 +513,14 @@ button.lnk { background: none; border: 0; padding: 0; }
 .uf-dl { display: inline-flex !important; aspect-ratio: auto !important; background: none !important; align-items: center; gap: 3px; font-size: 11px; color: var(--accent, #2442ff) !important; justify-self: start; }
 .uf-dl .i { width: 13px; height: 13px; }
 .uf .chip { position: absolute; top: 6px; inset-inline-end: 6px; }
+/* 2.35 · Layout file folder: bigger tiles so a plan is readable, PDFs previewed in place, drawings (DWG) shown as a typed file */
+.ufolder.layout { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.uf .uf-pdf { display: block; width: 100%; aspect-ratio: 4 / 3; border: 0; background: #fff; pointer-events: none; }
+.ufolder.layout .uf-doc { font-size: 15px; letter-spacing: .04em; }
+.ufolder.layout figcaption { grid-template-columns: auto auto 1fr; }
+.ufolder.layout figcaption span, .ufolder.layout figcaption small { grid-column: 1 / -1; }
+.ufolder.layout figcaption .uf-dl + .uf-dl { margin-inline-start: 10px; }
+.uf-rep { cursor: pointer; }
 .uf figcaption .row { gap: 4px; flex-wrap: wrap; }
 .u-img .mono { position: absolute; top: 10px; inset-inline-start: 10px; background: rgba(0,0,0,.28); color: #fff; padding: 2px 8px; border-radius: 8px; }
 .u-img .chip { position: absolute; top: 10px; inset-inline-end: 10px; }

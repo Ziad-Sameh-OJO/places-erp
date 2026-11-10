@@ -6,6 +6,7 @@ import { Avatar, Chip, Icon } from "@/components/ui";
 import { amount, day, moneyExact, num } from "@/lib/format";
 import type inventory from "@/i18n/messages/ar/inventory.json";
 import { UnitFolder } from "./unit-photos";
+import { UnitLayoutFolder } from "./unit-layout";
 import { serverText } from "@/lib/server-text";
 
 export type UnitTypeName = UnitRow["type"];
@@ -21,7 +22,7 @@ export const w = (k: ColWord) => ({ w: k });
 const RENT: readonly Col[] = [
   ["project", "Project"], ["code", "Code"], ["photos", "Pic & Info"], ["space", "Area"], ["condition", "Conditions"], ["pricePerSqm", "Price/Sqm"], ["total", "Total Price"],
   ["maintenance", "Maintenance"], ["floor", "Floor"], ["commission", "Commission"], ["building", "Building Number"], ["parking", "Parking Slots"], ["location", "Location"],
-  ["layout", "Layout"], ["pic", "PIC"], ["resale", "Resale"], ["comment", "Comment"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["agent", "Agent"], ["lastUpdate", "Last update"],
+  ["layout", "Layout file"], ["pic", "PIC"], ["resale", "Resale"], ["comment", "Comment"], ["ownerName", "Contact"], ["ownerPhone", "Number"], ["agent", "Agent"], ["lastUpdate", "Last update"],
 ];
 /**
  * The demo's sheet columns per type (M-03 3.1: each type keeps its own sheet's columns and names); «all» is the
@@ -57,7 +58,7 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     case "type": return <TypeChip type={u.type} />;
     case "space": return !u.space ? "—" : <bdi className="num">{u.divisible && u.minSplit ? `${num(u.minSplit)} UP TO ${num(u.space)}` : num(u.space)}</bdi>;
     case "area": case "condition": return u[key] ? serverText(u[key]) : "—"; // list values: the default ones have English names
-    case "layout": return yesNo(u.layout);
+    case "layout": return <UnitLayoutFolder u={u} label={<><Icon name="file" />{u.layoutCount ? t("cell.files", { count: u.layoutCount }) : t("cell.empty")}</>} />; // 2.35: opens the Layout folder
     case "pic": return yesNo(u.photoCount > 0);
     case "resale": return yesNo(u.type === "Resale" || u.alsoType === "Resale");
     case "comment": return text(u.comment);

@@ -1,11 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { UnitAgreementInput, UnitPhotoOrder, UnitPhotosInput } from "@places/contracts";
+import { UnitAgreementInput, UnitLayoutInput, UnitPhotoOrder, UnitPhotosInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { writeZip } from "../../core/files/zip";
 import { UnitPhotosService } from "./unit-photos.service";
+import { UnitLayoutsService } from "./unit-layouts.service";
 
 /**
  * 2.4 · 2.22 · a unit's «Pic & Info» folder: whoever sees the unit opens and downloads it; adding, ordering and removing
@@ -49,6 +50,51 @@ export class UnitPhotosController {
   @Requires("inventory", "view")
   remove(@Me() me: CurrentUser, @Param("id") id: string, @Param("fileId") fileId: string) {
     return this.photos.remove(me, id, fileId);
+  }
+}
+
+/**
+ * 2.35 · a unit's «Layout file» folder (PDF · DWG · images): like Pic & Info, whoever sees the unit opens and downloads;
+ * the service checks who fills it (the inventory's editors and team) and the Layout field's permission (M-09).
+ */
+@Controller("inventory/units/:id/layout")
+export class UnitLayoutsController {
+  constructor(private readonly layouts: UnitLayoutsService) {}
+
+  @Get()
+  @Requires("inventory", "view")
+  list(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.layouts.list(me, id);
+  }
+
+  @Get("zip")
+  @Requires("inventory", "view")
+  async zip(@Me() me: CurrentUser, @Param("id") id: string, @Res() res: Response) {
+    const z = await this.layouts.zip(me, id);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(z.filename)}`);
+    await writeZip(res, z.entries);
+    res.end();
+  }
+
+  @Post()
+  @Requires("inventory", "view")
+  add(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UnitLayoutInput)) b: UnitLayoutInput) {
+    return this.layouts.add(me, id, b.fileIds);
+  }
+
+  /** «استبدال»: the new upload takes this file's place */
+  @Put(":fileId")
+  @Requires("inventory", "view")
+  replace(@Me() me: CurrentUser, @Param("id") id: string, @Param("fileId") fileId: string, @Body(new ZodPipe(UnitAgreementInput)) b: UnitAgreementInput) {
+    return this.layouts.replace(me, id, fileId, b.fileId);
+  }
+
+  @Delete(":fileId")
+  @HttpCode(204)
+  @Requires("inventory", "view")
+  remove(@Me() me: CurrentUser, @Param("id") id: string, @Param("fileId") fileId: string) {
+    return this.layouts.remove(me, id, fileId);
   }
 }
 

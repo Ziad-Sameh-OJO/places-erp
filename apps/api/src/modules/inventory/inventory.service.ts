@@ -342,7 +342,7 @@ export class InventoryService {
       project: u.project, area: u.area, space: u.space, condition: u.condition, floor: u.floor, building: u.building, parking: u.parking,
       ownerName: s.insider ? u.ownerName : null, ownerPhone: s.insider ? u.ownerPhone : null,
       pricePerSqm: money(u.pricePerSqm), totalPrice: money(u.totalPrice), leasePerSqm: money(u.leasePerSqm),
-      maintenance: u.maintenance, commission: u.commission, paymentMethod: u.paymentMethod, layout: u.layout, comment: u.comment,
+      maintenance: u.maintenance, commission: u.commission, paymentMethod: u.paymentMethod, layout: u._count.layouts > 0, layoutCount: u._count.layouts, comment: u.comment,
       divisible: u.divisible, minSplit: u.minSplit, location: u.location, areaTabId: u.areaTabId,
       agent: u.agentId ? { id: u.agentId, name: agents.get(u.agentId) ?? "" } : null,
       lastOwnerUpdateAt: u.lastOwnerUpdateAt.toISOString(), stale: isStale(u.lastOwnerUpdateAt, new Date()),
@@ -371,7 +371,7 @@ function hideFields(r: UnitRow, hidden: ReadonlySet<string>): UnitRow {
     pricePerSqm: h("pricePerSqm") ? null : r.pricePerSqm, totalPrice: h("totalPrice") ? null : r.totalPrice, leasePerSqm: h("leasePerSqm") ? null : r.leasePerSqm,
     income: h("income") || !r.income ? null : h("yield") ? { ...r.income, yieldPct: null } : r.income,
     maintenance: h("maintenance") ? null : r.maintenance, commission: h("commission") ? null : r.commission, paymentMethod: h("paymentMethod") ? null : r.paymentMethod,
-    layout: h("layout") ? false : r.layout, comment: h("comment") ? null : r.comment, location: h("location") ? null : r.location, agreement: h("agreement") ? false : r.agreement,
+    layout: h("layout") ? false : r.layout, layoutCount: h("layout") ? 0 : r.layoutCount, comment: h("comment") ? null : r.comment, location: h("location") ? null : r.location, agreement: h("agreement") ? false : r.agreement,
     divisible: h("divisible") ? false : r.divisible, minSplit: h("minSplit") ? null : r.minSplit, agent: h("agent") ? null : r.agent,
     lastOwnerUpdateAt: h("lastOwnerUpdateAt") ? "" : r.lastOwnerUpdateAt, stale: h("stale") ? false : r.stale,
     details: Object.fromEntries(Object.entries(r.details).filter(([k]) => !h(k))),
@@ -390,8 +390,8 @@ export function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitF
 }
 
 /** A field the person may not set: its value as stored (an edit), or empty (a new unit). Keys a type doesn't have are ignored by toData. */
-const EMPTY: Record<string, unknown> = { area: "", space: 0, condition: "", parking: 0, layout: false, divisible: false };
-const INPUT_KEYS = ["area", "space", "areaTabId", "condition", "floor", "building", "parking", "agentId", "maintenance", "commission", "location", "layout", "comment",
+const EMPTY: Record<string, unknown> = { area: "", space: 0, condition: "", parking: 0, divisible: false };
+const INPUT_KEYS = ["area", "space", "areaTabId", "condition", "floor", "building", "parking", "agentId", "maintenance", "commission", "location", "comment",
   "lastOwnerUpdateAt", "divisible", "minSplit", "splitNote", "ownerName", "ownerPhone", "pricePerSqm", "leasePerSqm", "paymentMethod", "delivery", "upfront",
   "security", "payment", "term", "grace", "escalationPct", "link", "contractDuration", "startsOn", "endsOn", "serviceChargeUsd", "tenant", "note"] as const;
 function keepFixed(input: UnitInput, before: UnitRecord | null, fixed: ReadonlySet<string>): UnitInput {
@@ -452,7 +452,7 @@ function toData(u: UnitInput) {
     parking: u.parking, agentId: u.agentId ?? null, ownerName: u.ownerName ?? null, ownerPhone: u.ownerPhone ?? null,
     pricePerSqm: price ? toDecimal(fromDecimal(price)) : null, totalPrice: price && u.space ? toDecimal(unitTotal(fromDecimal(price), u.space)) : null,
     leasePerSqm: u.type === "Income" && u.leasePerSqm ? toDecimal(fromDecimal(u.leasePerSqm)) : null,
-    maintenance: u.maintenance ?? null, commission: u.commission ?? null, layout: u.layout, comment: u.comment ?? null,
+    maintenance: u.maintenance ?? null, commission: u.commission ?? null, comment: u.comment ?? null,
     paymentMethod: u.type === "Rent" ? null : (u.paymentMethod ?? null),
     details, location: u.location ?? null, areaTabId: u.areaTabId ?? null,
     divisible: u.divisible, minSplit: u.divisible ? (u.minSplit ?? null) : null, splitNote: u.divisible ? (u.splitNote ?? null) : null,

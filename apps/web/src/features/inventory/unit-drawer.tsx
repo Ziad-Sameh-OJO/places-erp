@@ -6,6 +6,7 @@ import { Drawer } from "@/components/blocks";
 import { Chip, Empty, Note, Tabs } from "@/components/ui";
 import { CloseRequests } from "./close-requests";
 import { UnitFolder } from "./unit-photos";
+import { UnitLayoutFolder } from "./unit-layout";
 import { UnitPdfTab } from "./unit-pdf-tab";
 import { UnitLocationTab } from "./unit-map";
 import { amount, dateLocale, moneyExact, num } from "@/lib/format";
@@ -57,7 +58,7 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
       {u.type === "Income" && u.income
         ? <Note>Monthly = Lease/m × Area = {moneyExact(u.income.monthlyRent)} · Annual = ×12 = {moneyExact(u.income.annualRent)} · Yield = Annual ÷ Sale total = <b>{u.income.yieldPct != null ? `${u.income.yieldPct.toFixed(2)}%` : "—"}</b></Note>
         : u.pricePerSqm && <Note>{t("drawer.totalFormula", { price: amount(u.pricePerSqm), space: num(u.space) })}<b>{moneyExact(u.totalPrice)}</b></Note>}
-      <div className="row"><UnitFolder u={u} /></div>
+      <div className="row"><UnitFolder u={u} />{fields.shows("layout") && <UnitLayoutFolder u={u} />}</div>
       {u.divisible && <Note>{t("list.divisible")}{u.minSplit ? ` · ${t("drawer.minSplit", { min: num(u.minSplit) })}` : ""}{u.splitNote ? ` · ${u.splitNote}` : ""}</Note>}
       <section className="card flat">
         <div className="row"><span className="hint">{t("drawer.received")}</span><b>{when(u.receivedAt)}</b><span className="hint">{t("drawer.entered")}</span><b>{when(u.enteredAt)}</b>{entered != null && <Chip tone={entered <= 24 ? "ok" : "bad"}>{entered <= 24 ? t("drawer.within24") : t("drawer.after", { hours: Math.round(entered) })}</Chip>}</div>

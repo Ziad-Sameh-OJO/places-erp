@@ -1,6 +1,6 @@
 /**
- * 2.21 · the Rent sheet like the client's (Book7): a unit saves with the project only, and the new columns (Layout,
- * Comment) and the rent terms the PDF shows (Delivery · Upfront · Security · Payment · Term · Grace · Annual increase)
+ * 2.21 · the Rent sheet like the client's (Book7): a unit saves with the project only, and the new column (Comment)
+ * and the rent terms the PDF shows (Delivery · Upfront · Security · Payment · Term · Grace · Annual increase)
  * are saved, edited and audited. Manar = inventory, Mohamed Mohsen = sales (can't add units).
  */
 import { after, before, test } from "node:test";
@@ -43,23 +43,21 @@ test("a Rent unit saves with the project only, and with nothing at all", async (
 
 test("the new columns and the rent terms are saved and edited (audited)", async () => {
   const terms = { delivery: "Ready to move", upfront: "3 months", security: "3 months", payment: "Quarterly", term: "3-5 years", grace: "N\\A", escalationPct: 10 };
-  const body = { type: "Rent", project: `${P} P1901`, space: 690, divisible: true, minSplit: 20, maintenance: "Included", commission: "1 month", layout: true, comment: "الدور كامل", ...terms };
+  const body = { type: "Rent", project: `${P} P1901`, space: 690, divisible: true, minSplit: 20, maintenance: "Included", commission: "1 month", comment: "الدور كامل", ...terms };
   const r = await call("/inventory/units", { method: "POST", cookie: manar, body });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   const id = (r.body as { id: string }).id;
   const u = (await call(`/inventory/units/${id}`, { cookie: manar })).body as Unit;
-  assert.equal(u.layout, true);
+  assert.equal(u.layout, false); // 2.35: Layout = its Layout file folder has files, never typed in
   assert.equal(u.comment, "الدور كامل");
   assert.deepEqual(u.details, terms);
 
-  const put = await call(`/inventory/units/${id}`, { method: "PUT", cookie: manar, body: { ...body, layout: false, comment: "", upfront: "2 months", escalationPct: 12 } });
+  const put = await call(`/inventory/units/${id}`, { method: "PUT", cookie: manar, body: { ...body, comment: "", upfront: "2 months", escalationPct: 12 } });
   assert.equal(put.status, 200, JSON.stringify(put.body));
   const e = put.body as Unit;
-  assert.equal(e.layout, false);
   assert.equal(e.comment, null);
   assert.equal(e.details.upfront, "2 months");
   assert.equal(e.details.escalationPct, 12);
   const audit = await prisma.auditLog.findFirstOrThrow({ where: { entity: "Unit", entityId: id, action: "update" } });
   assert.match(JSON.stringify(audit.after), /2 months/);
-  assert.match(JSON.stringify(audit.after), /"layout":false/);
 });

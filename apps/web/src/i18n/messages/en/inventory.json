@@ -371,5 +371,30 @@
     "sent": "Sent",
     "send": "Send to the Team Leader",
     "noUnits": "No available units for this search"
+  },
+  "layout": {
+    "folderTitle": "Layout folder",
+    "folderButton": "Layout file",
+    "modalTitle": "{code} folder · Layout file",
+    "files": "{count, plural, one {# file} other {# files}}",
+    "zip": "Download the whole folder (ZIP)",
+    "upload": "Upload Layout (PDF · DWG · image)",
+    "uploaded": "{count, plural, one {# file uploaded} other {# files uploaded}} to the {code} Layout file folder",
+    "view": "View",
+    "download": "Download",
+    "replace": "Replace",
+    "replaced": "{old} was replaced with {name}",
+    "delete": "Delete {name}",
+    "deleteConfirm": "Delete this file from the Layout folder?",
+    "deleted": "{name} deleted from the Layout file folder",
+    "dwg": "Opens with AutoCAD or a DWG viewer",
+    "empty": "The folder is empty",
+    "emptyUp": "Upload the Layout here: a PDF, a DWG (AutoCAD) or an image, several files at once.",
+    "emptyView": "Nobody has uploaded a Layout for this unit yet.",
+    "note": "Layout files are seen from the Layout file column in the sheet and from the unit's page. PDFs and images show here directly; the DWG file downloads and opens with AutoCAD or any DWG viewer.",
+    "limits": "Images up to {image} · PDF up to {pdf} · DWG up to {dwg}",
+    "formLabel": "Layout file (PDF · DWG · image · goes in the Layout folder)",
+    "formAdd": "Add a Layout file (PDF · DWG · image)",
+    "picked": "{count, plural, one {# file} other {# files}} will upload after saving"
   }
 }
