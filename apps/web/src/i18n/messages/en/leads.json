@@ -21,7 +21,19 @@
     "companyTitle": "New company: {name}",
     "companySub": "Needs adding to the companies sheet with a category",
     "companySheet": "Companies sheet",
-    "tlNote": "TL note on {name}"
+    "tlNote": "TL note on {name}",
+    "newLeadTitle": "New Lead from Telesales: {name}",
+    "newLeadLate": "{n} minutes late · counts against you in the KPIs",
+    "newLeadLeft": "{n} minutes left to count as on time",
+    "decide": "Decide",
+    "backTitle": "Back to you on the 3rd rotation: {name}",
+    "backSub": "Call them again",
+    "draftItem": "{name} ({stage} · {from})",
+    "postponeTitle": "{kind} postponement: {name}",
+    "postponeSub": "{sales} · {at} · Reason: {reason}",
+    "noAnswerTitle": "Call {name} (No Answer)",
+    "noAnswerSub": "Reminder every {h} hours · log the call to close it",
+    "sep": ", "
   },
   "bulkBar": {
     "applied": "Applied to {count, plural, one {# lead} other {# leads}}",

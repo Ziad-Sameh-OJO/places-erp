@@ -9,7 +9,7 @@ import { type LeadsT, slaText } from "./lead-bits";
 import { useBulkPending } from "./bulk";
 import { usePendingCompanies } from "./companies";
 
-/** «مهامي النهارده» from the leads (1.22): SLA alarms and the day's visits, in the demo's words (home.js). */
+/** «مهامي النهارده» from the leads (1.22 · 1.33 · 1.34): every line the API gives this person, in the demo's words (home.js). */
 export function useLeadToday(enabled: boolean) {
   const t = useTranslations("leads");
   return useQuery({
@@ -20,15 +20,33 @@ export function useLeadToday(enabled: boolean) {
 }
 
 function toLine(x: LeadTodayItem, t: LeadsT): InboxLine {
-  const href = `/leads?open=${x.lead.id}`;
-  if (x.kind === "tlNote") { // 1.33
-    return { key: `tl-${x.lead.id}`, tone: x.tone, icon: "star", title: t("today.tlNote", { name: x.lead.name }), sub: x.tlNote ?? "", href, button: t("today.open") };
+  if (x.kind === "draftAdmin" && x.drafts) { // 1.34: the Draft Admin's daily Alarm, not one lead
+    const d = x.drafts;
+    return { key: "draft-admin", tone: x.tone, icon: "alert", title: t("drafts.alarm", { count: d.waiting }) + (d.today ? t("drafts.alarmToday", { count: d.today }) : ""),
+      sub: d.leads.map((l) => t("today.draftItem", { name: l.name, stage: l.stage, from: l.from ?? "—" })).join(t("today.sep")) + (d.waiting > d.leads.length ? "…" : ""),
+      href: "/leads?draft=admin", button: t("drafts.review") };
   }
-  if (x.kind === "visit" && x.visit) {
-    return { key: `visit-${x.visit.id}`, tone: x.tone, icon: "pin", title: `${x.visit.kind}: ${x.lead.name}`,
-      sub: t("today.visitSub", { at: dayTime(x.visit.at) }), href, button: t("today.open") };
+  const lead = x.lead ?? { id: "", name: "" };
+  const href = `/leads?open=${lead.id}`, name = lead.name;
+  switch (x.kind) {
+    case "tlNote": // 1.33
+      return { key: `tl-${lead.id}`, tone: x.tone, icon: "star", title: t("today.tlNote", { name }), sub: x.tlNote ?? "", href, button: t("today.open") };
+    case "newLead": { // 1.34 · demo: Operations' clock on a New Lead from Telesales (11.15)
+      const n = x.minutesLeft ?? 0;
+      return { key: `nl-${lead.id}`, tone: x.tone, icon: "send", title: t("today.newLeadTitle", { name }),
+        sub: n < 0 ? t("today.newLeadLate", { n: -n }) : t("today.newLeadLeft", { n }), href: "/leads", button: t("today.decide") };
+    }
+    case "telesales":
+      return { key: `ts-${lead.id}`, tone: x.tone, icon: "phone", title: t("today.backTitle", { name }), sub: t("today.backSub"), href, button: t("today.open") };
+    case "postpone":
+      return { key: `pp-${x.visit?.id ?? lead.id}`, tone: x.tone, icon: "pin", title: t("today.postponeTitle", { kind: x.visit?.kind ?? "Visit", name }),
+        sub: t("today.postponeSub", { sales: x.salesperson ?? "—", at: x.visit ? dayTime(x.visit.at) : "—", reason: x.reason || "—" }), href, button: t("today.decide") };
+    case "noAnswer":
+      return { key: `na-${lead.id}`, tone: x.tone, icon: "phone", title: t("today.noAnswerTitle", { name }), sub: t("today.noAnswerSub", { h: x.remindH ?? 4 }), href, button: t("today.open") };
+    case "visit":
+      if (x.visit) return { key: `visit-${x.visit.id}`, tone: x.tone, icon: "pin", title: `${x.visit.kind}: ${name}`, sub: t("today.visitSub", { at: dayTime(x.visit.at) }), href, button: t("today.open") };
   }
-  return { key: `sla-${x.lead.id}`, tone: x.tone, icon: "clock", title: t("today.noAction", { name: x.lead.name }),
+  return { key: `sla-${lead.id}`, tone: x.tone, icon: "clock", title: t("today.noAction", { name }),
     sub: `${x.sla ? slaText(x.sla, t) : ""} · ${x.salesperson ?? "—"}`, href, button: t("today.openLead") };
 }
 

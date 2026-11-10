@@ -248,3 +248,15 @@ export function draftAdminAlarm(waiting: readonly { readonly at: Date }[], now: 
   const today = localDate(now);
   return { waiting: waiting.length, today: waiting.filter((w) => localDate(w.at) === today).length };
 }
+
+/**
+ * 1.34 · demo home.js «رجعلك في الروتيشن التالت»: a lead Telesales holds because it came back to her on the rotation the
+ * rules name (noAnswer.toTelesalesAt, the 3rd by default) — on her board until she sends it on as a New Lead.
+ */
+export function backToTelesales(
+  lead: { readonly ownedByTelesales: boolean; readonly rotation: number; readonly newLeadRequestedAt: Date | null; readonly newLeadRoutedAt: Date | null },
+  rules: LeadRules,
+): boolean {
+  const waitingForOps = !!lead.newLeadRequestedAt && !lead.newLeadRoutedAt;
+  return lead.ownedByTelesales && lead.rotation >= rules.noAnswer.toTelesalesAt && !waitingForOps;
+}

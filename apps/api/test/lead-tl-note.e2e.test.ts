@@ -32,7 +32,7 @@ after(async () => {
 });
 
 const write = (cookie: string, note: string) => call(`/leads/${leadId}/tl-note`, { method: "PUT", cookie, body: { note } });
-const board = async (cookie: string) => ((await call("/home/leads", { cookie })).body as LeadTodayItem[]).filter((x) => x.kind === "tlNote" && x.lead.id === leadId);
+const board = async (cookie: string) => ((await call("/home/leads", { cookie })).body as LeadTodayItem[]).filter((x) => x.kind === "tlNote" && x.lead?.id === leadId);
 
 test("the salesperson and Operations can't write it; the Team Leader can", async () => {
   assert.equal((await write(sales, "هات عقد الإيجار")).status, 403);

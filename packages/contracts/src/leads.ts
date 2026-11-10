@@ -298,11 +298,24 @@ export interface Recommendations {
  * Visit / Meeting due today or late and not marked yet. `tone`: «bad» = late, "" = today.
  */
 export interface LeadTodayItem {
-  kind: "sla" | "visit" | "tlNote"; tone: "bad" | "warn" | "";
+  /**
+   * 1.34 adds: «newLead» (Operations: a New Lead from Telesales and its clock) · «telesales» (back to her on the 3rd
+   * rotation) · «draftAdmin» (the daily Alarm, no single lead) · «postpone» (a postponement waiting for the TL) ·
+   * «noAnswer» (the salesperson's «كلّمه» every remindH hours).
+   */
+  kind: "sla" | "visit" | "tlNote" | "newLead" | "telesales" | "draftAdmin" | "postpone" | "noAnswer"; tone: "bad" | "warn" | "";
   /** 1.33: the Team Leader's note, on the salesperson's board until they open the lead */
   tlNote: string | null;
-  lead: { id: string; name: string }; salesperson: string | null;
+  lead: { id: string; name: string } | null; salesperson: string | null;
   sla: LeadRow["sla"]; visit: { id: string; kind: "Visit" | "Meeting"; at: string } | null;
+  /** newLead: minutes left on Operations' clock (negative = late) */
+  minutesLeft?: number;
+  /** postpone: the salesperson's reason */
+  reason?: string;
+  /** draftAdmin: how many wait, how many came today, and the first few («name (stage · from)») */
+  drafts?: { waiting: number; today: number; leads: { name: string; stage: string; from: string | null }[] };
+  /** noAnswer: the rules' «كل N ساعات» */
+  remindH?: number;
 }
 
 /**
