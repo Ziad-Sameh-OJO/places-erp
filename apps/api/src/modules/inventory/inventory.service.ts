@@ -2,10 +2,10 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import type { Prisma, PrismaClient } from "@places/db";
 import {
   type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
-  type MissingUnitsToday, type UnitRow, type UnitSummary, type UnitTabCounts,
+  type MissingUnitsToday, type UnitImportOptions, type UnitImportReviewRow, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, findDuplicates, importDecision, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -202,33 +202,59 @@ export class InventoryService {
   }
 
   /**
-   * 13.1 · old units from the template, in one transaction. A row is a duplicate when a unit (or an earlier row) has the
-   * same project, space, floor, building and owner number (the demo's key for «البيانات كاملة», M-03 7.1): it's skipped.
-   * Rows the form would refuse are skipped and reported. `save` false = the preview's counts, nothing written.
-   * No Live Alert per unit: an old sheet isn't news for marketing.
+   * 13.1 · 2.38 · units from the template, in one transaction. A repeat is told by the column(s) the uploader picked
+   * (domain findDuplicates: all of them match a unit or an earlier row); each repeat is left out unless the reviewer
+   * says «ادمج» (a repeat of a unit: its price, owner name and last update) or «ضيفها برضه». Rows the form would refuse
+   * are skipped and reported. `save` false = the preview, nothing written. The import (with the picked columns) is
+   * audited, and marketing gets one Live Alert with how many units came in (4.4).
    */
-  async importUnits(me: CurrentUser, sheet: ParsedSheet<UnitInput>, save: boolean): Promise<ImportReport> {
+  async importUnits(me: CurrentUser, sheet: ParsedSheet<UnitInput>, opts: UnitImportOptions, save: boolean): Promise<ImportReport & { merged: number; review: UnitImportReviewRow[] }> {
     const errors = [...sheet.errors];
     const agents = new Map((await this.repo.agents()).map((a) => [a.name.trim().toLowerCase(), a.id]));
-    const seen = new Set<string>();
-    let added = 0, duplicates = 0;
+    const valid: { line: number; input: UnitInput }[] = [];
+    for (const { line, data } of sheet.rows) {
+      const name = data.agentId?.trim().toLowerCase();
+      const input = keepFixed({ ...data, agentId: name ? agents.get(name) ?? "" : undefined }, null, me.fields.fixed("inventory")); // the sheet has the agent's name (may be empty, 2.21)
+      if (input.agentId === "") { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
+      try { await this.check(input, null); } catch (e) { errors.push({ line, column: "", message: (e as Error).message }); continue; }
+      valid.push({ line, input });
+    }
+    const dups = findDuplicates(valid.map((v) => ({ line: v.line, ...v.input })), await this.repo.importKeys(), opts.dupBy);
+    const hidden = me.fields.hidden("inventory");
+    const review = valid.map(({ line, input }, i): UnitImportReviewRow => ({
+      line, project: input.project, space: input.space, floor: input.floor ?? null, building: input.building ?? null,
+      ownerName: hidden.has("ownerName") ? null : input.ownerName ?? null, dupOf: dups[i] ?? null,
+    }));
+    let added = 0, merged = 0;
     const run = async (tx: Prisma.TransactionClient) => {
-      for (const { line, data } of sheet.rows) {
-        const name = data.agentId?.trim().toLowerCase();
-        const input = keepFixed({ ...data, agentId: name ? agents.get(name) ?? "" : undefined }, null, me.fields.fixed("inventory")); // the sheet has the agent's name (may be empty, 2.21)
-        if (input.agentId === "") { errors.push({ line, column: "الـ Agent", message: "الـ Agent ده مش موجود" }); continue; }
-        try { await this.check(input, null); } catch (e) { errors.push({ line, column: "", message: (e as Error).message }); continue; }
-        const key = { project: input.project, space: input.space, floor: input.floor ?? null, building: input.building ?? null, ownerPhone: input.ownerPhone ?? null };
-        const id = JSON.stringify({ ...key, project: key.project.toLowerCase() });
-        if (seen.has(id) || (await tx.unit.findFirst({ where: { ...key, project: { equals: key.project, mode: "insensitive" }, archivedAt: null }, select: { id: true } }))) { duplicates++; continue; }
-        seen.add(id);
-        if (save) await this.insert(tx, me, input);
-        added++;
+      for (const [i, { line, input }] of valid.entries()) {
+        const dup = dups[i] ?? null, decision = importDecision(dup, opts.decisions[String(line)]);
+        if (decision === "add") { if (save) await this.insert(tx, me, input); added++; }
+        if (decision === "merge" && dup && "unit" in dup) { if (save) await this.mergeImported(tx, me, dup.unit, input); merged++; }
+      }
+      if (save) {
+        await this.audit.record({ module: "inventory", entity: "UnitImport", entityId: me.id, action: "import", userId: me.id,
+          after: { dupBy: opts.dupBy, rows: sheet.total, added, merged, duplicates: dups.filter(Boolean).length, decisions: opts.decisions } }, tx);
       }
     };
     if (save) await this.db.$transaction(run, IMPORT_TX);
     else await run(this.db);
-    return { added, duplicates, errors };
+    if (save && added) await this.notifications.notify({ event: "unit.new", text: `Live Alert: ${added} وحدة جديدة اتضافت للانفنتوري من استيراد Excel`, link: "/marketing?tab=units" });
+    return { added, merged, duplicates: dups.filter(Boolean).length, errors, review };
+  }
+
+  /** «ادمج (حدّث القديم)» (demo importApprove): the row's price and owner name go on the unit it repeats, updated today; audited, the PDF waits again (Q19). */
+  private async mergeImported(tx: Prisma.TransactionClient, me: CurrentUser, code: string, input: UnitInput) {
+    const u = await tx.unit.findUniqueOrThrow({ where: { code }, select: { id: true, space: true, pricePerSqm: true, ownerName: true, lastOwnerUpdateAt: true } });
+    const price = input.pricePerSqm ? fromDecimal(input.pricePerSqm) : null;
+    const data = {
+      ...(price !== null ? { pricePerSqm: toDecimal(price), totalPrice: u.space ? toDecimal(unitTotal(price, u.space)) : null } : {}),
+      ...(input.ownerName ? { ownerName: input.ownerName } : {}),
+      lastOwnerUpdateAt: dayStart(localDate(new Date())), pdfStatus: "draft",
+    };
+    await tx.unit.update({ where: { id: u.id }, data });
+    await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "update", userId: me.id,
+      before: { pricePerSqm: u.pricePerSqm?.toFixed(2) ?? null, ownerName: u.ownerName, lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { ...data, merged: "import" } }, tx);
   }
 
   /** The serial code, the owner's file and the audit, in the caller's transaction. */

@@ -17,6 +17,7 @@ export default [
   ["الوحدة دي اتشالت من لوحة التسويق قبل كده", "This unit was already removed from the marketing board"],
   ["الوحدة دي لسه على لوحة التسويق", "This unit is still on the marketing board"],
   ["Live Alert: وحدة جديدة {code} ({project}) اتضافت للانفنتوري", "Live Alert: new unit {code} ({project}) added to the Inventory"],
+  ["Live Alert: {n} وحدة جديدة اتضافت للانفنتوري من استيراد Excel", "Live Alert: {n} new units added to the Inventory from an Excel import"],
   ["الـ Agent", "Agent"],
   ["الـ Agent ده مش موجود", "This Agent doesn't exist"],
   ["الـ Last update مايبقاش في المستقبل", "The Last update can't be in the future"],
