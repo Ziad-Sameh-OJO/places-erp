@@ -64,7 +64,7 @@ export function LeadDrawer({ ids, id, onGo, onClose }: { ids: string[]; id: stri
       ]} />
       {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
       {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
-        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
+        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity key={l.id} l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
 }

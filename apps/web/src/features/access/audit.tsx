@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { MODULE_LABEL } from "@/lib/nav";
 import { ExportButton, Table } from "@/components/ui";
 import { useTranslations } from "next-intl";
-import { dateLocale } from "@/lib/format";
+import { dayTime } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import type { UserRow } from "./types";
 
@@ -55,7 +55,7 @@ export function AuditTab() {
       <section className="card">
       <Table head={[t("head.time"), t("head.who"), t("head.module"), t("head.change"), t("head.on"), t("head.device")]} empty={t("empty")}
         rows={(log.data?.items ?? []).map((x) => [
-          new Date(x.at).toLocaleString(dateLocale(), { dateStyle: "short", timeStyle: "short" }), name(x.userId), MODULE_LABEL[x.module] ? serverText(MODULE_LABEL[x.module]!) : x.module,
+          dayTime(x.at), name(x.userId), MODULE_LABEL[x.module] ? serverText(MODULE_LABEL[x.module]!) : x.module,
           `${AUDIT_ACTION_LABEL[x.action] ? serverText(AUDIT_ACTION_LABEL[x.action]!) : x.action} · ${x.entity}`, x.entity === "User" ? name(x.entityId) : <span className="mono">{x.entityId}</span>,
           <span key="d" title={[x.userAgent, x.ip].filter(Boolean).join(" · ")}>{device(x.userAgent)}</span>,
         ])} />

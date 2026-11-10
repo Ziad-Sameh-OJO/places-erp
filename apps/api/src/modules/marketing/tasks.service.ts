@@ -244,12 +244,13 @@ export class TasksService {
     // the owner's number: the photographer of a shoot calls him (M-04 2.1 step 5); otherwise only who sees owner numbers (M-10 4.1)
     // M-09 field permissions on top of that: a hidden field's value never leaves the API (the screens leave it out too)
     const h = me.fields.hidden("tasks"), hide = <V,>(k: string, v: V, blank: V) => (h.has(k) ? blank : v);
-    const ownerPhone = (t.kind === "photo" && t.toUserId === me.id) || seesOwnerNumbers(me.grants) ? hide("ownerPhone", u?.ownerPhone ?? null, null) : null;
+    const seesOwner = (t.kind === "photo" && t.toUserId === me.id) || seesOwnerNumbers(me.grants);
+    const ownerPhone = seesOwner ? hide("ownerPhone", u?.ownerPhone ?? null, null) : null;
     return {
       id: t.id, kind: t.kind, kindLabel: taskKind(t.kind)?.label ?? t.kind, title: t.title,
       unit: u && {
         id: u.id, code: u.code, project: u.project, area: hide("area", u.area, ""), floor: hide("floor", u.floor, null), building: hide("building", u.building, null),
-        ownerName: hide("ownerName", u.ownerName, null), ownerPhone,
+        ownerName: seesOwner ? hide("ownerName", u.ownerName, null) : null, ownerPhone,
       },
       sla: sla && { due: sla.due.toISOString(), hoursLeft: sla.hoursLeft, met: sla.met },
       by: t.byUserId ? { id: t.byUserId, name: names.get(t.byUserId) ?? "—" } : null,

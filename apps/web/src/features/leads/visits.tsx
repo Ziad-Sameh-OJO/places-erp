@@ -88,7 +88,7 @@ function VisitForm({ l, kind, editing, onDone }: { l: LeadDetail; kind: Kind; ed
   const found = useQuery({ queryKey: ["visit-units", search], queryFn: () => api.get<VisitUnit[]>(`/leads/visit-units${search ? `?q=${encodeURIComponent(search)}` : ""}`) });
   const options = [...picked, ...(found.data ?? []).filter((u) => !picked.some((p) => p.id === u.id))];
   const save = () => void run(async () => {
-    const body = { kind: k, at: new Date(at).toISOString(), unitIds: picked.map((u) => u.id), ...(extra.trim() ? { extra: extra.trim() } : {}) };
+    const body = { kind: k, at: fromCairoInput(at), unitIds: picked.map((u) => u.id), ...(extra.trim() ? { extra: extra.trim() } : {}) };
     try {
       if (editing) await api.put(`/leads/${l.id}/visits/${editing.id}`, body);
       else await api.post(`/leads/${l.id}/visits`, body);
@@ -118,6 +118,17 @@ function VisitForm({ l, kind, editing, onDone }: { l: LeadDetail; kind: Kind; ed
       </div>
     </form>
   );
+}
+
+/** The datetime-local value (Cairo wall clock) back as an instant: the browser's own zone must not move the visit. */
+function fromCairoInput(local: string): string {
+  const guess = new Date(`${local}:00Z`);
+  const cairo = (d: Date) => new Date(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" })
+    .format(d).replace(/(\d+)-(\d+)-(\d+), (\d+):(\d+):(\d+)/, "$1-$2-$3T$4:$5:$6Z")).getTime();
+  // the offset at that moment (two passes for the daylight-saving switch days)
+  let t = guess.getTime() - (cairo(guess) - guess.getTime());
+  t = guess.getTime() - (cairo(new Date(t)) - new Date(t).getTime());
+  return new Date(t).toISOString();
 }
 
 /** An ISO time as the datetime-local input wants it, in Cairo time («2026-11-05T11:30»). */

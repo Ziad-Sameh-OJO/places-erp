@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { activeValues, type CostCenterView, type Settings } from "@places/contracts";
-import { Card, Empty, Note, Table, useAction } from "@/components/ui";
+import { Card, Empty, Note, onFormSubmit, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { money } from "./money";
@@ -74,7 +74,7 @@ function Rates({ s }: { s: Settings }) {
   }, t("cost.ratesSaved"));
   return (
     <Card title={t("cost.ratesTitle")} icon="wallet" sub={t("cost.ratesSub")}>
-      <form className="row" action={save}>
+      <form className="row" onSubmit={onFormSubmit(save)}>
         <label className="date-f"><span>{t("cost.ops")}</span><input name="ops" type="number" min={0} max={100} step="any" defaultValue={s.opsCommissionPct} disabled={!ed} style={{ width: 80 }} />%</label>
         <label className="date-f"><span>{t("cost.external")}</span><input name="ext" type="number" min={0} max={100} step="any" defaultValue={s.externalCommissionPct} disabled={!ed} style={{ width: 80 }} />%</label>
         {ed && <button className="btn ghost sm">{t("common.save")}</button>}

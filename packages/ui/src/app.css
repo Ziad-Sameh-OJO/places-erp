@@ -246,6 +246,7 @@ button.chip b { font-family: var(--f-mono); font-weight: 600; opacity: .8; }
 .lane.l-uploaded h4 i { background: var(--warn); } .lane.l-done h4 i { background: var(--ok); }
 .tcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; box-shadow: var(--shadow-1); transition: box-shadow .15s, border-color .15s; }
 .tcard:hover { box-shadow: var(--shadow-2); border-color: var(--accent-line); }
+.tcard.selected { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-soft); }
 .tcard b { font-size: 14px; }
 
 /* ---------- bars & charts ---------- */
