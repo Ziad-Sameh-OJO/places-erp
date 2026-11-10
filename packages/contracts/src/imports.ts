@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { CalendarDay, Money } from "./common.ts";
+import { IMPORT_DECISIONS, UNIT_DUP_COLUMNS, UNIT_DUP_DEFAULT, type DupOf, type UnitDupColumn } from "@places/domain";
+import { CalendarDay, Money, type ImportDone, type ImportPreview } from "./common.ts";
 import { UnitInput } from "./inventory.ts";
 import { CreateLead } from "./leads.ts";
 
@@ -49,3 +50,19 @@ export const CompanyImportRow = z.preprocess((v) => {
   feedback: z.string().trim().max(2000).optional(),
 }));
 export type CompanyImportRow = z.infer<typeof CompanyImportRow>;
+
+/**
+ * 2.38 · the inventory import's options, as multipart fields next to the file: the column(s) a repeat is told by
+ * («project,space,floor,building», the default) and, on «تأكيد», the call on each repeat by its line (`{"7":"add"}`).
+ */
+const json = (v: unknown) => { if (typeof v !== "string") return v; try { return JSON.parse(v) as unknown; } catch { return v; } };
+export const UnitImportOptions = z.object({
+  dupBy: z.preprocess((v) => (typeof v === "string" ? v.split(",").map((s) => s.trim()).filter(Boolean) : v ?? [...UNIT_DUP_DEFAULT]),
+    z.array(z.enum(UNIT_DUP_COLUMNS, { errorMap: () => ({ message: "خانة منع التكرار مش معروفة" }) })).min(1, "لازم خانة واحدة على الأقل")),
+  decisions: z.preprocess((v) => json(v ?? {}), z.record(z.enum(IMPORT_DECISIONS, { errorMap: () => ({ message: "اختار استبعد أو ادمج أو ضيفها برضه" }) }))),
+});
+export type UnitImportOptions = z.infer<typeof UnitImportOptions>;
+/** A row of the review (demo importReview): what it repeats, a unit's code or an earlier line of the file. */
+export interface UnitImportReviewRow { line: number; project: string; space: number; floor: string | null; building: string | null; ownerName: string | null; dupOf: DupOf }
+export interface UnitImportPreview extends ImportPreview<UnitImportRow> { dupBy: UnitDupColumn[]; review: UnitImportReviewRow[] }
+export interface UnitImportDone extends ImportDone { merged: number }

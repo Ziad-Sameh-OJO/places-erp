@@ -57,14 +57,14 @@ test("units: template, preview with a duplicate and an error, confirm adds the n
   assert.equal(await prisma.unit.count({ where: { project: { startsWith: P } } }), 0);
 
   assert.equal((await upload("units", csv, sales)).status, 403);
-  assert.deepEqual(await (await upload("units", csv, manar)).json(), { imported: 2, duplicates: 1, skipped: 2 });
+  assert.deepEqual(await (await upload("units", csv, manar)).json(), { imported: 2, duplicates: 1, skipped: 2, merged: 0 });
   const saved = await prisma.unit.findMany({ where: { project: { startsWith: P } }, orderBy: { space: "asc" } });
   assert.deepEqual(saved.map((u) => [u.space, u.pricePerSqm?.toFixed(2), u.ownerPhone, u.lastOwnerUpdateAt < new Date("2025-01-16")]),
     [[95, "1100.00", "01000000101", true], [120, "1100.00", "01000000102", true]]); // the sheet's «Last update» (Cairo day), not today
   assert.equal(await prisma.auditLog.count({ where: { entity: "Unit", action: "create", entityId: { in: saved.map((u) => u.id) } } }), 2);
 
   // the same sheet again: everything is a duplicate now
-  assert.deepEqual(await (await upload("units", csv, manar)).json(), { imported: 0, duplicates: 3, skipped: 2 });
+  assert.deepEqual(await (await upload("units", csv, manar)).json(), { imported: 0, duplicates: 3, skipped: 2, merged: 0 });
 });
 
 test("old leads: duplicate by any mobile (sheet and database), dated, unassigned; sales 403", async () => {

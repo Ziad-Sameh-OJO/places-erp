@@ -185,6 +185,9 @@
     "channelFirst": "Choose the channel first",
     "ownLead": "A lead you enter yourself stays yours and doesn't go into the rotation.",
     "autoByArea": "Automatic by area",
+    "routesTo": "Goes to: {names}",
+    "routesToOps": "Nobody covers this area · it goes to Operations",
+    "nameSep": ", ",
     "byHandNote": "If you pick a salesperson by name, their next turn in the rotation is skipped.",
     "goesTo": "The lead goes to",
     "route": "Rotation (by area)",
@@ -246,7 +249,6 @@
     "logRolesSub": "The admin always sees them · applies to all leads"
   },
   "board": {
-    "setVisit": "Set the Visit time and units",
     "movedQualified": "{name} is now {stage} and marked Qualified",
     "moved": "{name} is now {stage}",
     "dropHere": "Drag a lead here",

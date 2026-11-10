@@ -47,6 +47,7 @@ export default [
   ["«{name}» حساب رئيسي · القيد بيتعمل على الحسابات الفرعية", "«{name}» is a parent account · entries go on its sub-accounts"],
   ["أرباح وخسائر العام بتتحسب لوحدها من الإيرادات والمصروفات", "The year's profit and loss is calculated automatically from revenue and expenses"],
   ["عكس {nature}", "Reversal of {nature}"],
+  ["سند التحصيل ده مش موجود", "This receive voucher doesn't exist"],
   ["{memo} · عكس {entryNo}", "{memo} · reversal of {entryNo}"],
   ["من أول {year}", "Since the start of {year}"],
   ["{month} مقفول شهرياً قبل كده", "{month} is already closed monthly"],

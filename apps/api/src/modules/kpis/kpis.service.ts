@@ -2,10 +2,13 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import {
   KpiWatch, type ActivityInput, type ActivityResultInput, type ActivityView, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView,
-  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
+  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities, type TaskKpiEffect,
+  type KpiBonusInput, type KpiSheetSetup,
 } from "@places/contracts";
 import {
-  type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
+  INVENTORY_DEPARTMENT, INVENTORY_MANAGER, canManageCard, invManagerMakesCard,
+  type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, taskCardFollower, timedTasks, toDecimal, TASKS_ON_TIME_ITEM, type ActivityKind,
+  type SheetField, SHEET_FIELDS, SHEET_FIELD_KEYS, dealRowOf, monthBounds, quarterMonths, sheetFigures,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -22,7 +25,7 @@ const LINK = "/kpis";
 const NO_CARD = "الكارت ده مش موجود أو مش من حقك تشوفه";
 const CLOSED = "الربع اتقفل · مفيش تعديل";
 /** 11.14: the watcher never sees these in the changes log. */
-const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose"];
+const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose", "KpiBonusRule"];
 const NO_MONEY = "الفلوس مش في صلاحياتك";
 const NO_PLAN = "خطة التحسين مش في صلاحياتك";
 
@@ -112,9 +115,9 @@ export class KpisService {
     return r;
   }
 
-  /** The item list, weights, targets and sources: the follower, «kpis: edit», and the watcher (meeting 4 Nov). */
+  /** The item list, weights, targets and sources: the follower, «kpis: edit», the watcher (meeting 4 Nov), and the Inventory Manager on her own card (11.19). */
   private canManage(w: Who, c: CardRecord) {
-    return this.isFollower(w, c) || w.edit || w.watcher;
+    return canManageCard({ isFollower: this.isFollower(w, c), edit: w.edit, watcher: w.watcher, roles: w.me.roles, ownCard: c.employeeId === w.me.employeeId });
   }
 
   private score(c: CardRecord) {
@@ -143,17 +146,22 @@ export class KpisService {
   }
 
   /** «كارتي» · «فريقي» · «كل الشركة»: the scope goes into the query. */
-  async board(me: CurrentUser, scope: "me" | "team" | "all"): Promise<KpiBoard> {
+  async board(me: CurrentUser, scope: "me" | "team" | "mine" | "all"): Promise<KpiBoard> {
     const w = await this.who(me);
     if (scope === "all" && !w.all) throw new ForbiddenException("كل الشركة للإدارة والـ Office Manager ومسؤول الـ KPIs");
     const q = await this.current();
     const mine: Prisma.KpiCardWhereInput = me.employeeId ? { followerId: me.employeeId } : { id: "-" };
     // «الملاك» follow the cards with no follower: a Super Admin sees them under «فريقي», except his own
     const team: Prisma.KpiCardWhereInput = me.roles.includes("admin") ? { OR: [mine, { followerId: null, employeeId: { not: me.employeeId ?? "-" } }] } : mine;
-    const where = scope === "me" ? { employeeId: me.employeeId ?? "-" } : scope === "team" ? team : {};
-    const [cards, bands] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands()]);
+    const own: Prisma.KpiCardWhereInput = { employeeId: me.employeeId ?? "-" };
+    const where = scope === "me" ? own : scope === "team" ? team : scope === "mine" ? { OR: [own, team] } : {};
+    // 11.19: the Inventory Manager also sees who on her team has no card yet, to make one she follows
+    const inv = scope === "mine" && q.status === "open" && me.employeeId && me.roles.includes(INVENTORY_MANAGER);
+    const [cards, bands, missing] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands(),
+      inv ? this.repo.invWithoutCard(q.id, INVENTORY_DEPARTMENT, me.employeeId!) : Promise.resolve([])]);
     const b = bandsOf(bands);
-    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all };
+    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all,
+      missing: missing.map((p) => ({ id: p.id, name: p.name, title: p.jobTitle })) };
   }
 
   async card(me: CurrentUser, id: string): Promise<KpiCardView> {
@@ -361,23 +369,67 @@ export class KpisService {
     });
   }
 
+  /** 11.18 · the sheet's lines and award rules, for «كل الشركة» (not for the watcher: it's money). */
+  private async sheetSetup(w: Who): Promise<KpiSheetSetup | null> {
+    if (w.noMoney) return null;
+    const [bands, rules] = await Promise.all([this.repo.bands(), this.repo.bonusRules()]);
+    return { fields: SHEET_FIELD_KEYS.filter((k) => bands.sheetFields.includes(k)),
+      bonuses: rules.map((r) => ({ id: r.id, minPct: r.minPct, amount: r.amount.toFixed(2) })) };
+  }
+
+  /** 11.18 «الخانات اللي في الورقة»: applies to every sheet made from now on. */
+  async setSheetFields(me: CurrentUser, fields: SheetField[]) {
+    if ((await this.who(me)).fixedMoney) throw new ForbiddenException(NO_MONEY);
+    const sheetFields = SHEET_FIELD_KEYS.filter((k) => fields.includes(k));
+    await this.db.$transaction(async (tx) => {
+      const before = (await this.repo.bands(tx)).sheetFields;
+      await tx.kpiBands.update({ where: { id: "default" }, data: { sheetFields } });
+      await this.audit.record({ module: MODULE, entity: "KpiBands", entityId: "default", action: "update", userId: me.id, before: { sheetFields: before }, after: { sheetFields, summary: "خانات ورقة الموظف اتعدّلت" } }, tx);
+    });
+  }
+
+  /** 11.18 «الجوايز»: «لو حقق X% من التارجت ← جايزة». */
+  async addBonus(me: CurrentUser, input: KpiBonusInput) {
+    if ((await this.who(me)).fixedMoney) throw new ForbiddenException(NO_MONEY);
+    return this.db.$transaction(async (tx) => {
+      const r = await tx.kpiBonusRule.create({ data: { minPct: input.minPct, amount: input.amount } });
+      await this.audit.record({ module: MODULE, entity: "KpiBonusRule", entityId: r.id, action: "create", userId: me.id,
+        after: { minPct: r.minPct, amount: input.amount, summary: `جايزة جديدة: لو حقق ${r.minPct}% من التارجت ← ${input.amount}` } }, tx);
+      return { id: r.id };
+    });
+  }
+
+  async removeBonus(me: CurrentUser, id: string) {
+    if ((await this.who(me)).fixedMoney) throw new ForbiddenException(NO_MONEY);
+    await this.db.$transaction(async (tx) => {
+      const r = await tx.kpiBonusRule.findUnique({ where: { id } });
+      if (!r) throw new NotFoundException("الجايزة دي مش موجودة");
+      await tx.kpiBonusRule.delete({ where: { id } });
+      await this.audit.record({ module: MODULE, entity: "KpiBonusRule", entityId: id, action: "delete", userId: me.id,
+        before: { minPct: r.minPct, amount: r.amount.toFixed(2) }, after: { summary: `اتمسحت جايزة الـ ${r.minPct}%` } }, tx);
+    });
+  }
+
   /** 11.4 · 11.11: a card for someone who has none: empty, or with another card's items (nothing achieved). */
   async createCard(me: CurrentUser, employeeId: string, copyFrom?: string) {
     const w = await this.who(me);
-    if (!w.edit && !w.watcher) throw new ForbiddenException("الكروت بيعملها الأدمن أو مسؤول الـ KPIs");
+    const emp = await this.repo.employee(employeeId);
+    // 11.19: the Inventory Manager makes one for her team from the inventory, and follows it
+    const inv = !w.edit && !w.watcher && !!emp && invManagerMakesCard(me.roles, me.employeeId, emp);
+    if (!w.edit && !w.watcher && !inv) throw new ForbiddenException("الكروت بيعملها الأدمن أو مسؤول الـ KPIs");
     const q = await this.current();
     if (q.status !== "open") throw new ConflictException(CLOSED);
-    const emp = await this.repo.employee(employeeId);
     if (!emp) throw new BadRequestException("الموظف مش موجود");
+    if (inv && copyFrom) throw new ForbiddenException("الكروت بيعملها الأدمن أو مسؤول الـ KPIs");
     if (await this.repo.cardOf(q.id, employeeId)) throw new ConflictException(`${emp.name} عنده كارت`);
     const from = copyFrom ? (await this.visibleCard(w, copyFrom)).c : null;
     const card = await this.db.$transaction(async (tx) => {
       const created = await tx.kpiCard.create({ data: {
-        quarter: q.id, employeeId, followerId: from?.followerId ?? null,
+        quarter: q.id, employeeId, followerId: inv ? me.employeeId : from?.followerId ?? null,
         items: { create: (from?.items ?? []).map((it) => this.copyItem(it)) },
       } });
       await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: created.id, action: "create", userId: me.id,
-        after: { summary: `كارت KPIs جديد لـ ${emp.name}${from ? ` من بنود ${from.employee.name}` : ""}` } }, tx);
+        after: { summary: inv ? `كارت KPIs جديد لـ ${emp.name} (يتابعه ${me.name})` : `كارت KPIs جديد لـ ${emp.name}${from ? ` من بنود ${from.employee.name}` : ""}` } }, tx);
       return created;
     });
     await this.tell(me, `كارت KPIs جديد لـ ${emp.name}`);
@@ -461,6 +513,34 @@ export class KpisService {
     return new Map((await this.repo.closedAmounts(from, to, tx)).map((c) => [c.employeeId, piasters(c.finalAmount)]));
   }
 
+  /**
+   * 4.15 (demo kpis.js `kpiForTask`): a task sent with «تتحسب في الـ KPIs» lands in the assignee's «المهام في ميعادها»
+   * item. Inside the task's own transaction: the item is added once, with weight 0 (the follower sets it); someone with
+   * no card gets one, followed by the sender when they share a department, else by the owners. Audited here.
+   */
+  async countTask(tx: Prisma.TransactionClient, assigneeUserId: string, senderUserId: string | null, actorUserId: string): Promise<TaskKpiEffect> {
+    const q = await this.repo.currentQuarter(tx);
+    const emp = await tx.employee.findUnique({ where: { userId: assigneeUserId }, select: { id: true, name: true, department: true } });
+    if (!q || q.status !== "open" || !emp) return null;
+    // one task at a time per person, so two «أيوه» tasks at once can't both add the item or both make the card
+    await tx.$queryRaw`SELECT id FROM hr."Employee" WHERE id = ${emp.id} FOR UPDATE`;
+    const card = await tx.kpiCard.findUnique({ where: { quarter_employeeId: { quarter: q.id, employeeId: emp.id } }, select: { id: true, items: { select: { metric: true, position: true } } } });
+    const item = { ...TASKS_ON_TIME_ITEM, params: {} };
+    if (!card) {
+      const sender = senderUserId ? await tx.employee.findUnique({ where: { userId: senderUserId }, select: { id: true, department: true } }) : null;
+      const created = await tx.kpiCard.create({ data: { quarter: q.id, employeeId: emp.id, followerId: taskCardFollower(sender, emp.department), items: { create: [{ ...item, position: 0 }] } } });
+      await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: created.id, action: "create", userId: actorUserId,
+        after: { summary: `كارت KPIs جديد لـ ${emp.name} (من المهام) وفيه بند «${item.title}»` } }, tx);
+      return "card";
+    }
+    if (card.items.some((it) => it.metric === item.metric)) return "counted";
+    const position = Math.max(-1, ...card.items.map((it) => it.position)) + 1;
+    await tx.kpiItem.create({ data: { ...item, position, cardId: card.id } });
+    await this.audit.record({ module: MODULE, entity: "KpiItems", entityId: card.id, action: "update", userId: actorUserId,
+      after: { summary: `KPI ${emp.name}: بند «${item.title}» اتضاف (من المهام) بوزن 0` } }, tx);
+    return "item";
+  }
+
   /** 7.11: the current quarter's cards: who follows whom (a team) and the live score (the ideal employee needs ≥ 80%). */
   async liveCards(): Promise<{ employeeId: string; followerId: string | null; score: number }[]> {
     const q = await this.repo.currentQuarter();
@@ -472,9 +552,43 @@ export class KpisService {
     return q.status === "closed" && !w.noMoney && !w.noScore && !w.noPlan && (!!q.sheetsAt || w.approve || w.edit);
   }
 
-  /** 11.7: the employee's quarterly sheet: the result, its tier and amount, and every item. */
-  private async sheetHtml(c: CardRecord, quarter: string) {
-    const b = bandsOf(await this.repo.bands());
+  /**
+   * 11.18: the sheet's money lines management picked (demo clients.js sheetOf): the salary, the quarter's target (its
+   * three months added up), what came in against it, the scheme, the commission, the Transactions, and the award the
+   * biggest rule reached gives. `hidden`: the reader's M-09 field rules — a hidden salary isn't on his copy at all.
+   */
+  private async sheetLines(c: CardRecord, quarter: string, fields: readonly string[], hidden: ReadonlySet<SheetField>) {
+    const keys = SHEET_FIELD_KEYS.filter((k) => fields.includes(k) && !hidden.has(k));
+    if (!keys.length) return "";
+    const months = quarterMonths(quarter), from = monthBounds(months[0]).from, to = monthBounds(months[2]).to;
+    const [m, rules] = await Promise.all([this.repo.sheetMoney(c.employeeId, months, from, to), this.repo.bonusRules()]);
+    const goal = months.reduce((sum, mo) => sum + piasters(m.targets.find((t) => t.month === mo)?.value ?? m.target), 0);
+    const deals = m.deals.map((d) => dealRowOf({ ...d, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), targetBase: d.targetBase?.toFixed(2) ?? null,
+      payments: d.payments.map((p) => ({ side: p.side, amount: p.amount.toFixed(2), receivedAt: p.receivedAt })) }));
+    const scheme = Number(m.commissionPct), f = sheetFigures(c.employeeId, deals, from, to, goal, scheme, rules.map((r) => ({ minPct: r.minPct, amount: piasters(r.amount) })));
+    const egp = (p: number) => `<span class="num">${toDecimal(p)}</span> ج.م`;
+    const value: Record<SheetField, string> = {
+      salary: egp(piasters(c.employee.salary)), target: goal ? egp(goal) : "—", achieved: goal ? `${egp(f.achieved)} · <span class="num">${Math.round(f.percent)}%</span>` : egp(f.achieved),
+      scheme: `<span class="num">${scheme}%</span>`, commission: egp(f.commission), transactions: `<span class="num">${f.transactions}</span>`, bonus: f.bonus ? egp(f.bonus) : "—",
+    };
+    return `<h2>الورقة</h2><table>${keys.map((k) => `<tr><th>${SHEET_FIELDS.find(([x]) => x === k)![1]}</th><td>${value[k]}</td></tr>`).join("")}</table>`;
+  }
+
+  /** 11.18 · the M-09 rules that take a line off the reader's sheet. */
+  private sheetHidden(me: CurrentUser): Set<SheetField> {
+    const hr = me.fields.hidden("hr"), rp = me.fields.hidden("reports"), kp = me.fields.hidden("kpis"), out = new Set<SheetField>();
+    if (hr.has("salary")) out.add("salary");
+    if (hr.has("target") || rp.has("value")) out.add("target");
+    if (rp.has("achieved")) out.add("achieved");
+    if (hr.has("commissionPct")) { out.add("scheme"); out.add("commission"); }
+    if (kp.has("money")) out.add("bonus");
+    return out;
+  }
+
+  /** 11.7: the employee's quarterly sheet: the result, its tier and amount, and every item (+ 11.18 the picked lines). */
+  private async sheetHtml(c: CardRecord, quarter: string, hidden: ReadonlySet<SheetField> = new Set()) {
+    const bands = await this.repo.bands(), b = bandsOf(bands);
+    const lines = await this.sheetLines(c, quarter, bands.sheetFields, hidden);
     const s = c.finalScore != null ? Number(c.finalScore) : this.score(c);
     const amount = c.finalAmount != null ? piasters(c.finalAmount) : this.delta(c, s, b);
     const money = `${amount > 0 ? "مكافأة" : amount < 0 ? "خصم" : "—"} <span class="num">${toDecimal(Math.abs(amount))}</span> ج.م`;
@@ -485,14 +599,14 @@ export class KpisService {
 <table><tr><th>الموظف</th><td>${esc(c.employee.name)} · ${esc(c.employee.jobTitle)}</td></tr><tr><th>المتابع</th><td>${esc(c.follower?.name ?? "الملاك")}</td></tr>
 <tr><th>نتيجة الربع</th><td>${pct(s)} · ${esc(bandLabel(s, b))}</td></tr><tr><th>المكافأة / الخصم</th><td>${money}</td></tr>
 ${c.plan ? `<tr><th>خطة التحسين</th><td>${esc(c.plan)}</td></tr>` : ""}</table>
-<h2>البنود</h2><table><tr><th>البند</th><th>الوزن</th><th>المستهدف</th><th>التحقيق</th><th>في النتيجة</th></tr>${rows}</table>`) };
+${lines}<h2>البنود</h2><table><tr><th>البند</th><th>الوزن</th><th>المستهدف</th><th>التحقيق</th><th>في النتيجة</th></tr>${rows}</table>`) };
   }
 
   async sheet(me: CurrentUser, id: string) {
     const w = await this.who(me);
     const { c, q } = await this.visibleCard(w, id);
     if (!this.canSheet(w, q)) throw new ForbiddenException("ورقة الربع بتطلع بعد قفل الربع وموافقة الـ Office Manager");
-    const { name, html } = await this.sheetHtml(c, q.id);
+    const { name, html } = await this.sheetHtml(c, q.id, this.sheetHidden(me));
     return { name, pdf: await this.docs.pdf(html) };
   }
 
@@ -563,6 +677,7 @@ ${c.plan ? `<tr><th>خطة التحسين</th><td>${esc(c.plan)}</td></tr>` : ""
       bands: w.noMoney ? null : { top: b.top, full: b.full, partial: b.partial, low: b.low, rewardPercent: b.rewardPercent, cutPercent: b.cutPercent },
       can: { edit: w.edit, close: w.approve && q.status === "open", sheets: w.approve && q.status === "closed" && !q.sheetsAt },
       sheets: q.sheetsAt ? { by: people.find((p) => p.userId === q.sheetsById)?.name ?? "", at: q.sheetsAt.toISOString() } : null,
+      sheetSetup: await this.sheetSetup(w),
     };
   }
 

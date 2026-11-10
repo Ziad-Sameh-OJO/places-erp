@@ -112,7 +112,10 @@
     "recipients": "Who receives it",
     "lateNotify": "If late, notify",
     "money": "Has money figures (hidden from the KPIs officer)",
-    "delete": "Delete report"
+    "delete": "Delete report",
+    "sendNow": "Send it now",
+    "sentNow": "«{name}» sent to {to}",
+    "sentNowShort": "«{name}» sent"
   },
   "daily": {
     "item": "Item",

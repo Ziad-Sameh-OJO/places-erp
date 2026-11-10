@@ -12,6 +12,30 @@
       "ownerName": "Name",
       "ownerPhone": "Number",
       "pricePerSqm": "Price per sqm"
+    },
+    "dup": {
+      "intro": "Pick the duplicate-check column(s); duplicates wait for your decision.",
+      "by": "Duplicate check by:",
+      "rule": "A row is a duplicate when {count, plural, one {this column matches} other {all the picked columns match}} a unit already in the inventory or an earlier row of the same file. An owner with the same name or number who has another unit is not a duplicate unless you pick Contact or Number alone.",
+      "review": "Duplicate check by <b>{by}</b>. For any row marked as a duplicate by mistake, choose «Add it anyway».",
+      "new": "New",
+      "withUnit": "Duplicate of {code}",
+      "withRow": "Duplicate of row {line} in the file",
+      "willAdd": "Will be added",
+      "decision": "Decision",
+      "skip": "Leave the duplicate out",
+      "merge": "Merge (update the old one)",
+      "add": "Add it anyway (not a duplicate)",
+      "done": "{added} units added · {merged} merged · {skipped} left out",
+      "cols": {
+        "project": "Project",
+        "space": "Space",
+        "floor": "Floor",
+        "building": "Building",
+        "owner": "Owner",
+        "dup": "Duplicate",
+        "decision": "Decision"
+      }
     }
   },
   "leads": {

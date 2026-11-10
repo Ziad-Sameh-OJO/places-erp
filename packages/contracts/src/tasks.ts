@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TASK_STATUSES, taskKind } from "@places/domain";
+import { TASK_SIDES, TASK_STATUSES, type TaskSide, taskKind } from "@places/domain";
 import { CalendarDay, Id } from "./common.ts";
 
 /** M-04 · the board's filters: by kind and by assignee (4.2); by unit for the unit drawer's «المهام» tab (2.30). */
@@ -7,6 +7,8 @@ export const TaskFilters = z.object({
   kind: z.string().max(20).optional(),
   toUserId: Id.optional(),
   unitId: Id.optional(),
+  /** 4.14: «مهام الفريق» (same department, and the system's) or «مهام لناس خارجية» */
+  scope: z.enum(TASK_SIDES).optional(),
 });
 export type TaskFilters = z.infer<typeof TaskFilters>;
 
@@ -14,9 +16,11 @@ export const CreateTask = z.object({
   kind: z.string().refine((k) => !!taskKind(k)?.createdWith, "نوع المهمة مش موجود"),
   toUserId: Id,
   dueOn: CalendarDay,
-  unitId: Id.optional(), // photo / Retouch / rent → resale: the unit; its data reaches the assignee with the task
+  unitId: Id.optional(), // photo / Retouch / rent → resale: the unit; only its code reaches the assignee, with the notes (4.16)
   title: z.string().trim().min(1).max(120).optional(), // a marketing task: its type from «أنواع تاسكات التسويق»
   note: z.string().trim().max(1000, "الملاحظات طويلة · 1000 حرف بالكتير").optional(),
+  /** 4.15 «تتحسب في الـ KPIs؟»: «لأ · Skip» by default */
+  countsInKpi: z.boolean().optional(),
 });
 export type CreateTask = z.infer<typeof CreateTask>;
 
@@ -31,6 +35,7 @@ export type EditTask = z.infer<typeof EditTask>;
 export const MoveTask = z.object({ status: z.enum(TASK_STATUSES) });
 export type MoveTask = z.infer<typeof MoveTask>;
 
+/** 4.16: outside the inventory only `id` and `code` are filled (project and area "", the rest null): nothing else goes with a task. */
 export interface TaskUnit { id: string; code: string; project: string; area: string; floor: string | null; building: string | null; ownerName: string | null; ownerPhone: string | null }
 
 export interface TaskRow {
@@ -49,6 +54,10 @@ export interface TaskRow {
   doneAt: string | null;
   createdAt: string;
   late: boolean;
+  /** 4.14: the board's side, by the sender's and the assignee's department (domain isTeamTask) */
+  side: TaskSide;
+  /** 4.15: sent with «تتحسب في الـ KPIs» (the card's «بتتحسب في الـ KPIs» chip) */
+  countsInKpi: boolean;
   /** M-12: a shoot 72 h from the unit's registration, a Retouch 48 h from being given; null for other kinds */
   sla: { due: string; hoursLeft: number; met: boolean | null } | null;
   /** the stages the caller may move it to, and whether they may reassign it (the server checks again) */
@@ -58,6 +67,13 @@ export interface TaskRow {
     folder: { open: boolean; upload: boolean };
   };
 }
+
+/**
+ * 4.15 · what a task «تتحسب في الـ KPIs» did to the assignee's card (demo `taskKpiApply`): made a card, added the
+ * «المهام في ميعادها» item, or it was there already; null = Skip, or no open quarter / no employee record.
+ */
+export type TaskKpiEffect = "card" | "item" | "counted" | null;
+export interface TaskCreated { id: string; warning: string | null; kpi: TaskKpiEffect }
 
 export interface TaskOptions {
   /** the kinds the caller may give, each with the people it can go to */

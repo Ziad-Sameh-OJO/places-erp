@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { NOT_ACTIVE_STATUSES, type NotActiveStatus } from "@places/domain";
@@ -8,7 +8,7 @@ import { KpiTile } from "@/components/blocks";
 import { Chip, Empty, Field, Icon, Modal, Note, Table, Tabs, useAction } from "@/components/ui";
 import { useFields, useMe } from "@/lib/me";
 import { api } from "@/lib/api";
-import { num } from "@/lib/format";
+import { day, num } from "@/lib/format";
 import { UploadSheet } from "./not-active-upload";
 import { UnitForm } from "./unit-form";
 
@@ -16,38 +16,135 @@ const PAGE = 100;
 const TONE: Record<NotActiveStatus, "warn" | "bad" | "ok"> = { "No Answer": "warn", "Not True": "bad", Done: "ok" };
 
 /**
- * M-03 · Not Active Inventory (demo notactive.js): the sheets Manar uploads (2.14), their tabs, the numbers already in
- * the inventory for her to decide, the rows she sends to Marwa, and Marwa's classification — No Answer, Not True with
- * its reason, Done with the new unit's form (2.15). A sheet's columns are its own until the client sends the CFC sheet's.
+ * M-03 · Not Active Inventory (demo notactive.js): 2.39 · the files (one per sheet) grouped in folders, each named when
+ * it's made; inside a file its sheet (2.14), the numbers already in the inventory for Manar to decide, the rows she
+ * sends to Marwa, and Marwa's classification — No Answer, Not True with its reason, Done with the new unit's form
+ * (2.15). Marwa only gets the files with rows sent to her (the API decides). A sheet's columns are its own.
  */
 export function NotActivePage() {
   const t = useTranslations("inventory");
   const { can } = useMe();
   const sheets = useQuery({ queryKey: ["not-active", "sheets"], queryFn: () => api.get<NotActiveSheetView[]>("/not-active/sheets") });
-  const [picked, setPicked] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [making, setMaking] = useState(false);
+  const [first, setFirst] = useState<File | null>(null); // the sheet picked in «ملف جديد», uploaded right into it
   const all = sheets.data ?? [];
-  const sheet = all.find((s) => s.id === picked) ?? all[0];
+  const open = all.find((s) => s.id === openId);
   const manager = can("notactive", "approve");
+  // the demo's canFile: whoever manages the inventory makes files and uploads sheets into them (the API checks it again)
+  const canFile = can("notactive", "import") || can("inventory", "edit");
+  if (sheets.error) return <Note kind="warn">{sheets.error.message}</Note>;
+  if (!sheets.data) return <p className="hint">{t("common.loading")}</p>;
   return (
     <>
-      {manager
-        ? <Note>{t("notActive.managerNote")}</Note>
-        : <Note>{t("notActive.teamNote")}</Note>}
-      <div className="row">
-        {all.length > 0 && <div className="seg" role="group" aria-label={t("notActive.sheet")}>
-          {all.map((s) => <button key={s.id} aria-pressed={s.id === sheet?.id} onClick={() => setPicked(s.id)}><Icon name="layers" /><span>{s.name}</span></button>)}
-        </div>}
-        <span className="spacer" />
-        {can("notactive", "import") && <button className="btn ghost" onClick={() => setUploading(true)}><Icon name="upload" />{t("notActive.upload")}</button>}
-      </div>
-      {sheets.error ? <Note kind="warn">{sheets.error.message}</Note>
-        : !sheets.data ? <p className="hint">{t("common.loading")}</p>
-        : sheet ? <SheetView key={sheet.id} sheet={sheet} manager={manager} />
-        : <Empty text={t("notActive.noSheets")} icon="layers" />}
-      <p className="hint">{t("notActive.columnsHint")}</p>
-      {uploading && <UploadSheet sheets={all} onClose={() => setUploading(false)} onDone={(id) => { setUploading(false); setPicked(id); }} />}
+      {open ? <FileView key={open.id} sheet={open} sheets={all} manager={manager} canFile={canFile} first={first} onBack={() => setOpenId(null)} onUploaded={() => setFirst(null)} />
+        : <FilesView files={all} manager={manager} canFile={canFile} onOpen={setOpenId} onNew={() => setMaking(true)} />}
+      {making && <FileForm onClose={() => setMaking(false)} onSaved={(f, sheet) => { setMaking(false); setFirst(sheet); setOpenId(f.id); }} />}
     </>
+  );
+}
+
+/** Level 1: the files, grouped by folder (no folder last), with a search by the file's or the folder's name. */
+function FilesView({ files, manager, canFile, onOpen, onNew }: { files: NotActiveSheetView[]; manager: boolean; canFile: boolean; onOpen: (id: string) => void; onNew: () => void }) {
+  const t = useTranslations("inventory.notActive");
+  const [q, setQ] = useState("");
+  const shown = files.filter((f) => !q.trim() || `${f.name} ${f.folder ?? ""}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const folders = [...new Set(shown.map((f) => f.folder ?? ""))].sort((a, b) => (!a ? 1 : !b ? -1 : a.localeCompare(b, "ar")));
+  return (
+    <>
+      <Note>{manager || canFile ? t("files.note") : t("files.mineNote")}</Note>
+      <div className="toolbar">
+        <label className="search"><Icon name="search" /><input type="search" placeholder={t("files.search")} value={q} onChange={(e) => setQ(e.target.value)} /></label>
+        <span className="spacer" />
+        {canFile && <button className="btn" onClick={onNew}><Icon name="plus" />{t("files.new")}</button>}
+      </div>
+      {shown.length ? folders.map((folder) => {
+        const inIt = shown.filter((f) => (f.folder ?? "") === folder);
+        return <section key={folder || "-"} className="na-folder">
+          <h3 className="na-folder-h"><Icon name="folder" />{folder || t("files.noFolder")} <span className="tab-n">{inIt.length}</span></h3>
+          <div className="drive">{inIt.map((f) => <FileCard key={f.id} f={f} onOpen={() => onOpen(f.id)} />)}</div>
+        </section>;
+      }) : <Empty text={q.trim() ? t("files.noMatch") : t("files.none")} icon="layers" />}
+    </>
+  );
+}
+
+function FileCard({ f, onOpen }: { f: NotActiveSheetView; onOpen: () => void }) {
+  const t = useTranslations("inventory.notActive");
+  return (
+    <article className="ucard" role="button" tabIndex={0} onClick={onOpen} onKeyDown={(e) => e.key === "Enter" && onOpen()}>
+      <div className="u-img na-file"><Icon name="layers" /><span className="mono">{t("files.rows", { count: num(f.rows) })}</span></div>
+      <div className="u-body">
+        <b>{f.name}</b>
+        <small>{t("files.made", { day: day(f.createdAt) })}{f.createdBy ? ` · ${f.createdBy}` : ""}</small>
+        <div className="row">
+          {f.rows ? <Chip tone={f.pending ? "warn" : "ok"}>{f.pending ? t("files.waiting", { count: num(f.pending) }) : t("files.allDone")}</Chip> : <Chip>{t("files.empty")}</Chip>}
+          {f.matched > 0 && <Chip tone="bad">{t("matched")}</Chip>}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Level 2: one file — where it is, rename / move it, upload its sheet into it, then the sheet itself. */
+function FileView({ sheet, sheets, manager, canFile, first, onBack, onUploaded }: {
+  sheet: NotActiveSheetView; sheets: NotActiveSheetView[]; manager: boolean; canFile: boolean; first: File | null; onBack: () => void; onUploaded: () => void;
+}) {
+  const t = useTranslations("inventory.notActive");
+  const [renaming, setRenaming] = useState(false);
+  const [uploading, setUploading] = useState(!!first);
+  return (
+    <>
+      <nav className="na-crumb">
+        <button className="lnk" onClick={onBack}><Icon name="folder" />{t("files.all")}</button><span>‹</span>
+        {sheet.folder && <><span>{sheet.folder}</span><span>‹</span></>}
+        <b>{sheet.name}</b>
+        {canFile && <button className="btn ghost sm" onClick={() => setRenaming(true)}>{t("files.rename")}</button>}
+      </nav>
+      <Note>{manager || canFile ? t("files.inNote") : t("teamNote")}</Note>
+      {canFile && <div className="row"><button className="btn" onClick={() => setUploading(true)}><Icon name="upload" />{sheet.rows ? t("files.uploadMore") : t("files.upload")}</button></div>}
+      {sheet.rows ? <SheetView sheet={sheet} manager={manager} />
+        : <div className="ufolder empty"><Icon name="upload" /><b>{t("files.emptyTitle")}</b><span className="hint">{canFile ? t("files.emptyUp") : t("files.emptyView")}</span></div>}
+      {renaming && <FileForm file={sheet} onClose={() => setRenaming(false)} onSaved={() => setRenaming(false)} />}
+      {uploading && <UploadSheet sheets={sheets} file={sheet} initial={first} onClose={() => { setUploading(false); onUploaded(); }} onDone={() => { setUploading(false); onUploaded(); }} />}
+    </>
+  );
+}
+
+/** «ملف جديد» (name required and one of a kind, a folder to pick or a new one, the sheet now or later) and «تغيير الاسم / الفولدر». */
+function FileForm({ file, onClose, onSaved }: { file?: NotActiveSheetView; onClose: () => void; onSaved: (f: NotActiveSheetView, sheet: File | null) => void }) {
+  const t = useTranslations("inventory.notActive");
+  const run = useAction();
+  const qc = useQueryClient();
+  const folders = useQuery({ queryKey: ["not-active", "folders"], queryFn: () => api.get<string[]>("/not-active/folders") }).data ?? [];
+  const [name, setName] = useState(file?.name ?? "");
+  const [folder, setFolder] = useState(file?.folder ?? "");
+  const [sheet, setSheet] = useState<File | null>(null);
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    void run(async () => {
+      const body = { name: name.trim(), folder: folder.trim() };
+      const f = file ? await api.put<NotActiveSheetView>(`/not-active/sheets/${file.id}`, body) : await api.post<NotActiveSheetView>("/not-active/sheets", body);
+      await qc.invalidateQueries({ queryKey: ["not-active"] });
+      onSaved(f, sheet);
+    }, file ? t("files.saved") : sheet ? undefined : t("files.made2", { name: name.trim() }));
+  };
+  return (
+    <Modal title={file ? t("files.renameTitle") : t("files.newTitle")} onClose={onClose}>
+      <form className="grid" onSubmit={save}>
+        <Field label={t("files.name")} req wide><input required maxLength={60} placeholder={t("files.nameExample")} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+        <Field label={t("files.folder")} wide>
+          <input list="na-folders" maxLength={60} placeholder={t("files.folderHint")} value={folder} onChange={(e) => setFolder(e.target.value)} />
+          <datalist id="na-folders">{folders.map((f) => <option key={f} value={f} />)}</datalist>
+        </Field>
+        {!file && <Field label={t("files.sheet")} wide>
+          <label className="btn ghost"><Icon name="upload" />{sheet ? sheet.name : t("files.pickSheet")}
+            <input type="file" hidden accept=".xlsx,.csv" onChange={(e) => { setSheet(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+          </label>
+        </Field>}
+        <div className="row end wide"><button className="btn" disabled={!name.trim()}>{file ? t("save") : <><Icon name="plus" />{t("files.make")}</>}</button></div>
+      </form>
+    </Modal>
   );
 }
 

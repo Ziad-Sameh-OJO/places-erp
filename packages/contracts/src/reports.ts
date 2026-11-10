@@ -51,6 +51,19 @@ export interface ReportsPage {
 /** The home's «سلّم» tasks: hand-ins due today and not handed in. */
 export interface MyHandIn { reportId: string; name: string; due: string; late: boolean; daily: boolean; kpi: boolean }
 
+/** «سلّمت»: optionally what was handed in, the file's name or its link (M-04 «سلّم تقرير الشهر ده»). */
+export const HandInInput = z.object({ note: z.string().trim().max(500).optional() }).default({});
+export type HandInInput = z.infer<typeof HandInInput>;
+
+/**
+ * M-04 · the marketing dashboard's «تقرير المنافسين الشهري» card: this month's state, the latest hand-ins, and whether
+ * the viewer is the one who hands it in. `null` when the report isn't scheduled (anymore).
+ */
+export interface HandInCard {
+  id: string; name: string; state: "done" | "waiting" | "late"; due: string; canHandIn: boolean;
+  recent: { period: string; at: string; note: string | null; by: string }[];
+}
+
 // ───────── 11.12 · the daily report ─────────
 
 export const DailyInput = z.object({

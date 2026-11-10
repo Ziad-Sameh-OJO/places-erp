@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useState, type ReactNode } from "react";
 import type { CampaignInput, CampaignRow } from "@places/contracts";
 import { Chip, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
@@ -14,6 +15,7 @@ export function Campaigns() {
   const { can } = useMe();
   const list = useCampaigns();
   const [editing, setEditing] = useState<CampaignRow | "new" | null>(null);
+  useNewParam("campaign", () => setEditing("new"), can("marketing", "create")); // «جديد ← كامبين» (0.16)
   const items = list.data ?? [];
   // M-09 field permissions: a hidden field's column is left out (the API blanks its value anyway)
   const fields = useFields("marketing");

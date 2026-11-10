@@ -19,6 +19,7 @@
     "missingSub": "To be completed later",
     "dailyReport": "Daily report",
     "teamTask": "Team task",
+    "teamKpis": "Team KPIs",
     "export": "Export units",
     "exportFile": "Units.xlsx",
     "newUnit": "New unit",
@@ -72,7 +73,6 @@
     "late": "Late · {day}",
     "yesFrom": "Yes · from {min} m²",
     "yes": "Yes",
-    "map": "Map",
     "files": "{count, plural, one {# file} other {# files}}",
     "empty": "Empty"
   },
@@ -90,7 +90,6 @@
   "drawer": {
     "notFound": "Unit not found",
     "region": "Region",
-    "location": "Location",
     "data": "Details",
     "missingTitle": "Missing data ({count}):",
     "missingBody": ". The unit was saved as usual, and there's an alert in «My tasks today» until it's completed.",
@@ -108,8 +107,14 @@
     "enteredBy": "Entered by: {name}"
   },
   "location": {
-    "none": "No location",
-    "google": "Open in Google Maps"
+    "title": "Location link",
+    "link": "Google Maps link",
+    "current": "Current link:",
+    "save": "Save the link",
+    "edit": "Edit the link",
+    "add": "Add a link",
+    "same": "Nothing changed",
+    "done": "Location link updated · the PDF waits for Confirm again"
   },
   "ownerUpdate": {
     "button": "Owner update today",
@@ -138,10 +143,9 @@
     "agent": "Agent (the salesperson who brought the unit)",
     "areaTab": "Area tab",
     "auto": "Automatic from the area",
-    "mapHint": "Click the unit's place on the map and the coordinates fill in",
     "agreement": "Agreement (file · uploaded to the system)",
     "agreementSaved": "The Agreement was uploaded",
-    "location": "Location (from the map)",
+    "location": "Location (Google Maps link)",
     "lastUpdate": "Last update (with the owner)",
     "receivedAt": "Received on (from the owner / WhatsApp)",
     "divisibleQ": "Divisible?",
@@ -267,7 +271,8 @@
     "noKey": "Without «{column}»: {count}",
     "sample": "Showing the first {shown} rows of {total}.",
     "merge": "Merge",
-    "rows": "{count} rows"
+    "rows": "{count} rows",
+    "intoTitle": "Upload a sheet into {name}"
   },
   "teamTasks": {
     "sent": "Task sent",
@@ -321,7 +326,40 @@
     "reason": "Reason",
     "reasonExample": "e.g. not the unit's owner",
     "save": "Save",
-    "doneTitle": "Done · new unit from {name}"
+    "doneTitle": "Done · new unit from {name}",
+    "files": {
+      "note": "Every Not Active sheet has a file with its name, and files are grouped in folders. Make a new file, name it, and upload the sheet straight into it.",
+      "mineNote": "These are the files with numbers Manar sent you. Open a file and classify each number.",
+      "search": "Search by file or folder name",
+      "new": "New file",
+      "noFolder": "No folder",
+      "noMatch": "No file with this name",
+      "none": "No files yet · make a new file and upload the sheet into it",
+      "rows": "{count} rows",
+      "made": "Made {day}",
+      "waiting": "{count} awaiting classification",
+      "allDone": "All classified",
+      "empty": "Empty · upload a sheet",
+      "all": "All files",
+      "rename": "Rename / move",
+      "inNote": "Upload the sheet straight into this file. Any number already in the main inventory sends you an Alarm to set its status.",
+      "upload": "Upload the sheet (Excel / CSV)",
+      "uploadMore": "Upload another sheet into the file (Excel / CSV)",
+      "emptyTitle": "The file is empty",
+      "emptyUp": "Upload the sheet (Excel or CSV) and its columns become the file's columns.",
+      "emptyView": "Nobody has uploaded a sheet into this file yet.",
+      "renameTitle": "Rename the file",
+      "newTitle": "New file · Not Active Inventory",
+      "name": "File name",
+      "nameExample": "e.g. CFC · November",
+      "folder": "Folder (optional)",
+      "folderHint": "Pick a folder or type a new folder name",
+      "sheet": "The sheet (Excel / CSV · optional, you can upload it later)",
+      "pickSheet": "Choose an Excel or CSV file",
+      "make": "Make the file",
+      "saved": "Saved",
+      "made2": "The file «{name}» was made · upload the sheet into it"
+    }
   },
   "listOfOptions": {
     "bar": "Picked units",
@@ -371,5 +409,30 @@
     "sent": "Sent",
     "send": "Send to the Team Leader",
     "noUnits": "No available units for this search"
+  },
+  "layout": {
+    "folderTitle": "Layout folder",
+    "folderButton": "Layout file",
+    "modalTitle": "{code} folder · Layout file",
+    "files": "{count, plural, one {# file} other {# files}}",
+    "zip": "Download the whole folder (ZIP)",
+    "upload": "Upload Layout (PDF · DWG · image)",
+    "uploaded": "{count, plural, one {# file uploaded} other {# files uploaded}} to the {code} Layout file folder",
+    "view": "View",
+    "download": "Download",
+    "replace": "Replace",
+    "replaced": "{old} was replaced with {name}",
+    "delete": "Delete {name}",
+    "deleteConfirm": "Delete this file from the Layout folder?",
+    "deleted": "{name} deleted from the Layout file folder",
+    "dwg": "Opens with AutoCAD or a DWG viewer",
+    "empty": "The folder is empty",
+    "emptyUp": "Upload the Layout here: a PDF, a DWG (AutoCAD) or an image, several files at once.",
+    "emptyView": "Nobody has uploaded a Layout for this unit yet.",
+    "note": "Layout files are seen from the Layout file column in the sheet and from the unit's page. PDFs and images show here directly; the DWG file downloads and opens with AutoCAD or any DWG viewer.",
+    "limits": "Images up to {image} · PDF up to {pdf} · DWG up to {dwg}",
+    "formLabel": "Layout file (PDF · DWG · image · goes in the Layout folder)",
+    "formAdd": "Add a Layout file (PDF · DWG · image)",
+    "picked": "{count, plural, one {# file} other {# files}} will upload after saving"
   }
 }

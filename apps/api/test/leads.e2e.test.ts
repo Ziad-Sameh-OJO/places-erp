@@ -93,6 +93,18 @@ test("pagination: newest first, pages don't overlap", async () => {
   assert.equal(all.at(-1), code(2)); // the oldest (March) comes last
 });
 
+test("0.15 sort by a column in the API, across pages; the scope still holds; an unknown column is 400", async () => {
+  const page = async (cookie: string, n: number, s: string) =>
+    (await call(`/leads?q=${encodeURIComponent(`E2E ${stamp}`)}&pageSize=2&page=${n}${s}`, { cookie })).body.items.map((l: { code: string }) => l.code);
+  assert.deepEqual([...await page(ops, 1, "&sort=name&dir=desc"), ...await page(ops, 2, "&sort=name&dir=desc")], [code(4), code(3), code(2), code(1)]);
+  assert.deepEqual([...await page(ops, 1, "&sort=name"), ...await page(ops, 2, "&sort=name")], [code(1), code(2), code(3), code(4)]);
+  assert.equal((await page(ops, 1, "&sort=channel&dir=desc"))[0], code(3)); // Instagram after Facebook
+  assert.deepEqual(await page(mohsen, 1, "&sort=name&dir=desc"), [code(1)]);
+  assert.equal((await call("/leads?sort=phones", { cookie: ops })).status, 400);
+  assert.equal((await call("/leads?sort=name&dir=up", { cookie: ops })).status, 400);
+  assert.equal((await call("/leads?sort=name", { cookie: hr })).status, 403);
+});
+
 /* ---------------- 1.3 lead details · Activity · comments ---------------- */
 
 const idOf = async (n: number) => (await prisma.lead.findUniqueOrThrow({ where: { code: code(n) } })).id;

@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Put } from "@nestjs/common";
-import { RoutingCell } from "@places/contracts";
+import { Body, Controller, Get, Put, Query } from "@nestjs/common";
+import { AreaRouteQuery, RoutingCell } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -14,6 +14,13 @@ export class RoutingController {
   @Requires("settings", "view")
   view() {
     return this.routing.view();
+  }
+
+  /** 1.30: the new-lead form's «بتروح لـ: …» — whoever may add a lead, not only whoever reads the settings. */
+  @Get("area")
+  @Requires("leads", "create")
+  forArea(@Query(new ZodPipe(AreaRouteQuery)) q: AreaRouteQuery) {
+    return this.routing.forArea(q.area);
   }
 
   @Put()

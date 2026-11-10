@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { FILE_KINDS, UploadRequest, type StoredFile, type UnitDetail, type UnitPhotoView, type UploadTicket } from "@places/contracts";
+import { FILE_KINDS, UploadRequest, uploadMime, type StoredFile, type UnitDetail, type UnitPhotoView, type UploadTicket } from "@places/contracts";
 import { MAX_UNIT_PHOTOS, fillsUnitFolder } from "@places/domain";
 import { put } from "@/components/file-upload";
 import { Chip, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
@@ -91,15 +91,20 @@ function Folder({ u }: { u: Pick<UnitDetail, "id" | "code" | "project" | "area">
  * The demo's one «ارفع صور / PDF» (invwork.js): several photos and PDFs at once, each straight to storage (like
  * FileUpload), then added to the folder together. A file that fails its check is skipped with a message; the rest go up.
  */
-export function FolderUpload({ left, onDone }: { left: number; onDone: (ids: string[]) => Promise<void> }) {
+export function FolderUpload({ left, onDone, layout, label, className = "btn" }: {
+  left: number; onDone: (ids: string[]) => Promise<void>;
+  /** 2.35 · the Layout file folder: DWG / DXF too (core/files takes them for this folder only) */
+  layout?: boolean; label?: ReactNode; className?: string;
+}) {
   const t = useTranslations("inventory.photos");
+  const tl = useTranslations("inventory.layout");
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const pick = async (files: File[]) => {
     if (files.length > left) return toast(t("tooMany", { max: MAX_UNIT_PHOTOS, left }), "bad");
     const ids: string[] = [];
     for (const [i, file] of files.entries()) {
-      const req = { name: file.name, mime: file.type, size: file.size };
+      const req = { name: file.name, mime: uploadMime(file.name, file.type), size: file.size, ...(layout ? { folder: "layout" as const } : {}) };
       const check = UploadRequest.safeParse(req);
       if (!check.success) { toast(`${file.name}: ${serverText(check.error.issues[0]!.message)}`, "bad"); continue; }
       try {
@@ -114,9 +119,10 @@ export function FolderUpload({ left, onDone }: { left: number; onDone: (ids: str
     setBusy(null);
     if (ids.length) await onDone(ids);
   };
-  return <label className={`btn${busy ? " disabled" : ""}`} title={t("limits", { image: serverText(FILE_KINDS.image.max), pdf: serverText(FILE_KINDS.pdf.max) })}>
-    <Icon name="upload" />{busy ?? t("upload")}
-    <input type="file" multiple hidden accept={[...FILE_KINDS.image.mimes, ...FILE_KINDS.pdf.mimes].join(",")} disabled={!!busy}
+  const limits = { image: serverText(FILE_KINDS.image.max), pdf: serverText(FILE_KINDS.pdf.max), dwg: serverText(FILE_KINDS.drawing.max) };
+  return <label className={`${className}${busy ? " disabled" : ""}`} title={layout ? tl("limits", limits) : t("limits", limits)}>
+    {busy ? <><Icon name="upload" />{busy}</> : label ?? <><Icon name="upload" />{t("upload")}</>}
+    <input type="file" multiple={left > 1} hidden accept={[...FILE_KINDS.image.mimes, ...FILE_KINDS.pdf.mimes, ...(layout ? [".dwg", ".dxf"] : [])].join(",")} disabled={!!busy}
       onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ""; void pick(fs); }} />
   </label>;
 }

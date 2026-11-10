@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LeaveBalancesView, LeaveCalendarView, LeaveView, MyLeaves } from "@places/contracts";
@@ -19,6 +20,7 @@ export function MyLeavesCard() {
   const tr = useTranslations("hr");
   const q = useQuery({ queryKey: ["hr", "leaves", "mine"], queryFn: () => api.get<MyLeaves>("/hr/leaves/mine"), retry: false });
   const [ask, setAsk] = useState(false);
+  useNewParam("leave", () => setAsk(true)); // «جديد ← طلب إجازة» from any page (0.16)
   const [type, setType] = useState("");
   const [doc, setDoc] = useState<string | null>(null);
   const run = useAction();

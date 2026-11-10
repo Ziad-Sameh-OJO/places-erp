@@ -1,7 +1,7 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type {
-  CreatedUnit, NotActiveAssign, NotActiveClassify, NotActiveCounts, NotActiveImport, NotActiveImportDone, NotActivePerson, NotActivePreview,
+  CreatedUnit, NotActiveAssign, NotActiveClassify, NotActiveCounts, NotActiveFileInput, NotActiveImport, NotActiveImportDone, NotActivePerson, NotActivePreview,
   NotActiveRowFilters, NotActiveRowView, NotActiveSheetView, Paged, UnitInput, UnitOptions,
 } from "@places/contracts";
 import { classifyProblem, guessNumberColumn, inventoryMatches, mergeColumns, mergeSheetRows, type SheetRow } from "@places/domain";
@@ -18,8 +18,16 @@ const NO_ROW = "الصف ده مش موجود أو مش معاك";
 const PREVIEW_ROWS = 10;
 const LINK = "/notactive";
 
-type SheetRecord = { id: string; name: string; dedupeBy: string; numberBy: string | null; columns: string[]; _count: { rows: number } };
-const view = (s: SheetRecord): NotActiveSheetView => ({ id: s.id, name: s.name, dedupeBy: s.dedupeBy, numberBy: s.numberBy, columns: s.columns, rows: s._count.rows });
+type SheetRecord = {
+  id: string; name: string; dedupeBy: string; numberBy: string | null; columns: string[]; folder: string | null; createdById: string | null; createdAt: Date;
+  _count: { rows: number };
+};
+type SheetExtra = { createdBy?: string | null; pending?: number; matched?: number };
+const view = (s: SheetRecord, x: SheetExtra = {}): NotActiveSheetView => ({
+  id: s.id, name: s.name, dedupeBy: s.dedupeBy, numberBy: s.numberBy, columns: s.columns, rows: s._count.rows,
+  folder: s.folder, createdAt: s.createdAt.toISOString(), createdBy: x.createdBy ?? null, pending: x.pending ?? 0, matched: x.matched ?? 0,
+});
+const NAME_TAKEN = "فيه ملف بنفس الاسم · اختار اسم تاني";
 const cells = (data: unknown): SheetRow => (data && typeof data === "object" ? (data as SheetRow) : {});
 
 /**
@@ -43,8 +51,52 @@ export class NotActiveService {
     return { all: me.grants.can("notactive", "approve"), userId: me.id };
   }
 
+  /** 2.39 · the files (Marwa: the ones with rows sent to her), each with its folder, who made it and what's left to classify. */
   async sheets(me: CurrentUser): Promise<NotActiveSheetView[]> {
-    return (await this.repo.sheets(this.scope(me))).map(view);
+    const s = this.scope(me);
+    const [sheets, [pending, matched]] = await Promise.all([this.repo.sheets(s), this.repo.sheetCounts(s)]);
+    const people = new Map((await this.repo.names([...new Set(sheets.flatMap((x) => (x.createdById ? [x.createdById] : [])))])).map((p) => [p.userId, p.name]));
+    const n = (g: { sheetId: string; _count: { _all: number } }[], id: string) => g.find((x) => x.sheetId === id)?._count._all ?? 0;
+    return sheets.map((x) => view(x, { createdBy: x.createdById ? people.get(x.createdById) ?? null : null, pending: n(pending, x.id), matched: n(matched, x.id) }));
+  }
+
+  /** The folders already used, for «ملف جديد». */
+  async folders(): Promise<string[]> {
+    return (await this.repo.folders()).flatMap((f) => (f.folder ? [f.folder] : [])).sort((a, b) => a.localeCompare(b, "ar"));
+  }
+
+  /**
+   * 2.39 · «ملف جديد»: a named file (the name is one of a kind, «CFC» = «cfc»), maybe in a folder; its sheet comes now or
+   * later. Whoever manages the inventory makes files (the demo's canFile: Not Active import or inventory edit).
+   */
+  async createFile(me: CurrentUser, input: NotActiveFileInput): Promise<NotActiveSheetView> {
+    this.mayFile(me);
+    return this.db.$transaction(async (tx) => {
+      if (await this.repo.sheetByName(input.name, tx)) throw new BadRequestException(NAME_TAKEN);
+      const sheet = await this.repo.createFile(tx, input.name, input.folder ?? null, me.id);
+      await this.audit.record({ module: "notactive", entity: "NotActiveSheet", entityId: sheet.id, action: "create", userId: me.id, after: { name: sheet.name, folder: sheet.folder } }, tx);
+      return view(sheet, { createdBy: me.name });
+    });
+  }
+
+  /** «تغيير الاسم / الفولدر». */
+  async renameFile(me: CurrentUser, id: string, input: NotActiveFileInput): Promise<NotActiveSheetView> {
+    this.mayFile(me);
+    return this.db.$transaction(async (tx) => {
+      const before = await this.repo.sheet(id, tx);
+      if (!before) throw new NotFoundException(NO_SHEET);
+      const other = await this.repo.sheetByName(input.name, tx);
+      if (other && other.id !== id) throw new BadRequestException(NAME_TAKEN);
+      const sheet = await this.repo.renameFile(tx, id, input.name, input.folder ?? null);
+      await this.audit.record({ module: "notactive", entity: "NotActiveSheet", entityId: id, action: "update", userId: me.id,
+        before: { name: before.name, folder: before.folder }, after: { name: sheet.name, folder: sheet.folder } }, tx);
+      return view(sheet);
+    });
+  }
+
+  /** The demo's canFile: Not Active «import», or whoever edits the inventory. */
+  private mayFile(me: CurrentUser) {
+    if (!me.grants.can("notactive", "import") && !me.grants.can("inventory", "edit")) throw new ForbiddenException("مش مسموح لك تعمل ملفات أو ترفع شيتات في الـ Not Active");
   }
 
   async rows(me: CurrentUser, sheetId: string, f: NotActiveRowFilters): Promise<Paged<NotActiveRowView>> {
@@ -70,7 +122,8 @@ export class NotActiveService {
   }
 
   /** Before «ادمج»: the file's headers and first rows, and — with a name and a column — what the merge would do. */
-  async preview(table: SheetTable, name?: string, dedupeBy?: string): Promise<NotActivePreview> {
+  async preview(me: CurrentUser, table: SheetTable, name?: string, dedupeBy?: string): Promise<NotActivePreview> {
+    this.mayFile(me);
     const sheet = name?.trim() ? await this.repo.sheetByName(name.trim()) : null;
     const column = dedupeBy && table.headers.includes(dedupeBy) ? dedupeBy : null;
     const merge = column ? mergeSheetRows(sheet ? (await this.repo.rowData(sheet.id)).map((r) => cells(r.data)) : [], table.rows, column) : null;
@@ -83,13 +136,14 @@ export class NotActiveService {
 
   /** «ادمج»: one transaction — the sheet (new or the same name), its new rows, its columns and the audit; then the comparison. */
   async import(me: CurrentUser, table: SheetTable, input: NotActiveImport, file: string): Promise<NotActiveImportDone> {
+    this.mayFile(me);
     if (!table.headers.includes(input.dedupeBy)) throw new BadRequestException(`خانة «${input.dedupeBy}» مش في الشيت`);
     if (input.numberBy && !table.headers.includes(input.numberBy)) throw new BadRequestException(`خانة «${input.numberBy}» مش في الشيت`);
     if (!table.rows.length) throw new BadRequestException("الشيت مفيهوش صفوف");
     const done = await this.db.$transaction(async (tx) => {
       const found = await this.repo.sheetByName(input.name, tx);
       const numberBy = input.numberBy ?? found?.numberBy ?? null;
-      const sheet = found ?? await this.repo.createSheet(tx, input.name, input.dedupeBy, numberBy, table.headers);
+      const sheet = found ?? await this.repo.createSheet(tx, input.name, input.dedupeBy, numberBy, table.headers, me.id);
       const existing = found ? (await this.repo.rowData(sheet.id, tx)).map((r) => cells(r.data)) : [];
       const merge = mergeSheetRows(existing, table.rows, input.dedupeBy);
       const { count } = await this.repo.addRows(tx, sheet.id, merge.added);

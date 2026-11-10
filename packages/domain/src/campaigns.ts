@@ -54,3 +54,25 @@ export function leadsByPost(arrivals: readonly Arrival[]): Array<{ post: string;
 
 /** Running on `today` (a Cairo calendar day «YYYY-MM-DD»): the demo's «شغالة» / «خلصت». */
 export const isCampaignLive = (c: { startsOn: string; endsOn: string }, today: string): boolean => c.startsOn <= today && today <= c.endsOn;
+
+// ───────── 4.18 · the leads that never became Qualified, and why ─────────
+
+/** One thing that happened on a lead (sales.LeadActivity): `byUserId` null = the system. */
+export interface LeadAct { readonly kind: string; readonly text: string; readonly byUserId: string | null; readonly at: Date }
+
+/**
+ * M-04 · «الليدز اللي ماكانتش Qualified»: the reason is what the salesperson did on the lead (its stage) plus his latest
+ * comment and who wrote it (demo marketing.js `lastAct`): the latest comment a person wrote, else the latest thing a person
+ * did on it (a call, a stage change…); null when nobody touched it yet.
+ */
+export function lastSalesAct<T extends LeadAct>(acts: readonly T[]): T | null {
+  const byPerson = acts.filter((a) => a.byUserId).sort((a, b) => b.at.getTime() - a.at.getTime());
+  return byPerson.find((a) => a.kind === "comment") ?? byPerson[0] ?? null;
+}
+
+/** How many leads per reason (stage), most first; ties keep the first seen. */
+export function countByReason(stages: readonly string[]): Array<{ reason: string; count: number }> {
+  const m = new Map<string, number>();
+  for (const s of stages) m.set(s, (m.get(s) ?? 0) + 1);
+  return [...m].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
+}

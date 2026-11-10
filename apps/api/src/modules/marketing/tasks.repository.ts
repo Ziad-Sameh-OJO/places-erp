@@ -4,7 +4,7 @@ import { PRISMA } from "../../core/database/database.module";
 
 const ROW = {
   id: true, kind: true, title: true, byUserId: true, toUserId: true, dueOn: true, status: true, returned: true, note: true,
-  doneAt: true, createdAt: true,
+  doneAt: true, createdAt: true, countsInKpi: true,
   unit: { select: { id: true, code: true, project: true, area: true, floor: true, building: true, ownerName: true, ownerPhone: true, enteredAt: true } },
 } satisfies Prisma.TaskSelect;
 export type TaskRecord = Prisma.TaskGetPayload<{ select: typeof ROW }>;
@@ -45,6 +45,12 @@ export class TasksRepository {
 
   async accountsOf(employeeIds: string[]): Promise<string[]> {
     return (await this.db.user.findMany({ where: { employee: { id: { in: employeeIds } } }, select: { id: true } })).map((u) => u.id);
+  }
+
+  /** 4.14: every account's department (Employee.department; "" for an account with no employee record). */
+  async departments(): Promise<Map<string, string>> {
+    const rows = await this.db.user.findMany({ select: { id: true, employee: { select: { department: true } } } });
+    return new Map(rows.map((u) => [u.id, u.employee?.department ?? ""]));
   }
 
   async names(userIds: string[]): Promise<Map<string, string>> {

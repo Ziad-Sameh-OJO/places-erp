@@ -93,6 +93,7 @@
     "twoWeeks": "Last two weeks",
     "custom": "Custom period",
     "period": "Period",
+    "allTime": "Cumulative",
     "note": "Late minutes = Check-in − 11:16 (e.g. 11:18 = 2 minutes). Every minute counts without exception, even for those with custom brackets."
   },
   "deductions": {

@@ -10,7 +10,7 @@ export interface TaskKind {
   readonly label: string;
   /** the roles a task of this kind can be given to (M-04 1.2) */
   readonly assigneeRoles: readonly string[];
-  /** about one unit: its data reaches the assignee with the task (M-04 2.1 step 4) */
+  /** about one unit: its code reaches the assignee with the sender's notes, nothing else (M-04 2.1 step 4 · 4.16) */
   readonly withUnit: boolean;
   /** the permission that lets someone give this kind; null = only the system creates it (the month job, 2.17) */
   readonly createdWith: { readonly module: "inventory" | "marketing"; readonly action: "edit" | "create" } | null;
@@ -95,6 +95,14 @@ export function retouchFolder(kind: string, status: TaskStatus, actor: TaskActor
 export const photoDayWarning = (kind: string, sameDayOpen: number): string | null =>
   kind === "photo" && sameDayOpen > 0 ? "تنبيه: إنت مدياه وحدة النهارده قبل كده (وحدة في اليوم)" : null;
 
+/**
+ * 4.16 (demo tasks.js `taskNew` · `card`): nothing about the unit is sent with a task automatically — the person gets
+ * the unit's code and only what the sender wrote — so a task about a unit can't go without notes. A marketing task's
+ * notes stay optional; Manar's «مهمة للفريق» carries its text in «المهمة» itself.
+ */
+export const taskNoteProblem = (kind: string, note: string | null | undefined): string | null =>
+  taskKind(kind)?.withUnit && !note?.trim() ? "اكتب الملاحظات · ده بس اللي هيوصل مع كود الوحدة" : null;
+
 /** M-04 2.4: «المهام اليومية لازم تخلص في يومها» — late once its day (Cairo) has passed and it isn't Done. */
 export const isTaskLate = (t: { status: string; dueOn: string }, now: Date): boolean => t.status !== "done" && t.dueOn < localDate(now);
 
@@ -105,3 +113,12 @@ export const isTaskLate = (t: { status: string; dueOn: string }, now: Date): boo
  */
 export const followupRole = (unitType: string): string => (unitType === "Resale" ? "resale" : "inventory");
 export const needsFollowup = (u: { stale: boolean; openFollowup: boolean }): boolean => u.stale && !u.openFollowup;
+
+/**
+ * 4.14 · the board's two sides (demo tasks.js `isTeam`): «مهام الفريق» = the assignee is in the sender's department, and
+ * the system's tasks count as the team's; anything sent to another department is «مهام لناس خارجية» (Manar's shoot for
+ * the photographer). `byDept` is null for a task the system made; a person with no employee record has department "".
+ */
+export const isTeamTask = (byDept: string | null, toDept: string): boolean => byDept === null || byDept === toDept;
+export const TASK_SIDES = ["team", "outside"] as const;
+export type TaskSide = (typeof TASK_SIDES)[number];

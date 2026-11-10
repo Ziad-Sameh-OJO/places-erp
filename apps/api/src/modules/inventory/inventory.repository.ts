@@ -8,13 +8,13 @@ import { PRISMA } from "../../core/database/database.module";
 export const UNIT_ROW = {
   id: true, code: true, type: true, alsoType: true, status: true, alsoStatus: true, project: true, area: true, space: true,
   condition: true, floor: true, building: true, parking: true, ownerName: true, ownerPhone: true, pricePerSqm: true,
-  totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, layout: true, comment: true, details: true,
+  totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, comment: true, details: true,
   divisible: true, minSplit: true, location: true, agreementFileId: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
   // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
   locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
   // the main photo (2.4: the first image, never a PDF of the folder, 2.22) and how many files there are
   photos: { where: { pdf: false }, select: { fileId: true }, orderBy: { position: "asc" }, take: 1 },
-  _count: { select: { photos: true } },
+  _count: { select: { photos: true, layouts: true } }, // 2.35: Layout = its Layout file folder has files
 } satisfies Prisma.UnitSelect;
 export const UNIT_DETAIL = { ...UNIT_ROW, ownerId: true, splitNote: true, receivedAt: true, enteredAt: true, createdById: true, updatedAt: true, mediaUploadedAt: true } satisfies Prisma.UnitSelect;
 export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
@@ -26,6 +26,15 @@ export interface UnitScope { insider: boolean; staleBefore: Date; hidden?: Reado
 export type Tab = AreaRange & { id: string };
 /** The list's filters, with «ناقصها بيانات» (2.20) resolved to the units it names (the service works them out). */
 export type ListFilters = UnitFilters & { missingIds?: string[] };
+/** The sheet's sortable columns (0.15) → the unit's fields; the nullable ones keep their empty cells last either way. */
+const SORT_FIELD = { total: "totalPrice", lastUpdate: "lastOwnerUpdateAt" } as const;
+const NULLABLE = new Set(["floor", "building", "pricePerSqm", "totalPrice", "leasePerSqm"]);
+function unitOrder(f: UnitFilters): Prisma.UnitOrderByWithRelationInput[] {
+  const dir = f.dir ?? "asc";
+  const field = f.sort ? (SORT_FIELD as Record<string, string>)[f.sort] ?? f.sort : null;
+  const by = !field ? [] : [{ [field]: NULLABLE.has(field) ? { sort: dir, nulls: "last" } : dir }];
+  return [...by, { createdAt: "desc" }, { id: "desc" }];
+}
 /** What the missing-data check (domain missingFields) reads of a unit. */
 const MISSING_CHECK = {
   id: true, code: true, type: true, project: true, space: true, condition: true, building: true, ownerName: true, ownerPhone: true,
@@ -132,7 +141,7 @@ export class InventoryRepository {
   list(s: UnitScope, f: ListFilters, tabs: Tab[]) {
     const where = unitWhere(s, f, tabs);
     return this.db.$transaction([
-      this.db.unit.findMany({ where, select: UNIT_ROW, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
+      this.db.unit.findMany({ where, select: UNIT_ROW, orderBy: unitOrder(f), skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.unit.count({ where }),
     ]);
   }
@@ -195,9 +204,19 @@ export class InventoryRepository {
     return this.db.employee.findUnique({ where: { userId }, select: { name: true } });
   }
 
+  /** 2.38 · what an import's rows are compared with: every unit not archived, the columns one can pick. */
+  importKeys() {
+    return this.db.unit.findMany({ where: { archivedAt: null }, select: { code: true, project: true, space: true, floor: true, building: true, ownerName: true, ownerPhone: true } });
+  }
+
   /** A unit's photos in their order (2.4). */
   photos(unitId: string, tx: Prisma.TransactionClient = this.db) {
     return tx.unitPhoto.findMany({ where: { unitId }, orderBy: { position: "asc" }, select: { id: true, fileId: true, pdf: true } });
+  }
+
+  /** A unit's Layout file folder, oldest first (2.35). */
+  layouts(unitId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.unitLayout.findMany({ where: { unitId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, fileId: true } });
   }
 
   /** A unit's two sides, for closing one (Q16 · Q17). Archived units can't be closed. */

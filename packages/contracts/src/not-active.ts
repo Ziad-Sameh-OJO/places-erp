@@ -40,7 +40,21 @@ export const NotActiveClassify = z.object({
 });
 export type NotActiveClassify = z.infer<typeof NotActiveClassify>;
 
-export interface NotActiveSheetView { id: string; name: string; dedupeBy: string; numberBy: string | null; columns: string[]; rows: number }
+/** 2.39 · «ملف جديد» / «تغيير الاسم / الفولدر»: the file's name (one of a kind) and its folder (an existing one or a new name). */
+export const NotActiveFileInput = z.object({
+  name: z.string({ required_error: "اكتب اسم الملف", invalid_type_error: "اكتب اسم الملف" }).trim().min(1, "اكتب اسم الملف").max(60, "اسم الملف طويل"),
+  folder: z.preprocess((v) => (typeof v === "string" && !v.trim() ? undefined : v), z.string().trim().max(60, "اسم الفولدر طويل").optional()),
+});
+export type NotActiveFileInput = z.infer<typeof NotActiveFileInput>;
+
+/**
+ * A file (sheet): `rows` all its rows, `pending` the ones not classified yet that the person works (Marwa: hers);
+ * 2.39: its folder, when it was made and by whom.
+ */
+export interface NotActiveSheetView {
+  id: string; name: string; dedupeBy: string; numberBy: string | null; columns: string[]; rows: number;
+  folder: string | null; createdAt: string; createdBy: string | null; pending: number; matched: number;
+}
 /** Before «ادمج»: the file's headers and first rows, and what it would add to the sheet of that name (if there is one). */
 export interface NotActivePreview {
   headers: string[]; total: number; sample: Record<string, string>[];

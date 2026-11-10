@@ -4,9 +4,9 @@
  * them as-is: Icon, Chip, Card, Tabs, Table (cards on phones), Field, Note, Empty, Modal (bottom sheet on phones),
  * Tick, Avatar, and a toast.
  */
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { Action, ModuleKey } from "@places/domain";
+import { nextSort, sortOrder, type Action, type ModuleKey, type SortDir } from "@places/domain";
 import type { ImportDone, ImportPreview } from "@places/contracts";
 import { ICONS, type IconName } from "@places/ui";
 import { api } from "@/lib/api";
@@ -54,24 +54,65 @@ export function Tabs<K extends string>({ items, value, onChange }: { items: [K, 
 /** Optional row checkboxes («حدد»): the ids of the rows in order, the picked ones, and the words for each box. */
 export interface TablePick { ids: string[]; picked: string[]; onChange: (ids: string[]) => void; all: string; one: (index: number) => string }
 
-export function Table({ head, rows, empty, onRow, className = "", pick }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void; className?: string; pick?: TablePick }) {
+/**
+ * 0.15 · a paginated table sorted by the API across every page: each column's sort key (null = not sortable), the
+ * current one, and what a header click asks for. Without it the table sorts the rows it has, by what the cells show.
+ */
+export interface TableSort { keys: (string | null)[]; by?: string | undefined; dir?: SortDir | undefined; onChange: (by: string, dir: SortDir) => void }
+
+/** A header the demo's way (shell.js enhanceTables): click or Enter sorts, the arrow says which way. */
+export function SortTh({ label, dir, onSort }: { label: string; dir: SortDir | null | false; onSort: () => void }) {
+  if (dir === false) return <th>{label}</th>;
+  return (
+    <th className="sortable" tabIndex={0} aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none"}
+      onClick={onSort} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSort(); } }}>{label}</th>
+  );
+}
+
+export function Table({ head, rows, empty, onRow, className = "", pick, sort }: { head: string[]; rows: ReactNode[][]; empty?: string; onRow?: (index: number) => void; className?: string; pick?: TablePick; sort?: TableSort }) {
   const t = useTranslations("ui");
   const on = (id: string) => !!pick?.picked.includes(id);
   const all = !!pick && pick.ids.length > 0 && pick.ids.every(on);
   // toggling this page's rows keeps what was picked on other pages
   const flip = (ids: string[], add: boolean) => pick!.onChange(add ? [...new Set([...pick!.picked, ...ids])] : pick!.picked.filter((x) => !ids.includes(x)));
+  // in-page sort: by the text each cell shows (numbers and dates by value, domain sortOrder), read after it renders
+  const [local, setLocal] = useState<{ col: number; dir: SortDir } | null>(null);
+  const [order, setOrder] = useState<number[] | null>(null);
+  const body = useRef<HTMLTableSectionElement>(null);
+  useLayoutEffect(() => {
+    if (sort || !local || !body.current) { if (order) setOrder(null); return; }
+    const texts: string[] = [];
+    for (const tr of Array.from(body.current.rows)) {
+      const i = Number(tr.dataset.i);
+      if (!Number.isNaN(i)) texts[i] = tr.cells[local.col + (pick ? 1 : 0)]?.textContent ?? "";
+    }
+    const next = sortOrder(Array.from(texts, (x) => x ?? ""), local.dir, new Date());
+    if (next.join() !== order?.join()) setOrder(next);
+  });
+  const shown = order && order.length === rows.length ? order : rows.map((_, i) => i);
+  const dirOf = (j: number): SortDir | null | false => {
+    if (!head[j]) return false;
+    if (!sort) return local?.col === j ? local.dir : null;
+    const k = sort.keys[j];
+    return k ? (sort.by === k ? sort.dir ?? "asc" : null) : false;
+  };
+  const onSort = (j: number) => {
+    if (!sort) return setLocal(nextSort(local, j));
+    const k = sort.keys[j]!, next = nextSort(sort.by ? { col: sort.by, dir: sort.dir ?? "asc" } : null, k);
+    sort.onChange(next.col, next.dir);
+  };
   return (
     <div className={`tbl-wrap ${className}`}>
       <table className="cardable">
         <thead><tr>
           {pick && <th className="pick"><input type="checkbox" checked={all} aria-label={pick.all} onChange={(e) => flip(pick.ids, e.target.checked)} /></th>}
-          {head.map((h) => <th key={h}>{h}</th>)}
+          {head.map((h, j) => <SortTh key={h} label={h} dir={rows.length > 1 || sort ? dirOf(j) : false} onSort={() => onSort(j)} />)}
         </tr></thead>
-        <tbody>
-          {rows.length ? rows.map((r, i) => {
-            const id = pick?.ids[i];
+        <tbody ref={body}>
+          {rows.length ? shown.map((i) => {
+            const r = rows[i]!, id = pick?.ids[i];
             return (
-              <tr key={i} className={`${onRow ? "click" : ""} ${id && on(id) ? "selected" : ""}`} onClick={onRow ? () => onRow(i) : undefined}>
+              <tr key={i} data-i={i} className={`${onRow ? "click" : ""} ${id && on(id) ? "selected" : ""}`} onClick={onRow ? () => onRow(i) : undefined}>
                 {pick && id && <td className="pick" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={on(id)} aria-label={pick.one(i)} onChange={(e) => flip([id], e.target.checked)} /></td>}
                 {r.map((c, j) => <td key={j} data-label={head[j]}>{c}</td>)}
               </tr>
@@ -80,6 +121,11 @@ export function Table({ head, rows, empty, onRow, className = "", pick }: { head
             : <tr><td colSpan={head.length + (pick ? 1 : 0)}><Empty text={empty ?? t("table.empty")} /></td></tr>}
         </tbody>
       </table>
+      {!sort && rows.length > 1 && (
+        <div className="tbl-foot">
+          {t.rich(local && head[local.col] ? "table.sortedBy" : "table.sortHint", { n: rows.length, col: head[local?.col ?? 0] ?? "", b: (c) => <span className="num">{c}</span> })}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useNewParam } from "@/lib/new-param";
 import { type ReactNode, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Paged } from "@places/contracts";
@@ -27,6 +28,7 @@ export function UsersTab() {
   const [dept, setDept] = useState("");
   const [page, setPage] = useState(1);
   const [form, setForm] = useState<UserRow | "new" | null>(null);
+  useNewParam("1", () => setForm("new"), can("access", "create")); // «جديد ← مستخدم جديد» (0.16)
   const [perms, setPerms] = useState<UserRow | null>(null);
   const [handover, setHandover] = useState<UserRow | null>(null);
   const filters = { ...(q ? { q } : {}), ...(status ? { status } : {}), ...(dept ? { department: dept } : {}) };
