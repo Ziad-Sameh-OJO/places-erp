@@ -250,7 +250,8 @@ export function metricProblem(metric: string | null, params: MetricParams): stri
   if (!metric) return Object.keys(params).length ? "الإعدادات من غير مقياس" : null;
   const m = METRICS[metric];
   if (!m) return "المقياس ده مش في الكتالوج";
-  const bad = Object.keys(params).find((k) => !(m.params ?? []).includes(k as MetricParam));
+  // `ids`: «متوسط كروت فريقه» can name its people instead of «the cards he follows» (the CEO's «القادة الأربعة + رحمة»)
+  const bad = Object.keys(params).find((k) => !(m.params ?? []).includes(k as MetricParam) && !(k === "ids" && metric === "team"));
   return bad ? `«${m.label}» مالوش إعداد ${bad}` : null;
 }
 
