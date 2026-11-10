@@ -246,7 +246,6 @@
     "logRolesSub": "The admin always sees them · applies to all leads"
   },
   "board": {
-    "setVisit": "Set the Visit time and units",
     "movedQualified": "{name} is now {stage} and marked Qualified",
     "moved": "{name} is now {stage}",
     "dropHere": "Drag a lead here",

@@ -246,7 +246,6 @@
     "logRolesSub": "الأدمن بيشوفها دايماً · بيتطبّق على كل الليدز"
   },
   "board": {
-    "setVisit": "حدد ميعاد الـ Visit والوحدات",
     "movedQualified": "{name} بقى {stage} واتعلّم Qualified",
     "moved": "{name} بقى {stage}",
     "dropHere": "اسحب ليد هنا",
