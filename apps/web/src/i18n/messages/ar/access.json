@@ -102,6 +102,7 @@
     "save": "حفظ"
   },
   "users": {
+    "cards": {"ACTIVE": {"label": "نشط", "sub": "حسابات شغالة"}, "INVITED": {"label": "مستني التفعيل", "sub": "اتبعتلهم إيميل"}, "LOCKED": {"label": "مقفول", "sub": "بعد 5 محاولات غلط"}, "DISABLED": {"label": "موقوف", "sub": "مشيوا أو اتوقفوا"}},
     "searchPlaceholder": "اسم، إيميل، موبايل، قسم",
     "search": "بحث",
     "status": "الحالة",

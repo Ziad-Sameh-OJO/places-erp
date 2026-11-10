@@ -2,11 +2,13 @@
 import { useNewParam } from "@/lib/new-param";
 import { type ReactNode, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Paged } from "@places/contracts";
-import type { ModuleKey } from "@places/domain";
+import type { Paged, UserStatusCounts } from "@places/contracts";
+import { type ModuleKey, canSendReset } from "@places/domain";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { Avatar, Chip, ExportButton, Field, Icon, Modal, Note, onFormSubmit, Table, useAction } from "@/components/ui";
+import type { IconName } from "@places/ui";
+import { KpiTile } from "@/components/blocks";
 import { Matrix, type MatrixValue } from "./matrix";
 import { STATUS, type RoleRow, type UserRow } from "./types";
 import { useTranslations } from "next-intl";
@@ -35,14 +37,20 @@ export function UsersTab() {
   const qs = new URLSearchParams({ page: String(page), pageSize: "25", ...filters });
   const depts = useQuery({ queryKey: ["users", "departments"], queryFn: () => api.get<string[]>("/access/users/departments") });
   const users = useQuery({ queryKey: ["users", qs.toString()], queryFn: () => api.get<Paged<UserRow>>(`/access/users?${qs}`), placeholderData: keepPreviousData });
+  const counts = useQuery({ queryKey: ["users", "counts"], queryFn: () => api.get<UserStatusCounts>("/access/users/counts") }).data;
   const refresh = () => qc.invalidateQueries({ queryKey: ["users"] });
   const act = (u: UserRow, path: string, ok: string) => run(async () => { await api.post(`/access/users/${u.id}/${path}`); await refresh(); }, ok);
   const edit = can("access", "edit");
   const stop = can("access", "create"); // M-09 4.1: HR adds and stops accounts
   const pages = users.data ? Math.max(1, Math.ceil(users.data.total / users.data.pageSize)) : 1;
 
+  // 12.13 · demo admin.js: the four status cards; a click filters the table to that status
+  const card = (k: UserRow["status"], icon: IconName, tone?: "ok" | "warn" | "bad") => (
+    <KpiTile key={k} label={t(`cards.${k}.label`)} value={counts ? counts[k] : "…"} sub={t(`cards.${k}.sub`)} icon={icon} {...(tone ? { tone } : {})} onClick={() => { setStatus(k); setPage(1); }} />
+  );
   return (
     <>
+      <div className="kpis sm">{card("ACTIVE", "users", "ok")}{card("INVITED", "send", "warn")}{card("LOCKED", "lock", "bad")}{card("DISABLED", "x")}</div>
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={t("searchPlaceholder")} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label={t("search")} /></label>
         <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label={t("status")}>
@@ -72,7 +80,7 @@ export function UsersTab() {
               <button className="btn ghost sm" onClick={() => setPerms(u)}>{t("permissions")}</button>
               {edit && u.status === "LOCKED" && <button className="btn ghost sm" onClick={() => act(u, "unlock", t("unlocked"))}>{t("unlock")}</button>}
               {edit && u.status === "INVITED" && <button className="btn ghost sm" onClick={() => act(u, "invite", t("invited", { email: u.email }))}>{t("resendInvite")}</button>}
-              {edit && u.status === "ACTIVE" && <button className="btn ghost sm" onClick={() => act(u, "reset", t("resetSent", { email: u.email }))}>{t("resetPassword")}</button>}
+              {edit && canSendReset(u.status) && <button className="btn ghost sm" onClick={() => act(u, "reset", t("resetSent", { email: u.email }))}>{t("resetPassword")}</button>}
               {stop && (u.status === "DISABLED" || u.endDate) && <button className="btn ghost sm" onClick={() => setHandover(u)}>{t("handover")}</button>}
               {u.id !== me?.id && (u.status === "DISABLED"
                 ? edit && <button className="btn ghost sm" onClick={() => act(u, "enable", t("enabled"))}>{t("enable")}</button>

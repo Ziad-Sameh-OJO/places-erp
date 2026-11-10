@@ -4,7 +4,7 @@ import { egp } from "../src/money.ts";
 import { attendanceDay } from "../src/attendance.ts";
 import { achievement, cardScore, payoutDelta, bandOf } from "../src/kpi.ts";
 import { idealEmployee } from "../src/ideal-employee.ts";
-import { effectiveGrants } from "../src/permissions.ts";
+import { canSendReset, effectiveGrants } from "../src/permissions.ts";
 
 test("attendance tiers from the requirements (work starts 11:00)", () => {
   const at = (m: number) => attendanceDay({ kind: "checkin", minutesAfterStart: m });
@@ -133,4 +133,8 @@ test("handover (M-09 2.2 · 7.1): a stopped account's work goes to a working acc
   assert.match(handoverRefusal({ ...ok, managerUserId: null })!, /مدير مباشر/);
   assert.match(handoverRefusal({ ...ok, toId: "a" })!, /حد تاني/);
   assert.match(handoverRefusal({ ...ok, toActive: false })!, /حسابه يكون شغال/);
+});
+
+test("12.13 · a reset link: active or locked accounts, never invited or stopped ones", () => {
+  assert.deepEqual(["ACTIVE", "LOCKED", "INVITED", "DISABLED"].map(canSendReset), [true, true, false, false]);
 });

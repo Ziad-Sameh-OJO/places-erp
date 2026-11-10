@@ -58,6 +58,12 @@ export function effectiveGrants(
  */
 export const keepsAccessAdmin = (after: Grants): boolean => after.can("access", "edit");
 
+/**
+ * 12.13 · a reset link goes to an account that has a password: an active one, or one locked after 5 wrong tries (the new
+ * password opens it again — demo admin.js «باسورد» for active or locked). An invited one gets its invite again instead.
+ */
+export const canSendReset = (status: string): boolean => status === "ACTIVE" || status === "LOCKED";
+
 /** M-09 2.4: a new sign-in code can be asked for one minute after the last one was sent. */
 export const OTP_RESEND_SECONDS = 60;
 /** Seconds left before another code may be sent (0 = now). */
