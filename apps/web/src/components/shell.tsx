@@ -15,6 +15,7 @@ import { LanguageSwitch } from "./language-switch";
 import { Avatar, Icon, useToast } from "./ui";
 import { RECENT, toggleFav, useQuick } from "@/lib/quick";
 import { BellPanel, useBell } from "./bell";
+import { CreateMenu } from "./create-menu";
 import { pushSubscription } from "@/features/notifications/push";
 
 const BrandMark = () => (
@@ -106,6 +107,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {page?.sub && <p>{page.sub}</p>}
           </div>
           <div className="top-actions">
+            {me && <CreateMenu can={can} />}
             {/* always in sight, next to the bell (not at the end of a scrolling menu) */}
             <LanguageSwitch className="round lang-btn" />
             <button className="round" onClick={() => void bell.openBell()} aria-label={bell.unread ? t("notificationsUnread", { count: bell.unread }) : t("notifications")}>

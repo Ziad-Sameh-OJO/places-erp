@@ -30,5 +30,21 @@
   "language": {
     "switchTo": "عربي",
     "label": "Change language"
+  },
+  "create": {
+    "button": "New",
+    "title": "Create something new",
+    "items": {
+      "lead": "New lead",
+      "bulk": "Bulk entry (numbers)",
+      "deal": "Deal",
+      "unit": "New unit",
+      "campaign": "Campaign",
+      "post": "Post in the Content plan",
+      "purchase": "Purchase / payment request",
+      "user": "New user",
+      "ticket": "Ticket to another department",
+      "leave": "Leave request"
+    }
   }
 }
