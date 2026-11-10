@@ -19,7 +19,6 @@ export default [
   ["اتصرفتلك عمولة {amount} (Team Leader) · {move}", "A commission of {amount} (Team Leader) was paid to you · {move}"],
   // deal marketing
   ["الصفقة دي مش موجودة", "This deal doesn't exist"],
-  ["مفيش Logo على الصفقة دي", "This deal has no Logo"],
   // deals sheet Excel
   ["الصفقات.xlsx", "Deals.xlsx"],
   ["الصفقة", "Deal"],

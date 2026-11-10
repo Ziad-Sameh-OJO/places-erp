@@ -25,7 +25,6 @@ const DEAL_DETAIL = {
 export type DealRowRecord = Prisma.DealGetPayload<{ select: typeof DEAL_ROW }>;
 export type DealRecord = Prisma.DealGetPayload<{ select: typeof DEAL_DETAIL }>;
 
-export const LOGO = "DealLogo";
 const MARKETING_ROW = { id: true, code: true, company: true, type: true, space: true, location: true, lead: { select: { name: true } } } satisfies Prisma.DealSelect;
 
 /** The roles that close deals and can stand on the Buyer side («حد معاك في الديل Buyer؟»). */
@@ -85,12 +84,6 @@ export class DealsRepository {
 
   onSheet(id: string, onSheet: string[], tx: Prisma.TransactionClient = this.db) {
     return tx.deal.findFirst({ where: { id, status: { in: onSheet as never } }, select: { id: true, code: true } });
-  }
-
-  /** The newest logo of each deal (files attached as «DealLogo»; an older one stays in storage, the newest shows). */
-  async logos(dealIds: string[], tx: Prisma.TransactionClient = this.db) {
-    const files = await tx.file.findMany({ where: { entity: LOGO, entityId: { in: dealIds }, status: "READY" }, select: { id: true, name: true, entityId: true }, orderBy: { createdAt: "asc" } });
-    return new Map(files.map((f) => [f.entityId!, { id: f.id, name: f.name }]));
   }
 
   /** M-11: on-sheet deals in scope with no contract yet. */
