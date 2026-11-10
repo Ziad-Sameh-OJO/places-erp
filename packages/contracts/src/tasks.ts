@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TASK_STATUSES, taskKind } from "@places/domain";
+import { TASK_SIDES, TASK_STATUSES, type TaskSide, taskKind } from "@places/domain";
 import { CalendarDay, Id } from "./common.ts";
 
 /** M-04 · the board's filters: by kind and by assignee (4.2); by unit for the unit drawer's «المهام» tab (2.30). */
@@ -7,6 +7,8 @@ export const TaskFilters = z.object({
   kind: z.string().max(20).optional(),
   toUserId: Id.optional(),
   unitId: Id.optional(),
+  /** 4.14: «مهام الفريق» (same department, and the system's) or «مهام لناس خارجية» */
+  scope: z.enum(TASK_SIDES).optional(),
 });
 export type TaskFilters = z.infer<typeof TaskFilters>;
 
@@ -49,6 +51,8 @@ export interface TaskRow {
   doneAt: string | null;
   createdAt: string;
   late: boolean;
+  /** 4.14: the board's side, by the sender's and the assignee's department (domain isTeamTask) */
+  side: TaskSide;
   /** M-12: a shoot 72 h from the unit's registration, a Retouch 48 h from being given; null for other kinds */
   sla: { due: string; hoursLeft: number; met: boolean | null } | null;
   /** the stages the caller may move it to, and whether they may reassign it (the server checks again) */

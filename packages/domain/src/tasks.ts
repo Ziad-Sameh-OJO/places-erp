@@ -105,3 +105,12 @@ export const isTaskLate = (t: { status: string; dueOn: string }, now: Date): boo
  */
 export const followupRole = (unitType: string): string => (unitType === "Resale" ? "resale" : "inventory");
 export const needsFollowup = (u: { stale: boolean; openFollowup: boolean }): boolean => u.stale && !u.openFollowup;
+
+/**
+ * 4.14 · the board's two sides (demo tasks.js `isTeam`): «مهام الفريق» = the assignee is in the sender's department, and
+ * the system's tasks count as the team's; anything sent to another department is «مهام لناس خارجية» (Manar's shoot for
+ * the photographer). `byDept` is null for a task the system made; a person with no employee record has department "".
+ */
+export const isTeamTask = (byDept: string | null, toDept: string): boolean => byDept === null || byDept === toDept;
+export const TASK_SIDES = ["team", "outside"] as const;
+export type TaskSide = (typeof TASK_SIDES)[number];

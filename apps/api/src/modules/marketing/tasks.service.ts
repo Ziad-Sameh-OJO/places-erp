@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CreateTask, EditTask, MoveTask, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskStatus, dayStart, isTaskLate, localDate, photoDayWarning, retouchFolder, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -54,23 +54,25 @@ export class TasksService {
 
   async list(me: CurrentUser, f: TaskFilters, now = new Date()): Promise<TaskRow[]> {
     const recent = new Date(now.getTime() - BOARD_DONE_DAYS * 86_400_000);
+    const depts = await this.repo.departments();
     const where: Prisma.TaskWhereInput = {
       AND: [
         await this.scope(me),
         f.kind ? { kind: f.kind } : {},
         f.toUserId ? { toUserId: f.toUserId } : {},
+        f.scope ? sideWhere(depts, f.scope) : {},
         // one unit's tasks (its drawer, 2.30) are few: all of them, the old Done ones too, as in the demo's tab
         f.unitId ? { unitId: f.unitId } : { OR: [{ status: { not: "done" } }, { doneAt: { gte: recent } }] },
       ],
     };
     const rows = await this.repo.list(where, BOARD_MAX);
     const names = await this.repo.names(rows.flatMap((t) => [t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]));
-    return rows.map((t) => this.row(me, t, names, now));
+    return rows.map((t) => this.row(me, t, names, depts, now));
   }
 
   async get(me: CurrentUser, id: string): Promise<TaskRow> {
     const t = await this.find(me, id);
-    return this.row(me, t, await this.repo.names([t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]), new Date());
+    return this.row(me, t, await this.repo.names([t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]), await this.repo.departments(), new Date());
   }
 
   /** M-12 (Bayoumi 1-2, Rahma 6): shoots in 72 h, Retouch in 48 h, Retouch accepted the first time — of a month's Done tasks in the scope. */
@@ -236,7 +238,7 @@ export class TasksService {
     if (userIds.length) await this.notifications.notify({ event: "task.changed", text, link: link(t.id), userIds: [...new Set(userIds)] });
   }
 
-  private row(me: CurrentUser, t: TaskRecord, names: Map<string, string>, now: Date): TaskRow {
+  private row(me: CurrentUser, t: TaskRecord, names: Map<string, string>, depts: Map<string, string>, now: Date): TaskRow {
     const a = actor(me, t);
     const status = t.status as TaskStatus;
     const u = t.unit;
@@ -257,6 +259,7 @@ export class TasksService {
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },
       dueOn: day(t.dueOn), status, returned: t.returned, note: hide("note", t.note, null), doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
       late: isTaskLate({ status, dueOn: day(t.dueOn) }, now),
+      side: isTeamTask(t.byUserId ? depts.get(t.byUserId) ?? "" : null, depts.get(t.toUserId) ?? "") ? "team" : "outside",
       can: {
         moves: me.grants.can("tasks", "edit") ? taskMovesFor(t.kind, status, a) : [], edit: me.grants.can("tasks", "edit") && a.manager && status !== "done",
         folder: folder(me, t),
@@ -284,6 +287,19 @@ function actor(me: CurrentUser, t: Pick<TaskRecord, "toUserId" | "byUserId">): T
 function folder(me: CurrentUser, t: TaskRecord): { open: boolean; upload: boolean } {
   const f = retouchFolder(t.kind, t.status as TaskStatus, actor(me, t));
   return { open: f.open && !!t.unit, upload: f.upload && !!t.unit && me.grants.can("tasks", "edit") };
+}
+
+/**
+ * 4.14 · the side as a query (domain isTeamTask): the team's = sender and assignee in one department, or no sender
+ * (the system's); the rest goes outside. One OR branch per department: there are only a handful.
+ */
+function sideWhere(depts: Map<string, string>, side: TaskSide): Prisma.TaskWhereInput {
+  const groups = new Map<string, string[]>();
+  for (const [id, d] of depts) groups.set(d, [...(groups.get(d) ?? []), id]);
+  const team: Prisma.TaskWhereInput = {
+    OR: [{ byUserId: null }, ...[...groups.values()].map((ids) => ({ toUserId: { in: ids }, byUserId: { in: ids } }))],
+  };
+  return side === "team" ? team : { NOT: team };
 }
 
 const label = (t: Pick<TaskRecord, "kind" | "title" | "unit">) => `${taskKind(t.kind)?.label ?? t.kind} ${t.unit?.code ?? t.title ?? ""}`.trim();

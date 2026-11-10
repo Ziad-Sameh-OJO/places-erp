@@ -13,7 +13,7 @@ const CAP = 30; // domain TEAM_TASKS_PER_DAY (the API refuses the 31st)
  * 2.16 · «مهمة للفريق» (demo invwork.js teamTask): Manar picks who (with today's count out of 30), the task and the unit;
  * under it, what she gave today and what's still open.
  */
-export function TeamTaskModal({ units, onClose }: { units: UnitRow[]; onClose: () => void }) {
+export function TeamTaskModal({ units, onClose }: { units: Pick<UnitRow, "id" | "code" | "project">[]; onClose: () => void }) {
   const t = useTranslations("inventory.teamTasks");
   const qc = useQueryClient();
   const run = useAction();

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { followupRole, isTaskLate, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
+import { followupRole, isTaskLate, isTeamTask, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
 
 const assignee: TaskActor = { assignee: true, manager: false, approver: false };
 const manar: TaskActor = { assignee: false, manager: true, approver: true };
@@ -80,4 +80,11 @@ test("M-04 2.1 step 4 «وحدة في اليوم»: a second open photo task for
   assert.equal(photoDayWarning("photo", 1), "تنبيه: إنت مدياه وحدة النهارده قبل كده (وحدة في اليوم)");
   assert.equal(photoDayWarning("retouch", 3), null);
   assert.equal(photoDayWarning("marketing", 1), null);
+});
+
+test("4.14 the board's sides (demo isTeam): Manar's task for Randa is the team's, her shoot for the photographer goes outside", () => {
+  assert.equal(isTeamTask("Inventory", "Inventory"), true); // Manar's daily task for Randa (2.16)
+  assert.equal(isTeamTask("Inventory", "Marketing"), false); // Manar's shoot for Bayoumi
+  assert.equal(isTeamTask("Marketing", "Marketing"), true); // Rahma's marketing task for Bayoumi
+  assert.equal(isTeamTask(null, "Inventory"), true); // the system's: the month job's follow-up with the owner (2.17)
 });

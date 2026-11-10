@@ -47,6 +47,12 @@ export class TasksRepository {
     return (await this.db.user.findMany({ where: { employee: { id: { in: employeeIds } } }, select: { id: true } })).map((u) => u.id);
   }
 
+  /** 4.14: every account's department (Employee.department; "" for an account with no employee record). */
+  async departments(): Promise<Map<string, string>> {
+    const rows = await this.db.user.findMany({ select: { id: true, employee: { select: { department: true } } } });
+    return new Map(rows.map((u) => [u.id, u.employee?.department ?? ""]));
+  }
+
   async names(userIds: string[]): Promise<Map<string, string>> {
     const rows = await this.db.user.findMany({ where: { id: { in: [...new Set(userIds)] } }, select: { id: true, email: true, employee: { select: { name: true } } } });
     return new Map(rows.map((u) => [u.id, u.employee?.name ?? u.email]));
