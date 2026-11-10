@@ -49,7 +49,6 @@ export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boole
 
 // English values sit in <bdi> so «1,5 Month» keeps its order in the RTL table
 const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : <bdi>{String(v)}</bdi>);
-const yesNo = (v: boolean) => <Chip tone={v ? "ok" : ""}>{v ? "Yes" : "No"}</Chip>;
 
 /** One cell, as the demo's cell(): money grouped, late updates in red, the map link, Income's figures. */
 export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
