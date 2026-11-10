@@ -37,8 +37,8 @@ export class ContractsRepository {
     ]);
   }
 
-  detail(scope: Prisma.ContractWhereInput, id: string) {
-    return this.db.contract.findFirst({ where: { AND: [scope, { id }] }, select: CONTRACT_ROW });
+  detail(scope: Prisma.ContractWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.contract.findFirst({ where: { AND: [scope, { id }] }, select: CONTRACT_ROW });
   }
 
   /** Everything the summary counts, in scope (contracts are few: one per deal). */

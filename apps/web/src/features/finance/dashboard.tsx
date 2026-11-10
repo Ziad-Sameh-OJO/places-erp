@@ -14,6 +14,7 @@ import { serverText } from "@/lib/server-text";
 import { useBills, useBudget, useCash, useIncome, usePayroll } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
 import { useCollectLines } from "./today";
+import { fromDecimal, toDecimal } from "@places/domain";
 
 export type FinanceTab = "dash" | "cash" | "custody" | "journal" | "bills" | "claims" | "pnl" | "bs" | "budget" | "cost" | "payroll" | "tree";
 interface Todo { tone: "warn" | "bad"; icon: IconName; title: string; sub: string; tab?: FinanceTab; href?: string; btn: string }
@@ -48,7 +49,7 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   const sa = Number(p.selling) + Number(p.admin) + Number(p.other);
   const wf: [string, number, "acc" | "bad" | "ok"][] = [[t("dash.wf.revenue"), Number(p.revenue), "acc"], [t("dash.wf.direct"), -Number(p.direct), "bad"], [t("dash.wf.selling"), -Number(p.selling), "bad"], [t("dash.wf.admin"), -(Number(p.admin) + Number(p.other)), "bad"], [t("dash.wf.net"), Number(p.net), "ok"]];
   const max = Math.max(1, ...wf.map(([, v]) => Math.abs(v)));
-  const total = c.accounts.reduce((s, a) => s + Number(a.balance), 0), adv = c.advances.reduce((s, h) => s + Number(h.balance), 0);
+  const total = c.accounts.reduce((s, a) => s + fromDecimal(a.balance), 0), adv = c.advances.reduce((s, h) => s + fromDecimal(h.balance), 0); // piasters, never floats
   return (
     <>
       {todo.length > 0 && (
@@ -64,7 +65,7 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
         <KpiTile label={t("dash.netToDate")} value={money(p.net)} sub={t("dash.netSub")} icon="trend" tone="ok" onClick={() => go("pnl")} />
         <KpiTile label={t("dash.wf.revenue")} value={money(p.revenue)} sub={serverText(p.label)} icon="handshake" onClick={() => go("pnl")} />
         <KpiTile label={t("dash.sellingAdmin")} value={money(d(sa))} sub={t("dash.sellingAdminSub", { selling: short(p.selling), admin: short(d(Number(p.admin) + Number(p.other))) })} icon="wallet" tone="warn" onClick={() => go("pnl")} />
-        <KpiTile label={t("common.employeeAdvances")} value={money(d(adv))} sub={t("dash.advancesSub")} icon="users" onClick={() => setAdvances(true)} />
+        <KpiTile label={t("common.employeeAdvances")} value={money(showsMoney ? toDecimal(adv) : "")} sub={t("dash.advancesSub")} icon="users" onClick={() => setAdvances(true)} />
       </div>
       <div className="cols wide">
         {showsMoney && <Card title={t("dash.wfTitle")} icon="chart" sub={t("dash.wfSub")}>
@@ -72,11 +73,11 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
             <div key={l} className="wf"><span>{l}</span><div className={`wf-bar ${tone}`} style={{ width: `${(Math.abs(v) / max) * 100}%` }} /><b className="num">{short(v.toFixed(2))}</b></div>
           ))}</div>
         </Card>}
-        <Card title={t("dash.safesTitle")} icon="bank" extra={<Chip tone="acc">{money(d(total))}</Chip>}>
+        <Card title={t("dash.safesTitle")} icon="bank" extra={<Chip tone="acc">{money(showsMoney ? toDecimal(total) : "")}</Chip>}>
           {c.accounts.map((a) => (
             <div key={a.id} className="acct click" onClick={() => setLedger(a.id)}><Icon name={a.kind === "treasury" ? "wallet" : "bank"} /><span className="spacer">{serverText(a.name)}<small>{a.code}</small></span><b className="num">{money(a.balance)}</b></div>
           ))}
-          <button className="btn ghost" onClick={() => setAdvances(true)}><Icon name="users" />{t("common.employeeAdvances")} · {money(d(adv))}</button>
+          <button className="btn ghost" onClick={() => setAdvances(true)}><Icon name="users" />{t("common.employeeAdvances")} · {money(showsMoney ? toDecimal(adv) : "")}</button>
         </Card>
       </div>
       {periods.data && <div className="kpis sm">{periods.data.slice(-3).map((x) => <KpiTile key={x.month} label={serverText(x.label)} value={serverText(x.statusLabel)} sub={x.status === "open" ? t("dash.periodOpen") : t("dash.periodClosed")} icon={x.status === "open" ? "clock" : "lock"} tone={x.status === "open" ? "warn" : "ok"} />)}</div>}

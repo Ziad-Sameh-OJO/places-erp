@@ -5,7 +5,7 @@ import {
   type MissingUnitsToday, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, fillsUnitFolder, keepsInventory, localDate, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -128,7 +128,7 @@ export class InventoryService {
   }
 
   private scope(me: CurrentUser, now = new Date()): UnitScope {
-    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now) };
+    return { insider: keepsInventory(me.grants), seesDrafts: fillsUnitFolder(me.roles, me.grants), staleBefore: staleBefore(now), hidden: me.fields.hidden("inventory") };
   }
 
   async list(me: CurrentUser, filters: UnitFilters): Promise<Paged<UnitRow>> {
@@ -379,7 +379,7 @@ function hideFields(r: UnitRow, hidden: ReadonlySet<string>): UnitRow {
 }
 
 /** Filtering by a hidden field would tell its value: such a filter is dropped. */
-function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitFilters {
+export function shownFilters(f: UnitFilters, hidden: ReadonlySet<string>): UnitFilters {
   if (!hidden.size) return f;
   const drop = (on: boolean, ...keys: (keyof UnitFilters)[]) => (on ? Object.fromEntries(keys.map((k) => [k, undefined])) : {});
   return {
@@ -413,7 +413,7 @@ function keepFixed(input: UnitInput, before: UnitRecord | null, fixed: ReadonlyS
  */
 async function missingUnits(repo: InventoryRepository, s: UnitScope) {
   return (await repo.forMissingCheck(s))
-    .map((u) => ({ id: u.id, code: u.code, type: u.type, missing: missingFields({ ...u, photoCount: u._count.photos }) }))
+    .map((u) => ({ id: u.id, code: u.code, type: u.type, missing: missingFields({ ...u, photoCount: u._count.photos }, s.hidden) }))
     .filter((u) => u.missing.length);
 }
 
