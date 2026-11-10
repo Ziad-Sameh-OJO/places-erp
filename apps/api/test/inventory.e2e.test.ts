@@ -123,8 +123,8 @@ test("nothing is required (2.21), but a wrong value is refused in Arabic", async
   await refused(rent({ condition: "مفروش" }), "التشطيب");
   await refused(rent({ ownerPhone: "12" }), "الرقم غلط");
   await refused(rent({ location: "مش لوكيشن" }), "اللوكيشن");
-  // 2.27 · what the form's map writes (five decimals; south / west too) is the shape the API takes, kept as is
-  for (const location of ["30.02541, 31.49130", "-33.86882, -151.20930"]) {
+  // 2.34 · a Google Maps link, and the old map picker's «lat, lng» (south / west too), kept as is
+  for (const location of ["https://maps.app.goo.gl/AbC123xyz", "30.02541, 31.49130", "-33.86882, -151.20930"]) {
     const r = await call("/inventory/units", { method: "POST", cookie: manar, body: rent({ location }) });
     assert.equal(r.status, 201, JSON.stringify(r.body));
     assert.equal((await call(`/inventory/units/${r.body.id}`, { cookie: manar })).body.location, location);

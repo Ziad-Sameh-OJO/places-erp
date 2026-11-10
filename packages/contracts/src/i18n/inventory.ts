@@ -21,6 +21,7 @@ export default [
   ["الـ Agent ده مش موجود", "This Agent doesn't exist"],
   ["الـ Last update مايبقاش في المستقبل", "The Last update can't be in the future"],
   ["الـ Last update مقفول على دورك", "The Last update is locked for your role"], // 2.29
+  ["الـ Location مقفول على دورك", "The Location is locked for your role"], // 2.34
   ["الكومنت طويل", "The comment is too long"],
   ["تاب المساحة ده اتشال · اختار تاب تاني", "This area tab was removed · pick another tab"],
   ["اختار Area من القايمة", "Pick an Area from the list"],

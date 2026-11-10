@@ -17,7 +17,9 @@ const Phone = z.string({ required_error: "اكتب الرقم", invalid_type_err
 const PRICE = /^\d{1,10}(\.\d{1,2})?$/;
 const Price = (missing: string) => z.string({ required_error: missing, invalid_type_error: missing }).pipe(Money)
   .refine((m) => !m.startsWith("-"), "السعر مايبقاش بالسالب").refine((m) => PRICE.test(m), "السعر كبير أوي").refine((m) => Number(m) > 0, missing);
-const Location = z.string().trim().regex(/^-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$/, "اللوكيشن «خط العرض, خط الطول» من الخريطة");
+/** 2.34 · a Google Maps link (https://…), or the old map picker's «lat, lng» (it still opens, domain locationUrl). */
+const Location = z.string().trim().max(500, "لينك اللوكيشن طويل")
+  .regex(/^(https:\/\/\S+|-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?)$/, "اللوكيشن لينك Google Maps (https://…)");
 
 /** What every type has (the demo's form top): the agent is who brought the unit → Seller on the deal (M-02). */
 const Common = {
@@ -115,6 +117,10 @@ export type UnitInput = z.infer<typeof UnitInput>;
 /** 2.29 · «ابديت مع المالك النهارده» from the unit's drawer: today, with an optional word on what the owner said. */
 export const OwnerUpdateInput = z.object({ comment: z.string().trim().max(1000, "الكومنت طويل").optional() });
 export type OwnerUpdateInput = z.infer<typeof OwnerUpdateInput>;
+
+/** 2.34 · «عدّل اللينك» from the unit's drawer: the new Google Maps link (the old one stays in the Audit Log). */
+export const UnitLocationInput = z.object({ location: z.string({ required_error: "اكتب لينك Google Maps" }).pipe(Location) });
+export type UnitLocationInput = z.infer<typeof UnitLocationInput>;
 
 const QueryBool = z.enum(["true", "false"]).transform((v) => v === "true");
 const QueryInt = z.coerce.number().int().min(0).max(1_000_000);
