@@ -3,7 +3,7 @@ import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { MarketingDashboard } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
-import { Card, Chip, Empty, Note } from "@/components/ui";
+import { Card, Chip, Empty, Icon, Note, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { useFields } from "@/lib/me";
@@ -12,9 +12,9 @@ import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 
 const COLORS = ["#0037ff", "#5a7dff", "#08875c", "#f2b64d", "#c22a37", "#6a3df0", "#0a7f9e"];
-type Range = "7" | "30" | "month" | "all" | "custom";
+type Range = "today" | "7" | "30" | "month" | "all" | "custom";
 /** Names in marketing.dashboard.ranges.r<key>. */
-const RANGES: readonly Range[] = ["7", "30", "month", "all", "custom"];
+const RANGES: readonly Range[] = ["today", "7", "30", "month", "all", "custom"];
 
 const cairoDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 /** The demo's ranges as Cairo days (M-04 3.2: «فلتر بالأيام والأسابيع والشهور والتواريخ»). */
@@ -23,6 +23,7 @@ function period(r: Range, custom: { from: string; to: string }): { from?: string
   if (r === "all") return {};
   if (r === "custom") return { ...(custom.from ? { from: custom.from } : {}), ...(custom.to ? { to: custom.to } : {}) };
   if (r === "month") return { from: `${today.slice(0, 7)}-01`, to: today };
+  if (r === "today") return { from: today, to: today };
   return { from: cairoDay(new Date(Date.now() - (Number(r) - 1) * 86_400_000)), to: today };
 }
 
@@ -31,6 +32,13 @@ export function Dashboard() {
   const t = useTranslations("marketing.dashboard");
   const [range, setRange] = useState<Range>("all");
   const [custom, setCustom] = useState({ from: "", to: "" });
+  // «فترة مخصصة»: picking the dates doesn't filter yet; «بحث» applies them (demo mkDraft · mkApply, 9 Nov)
+  const [draft, setDraft] = useState(custom);
+  const toast = useToast();
+  const apply = () => {
+    if (draft.from && draft.to && draft.from > draft.to) { toast(t("badRange"), "bad"); return; }
+    setCustom(draft);
+  };
   const [channel, setChannel] = useState("");
   const [campaignId, setCampaignId] = useState("");
   const campaigns = useCampaigns().data ?? [];
@@ -47,8 +55,9 @@ export function Dashboard() {
         </div>
         {range === "custom" && (
           <>
-            <label className="date-f"><span>{t("from")}</span><input type="date" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} /></label>
-            <label className="date-f"><span>{t("to")}</span><input type="date" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} /></label>
+            <label className="date-f"><span>{t("from")}</span><input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
+            <label className="date-f"><span>{t("to")}</span><input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
+            <button className="btn" onClick={apply}><Icon name="search" />{t("search")}</button>
           </>
         )}
         <select value={channel} onChange={(e) => { setChannel(e.target.value); setCampaignId(""); }} aria-label="Channel">
