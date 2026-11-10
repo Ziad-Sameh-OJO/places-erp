@@ -68,6 +68,19 @@
     "bank": "Bank",
     "wallet": "Wallet"
   },
+  "todo": {
+    "claimIssue": "Issue claim {no} · {company}",
+    "claimIssueSub": "{amount} · requested by {by}",
+    "einvoice": "Upload the e-invoice · {no}",
+    "upload": "Upload",
+    "claimCollect": "Record the collection of {no} and issue the receipt",
+    "claimCollectSub": "{company} paid {amount}",
+    "record": "Record",
+    "commissions": "Sales commissions due · {n} salespeople",
+    "commissionsSub": "{total} · fully collected deals",
+    "purchase": "Pay purchase request {no}",
+    "purchaseSub": "{item} · {amount} · settled by procurement"
+  },
   "collect": {
     "title": "Deal closed · collect commission {code}",
     "subNew": "{company} · {commission} · an account was opened under Clients",

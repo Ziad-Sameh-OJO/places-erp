@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Tabs } from "@/components/ui";
 import { Bills } from "./bills";
@@ -15,12 +15,16 @@ import { Payroll } from "./payroll";
 import { BalanceSheet, IncomeStatement } from "./statements";
 import { useBills, useBudget } from "./use-finance";
 
+const TABS: readonly FinanceTab[] = ["dash", "cash", "custody", "journal", "bills", "claims", "pnl", "bs", "budget", "cost", "payroll", "tree"];
+
 /** M-07 · المالية: the demo's tabs that are built so far (9.1 · 9.2 · 9.3 · 9.4 · 9.5 · 9.7 · 9.8 · 9.9 · 9.10 · 9.11 · 9.13 · 9.14 · 9.16 · 9.17). */
 export function FinanceView() {
   const t = useTranslations("finance.tabs");
   const [tab, setTab] = useState<FinanceTab>("dash");
   const bills = useBills(), budget = useBudget(), claims = useClaims();
   const go = (t: FinanceTab) => { setTab(t); window.scrollTo({ top: 0 }); };
+  // 9.19: a «مستنيك النهارده» line on the home page links to /finance?tab=… — open on that tab
+  useEffect(() => { const t = new URLSearchParams(window.location.search).get("tab"); if (t && TABS.includes(t as FinanceTab)) setTab(t as FinanceTab); }, []);
   const body = { dash: <Dashboard go={go} />, cash: <Cash />, custody: <Custody />, journal: <Journal />, bills: <Bills />, claims: <Claims />, pnl: <IncomeStatement />, bs: <BalanceSheet />, budget: <Budget />, cost: <CostCenter />, payroll: <Payroll />, tree: <ChartTree /> }[tab];
   return (
     <>
