@@ -37,7 +37,7 @@ function Folder({ task }: { task: TaskRow & { unit: NonNullable<TaskRow["unit"]>
   return <>
     {up && <Note>{tr("roleNotes.designer")}</Note>}
     <div className="row">
-      <span className="hint">{task.unit.project} · {t("files", { count: photos.length })}</span><span className="spacer" />
+      <span className="hint">{task.unit.code} · {t("files", { count: photos.length })}</span><span className="spacer" />
       {!!photos.length && <a className="btn ghost" href={`/api/v1${base}/zip`} download><Icon name="download" />{t("zip")}</a>}
       {up && <FolderUpload left={MAX_UNIT_PHOTOS - photos.length} onDone={added} />}
     </div>

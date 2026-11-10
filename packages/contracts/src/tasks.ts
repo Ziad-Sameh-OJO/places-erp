@@ -14,7 +14,7 @@ export const CreateTask = z.object({
   kind: z.string().refine((k) => !!taskKind(k)?.createdWith, "نوع المهمة مش موجود"),
   toUserId: Id,
   dueOn: CalendarDay,
-  unitId: Id.optional(), // photo / Retouch / rent → resale: the unit; its data reaches the assignee with the task
+  unitId: Id.optional(), // photo / Retouch / rent → resale: the unit; only its code reaches the assignee, with the notes (4.16)
   title: z.string().trim().min(1).max(120).optional(), // a marketing task: its type from «أنواع تاسكات التسويق»
   note: z.string().trim().max(1000, "الملاحظات طويلة · 1000 حرف بالكتير").optional(),
 });
@@ -31,6 +31,7 @@ export type EditTask = z.infer<typeof EditTask>;
 export const MoveTask = z.object({ status: z.enum(TASK_STATUSES) });
 export type MoveTask = z.infer<typeof MoveTask>;
 
+/** 4.16: outside the inventory only `id` and `code` are filled (project and area "", the rest null): nothing else goes with a task. */
 export interface TaskUnit { id: string; code: string; project: string; area: string; floor: string | null; building: string | null; ownerName: string | null; ownerPhone: string | null }
 
 export interface TaskRow {
