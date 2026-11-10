@@ -552,7 +552,7 @@ export class KpisService {
     if (!q || q.status !== "open" || !emp) return null;
     // one task at a time per person, so two «أيوه» tasks at once can't both add the item or both make the card
     await tx.$queryRaw`SELECT id FROM hr."Employee" WHERE id = ${emp.id} FOR UPDATE`;
-    const card = await tx.kpiCard.findUnique({ where: { quarter_employeeId: { quarter: q.id, employeeId: emp.id } }, select: { id: true, items: { select: { metric: true, position: true } } } });
+    const card = await tx.kpiCard.findUnique({ where: { quarter_employeeId: { quarter: q.id, employeeId: emp.id } }, select: { id: true, items: { select: { metric: true, params: true, position: true } } } });
     const item = { ...TASKS_ON_TIME_ITEM, params: {} };
     if (!card) {
       const sender = senderUserId ? await tx.employee.findUnique({ where: { userId: senderUserId }, select: { id: true, department: true } }) : null;
@@ -561,7 +561,9 @@ export class KpisService {
         after: { summary: `كارت KPIs جديد لـ ${emp.name} (من المهام) وفيه بند «${item.title}»` } }, tx);
       return "card";
     }
-    if (card.items.some((it) => it.metric === item.metric)) return "counted";
+    // an item with a task kind (T-34: Bayoumi's photo plan, Manar's daily tasks) counts those tasks, not the «أيوه» ones
+    const kindOf = (p: unknown) => (p && typeof p === "object" && !Array.isArray(p) ? (p as { tkind?: unknown }).tkind : undefined);
+    if (card.items.some((it) => it.metric === item.metric && !kindOf(it.params))) return "counted";
     const position = Math.max(-1, ...card.items.map((it) => it.position)) + 1;
     await tx.kpiItem.create({ data: { ...item, position, cardId: card.id } });
     await this.audit.record({ module: MODULE, entity: "KpiItems", entityId: card.id, action: "update", userId: actorUserId,
