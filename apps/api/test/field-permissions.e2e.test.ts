@@ -87,9 +87,10 @@ test("a hidden field never leaves the API; a filter on it is dropped; a save kee
   assert.equal(put.status, 200);
   const saved = await prisma.unit.findUniqueOrThrow({ where: { id: unitId } });
   assert.deepEqual([saved.floor, saved.pricePerSqm?.toFixed(2), saved.ownerPhone, saved.commission], ["5", "1100.00", "01000000777", "شهر"]);
-  // a new unit from the person: what they may not set starts empty
+  // a new unit from the person: what they may not set starts empty — but the owner's number is entered by whoever adds
+  // the unit even when it's hidden from them (2.36: write, not read)
   const mine = await call("/inventory/units", { method: "POST", cookie: person, body: unit({ project: `${P} Waterway` }) });
   assert.equal(mine.status, 201);
   const made = await prisma.unit.findUniqueOrThrow({ where: { id: (mine.body as { id: string }).id } });
-  assert.deepEqual([made.pricePerSqm, made.ownerPhone, made.commission, made.floor], [null, null, null, "2"]);
+  assert.deepEqual([made.pricePerSqm, made.ownerPhone, made.commission, made.floor], [null, "01000000777", null, "2"]);
 });
