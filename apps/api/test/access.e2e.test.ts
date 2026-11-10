@@ -143,6 +143,21 @@ test("locked after 5 wrong passwords → the admin unlocks", async () => {
   assert.equal((await login(email, NEW_PW)).status, 200);
 });
 
+test("12.13 · the status cards count every account; a locked one can get a reset link, and the new password opens it", async () => {
+  assert.equal((await call("/access/users/counts", { cookie: sales })).status, 403);
+  for (let i = 0; i < 5; i++) await login(email, "wrong-password-1");
+  const after = await call("/access/users/counts", { cookie: nancy });
+  assert.equal(after.status, 200, JSON.stringify(after.body));
+  // other files add and lock accounts at the same time: the database's own count, not a difference
+  assert.ok(after.body.LOCKED >= 1 && after.body.ACTIVE > 1);
+  assert.equal((await call(`/access/users/${newId}/reset`, { method: "POST", cookie: sales })).status, 403);
+  const since = Date.now();
+  assert.equal((await call(`/access/users/${newId}/reset`, { method: "POST", cookie: nancy })).status, 204);
+  assert.equal((await call("/auth/reset", { method: "POST", body: { token: tokenIn(lastMail(email, since).text), password: NEW_PW } })).status, 204);
+  assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: newId } })).status, "ACTIVE");
+  assert.equal((await login(email, NEW_PW)).status, 200);
+});
+
 test("forgot password: same answer for any email, the link works once, old sessions end", async () => {
   const old = await session(email, NEW_PW);
   const since = Date.now();

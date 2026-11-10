@@ -30,6 +30,10 @@ export class AccessRepository {
     return this.db.user.findMany({ where: userWhere(f, hidden), select: USER_ROW, orderBy: { employee: { name: "asc" } }, take });
   }
 
+  statusCounts() {
+    return this.db.user.groupBy({ by: ["status"], _count: { _all: true } });
+  }
+
   departments() {
     return this.db.employee.findMany({ distinct: ["department"], select: { department: true }, orderBy: { department: "asc" } });
   }
