@@ -40,6 +40,7 @@ export function LeadsList() {
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState<LeadKind>("client"); // the tab; the filters stay when it changes (1.28)
   const [open, setOpen] = useState<string | null>(null);
+  const [visit, setVisit] = useState<"Visit" | "Meeting" | undefined>(); // the drawer opened by a Kanban drop on Visit / Meeting (1.32)
   const [creating, setCreating] = useState(false);
   const [bulk, setBulk] = useState(false);
   const [companies, setCompanies] = useState(false);
@@ -126,7 +127,7 @@ export function LeadsList() {
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{t("newLead")}</button>}
       </div>
       {failed ? <Note kind="warn">{failed}</Note> : mode === "board"
-        ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={setOpen} />
+        ? <LeadsBoard board={board.data} canMove={can("leads", "edit")} onOpen={(id) => { setVisit(undefined); setOpen(id); }} onVisit={(id, k) => { setVisit(k); setOpen(id); }} />
         : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} sort={sort} onSort={(by, dir) => { setSort({ sort: by, dir }); setPage(1); }} {...(canPick ? { picked, onPick: setPicked } : {})} />}
       {mode === "list" && picked.length > 0 && <BulkBar ids={picked} onDone={() => setPicked([])} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
@@ -134,7 +135,7 @@ export function LeadsList() {
       {lists && <ListRequestsModal onClose={() => setLists(false)} />}
       {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}
       {can("leads", "create") && <Fab onClick={() => setCreating(true)} label={t("newLead")} />}
-      {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}
+      {open && <LeadDrawer ids={ids} id={open} onGo={setOpen} onClose={() => { setOpen(null); setVisit(undefined); }} visit={visit} />}
       {!failed && mode === "list" && pages > 1 && (
         <div className="row end">
           <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("prev")}</button>
