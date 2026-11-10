@@ -61,8 +61,9 @@ export function NewTask({ kind, options, unit, onClose }: {
         </Field>
         <Field label={t("due")} req><input name="dueOn" type="date" defaultValue={today()} required /></Field>
         {/* M-09: a note the person may not set starts empty (the API too), so a new task has no input for it */}
-        {fields.edits("note") && <Field label={t("notes")} wide>
-          <textarea name="note" maxLength={1000} placeholder={kind === "photo" ? t("photoNote") : ""} />
+        {/* 4.16 (demo `taskNew`): with a unit, the notes are all that goes with its code, so they're required */}
+        {fields.edits("note") && <Field label={withUnit ? t("unitNotes") : t("notes")} req={withUnit} wide>
+          <textarea name="note" maxLength={1000} required={withUnit} placeholder={kind === "photo" ? t("photoNote") : withUnit ? t("unitNote") : ""} />
         </Field>}
         <KpiField />
         <div className="row end wide"><button className="btn"><Icon name="send" />{t("send")}</button></div>

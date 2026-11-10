@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { followupRole, isTaskLate, isTeamTask, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
+import { followupRole, isTaskLate, isTeamTask, taskNoteProblem, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
 
 const assignee: TaskActor = { assignee: true, manager: false, approver: false };
 const manar: TaskActor = { assignee: false, manager: true, approver: true };
@@ -87,4 +87,14 @@ test("4.14 the board's sides (demo isTeam): Manar's task for Randa is the team's
   assert.equal(isTeamTask("Inventory", "Marketing"), false); // Manar's shoot for Bayoumi
   assert.equal(isTeamTask("Marketing", "Marketing"), true); // Rahma's marketing task for Bayoumi
   assert.equal(isTeamTask(null, "Inventory"), true); // the system's: the month job's follow-up with the owner (2.17)
+});
+
+test("4.16: a shoot, a Retouch or a hand-off goes with the sender's notes (the only thing sent with the unit's code); marketing doesn't need them", () => {
+  const need = "اكتب الملاحظات · ده بس اللي هيوصل مع كود الوحدة";
+  assert.equal(taskNoteProblem("photo", undefined), need);
+  assert.equal(taskNoteProblem("photo", "   "), need);
+  assert.equal(taskNoteProblem("retouch", null), need);
+  assert.equal(taskNoteProblem("toResale", ""), need);
+  assert.equal(taskNoteProblem("photo", "الدور التالت · الأمن هيفتح · الساعة 1"), null);
+  assert.equal(taskNoteProblem("marketing", undefined), null);
 });

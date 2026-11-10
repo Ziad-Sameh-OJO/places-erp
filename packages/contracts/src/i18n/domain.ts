@@ -480,6 +480,7 @@ export default [
   ["الـ Retouch اتوافق عليه من منار · مفيش Undo", "The Retouch was approved by Manar · no Undo"],
   ["الـ Retouch مبيبقاش Done غير بموافقة منار · ارفع الصور على صفحة الوحدة الأول", "A Retouch is only Done with Manar's approval · upload the photos on the unit page first"],
   ["تنبيه: إنت مدياه وحدة النهارده قبل كده (وحدة في اليوم)", "Note: you already gave them a unit today (one unit a day)"],
+  ["اكتب الملاحظات · ده بس اللي هيوصل مع كود الوحدة", "Write the notes · they're all that goes with the unit code"],
 
   // tickets.ts
   ["طلب عادي", "Regular request"],

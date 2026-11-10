@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CreateTask, EditTask, MoveTask, TaskCreated, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -116,6 +116,9 @@ export class TasksService {
       const types = (await this.settings.all()).mkTaskTypes.filter((t) => t.active).map((t) => t.value);
       if (!input.title || !types.includes(input.title)) throw new BadRequestException("اختار المهمة من «أنواع تاسكات التسويق»");
     }
+    // 4.16: the notes are all that goes with the unit's code (unless M-09 keeps this person from writing them)
+    const noNote = me.fields.fixed("tasks").has("note") ? null : taskNoteProblem(kind.key, input.note);
+    if (noNote) throw new BadRequestException(noNote);
     const data = {
       kind: kind.key, toUserId: input.toUserId, byUserId: me.id, dueOn: dayStartUtc(input.dueOn),
       unitId: kind.withUnit ? input.unitId! : null, title: kind.key === "marketing" ? input.title! : null,
@@ -246,21 +249,22 @@ export class TasksService {
     const status = t.status as TaskStatus;
     const u = t.unit;
     const sla = taskSla({ kind: t.kind, status, createdAt: t.createdAt, doneAt: t.doneAt, returned: t.returned, unitEnteredAt: u?.enteredAt ?? null }, now);
-    // the owner's number: the photographer of a shoot calls him (M-04 2.1 step 5); otherwise only who sees owner numbers (M-10 4.1)
-    // M-09 field permissions on top of that: a hidden field's value never leaves the API (the screens leave it out too)
-    const h = me.fields.hidden("tasks"), hide = <V,>(k: string, v: V, blank: V) => (h.has(k) ? blank : v);
-    const seesOwner = (t.kind === "photo" && t.toUserId === me.id) || seesOwnerNumbers(me.grants);
-    const ownerPhone = seesOwner ? hide("ownerPhone", u?.ownerPhone ?? null, null) : null;
+    // 4.16 (demo tasks.js `card`): nothing about the unit goes with a task — outside the inventory the person gets its
+    // code and the sender's notes only (the photographer too: Manar writes what he needs). Inside it, the owner's number
+    // only for who sees owner numbers (M-10 4.1); M-09 field permissions on top: a hidden field never leaves the API.
+    const inv = me.grants.can("inventory", "view");
+    const h = me.fields.hidden("tasks"), hide = <V,>(k: string, v: V, blank: V) => (!inv || h.has(k) ? blank : v);
+    const ownerPhone = seesOwnerNumbers(me.grants) ? hide("ownerPhone", u?.ownerPhone ?? null, null) : null;
     return {
       id: t.id, kind: t.kind, kindLabel: taskKind(t.kind)?.label ?? t.kind, title: t.title,
       unit: u && {
-        id: u.id, code: u.code, project: u.project, area: hide("area", u.area, ""), floor: hide("floor", u.floor, null), building: hide("building", u.building, null),
-        ownerName: seesOwner ? hide("ownerName", u.ownerName, null) : null, ownerPhone,
+        id: u.id, code: u.code, project: inv ? u.project : "", area: hide("area", u.area, ""), floor: hide("floor", u.floor, null), building: hide("building", u.building, null),
+        ownerName: hide("ownerName", u.ownerName, null), ownerPhone,
       },
       sla: sla && { due: sla.due.toISOString(), hoursLeft: sla.hoursLeft, met: sla.met },
       by: t.byUserId ? { id: t.byUserId, name: names.get(t.byUserId) ?? "—" } : null,
       to: { id: t.toUserId, name: names.get(t.toUserId) ?? "—" },
-      dueOn: day(t.dueOn), status, returned: t.returned, note: hide("note", t.note, null), doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
+      dueOn: day(t.dueOn), status, returned: t.returned, note: h.has("note") ? null : t.note, doneAt: t.doneAt?.toISOString() ?? null, createdAt: t.createdAt.toISOString(),
       late: isTaskLate({ status, dueOn: day(t.dueOn) }, now), countsInKpi: t.countsInKpi,
       side: isTeamTask(t.byUserId ? depts.get(t.byUserId) ?? "" : null, depts.get(t.toUserId) ?? "") ? "team" : "outside",
       can: {

@@ -7,7 +7,7 @@ import { TeamTaskModal } from "@/features/inventory/team-tasks";
 import { Kanban } from "@/components/blocks";
 import { Avatar, Chip, Icon, Note, Tabs, useAction, useToast } from "@/components/ui";
 import { day } from "@/lib/format";
-import { useFields, useMe } from "@/lib/me";
+import { useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { NewTask } from "./new-task";
 import { TaskFolder } from "./task-folder";
@@ -118,20 +118,15 @@ function TaskCard({ t, onMove }: { t: TaskRow; onMove: (status: string) => void 
   const tr = useTranslations("tasks.card");
   const look = KIND_LOOK[t.kind] ?? { tone: "" as Tone, icon: "megaphone" as const };
   const u = t.unit;
-  const fields = useFields("tasks"); // M-09: a hidden owner, number or note comes blank from the API; the place line goes too
   return (
     <>
       <div className="row">
         <Chip tone={look.tone}>{serverText(t.kindLabel)}</Chip><span className="spacer" />
         <span className={`hint ${t.late ? "bad-t" : ""}`}><Icon name="calendar" />{day(t.dueOn)}</span>
       </div>
-      <b>{t.title ?? (u ? `${u.code} · ${u.project}` : "—")}</b>
+      {/* 4.16 (demo `card`): nothing about the unit is sent with the task — its code and the sender's notes only */}
+      <b>{t.title ?? u?.code ?? "—"}</b>
       {t.countsInKpi && <span className="row"><Chip tone="info">{tr("kpi")}</Chip></span>}
-      {u && (
-        <span className="hint">
-          {fields.shows("place") && tr("place", { area: u.area, floor: String(u.floor || "—"), building: String(u.building || "—") })}{u.ownerName ? ` · ${u.ownerName}` : ""} {u.ownerPhone && <span className="mono">{u.ownerPhone}</span>}
-        </span>
-      )}
       {u && t.can.folder.open && <TaskFolder task={{ ...t, unit: u }} />}
       {t.sla && <SlaLine sla={t.sla} kind={t.kind} />}
       {t.note && <span className="hint">{t.note}</span>}

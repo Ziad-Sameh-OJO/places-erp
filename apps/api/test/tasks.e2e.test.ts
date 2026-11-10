@@ -31,7 +31,7 @@ after(async () => {
 });
 
 async function give(cookie: string, body: Record<string, unknown>) {
-  const r = await call("/tasks", { method: "POST", cookie, body: { dueOn: today, ...body } });
+  const r = await call("/tasks", { method: "POST", cookie, body: { dueOn: today, note: "E2E الدور التالت · الأمن هيفتح", ...body } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   tasks.push(r.body.id);
   return r.body.id as string;
@@ -62,14 +62,23 @@ test("who gives which kind (M-04 3.1): Manar the shoots, Rahma the marketing tas
   assert.equal((await call("/tasks", { method: "POST", cookie: manar, body: { kind: "followup", toUserId: randaId, dueOn: today, unitId } })).status, 400); // the system's
   assert.equal((await call("/tasks", { method: "POST", cookie: rahma, body: { kind: "marketing", toUserId: bayoumiId, dueOn: today, title: "مش في القايمة" } })).status, 400);
   assert.equal((await call("/tasks", { method: "POST", cookie: manar, body: { kind: "photo", toUserId: bayoumiId, dueOn: "2026-02-30", unitId } })).status, 400);
+  // 4.16: the notes are all that reaches the photographer, so a shoot, a Retouch or a hand-off without them is refused
+  for (const [kind, to] of [["photo", bayoumiId], ["retouch", bayoumiId], ["toResale", randaId]] as const) {
+    const r = await call("/tasks", { method: "POST", cookie: manar, body: { kind, toUserId: to, dueOn: today, unitId, note: "  " } });
+    assert.equal(r.status, 400, kind);
+  }
 });
 
 test("the flow: Manar gives a shoot → Bayoumi told, sees the unit → In Progress → Done → Undo (M-04 7.1) — audited", async () => {
   const id = await give(manar, { kind: "photo", toUserId: bayoumiId, unitId, note: "E2E صوّرها الصبح" });
   assert.equal(await prisma.notification.count({ where: { userId: bayoumiId, link: { contains: id } } }), 1);
-  const card = (await board(bayoumi)).find((t) => t.id === id) as unknown as { unit: { code: string; ownerPhone: string }; by: { name: string }; can: { moves: string[] } };
-  assert.equal(card.unit.code, `U-T${stamp}`);
-  assert.equal(card.unit.ownerPhone, "01000000000"); // the unit's data reaches the photographer with the task
+  const card = (await board(bayoumi)).find((t) => t.id === id) as unknown as { unit: Record<string, unknown>; note: string; by: { name: string }; can: { moves: string[] } };
+  // 4.16: the photographer gets the unit's code and Manar's notes only — never the owner, his number or the place
+  assert.deepEqual([card.unit.code, card.unit.project, card.unit.area, card.unit.floor, card.unit.building, card.unit.ownerName, card.unit.ownerPhone], [`U-T${stamp}`, "", "", null, null, null, null]);
+  assert.equal(card.note, "E2E صوّرها الصبح");
+  assert.equal((await call(`/tasks/${id}`, { cookie: bayoumi })).body.unit.ownerPhone, null);
+  const told = await prisma.notification.findFirstOrThrow({ where: { userId: bayoumiId, link: { contains: id } } });
+  assert.ok(told.text.includes(`U-T${stamp}`) && !told.text.includes("01000000000") && !told.text.includes("مالك تجربة"));
   assert.deepEqual(card.can.moves, ["progress", "done"]);
   // Rahma sees every task of her department's photographer (4.1), but not the owner's number (M-10 4.1); Manar keeps the inventory
   const seen = (await board(rahma)).find((t) => t.id === id) as unknown as { unit: { ownerPhone: string | null } } | undefined;
@@ -154,7 +163,7 @@ test("M-04 2.1 step 4 «وحدة في اليوم»: Randa's second shoot for Bay
   // a day nobody else uses, so other files' shoots don't count
   const day = new Date(Date.UTC(2031, 0, 1) + (Date.now() % 1000) * 86_400_000).toISOString().slice(0, 10);
   const send = async (body: Record<string, unknown>) => {
-    const r = await call("/tasks", { method: "POST", cookie: randa, body: { kind: "photo", toUserId: bayoumiId, dueOn: day, unitId, ...body } });
+    const r = await call("/tasks", { method: "POST", cookie: randa, body: { kind: "photo", toUserId: bayoumiId, dueOn: day, unitId, note: "E2E", ...body } });
     assert.equal(r.status, 201, JSON.stringify(r.body));
     tasks.push(r.body.id);
     return r.body as { id: string; warning: string | null };
@@ -164,7 +173,7 @@ test("M-04 2.1 step 4 «وحدة في اليوم»: Randa's second shoot for Bay
   assert.equal((await send({})).warning, "تنبيه: إنت مدياه وحدة النهارده قبل كده (وحدة في اليوم)");
   assert.equal((await send({ kind: "retouch" })).warning, null); // the rule is the shoots'
   // Manar's one for the day is hers: «كل واحدة بتديله وحدة»
-  const manars = await call("/tasks", { method: "POST", cookie: manar, body: { kind: "photo", toUserId: bayoumiId, dueOn: day, unitId } });
+  const manars = await call("/tasks", { method: "POST", cookie: manar, body: { kind: "photo", toUserId: bayoumiId, dueOn: day, unitId, note: "E2E" } });
   tasks.push(manars.body.id);
   assert.equal(manars.body.warning, null);
 });
