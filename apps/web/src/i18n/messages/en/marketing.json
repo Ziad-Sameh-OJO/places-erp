@@ -2,6 +2,7 @@
   "tabs": { "camps": "Campaigns", "units": "New units", "deals": "Deals" },
   "broadcast": {
     "approvedToast": "Approved · sent to sales",
+    "limit": { "title": "Daily WhatsApp limit", "hint": "The most messages a day, so the company numbers don't get banned." },
     "head": { "message": "Message", "approval": "Approval", "sent": "Sent it", "pending": "Not yet" },
     "empty": "No Broadcast yet",
     "sep": ", ",

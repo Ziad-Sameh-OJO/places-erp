@@ -22,3 +22,17 @@ export function broadcastsThisWeek(list: readonly { createdAt: Date; approved: b
   const w = weekOf(now);
   return list.filter((b) => b.approved && b.hotUnits > 0 && localDate(b.createdAt) >= w.from && localDate(b.createdAt) <= w.to).length;
 }
+
+/**
+ * M-04 2.3 · «الحد اليومي» for WhatsApp (setting `whatsappDailyLimit`, 250): the company's numbers mustn't get banned.
+ * The salespeople send by hand, so the system counts each Broadcast Done as a fixed number of messages — the demo's 25
+ * (home.js bcDone) until the client says what a Done counts. It only warns; nothing is ever blocked.
+ */
+export const WHATSAPP_PER_DONE = 25;
+export const whatsappSentToday = (donesToday: number): number => donesToday * WHATSAPP_PER_DONE;
+
+/** The demo's bar and chip (marketing.js): «bad» past 85% of the limit, «warn» past 60%. */
+export function whatsappLimitTone(sent: number, limit: number): "ok" | "warn" | "bad" {
+  const pct = limit > 0 ? (sent / limit) * 100 : sent > 0 ? 100 : 0;
+  return pct > 85 ? "bad" : pct > 60 ? "warn" : "ok";
+}

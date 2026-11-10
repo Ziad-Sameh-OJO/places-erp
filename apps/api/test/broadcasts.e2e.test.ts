@@ -49,6 +49,7 @@ test("who may: sales can't see the board or send (403); a draft unit can't be Ho
 
 test("the flow: Rahma sends → sales hear and see the task → Done once, with other units → Rahma sees it; the week counts it", async () => {
   const id = await send(rahma);
+  const before = (await call("/marketing/broadcasts", { cookie: rahma })).body.whatsapp as { sent: number; limit: number };
   assert.ok(await prisma.notification.count({ where: { userId: anasId, text: { contains: "Broadcast" }, createdAt: { gte: new Date(Date.now() - 60_000) } } }));
   const mine = (await call("/marketing/broadcasts/mine", { cookie: anas })).body as Array<{ id: string; doneAt: string | null; hotUnits: { code: string }[] }>;
   const task = mine.find((b) => b.id === id)!;
@@ -66,6 +67,10 @@ test("the flow: Rahma sends → sales hear and see the task → Done once, with 
   assert.deepEqual(row.sent.map((s: { id: string; otherUnits: string[] }) => [s.id, s.otherUnits]), [[anasId, ["U-101", "U-205"]]]);
   assert.ok(row.pending >= 1);
   assert.ok(board.week.sent >= 1 && board.week.of === 2);
+  // 4.8 · M-04 2.3 «حد الواتساب اليومي»: the Done adds 25 messages to the company's count today, of the setting (250); it warns only
+  assert.ok(board.whatsapp.sent >= before.sent + 25 && board.whatsapp.sent % 25 === 0, JSON.stringify(board.whatsapp));
+  assert.equal(typeof board.whatsapp.limit, "number"); // the setting (250 in the seed; other tests may change it)
+  assert.ok(["ok", "warn", "bad"].includes(board.whatsapp.tone));
   assert.equal(await prisma.auditLog.count({ where: { entity: "Broadcast", entityId: id } }), 1);
 });
 

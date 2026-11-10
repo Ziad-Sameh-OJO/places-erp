@@ -22,7 +22,10 @@ export function Broadcast() {
   const approve = (id: string) => void run(async () => { await api.post(`/marketing/broadcasts/${id}/approve`); await qc.invalidateQueries({ queryKey: ["broadcasts"] }); }, t("approvedToast"));
   return (
     <>
-      {can("marketing", "create") && <NewBroadcast week={board?.week} />}
+      <div className={can("marketing", "create") ? "cols wide" : "cols"}>
+        {can("marketing", "create") && <NewBroadcast week={board?.week} />}
+        {board && <WhatsAppLimit w={board.whatsapp} />}
+      </div>
       <Table head={[t("head.message"), t("head.approval"), t("head.sent"), t("head.pending"), ""]} empty={t("empty")}
         rows={items.map((b) => [
           <span key="t" className="wrap"><b>{b.text}</b>{b.hotUnits.length > 0 && <span className="sub mono">{b.hotUnits.map((u) => u.code).join(t("sep"))}</span>}</span>,
@@ -37,6 +40,19 @@ export function Broadcast() {
         </Card>
       )}
     </>
+  );
+}
+
+/** M-04 2.3 · the demo's «حد الواتساب اليومي» card: today's messages of the limit, a bar (warn past 60%, red past 85%). It warns only. */
+function WhatsAppLimit({ w }: { w: BroadcastBoard["whatsapp"] }) {
+  const t = useTranslations("marketing.broadcast.limit");
+  const pct = w.limit > 0 ? Math.min(100, (w.sent / w.limit) * 100) : 0;
+  const bar = w.tone === "ok" ? "" : w.tone;
+  return (
+    <Card title={t("title")} icon="alert" extra={<Chip tone={w.tone}>{`${num(w.sent)} / ${num(w.limit)}`}</Chip>}>
+      <div className={`bar ${bar}`}><i style={{ width: `${pct}%` }} /></div>
+      <p className="hint">{t("hint")}</p>
+    </Card>
   );
 }
 
