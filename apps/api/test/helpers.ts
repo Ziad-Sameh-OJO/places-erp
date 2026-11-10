@@ -130,3 +130,17 @@ export const tokenIn = (text: string) => text.match(/token=([\w-]+)/)![1]!;
 export async function workingNow(rules?: LeadRules): Promise<Date> {
   for (let t = Date.now(); ; t += 86_400_000) if (await workingDay(new Date(t), rules)) return new Date(t);
 }
+
+const KPI_QUARTER_LOCK = 2026_04;
+/**
+ * The test files run in parallel on one database, and kpis.e2e closes Q4 2026 and starts Q1 2027 (then puts it back),
+ * while the KPI job and the KPI clocks read «the current quarter». Waiting for Q4 to look open is check-then-act and
+ * lost the race on CI; this holds a Postgres advisory lock for `fn`, so a test that switches the quarter and a test
+ * that needs Q4 open never overlap. The lock lives in a transaction that `fn` itself doesn't use.
+ */
+export function kpiQuarterLock<T>(fn: () => Promise<T>): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KPI_QUARTER_LOCK}::bigint)`;
+    return fn();
+  }, { maxWait: 60_000, timeout: 600_000 });
+}
