@@ -110,11 +110,14 @@ export class AuthService {
   async setPassword(token: string, password: string, kind: "INVITE" | "RESET") {
     const userId = await this.tokens.consume(token, kind);
     if (!userId) throw new BadRequestException("اللينك خلص أو اتستخدم قبل كده");
-    await this.db.$transaction([
-      this.db.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(password), status: "ACTIVE", failedLogins: 0 } }),
-      this.db.session.deleteMany({ where: { userId } }),
-    ]);
-    await this.audit.record({ module: "access", entity: "User", entityId: userId, action: kind === "INVITE" ? "activated" : "password-reset", userId });
+    const passwordHash = await hashPassword(password);
+    await this.db.$transaction(async (tx) => {
+      // a link issued before the account was stopped must not bring it back
+      const { count } = await tx.user.updateMany({ where: { id: userId, status: { not: "DISABLED" } }, data: { passwordHash, status: "ACTIVE", failedLogins: 0 } });
+      if (!count) throw new BadRequestException("اللينك خلص أو اتستخدم قبل كده");
+      await tx.session.deleteMany({ where: { userId } });
+      await this.audit.record({ module: "access", entity: "User", entityId: userId, action: kind === "INVITE" ? "activated" : "password-reset", userId }, tx);
+    });
   }
 
   /** Always answers the same, whether the email exists or not. A locked account is unlocked by its reset. */
@@ -136,12 +139,13 @@ export class AuthService {
   async changePassword(userId: string, current: string, next: string, keepToken: string) {
     const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
     if (!user.passwordHash || !(await verifyPassword(user.passwordHash, current))) throw new BadRequestException("الباسورد الحالي غلط");
-    await this.db.$transaction([
-      this.db.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(next) } }),
+    const passwordHash = await hashPassword(next);
+    await this.db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
       // every other device is signed out; this one stays
-      this.db.session.deleteMany({ where: { userId, id: { not: sha256(keepToken) } } }),
-    ]);
-    await this.audit.record({ module: "access", entity: "User", entityId: userId, action: "password-changed", userId });
+      await tx.session.deleteMany({ where: { userId, id: { not: sha256(keepToken) } } });
+      await this.audit.record({ module: "access", entity: "User", entityId: userId, action: "password-changed", userId }, tx);
+    });
   }
 }
 

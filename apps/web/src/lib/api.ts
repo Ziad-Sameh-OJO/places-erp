@@ -38,8 +38,10 @@ async function download(path: string, fallbackName: string, body?: unknown): Pro
   const name = decodeURIComponent(/filename\*=UTF-8''([^;]+)/.exec(cd)?.[1] ?? fallbackName);
   const url = URL.createObjectURL(await res.blob());
   const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.append(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000); // Firefox / Safari cancel a download whose URL is revoked at once
 }
 
 export const api = {

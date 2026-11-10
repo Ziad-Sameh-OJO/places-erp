@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { AchievementsQuery, DealExportQuery, type DealSheetRow } from "@places/contracts";
-import { fromDecimal } from "@places/domain";
+import { fromDecimal, localDate } from "@places/domain";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { type ExcelColumn, sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -70,7 +70,7 @@ export class DealSheetController {
       { header: "ميعاد التنفيذ", field: "execDueAt", value: (d) => d.execDueAt ?? "" },
       { header: "اتنفذت", field: "executedAt", value: (d) => d.executedAt ?? "" },
       { header: "أوراق الصفقة", field: "papersOk", value: (d) => (d.papersOk == null ? "لسه ماتراجعتش" : d.papersOk ? "سليمة" : `فيها خطأ: ${d.papersNote ?? ""}`), width: 22 },
-      { header: "deal date", value: (d) => d.closedAt.slice(0, 10) },
+      { header: "deal date", value: (d) => localDate(new Date(d.closedAt)) },
     ];
     await sendXlsx<DealSheetRow>(res, "الصفقات.xlsx", cols.filter((c) => !c.field || !hidden.has(c.field)), await this.sheet.exportRows(me, q), "الصفقات");
   }
@@ -89,7 +89,7 @@ export class DealSheetController {
       { header: "نسبته %", value: (x) => x.s.schemePercent },
       { header: "عمولته", value: (x) => Number(x.s.commission) },
       { header: "الـ Team Leader", value: (x) => x.s.tl ?? "", width: 22 },
-      { header: "deal date", value: (x) => x.d.closedAt.slice(0, 10) },
+      { header: "deal date", value: (x) => localDate(new Date(x.d.closedAt)) },
     ], await this.sheet.split(me), "تفاصيل الصفقات");
   }
 }
