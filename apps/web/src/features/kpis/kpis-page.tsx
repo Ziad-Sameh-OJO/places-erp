@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { KpiBandsInput, KpiCardSummary, KpiCompany, KpiSheetSetup } from "@places/contracts";
 import { SHEET_FIELD_KEYS, type SheetField } from "@places/domain";
 import { Avatar, Card, Chip, Empty, Icon, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
@@ -51,7 +51,7 @@ function MyCard({ id }: { id: string }) {
   return <section className="card"><KpiCardBody id={id} /></section>;
 }
 
-function Board({ scope }: { scope: "team" | "all" }) {
+function Board({ scope, note }: { scope: "team" | "all" | "mine"; note?: ReactNode }) {
   const t = useTranslations("kpis");
   const q = useBoard(scope);
   const [open, setOpen] = useState<string | null>(null);
@@ -64,7 +64,7 @@ function Board({ scope }: { scope: "team" | "all" }) {
   const approved = cards.filter((c) => c.approved).length;
   return (
     <>
-      <Note>{t.rich("board.note", { b: (x) => <b>{x}</b> })}</Note>
+      <Note>{note ?? t.rich("board.note", { b: (x) => <b>{x}</b> })}</Note>
       <div className="kpis sm">
         <KpiTile label={t("board.cards")} value={cards.length} sub={scope === "all" ? t("tabs.all") : t("board.yourTeam")} icon="users" />
         {score && <KpiTile label={t("board.average")} value={`${Math.round(avg)}%`} sub={serverText(quarter.label)} icon="chart" />}
@@ -81,7 +81,26 @@ function Board({ scope }: { scope: "team" | "all" }) {
         {list.map((c) => <CardTile key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}
         {!list.length && <Empty text={t("board.empty")} icon="chart" />}
       </div>
+      {q.data.missing.length > 0 && (
+        <Card title={t("inv.missing")} icon="users" extra={<Chip tone="warn">{q.data.missing.length}</Chip>}>
+          {q.data.missing.map((p) => <NoCard key={p.id} p={p} onMade={setOpen} />)}
+        </Card>
+      )}
       {open && <KpiDrawer id={open} onClose={() => setOpen(null)} />}
+    </>
+  );
+}
+
+/**
+ * 11.19 · demo inventory.js invView «kpis»: Manar's own card and her team's, from inside the inventory, and a card for
+ * anyone on the team who has none (she follows it). Approving her own card stays with her follower (Nancy).
+ */
+export function InventoryKpis({ onBack }: { onBack: () => void }) {
+  const t = useTranslations("kpis");
+  return (
+    <>
+      <div className="row"><button className="btn ghost" onClick={onBack}><Icon name="building" />{t("inv.back")}</button><span className="spacer" /></div>
+      <Board scope="mine" note={t("inv.note")} />
     </>
   );
 }

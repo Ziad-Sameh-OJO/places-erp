@@ -2,7 +2,7 @@
 import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { keepsInventory } from "@places/domain";
+import { INVENTORY_MANAGER, keepsInventory } from "@places/domain";
 import { UNIT_SORTS } from "@places/contracts";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
@@ -18,6 +18,7 @@ import { UnitImport } from "../imports/unit-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
+import { InventoryKpis } from "@/features/kpis/kpis-page";
 import { ListOfOptionsBar } from "./list-of-options";
 import { ListRequestsModal, useListRequests } from "./list-requests";
 import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
@@ -53,6 +54,9 @@ export function InventoryList() {
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   useNewParam("1", () => setForm("new"), me.can("inventory", "create")); // «جديد ← وحدة جديدة» from any page (0.16)
   const [teamTask, setTeamTask] = useState(false);
+  // 11.19 «KPIs الفريق»: the Inventory Manager only (demo inventory.js invView)
+  const [kpis, setKpis] = useState(false);
+  const invManager = !!me.me?.roles.includes(INVENTORY_MANAGER);
   const [report, setReport] = useState(false);
   // 2.32 · the inventory team's «طلبات الـ Lists» (who prepares them is the API's answer)
   const [lists, setLists] = useState(false);
@@ -97,6 +101,7 @@ export function InventoryList() {
     ["closed", "Rented / Sold", tabs?.closed],
   ];
 
+  if (kpis) return <InventoryKpis onBack={() => setKpis(false)} />;
   return (
     <>
       <div className="kpis">
@@ -109,6 +114,7 @@ export function InventoryList() {
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); }} items={types} />
         <span className="spacer" />
+        {invManager && <button className="btn ghost" onClick={() => setKpis(true)}><Icon name="chart" />{t("list.teamKpis")}</button>}
         {me.can("inventory", "import") && <UnitImport />}{/* 13.1 · 2.38 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}

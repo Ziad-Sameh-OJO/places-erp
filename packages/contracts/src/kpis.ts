@@ -74,7 +74,8 @@ export type KpiCopyInput = z.infer<typeof KpiCopyInput>;
 export const KpiWatch = z.array(Id).max(20);
 export const KpiWatchInput = z.object({ userIds: KpiWatch });
 export type KpiWatchInput = z.infer<typeof KpiWatchInput>;
-export const KpiScope = z.object({ scope: z.enum(["me", "team", "all"]).default("me") });
+/** «mine» (11.19): my card and the ones I follow, Manar's «KPIs الفريق» in the inventory. */
+export const KpiScope = z.object({ scope: z.enum(["me", "team", "mine", "all"]).default("me") });
 export type KpiScope = z.infer<typeof KpiScope>;
 
 export interface KpiQuarterView { id: string; label: string; status: "open" | "closed" }
@@ -84,7 +85,11 @@ export interface KpiCardSummary {
   /** reward (+) or deduction (−); null for whoever doesn't see money (11.14) */
   money: string | null;
 }
-export interface KpiBoard { quarter: KpiQuarterView; cards: KpiCardSummary[]; seesMoney: boolean; seesAll: boolean }
+export interface KpiBoard {
+  quarter: KpiQuarterView; cards: KpiCardSummary[]; seesMoney: boolean; seesAll: boolean;
+  /** 11.19 · scope «mine» for the Inventory Manager: her team's people without a card this quarter (else empty) */
+  missing: { id: string; name: string; title: string }[];
+}
 
 export interface KpiItemView {
   id: string; key: string; title: string; weight: number; targetText: string; source: string;
