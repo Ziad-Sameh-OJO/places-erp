@@ -18,6 +18,12 @@
     "statUnread": "New notifications"
   },
   "profile": {
+    "mobile": "Mobile",
+    "roles": "Roles",
+    "department": "Department",
+    "teamLeader": "Team Leader",
+    "lastLogin": "Last sign-in",
+    "passwordChanged": "Last password change",
     "emailOn": "You'll also get them by email",
     "emailOff": "In the system only (important ones still go by email)",
     "emailToggle": "Also send my notifications by email",
