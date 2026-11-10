@@ -28,30 +28,66 @@ export function dedupeKey(value: string | undefined): string {
   return v.toLowerCase();
 }
 
+/**
+ * 2.40 · the key a row is told apart by under the chosen column(s): a row repeats another only when ALL of them match,
+ * so an owner with the same name and another number (or another unit) is never taken for a repeat. "" = one of them
+ * is empty: nothing to tell it apart by, never a repeat.
+ */
+export function rowKey(data: SheetRow, columns: readonly string[]): string {
+  const parts = columns.map((c) => dedupeKey(data[c]));
+  return parts.length && parts.every(Boolean) ? parts.join("\u0001") : "";
+}
+
+/** The default «منع التكرار» (demo notactive.js defaultDupCols): the phone-number column alone, else the first column. */
+export const defaultDedupe = (headers: readonly string[]): string[] => {
+  const n = guessNumberColumn(headers) ?? headers[0];
+  return n ? [n] : [];
+};
+
 export interface MergeResult {
+  /** the rows that go in; `key` under the chosen columns */
   readonly added: readonly { readonly key: string; readonly data: SheetRow }[];
-  /** already in the sheet, or twice in this file */
+  /** the file's rows that repeat a row already in the sheet or an earlier row of the file («متدخلش» leaves exactly these out) */
   readonly duplicates: number;
-  /** no value in the chosen column: nothing to tell it apart by */
+  /** the file's rows that will show as repeats («تدخل ومتعلّمة»): with the sheet's rows or with each other, the first of a repeat too */
+  readonly marked: number;
+  /** a chosen column is empty: they go in, never as repeats */
   readonly noKey: number;
 }
 
 /**
- * M-03 7.1: «منار رفعت شيت CFC تاني فيه 50 صف، منهم 20 رقم وحدة موجود قبل كده ← الـ 30 الجديدين بس يتضافوا».
- * `existing` are the sheet's rows already saved; rows are compared by the chosen column.
+ * 2.40 (M-03 7.1): every row of the file goes in and repeats are marked (the team sees and filters them), or — with
+ * `skip` («متدخلش») — the repeats are left out and the first row of each repeat goes in. «منار رفعت شيت CFC تاني فيه 50
+ * صف، منهم 20 رقم وحدة موجود قبل كده ← الـ 30 الجديدين بس يتضافوا» is the `skip` case. A row with nothing in it is ignored.
  */
-export function mergeSheetRows(existing: readonly SheetRow[], incoming: readonly SheetRow[], column: string): MergeResult {
-  const seen = new Set(existing.map((r) => dedupeKey(r[column])).filter(Boolean));
+export function mergeSheetRows(existing: readonly SheetRow[], incoming: readonly SheetRow[], columns: readonly string[], skip: boolean): MergeResult {
+  const rows = incoming.filter((r) => Object.values(r).some((v) => String(v ?? "").trim()));
+  const had = new Set(existing.map((r) => rowKey(r, columns)).filter(Boolean));
+  const count = new Map<string, number>();
+  for (const r of rows) { const k = rowKey(r, columns); if (k) count.set(k, (count.get(k) ?? 0) + 1); }
+  const seen = new Set(had);
   const added: { key: string; data: SheetRow }[] = [];
-  let duplicates = 0, noKey = 0;
-  for (const data of incoming) {
-    const key = dedupeKey(data[column]);
-    if (!key) { noKey++; continue; }
-    if (seen.has(key)) { duplicates++; continue; }
-    seen.add(key);
+  let duplicates = 0, marked = 0, noKey = 0;
+  for (const data of rows) {
+    const key = rowKey(data, columns);
+    if (!key) noKey++;
+    else if (had.has(key) || (count.get(key) ?? 0) > 1) marked++;
+    const repeat = !!key && seen.has(key);
+    if (key) seen.add(key);
+    if (repeat) duplicates++;
+    if (repeat && skip) continue;
     added.push({ key, data });
   }
-  return { added, duplicates, noKey };
+  return { added, duplicates, marked, noKey };
+}
+
+/** Row id → how many other rows repeat it under the chosen columns (the red cells and «مكرر … مع N صف»). */
+export function duplicateCounts(rows: readonly { readonly id: string; readonly data: SheetRow }[], columns: readonly string[]): Map<string, number> {
+  const by = new Map<string, string[]>();
+  for (const r of rows) { const k = rowKey(r.data, columns); if (k) by.set(k, [...(by.get(k) ?? []), r.id]); }
+  const out = new Map<string, number>();
+  for (const ids of by.values()) if (ids.length > 1) for (const id of ids) out.set(id, ids.length - 1);
+  return out;
 }
 
 /** The sheet's columns after a merge: the ones it had, then any new header, in the file's order. */

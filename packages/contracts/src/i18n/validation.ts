@@ -296,6 +296,7 @@ export default [
   ["مش مسموح لك تعمل ملفات أو ترفع شيتات في الـ Not Active", "You're not allowed to make files or upload sheets in Not Active"],
   ["اسم الشيت طويل", "The sheet name is too long"],
   ["اختار خانة منع التكرار", "Choose the de-duplication column"],
+  ["اختار خانة واحدة على الأقل", "Choose at least one column"],
   ["اختار خانة الرقم", "Choose the number column"],
   ["حدد صفوف", "Select rows"],
   ["حدد صف واحد على الأقل", "Select at least one row"],

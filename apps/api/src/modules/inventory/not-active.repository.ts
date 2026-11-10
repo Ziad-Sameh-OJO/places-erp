@@ -59,11 +59,11 @@ export class NotActiveRepository {
 
   /** What the merge compares against: every row's cells. */
   rowData(sheetId: string, tx: Prisma.TransactionClient = this.db) {
-    return tx.notActiveRow.findMany({ where: { sheetId }, select: { data: true } });
+    return tx.notActiveRow.findMany({ where: { sheetId }, select: { id: true, data: true } }).then((r) => r.map((x) => ({ id: x.id, data: x.data as Record<string, string> })));
   }
 
-  rows(sheetId: string, s: RowScope, tab: NotActiveTab, skip: number, take: number) {
-    const where: Prisma.NotActiveRowWhereInput = { sheetId, ...scoped(s), ...(tab === "all" ? {} : { status: tab }) };
+  rows(sheetId: string, s: RowScope, tab: NotActiveTab, skip: number, take: number, ids?: { in?: string[]; notIn?: string[] }) {
+    const where: Prisma.NotActiveRowWhereInput = { sheetId, ...scoped(s), ...(tab === "all" ? {} : { status: tab }), ...(ids ? { id: ids } : {}) };
     return this.db.$transaction([
       this.db.notActiveRow.findMany({ where, select: ROW, orderBy: [{ createdAt: "asc" }, { id: "asc" }], skip, take }),
       this.db.notActiveRow.count({ where }),
@@ -71,11 +71,11 @@ export class NotActiveRepository {
   }
 
   /** all · No Answer · Not True · Done · not classified yet · in the inventory and waiting for Manar. */
-  counts(sheetId: string, s: RowScope) {
+  counts(sheetId: string, s: RowScope, dupIds: string[]) {
     const count = (w: Prisma.NotActiveRowWhereInput) => this.db.notActiveRow.count({ where: { sheetId, ...scoped(s), ...w } });
     return this.db.$transaction([
       count({}), count({ status: "No Answer" }), count({ status: "Not True" }), count({ status: "Done" }), count({ status: null }),
-      count({ matchedUnitId: { not: null }, matchSeen: false }),
+      count({ matchedUnitId: { not: null }, matchSeen: false }), count({ id: { in: dupIds } }),
     ]);
   }
 
@@ -83,17 +83,17 @@ export class NotActiveRepository {
     return tx.notActiveRow.findFirst({ where: { id, ...scoped(s) }, select: ROW });
   }
 
-  createSheet(tx: Prisma.TransactionClient, name: string, dedupeBy: string, numberBy: string | null, columns: string[], createdById: string) {
+  createSheet(tx: Prisma.TransactionClient, name: string, dedupeBy: string[], numberBy: string | null, columns: string[], createdById: string) {
     return tx.notActiveSheet.create({ data: { name, dedupeBy, numberBy, columns, createdById }, select: SHEET });
   }
 
-  updateSheet(tx: Prisma.TransactionClient, id: string, dedupeBy: string, numberBy: string | null, columns: string[]) {
+  updateSheet(tx: Prisma.TransactionClient, id: string, dedupeBy: string[], numberBy: string | null, columns: string[]) {
     return tx.notActiveSheet.update({ where: { id }, data: { dedupeBy, numberBy, columns } });
   }
 
-  /** The database's unique (sheet, key) is the last word: a row that slipped in meanwhile is skipped, not doubled. */
+  /** 2.40: repeats are kept (marked on screen), so the key isn't unique any more. */
   addRows(tx: Prisma.TransactionClient, sheetId: string, rows: readonly { key: string; data: Record<string, string> }[]) {
-    return tx.notActiveRow.createMany({ data: rows.map((r) => ({ sheetId, dedupeKey: r.key, data: r.data })), skipDuplicates: true });
+    return tx.notActiveRow.createMany({ data: rows.map((r) => ({ sheetId, dedupeKey: r.key, data: r.data })) });
   }
 
   /** Rows not compared with the inventory yet (new ones, or ones that didn't match before). */
