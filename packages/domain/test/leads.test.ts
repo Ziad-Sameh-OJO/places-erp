@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead, slaView, canSeeLeadLogs } from "../src/leads.ts";
+import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead, slaView, canSeeLeadLogs, tlNoteUnseen, writesTlNote } from "../src/leads.ts";
 
 const cairo = (iso: string) => new Date(`${iso}+03:00`);
 const fresh = (assignedAt: Date) => ({ stage: "Fresh" as const, touched: false, ownedByTelesales: false, assignedAt });
@@ -137,4 +137,15 @@ test("Visit / Meeting moves the stage forward only (1.9, 4 Nov demo meeting)", a
   assert.equal(visitStage("No Answer", "Visit", "booked"), "Follow up to Visit");
   // the new stage counts as Qualified
   assert.equal(isQualifiedAfter(false, "Follow up to Meeting"), true);
+});
+
+test("1.33: the Team Leader, Sales Director and admin write the note; the salesperson sees it until they open the lead", () => {
+  assert.ok(writesTlNote(["tl"]) && writesTlNote(["salesdir"]) && writesTlNote(["sales", "admin"]));
+  assert.ok(!writesTlNote(["sales"]) && !writesTlNote(["ops"]) && !writesTlNote(["telesales"]));
+  const at = new Date("2026-11-10T09:00:00Z");
+  assert.equal(tlNoteUnseen({ tlNote: "كلّمه عن الدور التالت", tlNoteAt: at, tlNoteSeenAt: null }), true);
+  assert.equal(tlNoteUnseen({ tlNote: "كلّمه عن الدور التالت", tlNoteAt: at, tlNoteSeenAt: new Date("2026-11-10T09:05:00Z") }), false);
+  // a new note after it was seen shows again
+  assert.equal(tlNoteUnseen({ tlNote: "جديدة", tlNoteAt: new Date("2026-11-10T10:00:00Z"), tlNoteSeenAt: new Date("2026-11-10T09:05:00Z") }), true);
+  assert.equal(tlNoteUnseen({ tlNote: null, tlNoteAt: null, tlNoteSeenAt: null }), false);
 });

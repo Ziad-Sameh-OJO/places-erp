@@ -26,6 +26,14 @@ export class LeadsTodayRepository {
     });
   }
 
+  /** 1.33: this salesperson's leads with a Team Leader's note on them (the service keeps the ones not seen yet). */
+  tlNotes(employeeId: string) {
+    return this.db.lead.findMany({
+      where: { assignedToId: employeeId, archivedAt: null, tlNote: { not: null } },
+      select: { id: true, name: true, tlNote: true, tlNoteAt: true, tlNoteSeenAt: true }, orderBy: { tlNoteAt: "desc" }, take: 50,
+    });
+  }
+
   employeeNames(ids: string[]) {
     return this.db.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }

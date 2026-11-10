@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { LeadDetail, LeadLogRow } from "@places/contracts";
 import { LEAD_PIPELINE, LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
-import { Chip, Empty, Icon, Tabs, useAction, useToast } from "@/components/ui";
+import { Chip, Empty, Icon, Note, Tabs, useAction, useToast } from "@/components/ui";
 import type { Settings } from "@places/contracts";
 import { useFields, useMe } from "@/lib/me";
 import { ago, day, dayTime, money, num } from "@/lib/format";
@@ -85,10 +85,12 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
   return (
     <>
       {onPipe && <Stepper stages={PIPE} current={l.stage} />}
+      {l.tlNote && <Note kind="warn"><b>{t("tlNote")}</b> {l.tlNote.text}</Note>}{/* 1.33 */}
       <dl className="kv">{kv.filter(([, , f]) => !f || fields.shows(f)).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       {l.note && <div className="quote">{l.note}</div>}
       <LeadActions l={l} onDeal={onDeal} onArchived={onArchived} />
       <NewLeadAction l={l} />
+      {l.canWriteTlNote && <TlNote key={l.id} l={l} />}
       {can("leads", "approve") && <Reassign key={l.id} l={l} />}
     </>
   );
@@ -98,6 +100,22 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
  * Demo «اسحب الليد وحوّله» (1.14, M-01 4.1): Operations, the Sales Director and the admin hand the lead to another
  * salesperson; that salesperson's next turn in the rotation is used up (Q2).
  */
+function TlNote({ l }: { l: LeadDetail }) {
+  const t = useTranslations("leads.drawer");
+  const run = useAction();
+  const refresh = useRefreshLead();
+  const [note, setNote] = useState(l.tlNote?.text ?? "");
+  return (
+    <form className="card flat" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.put(`/leads/${l.id}/tl-note`, { note }); await refresh(l.id); }, t("tlNoteSaved")); }}>
+      <div className="card-head"><h3><span className="ico"><Icon name="star" /></span><span>{t("tlNoteTitle")}</span></h3></div>
+      <div className="row">
+        <input value={note} maxLength={500} placeholder={t("tlNotePlaceholder")} aria-label={t("tlNoteTitle")} onChange={(e) => setNote(e.target.value)} />
+        <button className="btn ghost">{t("tlNoteSave")}</button>
+      </div>
+    </form>
+  );
+}
+
 function Reassign({ l }: { l: LeadDetail }) {
   const t = useTranslations("leads.drawer");
   const run = useAction();

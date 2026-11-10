@@ -20,7 +20,8 @@
     "review": "Review",
     "companyTitle": "New company: {name}",
     "companySub": "Needs adding to the companies sheet with a category",
-    "companySheet": "Companies sheet"
+    "companySheet": "Companies sheet",
+    "tlNote": "TL note on {name}"
   },
   "bulkBar": {
     "applied": "Applied to {count, plural, one {# lead} other {# leads}}",
@@ -243,7 +244,12 @@
     "noLogs": "No Logs yet",
     "saved": "Saved",
     "logRoles": "Who sees the Logs",
-    "logRolesSub": "The admin always sees them · applies to all leads"
+    "logRolesSub": "The admin always sees them · applies to all leads",
+    "tlNote": "Team Leader's note:",
+    "tlNoteTitle": "Team Leader's note on the lead",
+    "tlNotePlaceholder": "Something we need on this lead",
+    "tlNoteSave": "Save",
+    "tlNoteSaved": "Saved"
   },
   "board": {
     "setVisit": "Set the Visit time and units",

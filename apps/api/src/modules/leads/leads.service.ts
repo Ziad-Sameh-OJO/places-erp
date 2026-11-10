@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
-import type { LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal } from "@places/domain";
+import type { TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -127,7 +127,7 @@ export class LeadsService {
     if (!lead) throw new NotFoundException(NO_LEAD);
     const [salespeople, people, sla, { leadLogRoles }] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
-      this.repo.userNames([...new Set(lead.activities.map((a) => a.byUserId).filter(isId))]),
+      this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), lead.tlNoteById].filter(isId))]),
       this.slaClock(),
       this.settings.all(),
     ]);
@@ -137,7 +137,31 @@ export class LeadsService {
     const detail = toDetail(lead, salespeople, new Map(people.map((p) => [p.userId, p.name])), sla);
     // 1.24: «وافق على التأجيل» only for whom the lead rules name (the salesperson's TL by default)
     if (lead.assignedToId && detail.visits.some((v) => v.postpone?.status === "pending") && (await this.canDecidePostpone(me, lead.assignedToId))) for (const v of detail.visits) if (v.postpone) v.postpone.canDecide = v.postpone.status === "pending";
-    return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount };
+    // 1.33: the salesperson opening it has seen the Team Leader's note (off «مهامي النهارده»)
+    if (lead.tlNoteAt && lead.assignedToId && lead.assignedToId === me.employeeId) await this.repo.markTlNoteSeen(lead.id, lead.tlNoteAt);
+    return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount, canWriteTlNote: writesTlNote(me.roles) && me.grants.can("leads", "edit") };
+  }
+
+  /**
+   * 1.33 · M-01 «الـ Team Leader يقدر يسجّل على ليد معيّن حاجة محتاجينها»: the TL (his team's leads), the Sales Director
+   * or the admin writes it; it goes in the Activity and the audit in one transaction, and the salesperson is told
+   * (demo leads.js tlFlag). An empty note clears it, quietly.
+   */
+  async setTlNote(me: CurrentUser, id: string, input: TlNoteInput): Promise<LeadDetail> {
+    if (!writesTlNote(me.roles)) throw new ForbiddenException("ملاحظة الـ Team Leader بيكتبها الـ TL أو مدير المبيعات بس");
+    const lead = await this.repo.tlNoteTarget(ownedBy(me) as never, id);
+    if (!lead) throw new NotFoundException(NO_LEAD);
+    const note = input.note || null;
+    await this.db.$transaction(async (tx) => {
+      await this.repo.setTlNote(tx, id, note, me.id);
+      await this.repo.addActivity(tx, id, "edit", note ? `ملاحظة TL: ${note}` : "ملاحظة الـ TL اتشالت", me.id);
+      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "tl_note", userId: me.id, before: { tlNote: lead.tlNote }, after: { tlNote: note } }, tx);
+    });
+    const owner = note && lead.assignedToId ? await this.repo.ownerAccounts(lead.assignedToId) : null;
+    if (owner?.userId && owner.userId !== me.id) {
+      await this.notifications.notify({ event: "lead.tl_note", text: `الـ Team Leader كتب على ${lead.name}: ${note}`, link: `/leads?open=${id}`, to: [owner.userId] });
+    }
+    return this.get(me, id);
   }
 
   /** 1.24: whether this person approves postponing this salesperson's Visits (lead rules «visit.postpone»). */
@@ -741,12 +765,13 @@ function toRow({ assignedToId, budget, kind, ...r }: LeadRecord, names: Map<stri
   };
 }
 
-function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount"> {
-  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, ...row } = lead;
+function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock): Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote"> {
+  const { activities, visits, company, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, ...row } = lead;
   const now = Date.now();
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
     company: company?.name ?? null, hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
+    tlNote: tlNote && tlNoteAt ? { text: tlNote, by: tlNoteById ? people.get(tlNoteById) ?? null : null, at: tlNoteAt.toISOString() } : null, // 1.33
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({
       ...a, at: at.toISOString(), by: byUserId ? { id: byUserId, name: people.get(byUserId) ?? "" } : null,

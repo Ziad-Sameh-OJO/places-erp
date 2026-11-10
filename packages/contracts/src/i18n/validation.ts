@@ -59,6 +59,7 @@ export default [
   ["اختار سيلز الـ Buyer", "Choose the Buyer's sales"],
   ["المبلغ مايبقاش بالسالب", "The amount can't be negative"],
   ["الملاحظة طويلة", "The note is too long"],
+  ["اكتب الملاحظة", "Write the note"],
   ["اختار ميعاد التنفيذ", "Choose the execution date"],
   ["الكلام طويل", "The text is too long"],
   ["اكتب سبب الإلغاء", "Enter the reason for cancelling"],

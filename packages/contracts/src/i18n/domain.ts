@@ -290,6 +290,7 @@ export default [
   ["قرار الإدخال الجماعي", "Bulk entry decision"],
   ["اللي بعت الشيت", "Whoever sent the sheet"],
   ["شركة جديدة في ليد", "New company in a lead"],
+  ["ملاحظة الـ Team Leader على ليد", "Team Leader's note on a lead"],
   ["Done Deal جديدة / Alarm", "New Done Deal / Alarm"],
   ["الـ Office Manager", "The Office Manager"],
   ["صفقة اتوافق عليها · حصّل عمولة", "Deal approved · collect the commission"],

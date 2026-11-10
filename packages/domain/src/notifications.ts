@@ -30,6 +30,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.bulk", label: "إدخال جماعي", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // 1.19: a sheet waits for approval
   { key: "lead.bulk_decided", label: "قرار الإدخال الجماعي", to: "اللي بعت الشيت", toRoles: [], channels: ["app", "push"], important: false }, // 1.19: approved or rejected with its reason
   { key: "lead.new_company", label: "شركة جديدة في ليد", to: "Telesales", toRoles: ["telesales"], channels: ["app", "push"], important: false }, // M-01 2.1 · 6.1 (1.20)
+  { key: "lead.tl_note", label: "ملاحظة الـ Team Leader على ليد", to: "السيلز المسؤول", toRoles: [], channels: ["app", "push"], important: false }, // M-01 · 1.33
   { key: "deal.done", label: "Done Deal جديدة / Alarm", to: "الـ Office Manager", toRoles: ["officemgr"], channels: ["app", "push", "email"], important: true },
   // M-02 Q9 · 4 Nov meeting: on approval the accountant is told to collect the commission; a rejection goes back to the salesperson
   { key: "deal.approved", label: "صفقة اتوافق عليها · حصّل عمولة", to: "المحاسب · سيلز الصفقة", toRoles: ["accountant"], channels: ["app", "push"], important: false },

@@ -161,6 +161,20 @@ export class LeadsRepository {
     return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
   }
 
+  /** 1.33: the lead the note goes on, inside the writer's scope. */
+  tlNoteTarget(scope: Prisma.LeadWhereInput, id: string) {
+    return this.db.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true, tlNote: true } });
+  }
+
+  setTlNote(tx: Prisma.TransactionClient, id: string, note: string | null, byUserId: string) {
+    return tx.lead.update({ where: { id }, data: { tlNote: note, tlNoteAt: note ? new Date() : null, tlNoteById: note ? byUserId : null, tlNoteSeenAt: null } });
+  }
+
+  /** The salesperson opened the lead: the note leaves their «مهامي النهارده» (written once per note, not on every open). */
+  markTlNoteSeen(id: string, noteAt: Date) {
+    return this.db.lead.updateMany({ where: { id, OR: [{ tlNoteSeenAt: null }, { tlNoteSeenAt: { lt: noteAt } }] }, data: { tlNoteSeenAt: new Date() } });
+  }
+
   addActivity(tx: Prisma.TransactionClient, leadId: string, kind: ActivityKind, text: string, byUserId: string | null) {
     return tx.leadActivity.create({ data: { leadId, kind, text, byUserId } });
   }
@@ -327,7 +341,7 @@ export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
-  newLeadRequestedAt: true, newLeadRoutedAt: true,
+  newLeadRequestedAt: true, newLeadRoutedAt: true, tlNote: true, tlNoteAt: true, tlNoteById: true,
   company: { select: { name: true } }, _count: { select: { deals: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
   visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, postponeReason: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },

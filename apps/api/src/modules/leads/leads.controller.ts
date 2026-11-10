@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { AddComment, AssignLead, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, UpdateLead, LeadBatch, LeadBatchIds, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
+import { AddComment, AssignLead, TlNoteInput, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, UpdateLead, LeadBatch, LeadBatchIds, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendPdf } from "../../core/documents/documents.service";
 import { sendXlsx, type ExcelColumn } from "../../core/http/excel";
@@ -125,6 +125,13 @@ export class LeadsController {
   }
 
   /** «جاوب عشان الـ Recommendations تقل» (M-03 3.2): the answers are saved on the lead. */
+  // 1.33: «ملاحظة الـ Team Leader على الليد» (the service lets only the TL, the Sales Director and the admin write it)
+  @Put(":id/tl-note")
+  @Requires("leads", "edit")
+  setTlNote(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(TlNoteInput)) body: TlNoteInput) {
+    return this.leads.setTlNote(me, id, body);
+  }
+
   @Put(":id/answers")
   @Requires("leads", "edit")
   setAnswers(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(RecommendAnswers)) body: RecommendAnswers) {
