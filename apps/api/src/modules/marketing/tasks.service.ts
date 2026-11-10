@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateTask, EditTask, MoveTask, TaskCreated, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, UnitPhotoView } from "@places/contracts";
+import type { CreateTask, EditTask, MoveTask, TaskCreated, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, TodayLine, UnitPhotoView } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport,
+  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport, taskTone,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -70,6 +70,20 @@ export class TasksService {
     const rows = await this.repo.list(where, BOARD_MAX);
     const names = await this.repo.names(rows.flatMap((t) => [t.toUserId, ...(t.byUserId ? [t.byUserId] : [])]));
     return rows.map((t) => this.row(me, t, names, depts, now));
+  }
+
+  /**
+   * 0.18 · «مهامي النهارده» (demo home.js): the tasks given to me until they're done (red past their day; Manar's team
+   * tasks have their own card), and for whoever approves Retouch the uploaded ones waiting for her.
+   */
+  async today(me: CurrentUser, now = new Date()): Promise<TodayLine[]> {
+    const rows = await this.list(me, {}, now), today = localDate(now);
+    const mine = rows.filter((t) => t.to.id === me.id && t.status !== "done" && t.status !== "uploaded" && t.kind !== "team")
+      .map((t): TodayLine => ({ kind: "task", tone: taskTone(t.dueOn, today), id: t.id, values: { kind: t.kindLabel, title: t.title ?? t.unit?.code ?? "", due: t.dueOn, note: t.note ?? "" } }));
+    const retouch = me.grants.can("tasks", "approve")
+      ? rows.filter((t) => t.kind === "retouch" && t.status === "uploaded").map((t): TodayLine => ({ kind: "retouch", tone: "warn", id: t.id, values: { unit: t.unit?.code ?? t.title ?? "" } }))
+      : [];
+    return [...mine, ...retouch];
   }
 
   async get(me: CurrentUser, id: string): Promise<TaskRow> {

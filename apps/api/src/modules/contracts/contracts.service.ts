@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CalendarItem, CollectionReport, ContractCalendar, ContractDetail, ContractFilters, ContractForm, ContractRow, ContractSummary, CreateContract, DecideValue, Paged, ProposeValue, RecordPayment, TerminateContract } from "@places/contracts";
+import type { CalendarItem, CollectionReport, ContractCalendar, ContractDetail, ContractFilters, ContractForm, ContractRow, ContractSummary, CreateContract, DecideValue, Paged, ProposeValue, RecordPayment, TerminateContract, TodayLine } from "@places/contracts";
 import {
   type ContractStatus, type InstallmentLine, RENEWAL_WINDOW_DAYS, agingBuckets, contractProblem, daysBetween, endingSoon, fromDecimal,
-  formatEGP, installmentPlan, installmentState, localDate, nextYearValue, paymentProblem, respread, terminationProblem, toDecimal,
+  formatEGP, installmentPlan, installmentState, localDate, nextYearValue, paymentProblem, renewalOnBoard, respread, terminationProblem, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -54,6 +54,12 @@ export class ContractsService {
     const [rows, total] = await this.repo.list(this.scope(me), f, { ...(f.status ? { status: f.status.toUpperCase() as never } : {}), ...ending });
     const hidden = me.fields.hidden("contracts");
     return { items: rows.map((r) => hideRow(toRow(r, today), hidden)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /** 0.18 · demo home.js «عقد … بينتهي قريب · فرصة تجديد»: my scope's Active contracts ending within 30 days. */
+  async today(me: CurrentUser, now = new Date()): Promise<TodayLine[]> {
+    const { items } = await this.list(me, { ending: true, page: 1, pageSize: 100 }, now);
+    return items.filter((c) => renewalOnBoard(c.daysLeft)).map((c) => ({ kind: "contractEnding", tone: "warn", id: c.id, values: { client: c.client, unit: c.unitCode, end: c.endsOn } }));
   }
 
   async get(me: CurrentUser, id: string, now = new Date()): Promise<ContractDetail> {

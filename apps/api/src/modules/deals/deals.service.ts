@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CancelDeal, CollectDeal, CreateDeal, EditCollection, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal } from "@places/contracts";
+import type { CancelDeal, CollectDeal, CreateDeal, EditCollection, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal, TodayLine } from "@places/contracts";
 import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionEditProblem, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
 import { esc, layout } from "../../core/documents/documents.service";
 import { DocumentsSetupService } from "../settings/documents-setup.service";
@@ -70,6 +70,24 @@ export class DealsService {
     const hidden = me.fields.hidden("deals");
     const [rows, total] = await this.repo.list(this.scope(me), f, f.status && toDb(f.status), !hidden.has("location"));
     return { items: rows.map((r) => hideRow(toRow(r), hidden)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /**
+   * 0.18 · «مهامي النهارده» (demo home.js), in my scope: the deals waiting for review (whoever approves deals), the Seller
+   * waiting for Manar's approval (inventory: approve, as POST :id/seller), and the TCRs I'm on and haven't signed.
+   */
+  async today(me: CurrentUser): Promise<TodayLine[]> {
+    const scope = this.scope(me), hidden = me.fields.hidden("deals");
+    const [review, sellers, tcrs] = await Promise.all([
+      me.grants.can("deals", "approve") ? this.list(me, { page: 1, pageSize: 100, status: "Pending Review" }).then((p) => p.items) : [],
+      me.grants.can("inventory", "approve") ? this.repo.sellerWaiting(scope) : [],
+      me.employeeId && me.grants.can("deals", "view") ? this.repo.unsignedTcrs(scope, me.employeeId) : [],
+    ]);
+    return [
+      ...review.map((d): TodayLine => ({ kind: "dealReview", tone: "warn", id: d.id, values: { code: d.code, company: d.company, unit: d.unitCode } })),
+      ...sellers.map((d): TodayLine => ({ kind: "dealSeller", tone: "warn", id: d.id, values: { code: d.code, seller: d.participants[0]?.employee.name ?? "—", unit: d.unit.code } })),
+      ...tcrs.map((t): TodayLine => ({ kind: "tcrSign", tone: "warn", id: t.deal.id, values: { tcr: tcrCode(t.code), code: t.deal.code, amount: hidden.has("payments") ? "" : t.payment.amount.toFixed(2) } })),
+    ];
   }
 
   async get(me: CurrentUser, id: string): Promise<DealDetail> {

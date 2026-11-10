@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import type { BroadcastBoard, BroadcastDone, BroadcastInput, MyBroadcast } from "@places/contracts";
+import type { BroadcastBoard, BroadcastDone, BroadcastInput, MyBroadcast, TodayLine } from "@places/contracts";
 import { BROADCASTS_PER_WEEK, broadcastsThisWeek, dayStart, localDate, whatsappLimitTone, whatsappSentToday } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -27,6 +27,12 @@ export class BroadcastsService {
     private readonly inventory: InventoryService,
     private readonly settings: SettingsService,
   ) {}
+
+  /** 0.18 · demo home.js «Broadcast مستني موافقتك»: the messages waiting for the marketing manager's approval. */
+  async waiting(): Promise<TodayLine[]> {
+    const rows = await this.db.broadcast.findMany({ where: { approved: false }, orderBy: { createdAt: "asc" }, select: { id: true, text: true } });
+    return rows.map((b) => ({ kind: "broadcastApprove", tone: "warn", id: b.id, values: { text: b.text } }));
+  }
 
   async board(now = new Date()): Promise<BroadcastBoard> {
     const [rows, sales, donesToday, settings] = await Promise.all([

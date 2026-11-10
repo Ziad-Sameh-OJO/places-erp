@@ -27,3 +27,13 @@ export const seesVisitsOnBoard = (roles: readonly string[]): boolean => roles.so
 export function inboxOrder<T extends { readonly tone: InboxTone }>(items: readonly T[]): T[] {
   return items.map((x, i) => ({ x, i })).sort((a, b) => Number(b.x.tone === "bad") - Number(a.x.tone === "bad") || a.i - b.i).map((y) => y.x);
 }
+
+/** A task assigned to me is on the board until it's done: red once its day has passed (demo home.js `t.due < today`). */
+export const taskTone = (dueOn: string, today: string): InboxTone => (dueOn < today ? "bad" : "");
+
+/**
+ * The home's «عقد … بينتهي قريب · فرصة تجديد» (demo home.js): an Active contract ending within 30 days, its last day
+ * included. The contracts screen's «قرّبت تخلص» filter keeps its own 90 days (RENEWAL_WINDOW_DAYS).
+ */
+export const HOME_RENEWAL_DAYS = 30;
+export const renewalOnBoard = (daysLeft: number): boolean => daysLeft >= 0 && daysLeft <= HOME_RENEWAL_DAYS;
