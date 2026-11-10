@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { isWorkingDay, localDate } from "@places/domain";
 import { kpiRefreshTick } from "../../worker/src/processors/kpi-refresh.ts";
-import { call, session } from "./helpers.ts";
+import { call, kpiQuarterLock, session } from "./helpers.ts";
 
 const start = new Date();
 const PLACE = `E2E-KJ ${Date.now()}`;
@@ -18,14 +18,6 @@ let emp = { id: "", userId: "" };
 let before_: Array<{ id: string; value: unknown }> = [];
 
 const farming = () => prisma.kpiItem.findFirstOrThrow({ where: { metric: "activitiesDone", card: { quarter: "2026-Q4", employeeId: emp.id } } });
-/** kpis.e2e closes the quarter and opens the next for a moment; the job measures the current quarter. */
-async function q4Current() {
-  for (let i = 0; i < 50; i++) {
-    const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
-    if (q?.id === "2026-Q4" && q.status === "open") return;
-    await new Promise((r) => setTimeout(r, 200));
-  }
-}
 /** A working-day instant at or after now (the job does nothing on Fridays). */
 function workingNow() {
   let t = new Date();
@@ -80,13 +72,14 @@ test("11.13 · Farming: planned → «عملتها؟» after its time → the fo
   const card = await prisma.kpiCard.findFirstOrThrow({ where: { quarter: "2026-Q4", employeeId: emp.id }, select: { follower: { select: { userId: true } } } });
   if (card.follower) assert.ok(await prisma.notification.findFirst({ where: { userId: card.follower.userId, text: { contains: PLACE } } }), "the follower hears");
 
-  await q4Current();
   const t = workingNow();
-  const was = Number((await farming()).value ?? 0);
-  assert.ok((await kpiRefreshTick(t, [emp.id])) >= 1);
-  const is = Number((await farming()).value);
-  assert.ok(is > was, `the Farming item rose (${was} → ${is})`);
-  assert.equal(await kpiRefreshTick(t, [emp.id]), 0, "running twice changes nothing");
+  await kpiQuarterLock(async () => { // the job measures the current quarter: Q4 2026
+    const was = Number((await farming()).value ?? 0);
+    assert.ok((await kpiRefreshTick(t, [emp.id])) >= 1);
+    const is = Number((await farming()).value);
+    assert.ok(is > was, `the Farming item rose (${was} → ${is})`);
+    assert.equal(await kpiRefreshTick(t, [emp.id]), 0, "running twice changes nothing");
+  });
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "kpis", entity: "KpiItem", action: "refresh", at: { gte: start } } }));
 });
 
