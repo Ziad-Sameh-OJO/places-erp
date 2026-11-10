@@ -20,7 +20,8 @@
     "review": "راجع",
     "companyTitle": "شركة جديدة: {name}",
     "companySub": "محتاجة تتضاف لشيت الشركات بكاتيجوري",
-    "companySheet": "شيت الشركات"
+    "companySheet": "شيت الشركات",
+    "tlNote": "ملاحظة TL على {name}"
   },
   "bulkBar": {
     "applied": "اتطبّق على {count} ليد",
@@ -246,7 +247,12 @@
     "noLogs": "مفيش Logs لسه",
     "saved": "اتحفظ",
     "logRoles": "مين يشوف الـ Logs",
-    "logRolesSub": "الأدمن بيشوفها دايماً · بيتطبّق على كل الليدز"
+    "logRolesSub": "الأدمن بيشوفها دايماً · بيتطبّق على كل الليدز",
+    "tlNote": "ملاحظة الـ Team Leader:",
+    "tlNoteTitle": "ملاحظة الـ Team Leader على الليد",
+    "tlNotePlaceholder": "حاجة محتاجينها في الليد ده",
+    "tlNoteSave": "حفظ",
+    "tlNoteSaved": "اتحفظت"
   },
   "board": {
     "movedQualified": "{name} بقى {stage} واتعلّم Qualified",

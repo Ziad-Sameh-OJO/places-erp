@@ -213,3 +213,14 @@ export const LOG_ADMIN_ROLE = "admin";
 export function canSeeLeadLogs(roles: readonly string[], allowedRoles: readonly string[]): boolean {
   return roles.includes(LOG_ADMIN_ROLE) || roles.some((r) => allowedRoles.includes(r));
 }
+
+/**
+ * 1.33 · M-01 (Team Leader: «يقدر يسجّل على ليد معيّن حاجة محتاجينها»): who writes the note on a lead — the Team
+ * Leader, and above him the Sales Director and the admin (demo leads.js: tl · salesdir · admin). The salesperson reads it.
+ */
+const TL_NOTE_ROLES: ReadonlySet<string> = new Set(["tl", "salesdir", "admin"]);
+export const writesTlNote = (roles: readonly string[]): boolean => roles.some((r) => TL_NOTE_ROLES.has(r));
+
+/** It stays on the salesperson's «مهامي النهارده» until they open the lead after it was written. */
+export const tlNoteUnseen = (l: { readonly tlNote: string | null; readonly tlNoteAt: Date | null; readonly tlNoteSeenAt: Date | null }): boolean =>
+  !!l.tlNote && !!l.tlNoteAt && (!l.tlNoteSeenAt || l.tlNoteSeenAt < l.tlNoteAt);

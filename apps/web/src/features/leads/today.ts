@@ -21,6 +21,9 @@ export function useLeadToday(enabled: boolean) {
 
 function toLine(x: LeadTodayItem, t: LeadsT): InboxLine {
   const href = `/leads?open=${x.lead.id}`;
+  if (x.kind === "tlNote") { // 1.33
+    return { key: `tl-${x.lead.id}`, tone: x.tone, icon: "star", title: t("today.tlNote", { name: x.lead.name }), sub: x.tlNote ?? "", href, button: t("today.open") };
+  }
   if (x.kind === "visit" && x.visit) {
     return { key: `visit-${x.visit.id}`, tone: x.tone, icon: "pin", title: `${x.visit.kind}: ${x.lead.name}`,
       sub: t("today.visitSub", { at: dayTime(x.visit.at) }), href, button: t("today.open") };

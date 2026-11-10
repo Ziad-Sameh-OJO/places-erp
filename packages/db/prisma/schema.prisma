@@ -403,6 +403,10 @@ model Lead {
   post           String?       // the campaign post it came from (M-04: channel → campaign → post)
   answers        Json?         // answers to the recommendation questions, they narrow the suggested units
   verification   Json?         // Second Call (11.15): { called, sent, note, byUserId, at }
+  tlNote         String?       // 1.33 · M-01: «حاجة محتاجينها» the Team Leader / Sales Director wrote on it
+  tlNoteAt       DateTime?
+  tlNoteById     String?       // user id
+  tlNoteSeenAt   DateTime?     // the salesperson opened it since: off «مهامي النهارده»
   activities     LeadActivity[]
   arrivals       LeadArrival[]
   calls          LeadCall[]
