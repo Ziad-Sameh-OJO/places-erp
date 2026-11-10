@@ -54,6 +54,21 @@ export class KpisRepository {
     return (await tx.kpiBands.findUnique({ where: { id: "default" } })) ?? (await tx.kpiBands.create({ data: {} }));
   }
 
+  /** 11.18 · the award rules, smallest first. */
+  bonusRules(tx: Tx = this.db) {
+    return tx.kpiBonusRule.findMany({ orderBy: [{ minPct: "asc" }, { createdAt: "asc" }] });
+  }
+
+  /** 11.18 · what the quarterly sheet reads off one employee: his scheme, his monthly targets and his deals paid in [from, to). */
+  async sheetMoney(employeeId: string, months: readonly string[], from: Date, to: Date) {
+    const [e, targets, deals] = await Promise.all([
+      this.db.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { target: true, commissionPct: true } }),
+      this.db.salesTarget.findMany({ where: { employeeId, month: { in: [...months] } } }),
+      this.db.deal.findMany({ where: { participants: { some: { employeeId } }, payments: { some: { receivedAt: { gte: from, lt: to } } } }, include: { participants: true, payments: true } }),
+    ]);
+    return { ...e, targets, deals };
+  }
+
   async watchers(): Promise<unknown> {
     return (await this.db.setting.findUnique({ where: { key: "kpiWatch" } }))?.value ?? [];
   }

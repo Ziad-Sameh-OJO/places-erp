@@ -12,7 +12,7 @@ import { kpiMidQuarterTick } from "../../worker/src/processors/kpi-mid-quarter.t
 const start = new Date();
 const LINK = `https://e2e.test/${Date.now()}`;
 let admin: string, nancy: string, heba: string, mahmoud: string, youssef: string, mokhtar: string, hadeer: string;
-let watchBefore: unknown, salaryBefore: string | null = null;
+let watchBefore: unknown, salaryBefore: string | null = null, fieldsBefore: string[] | null = null;
 const ids = { mahmoud: "", nancyUser: "", nancyEmp: "", hebaUser: "", testCard: "", youssefEmp: "", youssefUser: "", basantUser: "" };
 const touched: string[] = []; // seeded cards whose value / plan / approval the file changes
 
@@ -40,6 +40,8 @@ after(async () => {
   await prisma.kpiDelivery.deleteMany({ where: { link: LINK } });
   if (watchBefore == null) await prisma.setting.deleteMany({ where: { key: "kpiWatch" } });
   else await prisma.setting.update({ where: { key: "kpiWatch" }, data: { value: watchBefore as never } });
+  await prisma.kpiBonusRule.deleteMany({ where: { createdAt: { gte: start } } });
+  if (fieldsBefore) await prisma.kpiBands.update({ where: { id: "default" }, data: { sheetFields: fieldsBefore } });
   await prisma.auditLog.deleteMany({ where: { module: "kpis", at: { gte: start } } });
   // the quarter's results and sheets were mailed to everyone too (with or without an in-app copy)
   await prisma.mailLog.deleteMany({ where: { createdAt: { gte: start }, OR: [
@@ -196,6 +198,30 @@ test("11.6 · mid-quarter: items under target are told to the owner and the foll
   assert.ok(await prisma.notification.count({ where: { userId: follower, link: "/kpis", text: { startsWith: "نص Q4 2026" } } }) >= 1);
   assert.equal(await kpiMidQuarterTick(new Date("2026-11-17T09:00:00Z")), 0); // idempotent: once per card
   assert.equal(await told(), 1);
+});
+
+test("11.18 · the sheet's lines and award rules: the KPI admin sets them, a salesperson can't, the watcher doesn't see them (money)", async () => {
+  fieldsBefore = (await prisma.kpiBands.findUniqueOrThrow({ where: { id: "default" } })).sheetFields;
+  const c = (await call("/kpis/company", { cookie: admin })).body;
+  assert.deepEqual(c.sheetSetup.fields, ["salary", "target", "achieved", "scheme", "commission", "bonus"].filter((k) => fieldsBefore!.includes(k)));
+  assert.equal((await call("/kpis/company", { cookie: heba })).body.sheetSetup, null);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: youssef, body: { fields: ["salary"] } })).status, 403);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: admin, body: { fields: ["nope"] } })).status, 400);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: admin, body: { fields: ["bonus", "salary", "transactions"] } })).status, 204);
+  assert.deepEqual((await prisma.kpiBands.findUniqueOrThrow({ where: { id: "default" } })).sheetFields, ["salary", "transactions", "bonus"]);
+  assert.equal((await call("/kpis/sheet/bonuses", { method: "POST", cookie: youssef, body: { minPct: 100, amount: "5000" } })).status, 403);
+  assert.equal((await call("/kpis/sheet/bonuses", { method: "POST", cookie: admin, body: { minPct: 0, amount: "5000" } })).status, 400);
+  const b = await call("/kpis/sheet/bonuses", { method: "POST", cookie: admin, body: { minPct: 120, amount: "10000" } });
+  assert.equal(b.status, 201, JSON.stringify(b.body));
+  const setup = (await call("/kpis/company", { cookie: admin })).body.sheetSetup;
+  assert.ok(setup.bonuses.some((x: { id: string; minPct: number; amount: string }) => x.id === b.body.id && x.minPct === 120 && x.amount === "10000.00"));
+  assert.equal(await prisma.auditLog.count({ where: { module: "kpis", entity: "KpiBonusRule", entityId: b.body.id, action: "create" } }), 1);
+  assert.equal((await call(`/kpis/sheet/bonuses/${b.body.id}`, { method: "DELETE", cookie: youssef })).status, 403);
+  assert.equal((await call(`/kpis/sheet/bonuses/${b.body.id}`, { method: "DELETE", cookie: admin })).status, 204);
+  assert.equal((await call(`/kpis/sheet/bonuses/${b.body.id}`, { method: "DELETE", cookie: admin })).status, 404);
+  // a rule stays for the sheets the close test makes below (the PDF carries the picked lines)
+  assert.equal((await call("/kpis/sheet/bonuses", { method: "POST", cookie: admin, body: { minPct: 100, amount: "5000" } })).status, 201);
+  assert.equal((await call("/kpis/sheet/fields", { method: "PUT", cookie: admin, body: { fields: ["salary", "target", "achieved", "scheme", "commission", "transactions", "bonus"] } })).status, 204);
 });
 
 test("11.4 · 11.6 · 11.7 · 11.11 · Nancy closes the quarter (alerts, payroll), approves the sheets, then a new quarter starts from a copy", async () => {

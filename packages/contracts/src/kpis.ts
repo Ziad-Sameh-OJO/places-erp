@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SHEET_FIELD_KEYS, type SheetField } from "@places/domain";
 import { Id, Money } from "./common.ts";
 
 /** M-12 · KPI cards (11.1–11.4 · 11.11 · 11.14). Wording from demo kpis.js. */
@@ -54,6 +55,16 @@ export const KpiBandsInput = z.object({ top: pct, full: pct, partial: pct, low: 
   .refine((b) => b.top >= b.full && b.full > b.partial && b.partial > b.low, { message: "الشرايح لازم تبقى بالترتيب: المكافأة ≥ الكامل > الجزئي > الـ Threshold" });
 export type KpiBandsInput = z.infer<typeof KpiBandsInput>;
 
+/** 11.18 · «الخانات اللي في الورقة» and «الجوايز» of the quarterly sheet. */
+export const KpiSheetFieldsInput = z.object({ fields: z.array(z.enum(SHEET_FIELD_KEYS as [SheetField, ...SheetField[]])).max(SHEET_FIELD_KEYS.length) });
+export type KpiSheetFieldsInput = z.infer<typeof KpiSheetFieldsInput>;
+export const KpiBonusInput = z.object({
+  minPct: z.number({ invalid_type_error: "% من التارجت" }).int("% من التارجت رقم صحيح").min(1, "% من التارجت").max(1000, "% من التارجت"),
+  amount: Money.refine((x) => Number(x) > 0, "الجايزة"),
+});
+export type KpiBonusInput = z.infer<typeof KpiBonusInput>;
+export interface KpiSheetSetup { fields: SheetField[]; bonuses: { id: string; minPct: number; amount: string }[] }
+
 /** «اعمل كارت» for someone without one (11.4): empty, or with another card's items. */
 export const KpiNewCardInput = z.object({ employeeId: Id, copyFrom: Id.optional() });
 export type KpiNewCardInput = z.infer<typeof KpiNewCardInput>;
@@ -108,6 +119,8 @@ export interface KpiCompany {
   can: { edit: boolean; close: boolean; sheets: boolean };
   /** 11.7: when the Office Manager approved and emailed the current quarter's sheets */
   sheets: { by: string; at: string } | null;
+  /** 11.18: the sheet's lines and award rules; null for the watcher (money) */
+  sheetSetup: KpiSheetSetup | null;
 }
 export interface KpiLogEntry { at: string; by: string; text: string }
 

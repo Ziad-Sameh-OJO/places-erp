@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import type { KpiBandsInput, KpiCardSummary, KpiCompany } from "@places/contracts";
+import type { KpiBandsInput, KpiCardSummary, KpiCompany, KpiSheetSetup } from "@places/contracts";
+import { SHEET_FIELD_KEYS, type SheetField } from "@places/domain";
 import { Avatar, Card, Chip, Empty, Icon, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
@@ -116,6 +117,7 @@ function Company() {
       )}
       {q.data?.can.edit && <Watchers c={q.data} />}
       {q.data?.bands && <Bands b={q.data.bands} edit={q.data.can.edit} />}
+      {q.data?.sheetSetup && <SheetSetup s={q.data.sheetSetup} edit={q.data.can.edit} />}
       {open && <KpiDrawer id={open} onClose={() => setOpen(null)} edit />}
     </>
   );
@@ -189,6 +191,34 @@ function Bands({ b, edit }: { b: KpiBandsInput; edit: boolean }) {
         </div>
         {edit && <div className="row end"><button className="btn ghost"><Icon name="check" />{t("bands.save")}</button></div>}
       </form>
+    </Card>
+  );
+}
+
+/** 11.18 · demo clients.js «الخانات اللي في الورقة» + «الجوايز»: what every quarterly sheet shows from now on. */
+function SheetSetup({ s, edit }: { s: KpiSheetSetup; edit: boolean }) {
+  const t = useTranslations("kpis");
+  const run = useAction(), refresh = useRefreshKpis();
+  const toggle = (k: SheetField, on: boolean) => void run(async () => {
+    await api.put("/kpis/sheet/fields", { fields: on ? [...s.fields, k] : s.fields.filter((x) => x !== k) }); await refresh();
+  }, t("common.saved"));
+  const add = (d: FormData) => void run(async () => {
+    await api.post("/kpis/sheet/bonuses", { minPct: Number(d.get("minPct")), amount: String(d.get("amount") ?? "") }); await refresh();
+  }, t("common.saved"));
+  const del = (id: string) => void run(async () => { await api.del(`/kpis/sheet/bonuses/${id}`); await refresh(); }, t("common.saved"));
+  return (
+    <Card title={t("sheet.title")} icon="filter" sub={t("sheet.sub")}>
+      <div className="row">
+        {SHEET_FIELD_KEYS.map((k) => <label key={k} className="tog"><input type="checkbox" checked={s.fields.includes(k)} disabled={!edit} onChange={(e) => toggle(k, e.target.checked)} />{t(`sheet.f.${k}`)}</label>)}
+      </div>
+      <h4 className="mini-h">{t("sheet.bonuses")}</h4>
+      <Table head={[t("sheet.minPct"), t("sheet.amount"), ""]} rows={s.bonuses.map((b) => [<span key="p" className="num">{b.minPct}%</span>, money(b.amount),
+        edit ? <button key="x" className="btn ghost sm" onClick={() => del(b.id)} aria-label={t("common.remove", { name: `${b.minPct}%` })}><Icon name="x" /></button> : ""])} />
+      {edit && <form className="row" onSubmit={onFormSubmit(add)}>
+        <input name="minPct" type="number" min="1" placeholder={t("sheet.minPctPh")} aria-label={t("sheet.minPctPh")} required style={{ maxWidth: 120 }} />
+        <input name="amount" type="number" min="1" placeholder={t("sheet.amount")} aria-label={t("sheet.amount")} required style={{ maxWidth: 120 }} />
+        <button className="btn ghost sm"><Icon name="plus" />{t("common.add")}</button>
+      </form>}
     </Card>
   );
 }

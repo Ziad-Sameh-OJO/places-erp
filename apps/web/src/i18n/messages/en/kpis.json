@@ -211,5 +211,22 @@
     "enteredBy": "Who enters the number",
     "roles": "Roles",
     "people": "People"
+  },
+  "sheet": {
+    "title": "Lines on the sheet",
+    "sub": "Each employee's sheet comes out at the end of the quarter with the ticked lines, and the biggest award reached",
+    "bonuses": "Awards",
+    "minPct": "If he reaches of the target",
+    "minPctPh": "% of the target",
+    "amount": "Award",
+    "f": {
+      "salary": "Salary",
+      "target": "Target",
+      "achieved": "Counted in the target",
+      "scheme": "Scheme %",
+      "commission": "Commission",
+      "transactions": "Transactions",
+      "bonus": "Awards"
+    }
   }
 }

@@ -20,6 +20,7 @@ export * from "./team-leader.ts";
 export * from "./attendance.ts";
 export * from "./leaves.ts";
 export * from "./kpi.ts";
+export * from "./kpi-sheet.ts";
 export * from "./ideal-employee.ts";
 export * from "./permissions.ts";
 export * from "./fields.ts";

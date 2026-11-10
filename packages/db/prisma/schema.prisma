@@ -1446,6 +1446,18 @@ model KpiBands {
   low        Int    @default(50)
   rewardPct  Int    @default(15)
   cutPct     Int    @default(15)
+  /// 11.18 · the lines of the employee's quarterly sheet (domain SHEET_FIELDS); demo data.js pdfFields
+  sheetFields String[] @default(["salary", "target", "achieved", "scheme", "commission", "bonus"])
+
+  @@schema("kpi")
+}
+
+/// 11.18 · «لو حقق X% من التارجت ← جايزة» on the quarterly sheet: the biggest rule reached counts (demo clients.js sheetOf).
+model KpiBonusRule {
+  id        String   @id @default(cuid())
+  minPct    Int
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
 
   @@schema("kpi")
 }
