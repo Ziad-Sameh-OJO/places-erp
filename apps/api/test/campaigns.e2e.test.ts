@@ -22,6 +22,7 @@ after(async () => {
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-C${stamp}` } } });
   await prisma.campaign.deleteMany({ where: { id: { in: campaigns } } });
   await prisma.campaignPage.deleteMany({ where: { name: { contains: stamp } } });
+  await prisma.unit.deleteMany({ where: { code: { startsWith: `U-C${stamp}` } } });
   await prisma.$disconnect();
 });
 
@@ -121,4 +122,37 @@ test("4.19 · «Page name» from «أسماء الصفحات»: add, a campaign 
   assert.equal(kept.status, 200, JSON.stringify(kept.body));
   assert.deepEqual((await prisma.auditLog.findMany({ where: { entity: "CampaignPage", entityId: pageId }, orderBy: { at: "asc" } })).map((a) => a.action), ["create", "update", "delete"]);
   await prisma.auditLog.deleteMany({ where: { entity: "CampaignPage", entityId: pageId } });
+});
+
+test("4.20 · units from the inventory sheet, no end date («مستمرة»), the budget per day × its days; stop and run again", async () => {
+  const unit = (n: number) => prisma.unit.create({ data: { code: `U-C${stamp}${n}`, type: "Rent", project: `مشروع ${stamp} ${n}`, area: "التجمع الخامس", space: 300 + n, condition: "Finished" } });
+  const [u1, u2] = [await unit(1), await unit(2)];
+  assert.equal((await call("/marketing/campaigns/units", { cookie: sales })).status, 403);
+  const options = (await call("/marketing/campaigns/units", { cookie: rahma })).body as { id: string; code: string; area: string; space: number }[];
+  assert.deepEqual(options.find((o) => o.id === u1.id) && [options.find((o) => o.id === u1.id)!.code, options.find((o) => o.id === u1.id)!.space], [`U-C${stamp}1`, 301]);
+  const cairo = (d: number) => new Date(Date.now() - d * 86_400_000).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  const today = cairo(0), start = cairo(2);
+  const daily = { name: `E2E per day ${stamp}`, channel, startsOn: start, dailyBudget: "1500", spent: "1000" };
+  assert.equal((await call("/marketing/campaigns", { method: "POST", cookie: rahma, body: { ...daily, unitIds: ["مش وحدة"] } })).status, 400);
+  const made = await call("/marketing/campaigns", { method: "POST", cookie: rahma, body: { ...daily, unitIds: [u1.id, u2.id] } });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  const id = made.body.id as string;
+  campaigns.push(id);
+  const row = async () => (await call("/marketing/campaigns", { cookie: rahma })).body.find((c: { id: string }) => c.id === id);
+  let c = await row();
+  // 3 days so far (start, yesterday, today) × 1,500
+  assert.deepEqual([c.endsOn, c.live, c.dailyBudget, c.days, c.budget], [null, true, "1500.00", 3, "4500.00"]);
+  assert.deepEqual(c.units.map((u: { code: string }) => u.code).sort(), [`U-C${stamp}1`, `U-C${stamp}2`]);
+  assert.equal(c.target, `مشروع ${stamp} 1، مشروع ${stamp} 2`);
+  // «وقّفها النهارده»: it ends today; the units can change; then it runs again
+  assert.equal((await call(`/marketing/campaigns/${id}`, { method: "PUT", cookie: rahma, body: { ...daily, endsOn: today, unitIds: [u2.id] } })).status, 200);
+  c = await row();
+  assert.deepEqual([c.endsOn, c.days, c.budget, c.units.length], [today, 3, "4500.00", 1]);
+  assert.equal((await call(`/marketing/campaigns/${id}`, { method: "PUT", cookie: rahma, body: { ...daily, endsOn: null, unitIds: [u2.id] } })).status, 200);
+  assert.equal((await row()).endsOn, null);
+  // a unit it already has stays pickable after it's no longer available
+  await prisma.unit.update({ where: { id: u2.id }, data: { status: "rented" } });
+  assert.ok(((await call(`/marketing/campaigns/units?campaignId=${id}`, { cookie: rahma })).body as { id: string }[]).some((o) => o.id === u2.id));
+  assert.equal((await call(`/marketing/campaigns/${id}`, { method: "PUT", cookie: rahma, body: { ...daily, unitIds: [u2.id] } })).status, 200);
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Campaign", entityId: id } }), 4);
 });

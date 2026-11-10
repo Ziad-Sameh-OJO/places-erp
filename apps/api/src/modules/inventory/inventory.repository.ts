@@ -63,6 +63,14 @@ export class InventoryRepository {
     return this.db.unit.findMany({ where: openSearch(q, true), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
   }
 
+  /** 4.20 · a campaign's unit picker: the available units (drafts too), and the ones it already targets whatever their state. */
+  forCampaigns(keep: string[]) {
+    return this.db.unit.findMany({
+      where: { OR: [openSearch(undefined, true), ...(keep.length ? [{ id: { in: keep } }] : [])] },
+      select: { id: true, code: true, project: true, type: true, area: true, space: true }, orderBy: { code: "asc" },
+    });
+  }
+
   /** «سجّل صفقة» (M-02): the same open, confirmed units, with what the deal takes from them (type, agent = Seller). */
   forDeal(q: string | undefined, take: number) {
     return this.db.unit.findMany({ where: openSearch(q), select: DEAL_UNIT, orderBy: { code: "asc" }, take });

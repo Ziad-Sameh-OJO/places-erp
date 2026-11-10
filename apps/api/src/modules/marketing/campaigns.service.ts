@@ -1,14 +1,17 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CampaignInput, CampaignRow, DashboardQuery, MarketingDashboard, PageNameRow } from "@places/contracts";
-import { allowedValue, channelTree, qualificationRate, costPerLead, dayStart, fromDecimal, isCampaignLive, leadsByPost, localDate, pageNameProblem, toDecimal } from "@places/domain";
+import type { CampaignInput, CampaignRow, CampaignUnitOption, DashboardQuery, MarketingDashboard, PageNameRow } from "@places/contracts";
+import {
+  allowedValue, campaignBudget, campaignDays, channelTree, qualificationRate, costPerLead, dayStart, fromDecimal, isCampaignLive, leadsByPost, localDate, pageNameProblem, toDecimal,
+} from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
+import { InventoryService } from "../inventory/inventory.service";
 import { SettingsService } from "../settings/settings.service";
-import { CampaignsRepository } from "./campaigns.repository";
+import { CAMPAIGN, CampaignsRepository } from "./campaigns.repository";
 
-type Campaign = Prisma.CampaignGetPayload<object>;
+type Campaign = Prisma.CampaignGetPayload<typeof CAMPAIGN>;
 const NO_CAMPAIGN = "الكامبين دي مش موجودة";
 const NO_PAGE = "اسم الصفحة ده مش موجود";
 
@@ -20,7 +23,26 @@ export class CampaignsService {
     private readonly repo: CampaignsRepository,
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
+    private readonly inventory: InventoryService,
   ) {}
+
+  /** 4.20 · the unit picker: the available units, plus the ones this campaign already targets. */
+  async unitOptions(me: CurrentUser, campaignId?: string): Promise<CampaignUnitOption[]> {
+    const c = campaignId ? await this.repo.find(campaignId) : null;
+    return this.inventory.forCampaigns(me, c ? c.units.map((x) => x.unit.id) : []);
+  }
+
+  /**
+   * The units picked must be available (or already on the campaign); the target text becomes their projects (demo
+   * `targetText`), so the dashboard and old screens still read it.
+   */
+  private async pickUnits(me: CurrentUser, input: CampaignInput, before: Campaign | null): Promise<CampaignInput> {
+    if (!input.unitIds.length) return input;
+    const options = new Map((await this.inventory.forCampaigns(me, before ? before.units.map((x) => x.unit.id) : [])).map((u) => [u.id, u]));
+    if (input.unitIds.some((id) => !options.has(id))) throw new BadRequestException("فيه وحدة مش متاحة في الانفنتوري");
+    const unitIds = [...new Set(input.unitIds)];
+    return { ...input, unitIds, target: [...new Set(unitIds.map((id) => options.get(id)!.project))].join("، ").slice(0, 200) };
+  }
 
   async list(me: CurrentUser, now = new Date()): Promise<CampaignRow[]> {
     const rows = await this.repo.list();
@@ -72,10 +94,11 @@ export class CampaignsService {
   async create(me: CurrentUser, input: CampaignInput): Promise<{ id: string }> {
     await this.checkChannel(input.channel, null);
     await this.checkPage(input.page, null);
-    input = keepFixed(input, null, me.fields.fixed("marketing"));
+    input = await this.pickUnits(me, keepFixed(input, null, me.fields.fixed("marketing")), null);
     const data = toData(input);
     return this.db.$transaction(async (tx) => {
       const c = await this.repo.create(tx, data);
+      await this.repo.setUnits(tx, c.id, input.unitIds);
       await this.audit.record({ module: "marketing", entity: "Campaign", entityId: c.id, action: "create", userId: me.id, after: { ...input } }, tx);
       return { id: c.id };
     });
@@ -87,9 +110,10 @@ export class CampaignsService {
     if (!before) throw new NotFoundException(NO_CAMPAIGN);
     await this.checkChannel(input.channel, before.channel);
     await this.checkPage(input.page, before.page);
-    input = keepFixed(input, before, me.fields.fixed("marketing"));
+    input = await this.pickUnits(me, keepFixed(input, before, me.fields.fixed("marketing")), before);
     await this.db.$transaction(async (tx) => {
       await this.repo.update(tx, id, toData(input));
+      await this.repo.setUnits(tx, id, input.unitIds);
       await this.audit.record({ module: "marketing", entity: "Campaign", entityId: id, action: "update", userId: me.id, before: plain(before), after: { ...input } }, tx);
     });
     return { id };
@@ -167,21 +191,24 @@ const money = (d: Prisma.Decimal) => d.toFixed(2);
 
 function toData(c: CampaignInput) {
   return {
-    name: c.name, channel: c.channel, startsOn: new Date(`${c.startsOn}T00:00:00Z`), endsOn: new Date(`${c.endsOn}T00:00:00Z`),
-    budget: c.budget, spent: c.spent, target: c.target ?? null, page: c.page ?? null, adUrl: c.adUrl ?? null, note: c.note ?? null,
+    name: c.name, channel: c.channel, startsOn: new Date(`${c.startsOn}T00:00:00Z`), endsOn: c.endsOn ? new Date(`${c.endsOn}T00:00:00Z`) : null,
+    budget: c.budget, dailyBudget: c.dailyBudget ?? null, spent: c.spent, target: c.target ?? null, page: c.page ?? null, adUrl: c.adUrl ?? null, note: c.note ?? null,
   };
 }
 
 /** The audit's «before»: days and money as on the wire. */
 const plain = (c: Campaign) => ({
-  name: c.name, channel: c.channel, startsOn: day(c.startsOn), endsOn: day(c.endsOn), budget: money(c.budget), spent: money(c.spent),
-  target: c.target, page: c.page, adUrl: c.adUrl, note: c.note,
+  name: c.name, channel: c.channel, startsOn: day(c.startsOn), endsOn: c.endsOn ? day(c.endsOn) : null, budget: money(c.budget),
+  dailyBudget: c.dailyBudget ? money(c.dailyBudget) : null, spent: money(c.spent), target: c.target, page: c.page, adUrl: c.adUrl, note: c.note,
+  units: c.units.map((x) => x.unit),
 });
 
 function toRow(c: Campaign, n: { leads: number; qualified: number }, today: string): CampaignRow {
   const cost = costPerLead(fromDecimal(money(c.spent)), n.leads);
+  const p = plain(c), period = { startsOn: p.startsOn, endsOn: p.endsOn };
+  const budget = campaignBudget({ ...period, dailyBudget: p.dailyBudget === null ? null : fromDecimal(p.dailyBudget), budget: fromDecimal(p.budget) }, today);
   return {
-    ...plain(c), id: c.id, live: isCampaignLive({ startsOn: day(c.startsOn), endsOn: day(c.endsOn) }, today),
+    ...p, id: c.id, budget: toDecimal(budget), days: campaignDays(period, today), live: isCampaignLive(period, today),
     leads: n.leads, qualified: n.qualified, costPerLead: cost === null ? null : toDecimal(cost),
   };
 }
@@ -194,8 +221,8 @@ function hideFields(r: CampaignRow, hidden: ReadonlySet<string>): CampaignRow {
   if (!hidden.size) return r;
   const h = (k: string) => hidden.has(k);
   return {
-    ...r, budget: h("budget") ? "" : r.budget, spent: h("spent") ? "" : r.spent, costPerLead: h("costPerLead") ? null : r.costPerLead,
-    target: h("target") ? null : r.target, adUrl: h("adUrl") ? null : r.adUrl, note: h("note") ? null : r.note,
+    ...r, budget: h("budget") ? "" : r.budget, dailyBudget: h("budget") ? null : r.dailyBudget, spent: h("spent") ? "" : r.spent, costPerLead: h("costPerLead") ? null : r.costPerLead,
+    target: h("target") ? null : r.target, units: h("target") ? [] : r.units, adUrl: h("adUrl") ? null : r.adUrl, note: h("note") ? null : r.note,
   };
 }
 
@@ -205,7 +232,9 @@ function keepFixed(input: CampaignInput, before: Campaign | null, fixed: Readonl
   const f = (k: string) => fixed.has(k);
   return {
     ...input,
-    budget: f("budget") ? (before ? money(before.budget) : "0") : input.budget, spent: f("spent") ? (before ? money(before.spent) : "0") : input.spent,
+    budget: f("budget") ? (before ? money(before.budget) : "0") : input.budget,
+    dailyBudget: f("budget") ? (before?.dailyBudget ? money(before.dailyBudget) : undefined) : input.dailyBudget,
+    unitIds: f("target") ? before?.units.map((x) => x.unit.id) ?? [] : input.unitIds, spent: f("spent") ? (before ? money(before.spent) : "0") : input.spent,
     target: f("target") ? before?.target ?? undefined : input.target, adUrl: f("adUrl") ? before?.adUrl ?? undefined : input.adUrl,
     note: f("note") ? before?.note ?? undefined : input.note,
   };

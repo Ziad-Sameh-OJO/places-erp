@@ -1,8 +1,10 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import type { CampaignInput, CampaignRow } from "@places/contracts";
+import { useQuery } from "@tanstack/react-query";
+import type { CampaignInput, CampaignRow, CampaignUnitOption } from "@places/contracts";
 import { Chip, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
-import { day, money, short } from "@/lib/format";
+import { api } from "@/lib/api";
+import { day, money, num, short } from "@/lib/format";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { useFields, useMe } from "@/lib/me";
@@ -19,10 +21,13 @@ export function Campaigns() {
   // M-09 field permissions: a hidden field's column is left out (the API blanks its value anyway)
   const fields = useFields("marketing");
   const cols: [string, (c: CampaignRow) => ReactNode, string?][] = [
-    [t("head.campaign"), (c) => <span key="n"><b>{c.name}</b>{c.target && <span className="sub">{c.target}</span>}</span>],
+    [t("head.campaign"), (c) => <span key="n"><b>{c.name}</b>{c.units.length ? <span className="sub">{c.units.map((u) => <span key={u.id}><span className="mono">{u.code}</span> {u.project} </span>)}</span> : c.target && <span className="sub">{c.target}</span>}</span>],
     [t("head.source"), (c) => <span key="ch">{serverText(c.channel)}{c.page && <span className="sub">{c.page}</span>}</span>],
-    [t("head.period"), (c) => <span key="p">{day(c.startsOn)} → {day(c.endsOn)}<span className="sub"><LiveChip c={c} /></span></span>],
-    [t("head.budget"), (c) => <span key="b" className="n">{money(c.budget)}</span>, "budget"],
+    [t("head.period"), (c) => <span key="p">{day(c.startsOn)} → {c.endsOn ? day(c.endsOn) : t("ongoing")}<span className="sub"><LiveChip c={c} /></span></span>],
+    // 4.20 · per day, and under it what that adds up to so far (per day × the days); a campaign from before shows its total
+    [t("head.budget"), (c) => c.dailyBudget ? (
+      <span key="b" className="n">{t("perDay", { amount: money(c.dailyBudget) })}<span className="sub">{t(c.endsOn && c.endsOn < cairoToday() ? "soFarEnded" : "soFar", { total: money(c.budget), days: c.days })}</span></span>
+    ) : <span key="b" className="n">{money(c.budget)}</span>, "budget"],
     [t("head.spent"), (c) => <SpentBar key="s" c={c} />, "spent"],
     [t("head.leads"), (c) => <span key="l" className="n">{c.leads}</span>],
     ["Qualified", (c) => <span key="q" className="n">{c.qualified}</span>],
@@ -85,12 +90,51 @@ function PageNames({ onClose }: { onClose: () => void }) {
   );
 }
 
+const cairoToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+
 /** The demo's «شغالة» / «خلصت», plus one that hasn't started yet. */
 function LiveChip({ c }: { c: CampaignRow }) {
   const t = useTranslations("marketing.campaigns.live");
   if (c.live) return <Chip tone="ok">{t("on")}</Chip>;
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
-  return c.startsOn > today ? <Chip tone="info">{t("soon")}</Chip> : <Chip>{t("over")}</Chip>;
+  return c.startsOn > cairoToday() ? <Chip tone="info">{t("soon")}</Chip> : <Chip>{t("over")}</Chip>;
+}
+
+/**
+ * 4.20 · «الوحدات المستهدفة (من شيت الانفنتوري)» (demo `unitPicker`): a table of the available units (and the ones the
+ * campaign already has) with a fixed header, a search by code, project or area, and «N متحددة».
+ */
+function UnitPicker({ campaignId, picked, onChange }: { campaignId: string | null; picked: string[]; onChange: (ids: string[]) => void }) {
+  const t = useTranslations("marketing.campaigns.form");
+  const [q, setQ] = useState("");
+  const units = useQuery({ queryKey: ["campaign-units", campaignId], queryFn: () => api.get<CampaignUnitOption[]>(`/marketing/campaigns/units${campaignId ? `?campaignId=${campaignId}` : ""}`) }).data ?? [];
+  const inv = useFields("inventory"); // M-09: the area and space follow the inventory's field rules
+  const needle = q.trim().toLowerCase();
+  const list = units.filter((u) => !needle || `${u.code} ${u.project} ${u.area} ${u.type}`.toLowerCase().includes(needle));
+  const toggle = (id: string) => onChange(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
+  return (
+    <div className="field wide">
+      <span>{t("units")} <small className="hint">{t("picked", { n: picked.length })}</small></span>
+      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("unitSearch")} aria-label={t("unitSearch")} />
+      <div className="unit-pick">
+        <table className="unit-pick-t">
+          <thead><tr><th /><th>Code</th><th>Project</th><th>Type</th>{inv.shows("area") && <th>{t("area")}</th>}{inv.shows("space") && <th>{t("space")}</th>}</tr></thead>
+          <tbody>
+            {list.map((u) => (
+              <tr key={u.id} className="unit-pick-row">
+                <td><input type="checkbox" id={`cpu-${u.id}`} checked={picked.includes(u.id)} onChange={() => toggle(u.id)} aria-label={u.code} /></td>
+                <td className="mono"><label htmlFor={`cpu-${u.id}`}>{u.code}</label></td>
+                <td><label htmlFor={`cpu-${u.id}`}>{u.project}</label></td>
+                <td>{u.type}</td>
+                {inv.shows("area") && <td>{serverText(u.area)}</td>}
+                {inv.shows("space") && <td className="n">{num(u.space)}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!list.length && <p className="hint">{t("noUnits")}</p>}
+      </div>
+    </div>
+  );
 }
 
 function SpentBar({ c }: { c: CampaignRow }) {
@@ -107,6 +151,9 @@ function CampaignForm({ campaign: c, onClose }: { campaign: CampaignRow | null; 
   const { save, archive, addPage } = useCampaignActions();
   const pages = (usePages().data ?? []).map((p) => p.name);
   const [page, setPage] = useState(c?.page ?? "");
+  const [units, setUnits] = useState<string[]>(c?.units.map((u) => u.id) ?? []);
+  const today = cairoToday();
+  const stopped = !!c?.endsOn && c.endsOn <= today;
   const options = c && !channels.includes(c.channel) ? [c.channel, ...channels] : channels; // keeps a channel switched off since
   // M-09 field permissions: a hidden field has no input; a read-only one is shown locked (the API keeps it either way)
   const fields = useFields("marketing");
@@ -119,10 +166,13 @@ function CampaignForm({ campaign: c, onClose }: { campaign: CampaignRow | null; 
         // «+ اسم جديد…»: the name joins «أسماء الصفحات» first (demo pickedPage)
         const pageName = page === NEW_PAGE ? text("pageNew") : page;
         if (page === NEW_PAGE && pageName && !pages.includes(pageName)) await addPage(pageName);
+        // 4.20 · no end date: «مستمرة» until «وقّفها النهارده» (an end already passed stays as it was), or back on (demo campEdit)
+        const endsOn = text("state") === "off" ? (stopped ? c!.endsOn : today) : null;
         const body: CampaignInput = {
-          name: text("name"), channel: text("channel"), startsOn: text("startsOn"), endsOn: text("endsOn"), ...(pageName ? { page: pageName } : {}),
-          budget: text("budget") || "0", spent: text("spent") || "0",
-          ...(text("target") ? { target: text("target") } : {}), ...(text("adUrl") ? { adUrl: text("adUrl") } : {}), ...(text("note") ? { note: text("note") } : {}),
+          name: text("name"), channel: text("channel"), startsOn: text("startsOn"), endsOn, ...(pageName ? { page: pageName } : {}),
+          budget: c && !c.dailyBudget ? c.budget || "0" : "0", ...(text("daily") ? { dailyBudget: text("daily") } : {}), spent: text("spent") || (c ? c.spent || "0" : "0"),
+          unitIds: units, ...(!units.length && c?.target ? { target: c.target } : {}),
+          ...(text("adUrl") ? { adUrl: text("adUrl") } : {}), ...(text("note") ? { note: text("note") } : {}),
         };
         await save(c?.id ?? null, body);
         onClose();
@@ -140,11 +190,18 @@ function CampaignForm({ campaign: c, onClose }: { campaign: CampaignRow | null; 
           </select>
           {page === NEW_PAGE && <input name="pageNew" required autoFocus placeholder={t("pageNewPh")} aria-label={t("pageNewPh")} />}
         </Field>
-        <Field label={t("start")} req><input name="startsOn" type="date" required defaultValue={c?.startsOn ?? ""} /></Field>
-        <Field label={t("end")} req><input name="endsOn" type="date" required defaultValue={c?.endsOn ?? ""} /></Field>
-        {only("budget", <Field label={t("budget")}><input name="budget" inputMode="decimal" defaultValue={c ? c.budget : ""} /></Field>)}
-        {only("spent", <Field label={t("spent")}><input name="spent" inputMode="decimal" defaultValue={c ? c.spent : ""} /></Field>)}
-        {only("target", <Field label={t("target")}><input name="target" defaultValue={c?.target ?? ""} /></Field>)}
+        <Field label={t("start")} req><input name="startsOn" type="date" required defaultValue={c?.startsOn ?? today} /></Field>
+        {only("budget", <Field label={t("daily")} req={!c}><input name="daily" inputMode="decimal" required={!c} defaultValue={c?.dailyBudget ?? ""} placeholder={c && !c.dailyBudget && c.budget ? t("before", { total: money(c.budget) }) : ""} /></Field>)}
+        {c && only("spent", <Field label={t("spent")}><input name="spent" inputMode="decimal" defaultValue={c.spent} /></Field>)}
+        {c && (
+          <Field label={t("state")}>
+            <select name="state" defaultValue={stopped ? "off" : "on"}>
+              <option value="on">{t("on")}</option>
+              <option value="off">{stopped ? t("offOn", { date: day(c.endsOn!) }) : t("off")}</option>
+            </select>
+          </Field>
+        )}
+        {only("target", <UnitPicker campaignId={c?.id ?? null} picked={units} onChange={setUnits} />)}
         {only("adUrl", <Field label={t("adUrl")}><input name="adUrl" type="url" dir="ltr" defaultValue={c?.adUrl ?? ""} /></Field>)}
         {only("note", <Field label={t("note")} wide><textarea name="note" defaultValue={c?.note ?? ""} /></Field>)}
         <div className="row end wide">
