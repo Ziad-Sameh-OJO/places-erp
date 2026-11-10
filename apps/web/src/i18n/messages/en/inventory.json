@@ -271,7 +271,8 @@
     "noKey": "Without «{column}»: {count}",
     "sample": "Showing the first {shown} rows of {total}.",
     "merge": "Merge",
-    "rows": "{count} rows"
+    "rows": "{count} rows",
+    "intoTitle": "Upload a sheet into {name}"
   },
   "teamTasks": {
     "sent": "Task sent",
@@ -325,7 +326,40 @@
     "reason": "Reason",
     "reasonExample": "e.g. not the unit's owner",
     "save": "Save",
-    "doneTitle": "Done · new unit from {name}"
+    "doneTitle": "Done · new unit from {name}",
+    "files": {
+      "note": "Every Not Active sheet has a file with its name, and files are grouped in folders. Make a new file, name it, and upload the sheet straight into it.",
+      "mineNote": "These are the files with numbers Manar sent you. Open a file and classify each number.",
+      "search": "Search by file or folder name",
+      "new": "New file",
+      "noFolder": "No folder",
+      "noMatch": "No file with this name",
+      "none": "No files yet · make a new file and upload the sheet into it",
+      "rows": "{count} rows",
+      "made": "Made {day}",
+      "waiting": "{count} awaiting classification",
+      "allDone": "All classified",
+      "empty": "Empty · upload a sheet",
+      "all": "All files",
+      "rename": "Rename / move",
+      "inNote": "Upload the sheet straight into this file. Any number already in the main inventory sends you an Alarm to set its status.",
+      "upload": "Upload the sheet (Excel / CSV)",
+      "uploadMore": "Upload another sheet into the file (Excel / CSV)",
+      "emptyTitle": "The file is empty",
+      "emptyUp": "Upload the sheet (Excel or CSV) and its columns become the file's columns.",
+      "emptyView": "Nobody has uploaded a sheet into this file yet.",
+      "renameTitle": "Rename the file",
+      "newTitle": "New file · Not Active Inventory",
+      "name": "File name",
+      "nameExample": "e.g. CFC · November",
+      "folder": "Folder (optional)",
+      "folderHint": "Pick a folder or type a new folder name",
+      "sheet": "The sheet (Excel / CSV · optional, you can upload it later)",
+      "pickSheet": "Choose an Excel or CSV file",
+      "make": "Make the file",
+      "saved": "Saved",
+      "made2": "The file «{name}» was made · upload the sheet into it"
+    }
   },
   "listOfOptions": {
     "bar": "Picked units",

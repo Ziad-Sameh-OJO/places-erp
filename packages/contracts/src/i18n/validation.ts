@@ -304,6 +304,10 @@ export default [
   ["اكتب النوت", "Enter the note"],
   // not-active.ts
   ["اكتب اسم الشيت", "Enter the sheet name"],
+  ["اكتب اسم الملف", "Enter the file name"],
+  ["اسم الفولدر طويل", "The folder name is too long"],
+  ["فيه ملف بنفس الاسم · اختار اسم تاني", "There's a file with the same name · choose another name"],
+  ["مش مسموح لك تعمل ملفات أو ترفع شيتات في الـ Not Active", "You're not allowed to make files or upload sheets in Not Active"],
   ["اسم الشيت طويل", "The sheet name is too long"],
   ["اختار خانة منع التكرار", "Choose the de-duplication column"],
   ["اختار خانة الرقم", "Choose the number column"],
