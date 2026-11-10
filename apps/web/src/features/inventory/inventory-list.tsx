@@ -111,7 +111,7 @@ export function InventoryList() {
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
       <div className="toolbar">
-        <label className="search"><Icon name="search" /><input type="search" placeholder={insider ? t("list.searchInsider") : t("list.search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("list.searchLabel")} /></label>
+        <label className="search"><Icon name="search" /><input type="search" placeholder={insider && fields.shows("ownerName") ? t("list.searchInsider") : t("list.search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("list.searchLabel")} /></label>
         {fields.shows("area") && <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
           <option value="">{t("list.allAreas")}</option>{options?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
         </select>}

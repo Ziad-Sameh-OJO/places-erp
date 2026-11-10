@@ -3,7 +3,7 @@ import type { Prisma, PrismaClient } from "@places/db";
 import type { AuditFilters, Matrix, Overrides, RoleFieldsInput, RoleInput, RoleUpdate, UserFilters, UserInput, UserUpdate } from "@places/contracts";
 import {
   ACTIONS, ACTION_LABEL, type Action, type DataScope, MODULES, MODULE_LABEL, type ModuleKey, OPS_HEAD, effectiveGrants, keepsAccessAdmin,
-  type FieldMode, type FieldRules, fieldRuleProblem, normalizeActions, teamUnder, withinOwnPermissions,
+  type FieldMode, type FieldRules, defaultFieldRules, fieldRuleProblem, normalizeActions, teamUnder, withinOwnPermissions,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -221,6 +221,7 @@ export class AccessService {
       const r = await tx.role.create({ data: { key, label: b.label, tier: b.tier, scope: up(b.scope), behavesLike: b.behavesLike ?? from?.behavesLike ?? from?.key ?? "sales" } });
       const perms = from ? from.permissions.map((p) => ({ roleId: r.id, module: p.module, actions: p.actions })) : [{ roleId: r.id, module: "home", actions: ["view"] }];
       await tx.rolePermission.createMany({ data: perms });
+      await tx.roleFieldRule.createMany({ data: defaultFieldRules(key).map((f) => ({ roleId: r.id, ...f })) }); // 2.36: the unit's owner and agent stay hidden
       await this.audit.record({ module: "access", entity: "Role", entityId: r.id, action: "create", userId: me.id, after: b }, tx);
       return r;
     });

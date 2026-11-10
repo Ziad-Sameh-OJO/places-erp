@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 import { hash } from "@node-rs/argon2";
 import { prisma } from "../src/index.ts";
+import { defaultFieldRules } from "@places/domain";
 
 interface SeedRole { key: string; label: string; tier: string; scope: "own" | "team" | "dept" | "all"; permissions: Record<string, string[]> }
 interface SeedKpiItem {
@@ -41,7 +42,8 @@ async function main() {
     const existing = await prisma.role.findUnique({ where: { key: r.key } });
     // a role that already exists keeps whatever the admin changed in its matrix
     const role = existing ?? (await prisma.role.create({ data: { key: r.key, ...data,
-      permissions: { create: Object.entries(r.permissions).map(([module, actions]) => ({ module, actions })) } } }));
+      permissions: { create: Object.entries(r.permissions).map(([module, actions]) => ({ module, actions })) },
+      fieldRules: { create: defaultFieldRules(r.key).map(({ module, field, mode }) => ({ module, field, mode })) } } })); // 2.36
     roleIds.set(r.key, role.id);
   }
 

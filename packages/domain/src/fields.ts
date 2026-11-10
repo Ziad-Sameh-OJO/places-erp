@@ -35,12 +35,25 @@ export interface FieldDef {
   required?: boolean;
   /** what goes with it: derived values (the total from the price) and the other names screens give it */
   covers?: readonly string[];
+  /** entered on a new record even by a role it's hidden from (write, not read: 2.36 the unit's owner and agent) */
+  writeOnCreate?: boolean;
 }
 
 /** Module by module (one file each, so modules are added side by side); a module with no fields isn't offered. */
 export const FIELDS: Partial<Record<ModuleKey, readonly FieldDef[]>> = Object.fromEntries(
   Object.entries({ inventory, leads, deals, clients, contracts, notactive, tasks, marketing, hr, tickets, finance, procurement, reports, kpis, access }).filter(([, f]) => f.length),
 );
+
+/**
+ * 2.36 · the field rules a role starts with (seed, a new custom role): the unit's owner (Contact / Number, Resale's
+ * «اسم الأونر», Income's «الاسم») and its Agent are the Inventory Manager's only — even the Super Admin doesn't see them
+ * (Ahmed's request, demo inventory.js `seesUnitPrivate`). The admin can show them to a role later in the matrix.
+ */
+export const UNIT_PRIVATE_FIELDS = ["ownerName", "ownerPhone", "agent"] as const;
+export const UNIT_PRIVATE_ROLE = "inventory";
+export function defaultFieldRules(roleKey: string): { module: ModuleKey; field: string; mode: FieldMode }[] {
+  return roleKey === UNIT_PRIVATE_ROLE ? [] : UNIT_PRIVATE_FIELDS.map((field) => ({ module: "inventory", field, mode: "hide" }));
+}
 
 /** The rules that differ from «show», module by module: a role's, or a person's merged from their roles. */
 export type FieldRules = Partial<Record<ModuleKey, Readonly<Record<string, FieldMode>>>>;

@@ -3,7 +3,7 @@ import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode }
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { activeValues, type AreaTabView, type CreatedUnit, type UnitDetail, type UnitOptions } from "@places/contracts";
-import { areaTabLabel, fromDecimal, incomeFigures, toDecimal, unitAreaTab, unitFiguresFit, unitTotal } from "@places/domain";
+import { FIELDS, areaTabLabel, fromDecimal, incomeFigures, toDecimal, unitAreaTab, unitFiguresFit, unitTotal } from "@places/domain";
 import { Field, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { moneyExact } from "@/lib/format";
@@ -13,6 +13,8 @@ import { useFields } from "@/lib/me";
 import { MapView, parseLocation } from "./unit-map";
 import { FileUpload } from "@/components/file-upload";
 
+/** 2.36 · the fields a new unit takes even from someone they are hidden from (domain FieldDef.writeOnCreate). */
+const WRITE_ON_CREATE = new Set((FIELDS.inventory ?? []).filter((x) => x.writeOnCreate).map((x) => x.key));
 type Key =
   | "type" | "project" | "area" | "space" | "condition" | "floor" | "building" | "parking" | "agentId" | "areaTabId" | "location"
   | "receivedAt" | "lastOwnerUpdateAt" | "divisible" | "minSplit" | "splitNote" | "ownerName" | "ownerPhone" | "pricePerSqm"
@@ -166,7 +168,8 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
   // M-09 field permissions: a hidden field has no input; a read-only one is shown locked (the API keeps it either way)
   const fields = useFields("inventory");
   const only = (key: string, node: ReactNode): ReactNode =>
-    !fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
+    !unit && WRITE_ON_CREATE.has(key) ? node // 2.36: the owner and agent are entered on a new unit, then they are the Inventory Manager's
+      : !fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
 
   const input = ([k, label, kind, req]: TypeField): ReactNode => only(k,
     <Field key={k} label={typeof label === "string" ? label : t(`cols.${label.w}`)} req={req} wide={k === "note" || k === "comment"}>
