@@ -21,7 +21,19 @@
     "companyTitle": "شركة جديدة: {name}",
     "companySub": "محتاجة تتضاف لشيت الشركات بكاتيجوري",
     "companySheet": "شيت الشركات",
-    "tlNote": "ملاحظة TL على {name}"
+    "tlNote": "ملاحظة TL على {name}",
+    "newLeadTitle": "New Lead من Telesales: {name}",
+    "newLeadLate": "اتأخرت {n} دقيقة · بيتحسب عليكي في الـ KPIs",
+    "newLeadLeft": "باقي {n} دقيقة عشان يتحسب في الميعاد",
+    "decide": "قرّر",
+    "backTitle": "رجعلك في الروتيشن التالت: {name}",
+    "backSub": "كلّميه تاني",
+    "draftItem": "{name} ({stage} · {from})",
+    "postponeTitle": "تأجيل {kind}: {name}",
+    "postponeSub": "{sales} · {at} · السبب: {reason}",
+    "noAnswerTitle": "كلّم {name} (No Answer)",
+    "noAnswerSub": "تنبيه كل {h} ساعات · سجّل المكالمة عشان يتقفل",
+    "sep": "، "
   },
   "bulkBar": {
     "applied": "اتطبّق على {count} ليد",

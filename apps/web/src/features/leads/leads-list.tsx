@@ -55,6 +55,8 @@ export function LeadsList() {
   }, []);
   useEffect(() => { if (canCreate && new URLSearchParams(window.location.search).get("new") === "1") setCreating(true); }, [canCreate]);
   const [draftTab, setDraftTab] = useState<DraftKind | null>(null);
+  // «/leads?draft=admin»: the Draft Admin Alarm on «مهامي النهارده» (1.34) opens that tab (only shown to whom may see it)
+  useEffect(() => { const d = new URLSearchParams(window.location.search).get("draft"); if (d === "draft" || d === "admin") setDraftTab(d); }, []);
   // the bulk bar's picks (demo shell.js): whoever may change leads or hand them out; cleared when the list changes
   const [picked, setPicked] = useState<string[]>([]);
   const canPick = can("leads", "edit") || can("leads", "approve");
