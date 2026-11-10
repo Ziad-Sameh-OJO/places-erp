@@ -120,6 +120,12 @@ export class AttendanceService {
     });
   }
 
+  /** 0.18 · demo home.js «… نسي البصمة · محتاج Confirmation لخصم يوم»: every day waiting for HR, in the caller's scope. */
+  async forgotWaiting(me: CurrentUser): Promise<{ id: string; name: string; day: string }[]> {
+    const rows = await this.db.attendanceDay.findMany({ where: { kind: "FORGOT", hrConfirmed: false, employee: this.scope(me) }, select: { id: true, day: true, employee: { select: { name: true } } }, orderBy: { day: "asc" }, take: 100 });
+    return rows.map((a) => ({ id: a.id, name: a.employee.name, day: isoDay(a.day) }));
+  }
+
   async day(me: CurrentUser, day = localDate(new Date())): Promise<AttendanceDayView> {
     const cal = await this.time.calendar();
     const [emps, rows, unmatched, holiday, onLeave] = await Promise.all([

@@ -7,11 +7,12 @@ import { OfficeAssetsRepository } from "./office-assets.repository";
 import { PurchasesController } from "./purchases.controller";
 import { PurchasesService } from "./purchases.service";
 import { PurchasesRepository } from "./purchases.repository";
+import { ProcurementTodayController } from "./today.controller";
 
 /** M-08 · المشتريات: purchase requests through approval to finance's payment (10.1–10.3), the office assets register and the office boys' rota (10.4). */
 @Module({
   imports: [FinanceModule, SettingsModule],
-  controllers: [PurchasesController, OfficeAssetsController],
+  controllers: [PurchasesController, OfficeAssetsController, ProcurementTodayController],
   providers: [PurchasesService, PurchasesRepository, OfficeAssetsService, OfficeAssetsRepository],
 })
 export class ProcurementModule {}
