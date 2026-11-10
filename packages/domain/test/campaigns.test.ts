@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { channelTree, costPerLead, isCampaignLive, leadsByPost, qualificationRate } from "../src/campaigns.ts";
+import { channelTree, costPerLead, isCampaignLive, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
 import { fromDecimal, toDecimal } from "../src/money.ts";
 
 test("M-04 3.2: qualification rate = Qualified ÷ Total × 100 (campaign «X» 120 leads, 30 Qualified → 25%)", () => {
@@ -35,4 +35,13 @@ test("M-04 3.2: Facebook = 320 leads, campaign «X» = 120 and «Y» = 200; Qual
   assert.equal(fb!.noCampaign, 0);
   assert.deepEqual([ig!.leads, ig!.noCampaign, ig!.rate], [2, 2, 0]);
   assert.deepEqual(leadsByPost(arrivals), [{ post: "ريلز المول", leads: 10 }, { post: "ستوري", leads: 2 }]);
+});
+
+test("4.19 · page names: Website · Property Finder · Dubizzle; a name twice (any case) or empty is refused, renaming to itself isn't", () => {
+  const names = ["Website", "Property Finder", "Dubizzle"];
+  assert.equal(pageNameProblem(names, "Bayut"), null);
+  assert.equal(pageNameProblem(names, " website "), "الاسم ده موجود");
+  assert.equal(pageNameProblem(names, "  "), "اكتب اسم الصفحة");
+  assert.equal(pageNameProblem(names, "Dubizzle", "Dubizzle"), null);
+  assert.equal(pageNameProblem(names, "Website", "Dubizzle"), "الاسم ده موجود");
 });

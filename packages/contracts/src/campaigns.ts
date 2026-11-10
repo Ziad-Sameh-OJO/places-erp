@@ -10,6 +10,7 @@ export const CampaignInput = z.object({
   budget: Money.default("0"), // «الميزانية» (not required)
   spent: Money.default("0"), // what it actually cost: Finance and the cost center read it
   target: z.string().trim().max(200).optional(), // «المشروع / الوحدات المستهدفة»
+  page: z.string().trim().max(60).optional().or(z.literal("").transform(() => undefined)), // «Page name» from «أسماء الصفحات» (4.19)
   adUrl: z.string().trim().url("لينك الإعلان مش مظبوط").max(500).optional().or(z.literal("").transform(() => undefined)),
   note: z.string().trim().max(1000).optional(),
 }).refine((c) => c.endsOn >= c.startsOn, { message: "النهاية لازم تبقى بعد البداية", path: ["endsOn"] });
@@ -24,6 +25,7 @@ export interface CampaignRow {
   budget: string;
   spent: string;
   target: string | null;
+  page: string | null;
   adUrl: string | null;
   note: string | null;
   /** running today (Cairo) */
@@ -33,6 +35,12 @@ export interface CampaignRow {
   /** spent ÷ leads, null without leads */
   costPerLead: string | null;
 }
+
+/** 4.19 · «أسماء الصفحات»: a name added or renamed (a rename moves its campaigns with it). */
+export const PageNameInput = z.object({ name: z.string().trim().min(1, "اكتب اسم الصفحة").max(60) });
+export type PageNameInput = z.infer<typeof PageNameInput>;
+/** One name of the list and how many campaigns are on it. */
+export interface PageNameRow { id: string; name: string; campaigns: number }
 
 /** M-04 3.2 · 6.1: the dashboard's filters — a period of Cairo days (day / week / month / dates), a channel, a campaign. */
 export const DashboardQuery = z.object({

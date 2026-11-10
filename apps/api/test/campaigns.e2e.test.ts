@@ -21,6 +21,7 @@ after(async () => {
   await prisma.leadArrival.deleteMany({ where: { campaignId: { in: campaigns } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-C${stamp}` } } });
   await prisma.campaign.deleteMany({ where: { id: { in: campaigns } } });
+  await prisma.campaignPage.deleteMany({ where: { name: { contains: stamp } } });
   await prisma.$disconnect();
 });
 
@@ -89,4 +90,35 @@ test("Rahma adds a campaign → leads and Qualified per campaign, every arrival 
   assert.equal(await row(), undefined);
   assert.equal((await call(`/marketing/campaigns/${id}`, { method: "PUT", cookie: rahma, body: body() })).status, 404);
   assert.equal(await prisma.auditLog.count({ where: { entity: "Campaign", entityId: id } }), 3);
+});
+
+test("4.19 · «Page name» from «أسماء الصفحات»: add, a campaign on it, rename moves it, remove keeps it; audited; sales 403", async () => {
+  assert.equal((await call("/marketing/campaigns/pages", { cookie: sales })).status, 403);
+  assert.equal((await call("/marketing/campaigns/pages", { method: "POST", cookie: sales, body: { name: `Bayut ${stamp}` } })).status, 403);
+  const list = await call("/marketing/campaigns/pages", { cookie: rahma });
+  assert.equal(list.status, 200);
+  assert.ok(["Website", "Property Finder", "Dubizzle"].every((n) => list.body.some((p: { name: string }) => p.name === n)));
+  assert.equal((await call("/marketing/campaigns/pages", { method: "POST", cookie: rahma, body: { name: " website " } })).status, 400); // already there
+  const added = await call("/marketing/campaigns/pages", { method: "POST", cookie: rahma, body: { name: `Bayut ${stamp}` } });
+  assert.equal(added.status, 201, JSON.stringify(added.body));
+  const pageId = added.body.id as string;
+  // a page not in the list is refused; one in it is kept on the campaign
+  assert.equal((await call("/marketing/campaigns", { method: "POST", cookie: rahma, body: body({ page: `مش في القايمة ${stamp}` }) })).status, 400);
+  const made = await call("/marketing/campaigns", { method: "POST", cookie: rahma, body: body({ name: `E2E صفحة ${stamp}`, page: `Bayut ${stamp}` }) });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  campaigns.push(made.body.id);
+  const page = async () => (await call("/marketing/campaigns", { cookie: rahma })).body.find((c: { id: string }) => c.id === made.body.id).page;
+  assert.equal(await page(), `Bayut ${stamp}`);
+  assert.equal((await call(`/marketing/campaigns/pages/${pageId}`, { method: "PUT", cookie: rahma, body: { name: "Dubizzle" } })).status, 400);
+  assert.equal((await call(`/marketing/campaigns/pages/${pageId}`, { method: "PUT", cookie: rahma, body: { name: `Bayut Egypt ${stamp}` } })).status, 204);
+  assert.equal(await page(), `Bayut Egypt ${stamp}`);
+  assert.equal((await call("/marketing/campaigns/pages", { cookie: rahma })).body.find((p: { id: string }) => p.id === pageId).campaigns, 1);
+  assert.equal((await call(`/marketing/campaigns/pages/${pageId}`, { method: "DELETE", cookie: sales })).status, 403);
+  assert.equal((await call(`/marketing/campaigns/pages/${pageId}`, { method: "DELETE", cookie: rahma })).status, 204);
+  assert.equal(await page(), `Bayut Egypt ${stamp}`); // the campaign keeps its name
+  // and can still be saved with it, though it's off the list now
+  const kept = await call(`/marketing/campaigns/${made.body.id}`, { method: "PUT", cookie: rahma, body: body({ name: `E2E صفحة ${stamp}`, page: `Bayut Egypt ${stamp}` }) });
+  assert.equal(kept.status, 200, JSON.stringify(kept.body));
+  assert.deepEqual((await prisma.auditLog.findMany({ where: { entity: "CampaignPage", entityId: pageId }, orderBy: { at: "asc" } })).map((a) => a.action), ["create", "update", "delete"]);
+  await prisma.auditLog.deleteMany({ where: { entity: "CampaignPage", entityId: pageId } });
 });

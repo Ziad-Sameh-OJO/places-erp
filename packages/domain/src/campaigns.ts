@@ -54,3 +54,13 @@ export function leadsByPost(arrivals: readonly Arrival[]): Array<{ post: string;
 
 /** Running on `today` (a Cairo calendar day «YYYY-MM-DD»): the demo's «شغالة» / «خلصت». */
 export const isCampaignLive = (c: { startsOn: string; endsOn: string }, today: string): boolean => c.startsOn <= today && today <= c.endsOn;
+
+/**
+ * 4.19 · «أسماء الصفحات» (demo marketing.js `pageAdd` · `pageRen`): why a new name or a rename can't be saved (Arabic, shown
+ * as is), or null. Names are compared trimmed and without case, so «website» isn't a second «Website».
+ */
+export function pageNameProblem(names: readonly string[], name: string, current: string | null = null): string | null {
+  const n = name.trim().toLowerCase();
+  if (!n) return "اكتب اسم الصفحة";
+  return names.some((x) => x !== current && x.trim().toLowerCase() === n) ? "الاسم ده موجود" : null;
+}

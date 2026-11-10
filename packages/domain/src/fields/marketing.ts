@@ -8,6 +8,7 @@ export const marketing: readonly FieldDef[] = [
   { key: "name", label: "الكامبين", locked: true },
   { key: "channel", label: "Channel", locked: true },
   { key: "period", label: "الفترة", locked: true },
+  { key: "page", label: "Page name", locked: true },
   { key: "budget", label: "الميزانية" },
   { key: "spent", label: "اتصرف", covers: ["costPerLead", "costPerQualified"] },
   { key: "target", label: "المشروع / الوحدات المستهدفة" },

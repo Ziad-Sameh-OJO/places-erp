@@ -1073,6 +1073,7 @@ model Campaign {
   budget    Decimal  @db.Decimal(14, 2)
   spent     Decimal  @default(0) @db.Decimal(14, 2) // what it actually cost (Finance / the cost center read it, 4.5)
   target    String?  // «المشروع / الوحدات المستهدفة»
+  page      String?  // «Page name» from the CampaignPage list (4.19); kept as text: removing a name leaves its campaigns as they are
   adUrl     String?
   note      String?
   leads     Lead[]
@@ -1083,6 +1084,15 @@ model Campaign {
   archivedAt DateTime? // archived, never deleted: leads point at it
 
   @@index([archivedAt])
+  @@schema("marketing")
+}
+
+/// 4.19 · «أسماء الصفحات»: the list marketing keeps for a campaign's «Page name» (Website · Property Finder · Dubizzle …).
+model CampaignPage {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
   @@schema("marketing")
 }
 

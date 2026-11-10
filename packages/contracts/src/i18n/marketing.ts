@@ -12,6 +12,10 @@ export default [
   // campaigns.service.ts
   ["الكامبين دي مش موجودة", "This campaign doesn't exist"],
   ["اختار الـ Channel من القايمة", "Pick the Channel from the list"],
+  ["اختار الـ Page name من القايمة", "Pick the Page name from the list"],
+  ["اسم الصفحة ده مش موجود", "This page name doesn't exist"],
+  ["اكتب اسم الصفحة", "Write the page name"],
+  ["الاسم ده موجود", "This name already exists"],
   // posts.service.ts
   ["البوست ده مش موجود", "This post doesn't exist"],
   ["البوست ده اتوافق عليه قبل كده", "This post was already approved"],

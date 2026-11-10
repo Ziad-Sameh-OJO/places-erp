@@ -41,8 +41,23 @@
   },
   "campaigns": {
     "new": "New campaign",
+    "pageNames": "Page names",
+    "pages": {
+      "title": "Page names",
+      "note": "These names show in a campaign's «Page name». Renaming one applies to the campaigns on it.",
+      "label": "Page name",
+      "count": "{n} campaigns",
+      "remove": "Remove",
+      "confirm": "Remove «{name}» from the list? The campaigns on it keep their name.",
+      "addPh": "New page name",
+      "add": "Add",
+      "renamed": "Renamed",
+      "added": "Added",
+      "removed": "Removed"
+    },
     "head": {
       "campaign": "Campaign",
+      "source": "Channel · Page",
       "period": "Period",
       "budget": "Budget",
       "spent": "Spent",
@@ -60,6 +75,9 @@
       "updated": "Campaign updated",
       "created": "Campaign added · leads will be linked to it",
       "name": "Campaign name",
+      "page": "Page name",
+      "pageNew": "+ New name…",
+      "pageNewPh": "Write the page name",
       "start": "Start",
       "end": "End",
       "budget": "Budget",
