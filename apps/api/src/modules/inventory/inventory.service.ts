@@ -5,7 +5,7 @@ import {
   type MissingUnitsToday, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, fillsUnitFolder, keepsInventory, localDate, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -128,7 +128,7 @@ export class InventoryService {
   }
 
   private scope(me: CurrentUser, now = new Date()): UnitScope {
-    return { insider: keepsInventory(me.grants), seesDrafts: fillsUnitFolder(me.roles, me.grants), staleBefore: staleBefore(now), hidden: me.fields.hidden("inventory") };
+    return { insider: keepsInventory(me.grants), staleBefore: staleBefore(now), hidden: me.fields.hidden("inventory") };
   }
 
   async list(me: CurrentUser, filters: UnitFilters): Promise<Paged<UnitRow>> {

@@ -21,8 +21,8 @@ export type UnitRowRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_ROW }>;
 export type UnitRecord = Prisma.UnitGetPayload<{ select: typeof UNIT_DETAIL }>;
 
 /** Who the list is for: drafts and owners' details are for the people who keep the inventory (domain keepsInventory). */
-/** `seesDrafts`: the inventory team too (Sara, Marwa fill the drafts' folders); `hidden`: the reader's hidden fields (M-09). */
-export interface UnitScope { insider: boolean; staleBefore: Date; seesDrafts?: boolean; hidden?: ReadonlySet<string> }
+/** `hidden`: the reader's hidden fields (M-09): not searched, not counted as missing. */
+export interface UnitScope { insider: boolean; staleBefore: Date; hidden?: ReadonlySet<string> }
 export type Tab = AreaRange & { id: string };
 /** The list's filters, with «ناقصها بيانات» (2.20) resolved to the units it names (the service works them out). */
 export type ListFilters = UnitFilters & { missingIds?: string[] };
@@ -219,7 +219,7 @@ const AVAILABLE: Prisma.UnitWhereInput = { OR: [{ status: "available" }, { alsoT
 const CLOSED: Prisma.UnitWhereInput = { OR: [{ status: { not: "available" } }, { alsoStatus: { in: ["rented", "sold"] } }] };
 
 /** Archived units are gone for everyone; drafts only for the people who keep the inventory (Q15). */
-const visible = (s: UnitScope): Prisma.UnitWhereInput => ({ archivedAt: null, ...(s.seesDrafts ?? s.insider ? {} : { pdfStatus: "confirmed" }) });
+const visible = (s: UnitScope): Prisma.UnitWhereInput => ({ archivedAt: null, ...(s.insider ? {} : { pdfStatus: "confirmed" }) });
 
 /** Open units a salesperson may see, searched by code, project or space (a Visit or a deal can't name any other). */
 function openSearch(q: string | undefined, insider = false): Prisma.UnitWhereInput {

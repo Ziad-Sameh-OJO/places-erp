@@ -1,7 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { AreaTabInput, AreaTabView, UnitFilters } from "@places/contracts";
-import { areaTabLabel, fillsUnitFolder, keepsInventory, staleBefore } from "@places/domain";
+import { areaTabLabel, keepsInventory, staleBefore } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -22,7 +22,7 @@ export class AreaTabsService {
   async list(me: CurrentUser, filters: UnitFilters): Promise<AreaTabView[]> {
     const tabs = await this.repo.areaTabs();
     const hidden = me.fields.hidden("inventory"), f = shownFilters(filters, hidden); // the same rule as the list: no filtering by a hidden field
-    const s = { insider: keepsInventory(me.grants), seesDrafts: fillsUnitFolder(me.roles, me.grants), staleBefore: staleBefore(new Date()), hidden };
+    const s = { insider: keepsInventory(me.grants), staleBefore: staleBefore(new Date()), hidden };
     const counts = await this.repo.areaTabCounts(s, await withMissing(this.repo, s, f), tabs);
     return tabs.map((t, i) => ({ ...t, label: areaTabLabel(t), count: counts[i]! }));
   }
