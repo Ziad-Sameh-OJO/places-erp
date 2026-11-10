@@ -57,6 +57,10 @@ test("Nancy «100% في أول يوم عمل من الربع»: the last quarter
 test("the new settings are in the catalog, and the «بيتحسب» line says what each counts", () => {
   assert.equal(metricProblem("tickets", { ttype: "hr_letter" }), null);
   assert.equal(metricProblem("tasksOnTime", { tkind: "team" }), null);
+  // the CEO's «القادة الأربعة + رحمة» names its people; only «متوسط كروت فريقه» takes a list
+  const named = { ids: ["e1", "e2"] } as unknown as Parameters<typeof metricProblem>[1];
+  assert.equal(metricProblem("team", named), null);
+  assert.match(metricProblem("calls", named) ?? "", /مالوش إعداد ids/);
   assert.equal(metricProblem("visitsDone", { kind: "Visit", per: "quarter", of: "team" }), null);
   assert.match(metricProblem("budgetUse", { per: "week" }) ?? "", /مالوش إعداد per/);
   const line = (metric: string, params: Record<string, string>) =>
