@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { isWorkingDay, localDate } from "@places/domain";
 import { kpiRefreshTick } from "../../worker/src/processors/kpi-refresh.ts";
-import { call, session } from "./helpers.ts";
+import { call, kpiQuarterLock, session } from "./helpers.ts";
 
 const START = new Date();
 const stamp = String(START.getTime());
@@ -104,7 +104,7 @@ test("Marwa sends the confirmed units: a draft is refused, an unconfirmed one wa
 test("the KPI job fills Marwa's «Lists خلال 24 ساعة» and «من غير وحدات مش مؤكدة»", async () => {
   let now = new Date();
   while (!isWorkingDay(localDate(now))) now = new Date(now.getTime() + 86_400_000);
-  await kpiRefreshTick(now, [marwaEmp]);
+  await kpiQuarterLock(() => kpiRefreshTick(now, [marwaEmp])); // the job measures the current quarter: Q4 2026
   const item = (metric: string) => prisma.kpiItem.findFirstOrThrow({ where: { metric, card: { quarter: "2026-Q4", employeeId: marwaEmp } } });
   const in24 = await item("lists24"), clean = await item("listsClean");
   assert.equal(Number(in24.value), 100); // sent within the 24 hours
