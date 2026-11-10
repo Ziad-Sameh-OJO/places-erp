@@ -47,7 +47,7 @@ export const api = {
   get: <T>(p: string) => request<T>("GET", p),
   post: <T>(p: string, b?: unknown) => request<T>("POST", p, b),
   /** One file as multipart field `file` (Excel import, attachments). */
-  upload: <T>(p: string, file: File) => { const f = new FormData(); f.append("file", file); return request<T>("POST", p, f); },
+  upload: <T>(p: string, file: File, fields: Record<string, string> = {}) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.append(k, v); f.append("file", file); return request<T>("POST", p, f); },
   put: <T>(p: string, b?: unknown) => request<T>("PUT", p, b),
   patch: <T>(p: string, b?: unknown) => request<T>("PATCH", p, b),
   del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),

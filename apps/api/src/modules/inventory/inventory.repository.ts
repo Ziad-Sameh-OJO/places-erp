@@ -194,6 +194,11 @@ export class InventoryRepository {
     return this.db.employee.findUnique({ where: { userId }, select: { name: true } });
   }
 
+  /** 2.38 · what an import's rows are compared with: every unit not archived, the columns one can pick. */
+  importKeys() {
+    return this.db.unit.findMany({ where: { archivedAt: null }, select: { code: true, project: true, space: true, floor: true, building: true, ownerName: true, ownerPhone: true } });
+  }
+
   /** A unit's photos in their order (2.4). */
   photos(unitId: string, tx: Prisma.TransactionClient = this.db) {
     return tx.unitPhoto.findMany({ where: { unitId }, orderBy: { position: "asc" }, select: { id: true, fileId: true, pdf: true } });

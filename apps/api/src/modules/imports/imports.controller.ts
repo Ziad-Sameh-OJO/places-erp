@@ -1,7 +1,8 @@
-import { Controller, Get, HttpCode, Post, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post, Res, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
-import { CompanyImportRow, LeadImportRow, UnitImportRow, type ImportDone, type ImportPreview } from "@places/contracts";
+import { CompanyImportRow, LeadImportRow, UnitImportOptions, UnitImportRow, type ImportDone, type ImportPreview, type UnitImportDone, type UnitImportPreview } from "@places/contracts";
+import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendXlsx } from "../../core/http/excel";
 import { IMPORT_MAX_BYTES, parseBook, parseSheet, type ImportColumns, type ImportReport, type ParsedSheet, type UploadedSheet } from "../../core/http/import";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -45,15 +46,18 @@ export class ImportsController {
   @Get("units/template") @Requires("inventory", "import")
   unitsTemplate(@Res() res: Response) { return template(res, "قالب الوحدات.xlsx", UNIT_COLUMNS); }
 
+  /** 2.38 · `dupBy` (the columns a repeat is told by) and, on «تأكيد», `decisions` come as form fields next to the file. */
   @Post("units/preview") @Requires("inventory", "import") @UseInterceptors(sheet) @HttpCode(200)
-  async previewUnits(@Me() me: CurrentUser, @UploadedFile() file?: UploadedSheet) {
+  async previewUnits(@Me() me: CurrentUser, @Body(new ZodPipe(UnitImportOptions)) opts: UnitImportOptions, @UploadedFile() file?: UploadedSheet): Promise<UnitImportPreview> {
     const p = await parseSheet(file, UNIT_COLUMNS, UnitImportRow);
-    return previewOf(p, await this.inventory.importUnits(me, p, false));
+    const r = await this.inventory.importUnits(me, p, opts, false);
+    return { ...previewOf(p, r), dupBy: opts.dupBy, review: r.review };
   }
 
   @Post("units") @Requires("inventory", "import") @UseInterceptors(sheet) @HttpCode(200)
-  async importUnits(@Me() me: CurrentUser, @UploadedFile() file?: UploadedSheet) {
-    return doneOf(await this.inventory.importUnits(me, await parseSheet(file, UNIT_COLUMNS, UnitImportRow), true));
+  async importUnits(@Me() me: CurrentUser, @Body(new ZodPipe(UnitImportOptions)) opts: UnitImportOptions, @UploadedFile() file?: UploadedSheet): Promise<UnitImportDone> {
+    const r = await this.inventory.importUnits(me, await parseSheet(file, UNIT_COLUMNS, UnitImportRow), opts, true);
+    return { ...doneOf(r), merged: r.merged };
   }
 
   @Get("leads/template") @Requires("leads", "import")

@@ -63,6 +63,10 @@ export default [
   ["الكلام طويل", "The text is too long"],
   ["اكتب سبب الإلغاء", "Enter the reason for cancelling"],
   ["البيان طويل", "The description is too long"],
+  // imports.ts (2.38)
+  ["خانة منع التكرار مش معروفة", "Unknown duplicate-check column"],
+  ["لازم خانة واحدة على الأقل", "Pick at least one column"],
+  ["اختار استبعد أو ادمج أو ضيفها برضه", "Choose skip, merge or add it anyway"],
   // files.ts
   ["الصورة", "The photo"],
   ["10 ميجا", "10 MB"],

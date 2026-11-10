@@ -12,7 +12,7 @@ import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
 import { UnitForm } from "./unit-form";
 import { OwnerUpdateButton } from "./owner-update";
-import { OldDataImport } from "../imports/old-data-import";
+import { UnitImport } from "../imports/unit-import";
 import { AreaTabsBar } from "./area-tabs";
 import { TeamTaskModal } from "./team-tasks";
 import { DailyReportModal } from "./daily-report";
@@ -102,7 +102,7 @@ export function InventoryList() {
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); }} items={types} />
         <span className="spacer" />
-        {me.can("inventory", "import") && <OldDataImport kind="units" />}{/* 13.1 · demo «استيراد Excel» */}
+        {me.can("inventory", "import") && <UnitImport />}{/* 13.1 · 2.38 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setTeamTask(true)}><Icon name="check" />{t("list.teamTask")}</button>}
         {prepares && <button className="btn ghost" onClick={() => setLists(true)}><Icon name="list" />{t("list.listRequests")}</button>}
