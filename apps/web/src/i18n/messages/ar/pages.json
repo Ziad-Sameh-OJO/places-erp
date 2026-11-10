@@ -15,7 +15,94 @@
     "quickSearch": "بحث سريع",
     "statToday": "مهام النهارده",
     "statLate": "متأخر",
-    "statUnread": "إشعار جديد"
+    "statUnread": "إشعار جديد",
+    "today": {
+      "task": {
+        "title": "{kind}: {title}",
+        "sub": "ميعادها {due}{note}",
+        "button": "المهام"
+      },
+      "retouch": {
+        "title": "Retouch {unit} مستني موافقتك",
+        "sub": "المصمم رفع الصور على صفحة الوحدة",
+        "button": "راجع"
+      },
+      "ticket": {
+        "title": "تذكرة: {title}",
+        "sub": "{code} · من {from} · {at}",
+        "button": "رد"
+      },
+      "dealReview": {
+        "title": "صفقة {code} مستنية مراجعة",
+        "sub": "{company} · {unit}",
+        "button": "راجع"
+      },
+      "dealSeller": {
+        "title": "Seller للصفقة {code}",
+        "sub": "{seller} · Agent {unit} · محتاج موافقتك",
+        "button": "راجعي"
+      },
+      "tcrSign": {
+        "title": "امضي على {tcr}",
+        "sub": "{code} · {amount}",
+        "button": "افتح"
+      },
+      "contractEnding": {
+        "title": "عقد {client} بينتهي قريب",
+        "sub": "{unit} · {end} · فرصة تجديد",
+        "button": "افتح العقد"
+      },
+      "purchaseApprove": {
+        "title": "طلب شراء: {item}",
+        "sub": "{amount} · {line}",
+        "button": "قرّر"
+      },
+      "purchasePay": {
+        "title": "اتوافق: {item}",
+        "sub": "جاهز للصرف",
+        "button": "صرف"
+      },
+      "leaveTl": {
+        "title": "طلب إجازة {name}",
+        "sub": "{type} · {from} → {to}",
+        "button": "قرّر"
+      },
+      "leaveHr": {
+        "title": "إجازة {name} اتوافق عليها من الـ TL",
+        "sub": "{type} · {from}",
+        "button": "سجّل"
+      },
+      "excuseTl": {
+        "title": "Excuse #{n} لـ {name}",
+        "sub": "{day} · {cost, select, fifth {الخامس = رفد} half {خصم نص يوم} other {من غير خصم}}",
+        "button": "قرّر"
+      },
+      "excuseHr": {
+        "title": "Excuse #{n} لـ {name}",
+        "sub": "{day} · {cost, select, fifth {الخامس = رفد} half {خصم نص يوم} other {من غير خصم}}",
+        "button": "Attendance"
+      },
+      "forgot": {
+        "title": "{name} نسي البصمة",
+        "sub": "{day} · محتاج Confirmation لخصم يوم",
+        "button": "Attendance"
+      },
+      "hrAction": {
+        "title": "Alarm حل HR: {action}",
+        "sub": "{name} · {due}",
+        "button": "الفايل"
+      },
+      "postToday": {
+        "title": "Reminder: {title}",
+        "sub": "ميعاد النشر {at} · {channel}",
+        "button": "Content plan"
+      },
+      "broadcastApprove": {
+        "title": "Broadcast مستني موافقتك",
+        "sub": "{text}",
+        "button": "راجع"
+      }
+    }
   },
   "profile": {
     "mobile": "الموبايل",

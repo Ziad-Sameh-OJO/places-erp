@@ -43,6 +43,23 @@ export class DealsRepository {
     ]);
   }
 
+  /** 0.18: the live deals with a Seller waiting for Manar's approval, and their first waiting Seller. */
+  sellerWaiting(scope: Prisma.DealWhereInput) {
+    const waiting = { side: "SELLER", approved: false } as const;
+    return this.db.deal.findMany({
+      where: { AND: [scope, { participants: { some: waiting } }, { status: { notIn: ["REJECTED", "CANCELLED"] } }] },
+      select: { id: true, code: true, unit: { select: { code: true } }, participants: { where: waiting, select: { employee: PERSON }, take: 1 } }, orderBy: { closedAt: "asc" }, take: 100,
+    });
+  }
+
+  /** 0.18: the TCRs a salesperson is on and hasn't signed yet. */
+  unsignedTcrs(scope: Prisma.DealWhereInput, employeeId: string) {
+    return this.db.tcr.findMany({
+      where: { deal: scope, signatures: { some: { employeeId, signedAt: null } } },
+      select: { id: true, code: true, deal: { select: { id: true, code: true } }, payment: { select: { amount: true } } }, orderBy: { code: "asc" }, take: 100,
+    });
+  }
+
   detail(scope: Prisma.DealWhereInput, id: string, tx: Prisma.TransactionClient = this.db) {
     return tx.deal.findFirst({ where: { AND: [scope, { id }] }, select: DEAL_DETAIL });
   }

@@ -14,11 +14,12 @@ import { PostsService } from "./posts.service";
 import { TasksController } from "./tasks.controller";
 import { TasksRepository } from "./tasks.repository";
 import { TasksService } from "./tasks.service";
+import { MarketingTodayController } from "./today.controller";
 
 /** M-04 · التسويق والحملات: the tasks board (4.1-4.3) and the campaigns and their dashboard (4.5-4.6), the content plan (4.7). */
 @Module({
   imports: [InventoryModule, SettingsModule, KpisModule], // «تقرير المنافسين الشهري» (11.10) · the task's unit · «أنواع تاسكات التسويق» and «الـ Channels» (M-13)
-  controllers: [TasksController, CampaignsController, PostsController, NewUnitsController, BroadcastsController, CompetitorsController],
+  controllers: [TasksController, CampaignsController, PostsController, NewUnitsController, BroadcastsController, CompetitorsController, MarketingTodayController],
   providers: [TasksService, TasksRepository, CampaignsService, CampaignsRepository, PostsService, BroadcastsService],
   exports: [TasksService],
 })

@@ -18,10 +18,11 @@ import { MyTeamTasks } from "@/features/inventory/team-tasks";
 import { useMissingUnitLines } from "@/features/inventory/today";
 import { useFinanceTodo } from "@/features/finance/today";
 import { MyKpisCard, useKpiLines } from "@/features/kpis/today";
+import { useTodayLines } from "@/features/home/today";
 
 /**
  * Home = «مهامي النهارده» (1.22, demo home.js): everything waiting for this person's action now, the late first.
- * The leads give the SLA alarms and the day's visits; each later task adds its own lines here.
+ * Each module gives its own lines (its /home/<module>, in the person's scope); this page only puts them together.
  */
 export default function HomePage() {
   const { me, can } = useMe();
@@ -33,9 +34,13 @@ export default function HomePage() {
   const missingUnits = useMissingUnitLines(!!me && keepsInventory({ can })); // 2.20 · the API keeps Manar's and Randa's apart
   const collect = useFinanceTodo(!!me && can("finance", "create")); // 9.19 · the accountant's whole «مستنيك النهارده»
   const kpis = useKpiLines(); // 11.16 · approve / enter / hand in (everyone: the API answers with their own)
+  const others = useTodayLines({ // 0.18 · every other module's lines, each from its /home/<module> with the grant it requires
+    tasks: !!me && can("tasks"), tickets: !!me && can("tickets"), contracts: !!me && can("contracts"), procurement: !!me && can("procurement"),
+    hr: !!me && can("hr"), marketing: !!me && can("marketing"), deals: !!me && (can("deals") || can("inventory", "approve")),
+  });
   const unread = useMyNotifications().data?.unread ?? 0;
   if (!me) return <p className="hint">{t("loading")}</p>;
-  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect, ...kpis]); // each module's lines, the late first
+  const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect, ...kpis, ...others]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
   const pages = (Object.keys(NAV) as NavKey[]).filter((k) => k !== "home" && can(k));
 

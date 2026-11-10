@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { PostInput, PostMedia, PostQuery, PostRow } from "@places/contracts";
-import { allowedValue, dayStart, postState } from "@places/domain";
+import type { PostInput, PostMedia, PostQuery, PostRow, TodayLine } from "@places/contracts";
+import { allowedValue, dayStart, localDate, postState } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { FilesService } from "../../core/files/files.service";
@@ -68,6 +68,12 @@ export class PostsService {
     const counts = await this.db.file.groupBy({ by: ["entityId"], where: { entity: POST, status: "READY", entityId: { in: rows.map((p) => p.id) } }, _count: { _all: true } });
     const media = new Map(counts.map((c) => [c.entityId, c._count._all]));
     return rows.map((p) => toRow(p, now, media.get(p.id) ?? 0));
+  }
+
+  /** 0.18 · demo home.js «Reminder: … · ميعاد النشر»: today's posts not published yet, for whoever marks them published. */
+  async today(now = new Date()): Promise<TodayLine[]> {
+    const rows = await this.list({ month: localDate(now).slice(0, 7) }, now);
+    return rows.filter((p) => p.state === "today").map((p) => ({ kind: "postToday", tone: "warn", id: p.id, values: { title: p.title, at: p.at, channel: p.channel } }));
   }
 
   /** M-04 2.2 «(مقترح)»: a post from someone who can't approve waits for the marketing manager; the manager's own is approved. */

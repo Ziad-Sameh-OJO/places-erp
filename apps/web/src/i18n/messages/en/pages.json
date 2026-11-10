@@ -15,7 +15,94 @@
     "quickSearch": "Quick search",
     "statToday": "Today's tasks",
     "statLate": "Late",
-    "statUnread": "New notifications"
+    "statUnread": "New notifications",
+    "today": {
+      "task": {
+        "title": "{kind}: {title}",
+        "sub": "Due {due}{note}",
+        "button": "Tasks"
+      },
+      "retouch": {
+        "title": "Retouch {unit} waiting for your approval",
+        "sub": "The designer uploaded the photos to the unit's page",
+        "button": "Review"
+      },
+      "ticket": {
+        "title": "Ticket: {title}",
+        "sub": "{code} · from {from} · {at}",
+        "button": "Reply"
+      },
+      "dealReview": {
+        "title": "Deal {code} waiting for review",
+        "sub": "{company} · {unit}",
+        "button": "Review"
+      },
+      "dealSeller": {
+        "title": "Seller for deal {code}",
+        "sub": "{seller} · Agent {unit} · needs your approval",
+        "button": "Review"
+      },
+      "tcrSign": {
+        "title": "Sign {tcr}",
+        "sub": "{code} · {amount}",
+        "button": "Open"
+      },
+      "contractEnding": {
+        "title": "{client}'s contract ends soon",
+        "sub": "{unit} · {end} · a renewal chance",
+        "button": "Open contract"
+      },
+      "purchaseApprove": {
+        "title": "Purchase request: {item}",
+        "sub": "{amount} · {line}",
+        "button": "Decide"
+      },
+      "purchasePay": {
+        "title": "Approved: {item}",
+        "sub": "Ready to pay",
+        "button": "Pay"
+      },
+      "leaveTl": {
+        "title": "Leave request: {name}",
+        "sub": "{type} · {from} → {to}",
+        "button": "Decide"
+      },
+      "leaveHr": {
+        "title": "{name}'s leave approved by the TL",
+        "sub": "{type} · {from}",
+        "button": "Record"
+      },
+      "excuseTl": {
+        "title": "Excuse #{n} for {name}",
+        "sub": "{day} · {cost, select, fifth {the 5th = dismissal} half {half-day deduction} other {no deduction}}",
+        "button": "Decide"
+      },
+      "excuseHr": {
+        "title": "Excuse #{n} for {name}",
+        "sub": "{day} · {cost, select, fifth {the 5th = dismissal} half {half-day deduction} other {no deduction}}",
+        "button": "Attendance"
+      },
+      "forgot": {
+        "title": "{name} forgot the fingerprint",
+        "sub": "{day} · needs Confirmation to deduct a day",
+        "button": "Attendance"
+      },
+      "hrAction": {
+        "title": "HR action Alarm: {action}",
+        "sub": "{name} · {due}",
+        "button": "File"
+      },
+      "postToday": {
+        "title": "Reminder: {title}",
+        "sub": "Publish at {at} · {channel}",
+        "button": "Content plan"
+      },
+      "broadcastApprove": {
+        "title": "Broadcast waiting for your approval",
+        "sub": "{text}",
+        "button": "Review"
+      }
+    }
   },
   "profile": {
     "mobile": "Mobile",

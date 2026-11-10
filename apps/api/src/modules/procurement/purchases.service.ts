@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type {
-  CustodyCap, NewPurchase, PostPurchase, ProcurementOverview, PurchaseDecision, PurchaseFilters, PurchaseStatusKey, PurchasesView, PurchaseView, SettlePurchase,
+  CustodyCap, NewPurchase, PostPurchase, ProcurementOverview, PurchaseDecision, PurchaseFilters, PurchaseStatusKey, PurchasesView, PurchaseView, SettlePurchase, TodayLine,
 } from "@places/contracts";
 import { type Approver, type Piasters, approvalProblem, attachmentProblem, formatEGP, fromDecimal, overBudget, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -94,6 +94,23 @@ export class PurchasesService {
   async list(me: CurrentUser, f: PurchaseFilters): Promise<PurchasesView> {
     const [[rows, total], who, left] = await Promise.all([this.repo.list(shownFilters(f, hidden(me)), this.scope(me)), this.approver(me), this.budgetLeft()]);
     return blankHidden({ items: await this.views(rows, who, left), total, page: f.page, pageSize: f.pageSize }, hidden(me));
+  }
+
+  /**
+   * 0.18 · demo home.js: «طلب شراء: …» for whoever may approve it now (an approver it doesn't block), «اتوافق: … · جاهز
+   * للصرف» for procurement, who pays it. Through list(), so the scope and a hidden «المبلغ» apply.
+   */
+  async today(me: CurrentUser): Promise<TodayLine[]> {
+    const page = { page: 1, pageSize: 100 };
+    const [pending, approved] = await Promise.all([
+      me.grants.can("procurement", "approve") ? this.list(me, { ...page, status: "Pending" }) : null,
+      me.grants.can("procurement", "edit") ? this.list(me, { ...page, status: "Approved" }) : null,
+    ]);
+    const values = (p: PurchaseView) => ({ item: p.item, amount: p.amount, line: p.account.name, no: p.no });
+    return [
+      ...(pending?.items.filter((p) => !p.blocker).map((p): TodayLine => ({ kind: "purchaseApprove", tone: "warn", id: p.id, values: values(p) })) ?? []),
+      ...(approved?.items.map((p): TodayLine => ({ kind: "purchasePay", tone: "", id: p.id, values: values(p) })) ?? []),
+    ];
   }
 
   /** «تصدير الطلبات» (demo procurement.js · M-12 0.11): every request the filters match, in the reader's scope (4.1). */

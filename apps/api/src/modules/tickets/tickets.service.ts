@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { CreateTicket, Paged, SlaReport, SlaReportQuery, TicketDetail, TicketFilters, TicketOptions, TicketReply, TicketRow, TicketSummary, TransferTicket } from "@places/contracts";
+import type { CreateTicket, Paged, SlaReport, SlaReportQuery, TicketDetail, TicketFilters, TicketOptions, TicketReply, TicketRow, TicketSummary, TodayLine, TransferTicket } from "@places/contracts";
 import {
   OPEN_TICKET_STATUSES, TICKET_TYPES, type WorkCalendar, dayStart, isTicketLate, localDate, slaReport, statusAfterReply, ticketDepartment, ticketType,
 } from "@places/domain";
@@ -63,6 +63,17 @@ export class TicketsService {
     }
     const names = await this.names(rows.map((r) => r.fromUserId));
     return { items: rows.map((r) => toRow(r, names, now, cal)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /**
+   * 0.18 · demo home.js «تذكرة: …»: my department's open tickets (the inbox the department answers), red past their SLA.
+   * Only the department's: a ticket I opened waits on someone else.
+   */
+  async today(me: CurrentUser): Promise<TodayLine[]> {
+    if (!me.department) return [];
+    const [cal, rows] = await Promise.all([this.time.calendar(), this.repo.open({ AND: [this.scope(me), { department: me.department }] })]);
+    const names = await this.names(rows.map((r) => r.fromUserId)), now = new Date();
+    return rows.map((r) => toRow(r, names, now, cal)).map((t) => ({ kind: "ticket", tone: t.late ? "bad" : "", id: t.id, values: { title: t.title, code: t.code, from: t.from.name, at: t.createdAt } }));
   }
 
   /** The demo's four tiles: open, late, the average reply of my department this month, closed. */
