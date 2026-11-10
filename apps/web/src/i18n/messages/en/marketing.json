@@ -133,6 +133,19 @@
     "posts": "Posts that brought leads",
     "noPosts": "No leads linked to a post in this period",
     "competitors": { "title": "Monthly competitors report", "sub": "What they're putting out + analysis · due on day {day}", "done": "Handed in this month", "waiting": "Waiting for day {day}", "none": "None", "name": "File name / link", "submit": "Hand in this month's report", "handed": "Handed in" },
+    "notQualified": {
+      "title": "Leads that weren't Qualified",
+      "sub": "The reason = the action sales took on the lead + its latest comment, and who wrote it",
+      "of": "{n} of {total}",
+      "reason": "Reason",
+      "all": "All ({n})",
+      "share": "{pct}% of those that weren't Qualified",
+      "reasons": { "noAnswer": "No Answer", "notInterested": "Not Interested", "fresh": "Nobody has called yet", "cancellation": "Cancellation", "hold": "Hold" },
+      "head": { "lead": "Lead", "source": "Channel · Campaign", "reason": "Reason", "comment": "Latest action / comment from sales", "by": "Comment by", "when": "When" },
+      "noComment": "No comment · nobody has reached out yet",
+      "more": "Showing the latest {n} of {total}.",
+      "allQualified": "Every lead in this period became Qualified."
+    },
     "note": "Qualified = as soon as a lead reaches Interested or any later stage it's counted here automatically, and it stays counted even if it goes back to Not Interested or No Answer."
   },
   "deals": {

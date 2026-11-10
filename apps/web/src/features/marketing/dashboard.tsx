@@ -7,6 +7,7 @@ import { Card, Chip, Empty, Icon, Note, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { useFields } from "@/lib/me";
+import { NotQualified } from "./not-qualified";
 import { useCampaigns } from "./use-campaigns";
 import { CompetitorsReport } from "./competitors";
 import { useTranslations } from "next-intl";
@@ -43,7 +44,8 @@ export function Dashboard() {
   const [channel, setChannel] = useState("");
   const [campaignId, setCampaignId] = useState("");
   const campaigns = useCampaigns().data ?? [];
-  const qs = new URLSearchParams({ ...period(range, custom), ...(channel ? { channel } : {}), ...(campaignId ? { campaignId } : {}) }).toString();
+  const filter = { ...period(range, custom), ...(channel ? { channel } : {}), ...(campaignId ? { campaignId } : {}) };
+  const qs = new URLSearchParams(filter).toString();
   const q = useQuery({ queryKey: ["marketing-dashboard", qs], queryFn: () => api.get<MarketingDashboard>(`/marketing/campaigns/dashboard?${qs}`), placeholderData: keepPreviousData });
   const d = q.data;
   const fields = useFields("marketing"); // M-09: the money tiles go with a hidden «اتصرف»
@@ -102,6 +104,7 @@ export function Dashboard() {
         </Card>
       </div>
       <div className="cols"><CompetitorsReport /></div>
+      <NotQualified filter={filter} />
       <Note>{t("note")}</Note>
     </>
   );
