@@ -85,6 +85,9 @@ export default [
   ["ملفات الـ DWG / DXF لفولدر الـ Layout بس", "DWG / DXF files are for the Layout folder only"],
   ["اختار الملفات", "Choose the files"],
   ["لحد 20 ملف في المرة", "Up to 20 files at a time"],
+  ["الفيديو", "The video"],
+  ["200 ميجا", "200 MB"],
+  ["الفيديو أكبر من 200 ميجا", "The video is larger than 200 MB"],
   // finance.ts
   ["اكتب اسم الحساب", "Enter the account name"],
   ["اكتب رصيد حساب واحد على الأقل", "Enter the balance of at least one account"],

@@ -19,6 +19,8 @@ export default [
   ["الاسم ده موجود", "This name already exists"],
   // posts.service.ts
   ["البوست ده مش موجود", "This post doesn't exist"],
+  ["ارفع صورة أو فيديو بس", "Upload an image or a video only"],
+  ["ارفع صورة أو فيديو", "Upload an image or a video"],
   ["البوست ده اتوافق عليه قبل كده", "This post was already approved"],
   ["البوست ده اتسجّل إنه اتنشر", "This post is already marked as published"],
   ["البوست لسه مستني موافقة مدير التسويق", "The post is still waiting for the marketing manager's approval"],

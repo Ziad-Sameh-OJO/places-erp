@@ -989,3 +989,5 @@ table.je { width: 100%; border-collapse: collapse; } table.je td, table.je th { 
 .unit-pick-t td.n { text-align: end; }
 .unit-pick-t tr:hover td { background: var(--surface-2); }
 .unit-pick-t label { cursor: pointer; }
+/* content plan: a post's video plays in its tile */
+.uf video { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; }

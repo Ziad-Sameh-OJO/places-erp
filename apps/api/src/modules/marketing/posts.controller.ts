@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
-import { PostInput, PostQuery } from "@places/contracts";
+import { PostInput, PostMediaInput, PostQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -20,6 +20,27 @@ export class PostsController {
   @Requires("marketing", "create")
   create(@Me() me: CurrentUser, @Body(new ZodPipe(PostInput)) body: PostInput) {
     return this.posts.create(me, body);
+  }
+
+  /** 4.21 · the post's design / video. */
+  @Get(":id/media")
+  @Requires("marketing", "view")
+  media(@Param("id") id: string) {
+    return this.posts.media(id);
+  }
+
+  /** «ضيف صورة / فيديو», and the files picked in the new-post form. */
+  @Post(":id/media")
+  @Requires("marketing", "create")
+  addMedia(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(PostMediaInput)) body: PostMediaInput) {
+    return this.posts.addMedia(me, id, body.fileIds);
+  }
+
+  @Delete(":id/media/:fileId")
+  @HttpCode(204)
+  @Requires("marketing", "create")
+  removeMedia(@Me() me: CurrentUser, @Param("id") id: string, @Param("fileId") fileId: string) {
+    return this.posts.removeMedia(me, id, fileId);
   }
 
   @Post(":id/approve")

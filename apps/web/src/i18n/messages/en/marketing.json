@@ -133,10 +133,24 @@
       "title": "Post in the Content plan",
       "scheduled": "Post scheduled",
       "post": "Post (design / video)",
-      "campaign": "Campaign",
       "at": "Publish time",
       "description": "Description",
+      "media": "Image or video (the design)",
+      "scheduledWith": "Post scheduled · {n} images / videos uploaded",
       "save": "Save · you'll get a Reminder on time"
+    },
+    "media": {
+      "title": "Design / video",
+      "count": "{n} files",
+      "add": "Add image / video",
+      "empty": "No design or video yet",
+      "emptyUp": "Upload the post's image or video.",
+      "download": "Download",
+      "confirmDel": "Delete this file from the post?",
+      "deleteLabel": "Delete {name}",
+      "uploaded": "{n} files uploaded",
+      "deleted": "Deleted",
+      "onlyMedia": "Upload an image or a video only"
     }
   },
   "dashboard": {
