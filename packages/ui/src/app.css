@@ -491,6 +491,14 @@ button.lnk { background: none; border: 0; padding: 0; }
 
 /* drive cards */
 .drive { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+/* 2.39 · Not Active files in folders, and the path inside a file */
+.na-folder { margin: 14px 0 22px; }
+.na-folder-h { display: flex; align-items: center; gap: 8px; font-size: 15px; margin: 0 0 10px; }
+.na-folder-h .i { width: 18px; height: 18px; }
+.u-img.na-file { background: linear-gradient(135deg, #0b1b3f, #23408f); height: 96px; }
+.na-crumb { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; color: var(--ink-3); }
+.na-crumb b { color: var(--ink); }
+.na-crumb .btn { margin-inline-start: auto; }
 .ucard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-2); cursor: pointer; display: flex; flex-direction: column; transition: transform .15s, box-shadow .15s; }
 .ucard:hover { transform: translateY(-2px); box-shadow: var(--shadow-3); }
 .u-img { height: 120px; position: relative; display: grid; place-items: center; color: rgba(255,255,255,.75); }

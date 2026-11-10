@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { Id, NotActiveAssign, NotActiveClassify, NotActiveImport, NotActiveRowFilters, UnitInput } from "@places/contracts";
+import { Id, NotActiveAssign, NotActiveClassify, NotActiveFileInput, NotActiveImport, NotActiveRowFilters, UnitInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { IMPORT_MAX_BYTES, readTable, type UploadedSheet } from "../../core/http/import";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -19,8 +19,8 @@ export class NotActiveController {
 
   @Get("sheets")
   @Requires("notactive", "view")
-  sheets() {
-    return this.notActive.sheets();
+  sheets(@Me() me: CurrentUser) {
+    return this.notActive.sheets(me);
   }
 
   @Get("sheets/:id/rows")
@@ -49,19 +49,42 @@ export class NotActiveController {
     return this.notActive.unitOptions();
   }
 
+  /** 2.39 · the folders already used, for «ملف جديد». */
+  @Get("folders")
+  @Requires("notactive", "view")
+  folders() {
+    return this.notActive.folders();
+  }
+
+  /**
+   * 2.39 · «ملف جديد» and «تغيير الاسم / الفولدر», and uploading a sheet into a file: whoever manages the inventory
+   * (Not Active «import», or inventory «edit» — the demo's canFile); the service checks which.
+   */
+  @Post("sheets")
+  @Requires("notactive", "view")
+  createFile(@Me() me: CurrentUser, @Body(new ZodPipe(NotActiveFileInput)) body: NotActiveFileInput) {
+    return this.notActive.createFile(me, body);
+  }
+
+  @Put("sheets/:id")
+  @Requires("notactive", "view")
+  renameFile(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string, @Body(new ZodPipe(NotActiveFileInput)) body: NotActiveFileInput) {
+    return this.notActive.renameFile(me, id, body);
+  }
+
   /** Step 1: the file's columns and rows, and what merging it would add; nothing saved. */
   @Post("preview")
   @HttpCode(200)
-  @Requires("notactive", "import")
+  @Requires("notactive", "view")
   @UseInterceptors(sheet)
-  async preview(@UploadedFile() file: UploadedSheet | undefined, @Body(new ZodPipe(NotActiveImport.partial())) body: Partial<NotActiveImport>) {
-    return this.notActive.preview(await readTable(file), body.name, body.dedupeBy);
+  async preview(@Me() me: CurrentUser, @UploadedFile() file: UploadedSheet | undefined, @Body(new ZodPipe(NotActiveImport.partial())) body: Partial<NotActiveImport>) {
+    return this.notActive.preview(me, await readTable(file), body.name, body.dedupeBy);
   }
 
   /** Step 2 («ادمج»): the same file again with the name and the columns. */
   @Post("import")
   @HttpCode(200)
-  @Requires("notactive", "import")
+  @Requires("notactive", "view")
   @UseInterceptors(sheet)
   async import(@Me() me: CurrentUser, @UploadedFile() file: UploadedSheet | undefined, @Body(new ZodPipe(NotActiveImport)) body: NotActiveImport) {
     return this.notActive.import(me, await readTable(file), body, file?.originalname ?? "");

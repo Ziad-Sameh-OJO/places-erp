@@ -1017,8 +1017,10 @@ model AreaTab {
 
 model NotActiveSheet {
   id        String         @id @default(cuid())
-  name      String         @unique // e.g. CFC
-  dedupeBy  String         // column used to merge without duplicates
+  name      String         @unique // e.g. CFC · the file's name, given when it's made (2.39)
+  folder    String?        // 2.39: the folder the file is grouped in (none = «من غير فولدر»)
+  createdById String?      // 2.39: who made the file
+  dedupeBy  String         @default("") // column used to merge without duplicates ("" = no sheet uploaded yet)
   columns   String[]       @default([]) // the sheet's own headers, in order (its columns aren't fixed yet, M-03 3.1)
   numberBy  String?        // the «Number» column compared with the owners' numbers in the inventory (M-03 1.1)
   rows      NotActiveRow[]
