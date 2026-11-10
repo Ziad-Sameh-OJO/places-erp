@@ -219,7 +219,9 @@ test("4.15 «تتحسب في الـ KPIs؟»: Skip by default; «أيوه» adds
   assert.equal(q?.status, "open", "the seed opens the current quarter");
   const emp = await prisma.employee.findUniqueOrThrow({ where: { userId: bayoumiId } });
   const before = await prisma.kpiCard.findUnique({ where: { quarter_employeeId: { quarter: q!.id, employeeId: emp.id } }, include: { items: true } });
-  const items = () => prisma.kpiItem.findMany({ where: { metric: "tasksOnTime", card: { quarter: q!.id, employeeId: emp.id } } });
+  // his photo-plan item (T-34, «tkind: photo») is a tasksOnTime too, but it counts photo tasks, not the «أيوه» ones
+  const plain = (i: { metric: string | null; params: unknown }) => i.metric === "tasksOnTime" && !(i.params as { tkind?: string }).tkind;
+  const items = async () => (await prisma.kpiItem.findMany({ where: { metric: "tasksOnTime", card: { quarter: q!.id, employeeId: emp.id } } })).filter(plain);
   try {
     const send = async (body: Record<string, unknown>) => {
       const r = await call("/tasks", { method: "POST", cookie: rahma, body: { kind: "marketing", toUserId: bayoumiId, dueOn: today, title: (await call("/tasks/options", { cookie: rahma })).body.marketingTypes[0], ...body } });
@@ -230,7 +232,7 @@ test("4.15 «تتحسب في الـ KPIs؟»: Skip by default; «أيوه» adds
     const skip = await send({});
     assert.equal(skip.kpi, null);
     assert.equal((await call(`/tasks/${skip.id}`, { cookie: rahma })).body.countsInKpi, false);
-    assert.equal((await items()).length, before?.items.some((i) => i.metric === "tasksOnTime") ? 1 : 0);
+    assert.equal((await items()).length, before?.items.some(plain) ? 1 : 0);
 
     const yes = await send({ countsInKpi: true });
     assert.equal(yes.kpi, before ? "item" : "card");
