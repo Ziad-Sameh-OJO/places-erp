@@ -456,5 +456,10 @@
     "formLabel": "Layout file (PDF · DWG · image · goes in the Layout folder)",
     "formAdd": "Add a Layout file (PDF · DWG · image)",
     "picked": "{count, plural, one {# file} other {# files}} will upload after saving"
+  },
+  "webAd": {
+    "all": "Website Ads: All",
+    "posted": "Posted {day}{by} · press to set it back to No",
+    "notPosted": "Press once the ad is posted on the website (Yes)"
   }
 }

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { OwnerUpdateInput, UnitLocationInput, UnitFilters, UnitInput, type UnitRow } from "@places/contracts";
+import { OwnerUpdateInput, UnitLocationInput, WebsiteAdInput, UnitFilters, UnitInput, type UnitRow } from "@places/contracts";
 import { localDate } from "@places/domain";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { type ExcelColumn, sendXlsx } from "../../core/http/excel";
@@ -96,6 +96,14 @@ export class InventoryController {
   @Requires("inventory", "edit")
   setLocation(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(UnitLocationInput)) body: UnitLocationInput) {
     return this.inventory.setLocation(me, id, body.location);
+  }
+
+  /** 4.13 · marketing's «Website Ads» Yes / No on a unit (the Marketing Manager's role only, checked by the service too) */
+  @Post(":id/website-ad")
+  @HttpCode(200)
+  @Requires("marketing", "edit")
+  websiteAd(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(WebsiteAdInput)) body: WebsiteAdInput) {
+    return this.inventory.setWebsiteAd(me, id, body.posted);
   }
 
   @Delete(":id")

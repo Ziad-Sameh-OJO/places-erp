@@ -456,5 +456,10 @@
     "formLabel": "Layout file (PDF · DWG · صورة · بيتحط في فولدر الـ Layout)",
     "formAdd": "ضيف Layout file (PDF · DWG · صورة)",
     "picked": "{count} ملف هيترفع بعد الحفظ"
+  },
+  "webAd": {
+    "all": "Website Ads: الكل",
+    "posted": "اتنشر {day}{by} · دوس عشان ترجّعها No",
+    "notPosted": "دوس لما الإعلان يتنشر على الويبسايت (Yes)"
   }
 }

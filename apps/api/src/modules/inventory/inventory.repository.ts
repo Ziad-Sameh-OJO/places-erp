@@ -10,6 +10,7 @@ export const UNIT_ROW = {
   condition: true, floor: true, building: true, parking: true, ownerName: true, ownerPhone: true, pricePerSqm: true,
   totalPrice: true, leasePerSqm: true, maintenance: true, commission: true, paymentMethod: true, comment: true, details: true,
   divisible: true, minSplit: true, location: true, agreementFileId: true, areaTabId: true, agentId: true, lastOwnerUpdateAt: true, pdfStatus: true, createdAt: true,
+  websiteAdAt: true, websiteAdById: true, // 4.13, sent to marketing only
   // the confirmed Done Deals: the rented / sold sheet's date and deal (2.10)
   locks: { where: { status: "locked" }, select: { type: true, lockedAt: true, deal: { select: { code: true } } }, orderBy: { lockedAt: "asc" } },
   // the main photo (2.4: the first image, never a PDF of the folder, 2.22) and how many files there are
@@ -304,5 +305,6 @@ function unitWhere(s: UnitScope, f: Omit<ListFilters, "page" | "pageSize">, tabs
       ...(s.insider && s.owners?.phone !== false && digits.length >= 4 ? [{ ownerPhone: { contains: digits } }] : []),
     ] });
   }
+  if (f.websiteAd) and.push({ websiteAdAt: f.websiteAd === "yes" ? { not: null } : null }); // 4.13 (the service drops it for non-marketing)
   return { AND: and };
 }

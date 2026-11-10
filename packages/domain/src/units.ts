@@ -97,6 +97,12 @@ export const keepsInventory = (g: Pick<Grants, "can">): boolean => g.can("invent
 export const seesInventoryTiles = (roles: readonly string[]): boolean => roles.includes("inventory");
 
 /**
+ * 4.13 · «Website Ads» on the units sheet: Yes once the unit's ad is on the website, No before. It's marketing's own
+ * column (the Marketing Manager's role): only they see it, filter by it and switch it (demo inventory.js `isMk`).
+ */
+export const seesWebsiteAds = (roles: readonly string[]): boolean => roles.includes("marketing");
+
+/**
  * M-03 7.2 · the area tabs under the list («101 to 200 · 201 to 500 · 501 to 800 · +»): Manar and Randa set the
  * ranges themselves (12.8), so nothing about them is fixed here. `max` null = «and above».
  */

@@ -16,6 +16,8 @@ export default [
   ["مفيش Agreement مترفع للوحدة دي", "No Agreement was uploaded for this unit"],
   ["الوحدة دي اتشالت من لوحة التسويق قبل كده", "This unit was already removed from the marketing board"],
   ["الوحدة دي لسه على لوحة التسويق", "This unit is still on the marketing board"],
+  ["الـ Website Ads للتسويق بس", "Website Ads are for marketing only"], // 4.13
+  ["Website Ads: Yes أو No", "Website Ads: Yes or No"],
   ["Live Alert: وحدة جديدة {code} ({project}) اتضافت للانفنتوري", "Live Alert: new unit {code} ({project}) added to the Inventory"],
   ["Live Alert: {n} وحدة جديدة اتضافت للانفنتوري من استيراد Excel", "Live Alert: {n} new units added to the Inventory from an Excel import"],
   ["الـ Agent", "Agent"],
