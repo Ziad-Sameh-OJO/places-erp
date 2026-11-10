@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { DailyFieldInput, DailyInput, DayQuery, TargetMonthQuery, ReportInput, TargetInput, TransactionsQuery } from "@places/contracts";
+import { DailyFieldInput, DailyInput, ReportsAccessInput, DayQuery, TargetMonthQuery, ReportInput, TargetInput, TransactionsQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendXlsx } from "../../core/http/excel";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -15,6 +15,20 @@ import { TargetsService } from "./targets.service";
 @Controller("reports")
 export class ReportsController {
   constructor(private readonly reports: ReportsService, private readonly targets: TargetsService) {}
+
+  /** 11.20 · «مين يشوف التقارير»: the heads only (the service checks the role, not the «reports» grant it gates). */
+  @Get("access")
+  @SignedIn()
+  access(@Me() me: CurrentUser) {
+    return this.reports.access(me);
+  }
+
+  @Put("access/:userId")
+  @HttpCode(204)
+  @SignedIn()
+  setAccess(@Me() me: CurrentUser, @Param("userId") userId: string, @Body(new ZodPipe(ReportsAccessInput)) body: ReportsAccessInput) {
+    return this.reports.setAccess(me, userId, body.on);
+  }
 
   @Get("scheduled")
   @Requires("reports", "view")

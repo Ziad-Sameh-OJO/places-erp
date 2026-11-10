@@ -47,6 +47,7 @@ model User {
   employee      Employee?
   roles         UserRole[]
   overrides     PermissionOverride[]
+  reportsAccess ReportsAccess?
   sessions      Session[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -165,6 +166,16 @@ model PermissionOverride {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, module])
+  @@schema("access")
+}
+
+/// 11.20 · someone a head (Super Admin / Office Manager) opened «التقارير والتارجت» for; nobody else but the heads gets in.
+model ReportsAccess {
+  userId      String   @id
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedById String
+  grantedAt   DateTime @default(now())
+
   @@schema("access")
 }
 

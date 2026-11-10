@@ -13,6 +13,7 @@
   "save": "Save",
   "sep": ", ",
   "fmtInSystem": "In the system",
+  "access": {"closed": "Reports and targets are for the heads only", "button": "Who sees the reports ({n})", "title": "Who sees reports and targets", "note": "Reports and targets are for the heads only (Ahmed Islam and Nancy). Tick anyone else who should see them; the change applies at once and is recorded in the Audit Log.", "on": "{name} now sees the reports", "off": "{name} no longer sees the reports"},
   "tabs": { "targets": "Target and Transactions", "tl": "Team Leaders", "sched": "Reports and schedules" },
   "wd": { "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday", "sat": "Saturday" },
   "freq": { "daily": "Every working day", "weekly": "Every week", "monthly": "Every month", "quarterly": "Every quarter" },

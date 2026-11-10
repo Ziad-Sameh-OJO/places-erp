@@ -927,6 +927,7 @@ tr.sel td { background: color-mix(in srgb, var(--accent-text) 8%, transparent); 
 
 /* KPI cards */
 .kpi-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.rp-access { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 12px; }
 .kpi-card { display: flex; flex-direction: column; gap: 10px; text-align: start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; cursor: pointer; font: inherit; color: inherit; transition: border-color .15s, transform .15s; }
 .kpi-card:hover { border-color: var(--accent-2); transform: translateY(-1px); }
 .kpi-card .row { gap: 8px; flex-wrap: wrap; }

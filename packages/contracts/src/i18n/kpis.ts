@@ -84,6 +84,10 @@ export default [
   // scheduled reports
   ["مفيش تقرير يومي شغال", "No daily report is running"],
   ["التقرير مش موجود", "The report doesn't exist"],
+  ["ده للهيد بس", "This is for the heads only"],
+  ["الشخص ده مش موجود", "This person doesn't exist"],
+  ["{name} اتفتحله التقارير والتارجت", "Reports and targets opened for {name}"],
+  ["{name} اتقفل عليه التقارير والتارجت", "Reports and targets closed for {name}"],
   ["فيه شخص أو دور مش موجود", "A person or role doesn't exist"],
   ["فيه بند KPIs مش بيتسلّم بتقرير", "A KPIs item isn't handed in by a report"],
   ["«{name}» اتعدّل", "«{name}» edited"],

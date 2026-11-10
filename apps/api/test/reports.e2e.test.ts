@@ -40,6 +40,8 @@ before(async () => {
 });
 
 after(async () => {
+  await prisma.reportsAccess.deleteMany({ where: { userId: ids.tlCUser } });
+  await prisma.auditLog.deleteMany({ where: { entity: "ReportsAccess", at: { gte: start } } });
   await prisma.scheduledReport.deleteMany({ where: { name: { startsWith: RUN } } });
   await prisma.kpiItem.deleteMany({ where: { targetText: RUN } });
   await prisma.dailyReport.deleteMany({ where: { userId: ids.hosnyUser } });
@@ -62,7 +64,25 @@ const report = (over: Record<string, unknown> = {}) => ({
   preparedBy: [ids.hosnyUser], recipients: ["follower"], lateNotify: ["follower"], remindMin: 60, kpiItems: [ids.item], ...over,
 });
 
-test("11.10 · «التقارير ومواعيدها»: the TL sees them, only «reports: edit» changes them, a salesperson doesn't get in", async () => {
+test("11.20 · «التقارير والتارجت» is the heads': a TL gets in once a head ticks him, and only a head ticks", async () => {
+  assert.equal((await call("/reports/scheduled", { cookie: tlC })).status, 403); // his role has «reports», he isn't listed
+  assert.equal((await call("/reports/targets", { cookie: tlC })).status, 403);
+  assert.equal((await call("/reports/access", { cookie: tlC })).status, 403);
+  assert.equal((await call(`/reports/access/${ids.tlCUser}`, { method: "PUT", cookie: tlC, body: { on: true } })).status, 403);
+  const list = await call("/reports/access", { cookie: nancy });
+  assert.equal(list.status, 200, JSON.stringify(list.body));
+  assert.ok(list.body.people.some((p: { userId: string }) => p.userId === ids.tlCUser));
+  assert.ok(!list.body.people.some((p: { userId: string }) => p.userId === ids.adminUser)); // a head always sees it
+  assert.equal((await call(`/reports/access/${ids.adminUser}`, { method: "PUT", cookie: nancy, body: { on: true } })).status, 404);
+  assert.equal((await call(`/reports/access/${ids.tlCUser}`, { method: "PUT", cookie: nancy, body: { on: true } })).status, 204);
+  assert.ok((await call("/reports/access", { cookie: admin })).body.on.includes(ids.tlCUser));
+  assert.ok((await call("/auth/me", { cookie: tlC })).body.permissions.reports?.includes("view"));
+  assert.equal(await prisma.auditLog.count({ where: { module: "access", entity: "ReportsAccess", entityId: ids.tlCUser, action: "grant", at: { gte: start } } }), 1);
+  // the head's own grant isn't touched
+  assert.equal((await call("/reports/scheduled", { cookie: nancy })).status, 200);
+});
+
+test("11.10 · «التقارير ومواعيدها»: the TL (listed) sees them, only «reports: edit» changes them, a salesperson doesn't get in", async () => {
   assert.equal((await call("/reports/scheduled", { cookie: amr })).status, 403);
   const seen = await call("/reports/scheduled", { cookie: tlC });
   assert.equal(seen.status, 200);

@@ -2,8 +2,9 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { ReportInput, type ReportsPage as ReportsData, type ScheduledReportView, type TargetRow, type TargetsView, type TeamRow, type TransactionRow } from "@places/contracts";
-import { useFields } from "@/lib/me";
+import { ReportInput, type ReportsAccessView, type ReportsPage as ReportsData, type ScheduledReportView, type TargetRow, type TargetsView, type TeamRow, type TransactionRow } from "@places/contracts";
+import { isReportsHead } from "@places/domain";
+import { useFields, useMe } from "@/lib/me";
 import { Card, Chip, Empty, Field, Icon, Modal, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
@@ -26,9 +27,14 @@ const fmtLabel = (t: T, f: ReportInput["fmt"]) => (f === FMT[0] ? t("fmtInSystem
 export function ReportsPage() {
   const tr = useTranslations("reports");
   const [tab, setTab] = useState<Tab>("targets");
+  const { me, can, loading } = useMe();
+  const head = isReportsHead(me?.roles ?? []);
+  // 11.20: a link from before, or typed: whoever isn't a head or listed gets a plain «closed» (the API refuses anyway)
+  if (!loading && !can("reports")) return <Card><Empty text={tr("access.closed")} icon="lock" /></Card>;
   return (
     <>
-      <div className="row"><Tabs<Tab> items={[["targets", tr("tabs.targets")], ["tl", tr("tabs.tl")], ["sched", tr("tabs.sched")]]} value={tab} onChange={setTab} /></div>
+      <div className="row"><Tabs<Tab> items={[["targets", tr("tabs.targets")], ["tl", tr("tabs.tl")], ["sched", tr("tabs.sched")]]} value={tab} onChange={setTab} />
+        <span className="spacer" />{head && <WhoSees />}</div>
       {tab === "sched" ? <Schedules /> : <Targets tl={tab === "tl"} />}
     </>
   );
@@ -178,6 +184,33 @@ function Schedules() {
       {q.data.reports.map((r) => <ReportCard key={r.id} r={r} d={q.data} />)}
       {draft && <ReportCard r={draft} d={q.data} onDone={() => setDraft(null)} />}
       {q.data.can.edit && !draft && <div className="row end"><button className="btn ghost" onClick={() => setDraft(blank(tr("sched.newReport")))}><Icon name="plus" />{tr("sched.newReport")}</button></div>}
+    </>
+  );
+}
+
+/** 11.20 · demo clients.js rpAccess «مين يشوف التقارير»: the heads tick who else opens the page; it applies at once. */
+function WhoSees() {
+  const tr = useTranslations("reports");
+  const [open, setOpen] = useState(false);
+  const q = useQuery({ queryKey: ["reports", "access"], queryFn: () => api.get<ReportsAccessView>("/reports/access") });
+  const run = useAction(), qc = useQueryClient();
+  const set = (userId: string, name: string, on: boolean) => void run(async () => {
+    await api.put(`/reports/access/${userId}`, { on }); await qc.invalidateQueries({ queryKey: ["reports", "access"] });
+  }, on ? tr("access.on", { name }) : tr("access.off", { name }));
+  return (
+    <>
+      <button className="btn ghost sm" onClick={() => setOpen(true)}><Icon name="lock" />{tr("access.button", { n: q.data?.on.length ?? 0 })}</button>
+      {open && q.data && (
+        <Modal title={tr("access.title")} onClose={() => setOpen(false)}>
+          <Note>{tr("access.note")}</Note>
+          <div className="rp-access">
+            {q.data.people.map((p) => (
+              <label key={p.userId} className="tog"><input type="checkbox" checked={q.data.on.includes(p.userId)} onChange={(e) => set(p.userId, p.name, e.target.checked)} />
+                <span>{p.name} <small className="hint">{serverText(p.role)}</small></span></label>
+            ))}
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
