@@ -12,6 +12,7 @@
     "waitingLate": ", <b>{urgent}</b> of them late",
     "nothing": "Nothing is waiting for you right now.",
     "newLead": "New Lead",
+    "quickSearch": "Quick search",
     "statToday": "Today's tasks",
     "statLate": "Late",
     "statUnread": "New notifications"

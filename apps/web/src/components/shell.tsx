@@ -15,6 +15,7 @@ import { LanguageSwitch } from "./language-switch";
 import { Avatar, Icon, useToast } from "./ui";
 import { RECENT, toggleFav, useQuick } from "@/lib/quick";
 import { BellPanel, useBell } from "./bell";
+import { CommandPalette, openSearch } from "./command-palette";
 import { pushSubscription } from "@/features/notifications/push";
 
 const BrandMark = () => (
@@ -105,6 +106,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="title-row"><h1>{page?.label ?? ""}</h1>{current in NAV && <button className="fav-btn" aria-pressed={starred} title={starred ? t("favRemove") : t("favAdd")} aria-label={starred ? t("favRemove") : t("favAdd")} onClick={star}><Icon name="star" /></button>}<span className="crumb">{page?.code}</span></div>
             {page?.sub && <p>{page.sub}</p>}
           </div>
+          <button className="search-pill" onClick={openSearch} aria-label={t("searchLabel")}><Icon name="search" /><span>{t("searchPill")}</span><kbd>⌘K</kbd></button>
           <div className="top-actions">
             {/* always in sight, next to the bell (not at the end of a scrolling menu) */}
             <LanguageSwitch className="round lang-btn" />
@@ -118,6 +120,7 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
 
       {bell.open && <BellPanel bell={bell} />}
+      <CommandPalette />
 
       <nav className="tabbar" aria-label={t("quickNav")}>
         {keys.slice(0, 4).map((k) => (

@@ -25,10 +25,33 @@
       "contract": "عقد",
       "ticket": "تذكرة",
       "purchase": "طلب شراء"
-    }
+    },
+    "searchPill": "دوّر على ليد، وحدة، موظف…",
+    "searchLabel": "بحث في السيستم"
   },
   "language": {
     "switchTo": "English",
     "label": "غيّر اللغة"
+  },
+  "search": {
+    "label": "بحث",
+    "placeholder": "اكتب اسم ليد، رقم موبايل، كود وحدة، موظف، أو صفحة",
+    "kinds": {
+      "page": "صفحة",
+      "action": "أكشن",
+      "lead": "ليد",
+      "unit": "وحدة",
+      "client": "عميل",
+      "deal": "صفقة",
+      "ticket": "تذكرة",
+      "employee": "موظف"
+    },
+    "newLead": "ليد جديد",
+    "meters": "{n} م",
+    "none": "مفيش نتايج لـ «{q}»",
+    "searching": "بيدوّر…",
+    "move": "تنقّل",
+    "open": "افتح",
+    "close": "قفل"
   }
 }
