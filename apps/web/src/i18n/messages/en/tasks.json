@@ -48,7 +48,8 @@
     "place": "{area} · floor {floor} · building {building}",
     "returned": "{count, plural, one {Sent back for changes once} other {Sent back for changes # times}}",
     "system": "System",
-    "arrow": "→"
+    "arrow": "→",
+    "kpi": "Counts in the KPIs"
   },
   "sla": {
     "met": "Done within the {hours} hours",
@@ -74,7 +75,13 @@
     "due": "Due date",
     "notes": "Notes",
     "photoNote": "The unit's data is sent automatically: code, project, building, floor, location and the owner's number",
-    "send": "Send the task"
+    "send": "Send the task",
+    "kpi": "Counts in the KPIs?",
+    "kpiSkip": "No · Skip",
+    "kpiYes": "Yes · goes into the assignee's card (Tasks on time)",
+    "kpiCard": "A KPI card was made for {name} with a «Tasks on time» item (set its weight)",
+    "kpiItem": "A «Tasks on time» item was added to {name}'s card (set its weight)",
+    "kpiCounted": "Counts in their KPIs"
   },
   "sides": {
     "team": "Team tasks ({count})",

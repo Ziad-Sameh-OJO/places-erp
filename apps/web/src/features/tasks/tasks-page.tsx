@@ -126,6 +126,7 @@ function TaskCard({ t, onMove }: { t: TaskRow; onMove: (status: string) => void 
         <span className={`hint ${t.late ? "bad-t" : ""}`}><Icon name="calendar" />{day(t.dueOn)}</span>
       </div>
       <b>{t.title ?? (u ? `${u.code} · ${u.project}` : "—")}</b>
+      {t.countsInKpi && <span className="row"><Chip tone="info">{tr("kpi")}</Chip></span>}
       {u && (
         <span className="hint">
           {fields.shows("place") && tr("place", { area: u.area, floor: String(u.floor || "—"), building: String(u.building || "—") })}{u.ownerName ? ` · ${u.ownerName}` : ""} {u.ownerPhone && <span className="mono">{u.ownerPhone}</span>}

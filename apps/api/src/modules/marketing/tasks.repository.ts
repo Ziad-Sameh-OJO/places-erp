@@ -4,7 +4,7 @@ import { PRISMA } from "../../core/database/database.module";
 
 const ROW = {
   id: true, kind: true, title: true, byUserId: true, toUserId: true, dueOn: true, status: true, returned: true, note: true,
-  doneAt: true, createdAt: true,
+  doneAt: true, createdAt: true, countsInKpi: true,
   unit: { select: { id: true, code: true, project: true, area: true, floor: true, building: true, ownerName: true, ownerPhone: true, enteredAt: true } },
 } satisfies Prisma.TaskSelect;
 export type TaskRecord = Prisma.TaskGetPayload<{ select: typeof ROW }>;

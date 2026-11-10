@@ -211,6 +211,10 @@ export default [
   ["رصيد العهدة تحت الحد = 100%، فوقه = 0%", "Petty cash balance under the limit = 100%, over it = 0%"],
   ["الفواتير", "Invoices"],
   ["% من المشتريات فوق 10,000 اللي ليها فاتورة متعلّقة", "% of purchases over 10,000 with an attached invoice"],
+  ["المهام في ميعادها", "Tasks on time"],
+  ["المهام اللي اتبعتتله بخيار «تتحسب في الـ KPIs» واتعملت Done في ميعادها ÷ كل المهام دي اللي ميعادها جه", "Tasks sent to them with «counts in the KPIs» that were Done on time ÷ all those tasks that came due"],
+  ["100% في الميعاد", "100% on time"],
+  ["صفحة المهام", "Tasks page"],
   // kpi.ts · problems and the «بيتحسب: …» line
   ["الإعدادات من غير مقياس", "Settings without a metric"],
   ["المقياس ده مش في الكتالوج", "This metric isn't in the catalog"],
