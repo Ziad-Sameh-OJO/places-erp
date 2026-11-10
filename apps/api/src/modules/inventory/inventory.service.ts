@@ -5,7 +5,7 @@ import {
   type MissingUnitsToday, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
-  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
+  UNIT_TYPES, allowedValue, carrySides, closedStatus, dayStart, mediaOnTime, fromDecimal, incomeFigures, isStale, keepsInventory, localDate, locationUrl, missingFields, recommendUnits, seesMissingOf, spaceWindow, staleBefore, toDecimal, unitTotal,
   type ClientNeed, type NarrowingAnswers, type UnitType,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -292,6 +292,25 @@ export class InventoryService {
       if (u.ownerId && !me.fields.fixed("clients").has("timeline")) {
         await this.clients.logOwnerUpdate(tx, me.id, u.ownerId, `${u.code} · ${u.project}${input.comment ? ` · ${input.comment}` : ""}`);
       }
+    });
+    return this.get(me, id);
+  }
+
+  /**
+   * 2.34 · the demo's unitLoc: the unit's Google Maps link changes from its page (the place moved, or the link was
+   * wrong). The old and new link go in the Audit Log; like any edit the PDF waits for Manar's confirm again (Q19), and
+   * the unit's Last update is today. The same link → nothing changes.
+   */
+  async setLocation(me: CurrentUser, id: string, location: string): Promise<UnitDetail> {
+    if (me.fields.fixed("inventory").has("location")) throw new ForbiddenException("الـ Location مقفول على دورك");
+    await this.db.$transaction(async (tx) => {
+      const u = await this.repo.detail(this.scope(me), id, tx);
+      if (!u) throw new NotFoundException(NO_UNIT);
+      if (locationUrl(u.location) === locationUrl(location)) return;
+      const now = new Date();
+      await tx.unit.update({ where: { id }, data: { location, pdfStatus: "draft", lastOwnerUpdateAt: now } });
+      await this.audit.record({ module: "inventory", entity: "Unit", entityId: id, action: "location", userId: me.id,
+        before: { location: u.location, pdfStatus: u.pdfStatus, lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { location, pdfStatus: "draft", lastOwnerUpdateAt: now } }, tx);
     });
     return this.get(me, id);
   }

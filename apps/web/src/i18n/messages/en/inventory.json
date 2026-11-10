@@ -72,7 +72,6 @@
     "late": "Late · {day}",
     "yesFrom": "Yes · from {min} m²",
     "yes": "Yes",
-    "map": "Map",
     "files": "{count, plural, one {# file} other {# files}}",
     "empty": "Empty"
   },
@@ -90,7 +89,6 @@
   "drawer": {
     "notFound": "Unit not found",
     "region": "Region",
-    "location": "Location",
     "data": "Details",
     "missingTitle": "Missing data ({count}):",
     "missingBody": ". The unit was saved as usual, and there's an alert in «My tasks today» until it's completed.",
@@ -108,8 +106,14 @@
     "enteredBy": "Entered by: {name}"
   },
   "location": {
-    "none": "No location",
-    "google": "Open in Google Maps"
+    "title": "Location link",
+    "link": "Google Maps link",
+    "current": "Current link:",
+    "save": "Save the link",
+    "edit": "Edit the link",
+    "add": "Add a link",
+    "same": "Nothing changed",
+    "done": "Location link updated · the PDF waits for Confirm again"
   },
   "ownerUpdate": {
     "button": "Owner update today",
@@ -138,10 +142,9 @@
     "agent": "Agent (the salesperson who brought the unit)",
     "areaTab": "Area tab",
     "auto": "Automatic from the area",
-    "mapHint": "Click the unit's place on the map and the coordinates fill in",
     "agreement": "Agreement (file · uploaded to the system)",
     "agreementSaved": "The Agreement was uploaded",
-    "location": "Location (from the map)",
+    "location": "Location (Google Maps link)",
     "lastUpdate": "Last update (with the owner)",
     "receivedAt": "Received on (from the owner / WhatsApp)",
     "divisibleQ": "Divisible?",

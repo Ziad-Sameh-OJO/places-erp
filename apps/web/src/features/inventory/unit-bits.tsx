@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { UnitDetail, UnitRow } from "@places/contracts";
+import { locationUrl } from "@places/domain";
 import { Avatar, Chip, Icon } from "@/components/ui";
 import { amount, day, moneyExact, num } from "@/lib/format";
 import type inventory from "@/i18n/messages/ar/inventory.json";
@@ -71,9 +72,7 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
     case "agent": return u.agent ? <span className="who"><Avatar id={u.agent.id} name={u.agent.name} sm /><span>{u.agent.name}</span></span> : "—";
     case "lastUpdate": return u.stale ? <Chip tone="bad">{t("cell.late", { day: day(u.lastOwnerUpdateAt) })}</Chip> : day(u.lastOwnerUpdateAt);
     case "divisible": return u.divisible ? <Chip tone="info">{u.minSplit ? t("cell.yesFrom", { min: num(u.minSplit) }) : t("cell.yes")}</Chip> : "—";
-    case "location": return u.location
-      ? <a className="lnk" href={`https://maps.google.com/?q=${encodeURIComponent(u.location)}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><Icon name="pin" />{t("cell.map")}</a>
-      : "—";
+    case "location": return <LocationLink location={u.location} />;
     case "delivery": return typeof d.delivery === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d.delivery) ? day(d.delivery) : text(d.delivery);
     case "contract": return text(d.contractDuration);
     case "start": return day(d.startsOn as string | undefined);
@@ -91,6 +90,18 @@ export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
       : u.alsoType && u.alsoStatus !== "available" && u.status === "available" ? <Chip tone="acc">{u.type}</Chip> : "—";
     default: return text((u as unknown as Record<string, unknown>)[key]);
   }
+}
+
+/**
+ * 2.34 · the Google Maps link itself (demo `locLink`): shortened in the sheet, whole in the drawer; an old «lat, lng»
+ * opens as a search for the point (domain locationUrl). A new tab, never the app's.
+ */
+export function LocationLink({ location, full }: { location: string | null; full?: boolean }) {
+  const url = locationUrl(location);
+  if (!url) return <>—</>;
+  const bare = url.replace(/^https?:\/\/(www\.)?/, "");
+  const shown = full ? url : bare.slice(0, 26) + (url.length > 34 ? "…" : "");
+  return <a className="lnk loc-lnk" href={url} target="_blank" rel="noopener noreferrer" dir="ltr" title={url} onClick={(e) => e.stopPropagation()}><Icon name="pin" />{shown}</a>;
 }
 
 /** 2.31 · an Income unit's Agreement: the API checks who may open it and sends them to the file. */
