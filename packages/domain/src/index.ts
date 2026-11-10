@@ -41,3 +41,4 @@ export * from "./companies.ts";
 export * from "./campaigns.ts";
 export * from "./posts.ts";
 export * from "./broadcasts.ts";
+export * from "./kpi-today.ts";

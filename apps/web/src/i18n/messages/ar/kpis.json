@@ -211,5 +211,20 @@
     "enteredBy": "مين بيدخّل الرقم",
     "roles": "الأدوار",
     "people": "الأشخاص"
+  },
+  "home": {
+    "mine": "الـ KPIs بتاعتي",
+    "mineSub": "{quarter} · يتابعني: {follower}",
+    "allMet": "كل البنود محققة لحد دلوقتي.",
+    "openCard": "افتح الكارت",
+    "open": "افتح الكارت",
+    "ofTarget": "{value} من {target}",
+    "ofRequired": "{done} من {need}",
+    "approveSub": "{count} بند يدوي بتدخّله · ومستني اعتمادك",
+    "enterTitle": "دخّل أرقام KPIs {name}",
+    "enterSub": "{count} بند بتدخّله بإيدك",
+    "deliverTitle": "تسليم: {item}",
+    "deliverSub": "{done} من {need} · بند في الـ KPIs بتاعتك",
+    "deliver": "سلّم"
   }
 }

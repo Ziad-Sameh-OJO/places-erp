@@ -1,3 +1,4 @@
+import { KpisTodayController } from "./today.controller";
 import { Module } from "@nestjs/common";
 import { KpisController } from "./kpis.controller";
 import { KpisRepository } from "./kpis.repository";
@@ -13,5 +14,5 @@ import { TargetsService } from "./targets.service";
  * KpisService is exported for HR: the KPI amounts payroll reads (11.6) and the scores the ideal employee needs (7.11);
  * TargetsService for deals: the TL's commission that becomes due with each collection (5.8) and Achievements (5.10).
  */
-@Module({ controllers: [KpisController, ReportsController], providers: [KpisService, KpisRepository, ReportsService, ReportsRepository, TargetsService], exports: [KpisService, TargetsService] })
+@Module({ controllers: [KpisController, ReportsController, KpisTodayController], providers: [KpisService, KpisRepository, ReportsService, ReportsRepository, TargetsService], exports: [KpisService, TargetsService] })
 export class KpisModule {}

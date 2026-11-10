@@ -2,10 +2,10 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import {
   KpiWatch, type ActivityInput, type ActivityResultInput, type ActivityView, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView,
-  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
+  type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type KpiToday, type MyActivities,
 } from "@places/contracts";
 import {
-  type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
+  type Bands, type LeadClocks, type MetricParams, type Method, kpiTodayLines, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -154,6 +154,34 @@ export class KpisService {
     const [cards, bands] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands()]);
     const b = bandsOf(bands);
     return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all };
+  }
+
+  /**
+   * 11.16 · home: my card (any quarter state, as the demo) and, while the quarter is open, what waits on me: the cards
+   * I follow to approve, the manual numbers I type on others' cards, my own hand-ins (domain kpiTodayLines).
+   */
+  async today(me: CurrentUser): Promise<KpiToday> {
+    const q = await this.repo.currentQuarter();
+    if (!q) return { mine: null, lines: [] };
+    const w = await this.who(me);
+    const emp = me.employeeId ?? "-";
+    const follows: Prisma.KpiCardWhereInput = me.roles.includes("admin") ? { OR: [{ followerId: emp }, { followerId: null, employeeId: { not: emp } }] } : { followerId: emp };
+    const enters: Prisma.KpiCardWhereInput = { items: { some: { method: "manual", enteredBy: { hasSome: [me.id, ...me.roles] } } } };
+    const [cards, bands] = await Promise.all([this.repo.cards({ quarter: q.id, OR: [{ employeeId: emp }, follows, enters] }), this.repo.bands()]);
+    const b = bandsOf(bands);
+    const score = (c: CardRecord) => (w.noScore ? null : Math.round(this.score(c) * 10) / 10);
+    const byId = new Map(cards.map((c) => [c.id, c]));
+    const lines = q.status !== "open" ? [] : kpiTodayLines(cards.map((c) => ({
+      id: c.id, employeeId: c.employeeId, followerId: c.followerId, approved: !!c.approvedAt,
+      items: c.items.map((it) => ({ title: it.title, method: it.method as Method, enteredBy: it.enteredBy, report: it.report, required: it.required, delivered: it.deliveries.length })),
+    })), { userId: me.id, employeeId: me.employeeId, roles: me.roles }).map((l) => { const c = byId.get(l.cardId)!; return { ...l, name: c.employee.name, score: score(c) }; });
+    const c = cards.find((x) => x.employeeId === me.employeeId);
+    const below = c ? c.items.filter((it) => this.ach(it) < 1) : [];
+    const mine = c && {
+      id: c.id, quarter: quarterLabel(q.id), score: score(c), tone: w.noScore ? "ok" as const : bandTone(this.score(c), b), follower: c.follower?.name ?? "الملاك", belowCount: below.length,
+      below: below.slice(0, 3).map((it) => ({ title: it.title, targetText: it.targetText, method: it.method as Method, value: num(it.value), delivered: it.deliveries.length, required: it.required })),
+    };
+    return { mine: mine ?? null, lines };
   }
 
   async card(me: CurrentUser, id: string): Promise<KpiCardView> {

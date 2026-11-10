@@ -211,5 +211,20 @@
     "enteredBy": "Who enters the number",
     "roles": "Roles",
     "people": "People"
+  },
+  "home": {
+    "mine": "My KPIs",
+    "mineSub": "{quarter} · followed by: {follower}",
+    "allMet": "Every item is met so far.",
+    "openCard": "Open the card",
+    "open": "Open the card",
+    "ofTarget": "{value} of {target}",
+    "ofRequired": "{done} of {need}",
+    "approveSub": "{count, plural, one {# manual item} other {# manual items}} you enter · waiting for your approval",
+    "enterTitle": "Enter the KPI numbers of {name}",
+    "enterSub": "{count, plural, one {# item} other {# items}} you enter by hand",
+    "deliverTitle": "Hand in: {item}",
+    "deliverSub": "{done} of {need} · an item on your KPIs",
+    "deliver": "Hand in"
   }
 }
