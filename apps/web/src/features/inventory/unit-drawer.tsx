@@ -47,6 +47,7 @@ export function UnitDrawer({ ids, id, insider, canConfirm, unit, error, onGo, on
     ...cols.map(([k, label]) => [label, k === "location"
       ? <><LocationLink location={u.location} full />{me.can("inventory", "edit") && fields.edits("location") && <> <LocationEdit u={u} /></>}</>
       : cell(u, k, t)] as [string, ReactNode]),
+    ...(u.comment ? [["Comment", u.comment] as [string, ReactNode]] : []), // 2.33: off the sheet, still on the unit page
   ];
   return (
     <Drawer title={`${u.code} · ${u.project}`} sub={fields.shows("area") ? `${u.type} · ${serverText(u.area)}` : u.type} onClose={onClose} chips={<UnitChips u={u} />}
