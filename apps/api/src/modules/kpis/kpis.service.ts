@@ -3,9 +3,11 @@ import type { Prisma, PrismaClient } from "@places/db";
 import {
   KpiWatch, type ActivityInput, type ActivityResultInput, type ActivityView, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView,
   type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type MyActivities,
+  type KpiBonusInput, type KpiSheetSetup,
 } from "@places/contracts";
 import {
   type Bands, type LeadClocks, type MetricParams, type Method, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, timedTasks, toDecimal, type ActivityKind,
+  type SheetField, SHEET_FIELDS, SHEET_FIELD_KEYS, dealRowOf, monthBounds, quarterMonths, sheetFigures,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -22,7 +24,7 @@ const LINK = "/kpis";
 const NO_CARD = "الكارت ده مش موجود أو مش من حقك تشوفه";
 const CLOSED = "الربع اتقفل · مفيش تعديل";
 /** 11.14: the watcher never sees these in the changes log. */
-const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose"];
+const MONEY_ENTITIES = ["KpiPay", "KpiBands", "KpiQuarterClose", "KpiBonusRule"];
 const NO_MONEY = "الفلوس مش في صلاحياتك";
 const NO_PLAN = "خطة التحسين مش في صلاحياتك";
 
@@ -361,6 +363,47 @@ export class KpisService {
     });
   }
 
+  /** 11.18 · the sheet's lines and award rules, for «كل الشركة» (not for the watcher: it's money). */
+  private async sheetSetup(w: Who): Promise<KpiSheetSetup | null> {
+    if (w.noMoney) return null;
+    const [bands, rules] = await Promise.all([this.repo.bands(), this.repo.bonusRules()]);
+    return { fields: SHEET_FIELD_KEYS.filter((k) => bands.sheetFields.includes(k)),
+      bonuses: rules.map((r) => ({ id: r.id, minPct: r.minPct, amount: r.amount.toFixed(2) })) };
+  }
+
+  /** 11.18 «الخانات اللي في الورقة»: applies to every sheet made from now on. */
+  async setSheetFields(me: CurrentUser, fields: SheetField[]) {
+    if ((await this.who(me)).fixedMoney) throw new ForbiddenException(NO_MONEY);
+    const sheetFields = SHEET_FIELD_KEYS.filter((k) => fields.includes(k));
+    await this.db.$transaction(async (tx) => {
+      const before = (await this.repo.bands(tx)).sheetFields;
+      await tx.kpiBands.update({ where: { id: "default" }, data: { sheetFields } });
+      await this.audit.record({ module: MODULE, entity: "KpiBands", entityId: "default", action: "update", userId: me.id, before: { sheetFields: before }, after: { sheetFields, summary: "خانات ورقة الموظف اتعدّلت" } }, tx);
+    });
+  }
+
+  /** 11.18 «الجوايز»: «لو حقق X% من التارجت ← جايزة». */
+  async addBonus(me: CurrentUser, input: KpiBonusInput) {
+    if ((await this.who(me)).fixedMoney) throw new ForbiddenException(NO_MONEY);
+    return this.db.$transaction(async (tx) => {
+      const r = await tx.kpiBonusRule.create({ data: { minPct: input.minPct, amount: input.amount } });
+      await this.audit.record({ module: MODULE, entity: "KpiBonusRule", entityId: r.id, action: "create", userId: me.id,
+        after: { minPct: r.minPct, amount: input.amount, summary: `جايزة جديدة: لو حقق ${r.minPct}% من التارجت ← ${input.amount}` } }, tx);
+      return { id: r.id };
+    });
+  }
+
+  async removeBonus(me: CurrentUser, id: string) {
+    if ((await this.who(me)).fixedMoney) throw new ForbiddenException(NO_MONEY);
+    await this.db.$transaction(async (tx) => {
+      const r = await tx.kpiBonusRule.findUnique({ where: { id } });
+      if (!r) throw new NotFoundException("الجايزة دي مش موجودة");
+      await tx.kpiBonusRule.delete({ where: { id } });
+      await this.audit.record({ module: MODULE, entity: "KpiBonusRule", entityId: id, action: "delete", userId: me.id,
+        before: { minPct: r.minPct, amount: r.amount.toFixed(2) }, after: { summary: `اتمسحت جايزة الـ ${r.minPct}%` } }, tx);
+    });
+  }
+
   /** 11.4 · 11.11: a card for someone who has none: empty, or with another card's items (nothing achieved). */
   async createCard(me: CurrentUser, employeeId: string, copyFrom?: string) {
     const w = await this.who(me);
@@ -472,9 +515,43 @@ export class KpisService {
     return q.status === "closed" && !w.noMoney && !w.noScore && !w.noPlan && (!!q.sheetsAt || w.approve || w.edit);
   }
 
-  /** 11.7: the employee's quarterly sheet: the result, its tier and amount, and every item. */
-  private async sheetHtml(c: CardRecord, quarter: string) {
-    const b = bandsOf(await this.repo.bands());
+  /**
+   * 11.18: the sheet's money lines management picked (demo clients.js sheetOf): the salary, the quarter's target (its
+   * three months added up), what came in against it, the scheme, the commission, the Transactions, and the award the
+   * biggest rule reached gives. `hidden`: the reader's M-09 field rules — a hidden salary isn't on his copy at all.
+   */
+  private async sheetLines(c: CardRecord, quarter: string, fields: readonly string[], hidden: ReadonlySet<SheetField>) {
+    const keys = SHEET_FIELD_KEYS.filter((k) => fields.includes(k) && !hidden.has(k));
+    if (!keys.length) return "";
+    const months = quarterMonths(quarter), from = monthBounds(months[0]).from, to = monthBounds(months[2]).to;
+    const [m, rules] = await Promise.all([this.repo.sheetMoney(c.employeeId, months, from, to), this.repo.bonusRules()]);
+    const goal = months.reduce((sum, mo) => sum + piasters(m.targets.find((t) => t.month === mo)?.value ?? m.target), 0);
+    const deals = m.deals.map((d) => dealRowOf({ ...d, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), targetBase: d.targetBase?.toFixed(2) ?? null,
+      payments: d.payments.map((p) => ({ side: p.side, amount: p.amount.toFixed(2), receivedAt: p.receivedAt })) }));
+    const scheme = Number(m.commissionPct), f = sheetFigures(c.employeeId, deals, from, to, goal, scheme, rules.map((r) => ({ minPct: r.minPct, amount: piasters(r.amount) })));
+    const egp = (p: number) => `<span class="num">${toDecimal(p)}</span> ج.م`;
+    const value: Record<SheetField, string> = {
+      salary: egp(piasters(c.employee.salary)), target: goal ? egp(goal) : "—", achieved: goal ? `${egp(f.achieved)} · <span class="num">${Math.round(f.percent)}%</span>` : egp(f.achieved),
+      scheme: `<span class="num">${scheme}%</span>`, commission: egp(f.commission), transactions: `<span class="num">${f.transactions}</span>`, bonus: f.bonus ? egp(f.bonus) : "—",
+    };
+    return `<h2>الورقة</h2><table>${keys.map((k) => `<tr><th>${SHEET_FIELDS.find(([x]) => x === k)![1]}</th><td>${value[k]}</td></tr>`).join("")}</table>`;
+  }
+
+  /** 11.18 · the M-09 rules that take a line off the reader's sheet. */
+  private sheetHidden(me: CurrentUser): Set<SheetField> {
+    const hr = me.fields.hidden("hr"), rp = me.fields.hidden("reports"), kp = me.fields.hidden("kpis"), out = new Set<SheetField>();
+    if (hr.has("salary")) out.add("salary");
+    if (hr.has("target") || rp.has("value")) out.add("target");
+    if (rp.has("achieved")) out.add("achieved");
+    if (hr.has("commissionPct")) { out.add("scheme"); out.add("commission"); }
+    if (kp.has("money")) out.add("bonus");
+    return out;
+  }
+
+  /** 11.7: the employee's quarterly sheet: the result, its tier and amount, and every item (+ 11.18 the picked lines). */
+  private async sheetHtml(c: CardRecord, quarter: string, hidden: ReadonlySet<SheetField> = new Set()) {
+    const bands = await this.repo.bands(), b = bandsOf(bands);
+    const lines = await this.sheetLines(c, quarter, bands.sheetFields, hidden);
     const s = c.finalScore != null ? Number(c.finalScore) : this.score(c);
     const amount = c.finalAmount != null ? piasters(c.finalAmount) : this.delta(c, s, b);
     const money = `${amount > 0 ? "مكافأة" : amount < 0 ? "خصم" : "—"} <span class="num">${toDecimal(Math.abs(amount))}</span> ج.م`;
@@ -485,14 +562,14 @@ export class KpisService {
 <table><tr><th>الموظف</th><td>${esc(c.employee.name)} · ${esc(c.employee.jobTitle)}</td></tr><tr><th>المتابع</th><td>${esc(c.follower?.name ?? "الملاك")}</td></tr>
 <tr><th>نتيجة الربع</th><td>${pct(s)} · ${esc(bandLabel(s, b))}</td></tr><tr><th>المكافأة / الخصم</th><td>${money}</td></tr>
 ${c.plan ? `<tr><th>خطة التحسين</th><td>${esc(c.plan)}</td></tr>` : ""}</table>
-<h2>البنود</h2><table><tr><th>البند</th><th>الوزن</th><th>المستهدف</th><th>التحقيق</th><th>في النتيجة</th></tr>${rows}</table>`) };
+${lines}<h2>البنود</h2><table><tr><th>البند</th><th>الوزن</th><th>المستهدف</th><th>التحقيق</th><th>في النتيجة</th></tr>${rows}</table>`) };
   }
 
   async sheet(me: CurrentUser, id: string) {
     const w = await this.who(me);
     const { c, q } = await this.visibleCard(w, id);
     if (!this.canSheet(w, q)) throw new ForbiddenException("ورقة الربع بتطلع بعد قفل الربع وموافقة الـ Office Manager");
-    const { name, html } = await this.sheetHtml(c, q.id);
+    const { name, html } = await this.sheetHtml(c, q.id, this.sheetHidden(me));
     return { name, pdf: await this.docs.pdf(html) };
   }
 
@@ -563,6 +640,7 @@ ${c.plan ? `<tr><th>خطة التحسين</th><td>${esc(c.plan)}</td></tr>` : ""
       bands: w.noMoney ? null : { top: b.top, full: b.full, partial: b.partial, low: b.low, rewardPercent: b.rewardPercent, cutPercent: b.cutPercent },
       can: { edit: w.edit, close: w.approve && q.status === "open", sheets: w.approve && q.status === "closed" && !q.sheetsAt },
       sheets: q.sheetsAt ? { by: people.find((p) => p.userId === q.sheetsById)?.name ?? "", at: q.sheetsAt.toISOString() } : null,
+      sheetSetup: await this.sheetSetup(w),
     };
   }
 
