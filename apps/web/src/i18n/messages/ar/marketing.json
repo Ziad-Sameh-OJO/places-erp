@@ -130,6 +130,19 @@
     "lead": "ليد",
     "posts": "البوستات اللي جابت ليدز",
     "noPosts": "مفيش ليدز متربطة ببوست في الفترة دي",
+    "notQualified": {
+      "title": "الليدز اللي ماكانتش Qualified",
+      "sub": "السبب = الأكشن اللي السيلز عمله على الليد + آخر كومنت ليه، وصاحب الكومنت",
+      "of": "{n} من {total}",
+      "reason": "السبب",
+      "all": "الكل ({n})",
+      "share": "{pct}% من اللي ماكانوش Qualified",
+      "reasons": { "noAnswer": "No Answer · مردش", "notInterested": "Not Interested", "fresh": "لسه محدش كلّمه", "cancellation": "Cancellation", "hold": "Hold" },
+      "head": { "lead": "الليد", "source": "Channel · الكامبين", "reason": "السبب", "comment": "آخر أكشن / كومنت من السيلز", "by": "صاحب الكومنت", "when": "إمتى" },
+      "noComment": "مفيش كومنت · لسه محدش اتواصل",
+      "more": "ظاهر أحدث {n} من {total}.",
+      "allQualified": "كل الليدز في الفترة دي بقت Qualified."
+    },
     "note": "Qualified = أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتحسب أوتوماتيك هنا، وبيفضل محسوب حتى لو رجع Not Interested أو No Answer."
   },
   "deals": {

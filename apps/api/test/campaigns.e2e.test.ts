@@ -90,3 +90,32 @@ test("Rahma adds a campaign → leads and Qualified per campaign, every arrival 
   assert.equal((await call(`/marketing/campaigns/${id}`, { method: "PUT", cookie: rahma, body: body() })).status, 404);
   assert.equal(await prisma.auditLog.count({ where: { entity: "Campaign", entityId: id } }), 3);
 });
+
+test("4.18 · the leads that weren't Qualified: per reason, the salesperson's last comment and its author, no mobiles; sales 403", async () => {
+  const made = await call("/marketing/campaigns", { method: "POST", cookie: rahma, body: body({ name: `E2E غير مؤهل ${stamp}` }) });
+  assert.equal(made.status, 201, JSON.stringify(made.body));
+  const id = made.body.id as string;
+  campaigns.push(id);
+  const anas = await prisma.user.findFirstOrThrow({ where: { email: "anas@places.com" }, select: { id: true, employee: { select: { name: true } } } });
+  const leads: Array<[number, "NO_ANSWER" | "NOT_INTERESTED" | "FRESH" | "INTERESTED", boolean]> = [[3, "NO_ANSWER", false], [4, "NO_ANSWER", false], [5, "NOT_INTERESTED", false], [6, "FRESH", false], [7, "INTERESTED", true]];
+  for (const [n, stage, qualified] of leads) {
+    const lead = await prisma.lead.create({ data: { code: `L-C${stamp}${n}`, name: `E2E ${stamp} ${n}`, phones: [`0102${stamp.slice(-7)}${n}`], area: "التجمع الخامس", type: "Rent", channel, campaignId: id, stage, qualified, createdById: "e2e" } });
+    await prisma.leadArrival.create({ data: { leadId: lead.id, channel, campaignId: id } });
+    if (n === 5) {
+      await prisma.leadActivity.create({ data: { leadId: lead.id, kind: "comment", text: "مش محتاج مكتب دلوقتي", byUserId: anas.id, at: new Date(Date.now() - 60_000) } });
+      await prisma.leadActivity.create({ data: { leadId: lead.id, kind: "stage", text: "Not Interested", byUserId: anas.id } });
+      await prisma.leadActivity.create({ data: { leadId: lead.id, kind: "assign", text: "اتوزّع", byUserId: null } });
+    }
+  }
+  assert.equal((await call(`/marketing/campaigns/not-qualified?campaignId=${id}`, { cookie: sales })).status, 403);
+  const r = await call(`/marketing/campaigns/not-qualified?campaignId=${id}`, { cookie: rahma });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([r.body.total, r.body.notQualified, r.body.matching], [5, 4, 4]);
+  assert.deepEqual(r.body.byReason, [{ reason: "No Answer", count: 2 }, { reason: "Not Interested", count: 1 }, { reason: "Fresh", count: 1 }]);
+  const ni = r.body.rows.find((x: { code: string }) => x.code === `L-C${stamp}5`);
+  assert.deepEqual(ni.comment && [ni.comment.text, ni.comment.by], ["مش محتاج مكتب دلوقتي", anas.employee?.name ?? "anas@places.com"]);
+  assert.equal(r.body.rows.find((x: { code: string }) => x.code === `L-C${stamp}6`).comment, null);
+  assert.ok(!JSON.stringify(r.body).includes(`0102${stamp.slice(-7)}`), "no mobile leaves the API");
+  const only = await call(`/marketing/campaigns/not-qualified?campaignId=${id}&reason=${encodeURIComponent("No Answer")}`, { cookie: rahma });
+  assert.deepEqual([only.body.matching, only.body.rows.length, only.body.notQualified], [2, 2, 4]);
+});

@@ -7,6 +7,7 @@ import { Card, Chip, Empty, Note } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { useFields } from "@/lib/me";
+import { NotQualified } from "./not-qualified";
 import { useCampaigns } from "./use-campaigns";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -34,7 +35,8 @@ export function Dashboard() {
   const [channel, setChannel] = useState("");
   const [campaignId, setCampaignId] = useState("");
   const campaigns = useCampaigns().data ?? [];
-  const qs = new URLSearchParams({ ...period(range, custom), ...(channel ? { channel } : {}), ...(campaignId ? { campaignId } : {}) }).toString();
+  const filter = { ...period(range, custom), ...(channel ? { channel } : {}), ...(campaignId ? { campaignId } : {}) };
+  const qs = new URLSearchParams(filter).toString();
   const q = useQuery({ queryKey: ["marketing-dashboard", qs], queryFn: () => api.get<MarketingDashboard>(`/marketing/campaigns/dashboard?${qs}`), placeholderData: keepPreviousData });
   const d = q.data;
   const fields = useFields("marketing"); // M-09: the money tiles go with a hidden «اتصرف»
@@ -91,6 +93,7 @@ export function Dashboard() {
           {d?.posts.length ? <HBars rows={d.posts.map((p) => ({ label: p.post, value: p.leads }))} /> : <p className="hint">{t("noPosts")}</p>}
         </Card>
       </div>
+      <NotQualified filter={filter} />
       <Note>{t("note")}</Note>
     </>
   );
