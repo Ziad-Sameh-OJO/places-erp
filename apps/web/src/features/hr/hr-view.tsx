@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Tabs } from "@/components/ui";
 import { AttendanceHistory, AttendanceToday, WeeklyDelay } from "./attendance";
@@ -15,6 +15,8 @@ type Tab = "att" | "history" | "delay" | "leaves" | "balances" | "care" | "savin
 export function HrView() {
   const t = useTranslations("hr");
   const [tab, setTab] = useState<Tab>("att");
+  // «بحث سريع» (0.17) opens an employee's file: «/hr?employee=<id>» lands on «الموظفين»
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("employee")) setTab("emps"); }, []);
   return (
     <>
       <Tabs<Tab> value={tab} onChange={setTab} items={[["att", t("tabs.att")], ["history", t("tabs.history")], ["delay", "Weekly Delay"], ["leaves", t("tabs.leaves")], ["balances", t("tabs.balances")], ["care", t("tabs.care")], ["saving", t("tabs.saving")], ["emps", t("tabs.emps")]]} />

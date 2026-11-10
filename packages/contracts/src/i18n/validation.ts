@@ -415,4 +415,6 @@ export default [
   ["الطلب طويل · 500 حرف بالكتير", "The request is too long · 500 characters at most"],
   ["اختار PDF أو PowerPoint", "Pick PDF or PowerPoint"],
   ["اسم العميل طويل", "The client's name is too long"],
+  // search.ts
+  ["اكتب حرفين على الأقل", "Type at least 2 letters"],
 ] satisfies Pair[];

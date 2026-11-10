@@ -25,7 +25,9 @@
       "contract": "Contract",
       "ticket": "Ticket",
       "purchase": "Purchase"
-    }
+    },
+    "searchPill": "Find a lead, unit, employee…",
+    "searchLabel": "Search the system"
   },
   "language": {
     "switchTo": "عربي",
@@ -46,5 +48,26 @@
       "ticket": "Ticket to another department",
       "leave": "Leave request"
     }
+  },
+  "search": {
+    "label": "Search",
+    "placeholder": "Type a lead name, mobile number, unit code, employee or page",
+    "kinds": {
+      "page": "Page",
+      "action": "Action",
+      "lead": "Lead",
+      "unit": "Unit",
+      "client": "Client",
+      "deal": "Deal",
+      "ticket": "Ticket",
+      "employee": "Employee"
+    },
+    "newLead": "New lead",
+    "meters": "{n} m²",
+    "none": "No results for «{q}»",
+    "searching": "Searching…",
+    "move": "move",
+    "open": "open",
+    "close": "close"
   }
 }
