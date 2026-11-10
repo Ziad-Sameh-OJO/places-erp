@@ -68,6 +68,19 @@
     "bank": "بنك",
     "wallet": "محفظة"
   },
+  "todo": {
+    "claimIssue": "اعمل مطالبة {no} · {company}",
+    "claimIssueSub": "{amount} · طلبها {by}",
+    "einvoice": "ارفع الفاتورة الإلكترونية · {no}",
+    "upload": "ارفع",
+    "claimCollect": "سجّل تحصيل {no} واعمل الإيصال",
+    "claimCollectSub": "{company} دفع {amount}",
+    "record": "سجّل",
+    "commissions": "عمولات سيلز مستحقة · {n} سيلز",
+    "commissionsSub": "{total} · صفقات اتحصّلت بالكامل",
+    "purchase": "اصرف طلب شراء {no}",
+    "purchaseSub": "{item} · {amount} · المشتريات سوّته"
+  },
   "collect": {
     "title": "صفقة اتقفلت · حصّل عمولة {code}",
     "subNew": "{company} · {commission} · اتفتحله حساب تحت العملاء",
