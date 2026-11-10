@@ -14,14 +14,17 @@ const ON_LEAVE = ["APPROVED_BY_TL", "CLOSED_BY_HR"] as const;
 /** «HH:MM» of a moment on a Cairo day. */
 export function clockOn(d: Date | null, day: string): string | null {
   if (!d) return null;
-  const min = Math.round((d.getTime() - dayStart(day).getTime()) / 60_000);
-  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  // the wall clock, not minutes since midnight: on the two daylight-saving days the day is 23 or 25 hours long
+  void day;
+  const hm = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+  return hm;
 }
+const nextDay = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
 /** 7.3 · each salesperson's Visits that day (the lead's owner). Meetings stay out until the client says they count (open question). */
 export async function dayVisits(db: Db, ids: readonly string[], day: string): Promise<Map<string, DayVisit[]>> {
   const from = dayStart(day);
-  const rows = await db.leadVisit.findMany({ where: { kind: "visit", at: { gte: from, lt: new Date(from.getTime() + 86_400_000) }, lead: { assignedToId: { in: [...ids] } } },
+  const rows = await db.leadVisit.findMany({ where: { kind: "visit", at: { gte: from, lt: dayStart(nextDay(day)) }, lead: { assignedToId: { in: [...ids] } } },
     select: { at: true, outcome: true, postponeStatus: true, lead: { select: { assignedToId: true } } } });
   const out = new Map<string, DayVisit[]>();
   for (const v of rows) out.set(v.lead.assignedToId!, [...(out.get(v.lead.assignedToId!) ?? []),

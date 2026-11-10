@@ -24,7 +24,10 @@ export class NotActiveRepository {
 
   /** 2.39 · the files the person sees: Manar all of them, the others the ones with rows sent to them. */
   sheets(s: RowScope) {
-    return this.db.notActiveSheet.findMany({ where: s.all ? {} : { rows: { some: { assignedTo: s.userId } } }, select: SHEET, orderBy: { createdAt: "asc" } });
+    // the row count is the reader's rows (Marwa sees only what was sent to her)
+    return this.db.notActiveSheet.findMany({
+      where: s.all ? {} : { rows: { some: { assignedTo: s.userId } } }, select: { ...SHEET, _count: { select: { rows: { where: scoped(s) } } } }, orderBy: { createdAt: "asc" },
+    });
   }
 
   /** Per file: rows not classified yet, and numbers in the inventory waiting for Manar — in what the person sees. */

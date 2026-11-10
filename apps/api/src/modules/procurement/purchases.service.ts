@@ -219,6 +219,7 @@ export class PurchasesService {
       return { p, saved };
     });
     await this.notifications.notify({ event: "procurement.decided", text: `المالية رحّلت ${code(res.p.no)} (${res.p.item}) · ${res.saved.move.no}`, link: LINK, userIds: [res.p.createdById] });
+    await this.vouchers.tellBudgetCrossed(res.saved.crossed); // 9.9: a purchase is a payment on its line like any other
     return res.saved;
   }
 

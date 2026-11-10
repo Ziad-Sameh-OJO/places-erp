@@ -95,7 +95,10 @@ export class BroadcastsService {
     if (b.sends.length) throw new BadRequestException("إنت دوست Done على الـ Broadcast ده قبل كده");
     const otherUnits = [...new Set(input.otherUnits.map((c) => c.toUpperCase()))];
     await this.db.$transaction(async (tx) => {
-      const s = await tx.broadcastSend.create({ data: { broadcastId: id, userId: me.id, otherUnits }, select: { id: true } });
+      const s = await tx.broadcastSend.create({ data: { broadcastId: id, userId: me.id, otherUnits }, select: { id: true } }).catch((e: unknown) => {
+        if ((e as { code?: unknown } | null)?.code === "P2002") throw new BadRequestException("إنت دوست Done على الـ Broadcast ده قبل كده"); // a double click
+        throw e;
+      });
       await this.audit.record({ module: "marketing", entity: "BroadcastSend", entityId: s.id, action: "create", userId: me.id, after: { broadcastId: id, otherUnits } }, tx);
     });
   }

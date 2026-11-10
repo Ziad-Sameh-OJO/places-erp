@@ -52,8 +52,8 @@ export class LeadsController {
   /** The Visit form's unit search (1.9): whoever books visits on leads, even without the inventory page. */
   @Get("visit-units")
   @Requires("leads", "edit")
-  visitUnits(@Query(new ZodPipe(VisitUnitQuery)) q: VisitUnitQuery) {
-    return this.leads.visitUnits(q.q);
+  visitUnits(@Me() me: CurrentUser, @Query(new ZodPipe(VisitUnitQuery)) q: VisitUnitQuery) {
+    return this.leads.visitUnits(me, q.q);
   }
 
   @Get("summary")

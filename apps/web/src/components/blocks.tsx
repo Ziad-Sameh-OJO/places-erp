@@ -20,12 +20,16 @@ export function Drawer({ title, sub, chips, children, foot, onClose, onPrev, onN
   const ref = useRef<HTMLElement>(null);
   const [shown, setShown] = useState(false);
   useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // a modal opened from the drawer takes the Escape; otherwise one key press would close both
+    const key = (e: KeyboardEvent) => e.key === "Escape" && !document.querySelector(".modal-wrap") && onClose();
     window.addEventListener("keydown", key);
-    requestAnimationFrame(() => setShown(true)); // .drawer.in slides it in
-    ref.current?.focus();
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
+  // once, when it opens: callers pass an inline onClose, so this must not follow it (it would steal the focus on every refetch)
+  useEffect(() => {
+    requestAnimationFrame(() => setShown(true)); // .drawer.in slides it in
+    ref.current?.focus();
+  }, []);
   const initial = title.replace(/^(د\.|م\.|أ\.)\s*/, "").charAt(0);
   // on <body> for the same reason as Modal: a card's entrance animation would trap it (components/ui.tsx)
   return createPortal(

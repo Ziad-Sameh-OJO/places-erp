@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
-import { Card, Chip, Icon, ImportDialog, Note, Table, Tabs, useAction } from "@/components/ui";
+import { Card, Chip, Icon, ImportDialog, Note, onFormSubmit, Table, Tabs, useAction } from "@/components/ui";
 
 import { ListsTab } from "./lists";
 import { StampTab, TemplatesTab } from "./documents";
@@ -49,20 +49,20 @@ export function SettingsPage() {
       {tab === "time" && <div className="cols">
         <SlaSummary />
         <Card title={t("leave.title")} icon="calendar">
-          <form action={(f) => set("leaveTypes", d.leaveTypes.map((x, i) => ({ ...x, days: +f.get(`d${i}`)! })))}>
+          <form onSubmit={onFormSubmit((f) => set("leaveTypes", d.leaveTypes.map((x, i) => ({ ...x, days: +f.get(`d${i}`)! }))))}>
             <Table head={[t("leave.type"), t("leave.balance")]} rows={d.leaveTypes.map((x, i) => [serverText(x.name), <input key="d" name={`d${i}`} type="number" min={0} max={60} defaultValue={x.days} disabled={!edLeave} style={{ maxWidth: 90 }} aria-label={t("leave.balanceOf", { name: serverText(x.name) })} />])} />
             {edLeave && <div className="row end"><button className="btn sm">{t("save")}</button></div>}
           </form>
         </Card>
         <Card title={t("whatsapp.title")} icon="megaphone">
-          <form className="row" action={(f) => set("whatsappDailyLimit", +f.get("lim")!)}>
+          <form className="row" onSubmit={onFormSubmit((f) => set("whatsappDailyLimit", +f.get("lim")!))}>
             <input name="lim" type="number" min={0} defaultValue={d.whatsappDailyLimit} disabled={!edWa} style={{ maxWidth: 120 }} aria-label={t("whatsapp.limit")} /><span className="hint">{t("whatsapp.perDay")}</span>
             {edWa && <button className="btn ghost sm">{t("save")}</button>}
           </form>
         </Card>
         {/* M-03 7.2: «قريبة من» is proposed as ±20% and waits for the client, so it's editable here (2.12) */}
         <Card title={t("recommend.title")} icon="building" sub={t("recommend.sub")}>
-          <form className="row" action={(f) => set("recommendTolerancePct", +f.get("tol")!)}>
+          <form className="row" onSubmit={onFormSubmit((f) => set("recommendTolerancePct", +f.get("tol")!))}>
             <span className="hint">±</span><input name="tol" type="number" min={0} max={100} defaultValue={d.recommendTolerancePct} disabled={!edTol} style={{ maxWidth: 90 }} aria-label={t("recommend.tolerance")} /><span className="hint">{t("recommend.ofArea")}</span>
             {edTol && <button className="btn ghost sm">{t("save")}</button>}
           </form>
@@ -89,7 +89,7 @@ function TlTiers({ tiers, canEdit, save }: { tiers: Settings["tlTiers"]; canEdit
   const edit = (i: number, k: "below" | "percent", v: string) => setRows(rows.map((x, j) => (j === i ? { ...x, [k]: v === "" ? null : +v } : x)));
   return (
     <Card title={t("title")} icon="chart" sub={t("sub")}>
-      <form action={() => save(rows.map((x, i) => ({ below: i === rows.length - 1 ? null : x.below, percent: x.percent ?? 0 })))}>
+      <form onSubmit={onFormSubmit(() => save(rows.map((x, i) => ({ below: i === rows.length - 1 ? null : x.below, percent: x.percent ?? 0 }))))}>
         <Table head={[t("below"), t("percent"), ""]} rows={rows.map((x, i) => [
           i === rows.length - 1 ? <span key="b" className="hint">{t("andMore")}</span>
             : <input key="b" type="number" min={1} value={x.below ?? ""} onChange={(e) => edit(i, "below", e.target.value)} disabled={!canEdit} required style={{ maxWidth: 110 }} aria-label={t("belowOf", { n: i + 1 })} />,
