@@ -43,6 +43,7 @@ model User {
   emailNotifications Boolean  @default(true)  // M-14 «my preferences»: important ones always reach the bell anyway
   tokens        AuthToken[]
   lastLoginAt   DateTime?
+  passwordChangedAt DateTime? // 12.15 «آخر تغيير للباسورد»: activation, reset, change
   endDate       DateTime?     // last working day: the account stops by itself
   employee      Employee?
   roles         UserRole[]

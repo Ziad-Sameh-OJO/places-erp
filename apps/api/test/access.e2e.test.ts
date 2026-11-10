@@ -353,6 +353,24 @@ test("change my password: the old one stops working", async () => {
   assert.equal((await login(own, "Changed12345")).status, 200);
 });
 
+test("12.15 · «حسابي»: my mobile, department, Team Leader, last sign-in and last password change; signed out → 401", async () => {
+  assert.equal((await call("/auth/me")).status, 401);
+  const own = `me-${stamp}@places.test`;
+  const u = await prisma.user.create({ data: { email: own, phone: "01000009876", status: "ACTIVE", passwordHash: await hash(PW) } });
+  await prisma.employee.create({ data: { userId: u.id, name: "تجربة E2E حسابي", jobTitle: "Sales", department: "المبيعات", salary: 0, teamLeaderId: tlEmployeeId } });
+  const cookie = await session(own);
+  const tl = await prisma.employee.findUniqueOrThrow({ where: { id: tlEmployeeId }, select: { name: true } });
+  const before = (await call("/auth/me", { cookie })).body.profile;
+  assert.equal(before.phone, "01000009876");
+  assert.equal(before.department, "المبيعات");
+  assert.equal(before.teamLeader, tl.name);
+  assert.ok(before.lastLoginAt, "signing in sets it");
+  assert.equal(before.passwordChangedAt, null);
+  assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: PW, next: "Changed12345" } })).status, 204);
+  const after = (await call("/auth/me", { cookie })).body.profile;
+  assert.ok(after.passwordChangedAt && Date.parse(after.passwordChangedAt) > Date.now() - 60_000);
+});
+
 test("Excel export: the filtered users as .xlsx for whoever has «export»; others get 403; it's audited", async () => {
   const res = await fetch(`${API}/access/users/export?status=ACTIVE`, { headers: { cookie: nancy } });
   assert.equal(res.status, 200);

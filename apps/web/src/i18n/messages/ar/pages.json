@@ -17,6 +17,12 @@
     "statUnread": "إشعار جديد"
   },
   "profile": {
+    "mobile": "الموبايل",
+    "roles": "الأدوار",
+    "department": "القسم",
+    "teamLeader": "الـ Team Leader",
+    "lastLogin": "آخر دخول",
+    "passwordChanged": "آخر تغيير للباسورد",
     "emailOn": "هيوصلك كمان على الإيميل",
     "emailOff": "جوه السيستم بس (المهم بيوصل الإيميل برضه)",
     "emailToggle": "ابعتلي الإشعارات كمان على الإيميل",
