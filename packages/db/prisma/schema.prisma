@@ -1049,7 +1049,7 @@ model NotActiveSheet {
   name      String         @unique // e.g. CFC · the file's name, given when it's made (2.39)
   folder    String?        // 2.39: the folder the file is grouped in (none = «من غير فولدر»)
   createdById String?      // 2.39: who made the file
-  dedupeBy  String         @default("") // column used to merge without duplicates ("" = no sheet uploaded yet)
+  dedupeBy  String[]       @default([]) // 2.40: the column(s) a repeat is told by (all must match); none until its first sheet
   columns   String[]       @default([]) // the sheet's own headers, in order (its columns aren't fixed yet, M-03 3.1)
   numberBy  String?        // the «Number» column compared with the owners' numbers in the inventory (M-03 1.1)
   rows      NotActiveRow[]
@@ -1063,7 +1063,7 @@ model NotActiveRow {
   sheetId    String
   sheet      NotActiveSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
   data       Json
-  dedupeKey  String
+  dedupeKey  String         // the row's key under the sheet's columns when it came in (2.40: repeats are kept and marked)
   status     String?        // No Answer · Not True · Done
   feedback   String?        // required for Not True
   assignedTo String?        // the user Manar sent the row to as a task (Marwa, M-03 1.1)
@@ -1072,7 +1072,7 @@ model NotActiveRow {
   matchSeen  Boolean        @default(false) // Manar set the matched row's status
   createdAt  DateTime       @default(now()) // rows are listed in the order they came in
 
-  @@unique([sheetId, dedupeKey])
+  @@index([sheetId, dedupeKey])
   @@index([sheetId, status])
   @@schema("inventory")
 }

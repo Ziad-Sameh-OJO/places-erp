@@ -4,7 +4,7 @@ import type {
   CreatedUnit, NotActiveAssign, NotActiveClassify, NotActiveCounts, NotActiveFileInput, NotActiveImport, NotActiveImportDone, NotActivePerson, NotActivePreview,
   NotActiveRowFilters, NotActiveRowView, NotActiveSheetView, Paged, UnitInput, UnitOptions,
 } from "@places/contracts";
-import { classifyProblem, guessNumberColumn, inventoryMatches, mergeColumns, mergeSheetRows, type SheetRow } from "@places/domain";
+import { classifyProblem, defaultDedupe, duplicateCounts, guessNumberColumn, inventoryMatches, mergeColumns, mergeSheetRows, type SheetRow } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -19,7 +19,7 @@ const PREVIEW_ROWS = 10;
 const LINK = "/notactive";
 
 type SheetRecord = {
-  id: string; name: string; dedupeBy: string; numberBy: string | null; columns: string[]; folder: string | null; createdById: string | null; createdAt: Date;
+  id: string; name: string; dedupeBy: string[]; numberBy: string | null; columns: string[]; folder: string | null; createdById: string | null; createdAt: Date;
   _count: { rows: number };
 };
 type SheetExtra = { createdBy?: string | null; pending?: number; matched?: number };
@@ -102,14 +102,19 @@ export class NotActiveService {
   async rows(me: CurrentUser, sheetId: string, f: NotActiveRowFilters): Promise<Paged<NotActiveRowView>> {
     const sheet = await this.repo.sheet(sheetId);
     if (!sheet) throw new NotFoundException(NO_SHEET);
-    const [rows, total] = await this.repo.rows(sheetId, this.scope(me), f.tab, (f.page - 1) * f.pageSize, f.pageSize);
-    return { items: await this.views(me, rows, sheet.numberBy), total, page: f.page, pageSize: f.pageSize };
+    const dupes = await this.dupesOf(sheetId, sheet.dedupeBy);
+    // «التكرار»: the repeats only, or the rows without one
+    const ids = f.dup === "any" ? { in: [...dupes.keys()] } : f.dup === "none" ? { notIn: [...dupes.keys()] } : undefined;
+    const [rows, total] = await this.repo.rows(sheetId, this.scope(me), f.tab, (f.page - 1) * f.pageSize, f.pageSize, ids);
+    return { items: await this.views(me, rows, sheet.numberBy, dupes), total, page: f.page, pageSize: f.pageSize };
   }
 
   async counts(me: CurrentUser, sheetId: string): Promise<NotActiveCounts> {
-    if (!(await this.repo.sheet(sheetId))) throw new NotFoundException(NO_SHEET);
-    const [all, noAnswer, notTrue, done, pending, matched] = await this.repo.counts(sheetId, this.scope(me));
-    return { all, "No Answer": noAnswer, "Not True": notTrue, Done: done, pending, matched };
+    const sheet = await this.repo.sheet(sheetId);
+    if (!sheet) throw new NotFoundException(NO_SHEET);
+    const dupIds = [...(await this.dupesOf(sheetId, sheet.dedupeBy)).keys()];
+    const [all, noAnswer, notTrue, done, pending, matched, dupes] = await this.repo.counts(sheetId, this.scope(me), dupIds);
+    return { all, "No Answer": noAnswer, "Not True": notTrue, Done: done, pending, matched, dupes };
   }
 
   async assignees(): Promise<NotActivePerson[]> {
@@ -121,23 +126,58 @@ export class NotActiveService {
     return this.inventory.options();
   }
 
-  /** Before «ادمج»: the file's headers and first rows, and — with a name and a column — what the merge would do. */
-  async preview(me: CurrentUser, table: SheetTable, name?: string, dedupeBy?: string): Promise<NotActivePreview> {
+  /**
+   * Before the rows go in (2.40, demo dupModal): the file's headers and first rows, and with the picked column(s) — else
+   * the file's own, else the number column — how many rows will show as repeats and how many «متدخلش» leaves out.
+   */
+  async preview(me: CurrentUser, table: SheetTable, name?: string, dedupeBy?: string[], skip = false): Promise<NotActivePreview> {
     this.mayFile(me);
     const sheet = name?.trim() ? await this.repo.sheetByName(name.trim()) : null;
-    const column = dedupeBy && table.headers.includes(dedupeBy) ? dedupeBy : null;
-    const merge = column ? mergeSheetRows(sheet ? (await this.repo.rowData(sheet.id)).map((r) => cells(r.data)) : [], table.rows, column) : null;
+    const fits = (c: string[] | undefined) => (c?.length && c.every((x) => table.headers.includes(x)) ? c : null);
+    const columns = fits(dedupeBy) ?? fits(sheet?.dedupeBy) ?? defaultDedupe(table.headers);
+    const merge = mergeSheetRows(sheet ? (await this.repo.rowData(sheet.id)).map((r) => cells(r.data)) : [], table.rows, columns, skip);
     return {
-      headers: table.headers, total: table.rows.length, sample: table.rows.slice(0, PREVIEW_ROWS), sheet: sheet ? view(sheet) : null,
-      added: merge?.added.length ?? null, duplicates: merge?.duplicates ?? null, noKey: merge?.noKey ?? null,
+      headers: table.headers, total: table.rows.length, sample: table.rows.slice(0, PREVIEW_ROWS), sheet: sheet ? view(sheet) : null, dedupeBy: columns,
+      added: merge.added.length, marked: merge.marked, duplicates: merge.duplicates, noKey: merge.noKey,
       numberGuess: sheet?.numberBy && table.headers.includes(sheet.numberBy) ? sheet.numberBy : guessNumberColumn(table.headers),
     };
+  }
+
+  /** 2.40 · «غيّر خانة منع التكرار»: how many of the file's rows would show as repeats (nothing saved). */
+  async dedupePreview(sheetId: string, columns: string[]): Promise<{ marked: number }> {
+    const sheet = await this.fileWith(sheetId, columns);
+    return { marked: duplicateCounts(await this.repo.rowData(sheet.id), columns).size };
+  }
+
+  /** …and saving it (audited). The rows stay; only which of them show as repeats changes. */
+  async setDedupe(me: CurrentUser, sheetId: string, columns: string[]): Promise<NotActiveSheetView> {
+    this.mayFile(me);
+    const sheet = await this.fileWith(sheetId, columns);
+    await this.db.$transaction(async (tx) => {
+      await this.repo.updateSheet(tx, sheetId, columns, sheet.numberBy, sheet.columns);
+      await this.audit.record({ module: "notactive", entity: "NotActiveSheet", entityId: sheetId, action: "dedupe", userId: me.id, before: { dedupeBy: sheet.dedupeBy }, after: { dedupeBy: columns } }, tx);
+    });
+    return view({ ...sheet, dedupeBy: columns });
+  }
+
+  private async fileWith(sheetId: string, columns: string[]) {
+    const sheet = await this.repo.sheet(sheetId);
+    if (!sheet) throw new NotFoundException(NO_SHEET);
+    const missing = columns.find((c) => !sheet.columns.includes(c));
+    if (missing) throw new BadRequestException(`خانة «${missing}» مش في الشيت`);
+    return sheet;
+  }
+
+  /** 2.40 · the file's repeats under its columns: row id → how many others repeat it (all of the file's rows count). */
+  private async dupesOf(sheetId: string, columns: string[]) {
+    return columns.length ? duplicateCounts(await this.repo.rowData(sheetId), columns) : new Map<string, number>();
   }
 
   /** «ادمج»: one transaction — the sheet (new or the same name), its new rows, its columns and the audit; then the comparison. */
   async import(me: CurrentUser, table: SheetTable, input: NotActiveImport, file: string): Promise<NotActiveImportDone> {
     this.mayFile(me);
-    if (!table.headers.includes(input.dedupeBy)) throw new BadRequestException(`خانة «${input.dedupeBy}» مش في الشيت`);
+    const missing = input.dedupeBy.find((c) => !table.headers.includes(c));
+    if (missing) throw new BadRequestException(`خانة «${missing}» مش في الشيت`);
     if (input.numberBy && !table.headers.includes(input.numberBy)) throw new BadRequestException(`خانة «${input.numberBy}» مش في الشيت`);
     if (!table.rows.length) throw new BadRequestException("الشيت مفيهوش صفوف");
     const done = await this.db.$transaction(async (tx) => {
@@ -145,18 +185,22 @@ export class NotActiveService {
       const numberBy = input.numberBy ?? found?.numberBy ?? null;
       const sheet = found ?? await this.repo.createSheet(tx, input.name, input.dedupeBy, numberBy, table.headers, me.id);
       const existing = found ? (await this.repo.rowData(sheet.id, tx)).map((r) => cells(r.data)) : [];
-      const merge = mergeSheetRows(existing, table.rows, input.dedupeBy);
+      // 2.40: every row goes in and the repeats show marked, or «متدخلش» leaves the repeats out (the first of each goes in)
+      const merge = mergeSheetRows(existing, table.rows, input.dedupeBy, input.skipDupes);
       const { count } = await this.repo.addRows(tx, sheet.id, merge.added);
       await this.repo.updateSheet(tx, sheet.id, input.dedupeBy, numberBy, mergeColumns(sheet.columns, table.headers));
-      const result = { sheetId: sheet.id, name: sheet.name, numberBy, added: count, duplicates: merge.duplicates + (merge.added.length - count), noKey: merge.noKey };
+      const result = {
+        sheetId: sheet.id, name: sheet.name, numberBy, added: count, duplicates: merge.duplicates, marked: input.skipDupes ? 0 : merge.marked,
+        skipped: input.skipDupes ? merge.duplicates : 0, noKey: merge.noKey,
+      };
       await this.audit.record({
         module: "notactive", entity: "NotActiveSheet", entityId: sheet.id, action: found ? "merge" : "create", userId: me.id,
-        after: { name: sheet.name, file, dedupeBy: input.dedupeBy, numberBy, added: result.added, duplicates: result.duplicates, noKey: result.noKey },
+        after: { name: sheet.name, file, dedupeBy: input.dedupeBy, skipDupes: input.skipDupes, numberBy, added: result.added, duplicates: result.duplicates, skipped: result.skipped, noKey: result.noKey },
       }, tx);
       return result;
     });
     const inInventory = done.numberBy ? await this.compare(done.sheetId, done.name, done.numberBy) : 0;
-    return { sheetId: done.sheetId, added: done.added, duplicates: done.duplicates, noKey: done.noKey, inInventory };
+    return { sheetId: done.sheetId, added: done.added, duplicates: done.duplicates, marked: done.marked, skipped: done.skipped, noKey: done.noKey, inInventory };
   }
 
   /**
@@ -244,7 +288,7 @@ export class NotActiveService {
   }
 
   /** M-09 field permissions: a hidden number (the sheet's «Number» column) or feedback never leaves the API. */
-  private async views(me: CurrentUser, rows: NotActiveRowRecord[], numberBy: string | null): Promise<NotActiveRowView[]> {
+  private async views(me: CurrentUser, rows: NotActiveRowRecord[], numberBy: string | null, dupes = new Map<string, number>()): Promise<NotActiveRowView[]> {
     const hidden = me.fields.hidden("notactive");
     const data = (d: unknown) => {
       const c = cells(d) as Record<string, string>;
@@ -259,7 +303,7 @@ export class NotActiveService {
     return rows.map((r) => ({
       id: r.id, data: data(r.data), status: r.status, feedback: hidden.has("feedback") ? null : r.feedback, createdAt: r.createdAt.toISOString(),
       assignedTo: r.assignedTo ? { id: r.assignedTo, name: name.get(r.assignedTo) ?? "" } : null,
-      matched: unit(r.matchedUnitId), matchSeen: r.matchSeen, unit: unit(r.unitId),
+      matched: unit(r.matchedUnitId), matchSeen: r.matchSeen, unit: unit(r.unitId), dupes: dupes.get(r.id) ?? 0,
     }));
   }
 }
