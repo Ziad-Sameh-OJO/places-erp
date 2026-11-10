@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { keepsInventory } from "@places/domain";
+import { keepsInventory, seesInventoryTiles } from "@places/domain";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -60,7 +60,9 @@ export function InventoryList() {
   const query: UnitQuery = { ...f, ...(tab === "closed" ? { view: "closed", ...closedBy } : tab !== "all" ? { type: tab } : {}) };
   const units = useUnits(query, page, PAGE);
   const tabs = useUnitTabs(f).data;
-  const s = useUnitSummary().data;
+  // 2.37 · the tiles are the Inventory Manager's; everyone else opens straight on the sheet (demo render())
+  const tiles = seesInventoryTiles(me.me?.roles ?? []);
+  const s = useUnitSummary(tiles).data;
   const options = useUnitOptions().data;
   const unit = useUnit(open);
   const areaTabs = useAreaTabs(query).data ?? [];
@@ -92,13 +94,12 @@ export function InventoryList() {
 
   return (
     <>
-      <div className="kpis">
+      {tiles && <div className="kpis">
         <KpiTile label={t("list.available")} value={s ? num(s.available) : "…"} sub="Rent · Resale · Income" icon="building" />
-        {insider && <KpiTile label={t("chips.pdfDraft")} value={s ? num(s.pdfDraft) : "…"} sub={t("list.pdfDraftSub")} icon="file" tone="warn" />}
+        <KpiTile label={t("chips.pdfDraft")} value={s ? num(s.pdfDraft) : "…"} sub={t("list.pdfDraftSub")} icon="file" tone="warn" />
         <KpiTile label={t("chips.stale")} value={s ? num(s.stale) : "…"} sub={t("list.staleSub")} icon="clock" tone="bad" onClick={() => filter({ ...f, stale: "true" })} />
-        <KpiTile label={t("list.divisible")} value={s ? num(s.divisible) : "…"} sub={t("list.divisibleSub")} icon="layers" tone="ok" />
         <KpiTile label={t("list.missing")} value={s ? num(s.missing) : "…"} sub={t("list.missingSub")} icon="alert" tone="bad" onClick={() => filter({ ...f, missing: "true" })} />
-      </div>
+      </div>}
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); }} items={types} />
         <span className="spacer" />
