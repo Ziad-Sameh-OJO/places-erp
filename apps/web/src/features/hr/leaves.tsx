@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { serverText } from "@/lib/server-text";
 import { ExcusesCard } from "./excuses";
+import { OUTSIDE_REQUESTS } from "@places/domain";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const TONE: Record<LeaveView["status"], "warn" | "info" | "bad" | "ok"> = { PENDING_TL: "warn", APPROVED_BY_TL: "info", REJECTED: "bad", CLOSED_BY_HR: "ok" };
@@ -15,39 +16,56 @@ const useRefresh = () => { const qc = useQueryClient(); return () => qc.invalida
 const range = (l: LeaveView) => (l.from === l.to ? l.from : `${l.from} → ${l.to}`);
 
 /** «إجازاتي» (7.5) on the profile: my balances, my requests, and «طلب إجازة» (sick / emergency after return, with a document). */
+const useMyLeaves = () => useQuery({ queryKey: ["hr", "leaves", "mine"], queryFn: () => api.get<MyLeaves>("/hr/leaves/mine"), retry: false });
+
 export function MyLeavesCard() {
   const tr = useTranslations("hr");
-  const q = useQuery({ queryKey: ["hr", "leaves", "mine"], queryFn: () => api.get<MyLeaves>("/hr/leaves/mine"), retry: false });
+  const q = useMyLeaves();
   const [ask, setAsk] = useState(false);
-  const [type, setType] = useState("");
-  const [doc, setDoc] = useState<string | null>(null);
-  const run = useAction();
-  const refresh = useRefresh();
   if (q.isError) return null; // no employee file (e.g. a system account)
   if (!q.data) return null;
-  const d = q.data, after = d.types.find((t) => t.name === (type || d.types[0]?.name))?.afterReturn;
-  const submit = onFormSubmit(async (f) => run(async () => {
-    await api.post("/hr/leaves", { type: f.get("type"), from: f.get("from"), to: f.get("to"), ...(f.get("reason") ? { reason: f.get("reason") } : {}), ...(doc ? { documentId: doc } : {}) });
-    await refresh(); setAsk(false); setDoc(null);
-  }, tr("leaves.sentToTl")));
+  const d = q.data;
   return (
     <Card title={tr("leaves.mine")} icon="calendar" sub={tr("leaves.mineSub")} extra={<button className="btn sm" onClick={() => setAsk(true)}><Icon name="plus" />{tr("leaves.request")}</button>}>
       <div className="kpis sm">{d.balances.map((b) => <div key={b.type} className="kpi"><span>{serverText(b.type)}</span><strong>{b.left}</strong><small>{tr("leaves.balanceOf", { total: b.total, used: b.used })}</small></div>)}</div>
       <Table head={[tr("common.type"), tr("leaves.days"), tr("leaves.duration"), tr("common.status")]} empty={tr("leaves.noRequests")}
         rows={d.items.map((l) => [serverText(l.type), l.days, range(l), <span key="s"><Chip tone={TONE[l.status]}>{serverText(l.statusLabel)}</Chip>{l.rejectReason && <span className="sub">{l.rejectReason}</span>}</span>])} />
-      {ask && (
-        <Modal title={tr("leaves.request")} onClose={() => setAsk(false)}>
-          <form className="grid" onSubmit={submit}>
-            <Field label={tr("common.type")} req><select name="type" value={type || d.types[0]?.name} onChange={(e) => setType(e.target.value)}>{d.types.map((t) => <option key={t.name} value={t.name}>{serverText(t.name)}</option>)}</select></Field>
-            <Field label={tr("common.from")} req><input name="from" type="date" required {...(after ? { max: today() } : { min: today() })} /></Field>
-            <Field label={tr("common.to")} req><input name="to" type="date" required /></Field>
-            <Field label={tr("common.reason")} wide><input name="reason" maxLength={300} /></Field>
-            {after && <div className="wide"><Note>{tr("leaves.afterReturn")}</Note><FileUpload kind="pdf" label={tr("leaves.document")} onUploaded={(f) => setDoc(f.id)} />{doc && <Chip tone="ok">{tr("leaves.documentUploaded")}</Chip>}</div>}
-            <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setAsk(false)}>{tr("common.cancel")}</button><button className="btn">{tr("leaves.send")}</button></div>
-          </form>
-        </Modal>
-      )}
+      {ask && <LeaveAskModal onClose={() => setAsk(false)} />}
     </Card>
+  );
+}
+
+/**
+ * «طلب إجازة» — the same form on the profile and on the tickets page (8.5, demo tickets.js selfReq). `kind` narrows
+ * the types: "leave" = the leaves, "outside" = «شغل من بره / عذر غياب»; none = all of them (the profile).
+ */
+export function LeaveAskModal({ kind, onClose }: { kind?: "leave" | "outside"; onClose: () => void }) {
+  const tr = useTranslations("hr");
+  const q = useMyLeaves();
+  const [type, setType] = useState("");
+  const [doc, setDoc] = useState<string | null>(null);
+  const run = useAction();
+  const refresh = useRefresh();
+  const outside = (name: string) => (OUTSIDE_REQUESTS as readonly string[]).includes(name);
+  const types = (q.data?.types ?? []).filter((t) => !kind || (kind === "outside") === outside(t.name));
+  const title = kind === "outside" ? tr("leaves.outsideTitle") : tr("leaves.request");
+  if (q.isError) return <Modal title={title} onClose={onClose}><Note kind="warn">{tr("leaves.noFile")}</Note></Modal>;
+  const after = types.find((t) => t.name === (type || types[0]?.name))?.afterReturn;
+  const submit = onFormSubmit(async (f) => run(async () => {
+    await api.post("/hr/leaves", { type: f.get("type"), from: f.get("from"), to: f.get("to"), ...(f.get("reason") ? { reason: f.get("reason") } : {}), ...(doc ? { documentId: doc } : {}) });
+    await refresh(); onClose();
+  }, tr("leaves.sentToTl")));
+  return (
+    <Modal title={title} onClose={onClose}>
+      <form className="grid" onSubmit={submit}>
+        <Field label={tr("common.type")} req><select name="type" value={type || types[0]?.name || ""} onChange={(e) => setType(e.target.value)}>{types.map((t) => <option key={t.name} value={t.name}>{serverText(t.name)}</option>)}</select></Field>
+        <Field label={tr("common.from")} req><input name="from" type="date" required {...(after ? { max: today() } : { min: today() })} /></Field>
+        <Field label={tr("common.to")} req><input name="to" type="date" required /></Field>
+        <Field label={tr("common.reason")} wide><input name="reason" maxLength={300} /></Field>
+        {after && <div className="wide"><Note>{tr("leaves.afterReturn")}</Note><FileUpload kind="pdf" label={tr("leaves.document")} onUploaded={(f) => setDoc(f.id)} />{doc && <Chip tone="ok">{tr("leaves.documentUploaded")}</Chip>}</div>}
+        <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{tr("common.cancel")}</button><button className="btn">{tr("leaves.send")}</button></div>
+      </form>
+    </Modal>
   );
 }
 
