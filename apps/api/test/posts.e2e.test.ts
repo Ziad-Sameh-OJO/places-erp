@@ -48,7 +48,8 @@ test("sales can't see or plan posts (403); a bad time and a channel off the list
 });
 
 test("M-04 7.1: a post at its time → the Reminder reaches Rahma once; a later post waits; «اتنشر» records the time", async () => {
-  const now = await plan(rahma, "بوست دلوقتي", -1);
+  // this minute (cairoAt cuts the seconds, so it's already due): «a minute ago» is yesterday right after Cairo's midnight
+  const now = await plan(rahma, "بوست دلوقتي", 0);
   const later = await plan(rahma, "بوست بكرة", 24 * 60);
   const list = (await call(`/marketing/posts?month=${cairoAt(0).slice(0, 7)}`, { cookie: rahma })).body as Array<{ id: string; state: string; approved: boolean }>;
   assert.equal(list.find((p) => p.id === now)?.state, "today");
