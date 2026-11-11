@@ -13,9 +13,9 @@
     "@places/contracts": "workspace:*",
     "@places/domain": "workspace:*",
     "@places/ui": "workspace:*",
-    "@tanstack/react-query": "^5.62.8",
+    "@tanstack/react-query": "^5.107.1",
     "@tanstack/react-table": "^8.20.6",
-    "next": "^15.1.2",
+    "next": "^15.5.29",
     "next-intl": "4.14.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -24,7 +24,7 @@
   "devDependencies": {
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "playwright-core": "1.64.0",
+    "playwright-core": "1.65.0",
     "typescript": "^6.0.3"
   }
 }
