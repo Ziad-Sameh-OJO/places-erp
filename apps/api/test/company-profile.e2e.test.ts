@@ -11,11 +11,16 @@ import { API, call, session } from "./helpers.ts";
 const stamp = Date.now().toString(36);
 const C = `CP${stamp}`;
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-let rahma: string, anas: string, dealId: string, pending: string, basePdf: Buffer;
+const EDITOR = "ziad.medhat@places.com"; // given «marketing: view + edit» here: not the manager, so no Company Profile changes
+let rahma: string, anas: string, editor: string, editorId: string, anasId: string, dealId: string, pending: string, basePdf: Buffer;
+const START = new Date();
 const files: string[] = [];
 
 before(async () => {
-  [rahma, anas] = await Promise.all(["rahma.hassan@places.com", "anas@places.com"].map((e) => session(e)));
+  editorId = (await prisma.user.findUniqueOrThrow({ where: { email: EDITOR } })).id;
+  anasId = (await prisma.user.findUniqueOrThrow({ where: { email: "anas@places.com" } })).id;
+  await prisma.permissionOverride.upsert({ where: { userId_module: { userId: editorId, module: "marketing" } }, create: { userId: editorId, module: "marketing", actions: ["view", "edit"] }, update: { actions: ["view", "edit"] } });
+  [rahma, anas, editor] = await Promise.all(["rahma.hassan@places.com", "anas@places.com", EDITOR].map((e) => session(e)));
   const unitId = (await prisma.unit.create({ data: { code: `U-${C}`, type: "Rent", project: C, space: 150, pdfStatus: "confirmed" } })).id;
   const deal = (k: string, status: string) => prisma.deal.create({ data: {
     code: `D-${C}${k}`, unitId, type: "Rent", status: status as never, space: 150, location: "التجمع الخامس", company: `${C} شركة ${k}`, source: "Facebook",
@@ -35,6 +40,8 @@ after(async () => {
   await prisma.file.deleteMany({ where: { id: { in: [...files, ...mine.map((v) => v.fileId)] } } });
   await prisma.deal.deleteMany({ where: { code: { startsWith: `D-${C}` } } });
   await prisma.unit.deleteMany({ where: { code: `U-${C}` } });
+  await prisma.permissionOverride.deleteMany({ where: { userId: editorId, module: "marketing" } });
+  await prisma.notification.deleteMany({ where: { event: "marketing.company_profile", createdAt: { gte: START } } });
   await prisma.$disconnect();
 });
 
@@ -60,6 +67,11 @@ test("who may: sales get the newest version but can't see the card, upload, or U
   assert.equal((await call(`/marketing/company-profile/logos/${dealId}`, { method: "PUT", cookie: anas, body: { fileId: "x" } })).status, 403);
   assert.equal((await call("/marketing/company-profile/publish", { method: "POST", cookie: anas })).status, 403);
   assert.equal((await call("/marketing/company-profile", {})).status, 401);
+  // only the marketing manager changes it (client, 11 Nov): «marketing: edit» alone sees the card but can't touch it
+  assert.equal((await call("/marketing/company-profile/admin", { cookie: editor })).status, 200);
+  assert.equal((await call("/marketing/company-profile/file", { method: "PUT", cookie: editor, body: { fileId: "x" } })).status, 403);
+  assert.equal((await call(`/marketing/company-profile/logos/${dealId}/done`, { method: "POST", cookie: editor })).status, 403);
+  assert.equal((await call("/marketing/company-profile/publish", { method: "POST", cookie: editor })).status, 403);
 });
 
 test("a brochure past 20 MB only with purpose «profile»; the file must be a PDF and the logo an image", async () => {
@@ -98,6 +110,10 @@ test("the flow: file → logo → Done → preview has «عملاؤنا» → Up
   assert.ok(v.body.logos >= 1);
   const latest = (await call("/marketing/company-profile", { cookie: anas })).body.latest;
   assert.equal(latest.id, v.body.id); // sales get the newest
+  // …and are told: everyone but Rahma gets «Company Profile جديد»
+  assert.ok(await prisma.notification.findFirst({ where: { userId: anasId, event: "marketing.company_profile", createdAt: { gte: START } } }));
+  const rahmaId = (await prisma.user.findUniqueOrThrow({ where: { email: "rahma.hassan@places.com" } })).id;
+  assert.equal(await prisma.notification.count({ where: { userId: rahmaId, event: "marketing.company_profile", createdAt: { gte: START } } }), 0);
   assert.ok((await call("/marketing/company-profile/admin", { cookie: rahma })).body.logos[dealId].published);
   assert.equal((await call("/marketing/company-profile/publish", { method: "POST", cookie: rahma })).status, 400); // nothing new
   assert.equal(await prisma.auditLog.count({ where: { entity: "CompanyProfile", entityId: v.body.id, action: "publish" } }), 1);

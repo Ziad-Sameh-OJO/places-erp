@@ -7,7 +7,10 @@ import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { sendPdf } from "../../core/documents/documents.service";
 import { CompanyProfileService } from "./company-profile.service";
 
-/** HTTP only. M-04 · Q26: marketing keeps the Company Profile; everyone signed in gets its newest version. */
+/**
+ * HTTP only. M-04 · Q26: only the marketing manager (Rahma: «marketing: approve») changes the Company Profile (client,
+ * 11 Nov); everyone signed in gets its newest version and is told of each Update.
+ */
 @Controller("marketing/company-profile")
 export class CompanyProfileController {
   constructor(private readonly profile: CompanyProfileService) {}
@@ -26,28 +29,28 @@ export class CompanyProfileController {
   }
 
   @Put("file")
-  @Requires("marketing", "edit")
+  @Requires("marketing", "approve")
   @HttpCode(204)
   setBase(@Me() me: CurrentUser, @Body(new ZodPipe(CompanyProfileBaseInput)) body: CompanyProfileBaseInput) {
     return this.profile.setBase(me, body);
   }
 
   @Put("logos/:dealId")
-  @Requires("marketing", "edit")
+  @Requires("marketing", "approve")
   @HttpCode(204)
   setLogo(@Me() me: CurrentUser, @Param("dealId") dealId: string, @Body(new ZodPipe(DealLogoInput)) body: DealLogoInput) {
     return this.profile.setLogo(me, dealId, body);
   }
 
   @Post("logos/:dealId/done")
-  @Requires("marketing", "edit")
+  @Requires("marketing", "approve")
   @HttpCode(204)
   done(@Me() me: CurrentUser, @Param("dealId") dealId: string) {
     return this.profile.setDone(me, dealId, true);
   }
 
   @Delete("logos/:dealId/done")
-  @Requires("marketing", "edit")
+  @Requires("marketing", "approve")
   @HttpCode(204)
   undone(@Me() me: CurrentUser, @Param("dealId") dealId: string) {
     return this.profile.setDone(me, dealId, false);
@@ -61,7 +64,7 @@ export class CompanyProfileController {
   }
 
   @Post("publish")
-  @Requires("marketing", "edit")
+  @Requires("marketing", "approve")
   publish(@Me() me: CurrentUser) {
     return this.profile.publish(me);
   }

@@ -64,6 +64,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "task.review", label: "Retouch اترفع · مستني موافقتك", to: "الانفنتوري (منار)", toRoles: ["inventory"], channels: ["app", "push"], important: false }, // M-04 2.2 · 4.3
   { key: "task.delivered", label: "تصوير خلص / Retouch اتوافق عليه", to: "الانفنتوري · التسويق", toRoles: ["inventory", "marketing"], channels: ["app"], important: false }, // 4.3
   { key: "marketing.broadcast", label: "رسالة Broadcast جديدة · ابعتها ودوس Done", to: "السيلز", toRoles: ["sales"], channels: ["app", "push"], important: false }, // M-04 2.1 steps 7-8
+  { key: "marketing.company_profile", label: "Company Profile جديد", to: "كل الموظفين", toRoles: [], channels: ["app", "push"], important: false }, // M-04 · Q26: each Update reaches everyone (client, 11 Nov)
   { key: "marketing.post_reminder", label: "Reminder بوست", to: "التسويق", toRoles: ["marketing"], channels: ["app", "push"], important: false },
   { key: "finance.budget", label: "بند قرّب يخلص أو عدّى البادجت", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.2 / 9.9
   { key: "finance.bill_due", label: "ميعاد فاتورة ثابتة", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.16
