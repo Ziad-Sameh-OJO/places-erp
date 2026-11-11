@@ -21,6 +21,7 @@ import { BulkNew } from "./bulk";
 import { SecondCalls } from "./second-calls";
 import Link from "next/link";
 import { usePendingCompanies } from "./companies";
+import { SentView, useSentCounts } from "./sent";
 import { DraftAdminAlarm, DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
@@ -57,7 +58,9 @@ export function LeadsList() {
   // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
   useNewParam("1", () => setCreating(true), canCreate);
   useNewParam("bulk", () => setBulk(true), can("leads", "import"));
-  const [draftTab, setDraftTab] = useState<DraftKind | null>(null);
+  const [draftTab, setDraftTab] = useState<DraftKind | "sent" | null>(null);
+  const isTelesales = !!me?.roles.includes("telesales");
+  const sentCounts = useSentCounts(isTelesales); // «اللي بعتيها» (client, 11 Nov): Telesales only
   // «/leads?draft=admin»: the Draft Admin Alarm on «مهامي النهارده» (1.34) opens that tab (only shown to whom may see it)
   useEffect(() => { const d = new URLSearchParams(window.location.search).get("draft"); if (d === "draft" || d === "admin") setDraftTab(d); }, []);
   // the bulk bar's picks (demo shell.js): whoever may change leads or hand them out; cleared when the list changes
@@ -90,11 +93,12 @@ export function LeadsList() {
   ];
   const tabRow = (
     <div className="row">
-      <Tabs<LeadKind | DraftKind> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
-        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...draftTabs]} />
+      <Tabs<LeadKind | DraftKind | "sent"> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin" || k === "sent"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
+        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...draftTabs, ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
     </div>
   );
-  if (draftTab && draftTabs.some(([k]) => k === draftTab)) {
+  if (draftTab === "sent" && isTelesales) return <>{tabRow}<SentView /></>;
+  if (draftTab && draftTab !== "sent" && draftTabs.some(([k]) => k === draftTab)) {
     return <>{tabRow}<DraftView kind={draftTab} onOpen={setOpen} />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;
   }
 

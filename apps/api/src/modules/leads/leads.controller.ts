@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { AddComment, AssignLead, TlNoteInput, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, UpdateLead, LeadBatch, LeadBatchIds, VisitInput, VisitOutcome, VisitUnitQuery } from "@places/contracts";
+import { AddComment, AssignLead, TlNoteInput, RecommendAnswers, UnitListInput, ChangeStage, CreateLead, DuplicateCheck, LeadFilters, LogRoles, SummaryQuery, UpdateLead, LeadBatch, LeadBatchIds, VisitInput, VisitOutcome, VisitUnitQuery, SentLeadsQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendPdf } from "../../core/documents/documents.service";
 import { sendXlsx, type ExcelColumn } from "../../core/http/excel";
@@ -60,6 +60,13 @@ export class LeadsController {
   @Requires("leads", "view")
   summary(@Me() me: CurrentUser, @Query(new ZodPipe(SummaryQuery)) q: SummaryQuery) {
     return this.leads.summary(me, q);
+  }
+
+  /** M-01 · Telesales' «اللي بعتيها»: hers only, without the salesperson's actions (client, 11 Nov). */
+  @Get("sent")
+  @Requires("leads", "create")
+  sent(@Me() me: CurrentUser, @Query(new ZodPipe(SentLeadsQuery)) q: SentLeadsQuery) {
+    return this.leads.sent(me, q);
   }
 
   @Get("tabs")

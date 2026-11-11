@@ -44,5 +44,6 @@ export * from "./campaigns.ts";
 export * from "./posts.ts";
 export * from "./broadcasts.ts";
 export * from "./company-profile.ts";
+export * from "./telesales-sent.ts";
 export * from "./table-sort.ts";
 export * from "./kpi-today.ts";

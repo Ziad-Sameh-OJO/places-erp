@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
-import type { TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote } from "@places/domain";
+import type { TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery } from "@places/contracts";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -288,6 +288,30 @@ export class LeadsService {
     const goal = callGoal(me.roles);
     if (!goal) return { goal: null, count: 0 };
     return { goal, count: await this.repo.countCalls(me.id, callPeriodStart(goal, new Date(), await this.time.calendar())) };
+  }
+
+  /**
+   * M-01 · Telesales' «اللي بعتيها» (client, 11 Nov — the requirements had «مبيفضلش ظاهر لها»): the leads she entered
+   * that went to sales, today's or all, and the ones in No Answer now; never the salesperson's actions.
+   */
+  async sent(me: CurrentUser, q: SentLeadsQuery): Promise<SentLeads> {
+    if (!me.roles.includes("telesales")) throw new ForbiddenException("الليدز اللي اتبعتت للـ Telesales بس");
+    const mine: Prisma.LeadWhereInput = {
+      createdById: me.id, ownedByTelesales: false, archivedAt: null,
+      OR: [{ assignedToId: null }, ...(me.employeeId ? [{ assignedToId: { not: me.employeeId } }] : [{ assignedToId: { not: null } }])],
+    };
+    const today: Prisma.LeadWhereInput = { createdAt: { gte: dayStart(localDate(new Date())) } };
+    const noAnswer: Prisma.LeadWhereInput = { stage: "NO_ANSWER" };
+    const where: Prisma.LeadWhereInput = { AND: [mine, q.noAnswer ? noAnswer : q.range === "today" ? today : {}] };
+    const [[rows, total], counts] = await Promise.all([
+      this.repo.sent(where, q.page, q.pageSize),
+      Promise.all([this.repo.count({ AND: [mine, today] }), this.repo.count(mine), this.repo.count({ AND: [mine, noAnswer] })]),
+    ]);
+    const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
+    return {
+      items: rows.map((r) => ({ id: r.id, code: r.code, name: r.name, phones: r.phones, area: r.area, type: r.type, to: r.assignedToId ? names.get(r.assignedToId) ?? null : null, sentAt: r.createdAt.toISOString(), noAnswer: sentNoAnswer(r.stage) })),
+      total, page: q.page, pageSize: q.pageSize, counts: { today: counts[0], all: counts[1], noAnswer: counts[2] },
+    };
   }
 
   private async salespeopleNames(ids: Array<string | null>) {
