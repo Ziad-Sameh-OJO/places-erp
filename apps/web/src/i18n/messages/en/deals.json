@@ -46,7 +46,6 @@
   },
   "achv": {
     "ofTarget": "of target",
-    "rank": "Your rank among {count} salespeople · {label}",
     "yourTarget": "Counted in your target: {achieved} of {value}",
     "txSub": "Deals with your name, collected on",
     "visitsDone": "Visits done",

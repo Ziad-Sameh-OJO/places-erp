@@ -133,7 +133,7 @@ function Split({ rows, onOpen }: { rows: DealSheetRow[]; onOpen: (id: string) =>
   );
 }
 
-/** Achievements: the month's Leaderboard (M-12 targets); «إنجازاتي» adds the salesperson's own ring and rank on top. */
+/** Achievements: the month's Leaderboard (M-12 targets); «إنجازاتي» adds the salesperson's own ring on top (no rank: client, 11 Nov). */
 function Board({ mine }: { mine: boolean }) {
   const t = useTranslations("deals");
   const q = useAchievements();
@@ -148,7 +148,7 @@ function Board({ mine }: { mine: boolean }) {
         <>
           <section className="achv-hero">
             {achieved && <div className="ring" style={{ "--p": Math.min(100, meRow.percent) } as React.CSSProperties}><b className="num">{Math.round(meRow.percent)}%</b><small>{t("achv.ofTarget")}</small></div>}
-            <div><span className="eyebrow">{t("achv.rank", { count: String(a.rows.length), label: serverText(a.label) })}</span><h2>#{meRow.rank} · {meRow.name}</h2>{achieved && <p>{t("achv.yourTarget", { achieved: money(meRow.achieved), value: money(meRow.value) })}</p>}</div>
+            <div><h2>{meRow.name}</h2>{achieved && <p>{t("achv.yourTarget", { achieved: money(meRow.achieved), value: money(meRow.value) })}</p>}</div>
           </section>
           <div className="kpis">
             <KpiTile label="Transactions" value={num(meRow.transactions)} sub={t("achv.txSub")} icon="handshake" />

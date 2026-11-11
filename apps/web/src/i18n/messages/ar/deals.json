@@ -46,7 +46,6 @@
   },
   "achv": {
     "ofTarget": "من التارجت",
-    "rank": "ترتيبك بين {count} سيلز · {label}",
     "yourTarget": "دخلك في التارجت {achieved} من {value}",
     "txSub": "صفقة اسمك فيها واتحصّل منها",
     "visitsDone": "زيارات خلصت",
