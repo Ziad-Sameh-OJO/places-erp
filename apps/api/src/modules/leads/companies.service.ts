@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import { activeValues, type AddedCompany, type CompanyFilters, type CompanyRow, type CompanySheet, type NewCompany, type PendingCompany } from "@places/contracts";
+import { activeValues, type AddedCompany, type CompanyFilters, type CompanyRow, type CompanySheet, type CompanyUpdate, type NewCompany, type PendingCompany } from "@places/contracts";
 import { OUTBOUND_WINDOW_DAYS, contractEndingWindow, keepsCompaniesSheet, localDate } from "@places/domain";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { PRISMA } from "../../core/database/database.module";
@@ -60,6 +60,24 @@ export class CompaniesService {
     // «رقم الشركة بيتقارن بأرقام الليدز» (M-01 · the sheet's number): say so if a lead already has it
     const lead = await this.repo.leadWithPhone(input.number);
     return { id: company.id, name: company.name, category: company.category, leadCode: lead?.code ?? null };
+  }
+
+  /** «عدّل» a company in the sheet: its keepers only; name + number stay unique; audited with what changed. */
+  async update(me: CurrentUser, id: string, input: CompanyUpdate): Promise<CompanyRow> {
+    if (!keepsCompaniesSheet(me.roles)) throw new ForbiddenException(KEEPERS_ONLY);
+    await this.checkCategory(input.category);
+    const c = await this.db.$transaction(async (tx) => {
+      const before = await tx.company.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException("الشركة دي مش في الشيت");
+      if (await this.repo.findSame(input.name, input.number, tx, id)) throw new ConflictException("فيه شركة تانية في الشيت بنفس الاسم أو الرقم");
+      const day = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`) : null);
+      const after = await tx.company.update({ where: { id }, data: {
+        ...input, contractStart: day(input.contractStart), contractEnd: day(input.contractEnd),
+      } });
+      await this.audit.record({ module: "leads", entity: "Company", entityId: id, action: "update", userId: me.id, before, after }, tx);
+      return after;
+    });
+    return toRow(c);
   }
 
   async pending(me: CurrentUser): Promise<PendingCompany[]> {

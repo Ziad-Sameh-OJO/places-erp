@@ -105,7 +105,14 @@
     "companyName": "Company name",
     "number": "Number",
     "add": "Add",
-    "outbound": "Outbound this week: <b>{count}</b> of {target}"
+    "outbound": "Outbound this week: <b>{count}</b> of {target}",
+    "import": "Import (Excel)",
+    "export": "Export (Excel)",
+    "editHint": "Click a company to edit it",
+    "editTitle": "Edit «{name}»",
+    "saved": "{name} updated",
+    "save": "Save",
+    "cancel": "Cancel"
   },
   "drafts": {
     "tab": {

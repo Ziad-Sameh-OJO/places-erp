@@ -105,7 +105,14 @@
     "companyName": "اسم الشركة",
     "number": "الرقم",
     "add": "أضف",
-    "outbound": "Outbound الأسبوع ده: <b>{count}</b> من {target}"
+    "outbound": "Outbound الأسبوع ده: <b>{count}</b> من {target}",
+    "import": "Import (Excel)",
+    "export": "Export (Excel)",
+    "editHint": "دوس على أي شركة عشان تعدّلها",
+    "editTitle": "عدّل «{name}»",
+    "saved": "اتعدّلت {name}",
+    "save": "احفظ",
+    "cancel": "إلغاء"
   },
   "drafts": {
     "tab": {

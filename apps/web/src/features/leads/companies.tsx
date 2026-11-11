@@ -2,12 +2,13 @@
 import { type FormEvent, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import type { AddedCompany, CompanyRow, CompanySheet, PendingCompany } from "@places/contracts";
+import { CompanyUpdate, type AddedCompany, type CompanyRow, type CompanySheet, type PendingCompany } from "@places/contracts";
 import { CONTRACT_ENDING_DAYS, OUTBOUND_WEEKLY_TARGET, keepsCompaniesSheet } from "@places/domain";
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
 import { useMe } from "@/lib/me";
-import { Card, ExportButton, Icon, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { Card, ExportButton, Field, Icon, Modal, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { OldDataImport } from "../imports/old-data-import";
 
 const KEY = ["companies"];
 const PAGE = 100;
@@ -36,6 +37,7 @@ export function CompaniesSheet() {
   const keeper = keepsCompaniesSheet(me?.roles ?? []); // comfort only: the API decides
   const [category, setCategory] = useState("");
   const [soon, setSoon] = useState(false); // 1.21 «عقدهم بيخلص خلال 90 يوم»
+  const [editing, setEditing] = useState<CompanyRow | null>(null);
   const filters = new URLSearchParams({ ...(category ? { category } : {}), ...(soon ? { endingWithin: String(CONTRACT_ENDING_DAYS) } : {}) });
   const sheet = useQuery({
     queryKey: [...KEY, filters.toString()], placeholderData: keepPreviousData,
@@ -53,10 +55,14 @@ export function CompaniesSheet() {
         </select>
         <label className="tog"><input type="checkbox" checked={soon} onChange={(e) => setSoon(e.target.checked)} /><span>{t("endingSoon", { days: CONTRACT_ENDING_DAYS })}</span></label>
         <span className="hint spacer">{t("count", { count: s?.total ?? 0 })}</span>
-        <ExportButton module="leads" path="/companies/export" query={filters} filename={soon ? t("fileEnding") : t("file")} />
+        {keeper && <OldDataImport kind="companies" label={t("import")} />}
+        <ExportButton module="leads" path="/companies/export" query={filters} filename={soon ? t("fileEnding") : t("file")} label={t("export")} />
       </div>
       <Table className="wide" head={[...COLS.map(([, h]) => h), ...(category ? [] : ["category"])]}
-        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [c.category])])} empty={t("empty")} />
+        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [c.category])])} empty={t("empty")}
+        {...(keeper ? { onRow: (i: number) => setEditing(s?.items[i] ?? null) } : {})} />
+      {keeper && (s?.items.length ?? 0) > 0 && <p className="hint">{t("editHint")}</p>}
+      {editing && s && <EditCompany company={editing} categories={s.categories.map((c) => c.name)} onClose={() => setEditing(null)} />}
       {s && s.total > s.items.length && <p className="hint">{t("shownFirst", { shown: s.items.length, total: s.total })}</p>}
     </>
   );
@@ -112,5 +118,50 @@ function AddRow({ categories, outbound }: { categories: string[]; outbound: numb
       <button className="btn sm"><Icon name="plus" />{t("add")}</button>
       <span className="hint">{t.rich("outbound", { count: outbound, target: OUTBOUND_WEEKLY_TARGET, b: (c) => <b>{c}</b> })}</span>
     </form>
+  );
+}
+
+/** «عدّل»: every column of the sheet, in its order; an empty box clears it. The sheet's keepers only (M-01 2.1). */
+function EditCompany({ company: c, categories, onClose }: { company: CompanyRow; categories: string[]; onClose: () => void }) {
+  const t = useTranslations("leads.companies");
+  const run = useAction();
+  const qc = useQueryClient();
+  const save = (f: FormData) => run(async () => {
+    const text = (k: string) => { const v = String(f.get(k) ?? "").trim(); return v || null; };
+    const number = (k: string) => { const v = text(k); return v === null ? null : Number(v); };
+    const body = CompanyUpdate.parse({
+      name: text("name") ?? "", category: text("category") ?? "", number: text("number") ?? "", contactName: text("contactName"), contactTitle: text("contactTitle"),
+      email: text("email"), currentLocation: text("currentLocation"), currentSpace: number("currentSpace"), contractStart: text("contractStart"), contractEnd: text("contractEnd"),
+      averageRent: text("averageRent"), annualEscalation: number("annualEscalation"), feedback: text("feedback"),
+    });
+    await api.patch(`/companies/${c.id}`, body);
+    await qc.invalidateQueries({ queryKey: KEY });
+    onClose();
+  }, t("saved", { name: String(f.get("name") ?? "") }));
+  const v = (x: string | number | null) => (x === null ? "" : String(x));
+  return (
+    <Modal title={t("editTitle", { name: c.name })} onClose={onClose}>
+      <form className="grid" onSubmit={onFormSubmit(save)}>
+        <Field label="feedback" wide><textarea name="feedback" defaultValue={v(c.feedback)} maxLength={2000} /></Field>
+        <Field label="company name" req><input name="name" required maxLength={160} defaultValue={c.name} /></Field>
+        <Field label="number" req><input name="number" required maxLength={40} defaultValue={v(c.number)} /></Field>
+        <Field label="name"><input name="contactName" maxLength={120} defaultValue={v(c.contactName)} /></Field>
+        <Field label="title"><input name="contactTitle" maxLength={120} defaultValue={v(c.contactTitle)} /></Field>
+        <Field label="email"><input name="email" type="email" maxLength={200} defaultValue={v(c.email)} /></Field>
+        <Field label="current location"><input name="currentLocation" maxLength={200} defaultValue={v(c.currentLocation)} /></Field>
+        <Field label="current space"><input name="currentSpace" type="number" min={1} step={1} defaultValue={v(c.currentSpace)} /></Field>
+        <Field label="start contract date"><input name="contractStart" type="date" defaultValue={v(c.contractStart)} /></Field>
+        <Field label="end contract date"><input name="contractEnd" type="date" defaultValue={v(c.contractEnd)} /></Field>
+        <Field label="average current price rent"><input name="averageRent" inputMode="decimal" defaultValue={c.averageRent ? String(Number(c.averageRent)) : ""} /></Field>
+        <Field label="annual escalation (%)"><input name="annualEscalation" type="number" min={0} max={100} step="0.01" defaultValue={c.annualEscalation ? String(Number(c.annualEscalation)) : ""} /></Field>
+        <Field label={t("category")} req>
+          <select name="category" required defaultValue={c.category}>{(categories.includes(c.category) ? categories : [c.category, ...categories]).map((x) => <option key={x}>{x}</option>)}</select>
+        </Field>
+        <div className="row end wide">
+          <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>
+          <button className="btn"><Icon name="check" />{t("save")}</button>
+        </div>
+      </form>
+    </Modal>
   );
 }

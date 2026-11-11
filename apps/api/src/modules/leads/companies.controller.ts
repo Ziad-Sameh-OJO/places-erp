@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { z } from "zod";
-import { CompanyFilters, NewCompany, PendingCompanyAdd, type CompanyRow } from "@places/contracts";
+import { CompanyFilters, CompanyUpdate, NewCompany, PendingCompanyAdd, type CompanyRow } from "@places/contracts";
 import { sendXlsx, type ExcelColumn } from "../../core/http/excel";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -48,6 +48,13 @@ export class CompaniesController {
   @Requires("leads", "import")
   add(@Me() me: CurrentUser, @Body(new ZodPipe(NewCompany)) body: NewCompany) {
     return this.companies.add(me, body);
+  }
+
+  /** «عدّل»: the sheet's keepers change a company's columns (M-01 2.1). */
+  @Patch(":id")
+  @Requires("leads", "import")
+  update(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(CompanyUpdate)) body: CompanyUpdate) {
+    return this.companies.update(me, id, body);
   }
 
   @Get("pending")

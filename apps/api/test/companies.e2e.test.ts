@@ -85,3 +85,23 @@ test("Telesales' own lead with a new company: «أضيفها لشيت الشرك
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: again.id } })).companyId, row.companyId);
   assert.equal(await prisma.companyRequest.count({ where: { leadId: again.id } }), 0);
 });
+
+test("«عدّل»: Telesales edits every column; a name or number another company has is 409; others 403; audited", async () => {
+  const add = (n: string, num: string) => call("/companies", { method: "POST", cookie: hadeer, body: { name: `${NAME} ${n}`, category, number: num } });
+  const a = (await add("edit-a", `0155${stamp.slice(-7)}`)).body.id as string;
+  await add("edit-b", `0166${stamp.slice(-7)}`);
+  const body = {
+    name: `${NAME} edit-a2`, category, number: `0155${stamp.slice(-7)}`, contactName: "أحمد", contactTitle: "HR", email: "a@x.com",
+    currentLocation: "التجمع", currentSpace: 300, contractStart: "2026-01-01", contractEnd: "2027-01-01", averageRent: "650.50", annualEscalation: 10, feedback: "مهتمين",
+  };
+  const r = await call(`/companies/${a}`, { method: "PATCH", cookie: hadeer, body });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([r.body.name, r.body.currentSpace, r.body.contractEnd, r.body.averageRent, r.body.feedback], [`${NAME} edit-a2`, 300, "2027-01-01", "650.50", "مهتمين"]);
+  // clearing a column: null
+  assert.equal((await call(`/companies/${a}`, { method: "PATCH", cookie: hadeer, body: { ...body, feedback: null, email: null } })).body.feedback, null);
+  assert.equal((await call(`/companies/${a}`, { method: "PATCH", cookie: hadeer, body: { ...body, name: `${NAME} edit-b` } })).status, 409);
+  assert.equal((await call(`/companies/${a}`, { method: "PATCH", cookie: hadeer, body: { ...body, contractEnd: "2025-01-01" } })).status, 400); // ends before it starts
+  assert.equal((await call(`/companies/${a}`, { method: "PATCH", cookie: heba, body })).status, 403); // Operations reads, Telesales keeps
+  assert.equal((await call(`/companies/${a}`, { method: "PATCH", cookie: mohsen, body })).status, 403);
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Company", entityId: a, action: "update" } }), 2);
+});
