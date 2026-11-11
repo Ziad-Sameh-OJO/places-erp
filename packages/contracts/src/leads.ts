@@ -391,3 +391,14 @@ export type DraftDecision = z.infer<typeof DraftDecision>;
 export const KEEP = "keep";
 /** The Draft Admin's «Telesales» choice (1.27): the Telesales «قواعد الليدز» names. */
 export const TELESALES = "telesales";
+
+/** M-01 · Telesales' «اللي بعتيها» (client, 11 Nov): today's or all, or only the ones in No Answer now. */
+export const SentLeadsQuery = Page.extend({
+  range: z.enum(["today", "all"]).default("today"),
+  noAnswer: z.preprocess((v) => v === "1" || v === "true" || v === true, z.boolean()).default(false),
+});
+export type SentLeadsQuery = z.infer<typeof SentLeadsQuery>;
+/** A lead she sent: what she entered and to whom it went — none of the salesperson's actions, only «No Answer now». */
+export interface SentLead { id: string; code: string; name: string; phones: string[]; area: string; type: string; to: string | null; sentAt: string; noAnswer: boolean }
+export interface SentLeads { items: SentLead[]; total: number; page: number; pageSize: number; counts: { today: number; all: number; noAnswer: number } }
+

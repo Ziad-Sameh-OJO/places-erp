@@ -157,6 +157,18 @@ export class LeadsRepository {
     });
   }
 
+  /** Telesales' «اللي بعتيها»: hers, not kept, with someone else or waiting — only what she entered, newest first. */
+  sent(where: Prisma.LeadWhereInput, page: number, pageSize: number) {
+    return this.db.$transaction([
+      this.db.lead.findMany({ where, select: { id: true, code: true, name: true, phones: true, area: true, type: true, assignedToId: true, createdAt: true, stage: true }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.db.lead.count({ where }),
+    ]);
+  }
+
+  count(where: Prisma.LeadWhereInput) {
+    return this.db.lead.count({ where });
+  }
+
   userNames(userIds: string[]) {
     return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
   }

@@ -84,6 +84,25 @@
       "approve": "Approve and split"
     }
   },
+  "sent": {
+    "note": "The leads you entered that went to sales: to whom and when only, not what the salesperson does with them. No Answer stays here until the salesperson takes another action.",
+    "filter": "Period",
+    "today": "Today",
+    "all": "All",
+    "noAnswerHint": "Leads the salesperson has in No Answer now · they leave this list at the next action",
+    "head": {
+      "lead": "Lead",
+      "phone": "Mobile",
+      "to": "Went to",
+      "sent": "Sent"
+    },
+    "operations": "Waiting for Operations",
+    "empty": "You haven't sent leads to sales yet",
+    "emptyToday": "No leads sent today",
+    "emptyNoAnswer": "No lead is in No Answer now",
+    "prev": "Previous",
+    "next": "Next"
+  },
   "companies": {
     "title": "Companies sheet",
     "category": "Category",
@@ -330,6 +349,7 @@
   "list": {
     "leads": "Leads",
     "brokers": "Brokers",
+    "sentTab": "Sent by me",
     "newCompanies": "{count, plural, one {# new company needs} other {# new companies need}} adding to the companies sheet.",
     "openCompanies": "Open the companies sheet",
     "callsToday": "Your calls today: <b>{count}</b> of {target} (an item in your KPIs).",
