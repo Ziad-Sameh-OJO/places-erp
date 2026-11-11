@@ -260,7 +260,8 @@ test("the form's options come from the settings' lists (12.7): the defaults, and
   const values = (list: { value: string }[]) => list.map((i) => i.value);
   assert.ok(values(o.areas).includes("التجمع الخامس"));
   // «التشطيب» and «طرق الدفع» start with the values used today (the demo's), all active
-  assert.deepEqual(o.conditions, [{ value: "متشطب", active: true }, { value: "نص تشطيب", active: true }, { value: "Core & Shell", active: true }]);
+  assert.deepEqual(values(o.conditions), ["متشطب", "نص تشطيب", "Core & Shell", "Furnished", "Serviced"]); // Furnished · Serviced: client, 11 Nov
+  assert.ok(o.conditions.every((c: { active: boolean }) => c.active));
   assert.deepEqual(values(o.paymentMethods), ["كاش", "تقسيط 3 سنين", "تقسيط 5 سنين"]);
   assert.ok(o.agents.some((a: { id: string }) => a.id === agentId));
 });
