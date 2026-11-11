@@ -138,8 +138,19 @@ export class ReportsRepository {
     return tx.deal.findMany({ where: { status: { not: "CANCELLED" }, participants: { some: { employeeId: { in: employeeIds } } }, payments: { some: { receivedAt: { gte: from, lt: to } } } }, ...DEAL, orderBy: { closedAt: "asc" } });
   }
 
+  /** The month's visits and meetings done, per person and kind (visit · meeting). */
   visits(userIds: string[], from: Date, to: Date) {
-    return this.db.leadVisit.groupBy({ by: ["byUserId"], where: { byUserId: { in: userIds }, outcome: "done", at: { gte: from, lt: to } }, _count: { _all: true } });
+    return this.db.leadVisit.groupBy({ by: ["byUserId", "kind"], where: { byUserId: { in: userIds }, outcome: "done", at: { gte: from, lt: to } }, _count: { _all: true } });
+  }
+
+  /** Achievements «Inventory»: the units each salesperson brought (their agent) entered in the month. */
+  unitsBrought(employeeIds: string[], from: Date, to: Date) {
+    return this.db.unit.groupBy({ by: ["agentId"], where: { agentId: { in: employeeIds }, archivedAt: null, enteredAt: { gte: from, lt: to } }, _count: { _all: true } });
+  }
+
+  /** Achievements «Farming» · «Approach»: the activities done in the month (نشاطاتي). */
+  activitiesDone(employeeIds: string[], from: Date, to: Date) {
+    return this.db.salesActivity.groupBy({ by: ["employeeId", "kind"], where: { employeeId: { in: employeeIds }, status: "done", at: { gte: from, lt: to } }, _count: { _all: true } });
   }
 
   async setting(key: string): Promise<unknown> {

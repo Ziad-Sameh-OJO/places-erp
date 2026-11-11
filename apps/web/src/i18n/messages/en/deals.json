@@ -45,6 +45,8 @@
     "empty": "No deals collected on"
   },
   "achv": {
+    "inventorySub": "Units you brought this month",
+    "activitySub": "Activities done this month",
     "ofTarget": "of target",
     "yourTarget": "Counted in your target: {achieved} of {value}",
     "txSub": "Deals with your name, collected on",

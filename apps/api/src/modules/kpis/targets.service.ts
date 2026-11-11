@@ -64,9 +64,12 @@ export class TargetsService {
     const cal = await this.time.calendar(), today = localDate(new Date(), cal), cur = today.slice(0, 7), m = month ?? cur, b = monthBounds(m, cal);
     const people = await this.repo.salespeople(where);
     const ids = people.map((p) => p.id);
-    const [targets, deals, visits, tiers] = await Promise.all([
+    const [targets, deals, visits, tiers, units, acts] = await Promise.all([
       this.repo.targets(m, ids), this.repo.deals(ids, b.from, b.to), this.repo.visits(people.map((p) => p.userId), b.from, b.to), this.repo.setting("tlTiers"),
+      this.repo.unitsBrought(ids, b.from, b.to), this.repo.activitiesDone(ids, b.from, b.to),
     ]);
+    const visitsOf = (userId: string, kind: string) => visits.filter((v) => v.byUserId === userId && v.kind === kind).reduce((n, v) => n + v._count._all, 0);
+    const actsOf = (id: string, kind: string) => acts.filter((a) => a.employeeId === id && a.kind.toLowerCase() === kind).reduce((n, a) => n + a._count._all, 0);
     const rows = deals.map(dealRow);
     const gone = m < cur ? b.days : m > cur ? 0 : Number(today.slice(8, 10));
     const figures = people.map((p) => {
@@ -77,7 +80,8 @@ export class TargetsService {
         row: {
           employeeId: p.id, name: p.name, team: p.team, tl: p.teamLeader?.name ?? null,
           value: toDecimal(goal), deals: t?.deals ?? 0, visits: t?.visits ?? 0, achieved: toDecimal(f.achieved), percent: Math.round(percent * 10) / 10,
-          transactions: f.transactions, visitsDone: visits.find((v) => v.byUserId === p.userId)?._count._all ?? 0,
+          transactions: f.transactions, visitsDone: visitsOf(p.userId, "visit"), meetings: visitsOf(p.userId, "meeting"),
+          inventory: units.find((u) => u.agentId === p.id)?._count._all ?? 0, farming: actsOf(p.id, "farming"), approach: actsOf(p.id, "approach"),
           behind: m === cur && behindPace(percent, gone, b.days), pending: pendingOf(t?.pending ?? null),
         },
         achieved: f.achieved,

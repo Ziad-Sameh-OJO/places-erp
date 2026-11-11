@@ -117,6 +117,8 @@ export interface TargetRow {
   employeeId: string; name: string; team: string | null; tl: string | null;
   value: string; deals: number; visits: number;
   achieved: string; percent: number; transactions: number; visitsDone: number;
+  /** Achievements (client, 11 Nov): the month's meetings done, units he brought to the inventory, Farming and Approach done */
+  meetings: number; inventory: number; farming: number; approach: number;
   /** «تحت المعدل»: the TL hears of it */
   behind: boolean; rank: number;
   pending: { value: string; deals: number; visits: number; by: string } | null;

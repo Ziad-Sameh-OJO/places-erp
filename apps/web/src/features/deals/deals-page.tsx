@@ -153,15 +153,20 @@ function Board({ mine }: { mine: boolean }) {
           <div className="kpis">
             <KpiTile label="Transactions" value={num(meRow.transactions)} sub={t("achv.txSub")} icon="handshake" />
             <KpiTile label={t("achv.visitsDone")} value={num(meRow.visitsDone)} sub="Visit Done" icon="pin" tone="ok" />
+            <KpiTile label="Meeting" value={num(meRow.meetings)} sub="Meeting Done" icon="users" />
+            <KpiTile label="Inventory" value={num(meRow.inventory)} sub={t("achv.inventorySub")} icon="building" />
+            <KpiTile label="Farming" value={num(meRow.farming)} sub={t("achv.activitySub")} icon="route" />
+            <KpiTile label="Approach" value={num(meRow.approach)} sub={t("achv.activitySub")} icon="phone" />
           </div>
         </>
       )}
       <Card title="Leaderboard" icon="star" sub={t("achv.boardSub", { label: serverText(a.label) })}>
-        <Table head={["#", t("sales"), "Transactions", ...(achieved ? [t("inTarget"), t("achv.target")] : []), t("achv.visits")]} empty={t("achv.empty")}
+        <Table head={["#", t("sales"), "Transactions", ...(achieved ? [t("inTarget"), t("achv.target")] : []), t("achv.visits"), "Meeting", "Inventory", "Farming", "Approach"]} empty={t("achv.empty")}
           rows={a.rows.map((r) => [
             <span key="r" className={`rank r${r.rank}`}>{r.rank}</span>, <span key="n" className={r.employeeId === a.mine ? "me-row" : ""}>{r.name}{r.tl && <span className="sub">{r.tl}</span>}</span>,
             num(r.transactions), ...(achieved ? [<div key="v" className="cell-bar"><span className="num">{short(r.achieved)}</span><Bar p={(Number(r.achieved) / max) * 100} /></div>,
             <span key="t">{Math.round(r.percent)}% <span className="sub">{t("achv.of", { value: short(r.value) })}</span></span>] : []), num(r.visitsDone),
+            num(r.meetings), num(r.inventory), num(r.farming), num(r.approach),
           ])} />
       </Card>
     </>
