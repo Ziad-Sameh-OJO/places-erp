@@ -56,6 +56,18 @@ export class InventoryRepository {
     return this.db.unit.findMany({ where: openSearch(q), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
   }
 
+  /** M-04 Broadcast · the Hot Inventory search: the same open, confirmed units, also by area, with what the sheet shows. */
+  forHot(q: string | undefined, take: number) {
+    const byArea: Prisma.UnitWhereInput = q ? { OR: [openSearch(q), { AND: [openSearch(undefined), { area: { contains: q, mode: "insensitive" } }] }] } : openSearch(undefined);
+    return this.db.unit.findMany({
+      where: byArea, orderBy: [{ createdAt: "desc" }, { code: "asc" }], take,
+      select: {
+        id: true, code: true, type: true, project: true, area: true, space: true, condition: true, floor: true, pricePerSqm: true, totalPrice: true, divisible: true,
+        photos: { where: { pdf: false }, select: { fileId: true }, orderBy: { position: "asc" }, take: 1 }, _count: { select: { photos: { where: { pdf: false } } } },
+      },
+    });
+  }
+
   /** Marketing's board of new units (M-04 4.4): open, not archived, not Done by marketing yet. */
   forMarketing() {
     return this.db.unit.findMany({

@@ -18,8 +18,8 @@ export class BroadcastsController {
 
   @Get("hot-units")
   @Requires("marketing", "create")
-  hotUnits(@Query(new ZodPipe(TaskUnitQuery)) q: TaskUnitQuery) {
-    return this.broadcasts.hotUnits(q.q);
+  hotUnits(@Me() me: CurrentUser, @Query(new ZodPipe(TaskUnitQuery)) q: TaskUnitQuery) {
+    return this.broadcasts.hotUnits(me, q.q);
   }
 
   /** Personal: a salesperson's own Broadcast tasks (empty for anyone else). */

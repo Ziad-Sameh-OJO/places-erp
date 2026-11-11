@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { BroadcastBoard, BroadcastInput, MyBroadcast, TaskUnitOption } from "@places/contracts";
+import type { BroadcastBoard, BroadcastInput, HotUnitOption, MyBroadcast } from "@places/contracts";
 import { Avatar, Card, Chip, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { ago, num } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
+import { HotUnitPicker } from "./hot-unit-picker";
+import { BroadcastImagePicker, BroadcastImages, uploadBroadcastImages } from "./broadcast-images";
 
 export const useBroadcasts = (enabled = true) => useQuery({ queryKey: ["broadcasts"], queryFn: () => api.get<BroadcastBoard>("/marketing/broadcasts"), enabled });
 
@@ -28,7 +30,7 @@ export function Broadcast() {
       </div>
       <Table head={[t("head.message"), t("head.approval"), t("head.sent"), t("head.pending"), ""]} empty={t("empty")}
         rows={items.map((b) => [
-          <span key="t" className="wrap"><b>{b.text}</b>{b.hotUnits.length > 0 && <span className="sub mono">{b.hotUnits.map((u) => u.code).join(t("sep"))}</span>}</span>,
+          <span key="t" className="wrap"><BroadcastImages images={b.images} sm /><b>{b.text}</b>{b.hotUnits.length > 0 && <span className="sub mono">{b.hotUnits.map((u) => u.code).join(t("sep"))}</span>}</span>,
           b.approved ? <Chip key="a" tone="ok">{t("approved")}</Chip> : <Chip key="a" tone="warn">{t("waiting")}</Chip>,
           <div key="s" className="avs">{b.sent.length ? b.sent.map((s) => <Avatar key={s.id} id={s.id} name={s.name} sm />) : "—"}</div>,
           <span key="p" className="n">{num(b.pending)}</span>,
@@ -59,34 +61,23 @@ function WhatsAppLimit({ w }: { w: BroadcastBoard["whatsapp"] }) {
 /** «رسالة Broadcast جديدة للسيلز»: picture + text + logo, sent as a task to every salesperson (M-04 2.1 step 7). */
 function NewBroadcast({ week }: { week: BroadcastBoard["week"] | undefined }) {
   const t = useTranslations("marketing.broadcast.new");
-  const tb = useTranslations("marketing.broadcast");
   const run = useAction();
   const qc = useQueryClient();
-  const [q, setQ] = useState("");
-  const [picked, setPicked] = useState<TaskUnitOption[]>([]);
-  const units = useQuery({ queryKey: ["hot-units", q], queryFn: () => api.get<TaskUnitOption[]>(`/marketing/broadcasts/hot-units?q=${encodeURIComponent(q)}`) }).data ?? [];
-  const toggle = (u: TaskUnitOption) => setPicked((p) => (p.some((x) => x.id === u.id) ? p.filter((x) => x.id !== u.id) : [...p, u]));
+  const [picked, setPicked] = useState<HotUnitOption[]>([]);
+  const [images, setImages] = useState<File[]>([]);
   return (
     <Card title={t("title")} icon="megaphone" sub={t("sub")}>
       <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
-        const body: BroadcastInput = { text: String(f.get("text") ?? "").trim(), logo: f.get("logo") === "on", hotUnitIds: picked.map((u) => u.id) };
+        const text = String(f.get("text") ?? "").trim();
+        const body: BroadcastInput = { text, imageFileIds: await uploadBroadcastImages(images), hotUnitIds: picked.map((u) => u.id) };
         await api.post("/marketing/broadcasts", body);
         setPicked([]);
+        setImages([]);
         await qc.invalidateQueries({ queryKey: ["broadcasts"] });
       }, t("sent")))}>
+        <Field label={t("images.label")} wide><BroadcastImagePicker files={images} onChange={setImages} /></Field>
         <Field label={t("text")} req wide><textarea name="text" required placeholder={t("textPlaceholder")} /></Field>
-        <Field label={t("hot")} wide>
-          <input type="search" placeholder={t("searchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("searchLabel")} />
-          <div className="row wrap">
-            {units.map((u) => (
-              <button type="button" key={u.id} className={`chip ${picked.some((x) => x.id === u.id) ? "acc" : ""}`} onClick={() => toggle(u)} aria-pressed={picked.some((x) => x.id === u.id)}>
-                {t("unit", { code: u.code, project: u.project, space: num(u.space) })}
-              </button>
-            ))}
-          </div>
-          {picked.length > 0 && <span className="hint">{t("picked", { codes: picked.map((u) => u.code).join(tb("sep")) })}</span>}
-        </Field>
-        <label className="tog"><input type="checkbox" name="logo" defaultChecked /><span>{t("logo")}</span></label>
+        <Field label={t("hot")} wide><HotUnitPicker picked={picked} onChange={setPicked} /></Field>
         <p className="hint wide">{t("schedule", { sent: week?.sent ?? 0, of: week?.of ?? 2 })}</p>
         <div className="row end wide"><button className="btn"><Icon name="send" />{t("submit")}</button></div>
       </form>
@@ -111,6 +102,7 @@ export function MyBroadcasts() {
     <Card title={t("title")} icon="megaphone" sub={t("sub")}>
       {open.map((b) => (
         <form key={b.id} className="grid" onSubmit={onFormSubmit((f) => done(b.id, String(f.get("others") ?? "")))}>
+          <div className="wide"><BroadcastImages images={b.images} save={t("save")} /></div>
           <p className="wide"><b>{b.text}</b>{b.hotUnits.length > 0 && <span className="sub mono"> {b.hotUnits.map((u) => u.code).join(tb("sep"))}</span>}</p>
           <Field label={t("others")} wide><input name="others" placeholder={t("othersPlaceholder")} /></Field>
           <div className="row end wide"><button className="btn sm"><Icon name="check" />Done / share</button></div>

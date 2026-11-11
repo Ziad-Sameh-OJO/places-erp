@@ -29,6 +29,7 @@ after(async () => {
   await prisma.notification.deleteMany({ where: { event: "marketing.broadcast", createdAt: { gte: START } } });
   await prisma.permissionOverride.deleteMany({ where: { userId: writerId, module: "marketing" } });
   await prisma.broadcast.deleteMany({ where: { id: { in: broadcasts } } });
+  await prisma.file.deleteMany({ where: { key: { startsWith: `e2e/bc-${stamp}` } } });
   await prisma.unit.deleteMany({ where: { code: { startsWith: `U-B${stamp}` } } });
   await prisma.$disconnect();
 });
@@ -91,4 +92,32 @@ test("two approve clicks at once: one approves (204), the other gets 409, and sa
   assert.equal(await prisma.notification.count({ where: { userId: anasId, event: "marketing.broadcast", createdAt: { gte: t0 } } }), 1);
   assert.equal(await prisma.auditLog.count({ where: { entity: "Broadcast", entityId: id, action: "approve" } }), 1);
   assert.equal((await call(`/marketing/broadcasts/${id}/approve`, { method: "POST", cookie: rahma })).status, 409);
+});
+
+test("M-04 2.1 step 7 «صورة»: the sender's own finished images go with the Broadcast — and reach the salesperson's task", async () => {
+  const [rahmaId, other] = await Promise.all(["rahma.hassan@places.com", "anas@places.com"].map(async (e) => (await prisma.user.findUniqueOrThrow({ where: { email: e } })).id));
+  const file = (n: string, mime: string, by = rahmaId) => prisma.file.create({ data: { key: `e2e/bc-${stamp}-${n}`, name: `bc-${n}`, mime, size: 100, status: "READY", uploadedById: by } }).then((f) => f.id);
+  const [png, pdf, theirs] = await Promise.all([file("a.png", "image/png"), file("b.pdf", "application/pdf"), file("c.png", "image/png", other)]);
+  const post = (imageFileIds: string[]) => call("/marketing/broadcasts", { method: "POST", cookie: rahma, body: { text: `E2E images ${stamp}`, hotUnitIds: [hot], imageFileIds } });
+  assert.equal((await post([pdf])).status, 400); // images only
+  assert.equal((await post([theirs])).status, 400); // someone else's upload
+  const r = await post([png]);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  broadcasts.push(r.body.id);
+  const row = (await call("/marketing/broadcasts", { cookie: rahma })).body.items.find((b: { id: string }) => b.id === r.body.id);
+  assert.deepEqual(row.images.map((i: { id: string }) => i.id), [png]);
+  assert.equal(row.logo, undefined); // «حط اللوجو» is gone
+  const task = (await call("/marketing/broadcasts/mine", { cookie: anas })).body.find((b: { id: string }) => b.id === r.body.id);
+  assert.deepEqual(task.images.map((i: { id: string }) => i.id), [png]);
+  assert.equal((await post([png])).status, 400); // already taken by the first one
+});
+
+test("the Hot Inventory search reads like the sheet: by area too, with type, finishing and space", async () => {
+  const units = (await call(`/marketing/broadcasts/hot-units?q=${encodeURIComponent("التجمع")}`, { cookie: rahma })).body as Array<Record<string, unknown>>;
+  const u = units.find((x) => x.id === hot)!;
+  assert.ok(u, "found by its area");
+  assert.equal(u.type, "Rent");
+  assert.equal(u.condition, "Finished");
+  assert.equal(u.space, 401);
+  assert.ok(!units.some((x) => x.id === draft)); // a draft isn't Hot Inventory
 });

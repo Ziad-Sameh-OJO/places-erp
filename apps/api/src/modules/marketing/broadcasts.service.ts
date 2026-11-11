@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
-import type { BroadcastBoard, BroadcastDone, BroadcastInput, MyBroadcast, TodayLine } from "@places/contracts";
+import type { BroadcastBoard, BroadcastDone, BroadcastImage, BroadcastInput, MyBroadcast, TodayLine } from "@places/contracts";
 import { BROADCASTS_PER_WEEK, broadcastsThisWeek, dayStart, localDate, whatsappLimitTone, whatsappSentToday } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
+import { FilesService } from "../../core/files/files.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { InventoryService } from "../inventory/inventory.service";
@@ -13,6 +14,8 @@ const NO_BROADCAST = "الـ Broadcast ده مش موجود";
 /** M-04 1.2 · 4.1: the Broadcast goes to sales; they see only their own Broadcast tasks. */
 const SALES_ROLE = "sales";
 const BOARD_SIZE = 50;
+/** system.File.entity of a Broadcast's images (M-04 2.1 step 7 «صورة»). */
+const BROADCAST = "Broadcast";
 
 /**
  * M-04 · the Broadcast (2.1 steps 7-8, 2.2, 2.3): Rahma's message with its Hot Inventory goes to every salesperson
@@ -26,6 +29,7 @@ export class BroadcastsService {
     private readonly notifications: NotificationsService,
     private readonly inventory: InventoryService,
     private readonly settings: SettingsService,
+    private readonly files: FilesService,
   ) {}
 
   /** 0.18 · demo home.js «Broadcast مستني موافقتك»: the messages waiting for the marketing manager's approval. */
@@ -43,10 +47,10 @@ export class BroadcastsService {
     ]);
     const sentToday = whatsappSentToday(donesToday), limit = settings.whatsappDailyLimit;
     const names = await this.names(rows.flatMap((b) => b.sends.map((s) => s.userId)));
-    const codes = await this.codes(rows.flatMap((b) => b.hotUnitIds));
+    const [codes, images] = await Promise.all([this.codes(rows.flatMap((b) => b.hotUnitIds)), this.images(rows.map((b) => b.id))]);
     return {
       items: rows.map((b) => ({
-        id: b.id, text: b.text, logo: b.logo, approved: b.approved, createdAt: b.createdAt.toISOString(),
+        id: b.id, text: b.text, images: images.get(b.id) ?? [], approved: b.approved, createdAt: b.createdAt.toISOString(),
         hotUnits: b.hotUnitIds.map((id) => ({ id, code: codes.get(id) ?? "—" })),
         sent: b.sends.map((s) => ({ id: s.userId, name: names.get(s.userId) ?? "—", otherUnits: s.otherUnits, doneAt: s.doneAt.toISOString() })),
         pending: sales.filter((id) => !b.sends.some((s) => s.userId === id)).length,
@@ -57,18 +61,21 @@ export class BroadcastsService {
   }
 
   /** The Hot Inventory to pick from: open units confirmed for sales (Q15), by code, project or space. */
-  hotUnits(q?: string) {
-    return this.inventory.forVisit(q);
+  hotUnits(me: CurrentUser, q?: string) {
+    return this.inventory.forHot(me, q);
   }
 
   /** M-04 2.2 «(مقترح)»: a Broadcast from someone who can't approve waits for the marketing manager before reaching sales. */
   async create(me: CurrentUser, input: BroadcastInput): Promise<{ id: string }> {
     const open = await this.inventory.openForVisit(input.hotUnitIds);
     if (open.size !== new Set(input.hotUnitIds).size) throw new BadRequestException("فيه وحدة في الـ Hot Inventory مش متاحة للسيلز");
+    const pics = await this.files.names(input.imageFileIds);
+    if (pics.some((f) => !f.mime.startsWith("image/"))) throw new BadRequestException("الـ Broadcast بياخد صور بس");
     const approved = me.grants.can("marketing", "approve");
     const b = await this.db.$transaction(async (tx) => {
-      const created = await tx.broadcast.create({ data: { text: input.text, logo: input.logo, hotUnitIds: [...new Set(input.hotUnitIds)], approved, createdById: me.id }, select: { id: true } });
-      await this.audit.record({ module: "marketing", entity: "Broadcast", entityId: created.id, action: "create", userId: me.id, after: { ...input, approved } }, tx);
+      const created = await tx.broadcast.create({ data: { text: input.text, hotUnitIds: [...new Set(input.hotUnitIds)], approved, createdById: me.id }, select: { id: true } });
+      await this.files.attach(me, input.imageFileIds, BROADCAST, created.id, tx); // the sender's own finished uploads, or it fails
+      await this.audit.record({ module: "marketing", entity: "Broadcast", entityId: created.id, action: "create", userId: me.id, after: { ...input, images: pics.map((f) => f.name), approved } }, tx);
       return created;
     });
     if (approved) await this.tellSales();
@@ -92,9 +99,9 @@ export class BroadcastsService {
   async mine(me: CurrentUser): Promise<MyBroadcast[]> {
     if (!me.roles.includes(SALES_ROLE)) return [];
     const rows = await this.db.broadcast.findMany({ where: { approved: true }, orderBy: { createdAt: "desc" }, take: 20, include: { sends: { where: { userId: me.id } } } });
-    const codes = await this.codes(rows.flatMap((b) => b.hotUnitIds));
+    const [codes, images] = await Promise.all([this.codes(rows.flatMap((b) => b.hotUnitIds)), this.images(rows.map((b) => b.id))]);
     return rows.map((b) => ({
-      id: b.id, text: b.text, logo: b.logo, createdAt: b.createdAt.toISOString(),
+      id: b.id, text: b.text, images: images.get(b.id) ?? [], createdAt: b.createdAt.toISOString(),
       hotUnits: b.hotUnitIds.map((id) => ({ id, code: codes.get(id) ?? "—" })), doneAt: b.sends[0]?.doneAt.toISOString() ?? null,
     }));
   }
@@ -113,6 +120,15 @@ export class BroadcastsService {
       });
       await this.audit.record({ module: "marketing", entity: "BroadcastSend", entityId: s.id, action: "create", userId: me.id, after: { broadcastId: id, otherUnits } }, tx);
     });
+  }
+
+  /** Each Broadcast's images, oldest first, with short links (inline to show, attachment to save and send). */
+  private async images(ids: string[]): Promise<Map<string, BroadcastImage[]>> {
+    const link = (fid: string, inline: boolean) => this.files.downloadUrl(fid, inline).then((l) => l.url, () => null);
+    const pairs = await Promise.all(ids.map(async (id) => [id, await Promise.all((await this.files.of(BROADCAST, id)).map(async (f) => ({
+      id: f.id, name: f.name, url: await link(f.id, true), download: await link(f.id, false),
+    })))] as const));
+    return new Map(pairs);
   }
 
   private async tellSales() {

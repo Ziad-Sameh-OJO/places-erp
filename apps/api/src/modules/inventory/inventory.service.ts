@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import {
-  type CampaignUnitOption, type CreatedUnit, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
+  type CampaignUnitOption, type CreatedUnit, type HotUnitOption, type OwnerUpdateInput, type Paged, type RecommendedUnit, type UnitDetail, type UnitFilters, type UnitInput, type UnitOptions,
   type MissingUnitsToday, type UnitImportOptions, type UnitImportReviewRow, type UnitRow, type UnitSummary, type UnitTabCounts,
 } from "@places/contracts";
 import {
@@ -46,6 +46,20 @@ export class InventoryService {
   /** For a lead's Visit / Meeting (1.9): open, confirmed units by code, project or space (4 Nov demo meeting). */
   forVisit(q?: string) {
     return this.repo.forVisit(q, 30);
+  }
+
+  /** M-04 Broadcast · the Hot Inventory search, as the sheet shows each unit; fields hidden from `me` come back blank. */
+  async forHot(me: CurrentUser, q?: string): Promise<HotUnitOption[]> {
+    const rows = await this.repo.forHot(q, 30);
+    const hidden = me.fields.hidden("inventory"), h = (k: string) => hidden.has(k);
+    const links = h("photos") ? new Map<string, string>() : await this.photos.links(rows.flatMap((r) => r.photos.map((p) => p.fileId)));
+    return rows.map((u) => ({
+      id: u.id, code: u.code, type: u.type, project: u.project,
+      area: h("area") ? "" : u.area, space: h("space") ? 0 : u.space, condition: h("condition") ? "" : u.condition, floor: h("floor") ? null : u.floor,
+      pricePerSqm: h("pricePerSqm") || !u.pricePerSqm ? null : u.pricePerSqm.toFixed(2), totalPrice: h("totalPrice") || !u.totalPrice ? null : u.totalPrice.toFixed(2),
+      divisible: h("divisible") ? false : u.divisible,
+      photo: u.photos[0] ? links.get(u.photos[0].fileId) ?? null : null, photoCount: u._count.photos,
+    }));
   }
 
   /**
