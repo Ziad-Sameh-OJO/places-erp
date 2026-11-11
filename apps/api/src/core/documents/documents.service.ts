@@ -13,7 +13,7 @@ import type { CurrentUser } from "../auth/current-user.decorator";
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** IBM Plex Sans Arabic (Arabic + Latin, 400 and 700) inlined as data URLs: the PDF never waits on the network. */
-const FONT_CSS = (() => {
+export const FONT_CSS = (() => {
   const dir = dirname(createRequire(__filename).resolve("@fontsource/ibm-plex-sans-arabic/package.json"));
   return ["400", "700"].map((w) => readFileSync(join(dir, `${w}.css`), "utf8"))
     .join("\n")
@@ -74,10 +74,13 @@ export class DocumentsService implements OnModuleDestroy {
     return tags.length ? `<div class="seal">${tags.join("")}</div>` : "";
   }
 
-  /** A4 with the header and footer; `slide`: 16:9 pages (1280 × 720), edge to edge, nothing around them (M-03 unit PDF and slide, 2.23). */
-  async pdf(html: string, now = new Date(), opts: { slide?: boolean } = {}): Promise<Buffer> {
-    // the signature and stamp go under a page of the company's papers; a 16:9 deck is pictures, edge to edge
-    if (!opts.slide) {
+  /**
+   * A4 with the header and footer; `slide`: 16:9 pages (1280 × 720), edge to edge, nothing around them (M-03 unit PDF
+   * and slide, 2.23); `size`: pages of that size, edge to edge (M-04 Company Profile: «عملاؤنا» matches marketing's file).
+   */
+  async pdf(html: string, now = new Date(), opts: { slide?: boolean; size?: { width: string; height: string } } = {}): Promise<Buffer> {
+    // the signature and stamp go under a page of the company's papers; a deck or a brochure page is pictures, edge to edge
+    if (!opts.slide && !opts.size) {
       const seal = await this.seal();
       html = html.replace("</body>", () => `${seal}</body>`);
     }
@@ -89,6 +92,7 @@ export class DocumentsService implements OnModuleDestroy {
       // a PDF never fetches anything (fonts and logo are inline): a value that slipped past esc() can't reach the network
       await page.route("**/*", (r) => r.abort());
       await page.setContent(html, { waitUntil: "load" });
+      if (opts.size) return await page.pdf({ ...opts.size, printBackground: true, margin: { top: "0", bottom: "0", left: "0", right: "0" } });
       if (opts.slide) return await page.pdf({ width: "1280px", height: "720px", printBackground: true, margin: { top: "0", bottom: "0", left: "0", right: "0" } });
       const printedAt = now.toLocaleString("ar-EG-u-nu-latn", { timeZone: "Africa/Cairo", dateStyle: "long", timeStyle: "short" });
       return await page.pdf({

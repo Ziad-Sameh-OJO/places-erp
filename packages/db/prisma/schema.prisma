@@ -1176,6 +1176,34 @@ model BroadcastSend {
   @@schema("marketing")
 }
 
+/// M-04 · Q26 · a Done Deal's logo for the Company Profile's «عملاؤنا» page: marketing uploads it on the deal and presses
+/// Done; every Done logo goes on the next Update. The image is a system.File (entity "DealLogo", entityId = the deal).
+model CompanyProfileLogo {
+  dealId    String    @id // finance.Deal on the done-deals sheet (no FK across schemas, as elsewhere)
+  fileId    String    // the newest logo uploaded on the deal
+  doneAt    DateTime? // Done = goes on «عملاؤنا» at the next Update; null = uploaded, not added yet
+  doneById  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([doneAt])
+  @@schema("marketing")
+}
+
+/// M-04 · the Company Profile PDF: each «Update» is a version (Rahma's PDF + the «عملاؤنا» pages); the newest is the one
+/// everyone gets, the older ones stay for marketing.
+model CompanyProfileVersion {
+  id          String   @id @default(cuid())
+  baseFileId  String   // the PDF marketing uploaded, as it was (system.File, entity "CompanyProfileBase")
+  fileId      String   // the built PDF (system.File, entity "CompanyProfile")
+  dealIds     String[] // the deals whose logos are on «عملاؤنا», in their order
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@schema("marketing")
+}
+
 /// M-04 2.1 step 6 · 2.4: a post in the Content plan — its time, the Reminder at that time, the actual publish time.
 model Post {
   id             String    @id @default(cuid())

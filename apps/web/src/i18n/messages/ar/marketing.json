@@ -221,9 +221,49 @@
   },
   "deals": {
     "note": "الـ Done Deals بتظهر هنا بعد موافقة الـ Office Manager. مسموح تشوفي: الـ location، والمساحة، واسم الشركة، والـ type، واسم الـ Buyer بس.",
-    "head": { "buyer": "الـ Buyer", "company": "الشركة", "space": "المساحة" },
+    "head": { "buyer": "الـ Buyer", "company": "الشركة", "space": "المساحة", "logo": "اللوجو" },
     "empty": "مفيش صفقات لسه",
     "space": "{space} م"
+  },
+  "profile": {
+    "sub": "ملف الشركة اللي السيلز بيبعته للعملا · لوجوهات الصفقات بتتضاف في صفحة «عملاؤنا» في آخره",
+    "live": "آخر Update {when}",
+    "notLive": "لسه ماتعملش Update",
+    "noFile": "ارفعي ملف الـ Company Profile (PDF) عشان تبدأي",
+    "noFileTitle": "مفيش ملف لسه",
+    "noFileHint": "PDF لحد 80 ميجا",
+    "fileAt": "اترفع {when}",
+    "upload": "ارفعي الملف",
+    "replace": "غيّري الملف",
+    "onlyPdf": "الـ Company Profile لازم يكون PDF",
+    "uploaded": "اترفع الملف",
+    "upToDate": "اللي عند الناس هو آخر نسخة · مفيش جديد",
+    "added": "{n, plural, one {لوجو جديد} two {لوجوهين جداد} few {# لوجوهات جديدة} other {# لوجو جديد}} مستني يتضاف",
+    "removed": "{n, plural, one {لوجو} two {لوجوهين} few {# لوجوهات} other {# لوجو}} هيتشال",
+    "newFile": "ملف جديد",
+    "open": "افتحي النسخة الحالية",
+    "preview": "شوفي الشكل الجديد",
+    "published": "اتعمل Update · الناس كلها بقت شايفة النسخة الجديدة",
+    "history": "النسخ القديمة ({n})",
+    "hideHistory": "اقفلي النسخ القديمة",
+    "logos": "{n} لوجو",
+    "current": "الحالية",
+    "logo": {
+      "upload": "ارفعي لوجو",
+      "replace": "غيّري اللوجو",
+      "onlyImage": "اللوجو لازم يكون صورة (png / jpg / webp)",
+      "uploaded": "اترفع اللوجو",
+      "inProfile": "في الـ Company Profile",
+      "waiting": "مستني Update",
+      "remove": "شيلي",
+      "removedToast": "هيتشال في الـ Update الجاي",
+      "doneToast": "هيتضاف في الـ Update الجاي"
+    },
+    "home": {
+      "sub": "آخر نسخة · {when}",
+      "open": "افتح",
+      "save": "احفظ"
+    }
   },
   "newUnits": {
     "gone": "{code} اختفت من لوحة التسويق",
