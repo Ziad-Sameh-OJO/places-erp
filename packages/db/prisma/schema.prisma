@@ -567,6 +567,19 @@ model LeadDuplicate {
 
 /// Every call a salesperson or Telesales logs on a lead (M-01 3.1): the KPIs count them (Telesales 100 a day,
 /// sales 50 a week) and the first one is measured against the lead's arrival (30 minutes).
+/// M-01 · Telesales' «عدد المكالمات اليومية» (client, 11 Nov): the day's total calls she writes herself (many aren't on a
+/// lead); the KPI takes the larger of this and the calls logged on leads that day (domain dayCalls).
+model DailyCalls {
+  id        String   @id @default(cuid())
+  userId    String
+  day       String   // YYYY-MM-DD, Cairo
+  count     Int
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, day])
+  @@schema("sales")
+}
+
 model LeadCall {
   id       String   @id @default(cuid())
   leadId   String

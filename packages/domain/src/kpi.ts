@@ -193,7 +193,7 @@ export const METRICS: Readonly<Record<string, MetricDef>> = {
     ? `متوسط عدد الـ ${p.kind || "Visits والـ Meetings"} اللي اتعلّم عليها Done لكل بياع في فريقه · ${perName(p)}`
     : `عدد الـ ${p.kind || "Visits والـ Meetings"} اللي اتعلّم عليها Done في ليدزه · ${perName(p)}` },
   calls: { group: "المبيعات", label: "المكالمات", unit: "#", params: ["per", "avg"], describe: (p) => `عدد المكالمات اللي سجّلها بنفسه على الليدز · ${perName(p)}${weekly(p)}` },
-  callsDaily: { group: "المبيعات", label: "المكالمات في اليوم", unit: "#", params: ["per"], describe: (p) => `متوسط المكالمات اللي سجّلها بنفسه على الليدز في يوم الشغل · ${perName(p)}` },
+  callsDaily: { group: "المبيعات", label: "المكالمات في اليوم", unit: "#", params: ["per"], describe: (p) => `متوسط مكالمات يوم الشغل: الأكبر من اللي كتبه بنفسه واللي متسجّل على الليدز، ويوم فيه ليد «By Telesales» بيتحسب يوم كامل · ${perName(p)}` },
   unitsBrought: { group: "المبيعات", label: "وحدات جابها للانفنتوري", unit: "#", params: ["type", "per"], describe: (p) => `عدد الوحدات${p.type ? ` ${p.type}` : ""} اللي هو الـ Agent بتاعها ودخلت الانفنتوري · ${perName(p)}` },
   broadcasts: { group: "المبيعات", label: "الـ Broadcasts اللي بعتها", unit: "#", describe: () => "عدد رسايل الـ Broadcast المعتمدة اللي علّم إنه بعتها" },
   firstAction: { group: "المبيعات", label: "أول أكشن على الليد", unit: "%", params: ["min", "per"], describe: (p) => `% من ليدزه (${perName(p)}) اللي عمل عليها أول أكشن خلال ${p.min || 30} دقيقة من دخولها` },

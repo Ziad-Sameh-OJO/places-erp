@@ -22,6 +22,7 @@ import { SecondCalls } from "./second-calls";
 import Link from "next/link";
 import { usePendingCompanies } from "./companies";
 import { SentView, useSentCounts } from "./sent";
+import { DailyCalls } from "./daily-calls";
 import { DraftAdminAlarm, DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
@@ -109,7 +110,8 @@ export function LeadsList() {
       <OperationsQueue />
       <SecondCalls onOpen={setOpen} />
       {newCompanies.length > 0 && <Note kind="warn">{t("newCompanies", { count: newCompanies.length })} <Link className="btn sm" href="/companies">{t("openCompanies")}</Link></Note>}
-      {calls?.goal && (
+      {calls?.goal && calls.today && <DailyCalls calls={{ ...calls, today: calls.today }} />}
+      {calls?.goal && !calls.today && (
         <Note>{calls.goal.period === "day"
           ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
           : t.rich("callsWeek", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })}</Note>

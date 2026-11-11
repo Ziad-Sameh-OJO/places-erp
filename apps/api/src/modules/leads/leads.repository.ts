@@ -238,6 +238,14 @@ export class LeadsRepository {
     return tx.lead.updateMany({ where: { id, firstCallAt: null }, data: { firstCallAt: at } });
   }
 
+  dailyCalls(userId: string, day: string) {
+    return this.db.dailyCalls.findUnique({ where: { userId_day: { userId, day } } });
+  }
+
+  telesalesLeadSince(createdById: string, channel: string, since: Date) {
+    return this.db.lead.count({ where: { createdById, channel, createdAt: { gte: since } } }).then((n) => n > 0);
+  }
+
   countCalls(byUserId: string, since: Date) {
     return this.db.leadCall.count({ where: { byUserId, at: { gte: since } } });
   }

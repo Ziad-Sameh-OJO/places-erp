@@ -84,6 +84,14 @@
       "approve": "Approve and split"
     }
   },
+  "dailyCalls": {
+    "line": "Today counts in your KPIs: <b>{counts}</b> of {target} calls",
+    "mine": "My calls today",
+    "save": "Save",
+    "saved": "Your calls are saved",
+    "onLeads": "{n} of them logged on leads · the larger counts",
+    "fullByLead": "You entered a «By Telesales» lead today, so the day counts in full"
+  },
   "sent": {
     "note": "The leads you entered that went to sales: to whom and when only, not what the salesperson does with them. No Answer stays here until the salesperson takes another action.",
     "filter": "Period",

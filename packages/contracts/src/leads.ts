@@ -199,7 +199,21 @@ export interface LeadLogRow {
 }
 
 /** The person's own call count against their KPI (demo «مكالماتك النهارده: … من 100»); no goal for other roles. */
-export interface MyCalls { goal: { period: "day" | "week"; target: number } | null; count: number }
+export interface MyCalls {
+  goal: { period: "day" | "week"; target: number } | null;
+  /** the calls logged on leads in the period */
+  count: number;
+  /** Telesales (client, 11 Nov): today's total she wrote (null = not yet), whether she entered a «By Telesales» lead
+   *  today, and what today counts in the KPI (domain dayCalls) */
+  today?: { entered: number | null; telesalesLead: boolean; counts: number };
+}
+
+/** Telesales writes her day's total calls (today, or a past day of the last week she forgot). */
+export const DailyCallsInput = z.object({
+  count: z.number({ invalid_type_error: "اكتب عدد المكالمات" }).int("عدد صحيح").min(0, "مش أقل من صفر").max(2000, "رقم كبير أوي"),
+  day: CalendarDay.optional(),
+});
+export type DailyCallsInput = z.infer<typeof DailyCallsInput>;
 
 /** The Kanban: every stage with its real count under the filters, and its newest cards (the demo shows 30 per lane). */
 export interface LeadBoard { lanes: { stage: string; total: number; items: LeadRow[] }[] }
