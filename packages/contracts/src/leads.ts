@@ -416,3 +416,18 @@ export type SentLeadsQuery = z.infer<typeof SentLeadsQuery>;
 export interface SentLead { id: string; code: string; name: string; phones: string[]; area: string; type: string; to: string | null; sentAt: string; noAnswer: boolean }
 export interface SentLeads { items: SentLead[]; total: number; page: number; pageSize: number; counts: { today: number; all: number; noAnswer: number } }
 
+/** M-01 · Tags (client, 11 Nov): the salespeople working a lead with its owner, each waiting for the TL's approval. */
+export const TagRequest = z.object({ leadId: Id, employeeIds: z.array(Id).min(1, "اختار السيلز اللي شغالين معاك").max(5, "أقصى عدد 5 سيلز") });
+export type TagRequest = z.infer<typeof TagRequest>;
+export const TagDecision = z.object({ approve: z.boolean({ required_error: "وافق أو ارفض" }) });
+export type TagDecision = z.infer<typeof TagDecision>;
+export const TagsQuery = z.object({ leadId: Id.optional() });
+export type TagsQuery = z.infer<typeof TagsQuery>;
+export interface LeadTagRow {
+  id: string; lead: { id: string; code: string; name: string }; tagged: string; by: string; approver: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED"; at: string; decidedAt: string | null;
+  /** the person reading may approve / reject it */
+  canDecide: boolean;
+}
+export interface LeadTags { items: LeadTagRow[]; toDecide: number; pending: number }
+

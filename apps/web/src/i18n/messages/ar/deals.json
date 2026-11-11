@@ -45,8 +45,9 @@
     "empty": "مفيش صفقات اتحصّل منها"
   },
   "achv": {
+    "inventorySub": "وحدات جبتها الشهر ده",
+    "activitySub": "نشاطات خلصت الشهر ده",
     "ofTarget": "من التارجت",
-    "rank": "ترتيبك بين {count} سيلز · {label}",
     "yourTarget": "دخلك في التارجت {achieved} من {value}",
     "txSub": "صفقة اسمك فيها واتحصّل منها",
     "visitsDone": "زيارات خلصت",
@@ -77,6 +78,8 @@
     "commOwner": "عمولة متوقعة من الـ Owner",
     "commClient": "عمولة متوقعة من الـ Client",
     "withMe": "حد معاك في الديل Buyer؟",
+    "withMePick": "اختار سيلز (لو حد معاك)",
+    "withMeRemove": "شيل {name}",
     "hint": "الشركة والـ source بيتسجّلوا من بيانات العميل. الصفقة بتوصل للـ Office Manager الأول، والتحصيل بتسجّله المالية.",
     "submit": "حفظ الصفقة"
   },

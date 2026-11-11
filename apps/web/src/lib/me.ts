@@ -4,7 +4,7 @@ import { canEditSetting, fieldAccess, keepsCompaniesSheet, type Action, type Fie
 import { api } from "./api";
 
 export interface Me {
-  id: string; name: string; email: string; emailNotifications: boolean; roles: string[]; roleLabels: string[]; scope: string; permissions: Partial<Record<ModuleKey, Action[]>>; fields: FieldRules;
+  id: string; employeeId: string | null; name: string; email: string; emailNotifications: boolean; roles: string[]; roleLabels: string[]; scope: string; permissions: Partial<Record<ModuleKey, Action[]>>; fields: FieldRules;
   /** 12.15 «حسابي» */
   profile: { phone: string | null; department: string | null; teamLeader: string | null; lastLoginAt: string | null; passwordChangedAt: string | null };
 }

@@ -14,10 +14,14 @@ export function firstCallOnTime(arrivedAt: Date, firstCallAt: Date | null, limit
 
 export interface CallGoal { readonly period: "day" | "week"; readonly target: number }
 
-/** The call target a person's page shows (demo: «مكالماتك النهارده: … من 100» / «آخر 7 أيام: … من 50»). */
+/**
+ * The call target a person's page shows (demo: «مكالماتك النهارده: … من 100» / «آخر 7 أيام: … من 50»). Not for a Team
+ * Leader, even one who also sells (client, 11 Nov: «شيلها من التيم ليدر»).
+ */
 export function callGoal(roles: readonly string[]): CallGoal | null {
   if (roles.includes("telesales")) return { period: "day", target: CALL_TARGETS.telesalesPerDay };
-  if (roles.includes("sales") || roles.includes("tl")) return { period: "week", target: CALL_TARGETS.salesPerWeek };
+  if (roles.includes("tl")) return null;
+  if (roles.includes("sales")) return { period: "week", target: CALL_TARGETS.salesPerWeek };
   return null;
 }
 

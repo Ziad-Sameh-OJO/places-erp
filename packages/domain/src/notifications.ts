@@ -13,6 +13,8 @@ export interface NotificationEvent {
 }
 
 export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
+  { key: "lead.tag_request", label: "طلب Tag على ليد · مستني موافقتك", to: "التيم ليدر", toRoles: [], channels: ["app", "push"], important: false }, // M-01 Tags (client, 11 Nov)
+  { key: "lead.tag_decided", label: "اتوافق / اترفض على الـ Tag", to: "اللي طلب · السيلز المتعمله Tag", toRoles: [], channels: ["app", "push"], important: false },
   { key: "lead.assigned", label: "ليد جديد", to: "السيلز المسؤول", toRoles: [], channels: ["app", "push"], important: false },
   { key: "lead.sla_warn", label: "SLA ساعتين ونص", to: "Team Leader", toRoles: ["tl"], channels: ["app", "push", "email"], important: true },
   { key: "lead.pulled", label: "سحب ليد (3 ساعات)", to: "الأوبريشن · Sales Director", toRoles: ["ops", "salesdir"], channels: ["app", "push", "email"], important: true },

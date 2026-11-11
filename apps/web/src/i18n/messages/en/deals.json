@@ -45,8 +45,9 @@
     "empty": "No deals collected on"
   },
   "achv": {
+    "inventorySub": "Units you brought this month",
+    "activitySub": "Activities done this month",
     "ofTarget": "of target",
-    "rank": "Your rank among {count} salespeople · {label}",
     "yourTarget": "Counted in your target: {achieved} of {value}",
     "txSub": "Deals with your name, collected on",
     "visitsDone": "Visits done",
@@ -77,6 +78,8 @@
     "commOwner": "Expected commission from the Owner",
     "commClient": "Expected commission from the Client",
     "withMe": "Anyone with you on the deal as Buyer?",
+    "withMePick": "Pick a salesperson (if someone's with you)",
+    "withMeRemove": "Remove {name}",
     "hint": "The company and source come from the client's details. The deal goes to the Office Manager first, and Finance logs the collections.",
     "submit": "Save deal"
   },
