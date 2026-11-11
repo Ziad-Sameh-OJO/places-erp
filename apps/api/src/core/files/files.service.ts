@@ -3,6 +3,7 @@ import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketC
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { StoredFile, UploadRequest, UploadTicket } from "@places/contracts";
+import { FILE_KINDS } from "@places/contracts";
 import { PRISMA } from "../database/database.module";
 import { AuditService } from "../audit/audit.service";
 import { env } from "../../config/env";
@@ -139,7 +140,9 @@ export class FilesService implements OnModuleInit {
     const unique = [...new Set(ids)];
     if (!unique.length) return;
     const kind = entity === "Post" ? {} : { mime: { notIn: VIDEO } };
-    const n = await tx.file.updateMany({ where: { id: { in: unique }, uploadedById: me.id, status: "READY", entity: null, ...kind }, data: { entity, entityId } });
+    // M-04: a PDF past the usual 20 MB (purpose "profile") is the Company Profile's file and nothing else's
+    const size = entity === "CompanyProfileBase" ? {} : { NOT: { mime: "application/pdf", size: { gt: FILE_KINDS.pdf.maxBytes } } };
+    const n = await tx.file.updateMany({ where: { id: { in: unique }, uploadedById: me.id, status: "READY", entity: null, ...kind, ...size }, data: { entity, entityId } });
     if (n.count !== unique.length) throw new BadRequestException("فيه مرفق مش موجود أو لسه مترفعش");
   }
 

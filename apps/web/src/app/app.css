@@ -109,3 +109,29 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 .bc-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .bc-save { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--accent-text); }
 .bc-save svg.i { width: 14px; height: 14px; }
+
+/* M-04 Company Profile: the card on «الصفقات» (file · what Update adds · actions · versions) and each deal's logo cell */
+.cp-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; align-items: center; gap: 14px; }
+.cp-file { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cp-file > div { display: grid; min-width: 0; }
+.cp-file b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: start; }
+.cp-file small { color: var(--ink-3); }
+.cp-ico { width: 40px; height: 48px; flex: none; border-radius: var(--r-sm); background: var(--bad-soft); color: var(--bad); display: grid; place-items: center; }
+.cp-state { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--r); background: var(--surface-2); color: var(--ink-2); font-size: 13px; }
+.cp-state.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.cp-state svg.i { flex: none; width: 18px; height: 18px; }
+.cp-actions { flex-wrap: wrap; gap: 6px; }
+.cp-history { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.cp-history .linkish { border: 0; background: none; padding: 0; color: var(--accent-text); cursor: pointer; font: inherit; font-size: 13px; }
+.cp-history ol { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.cp-history li { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.cp-history li a { margin-inline-start: auto; color: var(--ink-3); display: grid; }
+.cp-history li a svg.i { width: 16px; height: 16px; }
+.cp-logo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cp-pic { width: 44px; height: 44px; border-radius: var(--r-sm); border: 1px solid var(--line); background: #fff; display: grid; place-items: center; overflow: hidden; color: var(--ink-3); }
+.cp-pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.cp-up { display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; border: 1px dashed var(--line-2); border-radius: var(--r-sm); color: var(--ink-2); font-size: 12px; cursor: pointer; }
+.cp-up:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+.cp-up.disabled { opacity: .5; pointer-events: none; }
+.cp-up svg.i { width: 14px; height: 14px; }
+@media (max-width: 900px) { .cp-row { grid-template-columns: 1fr; } .cp-actions { justify-content: flex-start; } }

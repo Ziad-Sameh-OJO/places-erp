@@ -21,4 +21,15 @@ export class DealMarketingService {
     }));
     return { items, total, page: f.page, pageSize: f.pageSize };
   }
+
+  /** M-04 Company Profile: is the deal on the sheet marketing sees (a logo can only go on one of those)? */
+  async onSheet(id: string): Promise<boolean> {
+    return !!(await this.repo.onSheet(id, ON_SHEET));
+  }
+
+  /** The name under a deal's logo on «عملاؤنا»: the company, else the Buyer (the fields marketing may see, Q26). */
+  async names(ids: string[]): Promise<Map<string, string>> {
+    const rows = await this.repo.marketingNames(ids, ON_SHEET);
+    return new Map(rows.map((d) => [d.id, d.company || d.lead?.name || ""]));
+  }
 }

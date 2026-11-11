@@ -99,6 +99,10 @@ export class DealsRepository {
     ]);
   }
 
+  marketingNames(ids: string[], onSheet: string[]) {
+    return ids.length ? this.db.deal.findMany({ where: { id: { in: ids }, status: { in: onSheet as never } }, select: { id: true, company: true, lead: { select: { name: true } } } }) : Promise.resolve([]);
+  }
+
   onSheet(id: string, onSheet: string[], tx: Prisma.TransactionClient = this.db) {
     return tx.deal.findFirst({ where: { id, status: { in: onSheet as never } }, select: { id: true, code: true } });
   }

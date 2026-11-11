@@ -221,9 +221,49 @@
   },
   "deals": {
     "note": "Done Deals show here after the Office Manager approves them. You may see only the location, space, company name, type and the Buyer's name.",
-    "head": { "buyer": "Buyer", "company": "Company", "space": "Space" },
+    "head": { "buyer": "Buyer", "company": "Company", "space": "Space", "logo": "Logo" },
     "empty": "No deals yet",
     "space": "{space} m²"
+  },
+  "profile": {
+    "sub": "The company file sales send to clients · deal logos go on its «Our Clients» page at the end",
+    "live": "Updated {when}",
+    "notLive": "No Update yet",
+    "noFile": "Upload the Company Profile (PDF) to start",
+    "noFileTitle": "No file yet",
+    "noFileHint": "PDF up to 80 MB",
+    "fileAt": "Uploaded {when}",
+    "upload": "Upload the file",
+    "replace": "Replace the file",
+    "onlyPdf": "The Company Profile must be a PDF",
+    "uploaded": "File uploaded",
+    "upToDate": "Everyone has the latest version · nothing new",
+    "added": "{n, plural, one {# new logo} other {# new logos}} waiting",
+    "removed": "{n, plural, one {# logo} other {# logos}} to remove",
+    "newFile": "a new file",
+    "open": "Open current version",
+    "preview": "See the new look",
+    "published": "Updated · everyone now gets the new version",
+    "history": "Older versions ({n})",
+    "hideHistory": "Hide older versions",
+    "logos": "{n} logos",
+    "current": "Current",
+    "logo": {
+      "upload": "Upload logo",
+      "replace": "Replace logo",
+      "onlyImage": "The logo must be an image (png / jpg / webp)",
+      "uploaded": "Logo uploaded",
+      "inProfile": "In the Company Profile",
+      "waiting": "Waiting for Update",
+      "remove": "Remove",
+      "removedToast": "Removed at the next Update",
+      "doneToast": "Added at the next Update"
+    },
+    "home": {
+      "sub": "Latest version · {when}",
+      "open": "Open",
+      "save": "Save"
+    }
   },
   "newUnits": {
     "gone": "{code} removed from the marketing board",
