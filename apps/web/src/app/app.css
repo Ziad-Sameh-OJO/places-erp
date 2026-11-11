@@ -135,3 +135,9 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 .cp-up.disabled { opacity: .5; pointer-events: none; }
 .cp-up svg.i { width: 14px; height: 14px; }
 @media (max-width: 900px) { .cp-row { grid-template-columns: 1fr; } .cp-actions { justify-content: flex-start; } }
+
+/* M-01 · Tags on a lead (client, 11 Nov) */
+.tag-picker { display: grid; gap: 8px; }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; }
+.tag-chip button { border: 0; background: none; padding: 0; color: inherit; cursor: pointer; display: grid; }
+.tag-chip svg.i { width: 12px; height: 12px; }

@@ -23,6 +23,7 @@ import Link from "next/link";
 import { usePendingCompanies } from "./companies";
 import { SentView, useSentCounts } from "./sent";
 import { DailyCalls } from "./daily-calls";
+import { TagsView, useLeadTags, useTags } from "./lead-tags";
 import { DraftAdminAlarm, DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
@@ -53,12 +54,15 @@ export function LeadsList() {
     const q = new URLSearchParams(window.location.search);
     setOpen(q.get("open"));
     if (q.get("companies") === "1") return window.location.replace("/companies"); // older notifications' link (1.20): the sheet has its own page now
+    if (q.get("tags") === "1") setDraftTab("tags"); // «طلب Tag» / «اترفض الـ Tag» notifications
     if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32): the button is gone from here (client, 11 Nov), the notification still opens it
   }, []);
   // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
   useNewParam("1", () => setCreating(true), canCreate);
   useNewParam("bulk", () => setBulk(true), can("leads", "import"));
-  const [draftTab, setDraftTab] = useState<DraftKind | "sent" | null>(null);
+  const [draftTab, setDraftTab] = useState<DraftKind | "sent" | "tags" | null>(null);
+  const tagsTab = useTags().decides; // «Tags» next to «البروكرز» (client, 11 Nov)
+  const tagCounts = useLeadTags(tagsTab).data;
   const isTelesales = !!me?.roles.includes("telesales");
   const sentCounts = useSentCounts(isTelesales); // «اللي بعتيها» (client, 11 Nov): Telesales only
   // «/leads?draft=admin»: the Draft Admin Alarm on «مهامي النهارده» (1.34) opens that tab (only shown to whom may see it)
@@ -93,12 +97,13 @@ export function LeadsList() {
   ];
   const tabRow = (
     <div className="row">
-      <Tabs<LeadKind | DraftKind | "sent"> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin" || k === "sent"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
-        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...draftTabs, ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
+      <Tabs<LeadKind | DraftKind | "sent" | "tags"> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin" || k === "sent" || k === "tags"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
+        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...(tagsTab ? [["tags", "Tags", (tagCounts?.toDecide || tagCounts?.pending) || undefined] as ["tags", string, number | undefined]] : []), ...draftTabs, ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
     </div>
   );
   if (draftTab === "sent" && isTelesales) return <>{tabRow}<SentView /></>;
-  if (draftTab && draftTab !== "sent" && draftTabs.some(([k]) => k === draftTab)) {
+  if (draftTab === "tags" && tagsTab) return <>{tabRow}<TagsView />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;
+  if (draftTab && draftTab !== "sent" && draftTab !== "tags" && draftTabs.some(([k]) => k === draftTab)) {
     return <>{tabRow}<DraftView kind={draftTab} onOpen={setOpen} />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;
   }
 

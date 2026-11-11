@@ -8,6 +8,7 @@ import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
+import { leadScope } from "./lead-scope";
 import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
 import { LeadDuplicatesService } from "./duplicates.service";
 import { LeadRulesService } from "./lead-rules.service";
@@ -54,7 +55,7 @@ export class LeadsService {
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
   async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
     const hidden = me.fields.hidden("leads");
-    const [rows, total] = await this.repo.list(ownedBy(me) as never, shownLeadFilters(f, hidden));
+    const [rows, total] = await this.repo.list(leadScope(me) as never, shownLeadFilters(f, hidden));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.map((r) => r.assignedToId)), this.slaClock()]);
     return { items: rows.map((r) => hideLeadRow(toRow(r, names, sla), hidden)), total, page: f.page, pageSize: f.pageSize };
   }
@@ -62,7 +63,7 @@ export class LeadsService {
   /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
   async board(me: CurrentUser, f: LeadFilters): Promise<LeadBoard> {
     const hidden = me.fields.hidden("leads");
-    const [counts, rows] = await this.repo.board(ownedBy(me) as never, shownLeadFilters(f, hidden), LEAD_STAGES.map(toDb), CARDS_PER_LANE);
+    const [counts, rows] = await this.repo.board(leadScope(me) as never, shownLeadFilters(f, hidden), LEAD_STAGES.map(toDb), CARDS_PER_LANE);
     const total = new Map(counts.map((c) => [c.stage as string, c._count._all]));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.flat().map((r) => r.assignedToId)), this.slaClock()]);
     return { lanes: LEAD_STAGES.map((stage, i) => ({ stage, total: total.get(toDb(stage)) ?? 0, items: rows[i]!.map((r) => hideLeadRow(toRow(r, names, sla), hidden)) })) };
@@ -72,7 +73,7 @@ export class LeadsService {
   async summary(me: CurrentUser, q: SummaryQuery): Promise<LeadSummary> {
     const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
     const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], rules, holidayMode] = await Promise.all([
-      this.repo.summary(ownedBy(me) as never, q.kind === "broker" ? "BROKER" : "CLIENT", new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
+      this.repo.summary(leadScope(me) as never, q.kind === "broker" ? "BROKER" : "CLIENT", new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
       this.rules.get(), this.time.isHolidayToday(),
     ]);
     return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
@@ -91,7 +92,7 @@ export class LeadsService {
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
   async tabs(me: CurrentUser, f: LeadFilters): Promise<LeadTabCounts> {
-    const counts = new Map((await this.repo.tabCounts(ownedBy(me) as never, shownLeadFilters(f, me.fields.hidden("leads")))).map((c) => [c.kind, c._count._all]));
+    const counts = new Map((await this.repo.tabCounts(leadScope(me) as never, shownLeadFilters(f, me.fields.hidden("leads")))).map((c) => [c.kind, c._count._all]));
     return { client: counts.get("CLIENT") ?? 0, broker: counts.get("BROKER") ?? 0 };
   }
 
@@ -123,7 +124,7 @@ export class LeadsService {
 
   /** The lead drawer. A lead outside the caller's scope is a 404, not a 403: it doesn't say the lead exists. */
   async get(me: CurrentUser, id: string): Promise<LeadDetail> {
-    const lead = await this.repo.detail(ownedBy(me) as never, id);
+    const lead = await this.repo.detail(leadScope(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
     const [salespeople, people, sla, { leadLogRoles }] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
@@ -149,7 +150,7 @@ export class LeadsService {
    */
   async setTlNote(me: CurrentUser, id: string, input: TlNoteInput): Promise<LeadDetail> {
     if (!writesTlNote(me.roles)) throw new ForbiddenException("ملاحظة الـ Team Leader بيكتبها الـ TL أو مدير المبيعات بس");
-    const lead = await this.repo.tlNoteTarget(ownedBy(me) as never, id);
+    const lead = await this.repo.tlNoteTarget(leadScope(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
     const note = input.note || null;
     await this.db.$transaction(async (tx) => {
@@ -181,7 +182,7 @@ export class LeadsService {
    */
   async logs(me: CurrentUser, id: string): Promise<LeadLogRow[]> {
     if (!canSeeLeadLogs(me.roles, (await this.settings.all()).leadLogRoles)) throw new ForbiddenException("الـ Logs للأدمن والأدوار اللي اختارها بس");
-    const lead = await this.repo.detail(ownedBy(me) as never, id);
+    const lead = await this.repo.detail(leadScope(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
     const audits = await this.repo.auditFor(id);
     const names = new Map((await this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), ...audits.map((a) => a.userId)].filter(isId))])).map((p) => [p.userId, p.name]));
@@ -196,7 +197,7 @@ export class LeadsService {
   /** A comment (or a call result) on the Activity tab. It is an action, so it stops the SLA clock (M-01: «من غير أي أكشن»). */
   async addComment(me: CurrentUser, id: string, input: AddComment) {
     await this.db.$transaction(async (tx) => {
-      const lead = await this.repo.findInScope(ownedBy(me) as never, id, tx);
+      const lead = await this.repo.findInScope(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
       const activity = await this.repo.addActivity(tx, id, "comment", input.text, me.id);
       await this.repo.markActed(tx, id, activity.at);
@@ -208,7 +209,7 @@ export class LeadsService {
   /** «سجّل مكالمة» (demo): a call is an action, so it stops the SLA clock; the first one is kept for the 30-minute KPI. */
   async logCall(me: CurrentUser, id: string) {
     await this.db.$transaction(async (tx) => {
-      const lead = await this.repo.findInScope(ownedBy(me) as never, id, tx);
+      const lead = await this.repo.findInScope(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException();
       const call = await this.repo.addCall(tx, id, me.id);
       await this.repo.addActivity(tx, id, "call", "مكالمة اتسجّلت", me.id);
@@ -224,7 +225,7 @@ export class LeadsService {
    * the lead, with the ± tolerance from the settings (proposed ±20%, needs-client).
    */
   async recommendations(me: CurrentUser, id: string): Promise<Recommendations> {
-    const lead = await this.repo.clientNeed(ownedBy(me) as never, id);
+    const lead = await this.repo.clientNeed(leadScope(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
     const settings = await this.settings.all();
     const answers = storedAnswers(lead.answers);
@@ -242,7 +243,7 @@ export class LeadsService {
   /** The narrowing answers are part of the lead (M-03 3.2: «إجاباتها تتسجّل على الليد»): saved and audited. */
   async setAnswers(me: CurrentUser, id: string, answers: RecommendAnswers): Promise<Recommendations> {
     await this.db.$transaction(async (tx) => {
-      const lead = await this.repo.clientNeed(ownedBy(me) as never, id, tx);
+      const lead = await this.repo.clientNeed(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
       const before = storedAnswers(lead.answers);
       await this.repo.setAnswers(tx, id, answers as Prisma.InputJsonValue);
@@ -257,7 +258,7 @@ export class LeadsService {
    * units are kept as the lead's suggested units. It is an action on the lead (stops the SLA clock).
    */
   async sendUnitList(me: CurrentUser, id: string, input: UnitListInput): Promise<{ name: string; pdf: Buffer }> {
-    const lead = await this.repo.clientNeed(ownedBy(me) as never, id);
+    const lead = await this.repo.clientNeed(leadScope(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
     const found = await this.inventory.forClientList(input.unitIds);
     if (!found) throw new BadRequestException("فيه وحدة مش متاحة · اختار من الـ Recommendations");
@@ -272,7 +273,7 @@ export class LeadsService {
     const now = new Date();
     const pdf = await this.documents.pdf(unitListHtml(lead.name, units, now, hidden), now);
     await this.db.$transaction(async (tx) => {
-      if (!(await this.repo.findInScope(ownedBy(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
+      if (!(await this.repo.findInScope(leadScope(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
       const text = unitListLine(units, hidden);
       const activity = await this.repo.addActivity(tx, id, "comment", text, me.id);
       await this.repo.markActed(tx, id, activity.at);
@@ -344,7 +345,7 @@ export class LeadsService {
   async checkDuplicate(me: CurrentUser, q: DuplicateCheck): Promise<DuplicateCheckResult> {
     const dup = q.phones.length ? await this.repo.findByPhone(q.phones) : null;
     if (!dup) return { hit: null };
-    const visible = await this.repo.findInScope(ownedBy(me) as never, dup.id);
+    const visible = await this.repo.findInScope(leadScope(me) as never, dup.id);
     return { hit: { code: dup.code, leadId: visible ? dup.id : null } };
   }
 
@@ -446,7 +447,7 @@ export class LeadsService {
     const to = (await this.repo.routingPeople()).find((p) => p.id === input.to);
     if (!to) throw new BadRequestException("اختار سيلز من القايمة");
     const moved = await this.db.$transaction(async (tx) => {
-      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true } });
+      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true } });
       if (!lead) throw new NotFoundException(NO_LEAD);
       if (lead.assignedToId === to.id) throw new BadRequestException(`الليد مع ${to.name} بالفعل`);
       const [from] = lead.assignedToId ? await this.repo.employeeNames([lead.assignedToId], tx) : [];
@@ -482,7 +483,7 @@ export class LeadsService {
    */
   async update(me: CurrentUser, id: string, typed: UpdateLead) {
     const saved = await this.db.$transaction(async (tx) => {
-      const lead = await this.repo.editable(ownedBy(me) as never, id, tx);
+      const lead = await this.repo.editable(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
       // M-09: a field the person may not change (or that their form left out) keeps what the lead has
       const input = keepFixedUpdate(typed, { phones: lead.phones, area: lead.area, type: lead.type, company: lead.company?.name ?? null, space: lead.space,
@@ -519,7 +520,7 @@ export class LeadsService {
    */
   async archive(me: CurrentUser, id: string) {
     await this.db.$transaction(async (tx) => {
-      const lead = await this.repo.findInScope(ownedBy(me) as never, id, tx);
+      const lead = await this.repo.findInScope(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
       const at = new Date();
       if (!(await tx.lead.updateMany({ where: { id, archivedAt: null }, data: { archivedAt: at } })).count) throw new NotFoundException(NO_LEAD);
@@ -536,7 +537,7 @@ export class LeadsService {
    */
   async batch(me: CurrentUser, input: LeadBatch): Promise<LeadBatchResult> {
     if (input.to && !me.grants.can("leads", "approve")) throw new ForbiddenException("التحويل لسيلز للأوبريشن ومدير المبيعات والإدارة بس");
-    const now = await this.repo.batchState(ownedBy(me) as never, input.ids);
+    const now = await this.repo.batchState(leadScope(me) as never, input.ids);
     return this.eachLead(input.ids, async (id) => {
       const lead = now.get(id);
       if (!lead) throw new NotFoundException(NO_LEAD);
@@ -564,7 +565,7 @@ export class LeadsService {
    */
   async exportRows(me: CurrentUser, f: LeadFilters) {
     const hidden = me.fields.hidden("leads");
-    const rows = (await this.repo.exportRows(ownedBy(me) as never, shownLeadFilters(f, hidden), EXPORT_LIMIT)).map((r) => ({ ...r, ...hiddenExport(r, hidden) }));
+    const rows = (await this.repo.exportRows(leadScope(me) as never, shownLeadFilters(f, hidden), EXPORT_LIMIT)).map((r) => ({ ...r, ...hiddenExport(r, hidden) }));
     const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
     await this.audit.record({ module: "leads", entity: "Lead", entityId: "export", action: "export", userId: me.id,
       after: { rows: rows.length, filters: Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== undefined && k !== "page" && k !== "pageSize")) } });
@@ -582,7 +583,7 @@ export class LeadsService {
   async changeStage(me: CurrentUser, id: string, input: ChangeStage) {
     const rules = await this.rules.get();
     const moved = await this.db.$transaction(async (tx) => {
-      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] } }); // an archived lead has left every list
+      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] } }); // an archived lead has left every list
       if (!lead) throw new NotFoundException(NO_LEAD);
       const noAnswer = input.stage === "No Answer";
       // 1.27: Not Interested / Cancellation leaves whoever had it for the Draft Admin, where Operations decides
@@ -616,7 +617,7 @@ export class LeadsService {
 
   /** «سجّل صفقة» (M-02 2.1 step 1): the caller's leads that were ever Interested; one of them when `id` is given. */
   dealLeads(me: CurrentUser, id?: string) {
-    return this.repo.dealLeads(ownedBy(me) as never, ownedBy(me, "fromId") as never, id);
+    return this.repo.dealLeads(leadScope(me) as never, ownedBy(me, "fromId") as never, id);
   }
 
   /**
@@ -673,7 +674,7 @@ export class LeadsService {
   async addVisit(me: CurrentUser, id: string, input: VisitInput) {
     const units = await this.visitUnitCodes(input.unitIds, []);
     await this.db.$transaction(async (tx) => {
-      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] }, select: { stage: true, qualified: true } });
+      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] }, select: { stage: true, qualified: true } });
       if (!lead) throw new NotFoundException(NO_LEAD);
       const at = new Date(input.at);
       const visit = await this.repo.addVisit(tx, id, { kind: input.kind.toLowerCase(), at, extra: input.extra ?? null, unitIds: input.unitIds }, me.id);
@@ -689,7 +690,7 @@ export class LeadsService {
   /** «تعديل» (demo): while the Visit isn't marked yet. A new time brings a new Alarm. */
   async editVisit(me: CurrentUser, id: string, visitId: string, input: VisitInput) {
     await this.db.$transaction(async (tx) => {
-      if (!(await this.repo.findInScope(ownedBy(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
+      if (!(await this.repo.findInScope(leadScope(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
       const before = await this.repo.findVisit(tx, id, visitId);
       if (!before) throw new NotFoundException(NO_VISIT);
       if (before.outcome) throw new BadRequestException("الميعاد اتعلّم خلاص · مينفعش يتعدّل");
@@ -711,7 +712,7 @@ export class LeadsService {
    */
   async markVisit(me: CurrentUser, id: string, visitId: string, input: VisitOutcome) {
     const marked = await this.db.$transaction(async (tx) => {
-      const lead = await tx.lead.findFirst({ where: { AND: [ownedBy(me) as never, { id, archivedAt: null }] }, select: { name: true, stage: true, qualified: true, assignedToId: true } });
+      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] }, select: { name: true, stage: true, qualified: true, assignedToId: true } });
       if (!lead) throw new NotFoundException(NO_LEAD);
       const visit = await this.repo.findVisit(tx, id, visitId);
       if (!visit) throw new NotFoundException(NO_VISIT);

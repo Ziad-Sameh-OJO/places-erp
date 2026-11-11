@@ -1,4 +1,5 @@
 "use client";
+import { LeadTagsButton } from "./lead-tags";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -58,6 +59,7 @@ export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; i
         {l.sla && <Chip tone={slaTone(l.sla)}>{slaText(l.sla, t)}</Chip>}
         {l.ownedByTelesales && <Chip tone="info">{t("drawer.withTelesales")}</Chip>}
         {l.noAnswerCount > 0 && <Chip tone="warn">{t("drawer.noAnswer", { count: l.noAnswerCount, rotation: l.rotation })}</Chip>}
+        <LeadTagsButton leadId={l.id} ownerId={l.assignedTo?.id ?? null} />
       </>}>
       <Tabs value={tab} onChange={setTab} items={[
         ["overview", t("drawer.overview")], ["units", t("drawer.units"), recs.data?.items.length], ["visits", t("drawer.visits"), l.visits.length], ["activity", "Activity", comments(l).length],

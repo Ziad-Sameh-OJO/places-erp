@@ -92,6 +92,40 @@
     "onLeads": "{n} of them logged on leads · the larger counts",
     "fullByLead": "You entered a «By Telesales» lead today, so the day counts in full"
   },
+  "tags": {
+    "pick": "Pick a salesperson working with you",
+    "max": "Maximum reached (5)",
+    "remove": "Remove {name}",
+    "hint": "Salespeople working the same deal with you · they wait for the Team Leader's approval",
+    "head": {
+      "lead": "Lead",
+      "tagged": "Tagged",
+      "by": "Asked by",
+      "approver": "Approver",
+      "status": "Status",
+      "at": "Since"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "operations": "Operations",
+    "empty": "No tag requests",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approved": "Tag approved",
+    "rejected": "Tag rejected",
+    "note": "Tag requests: the ones you asked, the leads you're tagged on, and their state · a tag is Pending until the Team Leader approves",
+    "waiting": "{n} tag requests are waiting for your approval",
+    "button": "Tag salespeople",
+    "title": "Tags on the lead",
+    "add": "Add salespeople working with you",
+    "ask": "Send for approval",
+    "close": "Close",
+    "sent": "Sent to the Team Leader",
+    "already": "{n} tagged or waiting"
+  },
   "sent": {
     "note": "The leads you entered that went to sales: to whom and when only, not what the salesperson does with them. No Answer stays here until the salesperson takes another action.",
     "filter": "Period",
@@ -243,6 +277,8 @@
     "sendToOps": "Send to Operations to decide",
     "saveLead": "Save lead",
     "newCompanyNote": "“{name}” is a new company. Telesales will be notified to add it to the companies sheet.",
+    "tags": "Tags (salespeople working this deal with you)",
+    "tagsAsked": "{n} tag requests sent to the Team Leader",
     "companyCategory": "Company category",
     "pickCategory": "Pick a category",
     "straightToSheet": "«{name}» is new: it goes straight into the companies sheet under this category"
