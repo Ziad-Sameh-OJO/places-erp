@@ -372,8 +372,7 @@
     "next": "Next",
     "slaTitle": "SLA",
     "holiday": "(today is an official holiday)",
-    "slaNote": ": alert after {warn} with no action, and the lead is pulled automatically after {pull} to the salesperson next in line.",
-    "askList": "Ask the Inventory for a List"
+    "slaNote": ": alert after {warn} with no action, and the lead is pulled automatically after {pull} to the salesperson next in line."
   },
   "units": {
     "loading": "Loading…",

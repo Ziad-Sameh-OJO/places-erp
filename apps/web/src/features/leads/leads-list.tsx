@@ -26,7 +26,7 @@ import { DailyCalls } from "./daily-calls";
 import { DraftAdminAlarm, DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
-import { ListRequestsModal, useListRequests } from "../inventory/list-requests";
+import { ListRequestsModal } from "../inventory/list-requests";
 
 const PAGE = 50;
 
@@ -47,14 +47,13 @@ export function LeadsList() {
   const [bulk, setBulk] = useState(false);
   // 2.32 · demo leads.js: a Team Leader's «اطلب List من الانفنتوري» (who may ask is the API's answer)
   const [lists, setLists] = useState(false);
-  const asksLists = useListRequests(can("tickets", "view")).data?.canAsk;
   // links from the home board and the notifications: «/leads?open=<id>» opens the lead, «/leads?new=1» the form
   const canCreate = can("leads", "create");
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     setOpen(q.get("open"));
     if (q.get("companies") === "1") return window.location.replace("/companies"); // older notifications' link (1.20): the sheet has its own page now
-    if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32)
+    if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32): the button is gone from here (client, 11 Nov), the notification still opens it
   }, []);
   // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
   useNewParam("1", () => setCreating(true), canCreate);
@@ -116,7 +115,6 @@ export function LeadsList() {
           ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
           : t.rich("callsWeek", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })}</Note>
       )}
-      {asksLists && <div className="row end"><button className="btn ghost sm" onClick={() => setLists(true)}><Icon name="list" />{t("askList")}</button></div>}
       <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />
