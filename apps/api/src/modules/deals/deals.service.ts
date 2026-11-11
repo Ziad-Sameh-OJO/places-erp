@@ -69,7 +69,7 @@ export class DealsService {
   async list(me: CurrentUser, f: DealFilters): Promise<Paged<DealRow>> {
     const hidden = me.fields.hidden("deals");
     const [rows, total] = await this.repo.list(this.scope(me), f, f.status && toDb(f.status), !hidden.has("location"));
-    return { items: rows.map((r) => hideRow(toRow(r), hidden)), total, page: f.page, pageSize: f.pageSize };
+    return { items: rows.map((r) => waitingSellers(hideRow(toRow(r), hidden), me)), total, page: f.page, pageSize: f.pageSize };
   }
 
   /**
@@ -93,7 +93,7 @@ export class DealsService {
   async get(me: CurrentUser, id: string): Promise<DealDetail> {
     const d = await this.repo.detail(this.scope(me), id);
     if (!d) throw new NotFoundException(NO_DEAL);
-    return hideDetail(toDetail(d, d.reviewedById ? await this.repo.userName(d.reviewedById) : null), me.fields.hidden("deals"));
+    return waitingSellers(hideDetail(toDetail(d, d.reviewedById ? await this.repo.userName(d.reviewedById) : null), me.fields.hidden("deals")), me);
   }
 
   /** M-11 2.1: the deal a contract is uploaded on — in the caller's scope and on the sheet (approved, collected or not). */
@@ -597,6 +597,15 @@ export function toRow(d: DealRowRecord): DealRow {
     month: d.payments[0]?.receivedAt.toISOString().slice(0, 7) ?? null, tcrs: d.tcrs.map((t) => tcrCode(t.code)),
     execDueAt: day(d.execDueAt), executedAt: day(d.executedAt), papersOk: d.papersOk, papersNote: d.papersNote,
   };
+}
+
+/**
+ * A Seller Manar hasn't approved yet (M-02 5.4) is nobody's to see but hers (whoever approves the inventory, who
+ * decides on it): the deal shows «مستني منار» without the name until then (client, 11 Nov).
+ */
+export function waitingSellers<T extends Pick<DealRow, "sellers">>(row: T, me: CurrentUser): T {
+  if (me.grants.can("inventory", "approve") || row.sellers.every((s) => s.approved)) return row;
+  return { ...row, sellers: row.sellers.map((s) => (s.approved ? s : { id: "", name: "", approved: false })) };
 }
 
 function toDetail(d: DealRecord, reviewedBy: string | null): DealDetail {

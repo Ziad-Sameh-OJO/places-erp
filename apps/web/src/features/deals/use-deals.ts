@@ -29,4 +29,4 @@ export const LANES: DealStatus[] = ["Pending Review", "Approved", "Partially Col
 export const onSheet = (s: DealStatus) => s !== "Pending Review" && s !== "Rejected";
 export const live = (s: DealStatus) => onSheet(s) && s !== "Cancelled";
 export const monthOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(dateLocale(), { month: "long", year: "numeric", timeZone: "Africa/Cairo" }) : "—");
-export const names = (p: { name: string }[]) => p.map((x) => x.name).join(" · ") || "—";
+export const names = (p: { name: string }[]) => p.map((x) => x.name).filter(Boolean).join(" · ") || "—"; // a Seller waiting for Manar has no name yet

@@ -81,7 +81,9 @@ test("Done Deal: Buyer A closes 100,000 with Buyer B; the unit's agent is the Se
   dealId = r.body.id;
   assert.equal(r.body.status, "Pending Review");
   assert.deepEqual(r.body.buyers.map((p: { id: string }) => p.id).sort(), [people.a.id, people.b.id].sort());
-  assert.deepEqual(r.body.sellers.map((s: { id: string; approved: boolean }) => [s.id, s.approved]), [[people.seller.id, false]]);
+  // the Seller waiting for Manar has no name for anyone else (client, 11 Nov); it's still the unit's agent
+  assert.deepEqual(r.body.sellers.map((s: { id: string; name: string; approved: boolean }) => [s.id, s.name, s.approved]), [["", "", false]]);
+  assert.deepEqual((await prisma.dealParticipant.findMany({ where: { dealId, side: "SELLER" } })).map((p) => [p.employeeId, p.approved]), [[people.seller.id, false]]);
 });
 
 test("Office Manager approval: Buyer A and the accountant can't; Nancy can", async () => {
