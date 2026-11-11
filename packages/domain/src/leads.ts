@@ -7,6 +7,16 @@ export const LEAD_STAGES = [
 ] as const;
 export type LeadStage = (typeof LEAD_STAGES)[number];
 
+/**
+ * «غيّر المرحلة» in the lead's window (client, 11 Nov): only these buttons, in this order, Hold and Cancellation in a
+ * row under the rest. The other stages stay (old leads, the Visit / Meeting outcomes, the Kanban); they're just not
+ * picked by hand from there any more.
+ */
+export const STAGE_PICKER: { readonly main: readonly LeadStage[]; readonly side: readonly LeadStage[] } = {
+  main: ["Fresh", "Interested", "Visit", "No Answer", "Meeting", "Done Deal", "Near to Close"],
+  side: ["Hold", "Cancellation"],
+};
+
 /** The pipeline, in order (demo PIPE); the side stages (Not Interested, No Answer, Cancellation, Hold) aren't on it. */
 export const LEAD_PIPELINE: readonly LeadStage[] = [
   "Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal",

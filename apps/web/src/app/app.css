@@ -141,3 +141,6 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 .tag-chip { display: inline-flex; align-items: center; gap: 4px; }
 .tag-chip button { border: 0; background: none; padding: 0; color: inherit; cursor: pointer; display: grid; }
 .tag-chip svg.i { width: 12px; height: 12px; }
+
+/* «غيّر المرحلة» (client, 11 Nov): Hold and Cancellation in their own row under the rest */
+.stage-grid.stage-side { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }

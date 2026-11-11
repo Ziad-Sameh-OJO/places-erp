@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { LeadDetail, LeadLogRow } from "@places/contracts";
-import { LEAD_PIPELINE, LEAD_STAGES, type LeadStage, isQualifiedAfter } from "@places/domain";
+import { LEAD_PIPELINE, STAGE_PICKER, type LeadStage, isQualifiedAfter } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { Chip, Empty, Icon, Note, Tabs, useAction, useToast } from "@/components/ui";
 import type { Settings } from "@places/contracts";
@@ -165,9 +165,11 @@ function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit"
     <section className="card flat">
       {ask && <WhatsAppQuestion lead={l} onClose={() => setAsk(false)} />}
       <div className="card-head"><h3><span className="ico"><Icon name="layers" /></span><span>{t("changeStage")}</span></h3></div>
-      <div className="stage-grid">
-        {LEAD_STAGES.map((s) => <button key={s} className={`stage-btn ${s === l.stage ? "on" : ""}`} onClick={() => pick(s)}>{serverText(s)}</button>)}
-      </div>
+      {[STAGE_PICKER.main, STAGE_PICKER.side].map((row, i) => (
+        <div key={i} className={`stage-grid ${i ? "stage-side" : ""}`}>
+          {row.map((s) => <button key={s} className={`stage-btn ${s === l.stage ? "on" : ""}`} onClick={() => pick(s)}>{serverText(s)}</button>)}
+        </div>
+      ))}
       <p className="hint">{t("stageHint")}</p>
     </section>
   );
