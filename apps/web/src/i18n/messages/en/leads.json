@@ -209,9 +209,9 @@
     "sendToOps": "Send to Operations to decide",
     "saveLead": "Save lead",
     "newCompanyNote": "“{name}” is a new company. Telesales will be notified to add it to the companies sheet.",
-    "notInSheet": "“{name}” isn't in the companies sheet.",
-    "addToSheet": "Add it to the companies sheet",
-    "category": "Category"
+    "companyCategory": "Company category",
+    "pickCategory": "Pick a category",
+    "straightToSheet": "«{name}» is new: it goes straight into the companies sheet under this category"
   },
   "drawer": {
     "notFound": "Lead not found",

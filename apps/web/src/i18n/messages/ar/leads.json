@@ -209,9 +209,9 @@
     "sendToOps": "ابعته للأوبريشن تقرر",
     "saveLead": "حفظ الليد",
     "newCompanyNote": "«{name}» شركة جديدة. هيروح إشعار لـ Telesales تضيفها لشيت الشركات.",
-    "notInSheet": "«{name}» مش موجودة في شيت الشركات.",
-    "addToSheet": "أضيفها لشيت الشركات",
-    "category": "الكاتيجوري"
+    "companyCategory": "كاتيجوري الشركة",
+    "pickCategory": "اختار الكاتيجوري",
+    "straightToSheet": "«{name}» شركة جديدة: هتتضاف على شيت الشركات على طول بالكاتيجوري دي"
   },
   "drawer": {
     "notFound": "الليد مش موجود",
