@@ -6,10 +6,11 @@
  */
 import { prisma, type Prisma } from "@places/db";
 import {
+  TELESALES_CHANNEL, averageDailyCalls, workingDaysSince, type CallDay,
   type DealMoney, type DealStatus, type MetricParams, type Method, type WorkCalendar,
   type Nature, type BudgetPeriod, closedInSla, endOfLocalDay, fromDecimal, isTicketLate, pettyCapScore, rollUp, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
   kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, tasksOnTime, timedTasks, timeliness,
-  monthCloseDeadline, monthlyOnTime, payrollDeadline, periodStart, perWorkingDay, previousQuarter, quarterMonths, sheetsOnTime, twiceWeekly,
+  monthCloseDeadline, monthlyOnTime, payrollDeadline, periodStart, previousQuarter, quarterMonths, sheetsOnTime, twiceWeekly,
 } from "@places/domain";
 import { workCalendar } from "../calendar.ts";
 
@@ -103,7 +104,21 @@ export const MEASURES: Record<string, Measure> = {
     });
     return p.of === "team" ? Math.round((n / ids.length) * 10) / 10 : n;
   },
-  callsDaily: async (c, p, from, who) => perWorkingDay(await prisma.leadCall.count({ where: { byUserId: who.userId, at: { gte: from, lte: c.now } } }), from, c.now, c.cal),
+  // Telesales «عدد المكالمات اليومية» (client, 11 Nov): each day the larger of her own total and the calls on leads, and a
+  // day with a «By Telesales» lead she entered counts as a full one (domain dayCalls); over the working days so far
+  callsDaily: async (c, p, from, who) => {
+    const [calls, written, telesales] = await Promise.all([
+      prisma.leadCall.findMany({ where: { byUserId: who.userId, at: { gte: from, lte: c.now } }, select: { at: true } }),
+      prisma.dailyCalls.findMany({ where: { userId: who.userId, day: { gte: localDate(from, c.cal), lte: localDate(c.now, c.cal) } }, select: { day: true, count: true } }),
+      prisma.lead.findMany({ where: { createdById: who.userId, channel: TELESALES_CHANNEL, createdAt: { gte: from, lte: c.now } }, select: { createdAt: true } }),
+    ]);
+    const days = new Map<string, CallDay>();
+    const day = (d: string) => days.get(d) ?? days.set(d, { entered: null, logged: 0, telesalesLead: false }).get(d)!;
+    for (const x of calls) day(localDate(x.at, c.cal)).logged++;
+    for (const w of written) day(w.day).entered = w.count;
+    for (const l of telesales) day(localDate(l.createdAt, c.cal)).telesalesLead = true;
+    return averageDailyCalls([...days.values()], workingDaysSince(from, c.now, c.cal));
+  },
   // the approved Broadcasts he marked as sent (demo kpis.js broadcasts)
   broadcasts: async (c, p, from, who) => prisma.broadcastSend.count({ where: { userId: who.userId, doneAt: { gte: from }, broadcast: { approved: true } } }),
   // TL «التزام الفريق بالـ SLA (أول أكشن خلال ساعتين ونص)»: a lead whose TL got the 2h30 warning (M-01) missed it; one with

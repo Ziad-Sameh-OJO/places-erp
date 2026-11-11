@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
-import type { TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate } from "@places/domain";
+import type { TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -287,7 +287,29 @@ export class LeadsService {
   async myCalls(me: CurrentUser): Promise<MyCalls> {
     const goal = callGoal(me.roles);
     if (!goal) return { goal: null, count: 0 };
-    return { goal, count: await this.repo.countCalls(me.id, callPeriodStart(goal, new Date(), await this.time.calendar())) };
+    const cal = await this.time.calendar(), now = new Date(), since = callPeriodStart(goal, now, cal);
+    const count = await this.repo.countCalls(me.id, since);
+    if (!me.roles.includes("telesales")) return { goal, count };
+    // Telesales (client, 11 Nov): her own total for today and the «By Telesales» lead day
+    const [written, telesalesLead] = await Promise.all([this.repo.dailyCalls(me.id, localDate(now, cal)), this.repo.telesalesLeadSince(me.id, TELESALES_CHANNEL, since)]);
+    const entered = written?.count ?? null;
+    return { goal, count, today: { entered, telesalesLead, counts: dayCalls({ entered, logged: count, telesalesLead }, goal.target) } };
+  }
+
+  /** «مكالماتي النهارده»: Telesales writes her day's total calls (today, or a day of the last week she forgot); audited. */
+  async setDailyCalls(me: CurrentUser, input: DailyCallsInput): Promise<MyCalls> {
+    if (!me.roles.includes("telesales")) throw new ForbiddenException("عدد المكالمات اليومي للـ Telesales بس");
+    const cal = await this.time.calendar(), today = localDate(new Date(), cal);
+    const day = input.day ?? today;
+    const weekAgo = localDate(new Date(Date.now() - 7 * 24 * 60 * 60_000), cal);
+    if (day > today) throw new BadRequestException("مينفعش تكتبي مكالمات يوم لسه مجاش");
+    if (day < weekAgo) throw new BadRequestException("ممكن تكتبي مكالمات آخر 7 أيام بس");
+    await this.db.$transaction(async (tx) => {
+      const before = await tx.dailyCalls.findUnique({ where: { userId_day: { userId: me.id, day } } });
+      const row = await tx.dailyCalls.upsert({ where: { userId_day: { userId: me.id, day } }, create: { userId: me.id, day, count: input.count }, update: { count: input.count } });
+      await this.audit.record({ module: "leads", entity: "DailyCalls", entityId: row.id, action: before ? "update" : "create", userId: me.id, before: before ? { day, count: before.count } : null, after: { day, count: input.count } }, tx);
+    });
+    return this.myCalls(me);
   }
 
   /**
