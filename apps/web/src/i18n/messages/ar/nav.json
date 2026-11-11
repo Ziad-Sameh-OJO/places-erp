@@ -41,6 +41,11 @@
       "short": "الوحدات",
       "sub": "Rent · Resale · Income في قايمة واحدة بفلتر، وتابات المساحات تحت زي الشيت"
     },
+    "companies": {
+      "label": "شيت الشركات",
+      "short": "الشركات",
+      "sub": "الشركات بكاتيجوري · الجديدة المستنية تتضاف · Outbound الأسبوع · عقدهم بيخلص قريب"
+    },
     "notactive": {
       "label": "Not Active Inventory",
       "short": "Not Active",

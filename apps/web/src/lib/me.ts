@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { canEditSetting, fieldAccess, type Action, type FieldMode, type FieldRules, type ModuleKey } from "@places/domain";
+import { canEditSetting, fieldAccess, keepsCompaniesSheet, type Action, type FieldMode, type FieldRules, type ModuleKey } from "@places/domain";
 import { api } from "./api";
 
 export interface Me {
@@ -15,7 +15,9 @@ export function useMe() {
   const can = (m: ModuleKey, a: Action = "view") => !!q.data?.permissions[m]?.includes(a);
   /** M-13 4.1: may change this setting (its department's manager, the Super Admin) — the API checks the same rule. */
   const canSet = (key: string) => !!q.data && canEditSetting(key, { roles: q.data.roles, masterEdit: can("master", "edit"), accessEdit: can("access", "edit") });
-  return { me: q.data, can, canSet, loading: q.isPending };
+  /** A page in the menu: a module's page by its «view»; «شيت الشركات» (1.20) is the sheet's keepers' and the lead importers' */
+  const opens = (page: string) => (page === "companies" ? keepsCompaniesSheet(q.data?.roles ?? []) || can("leads", "import") : can(page as ModuleKey));
+  return { me: q.data, can, canSet, opens, loading: q.isPending };
 }
 
 /**

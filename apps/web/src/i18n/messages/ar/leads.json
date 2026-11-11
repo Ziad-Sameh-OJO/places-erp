@@ -329,7 +329,6 @@
     "callsWeek": "مكالماتك آخر 7 أيام: <b>{count}</b> من {target} (بند Calls & Broadcast في الـ KPIs بتاعتك).",
     "list": "قايمة",
     "count": "{n} ليد",
-    "companies": "شيت الشركات",
     "bulk": "إدخال جماعي (Import)",
     "exportFile": "الليدز.xlsx",
     "export": "تصدير الليدز",

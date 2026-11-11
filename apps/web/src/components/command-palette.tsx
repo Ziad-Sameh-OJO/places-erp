@@ -31,7 +31,7 @@ interface Row { key: string; kind: string; label: string; sub: string; icon: Ico
 export function CommandPalette() {
   const t = useTranslations("common.search");
   const tNav = useTranslations("nav");
-  const { can } = useMe();
+  const { can, opens } = useMe();
   const router = useRouter();
   const path = usePathname();
   const [open, setOpen] = useState(false);
@@ -60,7 +60,7 @@ export function CommandPalette() {
     queryFn: () => api.get<SearchResult>(`/search?q=${encodeURIComponent(typed)}`),
   });
   const words = q.trim().toLowerCase();
-  const pages: Row[] = (Object.keys(NAV) as NavKey[]).filter((k) => can(k)).map((k) => ({
+  const pages: Row[] = (Object.keys(NAV) as NavKey[]).filter((k) => opens(k)).map((k) => ({
     key: `page:${k}`, kind: t("kinds.page"), label: tNav(`modules.${k}.label`), sub: NAV[k].code, icon: NAV[k].icon, href: k === "home" ? "/" : `/${k}`,
   }));
   const actions: Row[] = can("leads", "create") ? [{ key: "act:lead", kind: t("kinds.action"), label: t("newLead"), sub: "Create lead", icon: "plus", href: "/leads?new=1" }] : [];

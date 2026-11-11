@@ -28,7 +28,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const qc = useQueryClient();
-  const { me, can } = useMe();
+  const { me, can, opens } = useMe();
   const t = useTranslations("common.shell");
   const tNav = useTranslations("nav");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -49,7 +49,7 @@ export function Shell({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  const keys = (Object.keys(NAV) as NavKey[]).filter((k) => can(k)).sort((a, b) => SECTIONS.indexOf(NAV[a].section) - SECTIONS.indexOf(NAV[b].section));
+  const keys = (Object.keys(NAV) as NavKey[]).filter((k) => opens(k)).sort((a, b) => SECTIONS.indexOf(NAV[a].section) - SECTIONS.indexOf(NAV[b].section));
   const current = path.split("/")[1] || "home";
   const nav = current in NAV ? NAV[current as NavKey] : null;
   const label = (k: NavKey) => tNav(`modules.${k}.label`);
@@ -57,7 +57,7 @@ export function Shell({ children }: { children: ReactNode }) {
     : nav && { label: label(current as NavKey), code: nav.code, icon: nav.icon, section: nav.section ? tNav(`sections.${nav.section}`) : "", sub: tNav(`modules.${current as NavKey}.sub`) };
   let sec: string | null = null;
   // 0.14: only pages and records this person may still open
-  const favs = quick.favs.filter((k): k is NavKey => k in NAV && can(k as NavKey));
+  const favs = quick.favs.filter((k): k is NavKey => k in NAV && opens(k));
   const recent = quick.recent.filter((r) => can(RECENT[r.kind].module));
   const starred = current in NAV && quick.favs.includes(current);
   const star = () => { if (me) toast(toggleFav(me.id, current) ? t("favAdded") : t("favRemoved")); };

@@ -7,7 +7,7 @@ import { CONTRACT_ENDING_DAYS, OUTBOUND_WEEKLY_TARGET, keepsCompaniesSheet } fro
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
 import { useMe } from "@/lib/me";
-import { Card, ExportButton, Icon, Modal, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { Card, ExportButton, Icon, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
 
 const KEY = ["companies"];
 const PAGE = 100;
@@ -30,7 +30,7 @@ const cell = (c: CompanyRow, k: keyof CompanyRow) => {
 };
 
 /** Demo «شيت الشركات» (1.20): new companies from leads to add, the Outbound row, the category filter, the sheet. */
-export function CompaniesSheet({ onClose }: { onClose: () => void }) {
+export function CompaniesSheet() {
   const t = useTranslations("leads.companies");
   const { me } = useMe();
   const keeper = keepsCompaniesSheet(me?.roles ?? []); // comfort only: the API decides
@@ -43,7 +43,7 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
   });
   const s = sheet.data;
   return (
-    <Modal title={t("title")} onClose={onClose}>
+    <>
       {keeper && <PendingList categories={s?.categories.map((c) => c.name) ?? []} />}
       {keeper && s && <AddRow categories={s.categories.map((c) => c.name)} outbound={s.outboundThisWeek} />}
       <div className="toolbar">
@@ -58,7 +58,7 @@ export function CompaniesSheet({ onClose }: { onClose: () => void }) {
       <Table className="wide" head={[...COLS.map(([, h]) => h), ...(category ? [] : ["category"])]}
         rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [c.category])])} empty={t("empty")} />
       {s && s.total > s.items.length && <p className="hint">{t("shownFirst", { shown: s.items.length, total: s.total })}</p>}
-    </Modal>
+    </>
   );
 }
 

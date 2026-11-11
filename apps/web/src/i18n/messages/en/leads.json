@@ -329,7 +329,6 @@
     "callsWeek": "Your calls in the last 7 days: <b>{count}</b> of {target} (the Calls & Broadcast item in your KPIs).",
     "list": "List",
     "count": "{count, plural, one {{n} lead} other {{n} leads}}",
-    "companies": "Companies sheet",
     "bulk": "Bulk entry (Import)",
     "exportFile": "Leads.xlsx",
     "export": "Export leads",

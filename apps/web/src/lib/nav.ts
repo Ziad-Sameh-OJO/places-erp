@@ -7,8 +7,8 @@ import type nav from "@/i18n/messages/ar/nav.json";
  * (label, short, sub, section) are in the messages: nav.modules.<key> and nav.sections.<section>.
  */
 export type NavSection = "" | "sales" | "ops" | "admin" | "system";
-/** A module in the menu: one with words in nav.modules. */
-export type NavKey = keyof typeof nav.modules & ModuleKey;
+/** A page in the menu: one with words in nav.modules — a module, or «companies» (the companies sheet, 1.20). */
+export type NavKey = keyof typeof nav.modules & (ModuleKey | "companies");
 export const NAV: Record<NavKey, { code: string; icon: IconName; section: NavSection }> = {
   home: { code: "Today", icon: "home", section: "" },
   leads: { code: "M-01", icon: "users", section: "sales" },
@@ -17,6 +17,7 @@ export const NAV: Record<NavKey, { code: string; icon: IconName; section: NavSec
   clients: { code: "M-10", icon: "id", section: "sales" },
   contracts: { code: "M-11", icon: "file", section: "sales" },
   inventory: { code: "M-03", icon: "building", section: "ops" },
+  companies: { code: "M-01", icon: "board", section: "ops" }, // «شيت الشركات» under the units (client, 11 Nov)
   notactive: { code: "M-03", icon: "layers", section: "ops" },
   tasks: { code: "Tasks", icon: "check", section: "ops" },
   marketing: { code: "M-04", icon: "megaphone", section: "ops" },

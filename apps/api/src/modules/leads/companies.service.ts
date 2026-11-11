@@ -103,7 +103,7 @@ export class CompaniesService {
   }
 
   notifyNew(name: string, code: string) {
-    return this.notifications.notify({ event: "lead.new_company", text: `شركة جديدة «${name}» اتضافت في ليد ${code} · محتاجة تتضاف لشيت الشركات`, link: "/leads?companies=1" });
+    return this.notifications.notify({ event: "lead.new_company", text: `شركة جديدة «${name}» اتضافت في ليد ${code} · محتاجة تتضاف لشيت الشركات`, link: "/companies" });
   }
 
   private async checkCategory(category: string) {
