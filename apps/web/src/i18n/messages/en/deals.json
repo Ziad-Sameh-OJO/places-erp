@@ -76,6 +76,8 @@
     "commOwner": "Expected commission from the Owner",
     "commClient": "Expected commission from the Client",
     "withMe": "Anyone with you on the deal as Buyer?",
+    "withMePick": "Pick a salesperson (if someone's with you)",
+    "withMeRemove": "Remove {name}",
     "hint": "The company and source come from the client's details. The deal goes to the Office Manager first, and Finance logs the collections.",
     "submit": "Save deal"
   },
