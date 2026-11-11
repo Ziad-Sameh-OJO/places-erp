@@ -338,6 +338,7 @@
   },
   "board": {
     "movedQualified": "{name} is now {stage} and marked Qualified",
+    "notPickable": "«{stage}» isn't picked any more · pick one of the stages above",
     "moved": "{name} is now {stage}",
     "dropHere": "Drag a lead here",
     "sqm": "<s>{n}</s> m²"

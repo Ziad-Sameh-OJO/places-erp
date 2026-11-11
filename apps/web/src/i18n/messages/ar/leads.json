@@ -338,6 +338,7 @@
   },
   "board": {
     "movedQualified": "{name} بقى {stage} واتعلّم Qualified",
+    "notPickable": "«{stage}» مابقتش بتتختار · اختار مرحلة من اللي فوق",
     "moved": "{name} بقى {stage}",
     "dropHere": "اسحب ليد هنا",
     "sqm": "<s>{n}</s> م"

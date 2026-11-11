@@ -17,6 +17,20 @@ export const STAGE_PICKER: { readonly main: readonly LeadStage[]; readonly side:
   side: ["Hold", "Cancellation"],
 };
 
+/** The stages one picks by hand anywhere (the lead's window, the Kanban, the bulk bar), in their order. */
+export const PICKABLE_STAGES: readonly LeadStage[] = [...STAGE_PICKER.main, ...STAGE_PICKER.side];
+export const isPickableStage = (s: string): boolean => (PICKABLE_STAGES as readonly string[]).includes(s);
+
+/**
+ * The Kanban's lanes: the pickable stages in their order, then a lane of a stage no longer picked only while leads
+ * are still in it (so none disappears); nothing can be dropped there.
+ */
+export function boardLanes<T extends { stage: string; total: number }>(lanes: readonly T[]): T[] {
+  const by = new Map(lanes.map((l) => [l.stage, l]));
+  const picked = PICKABLE_STAGES.flatMap((s) => (by.has(s) ? [by.get(s)!] : []));
+  return [...picked, ...lanes.filter((l) => !isPickableStage(l.stage) && l.total > 0)];
+}
+
 /** The pipeline, in order (demo PIPE); the side stages (Not Interested, No Answer, Cancellation, Hold) aren't on it. */
 export const LEAD_PIPELINE: readonly LeadStage[] = [
   "Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal",
