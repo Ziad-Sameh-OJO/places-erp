@@ -41,6 +41,11 @@
       "short": "Units",
       "sub": "Rent · Resale · Income in one filtered list, with the area tabs below like the sheet"
     },
+    "companies": {
+      "label": "Companies sheet",
+      "short": "Companies",
+      "sub": "Companies by category · new ones waiting · this week's Outbound · contracts ending soon"
+    },
     "notactive": {
       "label": "Not Active Inventory",
       "short": "Not Active",

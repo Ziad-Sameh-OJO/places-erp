@@ -105,7 +105,14 @@
     "companyName": "Company name",
     "number": "Number",
     "add": "Add",
-    "outbound": "Outbound this week: <b>{count}</b> of {target}"
+    "outbound": "Outbound this week: <b>{count}</b> of {target}",
+    "import": "Import (Excel)",
+    "export": "Export (Excel)",
+    "editHint": "Click a company to edit it",
+    "editTitle": "Edit «{name}»",
+    "saved": "{name} updated",
+    "save": "Save",
+    "cancel": "Cancel"
   },
   "drafts": {
     "tab": {
@@ -209,9 +216,9 @@
     "sendToOps": "Send to Operations to decide",
     "saveLead": "Save lead",
     "newCompanyNote": "“{name}” is a new company. Telesales will be notified to add it to the companies sheet.",
-    "notInSheet": "“{name}” isn't in the companies sheet.",
-    "addToSheet": "Add it to the companies sheet",
-    "category": "Category"
+    "companyCategory": "Company category",
+    "pickCategory": "Pick a category",
+    "straightToSheet": "«{name}» is new: it goes straight into the companies sheet under this category"
   },
   "drawer": {
     "notFound": "Lead not found",
@@ -329,7 +336,6 @@
     "callsWeek": "Your calls in the last 7 days: <b>{count}</b> of {target} (the Calls & Broadcast item in your KPIs).",
     "list": "List",
     "count": "{count, plural, one {{n} lead} other {{n} leads}}",
-    "companies": "Companies sheet",
     "bulk": "Bulk entry (Import)",
     "exportFile": "Leads.xlsx",
     "export": "Export leads",

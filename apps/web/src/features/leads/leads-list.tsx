@@ -18,9 +18,9 @@ import { LeadDrawer } from "./lead-drawer";
 import { NewLead } from "./new-lead";
 import { OperationsQueue } from "./duplicates";
 import { BulkNew } from "./bulk";
-import { OldDataImport } from "../imports/old-data-import";
 import { SecondCalls } from "./second-calls";
-import { CompaniesSheet, usePendingCompanies } from "./companies";
+import Link from "next/link";
+import { usePendingCompanies } from "./companies";
 import { DraftAdminAlarm, DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
@@ -43,7 +43,6 @@ export function LeadsList() {
   const [visit, setVisit] = useState<"Visit" | "Meeting" | undefined>(); // the drawer opened by a Kanban drop on Visit / Meeting (1.32)
   const [creating, setCreating] = useState(false);
   const [bulk, setBulk] = useState(false);
-  const [companies, setCompanies] = useState(false);
   // 2.32 · demo leads.js: a Team Leader's «اطلب List من الانفنتوري» (who may ask is the API's answer)
   const [lists, setLists] = useState(false);
   const asksLists = useListRequests(can("tickets", "view")).data?.canAsk;
@@ -52,7 +51,7 @@ export function LeadsList() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     setOpen(q.get("open"));
-    if (q.get("companies") === "1") setCompanies(true); // the new-company notification's link (1.20)
+    if (q.get("companies") === "1") return window.location.replace("/companies"); // older notifications' link (1.20): the sheet has its own page now
     if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32)
   }, []);
   // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
@@ -105,7 +104,7 @@ export function LeadsList() {
       <DraftAdminAlarm onOpen={() => setDraftTab("admin")} />
       <OperationsQueue />
       <SecondCalls onOpen={setOpen} />
-      {newCompanies.length > 0 && <Note kind="warn">{t("newCompanies", { count: newCompanies.length })} <button className="btn sm" onClick={() => setCompanies(true)}>{t("openCompanies")}</button></Note>}
+      {newCompanies.length > 0 && <Note kind="warn">{t("newCompanies", { count: newCompanies.length })} <Link className="btn sm" href="/companies">{t("openCompanies")}</Link></Note>}
       {calls?.goal && (
         <Note>{calls.goal.period === "day"
           ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
@@ -122,9 +121,7 @@ export function LeadsList() {
         </div>
         <span className="hint num">{t("count", { count: total, n: num(total) })}</span>
         <span className="spacer" />
-        {(keepsSheet || can("leads", "import")) && <button className="btn ghost" onClick={() => setCompanies(true)}><Icon name="building" />{t("companies")}</button>}
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />{t("bulk")}</button>}
-        {can("leads", "import") && <><OldDataImport kind="leads" /><OldDataImport kind="companies" /></>}{/* 13.1 */}
         <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind, ...sort }, 1, 100)} filename={t("exportFile")} label={t("export")} />
         {can("leads", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{t("newLead")}</button>}
       </div>
@@ -133,7 +130,6 @@ export function LeadsList() {
         : <LeadsTable leads={leads.data?.items ?? []} onOpen={setOpen} sort={sort} onSort={(by, dir) => { setSort({ sort: by, dir }); setPage(1); }} {...(canPick ? { picked, onPick: setPicked } : {})} />}
       {mode === "list" && picked.length > 0 && <BulkBar ids={picked} onDone={() => setPicked([])} />}
       {creating && <NewLead kind={kind} onClose={() => setCreating(false)} onOpenLead={(id) => { setCreating(false); setOpen(id); }} />}
-      {companies && <CompaniesSheet onClose={() => setCompanies(false)} />}
       {lists && <ListRequestsModal onClose={() => setLists(false)} />}
       {bulk && <BulkNew settings={settings.data} onClose={() => setBulk(false)} />}
       {can("leads", "create") && <Fab onClick={() => setCreating(true)} label={t("newLead")} />}

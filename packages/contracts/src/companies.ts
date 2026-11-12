@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Page } from "./common.ts";
+import { CalendarDay, Money, Page } from "./common.ts";
 
 /**
  * M-01 · «شيت الشركات» (1.20). The sheet's columns are the client's archive's (requirements M-01 «شيت الشركات · …»):
@@ -21,6 +21,25 @@ export const NewCompany = z.object({
   number: z.string({ required_error: "اكتب الرقم" }).trim().min(1, "اكتب الرقم").max(40, "الرقم طويل"),
 });
 export type NewCompany = z.infer<typeof NewCompany>;
+
+/** «عدّل» a company in the sheet: every column of the archive; an empty one is cleared (null). Name, category, number required. */
+const opt = <T extends z.ZodTypeAny>(s: T) => s.nullable().optional().transform((v) => v ?? null);
+export const CompanyUpdate = z.object({
+  name: NewCompany.shape.name,
+  category: NewCompany.shape.category,
+  number: NewCompany.shape.number,
+  contactName: opt(z.string().trim().max(120)),
+  contactTitle: opt(z.string().trim().max(120)),
+  email: opt(z.string().trim().email("الإيميل غلط").max(200)),
+  currentLocation: opt(z.string().trim().max(200)),
+  currentSpace: opt(z.number({ invalid_type_error: "المساحة رقم" }).int("المساحة رقم صحيح").positive("المساحة أكبر من صفر")),
+  contractStart: opt(CalendarDay),
+  contractEnd: opt(CalendarDay),
+  averageRent: opt(Money),
+  annualEscalation: opt(z.number({ invalid_type_error: "الزيادة رقم" }).min(0).max(100, "الزيادة نسبة لحد 100")),
+  feedback: opt(z.string().trim().max(2000)),
+}).refine((c) => !c.contractStart || !c.contractEnd || c.contractStart <= c.contractEnd, { path: ["contractEnd"], message: "نهاية العقد قبل بدايته" });
+export type CompanyUpdate = z.infer<typeof CompanyUpdate>;
 
 /** «أضف للشيت» for a company that came on a lead: Telesales picks its category. */
 export const PendingCompanyAdd = z.object({ category: z.string({ required_error: "اختار الكاتيجوري" }).trim().min(1, "اختار الكاتيجوري").max(80) });

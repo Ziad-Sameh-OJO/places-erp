@@ -42,8 +42,8 @@ export class CompaniesRepository {
   }
 
   /** The same company by name (any case) or by number. */
-  findSame(name: string, number: string | null, tx: Tx = this.db) {
-    return tx.company.findFirst({ where: { OR: [{ name: { equals: name.trim(), mode: "insensitive" } }, ...(number ? [{ number }] : [])] }, select: { id: true, name: true } });
+  findSame(name: string, number: string | null, tx: Tx = this.db, exceptId?: string) {
+    return tx.company.findFirst({ where: { ...(exceptId ? { id: { not: exceptId } } : {}), OR: [{ name: { equals: name.trim(), mode: "insensitive" } }, ...(number ? [{ number }] : [])] }, select: { id: true, name: true } });
   }
 
   /** A lead that has this number as one of its mobiles («رقم الشركة بيتقارن بأرقام الليدز»). */

@@ -16,13 +16,13 @@ const KINDS = {
 };
 
 /** The toolbar button and its dialog: template → preview (new / duplicate / errors) → «تأكيد» adds the new rows only. */
-export function OldDataImport({ kind }: { kind: keyof typeof KINDS }) {
+export function OldDataImport({ kind, label }: { kind: keyof typeof KINDS; label?: string }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const t = useTranslations("imports");
   return (
     <>
-      <button className="btn ghost" onClick={() => setOpen(true)}><Icon name="upload" />{t(`${kind}.button`)}</button>
+      <button className="btn ghost" onClick={() => setOpen(true)}><Icon name="upload" />{label ?? t(`${kind}.button`)}</button>
       {open && <ImportDialog<Record<string, unknown>> title={t(`${kind}.title`)} path={`/imports/${kind}`} template={t(`${kind}.template`)} columns={KINDS[kind](t)} skipErrors
         onClose={() => setOpen(false)} onDone={() => { setOpen(false); void qc.invalidateQueries(); }} />}
     </>

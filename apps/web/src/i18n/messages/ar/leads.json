@@ -105,7 +105,14 @@
     "companyName": "اسم الشركة",
     "number": "الرقم",
     "add": "أضف",
-    "outbound": "Outbound الأسبوع ده: <b>{count}</b> من {target}"
+    "outbound": "Outbound الأسبوع ده: <b>{count}</b> من {target}",
+    "import": "Import (Excel)",
+    "export": "Export (Excel)",
+    "editHint": "دوس على أي شركة عشان تعدّلها",
+    "editTitle": "عدّل «{name}»",
+    "saved": "اتعدّلت {name}",
+    "save": "احفظ",
+    "cancel": "إلغاء"
   },
   "drafts": {
     "tab": {
@@ -209,9 +216,9 @@
     "sendToOps": "ابعته للأوبريشن تقرر",
     "saveLead": "حفظ الليد",
     "newCompanyNote": "«{name}» شركة جديدة. هيروح إشعار لـ Telesales تضيفها لشيت الشركات.",
-    "notInSheet": "«{name}» مش موجودة في شيت الشركات.",
-    "addToSheet": "أضيفها لشيت الشركات",
-    "category": "الكاتيجوري"
+    "companyCategory": "كاتيجوري الشركة",
+    "pickCategory": "اختار الكاتيجوري",
+    "straightToSheet": "«{name}» شركة جديدة: هتتضاف على شيت الشركات على طول بالكاتيجوري دي"
   },
   "drawer": {
     "notFound": "الليد مش موجود",
@@ -329,7 +336,6 @@
     "callsWeek": "مكالماتك آخر 7 أيام: <b>{count}</b> من {target} (بند Calls & Broadcast في الـ KPIs بتاعتك).",
     "list": "قايمة",
     "count": "{n} ليد",
-    "companies": "شيت الشركات",
     "bulk": "إدخال جماعي (Import)",
     "exportFile": "الليدز.xlsx",
     "export": "تصدير الليدز",

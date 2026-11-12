@@ -26,7 +26,7 @@ import { useTodayLines } from "@/features/home/today";
  * Each module gives its own lines (its /home/<module>, in the person's scope); this page only puts them together.
  */
 export default function HomePage() {
-  const { me, can } = useMe();
+  const { me, can, opens } = useMe();
   const tNav = useTranslations("nav");
   const t = useTranslations("pages");
   const leads = useLeadToday(!!me && can("leads"));
@@ -43,7 +43,7 @@ export default function HomePage() {
   if (!me) return <p className="hint">{t("loading")}</p>;
   const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect, ...kpis, ...others]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
-  const pages = (Object.keys(NAV) as NavKey[]).filter((k) => k !== "home" && can(k));
+  const pages = (Object.keys(NAV) as NavKey[]).filter((k) => k !== "home" && opens(k));
 
   return (
     <>

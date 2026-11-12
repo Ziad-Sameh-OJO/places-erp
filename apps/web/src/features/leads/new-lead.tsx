@@ -2,6 +2,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { keepsCompaniesSheet } from "@places/domain";
 import { activeValues, type AreaRoute, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -54,6 +55,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
     queryFn: () => api.get<DuplicateCheckResult>(`/leads/duplicate-check?phones=${checked.join(",")}`),
   }).data?.hit;
   const isTelesales = !!me?.roles.includes("telesales");
+  const keepsSheet = keepsCompaniesSheet(me?.roles ?? []); // Telesales and the admin add to «شيت الشركات» (M-01 2.1); the API decides
   const ownLead = me?.scope === "own" && !isTelesales;
   const byHand = can("leads", "approve") && !!options.data?.salespeople.length;
   const campaigns = (options.data?.campaigns ?? []).filter((c) => c.channel === channel);
@@ -74,7 +76,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
       ...(text("company") ? { company: text("company") } : {}), ...(text("space") ? { space: Number(text("space")) } : {}),
       ...(text("condition") ? { condition: text("condition") } : {}), ...(text("budget") ? { budget: text("budget") } : {}),
       ...(text("campaignId") ? { campaignId: text("campaignId") } : {}), ...(text("assignToId") ? { assignToId: text("assignToId") } : {}),
-      ...(isTelesales ? { keep: text("keep") === "keep" } : {}), ...(f.get("addco") && text("company") ? { companyCategory: text("companyCategory") } : {}), ...(text("note") ? { note: text("note") } : {}),
+      ...(isTelesales ? { keep: text("keep") === "keep" } : {}), ...(text("companyCategory") && text("company") ? { companyCategory: text("companyCategory") } : {}), ...(text("note") ? { note: text("note") } : {}),
     };
     setBusy(true);
     try {
@@ -101,7 +103,15 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
           <input name="company" maxLength={160} placeholder={t("companyPlaceholder")} list="coList" value={company} onChange={(e) => setCompany(e.target.value)} />
           <datalist id="coList">{(sheetNames ?? []).map((n) => <option key={n} value={n} />)}</datalist>
         </Field>)}
-        {newCompany && fields.edits("company") && <NewCompanyNote name={typedCompany} telesales={isTelesales} categories={activeValues(settings.data?.companyCategories ?? [])} />}
+        {newCompany && fields.edits("company") && (keepsSheet
+          ? <Field label={t("companyCategory")} req>
+            <select name="companyCategory" required defaultValue="">
+              <option value="" disabled>{t("pickCategory")}</option>
+              {activeValues(settings.data?.companyCategories ?? []).map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <small className="hint">{t("straightToSheet", { name: typedCompany })}</small>
+          </Field>
+          : <div className="wide"><Note>{t("newCompanyNote", { name: typedCompany })}</Note></div>)}
         {only("phones", <Field label={t("phones")} req>
           <textarea name="phones" required placeholder="01xxxxxxxxx" value={phones} onChange={(e) => setPhones(e.target.value)} />
         </Field>, true)}
@@ -150,20 +160,5 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
         </div>
       </form>
     </Modal>
-  );
-}
-
-/** Demo: a company that isn't in the sheet — Telesales can add it here with its category; anyone else's goes to her (M-01 2.1). */
-function NewCompanyNote({ name, telesales, categories }: { name: string; telesales: boolean; categories: string[] }) {
-  const t = useTranslations("leads.form");
-  if (!telesales) return <div className="wide"><Note>{t("newCompanyNote", { name })}</Note></div>;
-  return (
-    <div className="wide">
-      <Note kind="warn">
-        <span className="spacer">{t("notInSheet", { name })}</span>
-        <label className="row"><input type="checkbox" name="addco" /> {t("addToSheet")}</label>
-        <select name="companyCategory" aria-label={t("category")} style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
-      </Note>
-    </div>
   );
 }

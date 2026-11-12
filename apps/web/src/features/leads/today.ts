@@ -61,5 +61,5 @@ export function useBulkLines(enabled: boolean): InboxLine[] {
 export function useNewCompanyLines(enabled: boolean): InboxLine[] {
   const t = useTranslations("leads.today");
   return (usePendingCompanies(enabled).data ?? []).map((p) => ({ key: `co-${p.id}`, tone: "warn", icon: "building", title: t("companyTitle", { name: p.name }),
-    sub: t("companySub"), href: "/leads?companies=1", button: t("companySheet") }));
+    sub: t("companySub"), href: "/companies", button: t("companySheet") }));
 }
