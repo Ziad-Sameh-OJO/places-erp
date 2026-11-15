@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitUnitQuery, TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -118,14 +118,15 @@ export class LeadsService {
     const scope = me.grants.scope;
     const people = scope === "own" ? Promise.resolve([]) : this.repo.salespeople(scope === "team" ? { id: { in: me.teamIds } } : {});
     const [campaigns, holders, assignable] = await Promise.all([
-      this.repo.campaigns(), people, me.grants.can("leads", "approve") ? this.repo.routingPeople() : Promise.resolve([]),
+      this.repo.campaigns(), people, transfersLeads(me.roles, me.grants.can("leads", "approve")) ? this.repo.routingPeople() : Promise.resolve([]),
     ]);
     // demo leads.js «Sales» filter: the salespeople, then Telesales as «<name> (Telesales)»
     const tele = (p: { roles: string[] }) => p.roles.includes(TELESALES) && !p.roles.some((r) => r === "sales" || r === "tl");
     const salespeople = [...holders.filter((p) => !tele(p)), ...holders.filter(tele).map((p) => ({ ...p, name: `${p.name} (Telesales)` }))]
       .map(({ id, name }) => ({ id, name }));
     const teamLeaders = holders.filter((p) => p.roles.includes("tl")).map(({ id, name }) => ({ id, name })); // 14.6 «التيم»
-    return { campaigns, salespeople, teamLeaders, assignable };
+    // 14.7: a Team Leader picks only from his own team (assign() enforces it)
+    return { campaigns, salespeople, teamLeaders, assignable: assignable.filter((p) => transferTargetAllowed(scope, me.teamIds, p.id)) };
   }
 
   /** The SLA as the list shows it, with «قواعد الليدز» (1.29: its times, its working hours) and the official holidays. */
@@ -142,8 +143,10 @@ export class LeadsService {
 
   /** The lead drawer. A lead outside the caller's scope is a 404, not a 403: it doesn't say the lead exists. */
   async get(me: CurrentUser, id: string): Promise<LeadDetail> {
-    const lead = await this.repo.detail(leadScope(me) as never, id);
-    if (!lead) throw new NotFoundException(NO_LEAD);
+    const found = await this.repo.detail(leadScope(me) as never, id);
+    if (!found) throw new NotFoundException(NO_LEAD);
+    const { commentsFrom, ...lead } = found;
+    lead.activities = lead.activities.filter((a) => commentVisible(a, commentsFrom, me.roles)); // 14.7
     const [salespeople, people, sla, { leadLogRoles }] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
       this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), lead.tlNoteById, lead.createdById].filter(isId))]),
@@ -158,7 +161,7 @@ export class LeadsService {
     if (lead.assignedToId && detail.visits.some((v) => v.postpone?.status === "pending") && (await this.canDecidePostpone(me, lead.assignedToId))) for (const v of detail.visits) if (v.postpone) v.postpone.canDecide = v.postpone.status === "pending";
     // 1.33: the salesperson opening it has seen the Team Leader's note (off «مهامي النهارده»)
     if (lead.tlNoteAt && lead.assignedToId && lead.assignedToId === me.employeeId) await this.repo.markTlNoteSeen(lead.id, lead.tlNoteAt);
-    return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount, canWriteTlNote: writesTlNote(me.roles) && me.grants.can("leads", "edit") };
+    return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount, canWriteTlNote: writesTlNote(me.roles) && me.grants.can("leads", "edit"), canTransfer: transfersLeads(me.roles, me.grants.can("leads", "approve")) };
   }
 
   /**
@@ -202,7 +205,9 @@ export class LeadsService {
     if (!canSeeLeadLogs(me.roles, (await this.settings.all()).leadLogRoles)) throw new ForbiddenException("الـ Logs للأدمن والأدوار اللي اختارها بس");
     const lead = await this.repo.detail(leadScope(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
-    const audits = await this.repo.auditFor(id);
+    // 14.7: the comments hidden on a transfer stay hidden here too (their Activity lines and their audit entries)
+    lead.activities = lead.activities.filter((a) => commentVisible(a, lead.commentsFrom, me.roles));
+    const audits = (await this.repo.auditFor(id)).filter((a) => a.entity !== "LeadActivity" || a.action !== "comment" || commentVisible({ kind: "comment", at: a.at }, lead.commentsFrom, me.roles));
     const names = new Map((await this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), ...audits.map((a) => a.userId)].filter(isId))])).map((p) => [p.userId, p.name]));
     const by = (userId: string | null) => (userId ? { id: userId, name: names.get(userId) ?? "" } : null);
     const rows: LeadLogRow[] = [
@@ -461,29 +466,35 @@ export class LeadsService {
    * «اسحب الليد وحوّله» (1.14, M-01 Q2 · 4.1): the lead goes to the chosen salesperson with a fresh SLA clock, and
    * that salesperson skips their next turn in the rotation («يتحسبله كأنه أخد دوره»). Audited from whom to whom;
    * the new salesperson is told on the channels of the lead rules' «ليد جديد اتوزع».
+   * 14.7: the Team Leader moves his team's leads, to his team only; the one it was taken from loses it (scope) and
+   * isn't told where it went; the earlier comments are hidden from the new holder unless `showOldComments`.
    */
   async assign(me: CurrentUser, id: string, input: AssignLead) {
+    if (!transfersLeads(me.roles, me.grants.can("leads", "approve"))) throw new ForbiddenException("التحويل للأوبريشن ومدير المبيعات والإدارة والتيم ليدر بس");
     const to = (await this.repo.routingPeople()).find((p) => p.id === input.to);
     if (!to) throw new BadRequestException("اختار سيلز من القايمة");
+    if (!transferTargetAllowed(me.grants.scope, me.teamIds, to.id)) throw new ForbiddenException("التيم ليدر بيحوّل لحد من التيم بتاعه بس"); // 14.7
     const moved = await this.db.$transaction(async (tx) => {
-      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true } });
+      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true, commentsFrom: true } });
       if (!lead) throw new NotFoundException(NO_LEAD);
       if (lead.assignedToId === to.id) throw new BadRequestException(`الليد مع ${to.name} بالفعل`);
       const [from] = lead.assignedToId ? await this.repo.employeeNames([lead.assignedToId], tx) : [];
       const router = new LeadRouter(await this.repo.lockRouting(tx));
       router.assignedByHand(to.id);
       await this.repo.saveRouting(tx, router.snapshot());
+      const now = new Date();
+      const commentsFrom = commentsFromAfterTransfer(lead.commentsFrom, input.showOldComments, now);
       await tx.lead.update({
         where: { id },
         // a fresh start with the new salesperson: the SLA counts from now (demo: assignedAt, touched, alerted)
-        data: { assignedToId: to.id, assignedAt: new Date(), ownedByTelesales: false, touched: false, firstActionAt: null, slaWarnedAt: null, draft: null },
+        data: { assignedToId: to.id, assignedAt: now, ownedByTelesales: false, touched: false, firstActionAt: null, slaWarnedAt: null, draft: null, commentsFrom },
       });
       // handed out of a Draft tab this way too (1.26): that stay ends with this decision
       await tx.leadDraft.updateMany({ where: { leadId: id, decidedAt: null }, data: { decidedAt: new Date(), decidedById: me.id, decision: "hand", toId: to.id } });
       const text = from ? `اتسحب يدوي من ${from.name} واتحوّل لـ ${to.name}` : `اتحوّل يدوي لـ ${to.name}`;
       await this.repo.addActivity(tx, id, "assign", text, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "reassign", userId: me.id,
-        before: { assignedToId: lead.assignedToId, name: from?.name ?? null }, after: { assignedToId: to.id, name: to.name } }, tx);
+        before: { assignedToId: lead.assignedToId, name: from?.name ?? null, commentsFrom: iso(lead.commentsFrom) }, after: { assignedToId: to.id, name: to.name, commentsFrom: iso(commentsFrom) } }, tx);
       return { name: lead.name, from: from?.name ?? null };
     });
     const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(to.id)]);
@@ -560,7 +571,7 @@ export class LeadsService {
     return this.eachLead(input.ids, async (id) => {
       const lead = now.get(id);
       if (!lead) throw new NotFoundException(NO_LEAD);
-      if (input.to && lead.assignedToId !== input.to) await this.assign(me, id, { to: input.to });
+      if (input.to && lead.assignedToId !== input.to) await this.assign(me, id, { to: input.to, showOldComments: false });
       if (input.stage && STAGE_LABEL.get(lead.stage) !== input.stage) await this.changeStage(me, id, { stage: input.stage });
     });
   }
@@ -845,7 +856,7 @@ function toRow({ assignedToId, budget, kind, company, ...r }: LeadRecord, names:
   };
 }
 
-function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock, inv: ReadonlySet<string> = new Set()): Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote"> {
+function toDetail(lead: Omit<LeadDetailRecord, "commentsFrom">, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock, inv: ReadonlySet<string> = new Set()): Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote" | "canTransfer"> {
   const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, createdById, ...row } = lead;
   const now = Date.now();
   return {

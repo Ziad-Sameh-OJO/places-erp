@@ -55,7 +55,7 @@ async function pull(lead: Lead, rules: LeadRules, now: Date, holiday: boolean): 
     const next = router.next(lead.area, await areaPool(tx, lead.area, localDate(now), lead.assignedToId));
     if (!next) return null;
     // optimistic: a salesperson's action or a hand reassignment meanwhile wins, and the rotation keeps its turn
-    const moved = await tx.lead.updateMany({ where: untouched(lead), data: { assignedToId: next, assignedAt: now, slaWarnedAt: null } });
+    const moved = await tx.lead.updateMany({ where: untouched(lead), data: { assignedToId: next, assignedAt: now, slaWarnedAt: null, commentsFrom: now } }); // 14.7: the new holder starts without the old comments (open question)
     if (!moved.count) return null;
     await saveRouting(tx, router.snapshot());
     const [from, to] = await Promise.all([ownerOf(lead.assignedToId, tx), ownerOf(next, tx)]);

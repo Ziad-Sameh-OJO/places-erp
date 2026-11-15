@@ -371,7 +371,7 @@ export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
-  newLeadRequestedAt: true, newLeadRoutedAt: true, tlNote: true, tlNoteAt: true, tlNoteById: true, createdById: true,
+  newLeadRequestedAt: true, newLeadRoutedAt: true, tlNote: true, tlNoteAt: true, tlNoteById: true, commentsFrom: true, createdById: true,
   company: { select: { name: true } }, _count: { select: { deals: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
   visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, postponeReason: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },

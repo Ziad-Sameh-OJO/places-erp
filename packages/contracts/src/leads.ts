@@ -124,6 +124,8 @@ export interface LeadDetail extends LeadRow {
   /** 1.33 · «ملاحظة الـ Team Leader»: what he needs on this lead, and whether this person may write it */
   tlNote: { text: string; by: string | null; at: string } | null;
   canWriteTlNote: boolean;
+  /** 14.7: «اسحب الليد وحوّله» shown: Operations, the Sales Director, the admin, and the Team Leader (inside his team) */
+  canTransfer: boolean;
 }
 
 /** A unit as the Visit form lists it (demo: «U-101 · المشروع · 120 م»). */
@@ -287,7 +289,8 @@ export type LeadBatchIds = z.infer<typeof LeadBatchIds>;
 /** How a bulk action went: the leads it was applied to, and each one it wasn't with why (out of scope, already there…). */
 export interface LeadBatchResult { done: number; failed: Array<{ id: string; error: string }> }
 
-export const AssignLead = z.object({ to: z.string({ required_error: "اختار السيلز", invalid_type_error: "اختار السيلز" }).min(1, "اختار السيلز").max(40) });
+// 14.7: «الجديد يشوف الكومنتات القديمة؟» — no by default
+export const AssignLead = z.object({ to: z.string({ required_error: "اختار السيلز", invalid_type_error: "اختار السيلز" }).min(1, "اختار السيلز").max(40), showOldComments: z.boolean().default(false) });
 export type AssignLead = z.infer<typeof AssignLead>;
 
 /**

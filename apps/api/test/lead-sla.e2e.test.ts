@@ -80,6 +80,7 @@ test("2h30 of working time → the Team Leaders are warned once; 3h → pulled t
   assert.equal(moved.assignedToId, sales2.id);
   assert.equal(moved.assignedAt?.toISOString(), at("2020-01-05T14:00:00").toISOString()); // a fresh clock with the new salesperson
   assert.equal(moved.slaWarnedAt, null);
+  assert.equal(moved.commentsFrom?.toISOString(), at("2020-01-05T14:00:00").toISOString()); // 14.7: the old comments hidden from the new one
   assert.equal((await leadSlaTick(at("2020-01-05T14:00:00"), RULES)).pulled, 0); // a rerun at the same minute changes nothing
 
   const activity = await prisma.leadActivity.findFirstOrThrow({ where: { leadId: l.id } });

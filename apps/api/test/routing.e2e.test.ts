@@ -194,14 +194,12 @@ test("nine leads created at the same moment in one area: each of its three sales
 
 /* ---------------- 1.14 · «اسحب الليد وحوّله» ---------------- */
 
-test("only Operations, the Sales Director and the admin hand a lead over; sales and Team Leaders can't (M-01 4.1)", async () => {
+test("Operations, the Sales Director and the admin hand a lead over; sales can't (M-01 4.1; the Team Leader inside his team: lead-transfer.e2e, 14.7)", async () => {
   for (const id of await pool()) await tick(admin, AREA, id, false);
   await tick(admin, AREA, a, true);
   await newLead(61);
   const lead = leads.at(-1)!;
-  const tl = await session("abdallah.sleem@places.com");
   assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: sales, body: { to: b } })).status, 403);
-  assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: tl, body: { to: b } })).status, 403);
   assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: ops, body: { to: b } })).status, 200);
   assert.equal((await call(`/leads/${lead}/assign`, { method: "POST", cookie: salesdir, body: { to: a } })).status, 200);
 });
@@ -223,7 +221,7 @@ test("handing over: a fresh SLA with the new salesperson, Activity and audit «�
   assert.ok(row.assignedAt! >= since); // the SLA counts from now
   assert.ok(r.body.activities.some((x: { text: string }) => x.text === `اتسحب يدوي من ${fromName} واتحوّل لـ ${toName}`));
   const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: lead, action: "reassign" } });
-  assert.deepEqual([audit.before, audit.after], [{ assignedToId: a, name: fromName }, { assignedToId: b, name: toName }]);
+  assert.deepEqual([audit.before, { ...(audit.after as object), commentsFrom: null }], [{ assignedToId: a, name: fromName, commentsFrom: null }, { assignedToId: b, name: toName, commentsFrom: null }]);
   const logs = (await call(`/leads/${lead}/logs`, { cookie: admin })).body as { text: string }[];
   assert.ok(logs.some((x) => x.text === `اتسحب يدوي من ${fromName} لـ ${toName}`));
   const toUser = (await prisma.employee.findUniqueOrThrow({ where: { id: b } })).userId;

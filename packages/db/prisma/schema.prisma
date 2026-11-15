@@ -427,6 +427,7 @@ model Lead {
   tlNoteAt       DateTime?
   tlNoteById     String?       // user id
   tlNoteSeenAt   DateTime?     // the salesperson opened it since: off «مهامي النهارده»
+  commentsFrom   DateTime?     // 14.7: comments before this were hidden on a transfer; only the Super Admin sees them
   activities     LeadActivity[]
   arrivals       LeadArrival[]
   calls          LeadCall[]
