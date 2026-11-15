@@ -1,6 +1,6 @@
 # كل التاسكات لحد التسليم
 
-**224 تاسك** في **14 جزء**. كل تاسك له issue على GitHub فيه كل التفاصيل.
+**244 تاسك** في **15 جزء**. كل تاسك له issue على GitHub فيه كل التفاصيل.
 
 **إزاي تستخدمه:**
 - كل سطر = **تاسك واحد تديه لحد**، و PR واحد. ابعتله لينك الـ issue.
@@ -24,7 +24,8 @@
 | 11 · الـ KPIs والتقارير · M-12 | 20 |
 | 12 · اللي فاضل في الموديولات اللي خلصت · M-09 · M-13 · M-14 | 15 |
 | 13 · التسليم والإطلاق | 7 |
-| **الإجمالي** | **224** |
+| 14 · تعديلات ميتنج الإدارة (أحمد إسلام وصفوت · 15 نوفمبر) | 20 |
+| **الإجمالي** | **244** |
 
 ## 0 · الأساس المشترك _(أي حد يبدأ بيه · الأجزاء التانية كلها محتاجاه)_
 
@@ -291,3 +292,26 @@
 - [ ] **13.5** UAT: سيناريو لكل موديول + جلسات مع الكلاينت + تصليح الملاحظات ([#195](https://github.com/Ziad-Sameh-OJO/places-erp/issues/195)) · `T-24`
 - [ ] **13.6** تدريب لكل قسم + دليل استخدام مختصر ([#196](https://github.com/Ziad-Sameh-OJO/places-erp/issues/196)) · `T-24` · بعد 13.5
 - [ ] **13.8** ترقية الإصدارات الكبيرة: TypeScript 6 (#34)، و Prisma 7، و ESLint 10 ([#198](https://github.com/Ziad-Sameh-OJO/places-erp/issues/198)) · `—`
+
+## 14 · تعديلات ميتنج الإدارة (أحمد إسلام وصفوت · 15 نوفمبر) _(الديمو والطلبات من الميتنج)_
+
+- [ ] **14.1** صفحة «Dashboard» للإدارة: بتفتح أول ما يدخلوا، و«مهامي النهارده» صفحة لوحدها ([#534](https://github.com/Ziad-Sameh-OJO/places-erp/issues/534)) · `—`
+- [ ] **14.2** داشبورد أحمد إسلام: النهارده، والمراحل، والانفنتوري، وتارجت السنة والربع، والتيمز وناسها ([#535](https://github.com/Ziad-Sameh-OJO/places-erp/issues/535)) · `—` · بعد 14.1
+- [ ] **14.3** داشبورد صفوت: Today و Company و Finance و Sales و Marketing ([#536](https://github.com/Ziad-Sameh-OJO/places-erp/issues/536)) · `—` · بعد 14.1
+- [ ] **14.4** سطر الليد والـ Overview: الشركة والسيلز والـ Channel والمساحة والمنطقة والبوست ([#537](https://github.com/Ziad-Sameh-OJO/places-erp/issues/537)) · `T-03`
+- [ ] **14.5** المراحل تتبسط: شيل Follow up to/after visit/meeting، وتابات المراحل من غير Qualified ([#538](https://github.com/Ziad-Sameh-OJO/places-erp/issues/538)) · `T-03`
+- [ ] **14.6** فلاتر الليدز: سيلز أكتر من واحد، والتيم، والـ Channel، والمنطقة، والنوع (Commercial/Residential/Admin office)، والأرشيف ([#539](https://github.com/Ziad-Sameh-OJO/places-erp/issues/539)) · `T-03`
+- [ ] **14.7** تحويل الليد: القديم مايشوفهاش، واختيار إن الجديد يشوف الكومنتات القديمة، والأدمن بيشوف الكل، والتيم ليدر جوه تيمه ([#540](https://github.com/Ziad-Sameh-OJO/places-erp/issues/540)) · `T-03`
+- [ ] **14.8** سجل الوحدات على الليد بالمراحل: List ← Visits ← Short list ← Meeting ([#541](https://github.com/Ziad-Sameh-OJO/places-erp/issues/541)) · `T-28`
+- [ ] **14.9** الـ List of options: اختيار العميل ولوجو العميل اختياري، ويتسجّل في الـ Activity ([#542](https://github.com/Ziad-Sameh-OJO/places-erp/issues/542)) · `T-28` · بعد 14.8
+- [ ] **14.10** الـ Visits: Visit ولا Meeting، الميعاد، الوحدات من الانفنتوري أو بالكتابة، و Done بيسجّل Showing ([#543](https://github.com/Ziad-Sameh-OJO/places-erp/issues/543)) · `T-28` · بعد 14.8
+- [ ] **14.11** الـ Recommendations: اللي اتزار يطلع فوق، وترشيح يدوي من الانفنتوري بسيرش وفلتر مساحة ([#544](https://github.com/Ziad-Sameh-OJO/places-erp/issues/544)) · `T-28` · بعد 14.10
+- [ ] **14.12** فلتر سنة + ربع في كل حاجة (Q4 2025، Q1 2026…)، والتاريخ مايتمسحش، وإدخال الأرباع اللي فاتت بإيدنا ([#545](https://github.com/Ziad-Sameh-OJO/places-erp/issues/545)) · `T-34`
+- [ ] **14.13** الماركتنج: تكلفة الليد والـ Qualified والصفقة (تختار)، والصفقة بتتحسب على شهر نزول الليد ([#546](https://github.com/Ziad-Sameh-OJO/places-erp/issues/546)) · `T-13`
+- [ ] **14.14** تقرير المنافسين الشهري ظاهر من داشبورد الماركتنج، بعمود «قوي ولا لأ» ([#547](https://github.com/Ziad-Sameh-OJO/places-erp/issues/547)) · `T-13`
+- [ ] **14.15** المهام جوه التيم: القسم، والمهمة، والوحدة اختيارية، وميعاد، وتتحسب في الـ KPIs ولا لأ ([#548](https://github.com/Ziad-Sameh-OJO/places-erp/issues/548)) · `T-08`
+- [ ] **14.16** صفحة Sits (تأجير مقرات إدارية وإعادة تأجيرها) ([#549](https://github.com/Ziad-Sameh-OJO/places-erp/issues/549)) · `—`
+- [ ] **14.17** أرشيف المستندات: فولدر لكل وحدة أو صفقة بالعقود والورق ([#550](https://github.com/Ziad-Sameh-OJO/places-erp/issues/550)) · `—`
+- [ ] **14.18** شيت الصفقات والـ Leaderboard: عمود Achievement بالنسبة، والأرقام في الأداء ([#551](https://github.com/Ziad-Sameh-OJO/places-erp/issues/551)) · `—`
+- [ ] **14.19** ريبورتات السيلز اليومية والأسبوعية في «التقارير والتارجت» ([#552](https://github.com/Ziad-Sameh-OJO/places-erp/issues/552)) · `—`
+- [ ] **14.20** السيستم أونلاين للإدارة: سيرفر وحسابات لأحمد إسلام وصفوت ([#553](https://github.com/Ziad-Sameh-OJO/places-erp/issues/553)) · `—`
