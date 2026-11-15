@@ -174,7 +174,7 @@ a.chip { text-decoration: none; }
 
 /* Ahmed's dashboard on one page: tighter cards in a bento, so a 1440×900 laptop sees the numbers, the trend and the target */
 .dash-a { display: flex; flex-direction: column; gap: 10px; }
-.dash-a a { color: inherit; text-decoration: none; }
+.dash-a a:not(.btn) { color: inherit; text-decoration: none; }
 .dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dash-head h2 { font-size: 20px; margin: 0; }
 .dash-a .card-head { padding-bottom: 4px; }
@@ -278,3 +278,9 @@ a.chip { text-decoration: none; }
   .mbars { gap: 4px; } .trend { min-height: 170px; }
   .donut-a { flex-direction: row; align-items: center; } .donut-a svg { width: 112px; height: 112px; }
 }
+/* the target card with no target yet: a quiet empty gauge, one line, one button */
+.dash-a .target-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 8px 0; }
+.dash-a .target-empty > svg { width: 150px; }
+.dash-a .target-empty .btn { align-self: center; }
+.dash-a .target-empty > svg path { fill: none; stroke: var(--sunken); stroke-width: 12; stroke-linecap: round; }
+.dash-a .target-empty p { margin: 0; color: var(--ink-3); font-size: 13px; }

@@ -363,3 +363,19 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .45; cu
 .lane h4 { font-size: 13px; font-weight: 500; color: var(--ink); padding: 2px 4px 6px; }
 .lane h4 .num { background: var(--surface); border: 1px solid var(--line); font-family: var(--f-display); border-radius: 999px; }
 .lane-empty { color: var(--ink-3); text-align: center; font-size: 12.5px; }
+
+/* ---------- compact where a block was taking space for nothing (review, Nov 2026) ---------- */
+/* number cards hug their content: wide rows were leaving a tall empty middle */
+.kpi { min-height: 0; gap: 8px; padding: 16px 18px; }
+.kpi .k-val { margin-top: 4px; }
+/* a to-do list inside a card: dense rows, the action as a quiet button, «show all» under it */
+.sc-list { display: flex; flex-direction: column; }
+.sc-list .line-item { min-height: 48px; padding-block: 6px; border-bottom: 1px solid var(--line); gap: 12px; }
+.sc-list .line-item:last-child { border-bottom: 0; }
+.sc-list .line-item.done { opacity: .6; }
+.sc-more { all: unset; cursor: pointer; align-self: center; font-size: 12.5px; font-weight: 500; color: var(--ink-2); padding: 6px 14px; border-radius: 999px; background: var(--surface-2); }
+.sc-more:hover { background: var(--sunken); color: var(--ink); }
+.sc-more:focus-visible { box-shadow: var(--ring); }
+
+/* a link styled as a button never shows a link underline */
+a.btn, a.btn:hover { text-decoration: none; }

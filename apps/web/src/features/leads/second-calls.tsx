@@ -16,20 +16,25 @@ export function SecondCalls({ onOpen }: { onOpen: (id: string) => void }) {
   const { can } = useMe();
   const q = useQuery({ queryKey: KEY, queryFn: () => api.get<SecondCallRow[]>("/leads/second-calls"), enabled: can("leads", "approve") });
   const [doing, setDoing] = useState<SecondCallRow | null>(null);
-  const rows = q.data ?? [];
+  const [all, setAll] = useState(false);
+  // what still needs a call first (the past days' ones before today's), the done ones last
+  const rows = [...(q.data ?? [])].sort((a, b) => Number(!!a.done) - Number(!!b.done) || Number(!!b.late) - Number(!!a.late));
   if (!rows.length) return null;
+  const SHOWN = 3, shown = all ? rows : rows.slice(0, SHOWN);
   const due = rows.filter((r) => !r.late), late = rows.length - due.length, done = due.filter((r) => r.done).length;
   return (
     <Card title={t("title")} icon="phone" sub={t("sub")}
       extra={<span><Chip tone={done < due.length ? "warn" : "ok"}>{t("doneToday", { done, total: due.length })}</Chip>{late > 0 && <> <Chip tone="bad">{t("fromPast", { count: late })}</Chip></>}</span>}>
-      {rows.map((r) => (
-        <div className="line-item" key={r.id}>
+      <div className="sc-list">{shown.map((r) => (
+        <div className={`line-item ${r.done ? "done" : ""}`} key={r.id}>
           <span><span><button className="link" onClick={() => onOpen(r.id)}><b>{r.name}</b></button> · {r.sales ?? "—"} · {r.channel}{r.late && <> <Chip tone="bad">{t("late", { day: day(r.createdAt) })}</Chip></>}</span></span>
           {r.done
             ? <span><Chip tone="ok">Second Call Done</Chip> <small className="hint">{r.done.note}</small></span>
-            : <button className="btn sm" onClick={() => setDoing(r)}><Icon name="phone" />Second Call Done</button>}
+            : <button className="btn ghost sm" onClick={() => setDoing(r)}><Icon name="phone" />Second Call Done</button>}
         </div>
-      ))}
+      ))}</div>
+      {rows.length > SHOWN && <button className="sc-more" onClick={() => setAll((v) => !v)} aria-expanded={all}>
+        {all ? t("showLess") : t("showAll", { count: rows.length })}</button>}
       {doing && <SecondCallModal lead={doing} onClose={() => setDoing(null)} />}
     </Card>
   );

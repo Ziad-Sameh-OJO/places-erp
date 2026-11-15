@@ -480,7 +480,9 @@
     "sent": "بعتله اللي محتاجه",
     "note": "النوت",
     "notePlaceholder": "العميل قال إيه؟",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "showAll": "اعرض الكل ({count})",
+    "showLess": "اعرض أقل"
   },
   "visits": {
     "doneToast": "الـ {kind} خلصت · اتحسبت Showing",
