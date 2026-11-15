@@ -9,7 +9,7 @@ import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { leadScope } from "./lead-scope";
-import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
+import { type LeadDetailRecord, type LeadQuery, type LeadRecord, LeadsRepository } from "./leads.repository";
 import { LeadDuplicatesService } from "./duplicates.service";
 import { LeadRulesService } from "./lead-rules.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -30,8 +30,12 @@ const TELESALES = "telesales"; // role key (seed-data/roles.json)
 /** The demo's Kanban shows the newest 30 cards of a lane; its header shows the real count. */
 const CARDS_PER_LANE = 30;
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
-/** FOLLOW_UP_TO_VISIT → «Follow up to Visit»: the API speaks the stage names the team uses. */
-const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
+/**
+ * NEAR_TO_CLOSE → «Near to Close»: the API speaks the stage names the team uses. The stages dropped in 14.5 keep their
+ * names for the history (old audit lines in the Logs tab); no lead is on them any more.
+ */
+const STAGE_LABEL = new Map<string, string>([...LEAD_STAGES, "Follow up to Visit", "Follow up after Visit", "Follow up to Meeting", "Follow up after Meeting"]
+  .map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
 
 /** M-01 use cases. The rules themselves live in @places/domain; this class orchestrates them with the database. */
 @Injectable()
@@ -55,15 +59,24 @@ export class LeadsService {
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
   async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
     const hidden = me.fields.hidden("leads");
-    const [rows, total] = await this.repo.list(leadScope(me) as never, shownLeadFilters(f, hidden));
+    const [rows, total] = await this.repo.list(leadScope(me) as never, await this.query(f, hidden));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.map((r) => r.assignedToId)), this.slaClock()]);
     return { items: rows.map((r) => hideLeadRow(toRow(r, names, sla), hidden)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /**
+   * The filters as the repository applies them: minus those on hidden fields (M-09), and «التيم» (14.6) read as the
+   * Team Leader's people. The caller's scope is still ANDed in the query, so a TL from another team finds nothing.
+   */
+  private async query(f: LeadFilters, hidden: ReadonlySet<string>): Promise<LeadQuery> {
+    const q = shownLeadFilters(f, hidden);
+    return f.teamLeaderId ? { ...q, team: await this.repo.teamOf(f.teamLeaderId) } : q;
   }
 
   /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
   async board(me: CurrentUser, f: LeadFilters): Promise<LeadBoard> {
     const hidden = me.fields.hidden("leads");
-    const [counts, rows] = await this.repo.board(leadScope(me) as never, shownLeadFilters(f, hidden), LEAD_STAGES.map(toDb), CARDS_PER_LANE);
+    const [counts, rows] = await this.repo.board(leadScope(me) as never, await this.query(f, hidden), LEAD_STAGES.map(toDb), CARDS_PER_LANE);
     const total = new Map(counts.map((c) => [c.stage as string, c._count._all]));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.flat().map((r) => r.assignedToId)), this.slaClock()]);
     return { lanes: LEAD_STAGES.map((stage, i) => ({ stage, total: total.get(toDb(stage)) ?? 0, items: rows[i]!.map((r) => hideLeadRow(toRow(r, names, sla), hidden)) })) };
@@ -72,11 +85,13 @@ export class LeadsService {
   /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */
   async summary(me: CurrentUser, q: SummaryQuery): Promise<LeadSummary> {
     const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
-    const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], rules, holidayMode] = await Promise.all([
-      this.repo.summary(leadScope(me) as never, q.kind === "broker" ? "BROKER" : "CLIENT", new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
-      this.rules.get(), this.time.isHolidayToday(),
+    const kind = q.kind === "broker" ? "BROKER" : "CLIENT";
+    const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], byStage, rules, holidayMode] = await Promise.all([
+      this.repo.summary(leadScope(me) as never, kind, new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
+      this.repo.stageCounts(leadScope(me) as never, kind), this.rules.get(), this.time.isHolidayToday(),
     ]);
-    return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
+    const stages = Object.fromEntries(byStage.map((c) => [STAGE_LABEL.get(c.stage) ?? c.stage, c._count._all]));
+    return { total, fresh, qualified, noAnswer, interested, stages, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
       noAnswerRules: { hours: rules.noAnswer.hours, remindH: rules.noAnswer.remindH },
       drafts: isNamedIn(rules.draft.see, { userId: me.id, roles: me.roles }) ? await this.repo.openDrafts("draft") : null,
       draftRules: { days: rules.draft.days, holdDays: rules.draft.holdDays },
@@ -92,7 +107,7 @@ export class LeadsService {
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
   async tabs(me: CurrentUser, f: LeadFilters): Promise<LeadTabCounts> {
-    const counts = new Map((await this.repo.tabCounts(leadScope(me) as never, shownLeadFilters(f, me.fields.hidden("leads")))).map((c) => [c.kind, c._count._all]));
+    const counts = new Map((await this.repo.tabCounts(leadScope(me) as never, await this.query(f, me.fields.hidden("leads")))).map((c) => [c.kind, c._count._all]));
     return { client: counts.get("CLIENT") ?? 0, broker: counts.get("BROKER") ?? 0 };
   }
 
@@ -107,7 +122,8 @@ export class LeadsService {
     const tele = (p: { roles: string[] }) => p.roles.includes(TELESALES) && !p.roles.some((r) => r === "sales" || r === "tl");
     const salespeople = [...holders.filter((p) => !tele(p)), ...holders.filter(tele).map((p) => ({ ...p, name: `${p.name} (Telesales)` }))]
       .map(({ id, name }) => ({ id, name }));
-    return { campaigns, salespeople, assignable };
+    const teamLeaders = holders.filter((p) => p.roles.includes("tl")).map(({ id, name }) => ({ id, name })); // 14.6 «التيم»
+    return { campaigns, salespeople, teamLeaders, assignable };
   }
 
   /** The SLA as the list shows it, with «قواعد الليدز» (1.29: its times, its working hours) and the official holidays. */
@@ -128,7 +144,7 @@ export class LeadsService {
     if (!lead) throw new NotFoundException(NO_LEAD);
     const [salespeople, people, sla, { leadLogRoles }] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
-      this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), lead.tlNoteById].filter(isId))]),
+      this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), lead.tlNoteById, lead.createdById].filter(isId))]),
       this.slaClock(),
       this.settings.all(),
     ]);
@@ -378,7 +394,7 @@ export class LeadsService {
       const company = input.company ? await this.repo.companyByName(tx, input.company) : null;
       const lead = await tx.lead.create({
         data: {
-          code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
+          code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, propertyType: input.propertyType ?? null, space: input.space ?? null,
           condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, campaignId: input.campaignId ?? null,
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
           ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
@@ -486,15 +502,15 @@ export class LeadsService {
       const lead = await this.repo.editable(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
       // M-09: a field the person may not change (or that their form left out) keeps what the lead has
-      const input = keepFixedUpdate(typed, { phones: lead.phones, area: lead.area, type: lead.type, company: lead.company?.name ?? null, space: lead.space,
+      const input = keepFixedUpdate(typed, { phones: lead.phones, area: lead.area, type: lead.type, propertyType: lead.propertyType, company: lead.company?.name ?? null, space: lead.space,
         condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note }, me.fields.fixed("leads"));
       const added = input.phones.filter((p) => !lead.phones.includes(p));
       const dup = added.length ? await this.repo.findByPhone(added, id) : null;
       if (dup) throw new ConflictException(`الرقم ده موجود في ليد تاني (${dup.code}) · العميل ده مكرر والأوبريشن هي اللي تقرر`);
       const company = input.company || null;
       const before = { name: lead.name, kind: lead.kind === "BROKER" ? "broker" : "client", company: lead.company?.name ?? null, phones: lead.phones, area: lead.area,
-        type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note };
-      const after = { name: input.name, kind: input.kind, company, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
+        type: lead.type, propertyType: lead.propertyType, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note };
+      const after = { name: input.name, kind: input.kind, company, phones: input.phones, area: input.area, type: input.type, propertyType: input.propertyType ?? null, space: input.space ?? null,
         condition: input.condition || null, budget: input.budget ? toDecimal(fromDecimal(input.budget)) : null, note: input.note || null };
       const diff = changes(before, after);
       if (!diff) return null;
@@ -502,7 +518,7 @@ export class LeadsService {
       const companyChanged = "company" in diff.after;
       await this.repo.updateLead(tx, id, {
         name: after.name, kind: after.kind === "broker" ? "BROKER" : "CLIENT", phones: after.phones, area: after.area, type: after.type,
-        space: after.space, condition: after.condition, budget: after.budget, note: after.note, ...(companyChanged ? { companyId: inSheet?.id ?? null } : {}),
+        propertyType: after.propertyType, space: after.space, condition: after.condition, budget: after.budget, note: after.note, ...(companyChanged ? { companyId: inSheet?.id ?? null } : {}),
       });
       const newCompany = companyChanged && company && !inSheet ? await this.companies.fromLead(tx, me, { id, code: lead.code }, company, undefined) : null;
       if (newCompany?.companyId) await this.repo.updateLead(tx, id, { companyId: newCompany.companyId });
@@ -565,12 +581,12 @@ export class LeadsService {
    */
   async exportRows(me: CurrentUser, f: LeadFilters) {
     const hidden = me.fields.hidden("leads");
-    const rows = (await this.repo.exportRows(leadScope(me) as never, shownLeadFilters(f, hidden), EXPORT_LIMIT)).map((r) => ({ ...r, ...hiddenExport(r, hidden) }));
+    const rows = (await this.repo.exportRows(leadScope(me) as never, await this.query(f, hidden), EXPORT_LIMIT)).map((r) => ({ ...r, ...hiddenExport(r, hidden) }));
     const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
     await this.audit.record({ module: "leads", entity: "Lead", entityId: "export", action: "export", userId: me.id,
       after: { rows: rows.length, filters: Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== undefined && k !== "page" && k !== "pageSize")) } });
     return rows.map((r) => ({
-      code: r.code, name: r.name, company: r.company?.name ?? "", phones: r.phones.join(" / "), area: r.area, type: r.type, space: r.space,
+      code: r.code, name: r.name, company: r.company?.name ?? "", phones: r.phones.join(" / "), area: r.area, type: r.type, propertyType: r.propertyType ?? "", space: r.space,
       budget: r.budget?.toFixed(2) ?? "", channel: r.channel, campaign: r.campaign?.name ?? "", sales: r.assignedToId ? names.get(r.assignedToId) ?? "" : "",
       stage: STAGE_LABEL.get(r.stage) ?? r.stage, qualified: r.qualified ? "Yes" : "No", createdAt: r.createdAt,
     }));
@@ -669,7 +685,7 @@ export class LeadsService {
 
   /**
    * «Visit / Meeting جديدة» (1.9, M-01 3.3): the time, units from the inventory and spaces not in the sheet. It is an
-   * action on the lead (stops the SLA clock) and moves it to «Follow up to Visit / Meeting», forward only (visitStage).
+   * action on the lead (stops the SLA clock) and moves it to Visit / Meeting, forward only (visitStage · 14.5).
    */
   async addVisit(me: CurrentUser, id: string, input: VisitInput) {
     const units = await this.visitUnitCodes(input.unitIds, []);
@@ -682,7 +698,7 @@ export class LeadsService {
       await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visit.id, action: "create", userId: me.id,
         after: { leadId: id, kind: input.kind, at: input.at, unitIds: input.unitIds, extra: input.extra ?? null } }, tx);
-      await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), input.kind, "booked"));
+      await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), input.kind));
     });
     return this.get(me, id);
   }
@@ -724,7 +740,7 @@ export class LeadsService {
         input.outcome === "done" ? `الـ ${kind} خلصت · اتحسبت في الـ activity` : `الـ ${kind} اتعلّمت إنها محصلتش`, me.id);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: input.outcome === "done" ? "done" : "not-done", userId: me.id,
         before: { leadId: id, outcome: null }, after: { leadId: id, outcome: input.outcome } }, tx);
-      if (input.outcome === "done") await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), kind, "done"));
+      if (input.outcome === "done") await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), kind));
       return { kind, at: visit.at, name: lead.name, ownerId: lead.assignedToId };
     });
     if (input.outcome === "not_done" && marked.ownerId) {
@@ -820,11 +836,12 @@ function toRow({ assignedToId, budget, kind, company, ...r }: LeadRecord, names:
 }
 
 function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock, inv: ReadonlySet<string> = new Set()): Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote"> {
-  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, ...row } = lead;
+  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, createdById, ...row } = lead;
   const now = Date.now();
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
     hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
+    createdBy: people.has(createdById) ? { id: createdById, name: people.get(createdById)! } : null, // 14.4 «مين دخّل الليد»
     tlNote: tlNote && tlNoteAt ? { text: tlNote, by: tlNoteById ? people.get(tlNoteById) ?? null : null, at: tlNoteAt.toISOString() } : null, // 1.33
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({

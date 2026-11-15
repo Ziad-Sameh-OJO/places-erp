@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { STAGE_TABS } from "@places/domain";
 
 /** The toolbar's filters, as the API's query names (LeadFilters in @places/contracts). Empty = not filtered. */
 export interface LeadQuery {
-  q?: string; stage?: string; channel?: string; campaignId?: string; assignedToId?: string; area?: string;
+  // assignedToId: one or several salespeople, comma separated (14.6) · teamLeaderId: «التيم» · propertyType: «النوع»
+  q?: string; stage?: string; channel?: string; campaignId?: string; assignedToId?: string; teamLeaderId?: string; area?: string; propertyType?: string;
   qualified?: "true" | "false"; from?: string; to?: string;
   kind?: "client" | "broker" | undefined; // the tab, not a filter: saved views don't keep it
   sort?: string; dir?: "asc" | "desc"; // 0.15: the column the API sorts by (not a filter either)
@@ -20,14 +22,13 @@ export const sameFilters = (a: LeadQuery, b: LeadQuery) => key(a) === key(b);
 const key = (f: LeadQuery) => JSON.stringify(Object.entries(f).filter(([, v]) => v).sort(([x], [y]) => x.localeCompare(y)));
 export const activeCount = (f: LeadQuery) => Object.values(f).filter(Boolean).length;
 
-/** The demo's built-in views; their counts come from the summary, their names from the messages (leads.views.presets.<count>). */
-export const PRESETS: { f: LeadQuery; count: "total" | "fresh" | "qualified" | "noAnswer" | "interested" }[] = [
-  { f: {}, count: "total" },
-  { f: { stage: "Fresh" }, count: "fresh" },
-  { f: { qualified: "true" }, count: "qualified" },
-  { f: { stage: "No Answer" }, count: "noAnswer" },
-  { f: { stage: "Interested" }, count: "interested" },
-];
+/**
+ * 14.5 · the stage tabs above the list (domain STAGE_TABS, no «Qualified»): a tab sets the stage and keeps the other
+ * filters (they all work together, 14.6). Interested opens Visit and Meeting inside it: shown while one of the three
+ * is picked.
+ */
+export const STAGE_TAB_LIST = STAGE_TABS;
+export const subTabsOf = (stage: string | undefined) => STAGE_TABS.find((t) => t.stage === stage || t.sub?.some((x) => x === stage))?.sub ?? [];
 
 export interface SavedView { name: string; f: LeadQuery }
 const STORE = "places.leads.views";

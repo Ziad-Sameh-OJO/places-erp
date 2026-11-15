@@ -95,11 +95,20 @@ export function LeadsList() {
     ...(s?.drafts != null ? [["draft", "Draft", s.drafts] as [DraftKind, string, number]] : []),
     ...(s?.draftAdmin ? [["admin", "Draft Admin", s.draftAdmin.waiting || s.draftAdmin.total] as [DraftKind, string, number]] : []),
   ];
+  // 14.6 · «الأرشيف»: the Draft and the Draft Admin together under one tab, each its own tab inside it
+  const inArchive = draftTab === "draft" || draftTab === "admin";
+  const archiveCount = draftTabs.reduce((n, [, , c]) => n + c, 0);
   const tabRow = (
-    <div className="row">
-      <Tabs<LeadKind | DraftKind | "sent" | "tags"> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin" || k === "sent" || k === "tags"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
-        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...(tagsTab ? [["tags", "Tags", (tagCounts?.toDecide || tagCounts?.pending) || undefined] as ["tags", string, number | undefined]] : []), ...draftTabs, ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
-    </div>
+    <>
+      <div className="row">
+        <Tabs<LeadKind | "archive" | "sent" | "tags"> value={inArchive ? "archive" : draftTab ?? kind} onChange={(k) => {
+          const d = k === "archive" || k === "sent" || k === "tags";
+          setDraftTab(k === "archive" ? draftTabs[0]![0] : d ? k : null); if (!d) setKind(k); setPage(1);
+        }}
+          items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...(tagsTab ? [["tags", "Tags", (tagCounts?.toDecide || tagCounts?.pending) || undefined] as ["tags", string, number | undefined]] : []), ...(draftTabs.length ? [["archive", t("archive"), archiveCount || undefined] as ["archive", string, number | undefined]] : []), ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
+      </div>
+      {inArchive && draftTabs.length > 0 && <div className="row"><Tabs<DraftKind> value={draftTab} onChange={setDraftTab} items={draftTabs} /></div>}
+    </>
   );
   if (draftTab === "sent" && isTelesales) return <>{tabRow}<SentView /></>;
   if (draftTab === "tags" && tagsTab) return <>{tabRow}<TagsView />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;

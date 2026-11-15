@@ -14,6 +14,7 @@ type ExportRow = Awaited<ReturnType<LeadsService["exportRows"]>>[number];
 const EXPORT: (ExcelColumn<ExportRow> & { field?: string })[] = [
   { header: "الكود", value: (r) => r.code }, { header: "الاسم", value: (r) => r.name, width: 24 }, { header: "الشركة", value: (r) => r.company, width: 20, field: "company" },
   { header: "الموبايل", value: (r) => r.phones, width: 26, field: "phones" }, { header: "Area", value: (r) => r.area, width: 18, field: "area" }, { header: "Type", value: (r) => r.type, field: "type" },
+  { header: "النوع", value: (r) => r.propertyType, width: 16, field: "propertyType" }, // 14.6
   { header: "Space", value: (r) => r.space, field: "space" }, { header: "Budget", value: (r) => r.budget, field: "budget" }, { header: "Channel", value: (r) => r.channel, field: "channel" },
   { header: "Campaign", value: (r) => r.campaign, width: 20, field: "campaign" }, { header: "Sales", value: (r) => r.sales, width: 20 }, { header: "Stage", value: (r) => r.stage, width: 20 },
   { header: "Qualified", value: (r) => r.qualified }, { header: "Created", value: (r) => r.createdAt, width: 20 },

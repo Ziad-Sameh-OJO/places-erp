@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LEAD_STAGES } from "@places/domain";
+import { LEAD_STAGES, PROPERTY_TYPES } from "@places/domain";
 import { CalendarDay, EgyptianMobile, Id, Money, Page, SortDir } from "./common.ts";
 
 /** A lead is a client or a broker (client meeting 4 Nov · 1.28): brokers have their own tab, same stages. */
@@ -16,6 +16,7 @@ export const CreateLead = z.object({
   phones: z.array(EgyptianMobile).min(1, "اكتب رقم موبايل").max(5, "5 أرقام بالكتير").transform((ps) => [...new Set(ps)]),
   area: z.string().min(1, "اختار الـ Area"),
   type: z.enum(["Rent", "Resale", "Primary", "Income"]),
+  propertyType: z.enum(PROPERTY_TYPES).optional(), // 14.6: Commercial · Residential · Admin office
   space: z.number().int("المساحة رقم صحيح").positive("المساحة لازم تبقى أكبر من صفر").optional(),
   condition: z.string().optional(),
   budget: Money.optional(),
@@ -31,7 +32,7 @@ export type CreateLead = z.infer<typeof CreateLead>;
  * «تعديل البيانات» (demo leads.js leadEdit): the whole form again; a field left empty is cleared. The mobiles go
  * through the same duplicate check as a new lead (M-01 Q7).
  */
-export const UpdateLead = CreateLead.pick({ name: true, kind: true, company: true, phones: true, area: true, type: true, space: true, condition: true, budget: true, note: true })
+export const UpdateLead = CreateLead.pick({ name: true, kind: true, company: true, phones: true, area: true, type: true, propertyType: true, space: true, condition: true, budget: true, note: true })
   // M-09: a field the person may not change (hidden or read only) isn't in their form; left out, it keeps its value
   .partial({ phones: true, area: true, type: true });
 export type UpdateLead = z.infer<typeof UpdateLead>;
@@ -46,14 +47,22 @@ const QueryBool = z.enum(["true", "false"]).transform((v) => v === "true");
 export const LEAD_SORTS = ["name", "area", "budget", "channel", "stage", "createdAt"] as const;
 export type LeadSort = (typeof LEAD_SORTS)[number];
 
-/** The leads list (M-01): filters of the demo's toolbar + search by name, mobile or code. */
+/** 14.6: «a,b,c» in the query string (several salespeople ticked) → the ids, at most 50. */
+const IdList = z.string().max(2100).transform((s) => [...new Set(s.split(",").map((x) => x.trim()).filter(Boolean))]).pipe(z.array(Id).max(50));
+
+/**
+ * The leads list (M-01 · 14.6): the toolbar's filters, all ANDed (Meeting + two salespeople…), and the search by
+ * name, mobile, company, the company's number or the lead's code.
+ */
 export const LeadFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
   stage: z.enum(LEAD_STAGES).optional(),
-  area: z.string().optional(),
+  area: z.string().trim().max(80).optional(), // typed or picked: any part of the area's name
   channel: z.string().optional(),
   campaignId: Id.optional(),
-  assignedToId: Id.optional(),
+  assignedToId: IdList.optional(), // one salesperson or several ticked
+  teamLeaderId: Id.optional(), // «التيم»: the Team Leader's people and the TL himself
+  propertyType: z.enum(PROPERTY_TYPES).optional(),
   qualified: QueryBool.optional(),
   kind: LeadKind.optional(), // the page's tab: «الليدز» (client) or «البروكرز»
   from: CalendarDay.optional(), // Cairo days, both ends included
@@ -80,6 +89,7 @@ export type AddComment = z.infer<typeof AddComment>;
 /** One row of the leads list: what the table and the Kanban card show, nothing more. */
 export interface LeadRow {
   id: string; code: string; name: string; company: string | null; phones: string[]; area: string; type: string; space: number | null; budget: string | null; channel: string;
+  propertyType: string | null; // 14.6: Commercial · Residential · Admin office (older leads: null)
   campaign: { id: string; name: string } | null; stage: string; qualified: boolean; touched: boolean; kind: LeadKind;
   ownedByTelesales: boolean; // demo: «مع Telesales» — she keeps it to call herself, no SLA
   /** the SLA clock while the lead is Fresh and untouched (null otherwise): level, minutes left, % of the way to the pull */
@@ -98,6 +108,8 @@ export interface LeadDetail extends LeadRow {
   /** a deal is registered on it already: the drawer's «سجّل الصفقة» hides (demo) */
   hasDeal: boolean;
   post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
+  /** 14.4 · «مين دخّل الليد»: the person who entered it (null: imported / the system) */
+  createdBy: { id: string; name: string } | null;
   /** the first logged call, and whether it came within 30 minutes of arrival (KPI; null until someone calls) */
   firstCallAt: string | null; firstCallOnTime: boolean | null;
   /** the «Logs» tab is shown only when this is true (the admin, or a role the admin picked · 1.25) */
@@ -178,6 +190,8 @@ export interface LeadTabCounts { client: number; broker: number }
 /** The KPI tiles and the saved views' counts, over the caller's whole scope (not the current filters). */
 export interface LeadSummary {
   total: number; fresh: number; qualified: number; noAnswer: number; interested: number;
+  /** 14.5 · the stage tabs' counts, by stage name (a stage with no lead is left out) */
+  stages: Record<string, number>;
   /** leads that came in the last 7 days and the 7 before, for «مقارنة بالأسبوع اللي فات» */
   thisWeek: number; lastWeek: number;
   /** an official holiday today: the SLA runs on wall-clock hours (the note under the list says so) */
@@ -222,6 +236,8 @@ export interface LeadBoard { lanes: { stage: string; total: number; items: LeadR
 export interface LeadOptions {
   campaigns: { id: string; name: string; channel: string }[];
   salespeople: { id: string; name: string }[];
+  /** 14.6 · «التيم»: the Team Leaders a person may filter by (inside their scope; none for sales) */
+  teamLeaders: { id: string; name: string }[];
   /** «اسحب الليد وحوّله» (1.14): the salespeople a lead can be handed to; empty for whoever may not */
   assignable: { id: string; name: string }[];
 }

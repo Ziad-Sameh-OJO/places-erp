@@ -281,7 +281,8 @@
     "tagsAsked": "{n} tag requests sent to the Team Leader",
     "companyCategory": "Company category",
     "pickCategory": "Pick a category",
-    "straightToSheet": "«{name}» is new: it goes straight into the companies sheet under this category"
+    "straightToSheet": "«{name}» is new: it goes straight into the companies sheet under this category",
+    "propertyType": "Type of space"
   },
   "drawer": {
     "notFound": "Lead not found",
@@ -334,7 +335,9 @@
     "tlNoteTitle": "Team Leader's note on the lead",
     "tlNotePlaceholder": "Something we need on this lead",
     "tlNoteSave": "Save",
-    "tlNoteSaved": "Saved"
+    "tlNoteSaved": "Saved",
+    "enteredBy": "Entered by",
+    "propertyType": "Type of space"
   },
   "board": {
     "movedQualified": "{name} is now {stage} and marked Qualified",
@@ -375,7 +378,8 @@
     "saved": "Saved “{name}” · you'll find it above the filters",
     "name": "View name",
     "namePlaceholder": "e.g. Tagamoa · Qualified",
-    "save": "Save"
+    "save": "Save",
+    "insideInterested": "Inside Interested:"
   },
   "filters": {
     "search": "Name, mobile, company, code",
@@ -389,7 +393,12 @@
     "notQualified": "Not Qualified",
     "from": "From",
     "to": "To",
-    "clear": "Clear {count, plural, one {# filter} other {# filters}}"
+    "clear": "Clear {count, plural, one {# filter} other {# filters}}",
+    "team": "Team",
+    "allTeams": "All teams",
+    "teamOf": "{name}'s team",
+    "type": "Type of space",
+    "allTypes": "All types"
   },
   "list": {
     "leads": "Leads",
@@ -409,7 +418,8 @@
     "next": "Next",
     "slaTitle": "SLA",
     "holiday": "(today is an official holiday)",
-    "slaNote": ": alert after {warn} with no action, and the lead is pulled automatically after {pull} to the salesperson next in line."
+    "slaNote": ": alert after {warn} with no action, and the lead is pulled automatically after {pull} to the salesperson next in line.",
+    "archive": "Archive"
   },
   "units": {
     "loading": "Loading…",

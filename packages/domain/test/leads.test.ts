@@ -121,22 +121,30 @@ test("areas × salespeople (1.12): ticking adds to the end of the area's rotatio
   assert.deepEqual([router.next("x", pool), router.next("x", pool), router.next("x", pool), router.next("x", pool)], ["s1", "s2", "s3", "s1"]);
 });
 
-test("Visit / Meeting moves the stage forward only (1.9, 4 Nov demo meeting)", async () => {
+test("Visit / Meeting moves the stage forward only (1.9 · 14.5: no «Follow up to …» stages)", async () => {
   const { visitStage } = await import("../src/leads.ts");
-  // the card's example: Interested + Visit → Follow up to Visit → Done → Visit
-  assert.equal(visitStage("Interested", "Visit", "booked"), "Follow up to Visit");
-  assert.equal(visitStage("Follow up to Visit", "Visit", "done"), "Visit");
-  assert.equal(visitStage("Follow up after Visit", "Meeting", "booked"), "Follow up to Meeting");
-  assert.equal(visitStage("Follow up to Meeting", "Meeting", "done"), "Meeting");
-  // Near to Close + Visit doesn't go back
-  assert.equal(visitStage("Near to Close", "Visit", "booked"), null);
-  assert.equal(visitStage("Near to Close", "Visit", "done"), null);
-  assert.equal(visitStage("Meeting", "Visit", "done"), null);
-  assert.equal(visitStage("Visit", "Visit", "done"), null);
+  // Interested + Visit booked → Visit; a Meeting after it → Meeting
+  assert.equal(visitStage("Interested", "Visit"), "Visit");
+  assert.equal(visitStage("Visit", "Meeting"), "Meeting");
+  assert.equal(visitStage("Fresh", "Meeting"), "Meeting");
+  // Near to Close + Visit doesn't go back; already there: no move
+  assert.equal(visitStage("Near to Close", "Visit"), null);
+  assert.equal(visitStage("Meeting", "Visit"), null);
+  assert.equal(visitStage("Visit", "Visit"), null);
   // a side stage joins the pipeline
-  assert.equal(visitStage("No Answer", "Visit", "booked"), "Follow up to Visit");
-  // the new stage counts as Qualified
-  assert.equal(isQualifiedAfter(false, "Follow up to Meeting"), true);
+  assert.equal(visitStage("No Answer", "Visit"), "Visit");
+  assert.equal(isQualifiedAfter(false, "Meeting"), true);
+});
+
+test("14.5: the client's stages, no «Follow up …»; the tabs in order, Interested opens Visit and Meeting", async () => {
+  const { LEAD_STAGES, LEAD_PIPELINE, STAGE_TABS, PROPERTY_TYPES } = await import("../src/index.ts");
+  assert.deepEqual([...LEAD_STAGES], ["Fresh", "No Answer", "Interested", "Not Interested", "Visit", "Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold"]);
+  assert.ok(!LEAD_STAGES.some((s) => s.startsWith("Follow up")));
+  assert.deepEqual([...LEAD_PIPELINE], ["Fresh", "Interested", "Visit", "Meeting", "Near to Close", "Done Deal"]);
+  assert.deepEqual(STAGE_TABS.map((t) => t.stage), ["Fresh", "No Answer", "Interested", "Not Interested", "Near to Close", "Done Deal", "Cancellation"]);
+  assert.deepEqual(STAGE_TABS.find((t) => t.stage === "Interested")?.sub, ["Visit", "Meeting"]);
+  assert.ok(!STAGE_TABS.some((t) => (t.stage as string) === "Qualified"));
+  assert.deepEqual([...PROPERTY_TYPES], ["Commercial", "Residential", "Admin office"]);
 });
 
 test("1.33: the Team Leader, Sales Director and admin write the note; the salesperson sees it until they open the lead", () => {
@@ -160,8 +168,8 @@ test("«غيّر المرحلة» (client, 11 Nov): only the chosen buttons, Hol
 test("the Kanban: the picked stages in order; a dropped stage's lane only while leads are in it", async () => {
   const { boardLanes, isPickableStage } = await import("../src/index.ts");
   const lane = (stage: string, total: number) => ({ stage, total });
-  const api = [lane("Fresh", 2), lane("Interested", 0), lane("Not Interested", 0), lane("Follow up to Visit", 3), lane("Visit", 1), lane("No Answer", 0), lane("Meeting", 0), lane("Near to Close", 0), lane("Done Deal", 0), lane("Cancellation", 0), lane("Hold", 0)];
-  assert.deepEqual(boardLanes(api).map((l) => l.stage), ["Fresh", "Interested", "Visit", "No Answer", "Meeting", "Done Deal", "Near to Close", "Hold", "Cancellation", "Follow up to Visit"]);
-  assert.equal(isPickableStage("Follow up to Visit"), false);
+  const api = [lane("Fresh", 2), lane("Interested", 0), lane("Not Interested", 3), lane("Visit", 1), lane("No Answer", 0), lane("Meeting", 0), lane("Near to Close", 0), lane("Done Deal", 0), lane("Cancellation", 0), lane("Hold", 0)];
+  assert.deepEqual(boardLanes(api).map((l) => l.stage), ["Fresh", "Interested", "Visit", "No Answer", "Meeting", "Done Deal", "Near to Close", "Hold", "Cancellation", "Not Interested"]);
+  assert.equal(isPickableStage("Not Interested"), false);
   assert.equal(isPickableStage("Hold"), true);
 });
