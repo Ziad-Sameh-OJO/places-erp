@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CreateTask, EditTask, MoveTask, TaskCreated, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, TodayLine, UnitPhotoView } from "@places/contracts";
 import {
-  TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport, taskTone,
+  IN_TEAM_KIND, TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, inTeamDepartments, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport, taskTone,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -104,9 +104,13 @@ export class TasksService {
   async options(me: CurrentUser): Promise<TaskOptions> {
     const kinds = TASK_KINDS.filter((k) => mayGive(me, k.key));
     const settings = await this.settings.all();
+    const inTeam = kinds.some((k) => k.key === IN_TEAM_KIND) ? await this.inTeamPeople(me) : [];
     return {
-      kinds: await Promise.all(kinds.map(async (k) => ({ key: k.key, label: k.label, assignees: await this.repo.withRoles(k.assigneeRoles) }))),
+      kinds: await Promise.all(kinds.map(async (k) => ({
+        key: k.key, label: k.label, assignees: k.key === IN_TEAM_KIND ? inTeam.flatMap((d) => d.people) : await this.repo.withRoles(k.assigneeRoles),
+      }))),
       marketingTypes: settings.mkTaskTypes.filter((t) => t.active).map((t) => t.value),
+      departments: inTeam,
     };
   }
 
@@ -119,11 +123,15 @@ export class TasksService {
   async create(me: CurrentUser, input: CreateTask): Promise<TaskCreated> {
     const kind = taskKind(input.kind)!; // the contract refused unknown and system-only kinds
     if (!mayGive(me, kind.key)) throw new ForbiddenException(`مش من حقك تدّي مهمة ${kind.label}`);
-    await this.checkAssignee(kind.key, input.toUserId);
+    const inTeam = kind.key === IN_TEAM_KIND;
+    await this.checkAssignee(me, kind.key, input.toUserId, input.department);
+    if (inTeam && !input.title) throw new BadRequestException("اكتب المهمة");
+    if (kind.withUnit && !input.unitId) throw new BadRequestException("اختار الوحدة");
+    // 14.15: an in-team task names a unit only when it's about one
+    const unitId = kind.withUnit || inTeam ? input.unitId ?? null : null;
     let unitCode: string | null = null;
-    if (kind.withUnit) {
-      if (!input.unitId) throw new BadRequestException("اختار الوحدة");
-      unitCode = (await this.inventory.codes([input.unitId]))[0]?.code ?? null;
+    if (unitId) {
+      unitCode = (await this.inventory.codes([unitId]))[0]?.code ?? null;
       if (!unitCode) throw new BadRequestException("الوحدة مش موجودة");
     }
     if (kind.key === "marketing") {
@@ -135,7 +143,7 @@ export class TasksService {
     if (noNote) throw new BadRequestException(noNote);
     const data = {
       kind: kind.key, toUserId: input.toUserId, byUserId: me.id, dueOn: dayStartUtc(input.dueOn),
-      unitId: kind.withUnit ? input.unitId! : null, title: kind.key === "marketing" ? input.title! : null,
+      unitId, title: kind.key === "marketing" || inTeam ? input.title! : null,
       note: me.fields.fixed("tasks").has("note") ? null : input.note ?? null, // M-09: a note the person may not set starts empty
       countsInKpi: input.countsInKpi ?? false, // 4.15: Skip unless «أيوه»
     };
@@ -146,7 +154,7 @@ export class TasksService {
       return { ...t, kpi: data.countsInKpi ? await this.kpis.countTask(tx, input.toUserId, me.id, me.id) : null };
     });
     if (input.toUserId !== me.id) {
-      await this.notifications.notify({ event: "task.new", text: `مهمة ${kind.label} جديدة: ${unitCode ?? input.title} من ${me.name}`, link: link(created.id), userIds: [input.toUserId] });
+      await this.notifications.notify({ event: "task.new", text: `مهمة ${kind.label} جديدة: ${data.title ?? unitCode} من ${me.name}`, link: link(created.id), userIds: [input.toUserId] });
     }
     return { id: created.id, warning, kpi: created.kpi };
   }
@@ -192,7 +200,7 @@ export class TasksService {
     const t = await this.find(me, id);
     if (!actor(me, t).manager) throw new ForbiddenException("اللي إدّى المهمة أو مدير القسم بس اللي يعدّلها");
     if (t.status === "done") throw new BadRequestException("المهمة خلصت · Undo الأول");
-    if (input.toUserId && input.toUserId !== t.toUserId) await this.checkAssignee(t.kind, input.toUserId);
+    if (input.toUserId && input.toUserId !== t.toUserId) await this.checkAssignee(me, t.kind, input.toUserId);
     const before = { toUserId: t.toUserId, dueOn: day(t.dueOn), note: t.note };
     // M-09: a note the person may not change keeps its stored value
     const after = { toUserId: input.toUserId ?? t.toUserId, dueOn: input.dueOn ?? day(t.dueOn), note: input.note === undefined || me.fields.fixed("tasks").has("note") ? t.note : input.note };
@@ -246,10 +254,27 @@ export class TasksService {
     return t;
   }
 
-  /** The assignee must be an active account of a role this kind goes to (M-04 1.2). */
-  private async checkAssignee(kind: string, userId: string) {
+  /**
+   * The assignee must be an active account of a role this kind goes to (M-04 1.2); for an in-team task (14.15) an
+   * active person of a department the caller may give to — of the chosen one, when it's sent.
+   */
+  private async checkAssignee(me: CurrentUser, kind: string, userId: string, department?: string) {
+    if (kind === IN_TEAM_KIND) {
+      const ok = (await this.inTeamPeople(me)).some((d) => (!department || d.name === department) && d.people.some((p) => p.id === userId));
+      if (!ok) throw new BadRequestException("المهمة لحد من التيم بس · للأقسام التانية ابعت تذكرة");
+      return;
+    }
     const roles = taskKind(kind)?.assigneeRoles ?? [];
     if (!(await this.repo.withRoles(roles)).some((u) => u.id === userId)) throw new BadRequestException("المسؤول ده مينفعش ياخد المهمة دي");
+  }
+
+  /** 14.15: the departments the caller may give an in-team task to (domain inTeamDepartments), each with its active people but the caller. */
+  private async inTeamPeople(me: CurrentUser): Promise<TaskOptions["departments"]> {
+    const people = (await this.repo.activePeople()).filter((p) => p.id !== me.id);
+    const all = [...new Set(people.map((p) => p.department))].sort((a, b) => a.localeCompare(b, "ar"));
+    return inTeamDepartments(me.grants.scope, me.department, all)
+      .map((name) => ({ name, people: people.filter((p) => p.department === name).map((p) => ({ id: p.id, name: p.name })) }))
+      .filter((d) => d.people.length > 0);
   }
 
   /** The other side hears of a change: the assignee, and whoever gave it — never the one who made it. */
@@ -323,7 +348,8 @@ function sideWhere(depts: Map<string, string>, side: TaskSide): Prisma.TaskWhere
   return side === "team" ? team : { NOT: team };
 }
 
-const label = (t: Pick<TaskRecord, "kind" | "title" | "unit">) => `${taskKind(t.kind)?.label ?? t.kind} ${t.unit?.code ?? t.title ?? ""}`.trim();
+// the title first: an in-team task (14.15) may name a unit too, but its text is what it is
+const label = (t: Pick<TaskRecord, "kind" | "title" | "unit">) => `${taskKind(t.kind)?.label ?? t.kind} ${t.title ?? t.unit?.code ?? ""}`.trim();
 /** A @db.Date column: the calendar day as stored (UTC midnight), not shifted to Cairo. */
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const dayStartUtc = (d: string) => new Date(`${d}T00:00:00Z`);

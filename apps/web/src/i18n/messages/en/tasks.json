@@ -11,7 +11,8 @@
     "followup": "Owner follow-up",
     "toResale": "Resale update",
     "marketing": "Marketing",
-    "team": "Team task"
+    "team": "Team task",
+    "inTeam": "In-team task"
   },
   "moves": {
     "progress": "Start",
@@ -38,7 +39,8 @@
     "photo": "Photo task",
     "retouch": "Retouch task",
     "marketing": "Marketing task",
-    "team": "Team task"
+    "team": "Team task",
+    "inTeam": "Team task"
   },
   "assignee": "Assignee",
   "allAssignees": "All assignees",
@@ -62,7 +64,8 @@
       "retouch": "Retouch task for the designer (no AI)",
       "toResale": "Send the unit to Randa · resale update",
       "marketing": "Marketing task",
-      "default": "Task"
+      "default": "Task",
+      "inTeam": "Task inside the team"
     },
     "sentPhoto": "Task sent to the photographer, and Rahma can see it",
     "sent": "Task sent",
@@ -82,7 +85,11 @@
     "kpiYes": "Yes · goes into the assignee's card (Tasks on time)",
     "kpiCard": "A KPI card was made for {name} with a «Tasks on time» item (set its weight)",
     "kpiItem": "A «Tasks on time» item was added to {name}'s card (set its weight)",
-    "kpiCounted": "Counts in their KPIs"
+    "kpiCounted": "Counts in their KPIs",
+    "department": "Department",
+    "inTeamTask": "Write the task",
+    "unitOptional": "Unit (optional)",
+    "noUnit": "No unit"
   },
   "sides": {
     "team": "Team tasks ({count})",

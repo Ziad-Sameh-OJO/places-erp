@@ -17,10 +17,10 @@ type Tone = "" | "acc" | "info" | "warn" | "ok";
 /** The demo's chip and icon per kind (tasks.js `KIND`). */
 export const KIND_LOOK: Record<string, { tone: Tone; icon: "camera" | "image" | "clock" | "send" | "megaphone" | "check" }> = {
   photo: { tone: "acc", icon: "camera" }, retouch: { tone: "info", icon: "image" }, followup: { tone: "warn", icon: "clock" },
-  toResale: { tone: "ok", icon: "send" }, marketing: { tone: "", icon: "megaphone" }, team: { tone: "info", icon: "check" },
+  toResale: { tone: "ok", icon: "send" }, marketing: { tone: "", icon: "megaphone" }, team: { tone: "info", icon: "check" }, inTeam: { tone: "info", icon: "check" },
 };
 /** The kind tabs (demo `KIND` order), shown only when the side has some; their words in tasks.kinds. */
-const KIND_TABS = ["team", "photo", "retouch", "followup", "toResale", "marketing"] as const;
+const KIND_TABS = ["team", "inTeam", "photo", "retouch", "followup", "toResale", "marketing"] as const;
 /** The words of each button (demo tasks.js `card`): the move a person makes, not the lane's name (tasks.moves, tasks.toasts). */
 const MOVES = ["progress", "done", "uploaded", "todo"] as const;
 const isMove = (s: string): s is (typeof MOVES)[number] => (MOVES as readonly string[]).includes(s);
@@ -95,6 +95,8 @@ export function TasksPage() {
         {gives("retouch") && <button className="btn ghost" onClick={() => setGiving("retouch")}><Icon name="image" />{t("give.retouch")}</button>}
         {gives("toResale") && <button className="btn ghost" onClick={() => setGiving("toResale")}><Icon name="send" />{t("kinds.toResale")}</button>}
         {gives("marketing") && <button className="btn" onClick={() => setGiving("marketing")}><Icon name="plus" />{t("give.marketing")}</button>}
+        {/* 14.15: a task inside the team (between departments it's a ticket) */}
+        {gives("inTeam") && <button className="btn" onClick={() => setGiving("inTeam")}><Icon name="plus" />{t("give.inTeam")}</button>}
       </div>
       {people.length > 1 && (
         <div className="toolbar">
@@ -126,6 +128,8 @@ function TaskCard({ t, onMove }: { t: TaskRow; onMove: (status: string) => void 
       </div>
       {/* 4.16 (demo `card`): nothing about the unit is sent with the task — its code and the sender's notes only */}
       <b>{t.title ?? u?.code ?? "—"}</b>
+      {/* 14.15: an in-team task about a unit shows its code under the text */}
+      {t.title && u && <span className="hint">{u.code}</span>}
       {t.countsInKpi && <span className="row"><Chip tone="info">{tr("kpi")}</Chip></span>}
       {u && t.can.folder.open && <TaskFolder task={{ ...t, unit: u }} />}
       {t.sla && <SlaLine sla={t.sla} kind={t.kind} />}
