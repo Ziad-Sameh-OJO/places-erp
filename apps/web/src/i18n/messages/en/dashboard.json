@@ -127,7 +127,8 @@
       "should": "Where we should be today: {amount}",
       "perDay": "We need {amount} a day",
       "mark": "Where we should be today",
-      "set": "Set the target"
+      "set": "Set the target",
+      "aria": "{label}: {pct}% achieved, we should be at {mark}% today"
     },
     "teams": {
       "title": "Teams",
@@ -162,6 +163,36 @@
       "noLeads": "None yet",
       "cpq": "Cost per Qualified",
       "noCampaigns": "No campaigns"
+    },
+    "trend": {
+      "title": "New leads",
+      "sub": {
+        "hour": "By hour · vs yesterday",
+        "day": "By day · vs the previous period",
+        "week": "By week · vs the previous quarter"
+      },
+      "now": "This period",
+      "before": "Previous",
+      "tip": "{label}: {now} leads · previous {before}",
+      "aria": "New leads: {total} this period, {before} in the previous one"
+    },
+    "collections": {
+      "title": "Collections",
+      "sub": {
+        "day": "This week's days",
+        "week": "By week"
+      },
+      "collected": "Collected",
+      "expected": "Expected commission",
+      "tip": "{label}: collected {collected} · expected commission {expected}",
+      "aria": "Collections: {collected} collected of {expected} expected commission"
+    },
+    "channels": {
+      "title": "Leads by channel",
+      "center": "leads",
+      "rest": "Other",
+      "none": "No leads in this period",
+      "aria": "Leads by channel, {total} in all: {list}"
     }
   }
 }

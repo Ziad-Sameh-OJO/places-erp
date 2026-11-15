@@ -107,4 +107,21 @@ test("Ahmed's one page: the period parameter (month, a picked quarter)", async (
   const q = await get<AhmedDashboard>("/dashboard/ahmed?period=quarter&year=2026&quarter=1", ahmed);
   assert.deepEqual([q.from, q.to, q.quarter, q.year], ["2026-01-01", "2026-03-31", "2026-Q1", "2026"]); // ended: the whole quarter
   assert.equal(q.funnel.length, 6);
+  assert.deepEqual([q.trend.unit, q.trend.points.length], ["week", 13]); // 90 days: 12 weeks and 6 days
+  assert.ok(q.trend.points.every((p) => p.now !== null)); // ended: nothing still to come
+  assert.deepEqual([q.collections?.unit, q.collections?.points.length], ["week", 13]);
+  assert.equal(m.trend.unit, "day");
+  assert.equal(m.trend.points[0]!.from, m.from);
+});
+
+test("Ahmed's one page: the charts add up to the strip's numbers", async () => {
+  const d = await get<AhmedDashboard>("/dashboard/ahmed", ahmed);
+  assert.equal(d.trend.unit, "hour");
+  assert.equal(d.trend.points.length, 24);
+  assert.ok(d.trend.points.every((p) => p.from === d.from && p.to === d.from && typeof p.before === "number"));
+  assert.equal(d.trend.points.reduce((s, p) => s + (p.now ?? 0), 0), d.strip.leads.now);
+  assert.equal(d.channels.reduce((s, c) => s + c.leads, 0), d.strip.leads.now);
+  assert.ok(d.channels.find((c) => c.channel === "Facebook")!.leads >= 1); // this test's lead
+  assert.ok(d.collections && d.collections.unit === "day" && d.collections.points.length === 7); // the office week
+  assert.ok(d.collections.points.every((p) => /^\d+\.\d{2}$/.test(p.collected) && /^\d+\.\d{2}$/.test(p.expected)));
 });
