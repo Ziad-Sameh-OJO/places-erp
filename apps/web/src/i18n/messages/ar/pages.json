@@ -101,6 +101,11 @@
         "title": "Broadcast مستني موافقتك",
         "sub": "{text}",
         "button": "راجع"
+      },
+      "noPunch": {
+        "title": "{n} ماعملوش بصمة النهارده: {names}",
+        "sub": "قرّر لكل واحد: حضور أو غياب أو Off",
+        "button": "Attendance"
       }
     }
   },

@@ -1,18 +1,21 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import type { HrActionsView, NewOneOnOne, NewPenalty, OneOnOnesView, PenaltiesView, PenaltyView } from "@places/contracts";
-import { deductionAmount, fromDecimal, localDate, oneOnOneDue, penaltyCounts, penaltyDaysOk, toDecimal } from "@places/domain";
+import type { HrActionsView, HrSettings, NewOneOnOne, NewPenalty, OneOnOnesView, PenaltiesView, PenaltyView } from "@places/contracts";
+import { deductionAmount, fromDecimal, localDate, oneOnOneDue, penaltyCounts, penaltyDaysOk, rulesProblem, toDecimal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
-import type { Tx } from "./hr.repository";
+import { HrRepository, RULES_KEY, type Tx } from "./hr.repository";
 import { hidePenalty } from "./hr-fields";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const QUESTIONS = "hr.oneQuestions";
 /** The demo's questions until HR sets their own (M-05 3.1: «بتتدخّل مرة واحدة وتظهر في كل 1-to-1»). */
 const DEFAULT_QUESTIONS = ["أكتر حاجة بتعطلك في الشغل؟", "محتاج تدريب في إيه؟", "تقييمك لنفسك الشهر ده؟", "إيه اللي محتاج يتغير في الفريق؟"];
+const TYPES = "penaltyTypes";
+/** HR, 15 Nov: a neutral starter list (as seeded) until HR sets the company's own (the client hasn't sent it). */
+const DEFAULT_TYPES = ["تأخير متكرر", "سلوك", "مخالفة نظام الشغل"];
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const PEN = { include: { employee: { select: { id: true, name: true, salary: true } } } } as const;
@@ -24,7 +27,7 @@ const PEN = { include: { employee: { select: { id: true, name: true, salary: tru
  */
 @Injectable()
 export class PeopleCareService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService, private readonly repo: HrRepository) {}
 
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
@@ -45,7 +48,7 @@ export class PeopleCareService {
     const rows = await this.db.penalty.findMany({ where: { day: { gte: day(`${month}-01`), lte: day(end) }, employee: this.scope(me) }, ...PEN, orderBy: { day: "desc" } });
     const by = await this.names(rows.map((r) => r.byUserId)), hidden = me.fields.hidden("hr");
     const items: PenaltyView[] = rows.map((r) => ({
-      id: r.id, employeeId: r.employeeId, name: r.employee.name, day: iso(r.day), text: r.text, deductionDays: Number(r.deductionDays),
+      id: r.id, employeeId: r.employeeId, name: r.employee.name, day: iso(r.day), type: r.type, text: r.text, deductionDays: Number(r.deductionDays),
       deductionAmount: toDecimal(deductionAmount(fromDecimal(r.employee.salary.toFixed(2)), Number(r.deductionDays))), status: r.status as PenaltyView["status"], by: by.get(r.byUserId) ?? "",
       canDecide: r.status === "pending" && this.isHr(me),
     })).map((x) => hidePenalty(x, hidden)); // M-09: a hidden amount (and so the total) never leaves the API
@@ -57,12 +60,13 @@ export class PeopleCareService {
     if (!penaltyDaysOk(p.deductionDays)) throw new BadRequestException("الخصم ربع يوم أو نص أو أيام لحد 3");
     if (p.day > localDate(new Date())) throw new BadRequestException("مينفعش يوم بعد النهارده");
     const hr = this.isHr(me);
+    if (!(await this.penaltyTypes()).includes(p.type)) throw new BadRequestException("نوع الجزاء مش في القايمة");
     const saved = await run(async (tx) => {
       const e = await tx.employee.findFirst({ where: { AND: [{ id: p.employeeId }, this.scope(me)] }, select: { id: true, name: true, userId: true } });
       if (!e) throw new NotFoundException("الموظف مش موجود");
       if (e.userId === me.id) throw new ForbiddenException("مينفعش تسجّل جزاء على نفسك");
-      const r = await tx.penalty.create({ data: { employeeId: e.id, day: day(p.day), text: p.text, deductionDays: p.deductionDays, byUserId: me.id, status: hr ? "approved" : "pending", ...(hr ? { approvedById: me.id, decidedAt: new Date() } : {}) } });
-      await this.audit.record({ module: "hr", entity: "Penalty", entityId: r.id, action: "create", userId: me.id, after: { employee: e.name, day: p.day, text: p.text, deductionDays: p.deductionDays, status: r.status } }, tx);
+      const r = await tx.penalty.create({ data: { employeeId: e.id, day: day(p.day), type: p.type, text: p.text, deductionDays: p.deductionDays, byUserId: me.id, status: hr ? "approved" : "pending", ...(hr ? { approvedById: me.id, decidedAt: new Date() } : {}) } });
+      await this.audit.record({ module: "hr", entity: "Penalty", entityId: r.id, action: "create", userId: me.id, after: { employee: e.name, day: p.day, type: p.type, text: p.text, deductionDays: p.deductionDays, status: r.status } }, tx);
       return { r, e };
     });
     if (!hr) await this.notifications.notify({ event: "hr.penalty", link: "/hr", text: `جزاء مقترح على ${saved.e.name}: ${p.text} · مستني موافقتك` });
@@ -90,6 +94,31 @@ export class PeopleCareService {
       await tx.penalty.delete({ where: { id } });
       await this.audit.record({ module: "hr", entity: "Penalty", entityId: id, action: "delete", userId: me.id, before: { day: iso(r.day), text: r.text, deductionDays: Number(r.deductionDays), status: r.status } }, tx);
       return { id };
+    });
+  }
+
+  /* ---- HR, 15 Nov · «شرايح وأنواع الخصم»: the company's deduction rules and the penalty types ---- */
+  async penaltyTypes(): Promise<string[]> {
+    return ((await this.db.setting.findUnique({ where: { key: TYPES } }))?.value as string[] | null) ?? DEFAULT_TYPES;
+  }
+
+  async settings(): Promise<HrSettings> {
+    const [rules, penaltyTypes] = await Promise.all([this.repo.deductionRules(), this.penaltyTypes()]);
+    return { rules, penaltyTypes };
+  }
+
+  /** HR only (hr: edit, scope all). Penalties already recorded keep the type they were given, even one renamed or removed. */
+  async saveSettings(me: CurrentUser, s: HrSettings, run: Run): Promise<HrSettings> {
+    if (!this.isHr(me)) throw new ForbiddenException("شرايح الخصم للـ HR");
+    const bad = rulesProblem(s.rules);
+    if (bad) throw new BadRequestException(bad);
+    if (new Set(s.penaltyTypes).size !== s.penaltyTypes.length) throw new BadRequestException("نوع الجزاء متكرر");
+    return run(async (tx) => {
+      const before = await this.settings();
+      await tx.setting.upsert({ where: { key: RULES_KEY }, create: { key: RULES_KEY, value: s.rules }, update: { value: s.rules } });
+      await tx.setting.upsert({ where: { key: TYPES }, create: { key: TYPES, value: s.penaltyTypes }, update: { value: s.penaltyTypes } });
+      await this.audit.record({ module: "hr", entity: "Setting", entityId: RULES_KEY, action: "update", userId: me.id, before: { ...before }, after: { ...s } }, tx);
+      return s;
     });
   }
 

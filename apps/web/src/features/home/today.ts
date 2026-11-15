@@ -27,6 +27,7 @@ const LOOK: Record<TodayKind, { icon: IconName; href: (id: string) => string }> 
   excuseHr: { icon: "alert", href: () => "/hr?tab=leaves" },
   forgot: { icon: "fingerprint", href: () => "/hr?tab=att" },
   hrAction: { icon: "bell", href: (id) => `/hr?employee=${id}` },
+  noPunch: { icon: "fingerprint", href: () => "/hr?tab=att" },
   postToday: { icon: "bell", href: () => "/marketing?tab=content" },
   broadcastApprove: { icon: "megaphone", href: () => "/marketing?tab=broadcast" },
 };

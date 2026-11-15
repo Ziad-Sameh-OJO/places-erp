@@ -12,6 +12,28 @@ export interface DeductionTiers {
 export const DEFAULT_TIERS: DeductionTiers = { quarterFrom: 17, halfFrom: 30, dayFrom: 60 };
 export const GRACE_MINUTES = 16;
 
+/**
+ * «شرايح وأنواع الخصم» (HR, 15 Nov): the company-wide rules HR sets once (Setting `deductionTiers`): the grace, the
+ * tiers, what a day absent without permission costs, and from which Excuse in the month it costs half a day / is refused.
+ * A person's own tiers (Q33) still win over the company's three tiers.
+ */
+export interface DeductionRules extends DeductionTiers {
+  readonly graceMinutes: number;
+  /** days deducted for a day absent without permission */
+  readonly absenceDays: number;
+  readonly excuseHalfFrom: number;
+  readonly excuseRefusedFrom: number;
+}
+export const DEFAULT_RULES: DeductionRules = { ...DEFAULT_TIERS, graceMinutes: GRACE_MINUTES, absenceDays: 1, excuseHalfFrom: 3, excuseRefusedFrom: 5 };
+
+/** The stored setting (or nothing yet) as rules: what HR saved over the defaults. */
+export const deductionRulesOf = (raw: unknown): DeductionRules =>
+  raw && typeof raw === "object" && !Array.isArray(raw) ? { ...DEFAULT_RULES, ...(raw as Partial<DeductionRules>) } : DEFAULT_RULES;
+
+/** The rules for one person: their own tiers if HR set them, else the company's. */
+export const rulesFor = (own: DeductionTiers | null, company: DeductionRules): DeductionRules =>
+  own ? { ...company, quarterFrom: own.quarterFrom, halfFrom: own.halfFrom, dayFrom: own.dayFrom } : company;
+
 export type DayKind =
   | { kind: "checkin"; minutesAfterStart: number }
   | { kind: "excuse"; minutesAfterStart: number; excuseNumberThisMonth: number }
@@ -22,8 +44,8 @@ export type DayKind =
   | { kind: "special-schedule" };
 
 export interface DayResult {
-  /** fraction of a day deducted: 0, 0.25, 0.5 or 1 */
-  readonly deduction: 0 | 0.25 | 0.5 | 1;
+  /** days deducted: 0, 0.25, 0.5 or 1 (an absence costs what HR set) */
+  readonly deduction: number;
   /** minutes counted in Weekly Delay */
   readonly lateMinutes: number;
   readonly label: string;
@@ -31,31 +53,33 @@ export interface DayResult {
   readonly alertManagement: boolean;
 }
 
-const lateMinutes = (m: number): number => Math.max(0, m - GRACE_MINUTES);
+const lateMinutes = (m: number, grace: number): number => Math.max(0, m - grace);
 
-function byTiers(m: number, t: DeductionTiers): DayResult["deduction"] {
+function byTiers(m: number, t: DeductionTiers): number {
   if (m >= t.dayFrom) return 1;
   if (m >= t.halfFrom) return 0.5;
   if (m >= t.quarterFrom) return 0.25;
   return 0;
 }
 
-export function attendanceDay(day: DayKind, tiers: DeductionTiers = DEFAULT_TIERS): DayResult {
+/** `rules`: a person's tiers alone (the rest from the defaults) or the full rules (rulesFor()). */
+export function attendanceDay(day: DayKind, rules: DeductionTiers | DeductionRules = DEFAULT_RULES): DayResult {
+  const r: DeductionRules = { ...DEFAULT_RULES, ...rules };
   switch (day.kind) {
     case "special-schedule": return { deduction: 0, lateMinutes: 0, label: "مواعيد خاصة", alertManagement: false };
-    case "absent-without-permission": return { deduction: 1, lateMinutes: 0, label: "غياب من غير إذن", alertManagement: false };
+    case "absent-without-permission": return { deduction: r.absenceDays, lateMinutes: 0, label: "غياب من غير إذن", alertManagement: false };
     case "outside-approved": return { deduction: 0, lateMinutes: 0, label: "شغل من بره (معتمد)", alertManagement: false };
     case "forgot-fingerprint": return { deduction: day.confirmedByHr ? 1 : 0, lateMinutes: 0, label: "نسي البصمة", alertManagement: false };
     // Q29: a Visit never gets a deduction; one marked not done is flagged to HR
     case "visit": return { deduction: 0, lateMinutes: 0, label: day.done ? "Visit" : "Visit · معملهاش", alertManagement: false };
     case "excuse": {
-      const n = day.excuseNumberThisMonth;
-      if (n >= 5) return { deduction: byTiers(day.minutesAfterStart, tiers), lateMinutes: lateMinutes(day.minutesAfterStart), label: `Excuse #${n} اترفض`, alertManagement: true };
-      return { deduction: n >= 3 ? 0.5 : 0, lateMinutes: lateMinutes(day.minutesAfterStart), label: `Excuse #${n}`, alertManagement: false };
+      const n = day.excuseNumberThisMonth, late = lateMinutes(day.minutesAfterStart, r.graceMinutes);
+      if (excuseRefused(n, r)) return { deduction: byTiers(day.minutesAfterStart, r), lateMinutes: late, label: `Excuse #${n} اترفض`, alertManagement: true };
+      return { deduction: excuseDeduction(n, r), lateMinutes: late, label: `Excuse #${n}`, alertManagement: false };
     }
     case "checkin": {
-      const d = byTiers(day.minutesAfterStart, tiers);
-      return { deduction: d, lateMinutes: lateMinutes(day.minutesAfterStart), label: d ? "متأخر" : "في الميعاد", alertManagement: false };
+      const d = byTiers(day.minutesAfterStart, r);
+      return { deduction: d, lateMinutes: lateMinutes(day.minutesAfterStart, r.graceMinutes), label: d ? "متأخر" : "في الميعاد", alertManagement: false };
     }
   }
 }
@@ -67,10 +91,24 @@ export const dayRate = (monthlySalary: number): number => monthlySalary / 26;
  * Per-person tiers (M-05 3.1, Q33): HR picks the minute each deduction starts. Why they can't be saved, or null:
  * after the 16-minute grace, in order quarter < half < day, within the working day.
  */
-export function tiersProblem(t: DeductionTiers): string | null {
-  const ok = (n: number) => Number.isInteger(n) && n > GRACE_MINUTES && n <= 8 * 60;
-  if (![t.quarterFrom, t.halfFrom, t.dayFrom].every(ok)) return `الشرايح بتبدأ بعد ${GRACE_MINUTES} دقيقة ولحد آخر اليوم`;
+export function tiersProblem(t: DeductionTiers, grace = GRACE_MINUTES): string | null {
+  const ok = (n: number) => Number.isInteger(n) && n > grace && n <= 8 * 60;
+  if (![t.quarterFrom, t.halfFrom, t.dayFrom].every(ok)) return `الشرايح بتبدأ بعد ${grace} دقيقة ولحد آخر اليوم`;
   if (!(t.quarterFrom < t.halfFrom && t.halfFrom < t.dayFrom)) return "الربع قبل النص، والنص قبل اليوم";
+  return null;
+}
+
+/**
+ * The company's rules (HR, 15 Nov), or why they can't be saved: the tiers as tiersProblem() after the grace, an absence
+ * a quarter-day step up to 3 days, the half-day Excuse no later than the refused one.
+ */
+export function rulesProblem(r: DeductionRules): string | null {
+  if (!Number.isInteger(r.graceMinutes) || r.graceMinutes < 0 || r.graceMinutes > 120) return "السماح من 0 لـ 120 دقيقة";
+  const tiers = tiersProblem(r, r.graceMinutes);
+  if (tiers) return tiers;
+  if (!(r.absenceDays > 0 && penaltyDaysOk(r.absenceDays))) return "الغياب بيتخصم ربع يوم أو نص أو أيام لحد 3";
+  const n = (x: number) => Number.isInteger(x) && x >= 1 && x <= 31;
+  if (!(n(r.excuseHalfFrom) && n(r.excuseRefusedFrom) && r.excuseHalfFrom <= r.excuseRefusedFrom)) return "الـ Excuse اللي بنص يوم مايجيش بعد اللي بيترفض";
   return null;
 }
 
@@ -99,7 +137,8 @@ export interface FingerprintDayInput {
   partTime: boolean;
   /** HR decides if a part-timer has deductions (M-05 3.1) */
   partTimeDeductions: boolean;
-  tiers: DeductionTiers | null;
+  /** a person's own tiers, or the rules from rulesFor() (null = the defaults) */
+  tiers: DeductionTiers | DeductionRules | null;
   /** a person with fixed hours of their own (e.g. the CFO on Mon & Thu): no tiers against 11:00 */
   specialSchedule: boolean;
 }
@@ -109,7 +148,7 @@ export interface FingerprintDayInput {
  */
 export function fingerprintDay(i: FingerprintDayInput): DayResult {
   if (i.specialSchedule) return attendanceDay({ kind: "special-schedule" });
-  const r = attendanceDay({ kind: "checkin", minutesAfterStart: minutesAfterStart(i.checkIn ?? WORK_START) }, i.tiers ?? DEFAULT_TIERS);
+  const r = attendanceDay({ kind: "checkin", minutesAfterStart: minutesAfterStart(i.checkIn ?? WORK_START) }, i.tiers ?? DEFAULT_RULES);
   if (i.partTime && !i.partTimeDeductions) return { ...r, deduction: 0, label: "Part-time" };
   return r;
 }
@@ -131,8 +170,10 @@ export function monthDeduction(i: { salary: number; attendanceDays: number; pena
 /* ---- penalties (7.7) and the 1-to-1 (7.8) ---- */
 /** A penalty's deduction in days: none, a quarter, a half, or whole days up to 3 (M-05 3.1). */
 export const penaltyDaysOk = (d: number): boolean => d >= 0 && d <= 3 && Number.isInteger(d * 4);
-/** A penalty reaches the deductions (and blocks «الموظف المثالي») only once HR approved it. */
+/** A penalty reaches the deductions only once HR approved it. */
 export const penaltyCounts = (status: string): boolean => status === "approved";
+/** «Employee Box» (HR, 15 Nov): any penalty this month that wasn't rejected (pending too) rules the person out. */
+export const penaltyBlocksIdeal = (status: string): boolean => status !== "rejected";
 /** The 1-to-1 is monthly (M-05): the next one is due in the month after the last (25/10 → November). */
 export function oneOnOneDue(lastHeld: string | null, today: string): "due" | "done" {
   if (!lastHeld) return "due";
@@ -152,10 +193,10 @@ export const actionAlarm = (due: string | null, today: string, done: boolean, al
 /* ---- the Excuse (7.4) ---- */
 /** This request's number in the month: the ones not rejected before it + 1 (Q31). */
 export const excuseNumber = (earlierThisMonth: number): number => earlierThisMonth + 1;
-/** The 5th Excuse in a month is refused at once and management hears of it (Q31: «الخامس رفد»). */
-export const excuseRefused = (n: number): boolean => n >= 5;
-/** What the Excuse costs once confirmed: 1–2 nothing, 3–4 half a day. */
-export const excuseDeduction = (n: number): 0 | 0.5 => (n >= 3 ? 0.5 : 0);
+/** The 5th Excuse in a month (HR can move it) is refused at once and management hears of it (Q31: «الخامس رفد»). */
+export const excuseRefused = (n: number, r: DeductionRules = DEFAULT_RULES): boolean => n >= r.excuseRefusedFrom;
+/** What the Excuse costs once confirmed: 1–2 nothing, from the 3rd (HR can move it) half a day. */
+export const excuseDeduction = (n: number, r: DeductionRules = DEFAULT_RULES): 0 | 0.5 => (n >= r.excuseHalfFrom ? 0.5 : 0);
 
 /* ---- a salesperson's day with a Visit (7.3) ---- */
 /** A Visit up to 12:00 is a check-in without lateness; after 12 the day is late up to the Visit (M-05 2.1 · 7.1). */
