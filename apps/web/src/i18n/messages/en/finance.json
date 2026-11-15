@@ -503,5 +503,15 @@
     "accountantSign": "Accountant's signature: ____________",
     "print": "Print voucher",
     "pdf": "PDF (stamped and signed)"
+  },
+  "insurance": {
+    "title": "Insurance",
+    "sub": "What HR recorded · deducted from payroll every month",
+    "column": "Insurance",
+    "provider": "Provider",
+    "since": "Since",
+    "monthly": "Monthly deduction",
+    "companyShare": "Company's share",
+    "empty": "No one is insured"
   }
 }

@@ -21,7 +21,7 @@ export class HrService {
   constructor(private readonly repo: HrRepository, private readonly audit: AuditService, private readonly leaves: LeavesService) {}
 
   /** The data scope as a filter on employees: all · my department · my team · me (M-09 2.7). */
-  private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
+  scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
       case "all": return {};
       case "dept": return me.department ? { department: me.department } : { userId: me.id };

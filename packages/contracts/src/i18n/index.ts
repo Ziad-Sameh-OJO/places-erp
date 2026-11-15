@@ -18,8 +18,9 @@ import worker from "./worker.ts";
 import validation from "./validation.ts";
 import domain from "./domain.ts";
 import seed from "./seed.ts";
+import insurance from "./insurance.ts";
 
 // one file per area so the catalog grows module by module without everyone editing one list
-for (const pairs of [seed, domain, validation, core, leads, kpis, finance, hr, deals, access, inventory, marketing, procurement, settings, clients, tickets, contracts, imports, worker]) addPairs(pairs);
+for (const pairs of [seed, domain, validation, core, leads, kpis, finance, hr, deals, access, inventory, marketing, procurement, settings, clients, tickets, contracts, imports, worker, insurance]) addPairs(pairs);
 
 export { translate, type Pair, type ServerLocale } from "./translate.ts";

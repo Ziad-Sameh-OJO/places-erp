@@ -12,6 +12,7 @@ import { useCash, usePayroll, useRefreshFinance } from "./use-finance";
 import { VoucherById } from "./voucher";
 import { LedgerModal } from "./ledger-modal";
 import { Commissions } from "./commissions";
+import { FinanceInsurance } from "./insurance";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 
@@ -60,10 +61,11 @@ export function Payroll() {
         <KpiTile label={t("payroll.netTotal")} value={money(p.totals.net)} sub={t("payroll.netTotalSub")} icon="wallet" />
       </div>
       {!p.rows.length ? <Note kind="warn">{t("payroll.empty")}</Note> : (
-        <Table head={[t("common.employee"), t("payroll.salary"), t("payroll.attendance"), t("payroll.owesAdvance"), t("payroll.advanceThisMonth"), t("payroll.net")]}
+        <Table head={[t("common.employee"), t("payroll.salary"), t("payroll.attendance"), t("insurance.column"), t("payroll.owesAdvance"), t("payroll.advanceThisMonth"), t("payroll.net")]}
           rows={p.rows.map((r) => [
             <span key="n"><b>{r.name}</b><span className="sub">{r.line === "sales" ? t("payroll.lineSales") : t("payroll.lineAdmin")}</span></span>, money(r.salary),
             Number(r.attendance) ? `−${money(r.attendance)}` : "—",
+            Number(r.insurance) ? `−${money(r.insurance)}` : "—",
             Number(r.advanceLeft) ? <a key="l" className="click" onClick={() => setLedger(r.advanceAccountId)}>{money(r.advanceLeft)}</a> : "—",
             Number(r.advanceLeft) && canPost && !p.run
               ? <input key={`a${r.advance}`} style={{ width: 100 }} inputMode="decimal" defaultValue={r.advance} aria-label={t("payroll.advanceOf", { name: r.name })}
@@ -73,14 +75,15 @@ export function Payroll() {
           ])} />
       )}
       <Note kind={p.deductionsApproved ? "ok" : "warn"}>{p.deductionsApproved ? t("payroll.deductionsApproved") : t("payroll.deductionsPending")}</Note>
+      <FinanceInsurance />
       <Note>{t("payroll.commissionsNote")}</Note>
       <Commissions />
       {paying && (
         <Modal title={t("payroll.payTitle", { label })} onClose={() => setPaying(false)}>
           <form className="grid" onSubmit={pay}>
             <Note>{t("payroll.payNote")}</Note>
-            <div className="wide"><Table head={[t("journal.total"), t("payroll.salary"), t("payroll.attendance"), t("payroll.advance"), t("payroll.netShort")]}
-              rows={[[t("payroll.employees", people), money(p.totals.salary), money(p.totals.attendance), money(p.totals.advance), <b key="n">{money(p.totals.net)}</b>]]} /></div>
+            <div className="wide"><Table head={[t("journal.total"), t("payroll.salary"), t("payroll.attendance"), t("insurance.column"), t("payroll.advance"), t("payroll.netShort")]}
+              rows={[[t("payroll.employees", people), money(p.totals.salary), money(p.totals.attendance), money(p.totals.insurance), money(p.totals.advance), <b key="n">{money(p.totals.net)}</b>]]} /></div>
             <Field label={t("common.paidFrom")} req><select name="fromId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{cash.data.accounts.map((a) => <option key={a.id} value={a.id}>{serverText(a.name)} · {money(a.balance)}</option>)}</select></Field>
             <Field label={t("common.payDate")} req><input name="date" type="date" defaultValue={today()} max={today()} required /></Field>
             <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setPaying(false)}>{t("common.cancel")}</button><button className="btn"><Icon name="check" />{t("commissions.payAmount", { amount: money(p.totals.net) })}</button></div>
