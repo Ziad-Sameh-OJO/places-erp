@@ -403,7 +403,7 @@ test("filter choices: sales get no salespeople, a TL his team only, operations e
 test("board: every stage once, each lane's total is the list's count for that stage, at most 30 cards, same scope", async () => {
   for (const cookie of [mohsen, ops]) {
     const b = (await call("/leads/board", { cookie })).body;
-    assert.equal(b.lanes.length, 14); // «Follow up to Meeting» since 1.9
+    assert.equal(b.lanes.length, 10); // 14.5: the «Follow up …» stages are gone
     for (const lane of b.lanes) {
       // other test files add and move leads in parallel: compare the board and the list read back to back, retrying a moving lane
       let listTotal = -1;

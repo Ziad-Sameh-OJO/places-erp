@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { activeValues, type LeadDetail } from "@places/contracts";
+import { PROPERTY_TYPES } from "@places/domain";
 import { Field, Modal, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useSettings } from "./use-leads";
@@ -32,6 +33,7 @@ export function EditLead({ l, onClose }: { l: LeadDetail; onClose: () => void })
     await api.put(`/leads/${l.id}`, {
       kind: text("kind") === "broker" ? "broker" : "client", name: text("name"),
       ...(fields.edits("phones") ? { phones: phonesOf(text("phones")) } : {}), ...(fields.edits("area") ? { area: text("area") } : {}), ...(fields.edits("type") ? { type: text("type") } : {}),
+      ...(fields.edits("propertyType") && text("propertyType") ? { propertyType: text("propertyType") } : {}), // empty clears it, like the other fields
       ...(text("company") ? { company: text("company") } : {}), ...(text("space") ? { space: Number(text("space")) } : {}),
       ...(text("condition") ? { condition: text("condition") } : {}), ...(text("budget") ? { budget: text("budget") } : {}), ...(text("note") ? { note: text("note") } : {}),
     });
@@ -49,6 +51,7 @@ export function EditLead({ l, onClose }: { l: LeadDetail; onClose: () => void })
           <select name="area" defaultValue={l.area}>{withCurrent(activeValues(settings?.areas ?? []), l.area).map((a) => <option key={a} value={a}>{serverText(a)}</option>)}</select>
         </Field>)}
         {only("type", <Field label="Type"><select name="type" defaultValue={l.type}>{TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>)}
+        {only("propertyType", <Field label={t("propertyType")}><select name="propertyType" defaultValue={l.propertyType ?? ""}><option value="">—</option>{PROPERTY_TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>)}
         {only("space", <Field label="Space"><input name="space" type="number" min="1" step="1" defaultValue={l.space ?? ""} /></Field>)}
         {only("condition", <Field label="Condition">
           <select name="condition" defaultValue={l.condition ?? ""}>

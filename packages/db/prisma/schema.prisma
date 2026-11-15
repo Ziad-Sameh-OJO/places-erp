@@ -365,17 +365,14 @@ enum LeadKind {
   @@schema("sales")
 }
 
+// 14.5: the client's order (sorting by stage follows it); the «Follow up …» stages are gone
 enum LeadStage {
   FRESH
+  NO_ANSWER
   INTERESTED
   NOT_INTERESTED
-  NO_ANSWER
-  FOLLOW_UP_TO_VISIT
   VISIT
-  FOLLOW_UP_AFTER_VISIT
-  FOLLOW_UP_TO_MEETING
   MEETING
-  FOLLOW_UP_AFTER_MEETING
   NEAR_TO_CLOSE
   DONE_DEAL
   CANCELLATION
@@ -393,6 +390,7 @@ model Lead {
   phones         String[]
   area           String
   type           String        // Rent · Resale · Primary · Income
+  propertyType   String?       // 14.6: Commercial · Residential · Admin office (PROPERTY_TYPES); older leads have none
   space          Int?
   condition      String?
   budget         Decimal?      @db.Decimal(14, 2)
@@ -429,6 +427,7 @@ model Lead {
   tlNoteAt       DateTime?
   tlNoteById     String?       // user id
   tlNoteSeenAt   DateTime?     // the salesperson opened it since: off «مهامي النهارده»
+  commentsFrom   DateTime?     // 14.7: comments before this were hidden on a transfer; only the Super Admin sees them
   activities     LeadActivity[]
   arrivals       LeadArrival[]
   calls          LeadCall[]
@@ -438,6 +437,7 @@ model Lead {
   tags           LeadTag[]      // M-01 (client, 11 Nov): salespeople working it with its owner, after the TL's approval
   drafts         LeadDraft[]
   suggestedUnits LeadUnit[]
+  unitSteps      LeadUnitStep[]
   deals          Deal[]
   clientId       String?       // the client file it belongs to (M-10 2.1 / 2.3: Done Deal, or an old client's number)
   client         Client?       @relation(fields: [clientId], references: [id])
@@ -525,6 +525,21 @@ model LeadUnit {
 
   @@id([leadId, unitId])
   @@index([unitId])
+  @@schema("sales")
+}
+
+/// 14.8 · the lead's units log: a List of options sent to the client (14.9) or a Short list picked by hand (14.11), with
+/// its date and units. Visits and Meetings are LeadVisit. Ids, not a join table: the log keeps a unit archived since.
+model LeadUnitStep {
+  id       String   @id @default(cuid())
+  leadId   String
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  kind     String   // list · shortlist
+  unitIds  String[]
+  byUserId String
+  at       DateTime @default(now())
+
+  @@index([leadId, at])
   @@schema("sales")
 }
 

@@ -14,6 +14,7 @@ type ExportRow = Awaited<ReturnType<LeadsService["exportRows"]>>[number];
 const EXPORT: (ExcelColumn<ExportRow> & { field?: string })[] = [
   { header: "الكود", value: (r) => r.code }, { header: "الاسم", value: (r) => r.name, width: 24 }, { header: "الشركة", value: (r) => r.company, width: 20, field: "company" },
   { header: "الموبايل", value: (r) => r.phones, width: 26, field: "phones" }, { header: "Area", value: (r) => r.area, width: 18, field: "area" }, { header: "Type", value: (r) => r.type, field: "type" },
+  { header: "النوع", value: (r) => r.propertyType, width: 16, field: "propertyType" }, // 14.6
   { header: "Space", value: (r) => r.space, field: "space" }, { header: "Budget", value: (r) => r.budget, field: "budget" }, { header: "Channel", value: (r) => r.channel, field: "channel" },
   { header: "Campaign", value: (r) => r.campaign, width: 20, field: "campaign" }, { header: "Sales", value: (r) => r.sales, width: 20 }, { header: "Stage", value: (r) => r.stage, width: 20 },
   { header: "Qualified", value: (r) => r.qualified }, { header: "Created", value: (r) => r.createdAt, width: 20 },
@@ -60,7 +61,7 @@ export class LeadsController {
   @Get("visit-units")
   @Requires("leads", "edit")
   visitUnits(@Me() me: CurrentUser, @Query(new ZodPipe(VisitUnitQuery)) q: VisitUnitQuery) {
-    return this.leads.visitUnits(me, q.q);
+    return this.leads.visitUnits(me, q);
   }
 
   @Get("summary")
@@ -200,10 +201,13 @@ export class LeadsController {
     return this.leads.create(me, body);
   }
 
-  /** «اسحب الليد وحوّله» (1.14): Operations, the Sales Director and the admin («leads: approve», M-01 4.1). */
+  /**
+   * «اسحب الليد وحوّله» (1.14): Operations, the Sales Director and the admin («leads: approve», M-01 4.1) — and since
+   * 14.7 the Team Leader inside his team; the service checks who (like the TL note below).
+   */
   @Post(":id/assign")
   @HttpCode(200)
-  @Requires("leads", "approve")
+  @Requires("leads", "edit")
   assign(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(AssignLead)) body: AssignLead) {
     return this.leads.assign(me, id, body);
   }

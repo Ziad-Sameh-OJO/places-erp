@@ -59,11 +59,11 @@ async function toTelesales(lead: Lead, rules: LeadRules, now: Date): Promise<Tol
   });
 }
 
-/** The move itself, only if it is still the same No Answer mark; a fresh start with the new holder. */
+/** The move itself, only if it is still the same No Answer mark; a fresh start with the new holder (14.7: without the old comments). */
 async function move(tx: Prisma.TransactionClient, lead: Lead, to: { assignedToId: string; ownedByTelesales: boolean }, now: Date): Promise<boolean> {
   const moved = await tx.lead.updateMany({
     where: { id: lead.id, stage: "NO_ANSWER", assignedToId: lead.assignedToId, naMarkedAt: lead.naMarkedAt, archivedAt: null },
-    data: { ...to, assignedAt: now, stage: "FRESH", touched: false, firstActionAt: null, slaWarnedAt: null, naMarkedAt: null, naMarkedById: null, naRemindedAt: null, rotation: { increment: 1 } },
+    data: { ...to, assignedAt: now, commentsFrom: now, stage: "FRESH", touched: false, firstActionAt: null, slaWarnedAt: null, naMarkedAt: null, naMarkedById: null, naRemindedAt: null, rotation: { increment: 1 } },
   });
   return moved.count === 1;
 }

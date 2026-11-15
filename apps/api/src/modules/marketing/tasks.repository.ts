@@ -53,6 +53,14 @@ export class TasksRepository {
     return new Map(rows.map((u) => [u.id, u.employee?.department ?? ""]));
   }
 
+  /** 14.15: active people with an employee record and their department (who an in-team task can go to). */
+  async activePeople(): Promise<Array<{ id: string; name: string; department: string }>> {
+    const rows = await this.db.user.findMany({
+      where: { status: "ACTIVE", employee: { isNot: null } }, select: { id: true, employee: { select: { name: true, department: true } } }, orderBy: { employee: { name: "asc" } },
+    });
+    return rows.flatMap((u) => (u.employee ? [{ id: u.id, name: u.employee.name, department: u.employee.department }] : []));
+  }
+
   async names(userIds: string[]): Promise<Map<string, string>> {
     const rows = await this.db.user.findMany({ where: { id: { in: [...new Set(userIds)] } }, select: { id: true, email: true, employee: { select: { name: true } } } });
     return new Map(rows.map((u) => [u.id, u.employee?.name ?? u.email]));

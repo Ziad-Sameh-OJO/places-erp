@@ -30,7 +30,8 @@ export function LeadsTable({ leads, onOpen, picked, onPick, sort, onSort }: {
   const toggle = (id: string, on: boolean) => onPick?.(on ? [...picked!.filter((x) => x !== id), id] : picked!.filter((x) => x !== id));
   const cells = (l: LeadRow): ReactNode[] => [
     <span key="l"><b>{l.name}</b><span className="sub">{l.company && <>{l.company} · </>}<span className="mono">{l.code}</span></span>{fields.shows("phones") && <span className="sub mono">{l.phones.join(" · ")}</span>}</span>,
-    <span key="a">{l.area ? serverText(l.area) : "—"}<span className="sub">{l.type}{l.space != null && <> · {t.rich("sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>}</span></span>,
+    // 14.4: the area, the space and the type on the row itself
+    <span key="a">{l.area ? serverText(l.area) : "—"}<span className="sub">{l.type}{l.propertyType && <> · {l.propertyType}</>}{l.space != null && <> · {t.rich("sqm", { n: num(l.space), s: (c) => <span className="num">{c}</span> })}</>}</span></span>,
     ...(budget ? [<span key="b" className="n">{money(l.budget)}</span>] : []),
     <span key="c">{l.channel || "—"}{fields.shows("campaign") && <span className="sub">{l.campaign?.name ?? "—"}</span>}</span>,
     <span key="s"><Who person={l.assignedTo} />{l.ownedByTelesales && <span className="sub">{t("withTelesales")}</span>}</span>,

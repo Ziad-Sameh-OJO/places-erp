@@ -413,7 +413,12 @@
     "making": "Making it…",
     "done": "The list is ready",
     "pickAll": "Pick every unit on this page",
-    "pickOne": "Pick {code}"
+    "pickOne": "Pick {code}",
+    "lead": "Client (from your leads · optional)",
+    "leadSearch": "Search your leads",
+    "noLead": "No client",
+    "leadHint": "With a client: it's recorded in their Activity and units log",
+    "doneOnLead": "The List was made and recorded on {name}"
   },
   "lists": {
     "title": "List requests",

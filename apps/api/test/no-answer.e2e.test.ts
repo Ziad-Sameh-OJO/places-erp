@@ -97,6 +97,7 @@ test("No Answer → 24h → the next salesperson (Fresh) → No Answer again →
   assert.equal(l.assignedToId, hadeer.id);
   assert.equal(l.ownedByTelesales, true); // no SLA while she has it
   assert.equal(l.rotation, 3);
+  assert.equal(l.commentsFrom?.toISOString(), at("2021-01-07T09:00:00").toISOString()); // 14.7: the old comments hidden from the new one
   assert.equal(await told(hadeer.userId, `ليد ${name} رجعلك في الروتيشن التالت`), 1);
   const audits = await prisma.auditLog.findMany({ where: { entity: "Lead", entityId: id, action: "no-answer-rotate" } });
   assert.equal(audits.length, 2);

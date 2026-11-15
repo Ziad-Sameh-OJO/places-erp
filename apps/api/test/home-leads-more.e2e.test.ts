@@ -29,7 +29,7 @@ before(async () => {
   await lead("kept", 3, hadeerId, { ownedByTelesales: true, rotation: 1 }); // she keeps it herself: not «رجعلك»
   await lead("drafted", 4, mohsenId, { stage: "NOT_INTERESTED", draft: "admin" });
   await prisma.leadDraft.create({ data: { leadId: ids.drafted!, kind: "admin", at: new Date("2020-01-01T09:00:00Z"), fromId: mohsenId, stage: "NOT_INTERESTED" } });
-  await lead("postponed", 5, mohsenId, { stage: "FOLLOW_UP_TO_VISIT" });
+  await lead("postponed", 5, mohsenId, { stage: "VISIT" });
   const user = (await prisma.user.findFirstOrThrow({ where: { email: "m.mohsen@places.com" } })).id;
   await prisma.leadVisit.create({ data: { leadId: ids.postponed!, at: new Date(Date.now() + DAY), byUserId: user, postponeStatus: "pending", postponeReason: "العميل مسافر" } });
   const week = new Date(Date.now() - 7 * DAY);
