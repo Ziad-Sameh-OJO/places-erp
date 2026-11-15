@@ -27,12 +27,15 @@ const LOOK: Record<TodayKind, { icon: IconName; href: (id: string) => string }> 
   excuseHr: { icon: "alert", href: () => "/hr?tab=leaves" },
   forgot: { icon: "fingerprint", href: () => "/hr?tab=att" },
   hrAction: { icon: "bell", href: (id) => `/hr?employee=${id}` },
+  careerDue: { icon: "star", href: () => "/hr?tab=career" },
+  noPunch: { icon: "fingerprint", href: () => "/hr?tab=att" },
   postToday: { icon: "bell", href: () => "/marketing?tab=content" },
   broadcastApprove: { icon: "megaphone", href: () => "/marketing?tab=broadcast" },
   warningDue: { icon: "alert", href: () => "/hr?tab=warnings" },
   planRequested: { icon: "chart", href: () => "/hr?tab=improve" },
   planSubmitted: { icon: "chart", href: () => "/hr?tab=improve" },
   planDue: { icon: "clock", href: () => "/hr?tab=improve" },
+  oneOnOneLeft: { icon: "users", href: () => "/hr?tab=ones" },
 };
 
 /** Which `/home/<module>` this person may call: the same grants the endpoints require. */

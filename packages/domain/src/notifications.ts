@@ -50,6 +50,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "hr.action_due", label: "ميعاد «حل الـ HR» من الـ 1-to-1", to: "الـ HR", toRoles: ["hr"], channels: ["app", "email"], important: true }, // M-05 7.8
   { key: "hr.deductions_approved", label: "الـ HR اعتمدت خصومات الشهر", to: "المحاسب", toRoles: ["accountant"], channels: ["app"], important: false }, // M-05 7.9
   { key: "hr.improvement_plan", label: "خطة تحسين: طلب من الـ HR · الـ TL بعتها", to: "الـ Team Leader · الـ HR", toRoles: ["hr"], channels: ["app", "push"], important: false }, // M-05 · HR 15 Nov
+  { key: "hr.insurance", label: "تأمين موظف اتضاف أو اتعدّل", to: "المحاسب", toRoles: ["accountant"], channels: ["app"], important: false }, // M-05 (HR, 15 Nov)
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },
   { key: "procurement.reminder", label: "تذكير بطلب شراء مستني موافقة", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push"], important: false }, // M-08 2.4
   { key: "procurement.decided", label: "طلب شراء اتوافق / اترفض / اترحّل", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },

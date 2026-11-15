@@ -10,7 +10,7 @@ import { day, money } from "@/lib/format";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { useBoard, useKpiCard, useRefreshKpis } from "./use-kpis";
-import { Bar } from "./kpis-page";
+import { Bar, type Period, PeriodSwitch } from "./kpis-page";
 
 // How an item is measured: its chip tone (the words are kpis.how.<method>)
 const HOW = { system: "info", report: "warn", manual: "" } as const;
@@ -32,6 +32,7 @@ export function KpiCardBody({ id, startEditing }: { id: string; startEditing?: b
   const t = useTranslations("kpis");
   const q = useKpiCard(id);
   const [editing, setEditing] = useState(!!startEditing);
+  const [period, setPeriod] = useState<Period>("quarter");
   const run = useAction(), refresh = useRefreshKpis();
   const fields = useFields("kpis"); // M-09: a hidden result or plan isn't shown (the API blanks them)
   const c = q.data;
@@ -40,12 +41,16 @@ export function KpiCardBody({ id, startEditing }: { id: string; startEditing?: b
   const sumW = c.items.reduce((s, it) => s + it.weight, 0);
   return (
     <>
-      {fields.shows("score") && <><div className="row"><b className={`num kc-score big ${c.tone}`}>{Math.round(c.score)}%</b><span className="hint">{t("card.scoreToday", { tier: serverText(c.tier) })}</span></div>
-      <Bar pct={c.score} tone={c.tone} /></>}
+      {!editing && <div className="row"><PeriodSwitch value={period} onChange={setPeriod} />{period === "month" && <small className="hint">{t("period.monthNote")}</small>}</div>}
+      {fields.shows("score") && (period === "month" && !editing
+        ? <><div className="row"><b className={`num kc-score big ${c.month.tone}`}>{Math.round(c.month.score)}%</b><span className="hint">{t("period.monthScore")}</span></div>
+          <Bar pct={c.month.score} tone={c.month.tone} /></>
+        : <><div className="row"><b className={`num kc-score big ${c.tone}`}>{Math.round(c.score)}%</b><span className="hint">{t("card.scoreToday", { tier: serverText(c.tier) })}</span></div>
+          <Bar pct={c.score} tone={c.tone} /></>)}
       {c.pay && <PayBox c={c} />}
       {!c.pay && c.can.plan && fields.shows("plan") && c.tone === "bad" && <Plan c={c} />}
       {editing && c.can.admin && <CardAdmin c={c} />}
-      {editing && c.can.manage ? <Editor c={c} onDone={() => setEditing(false)} /> : <Items c={c} sumW={sumW} />}
+      {editing && c.can.manage ? <Editor c={c} onDone={() => setEditing(false)} /> : <Items c={c} sumW={sumW} period={period} />}
       <Note>{t("card.note")}</Note>
       <div className="row end">
         {c.can.manage && !editing && <button className="btn ghost" onClick={() => setEditing(true)}>{t("card.editItems")}</button>}
@@ -57,36 +62,42 @@ export function KpiCardBody({ id, startEditing }: { id: string; startEditing?: b
   );
 }
 
-function Items({ c, sumW }: { c: KpiCardView; sumW: number }) {
+function Items({ c, sumW, period }: { c: KpiCardView; sumW: number; period: Period }) {
   const t = useTranslations("kpis");
   const score = useFields("kpis").shows("score");
   return (
     <div className="tbl-wrap">
       <table className="kpi-items">
         <thead><tr><th>{t("items.item")}</th><th className="c">{t("items.weight")}</th><th>{t("items.target")}</th><th>{t("items.measure")}</th><th className="c">{t("items.actual")}</th><th className="c">{t("items.achievement")}</th><th className="c">{t("items.inCard")}</th></tr></thead>
-        <tbody>{c.items.map((it) => <ItemRow key={it.id} c={c} it={it} />)}</tbody>
-        <tfoot><tr><td><b>{t("items.total")}</b></td><td className="c">{sumW}%</td><td colSpan={4} /><td className="c num"><b>{score ? `${c.score.toFixed(1)}%` : "—"}</b></td></tr></tfoot>
+        <tbody>{c.items.map((it) => <ItemRow key={it.id} c={c} it={it} period={period} />)}</tbody>
+        <tfoot><tr><td><b>{t("items.total")}</b></td><td className="c">{sumW}%</td><td colSpan={4} /><td className="c num"><b>{score ? `${(period === "month" ? c.month.score : c.score).toFixed(1)}%` : "—"}</b></td></tr></tfoot>
       </table>
     </div>
   );
 }
 
-function ItemRow({ c, it }: { c: KpiCardView; it: KpiItemView }) {
+function ItemRow({ c, it, period }: { c: KpiCardView; it: KpiItemView; period: Period }) {
   const t = useTranslations("kpis");
   const score = useFields("kpis").shows("score");
-  const actual = it.method === "report" ? t("items.deliveredOf", { n: it.delivered, total: it.required ?? 0 }) : it.value == null ? t("items.notYet") : String(it.value);
+  // «الشهر»: the item's month figure, or its quarter one with a line saying so (manual items, whole-quarter %…)
+  const m = period === "month" ? it.month : null, noMonth = period === "month" && !it.month;
+  const actual = m
+    ? (it.method === "report" ? t("items.deliveredOf", { n: m.value ?? 0, total: m.goal }) : m.value == null ? t("items.notYet") : String(m.value))
+    : it.method === "report" ? t("items.deliveredOf", { n: it.delivered, total: it.required ?? 0 }) : it.value == null ? t("items.notYet") : String(it.value);
+  const ach = m ? m.achievement : it.achievement, contribution = m ? m.contribution : it.contribution;
   const run = useAction(), refresh = useRefreshKpis();
   const [link, setLink] = useState<string | null>(null);
   const setValue = (v: string) => v !== "" && void run(async () => { await api.patch(`/kpis/cards/${c.id}/items/${it.id}/value`, { value: Number(v) }); await refresh(); }, t("items.valueSavedOk"));
   const deliver = () => void run(async () => { await api.post(`/kpis/cards/${c.id}/items/${it.id}/deliveries`, { link }); setLink(null); await refresh(); }, t("items.deliveredOk"));
-  const tone = it.achievement < 100 ? "warn" : "";
+  const tone = ach < 100 ? "warn" : "";
   return (
-    <tr className={it.achievement < 100 ? "under" : ""}>
+    <tr className={ach < 100 ? "under" : ""}>
       <td><b>{serverText(it.title)}</b><span className="sub">{t("items.calc", { calc: serverText(it.calc) })}</span>
         {it.detail && <span className="sub"><b>{serverText(it.detail)}</b></span>}
+        {noMonth && <span className="sub">{t("period.noMonth")}</span>}
         {it.deliveries.length > 0 && <span className="sub">{t("items.deliveredOn", { days: it.deliveries.map((d) => day(d.at)).join(t("items.listSep")) })}</span>}</td>
       <td className="c">{it.weight}%</td>
-      <td>{serverText(it.targetText)}</td>
+      <td>{serverText(it.targetText)}{m && it.method !== "report" && <span className="sub">{t("period.monthGoal", { goal: m.goal })}</span>}</td>
       <td><Chip tone={HOW[it.method]} plain>{t(`how.${it.method}`)}</Chip>{it.module && <small className="mono hint"> {it.module}</small>}</td>
       <td className="c">
         {it.canEnter ? <input type="number" step="any" defaultValue={it.value ?? ""} style={{ width: 72 }} aria-label={t("items.value")} onBlur={(e) => setValue(e.target.value)} /> : actual}
@@ -94,8 +105,8 @@ function ItemRow({ c, it }: { c: KpiCardView; it: KpiItemView }) {
           ? <button className="btn ghost sm" onClick={() => setLink("")}><Icon name="upload" />{t("items.delivered")}</button>
           : <span className="row"><input type="url" placeholder={t("items.fileLink")} value={link} onChange={(e) => setLink(e.target.value)} aria-label={t("items.deliveryLink")} style={{ width: 140 }} /><button className="btn sm" onClick={deliver}>{t("items.deliver")}</button></span>)}
       </td>
-      <td className="c">{score ? <div className="cell-bar"><b className="num">{Math.round(it.achievement)}%</b><Bar pct={it.achievement} tone={tone} /></div> : "—"}</td>
-      <td className="c num"><b>{score ? `${it.contribution.toFixed(1)}%` : "—"}</b></td>
+      <td className="c">{score ? <div className="cell-bar"><b className="num">{Math.round(ach)}%</b><Bar pct={ach} tone={tone} /></div> : "—"}</td>
+      <td className="c num"><b>{score ? `${contribution.toFixed(1)}%` : "—"}</b></td>
     </tr>
   );
 }

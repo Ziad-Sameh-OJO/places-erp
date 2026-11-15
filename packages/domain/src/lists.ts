@@ -61,6 +61,7 @@ export type SettingOwner = readonly string[] | "super" | "access";
 export const SETTING_OWNERS: Readonly<Record<string, SettingOwner>> = {
   leaveTypes: ["hr"],
   holidays: ["hr"],
+  insuranceProviders: ["hr"], // M-05 (HR, 15 Nov)
   channels: ["marketing"],
   whatsappDailyLimit: ["marketing"],
   areas: "super", // 3.1: «المناطق · Super Admin»

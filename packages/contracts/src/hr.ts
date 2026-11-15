@@ -43,6 +43,8 @@ export interface AttendanceRowView {
   /** 7.3: the Visit that started the day (HR sees it and the real fingerprint); `confirmForgot` = «نسي البصمة» waiting for HR */
   visitAt: string | null; confirmForgot: boolean;
   lateMinutes: number; deduction: number; deductionAmount: string; label: string; source: string; customTiers: boolean; fixedSchedule: string | null;
+  /** «الموظفين النهارده» (HR, 15 Nov): the day's chip, and HR's decision when they didn't punch (null = a real day) */
+  status: "present" | "late" | "absent" | "off"; decided: DayDecision | null;
 }
 /** «حضور النهارده»: the day's rows, who didn't check in (a working day only), the unmatched names waiting for HR. */
 export interface AttendanceDayView {
@@ -71,6 +73,27 @@ export const FingerprintRow = z.object({
 });
 export type FingerprintRow = z.infer<typeof FingerprintRow>;
 export interface FingerprintDone { imported: number; skipped: number; unmatched: number }
+
+/**
+ * HR, 15 Nov · someone who didn't punch on a working day: «حضور» (no deduction, check-in default the work start), «غياب»
+ * (the company's absence cost) or «Off» (a day off, no deduction). Deciding again replaces it.
+ */
+export const DAY_DECISIONS = ["present", "absent", "off"] as const;
+export type DayDecision = (typeof DAY_DECISIONS)[number];
+export const DecideDay = z.object({ employeeId: z.string().min(1), day: CalendarDay, decision: z.enum(DAY_DECISIONS), checkIn: Hhmm.optional() });
+export type DecideDay = z.infer<typeof DecideDay>;
+
+/** «شرايح وأنواع الخصم» (HR, 15 Nov): the company's deduction rules and the penalty types, one HR setting card. */
+const Whole = z.number().int();
+export const DeductionRulesInput = z.object({
+  graceMinutes: Whole, quarterFrom: Whole, halfFrom: Whole, dayFrom: Whole,
+  absenceDays: z.number(), excuseHalfFrom: Whole, excuseRefusedFrom: Whole,
+});
+export const HrSettings = z.object({
+  rules: DeductionRulesInput,
+  penaltyTypes: z.array(z.string().trim().min(2, "اكتب نوع الجزاء").max(60)).min(1, "لازم نوع جزاء واحد على الأقل").max(30),
+});
+export type HrSettings = z.infer<typeof HrSettings>;
 
 /** «استكمال الأيام»: HR enters a day the device missed (or corrects one). */
 export const AttendanceEntry = z.object({ employeeId: z.string().min(1), day: CalendarDay, checkIn: Hhmm, checkOut: Hhmm.optional() });
@@ -118,11 +141,13 @@ export interface IdealKpiView { quarter: string | null; sales: IdealKpiRowView[]
 /* ---- 7.7 · penalties · 7.8 · the 1-to-1 ---- */
 export const NewPenalty = z.object({
   employeeId: z.string().min(1), day: CalendarDay,
+  /** HR, 15 Nov: one of HR's penalty types */
+  type: z.string().trim().min(1, "اختار نوع الجزاء").max(60),
   text: z.string().trim().min(2, "اكتب الجزاء").max(300),
   deductionDays: z.number().min(0).max(3).default(0),
 });
 export type NewPenalty = z.infer<typeof NewPenalty>;
-export interface PenaltyView { id: string; employeeId: string; name: string; day: string; text: string; deductionDays: number; deductionAmount: string; status: "pending" | "approved" | "rejected"; by: string; canDecide: boolean }
+export interface PenaltyView { id: string; employeeId: string; name: string; day: string; type: string | null; text: string; deductionDays: number; deductionAmount: string; status: "pending" | "approved" | "rejected"; by: string; canDecide: boolean }
 export interface PenaltiesView { month: string; items: PenaltyView[]; totals: { approved: number; pending: number; deductions: string } }
 
 export const OneQuestions = z.object({ questions: z.array(z.string().trim().min(2).max(200)).min(1).max(20) });

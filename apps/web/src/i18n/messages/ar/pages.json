@@ -92,6 +92,11 @@
         "sub": "{name} · {due}",
         "button": "الفايل"
       },
+      "careerDue": {
+        "title": "{name} مستحق ترقية",
+        "sub": "{from} ← {to} · المسار الوظيفي",
+        "button": "المسار الوظيفي"
+      },
       "postToday": {
         "title": "Reminder: {title}",
         "sub": "ميعاد النشر {at} · {channel}",
@@ -121,6 +126,16 @@
         "title": "ميعاد خطة تحسين {name}",
         "sub": "{due} · تابعي واقفلي",
         "button": "تابعي"
+      },
+      "oneOnOneLeft": {
+        "title": "آخر أسبوع في الشهر: {n} سيلز لسه من غير 1-to-1",
+        "sub": "{names}",
+        "button": "التغطية"
+      },
+      "noPunch": {
+        "title": "{n} ماعملوش بصمة النهارده: {names}",
+        "sub": "قرّر لكل واحد: حضور أو غياب أو Off",
+        "button": "Attendance"
       }
     }
   },

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, canManageCard, invManagerMakesCard, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness, tasksOnTime, taskCardFollower, METRICS } from "../src/kpi.ts";
+import { bandLabel, calcText, canEnterManual, canManageCard, invManagerMakesCard, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness, tasksOnTime, taskCardFollower, METRICS, monthItem, monthKind } from "../src/kpi.ts";
 import { monthDeduction } from "../src/attendance.ts";
 
 test("11.6 · the client's bands reach payroll: 102% on a 10,000 bonus → +1,500, 65% on a 12,000 salary → −1,800", () => {
@@ -172,4 +172,19 @@ test("11.19 · Manar manages her own card's items (not anyone else's own card); 
   assert.equal(invManagerMakesCard(["inventory"], "manar", { id: "manar", department: "Inventory" }), false);
   assert.equal(invManagerMakesCard(["inventory"], "manar", { id: "x", department: "Sales" }), false);
   assert.equal(invManagerMakesCard(["tl"], "y", { id: "randa", department: "Inventory" }), false);
+});
+
+test("HR 15 Nov · «الشهر»: 300 calls a quarter → 100 this month; 100 done this month → 100%", () => {
+  const calls = { method: "system", metric: "calls", params: {}, direction: "at-least", goal: 300, required: null } as const;
+  assert.deepEqual(monthItem(calls, 100), { goal: 100, achievement: 1 });
+  assert.deepEqual(monthItem(calls, null), { goal: 100, achievement: 0 });
+  // a percentage keeps its goal; a daily average too
+  assert.deepEqual(monthItem({ ...calls, metric: "firstAction", goal: 90 }, 45), { goal: 90, achievement: 0.5 });
+  assert.equal(monthKind({ ...calls, metric: "callsDaily" }), "rate");
+  // hand-ins: 6 a quarter → 2 this month
+  assert.deepEqual(monthItem({ ...calls, method: "report", metric: null, goal: 100, required: 6 }, 1), { goal: 2, achievement: 0.5 });
+  // no month figure: manual, a metric that only reads the whole quarter, an item already measured per month
+  assert.equal(monthItem({ ...calls, method: "manual", metric: null }, 5), null);
+  assert.equal(monthItem({ ...calls, metric: "ownTarget" }, 5), null);
+  assert.equal(monthItem({ ...calls, params: { per: "month" } }, 5), null);
 });

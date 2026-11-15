@@ -99,6 +99,36 @@ export function itemAchievement(it: { method: Method; direction: Direction; goal
   return it.method === "report" ? achievement({ direction: "at-least", goal: it.required ?? 0 }, it.delivered) : achievement(it, it.value ?? 0);
 }
 
+/**
+ * HR 15 Nov · «الشهر»: the system metrics whose measure counts dated events from the item's period start, so the same
+ * measure from the 1st of the month is this month's figure. The others (a whole-quarter %, a money target, a team's
+ * average…) and every manual item have no month figure: the month view shows the quarter's.
+ */
+export const MONTHLY_METRICS: ReadonlySet<string> = new Set([
+  "calls", "callsDaily", "visitsDone", "activitiesDone", "dealsCount", "unitsBrought", "unitsEntered", "broadcasts",
+  "firstAction", "qualifiedRate", "teamSla", "secondCalls", "newLeadRoute", "draftAction", "big500", "att",
+]);
+
+/** «count»: the month's goal is a third of the quarter's; «rate» (a %, a daily or weekly average): the same goal; null: no month figure. */
+export function monthKind(it: { method: Method; metric: string | null; params: MetricParams }): "count" | "rate" | null {
+  if (it.method === "report") return "count"; // hand-ins have dates
+  // an item already measured over a week or a month has no separate quarter figure to split
+  if (it.method !== "system" || !it.metric || !MONTHLY_METRICS.has(it.metric) || (it.params.per || "quarter") !== "quarter") return null;
+  return METRICS[it.metric]!.unit === "%" || it.metric === "callsDaily" || it.params.avg === "week" ? "rate" : "count";
+}
+
+/** The item in the month view: its goal for this month and the achievement of this month's actual; null = no month figure. */
+export function monthItem(
+  it: { method: Method; metric: string | null; params: MetricParams; direction: Direction; goal: number; required: number | null },
+  actual: number | null,
+): { goal: number; achievement: number } | null {
+  const kind = monthKind(it);
+  if (!kind) return null;
+  const quarter = it.method === "report" ? it.required ?? 0 : it.goal;
+  const goal = kind === "rate" ? quarter : quarter / 3;
+  return { goal, achievement: achievement({ direction: it.method === "report" ? "at-least" : it.direction, goal }, actual ?? 0) };
+}
+
 /** "2026-Q4" → "2027-Q1" (11.11 «ابدأ ربع جديد»). */
 export function nextQuarter(q: string): string {
   const [y, n] = q.split("-Q").map(Number) as [number, number];

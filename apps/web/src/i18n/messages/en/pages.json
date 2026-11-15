@@ -92,6 +92,11 @@
         "sub": "{name} · {due}",
         "button": "File"
       },
+      "careerDue": {
+        "title": "{name} is due a promotion",
+        "sub": "{from} → {to} · Career path",
+        "button": "Career path"
+      },
       "postToday": {
         "title": "Reminder: {title}",
         "sub": "Publish at {at} · {channel}",
@@ -121,6 +126,16 @@
         "title": "{name}'s improvement plan is due",
         "sub": "{due} · follow up and close",
         "button": "Follow up"
+      },
+      "oneOnOneLeft": {
+        "title": "Last week of the month: {n} salespeople still without a 1-to-1",
+        "sub": "{names}",
+        "button": "Coverage"
+      },
+      "noPunch": {
+        "title": "{n} haven't punched today: {names}",
+        "sub": "Decide for each: present, absent or Off",
+        "button": "Attendance"
       }
     }
   },
