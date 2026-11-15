@@ -1568,6 +1568,8 @@ model KpiItem {
   required   Int?
   value      Decimal?      @db.Decimal(14, 2) // the manual entry, or the system's latest figure (the daily job, 11.5)
   baseline   Decimal?      @db.Decimal(14, 2) // October 2026's measure for the growth items
+  monthValue Decimal?      @db.Decimal(14, 2) // HR 15 Nov «الشهر»: the daily job's figure since the 1st of `monthOf`
+  monthOf    String?       @db.VarChar(7) // "2026-11"; another month = no figure yet
   deliveries KpiDelivery[]
 
   @@unique([cardId, position])

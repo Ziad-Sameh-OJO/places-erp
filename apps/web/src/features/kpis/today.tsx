@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { KpiToday, KpiTodayLineView } from "@places/contracts";
@@ -8,7 +9,7 @@ import { num } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { Card, Chip, Icon } from "@/components/ui";
 import type { InboxLine } from "@/components/inbox";
-import { Bar } from "./kpis-page";
+import { Bar, type Period, PeriodSwitch } from "./kpis-page";
 
 /** 11.16 · GET /home/kpis: my card and what the KPIs wait on me for (demo kpis.js kpiMine / kpiInbox). */
 export const useKpiToday = () => useQuery({ queryKey: ["kpis", "today"], queryFn: () => api.get<KpiToday>("/home/kpis"), refetchInterval: 60_000 });
@@ -31,12 +32,15 @@ export function useKpiLines(): InboxLine[] {
 export function MyKpisCard() {
   const t = useTranslations("kpis.home");
   const c = useKpiToday().data?.mine;
+  // HR 15 Nov: the month first on my own tile
+  const [period, setPeriod] = useState<Period>("month");
   if (!c) return null;
-  const tone = c.tone === "ok" ? "ok" : c.tone;
+  const s = period === "month" && c.month ? c.month : c;
   const now = (it: (typeof c.below)[number]) => (it.method === "report" ? t("ofRequired", { done: it.delivered, need: it.required ?? 0 }) : t("ofTarget", { value: it.value == null ? "—" : num(it.value), target: it.targetText }));
   return (
-    <Card title={t("mine")} icon="chart" sub={t("mineSub", { quarter: c.quarter, follower: serverText(c.follower) })} extra={c.score != null && <Chip tone={tone}>{Math.round(c.score)}%</Chip>}>
-      {c.score != null && <Bar pct={c.score} tone={c.tone} />}
+    <Card title={t("mine")} icon="chart" sub={t("mineSub", { quarter: c.quarter, follower: serverText(c.follower) })} extra={s.score != null && <Chip tone={s.tone}>{Math.round(s.score)}%</Chip>}>
+      {c.month && <PeriodSwitch value={period} onChange={setPeriod} />}
+      {s.score != null && <Bar pct={s.score} tone={s.tone} />}
       {c.below.length
         ? <ul className="plain">{c.below.map((it) => <li key={it.title}><Icon name="alert" /><span>{it.title} <small className="hint">· {now(it)}</small></span></li>)}</ul>
         : <p className="hint">{t("allMet")}</p>}

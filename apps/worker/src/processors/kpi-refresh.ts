@@ -9,7 +9,7 @@ import {
   TELESALES_CHANNEL, averageDailyCalls, workingDaysSince, type CallDay,
   type DealMoney, type DealStatus, type MetricParams, type Method, type WorkCalendar,
   type Nature, type BudgetPeriod, closedInSla, endOfLocalDay, fromDecimal, isTicketLate, pettyCapScore, rollUp, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
-  kpiPeriodStart, salesAttendance, staleBefore, targetAchieved, tasksOnTime, timedTasks, timeliness,
+  kpiPeriodStart, monthKind, salesAttendance, staleBefore, targetAchieved, tasksOnTime, timedTasks, timeliness,
   monthCloseDeadline, monthlyOnTime, payrollDeadline, periodStart, previousQuarter, quarterMonths, sheetsOnTime, twiceWeekly,
 } from "@places/domain";
 import { workCalendar } from "../calendar.ts";
@@ -143,7 +143,7 @@ export const MEASURES: Record<string, Measure> = {
     return pct(t.filter((x) => x.returned === 0).length, t.length);
   },
   // Manar «عدد الإنفنتوري الجديد في الربع» (every unit) · Randa (the ones she entered, «by: me»)
-  unitsEntered: async (c, p, from, who) => prisma.unit.count({ where: { enteredAt: { gte: c.qStart }, ...(p.by === "me" ? { createdById: who.userId } : {}) } }),
+  unitsEntered: async (c, p, from, who) => prisma.unit.count({ where: { enteredAt: { gte: from }, ...(p.by === "me" ? { createdById: who.userId } : {}) } }),
   unitsBrought: async (c, p, from, who) => prisma.unit.count({ where: { agentId: who.id, enteredAt: { gte: from }, ...(p.type ? { type: p.type as "Rent" } : {}) } }),
   firstAction: async (c, p, from, who) => {
     const limit = (Number(p.min) || 30) * MIN;
@@ -165,7 +165,7 @@ export const MEASURES: Record<string, Measure> = {
   teamTarget: async (c, p, from, who) => targetShare(c, await prisma.employee.findMany({ where: { teamLeaderId: who.id }, select: { id: true, target: true } })),
   att: async (c, p, from, who) => {
     // a day off HR gave someone who didn't punch (HR, 15 Nov) is neither a good day nor a bad one
-    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(c.qStart, c) }, kind: { not: "DAY_OFF" } }, select: { deduction: true } });
+    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(from, c) }, kind: { not: "DAY_OFF" } }, select: { deduction: true } });
     return pct(days.filter((d) => Number(d.deduction) === 0).length, days.length);
   },
   attSales: async (c, p, from, who) => {
@@ -314,6 +314,8 @@ export async function kpiRefreshTick(now = new Date(), only?: readonly string[])
   const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
   if (!q || q.status !== "open") return 0;
   const c: Ctx = { now, quarter: q.id, qStart: kpiPeriodStart("quarter", now, q.id, cal), cal };
+  // HR 15 Nov «الشهر»: the same measure from the 1st of this month (domain monthKind says which items have one)
+  const month = localDate(now, cal).slice(0, 7), mStart = kpiPeriodStart("month", now, q.id, cal);
 
   const cards = await prisma.kpiCard.findMany({
     where: { quarter: q.id },
@@ -321,16 +323,24 @@ export async function kpiRefreshTick(now = new Date(), only?: readonly string[])
   });
   const shared = new Map<string, Promise<number | null>>();
   const fresh = new Map<string, number>(); // item id → today's number
+  const freshMonth = new Map<string, number>(); // item id → this month's number
   for (const card of cards) {
     for (const it of card.items) {
       const m = it.method === "system" && it.metric ? MEASURES[it.metric] : undefined;
       if (!m) continue;
       const p = (it.params ?? {}) as MetricParams;
-      const run = () => m(c, p, kpiPeriodStart(p.per, now, q.id, cal), card.employee);
-      const key = `${it.metric}:${JSON.stringify(p)}`;
-      if (!PER_PERSON.has(it.metric!) && !shared.has(key)) shared.set(key, run());
-      const v = PER_PERSON.has(it.metric!) ? await run() : await shared.get(key)!;
+      const measure = async (from: Date, tag: string) => {
+        const key = `${tag}${it.metric}:${JSON.stringify(p)}`;
+        if (PER_PERSON.has(it.metric!)) return m(c, p, from, card.employee);
+        if (!shared.has(key)) shared.set(key, m(c, p, from, card.employee));
+        return shared.get(key)!;
+      };
+      const v = await measure(kpiPeriodStart(p.per, now, q.id, cal), "");
       if (v != null) fresh.set(it.id, Math.round(v * 100) / 100);
+      if (monthKind({ method: "system", metric: it.metric, params: p })) {
+        const mv = await measure(mStart, "month:");
+        if (mv != null) freshMonth.set(it.id, Math.round(mv * 100) / 100);
+      }
     }
   }
   // «متوسط كروت فريقه»: the cards this person follows, with today's numbers (a follower's own team item uses yesterday's)
@@ -349,12 +359,18 @@ export async function kpiRefreshTick(now = new Date(), only?: readonly string[])
   }
 
   const changed = cards.filter((cd) => !only || only.includes(cd.employeeId)).flatMap((cd) => cd.items)
-    .filter((it) => fresh.has(it.id) && (it.value == null || Number(it.value) !== fresh.get(it.id)));
+    .filter((it) => (fresh.has(it.id) && (it.value == null || Number(it.value) !== fresh.get(it.id)))
+      || (freshMonth.has(it.id) && (it.monthOf !== month || it.monthValue == null || Number(it.monthValue) !== freshMonth.get(it.id))));
   if (!changed.length) return 0;
   await prisma.$transaction(async (tx) => {
-    for (const it of changed) await tx.kpiItem.update({ where: { id: it.id }, data: { value: fresh.get(it.id)! } });
+    for (const it of changed) {
+      await tx.kpiItem.update({ where: { id: it.id }, data: {
+        ...(fresh.has(it.id) ? { value: fresh.get(it.id)! } : {}), ...(freshMonth.has(it.id) ? { monthValue: freshMonth.get(it.id)!, monthOf: month } : {}),
+      } });
+    }
     await tx.auditLog.create({ data: { module: "kpis", entity: "KpiItem", entityId: q.id, action: "refresh",
-      after: { items: changed.map((it) => ({ id: it.id, before: it.value == null ? null : Number(it.value), after: fresh.get(it.id) })), summary: `السيستم حدّث ${changed.length} بند أوتوماتيك من الموديولات` } } });
+      after: { items: changed.map((it) => ({ id: it.id, before: it.value == null ? null : Number(it.value), after: fresh.get(it.id) ?? null,
+        month: freshMonth.has(it.id) ? { before: it.monthValue == null ? null : Number(it.monthValue), after: freshMonth.get(it.id) } : undefined })), summary: `السيستم حدّث ${changed.length} بند أوتوماتيك من الموديولات` } } });
   });
   return changed.length;
 }
