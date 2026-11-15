@@ -30,6 +30,7 @@ const LOOK: Record<TodayKind, { icon: IconName; href: (id: string) => string }> 
   noPunch: { icon: "fingerprint", href: () => "/hr?tab=att" },
   postToday: { icon: "bell", href: () => "/marketing?tab=content" },
   broadcastApprove: { icon: "megaphone", href: () => "/marketing?tab=broadcast" },
+  oneOnOneLeft: { icon: "users", href: () => "/hr?tab=ones" },
 };
 
 /** Which `/home/<module>` this person may call: the same grants the endpoints require. */

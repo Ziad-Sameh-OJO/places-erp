@@ -26,6 +26,7 @@ after(async () => {
   await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: [...pens, ...ones] } }, { entity: "Setting", entityId: "hr.oneQuestions", at: { gte: START } }] } });
   await prisma.penalty.deleteMany({ where: { id: { in: pens } } });
   await prisma.oneOnOne.deleteMany({ where: { id: { in: ones } } });
+  await prisma.employeeDocument.deleteMany({ where: { refId: { in: ones } } }); // each 1-to-1's PDF sheet
   await prisma.setting.deleteMany({ where: { key: "hr.oneQuestions" } });
   await prisma.notification.deleteMany({ where: { text: { contains: P }, createdAt: { gte: START } } });
   await prisma.$disconnect();

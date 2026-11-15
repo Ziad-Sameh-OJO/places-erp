@@ -8,6 +8,7 @@ import { ExcusesService } from "./excuses.service";
 import { HrRepository } from "./hr.repository";
 import { LeavesService } from "./leaves.service";
 import { PeopleCareService } from "./people-care.service";
+import { EmployeeFileService } from "./employee-file.service";
 
 /**
  * 0.18 · «مهامي النهارده» from HR (demo home.js): the leaves and Excuses whose turn is mine (the TL's first, then HR's,
@@ -16,18 +17,19 @@ import { PeopleCareService } from "./people-care.service";
  */
 @Injectable()
 export class HrTodayService {
-  constructor(private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly attendance: AttendanceService, private readonly care: PeopleCareService, private readonly repo: HrRepository) {}
+  constructor(private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly attendance: AttendanceService, private readonly care: PeopleCareService, private readonly repo: HrRepository, private readonly file: EmployeeFileService) {}
 
   async lines(me: CurrentUser): Promise<TodayLine[]> {
     const approves = me.grants.can("hr", "approve"), now = new Date(), today = localDate(now);
     const decides = me.grants.scope === "all" && me.grants.can("hr", "edit") && clockOn(now, today)! >= WORK_START;
-    const [leaves, excuses, forgot, actions, missing, rules] = await Promise.all([
+    const [leaves, excuses, forgot, actions, missing, rules, left] = await Promise.all([
       approves ? this.leaves.list(me) : [],
       approves ? this.excuses.list(me) : [],
       approves ? this.attendance.forgotWaiting(me) : [],
       me.grants.can("hr", "edit") ? this.care.actions().then((a) => a.items) : [],
       decides ? this.attendance.day(me, today).then((d) => d.missing) : [],
       this.repo.deductionRules(),
+      me.grants.can("hr", "edit") && me.grants.scope === "all" ? this.file.left(me) : [], // the month's last week: who has no 1-to-1 yet
     ]);
     const names = missing.slice(0, 5).map((m) => m.name).join("، ") + (missing.length > 5 ? "…" : "");
     return [
@@ -36,6 +38,7 @@ export class HrTodayService {
       ...forgot.map((f): TodayLine => ({ kind: "forgot", tone: "bad", id: f.id, values: { name: f.name, day: f.day } })),
       ...actions.filter((a) => a.due <= today).map((a): TodayLine => ({ kind: "hrAction", tone: "bad", id: a.employeeId, values: { action: a.action, name: a.name, due: a.due } })),
       ...(missing.length ? [{ kind: "noPunch", tone: "warn", id: today, values: { n: missing.length, names } } satisfies TodayLine] : []),
+      ...left.slice(0, 1).map((): TodayLine => ({ kind: "oneOnOneLeft", tone: "warn", id: "", values: { n: left.length, names: left.join("، ") } })),
     ];
   }
 }

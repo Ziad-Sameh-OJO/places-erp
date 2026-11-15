@@ -8,6 +8,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { HrRepository, RULES_KEY, type Tx } from "./hr.repository";
 import { hidePenalty } from "./hr-fields";
+import { EmployeeFileService } from "./employee-file.service";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const QUESTIONS = "hr.oneQuestions";
@@ -27,7 +28,7 @@ const PEN = { include: { employee: { select: { id: true, name: true, salary: tru
  */
 @Injectable()
 export class PeopleCareService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService, private readonly repo: HrRepository) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService, private readonly repo: HrRepository, private readonly file: EmployeeFileService) {}
 
   private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
@@ -151,7 +152,7 @@ export class PeopleCareService {
   async addOneOnOne(me: CurrentUser, employeeId: string, o: NewOneOnOne, run: Run) {
     if (o.hrAction && !o.hrActionDue) throw new BadRequestException("«حل الـ HR» لازم يتحدد له ميعاد");
     if (o.heldOn > localDate(new Date())) throw new BadRequestException("مينفعش يوم بعد النهارده");
-    return run(async (tx) => {
+    const saved = await run(async (tx) => {
       // 13.3: only someone in the caller's scope, as oneOnOnes() reads (an hr: edit override on a TL stays on his team)
       const e = await tx.employee.findFirst({ where: { AND: [{ id: employeeId }, this.scope(me)] }, select: { id: true, name: true } });
       if (!e) throw new NotFoundException("الموظف مش موجود");
@@ -159,6 +160,8 @@ export class PeopleCareService {
       await this.audit.record({ module: "hr", entity: "OneOnOne", entityId: r.id, action: "create", userId: me.id, after: { employee: e.name, heldOn: o.heldOn, hrAction: o.hrAction ?? null, hrActionDue: o.hrActionDue ?? null } }, tx);
       return { id: r.id };
     });
+    await this.file.oneOnOneSheet(me, saved.id); // its PDF sheet in the employee file (HR, 15 Nov)
+    return saved;
   }
 
   async actionDone(me: CurrentUser, id: string, run: Run) {
