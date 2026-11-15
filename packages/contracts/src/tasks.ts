@@ -17,7 +17,9 @@ export const CreateTask = z.object({
   toUserId: Id,
   dueOn: CalendarDay,
   unitId: Id.optional(), // photo / Retouch / rent → resale: the unit; only its code reaches the assignee, with the notes (4.16)
-  title: z.string().trim().min(1).max(120).optional(), // a marketing task: its type from «أنواع تاسكات التسويق»
+  title: z.string().trim().min(1).max(120).optional(), // a marketing task: its type from «أنواع تاسكات التسويق»; 14.15: the in-team task's text
+  /** 14.15: the in-team task's department (the assignee must be of it) */
+  department: z.string().trim().min(1).max(60).optional(),
   note: z.string().trim().max(1000, "الملاحظات طويلة · 1000 حرف بالكتير").optional(),
   /** 4.15 «تتحسب في الـ KPIs؟»: «لأ · Skip» by default */
   countsInKpi: z.boolean().optional(),
@@ -80,6 +82,8 @@ export interface TaskOptions {
   kinds: Array<{ key: string; label: string; assignees: Array<{ id: string; name: string }> }>;
   /** «أنواع تاسكات التسويق» (M-13), the active ones */
   marketingTypes: string[];
+  /** 14.15: the departments the caller may give an in-team task to, with their active people (empty unless they may) */
+  departments: Array<{ name: string; people: Array<{ id: string; name: string }> }>;
 }
 
 /** The new-task form's unit search (4.2). */

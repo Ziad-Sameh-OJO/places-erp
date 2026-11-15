@@ -47,9 +47,9 @@ test("without «tasks» permission: 403 (a salesperson)", async () => {
 
 test("who gives which kind (M-04 3.1): Manar the shoots, Rahma the marketing tasks; the assignee must fit the kind", async () => {
   const kinds = async (c: string) => (await call("/tasks/options", { cookie: c })).body.kinds.map((k: { key: string }) => k.key);
-  assert.deepEqual(await kinds(manar), ["photo", "retouch", "toResale"]);
-  assert.deepEqual(await kinds(randa), ["photo", "retouch", "toResale"]); // «منار / رندا (تصوير)»
-  assert.deepEqual(await kinds(rahma), ["marketing"]);
+  assert.deepEqual(await kinds(manar), ["photo", "retouch", "toResale", "inTeam"]);
+  assert.deepEqual(await kinds(randa), ["photo", "retouch", "toResale", "inTeam"]); // «منار / رندا (تصوير)»
+  assert.deepEqual(await kinds(rahma), ["marketing", "inTeam"]); // 14.15: and a task inside the team
   // the form's unit search (4.2): a new unit is shot before its PDF is confirmed, so drafts are in
   const found = (await call(`/tasks/units?q=U-T${stamp}`, { cookie: manar })).body as Array<{ id: string }>;
   assert.deepEqual(found.map((u) => u.id), [unitId]);
