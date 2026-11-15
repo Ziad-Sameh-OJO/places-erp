@@ -2,7 +2,7 @@ import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundExce
 import { Prisma, type PrismaClient } from "@places/db";
 import type { Achievements, TargetInput, TargetsView, TeamRow, TransactionRow } from "@places/contracts";
 import {
-  behindPace, dayStart, dealRowOf, fromDecimal, localDate, monthBounds, monthLabel, periodFigures, quarterMonths, ranked, targetPercent, teamResult, tlTiersOf, toDecimal,
+  behindPace, dayStart, quarterLabel, dealRowOf, fromDecimal, localDate, monthBounds, monthLabel, periodFigures, quarterMonths, ranked, targetPercent, teamResult, tlTiersOf, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -49,9 +49,10 @@ export class TargetsService {
     }
   }
 
-  async view(me: CurrentUser, month?: string): Promise<TargetsView> {
-    const v = hideFields(await this.board(this.scope(me), month), me.fields.hidden(MODULE));
-    return { ...v, can: { edit: me.grants.can("reports", "edit"), approve: me.grants.can("reports", "approve") } };
+  /** 14.12: with `period` («2025-Q4») the quarter's three months added up; targets are set per month, so it's read only. */
+  async view(me: CurrentUser, month?: string, period: string | null = null): Promise<TargetsView> {
+    const v = hideFields(await this.board(this.scope(me), month, period), me.fields.hidden(MODULE));
+    return { ...v, can: { edit: !period && me.grants.can("reports", "edit"), approve: !period && me.grants.can("reports", "approve") } };
   }
 
   /** M-02 5.10 «Achievements»: every salesperson's month and rank, which each of them sees (demo deals.js Leaderboard). */
@@ -60,29 +61,35 @@ export class TargetsService {
     return { month: v.month, label: v.label, mine: me.employeeId, rows: v.rows.map((r) => ({ ...r, pending: undefined })) };
   }
 
-  private async board(where: Prisma.EmployeeWhereInput, month?: string): Promise<Omit<TargetsView, "can">> {
-    const cal = await this.time.calendar(), today = localDate(new Date(), cal), cur = today.slice(0, 7), m = month ?? cur, b = monthBounds(m, cal);
+  private async board(where: Prisma.EmployeeWhereInput, month?: string, period: string | null = null): Promise<Omit<TargetsView, "can">> {
+    const cal = await this.time.calendar(), today = localDate(new Date(), cal), cur = today.slice(0, 7), m = month ?? cur;
+    const months = period ? quarterMonths(period) : [m], b = { from: monthBounds(months[0]!, cal).from, to: monthBounds(months.at(-1)!, cal).to, days: months.reduce((n, x) => n + monthBounds(x, cal).days, 0) };
     const people = await this.repo.salespeople(where);
     const ids = people.map((p) => p.id);
-    const [targets, deals, visits, tiers, units, acts] = await Promise.all([
-      this.repo.targets(m, ids), this.repo.deals(ids, b.from, b.to), this.repo.visits(people.map((p) => p.userId), b.from, b.to), this.repo.setting("tlTiers"),
+    const [monthTargets, deals, visits, tiers, units, acts] = await Promise.all([
+      Promise.all(months.map((x) => this.repo.targets(x, ids))), this.repo.deals(ids, b.from, b.to), this.repo.visits(people.map((p) => p.userId), b.from, b.to), this.repo.setting("tlTiers"),
       this.repo.unitsBrought(ids, b.from, b.to), this.repo.activitiesDone(ids, b.from, b.to),
     ]);
     const visitsOf = (userId: string, kind: string) => visits.filter((v) => v.byUserId === userId && v.kind === kind).reduce((n, v) => n + v._count._all, 0);
     const actsOf = (id: string, kind: string) => acts.filter((a) => a.employeeId === id && a.kind.toLowerCase() === kind).reduce((n, a) => n + a._count._all, 0);
     const rows = deals.map(dealRow);
-    const gone = m < cur ? b.days : m > cur ? 0 : Number(today.slice(8, 10));
+    const gone = period ? (b.to.getTime() <= Date.now() ? b.days : b.from.getTime() > Date.now() ? 0 : Math.ceil((Date.now() - b.from.getTime()) / 86_400_000))
+      : m < cur ? b.days : m > cur ? 0 : Number(today.slice(8, 10));
+    const targets = monthTargets[0]!, live = !period && m === cur;
     const figures = people.map((p) => {
-      const t = targets.find((x) => x.employeeId === p.id), goal = t ? piasters(t.value) : piasters(p.target);
+      const t = period ? undefined : targets.find((x) => x.employeeId === p.id);
+      // a quarter: each month's target, or his standing target for a month without one (as the quarterly sheet, 11.18)
+      const mt = monthTargets.map((ts) => ts.find((x) => x.employeeId === p.id));
+      const goal = mt.reduce((s, x) => s + (x ? piasters(x.value) : piasters(p.target)), 0);
       const f = periodFigures(p.id, rows, b.from, b.to), percent = targetPercent(f.achieved, goal);
       return {
         p, goal, share: f.share,
         row: {
           employeeId: p.id, name: p.name, team: p.team, tl: p.teamLeader?.name ?? null,
-          value: toDecimal(goal), deals: t?.deals ?? 0, visits: t?.visits ?? 0, achieved: toDecimal(f.achieved), percent: Math.round(percent * 10) / 10,
+          value: toDecimal(goal), deals: mt.reduce((n, x) => n + (x?.deals ?? 0), 0), visits: mt.reduce((n, x) => n + (x?.visits ?? 0), 0), achieved: toDecimal(f.achieved), percent: Math.round(percent * 10) / 10,
           transactions: f.transactions, visitsDone: visitsOf(p.userId, "visit"), meetings: visitsOf(p.userId, "meeting"),
           inventory: units.find((u) => u.agentId === p.id)?._count._all ?? 0, farming: actsOf(p.id, "farming"), approach: actsOf(p.id, "approach"),
-          behind: m === cur && behindPace(percent, gone, b.days), pending: pendingOf(t?.pending ?? null),
+          behind: live && behindPace(percent, gone, b.days), pending: pendingOf(t?.pending ?? null),
         },
         achieved: f.achieved,
       };
@@ -101,7 +108,7 @@ export class TargetsService {
       });
     }
     return {
-      month: m, label: monthLabel(m), dayPercent: Math.round((gone / b.days) * 100),
+      month: period ?? m, label: period ? quarterLabel(period) : monthLabel(m), dayPercent: Math.round((gone / b.days) * 100),
       rows: ranked(figures.map((f) => f.row)), teams: teams.sort((a, b2) => b2.percent - a.percent),
     };
   }

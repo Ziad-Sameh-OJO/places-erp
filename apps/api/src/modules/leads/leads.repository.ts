@@ -22,12 +22,23 @@ export class LeadsRepository {
   }
 
   /** The KPI tiles and saved views' counts over the whole scope (one round trip). */
-  summary(scope: Prisma.LeadWhereInput, kind: "CLIENT" | "BROKER", weekAgo: Date, twoWeeksAgo: Date) {
-    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null, draft: null, kind }, w] } });
+  summary(scope: Prisma.LeadWhereInput, kind: "CLIENT" | "BROKER", weekAgo: Date, twoWeeksAgo: Date, came?: { from: Date; to: Date } | null) {
+    const inPeriod: Prisma.LeadWhereInput = came ? { createdAt: { gte: came.from, lt: came.to } } : {};
+    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null, draft: null, kind }, inPeriod, w] } });
     return this.db.$transaction([
       count({}), count({ stage: "FRESH" }), count({ qualified: true }), count({ stage: "NO_ANSWER" }), count({ stage: "INTERESTED" }),
       count({ createdAt: { gte: weekAgo } }), count({ createdAt: { gte: twoWeeksAgo, lt: weekAgo } }),
     ]);
+  }
+
+  /** 14.5 · the stage tabs' counts over the same scope as the tiles. */
+  stageCounts(scope: Prisma.LeadWhereInput, kind: "CLIENT" | "BROKER") {
+    return this.db.lead.groupBy({ by: ["stage"], where: { AND: [scope, { archivedAt: null, draft: null, kind }] }, _count: { _all: true } });
+  }
+
+  /** 14.6 · «التيم»: the Team Leader and the people under him. */
+  teamOf(teamLeaderId: string) {
+    return this.db.employee.findMany({ where: { OR: [{ id: teamLeaderId }, { teamLeaderId }] }, select: { id: true } }).then((rows) => rows.map((r) => r.id));
   }
 
   /** People who hold leads (sales, TLs, Telesales), still active, within `where` (the caller's scope). */
@@ -263,7 +274,7 @@ export class LeadsRepository {
   /** What «تعديل البيانات» changes, when the lead is in the caller's scope (M-01 «تعديل البيانات»). */
   editable(scope: Prisma.LeadWhereInput, id: string, tx: Prisma.TransactionClient) {
     return tx.lead.findFirst({ where: { AND: [scope, { id, archivedAt: null }] },
-      select: { id: true, code: true, name: true, kind: true, phones: true, area: true, type: true, space: true, condition: true, budget: true, note: true, company: { select: { name: true } } } });
+      select: { id: true, code: true, name: true, kind: true, phones: true, area: true, type: true, propertyType: true, space: true, condition: true, budget: true, note: true, company: { select: { name: true } } } });
   }
 
   /** Every arrival counts for its channel / campaign, the duplicate ones too (M-04 Q22). */
@@ -354,14 +365,14 @@ export class LeadsRepository {
 const LEAD_HOLDERS = ["sales", "tl", "telesales"] as const;
 
 const LEAD_ROW = {
-  id: true, code: true, name: true, phones: true, area: true, type: true, space: true, budget: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true, kind: true,
+  id: true, code: true, name: true, phones: true, area: true, type: true, propertyType: true, space: true, budget: true, channel: true, stage: true, qualified: true, touched: true, ownedByTelesales: true, kind: true,
   assignedToId: true, assignedAt: true, arrivedAt: true, createdAt: true, campaign: { select: { id: true, name: true } }, company: { select: { name: true } },
 } satisfies Prisma.LeadSelect;
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
   ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
-  newLeadRequestedAt: true, newLeadRoutedAt: true, tlNote: true, tlNoteAt: true, tlNoteById: true,
+  newLeadRequestedAt: true, newLeadRoutedAt: true, tlNote: true, tlNoteAt: true, tlNoteById: true, commentsFrom: true, createdById: true,
   company: { select: { name: true } }, _count: { select: { deals: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
   visits: { select: { id: true, kind: true, at: true, extra: true, outcome: true, postponeStatus: true, postponeReason: true, units: { select: { unit: { select: { id: true, code: true, project: true, space: true } } } } }, orderBy: [{ at: "desc" }, { id: "desc" }] },
@@ -380,8 +391,11 @@ const DUPLICATE_ROW = {
 } satisfies Prisma.LeadDuplicateSelect;
 export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DUPLICATE_ROW }>;
 
-/** The list's filters; `phoneSearch` false (M-09: the mobile is hidden from the caller): the search doesn't look at the mobiles. */
-export type LeadQuery = LeadFilters & { phoneSearch?: boolean };
+/**
+ * The list's filters; `phoneSearch` / `companySearch` false (M-09: the field is hidden from the caller): the search
+ * doesn't look at it. `team`: the «التيم» filter's people (the service reads them from `teamLeaderId`).
+ */
+export type LeadQuery = LeadFilters & { phoneSearch?: boolean; companySearch?: boolean; team?: string[] };
 
 /** 0.15: the column clicked, across every page (empty budgets last either way); then newest first, the id keeps pages stable. */
 function leadOrder(f: LeadQuery): Prisma.LeadOrderByWithRelationInput[] {
@@ -399,10 +413,13 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
     AND: [scope, { archivedAt: null, draft: null },
       f.stage ? { stage: f.stage.toUpperCase().replace(/ /g, "_") as Prisma.LeadWhereInput["stage"] } : {},
       f.kind ? { kind: f.kind === "broker" ? "BROKER" : "CLIENT" } : {},
-      f.area ? { area: f.area } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
-      f.assignedToId ? { assignedToId: f.assignedToId } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
-      // the whole mobile (the GIN index), any part of the name, or the code typed in any case («l-1001»)
-      f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { code: f.q.toUpperCase() }, ...(digits.length >= 10 && f.phoneSearch !== false ? [{ phones: { has: digits } }] : [])] } : {},
+      // 14.6: the area typed or picked, any part of its name
+      f.area ? { area: { contains: f.area, mode: "insensitive" } } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
+      f.assignedToId?.length ? { assignedToId: { in: f.assignedToId } } : {}, f.team ? { assignedToId: { in: f.team } } : {},
+      f.propertyType ? { propertyType: f.propertyType } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
+      // the whole mobile (the GIN index), any part of the name or the company's name, the company's number, or the code typed in any case («l-1001»)
+      f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { code: f.q.toUpperCase() }, ...(digits.length >= 10 && f.phoneSearch !== false ? [{ phones: { has: digits } }] : []),
+        ...(f.companySearch !== false ? [{ company: { OR: [{ name: { contains: f.q, mode: "insensitive" as const } }, { number: f.q }] } }] : [])] } : {},
       // Cairo days, «to» included: up to the start of the next day
       f.from ? { createdAt: { gte: dayStart(f.from) } } : {},
       f.to ? { createdAt: { lt: dayStart(nextDay(f.to)) } } : {}],

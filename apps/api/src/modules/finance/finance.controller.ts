@@ -5,7 +5,7 @@ import { sendXlsx } from "../../core/http/excel";
 import { BillsService } from "./bills.service";
 import { PayrollService } from "./payroll.service";
 import type { PrismaClient } from "@places/db";
-import { AdvancePlan, BudgetPatch, type BudgetRow, ClosePeriod, IncomeQuery, PayDay, PayrollRunInput, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
+import { AdvancePlan, BudgetPatch, type BudgetRow, ClosePeriod, IncomeQuery, PayDay, periodOf, PayrollRunInput, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 import { DocumentsService, sendPdf } from "../../core/documents/documents.service";
 import { ZodPipe } from "../../core/http/zod.pipe";
@@ -203,7 +203,7 @@ export class FinanceController {
   @Get("statements/income")
   @Requires("finance", "view")
   async income(@Me() me: CurrentUser, @Query(new ZodPipe(IncomeQuery)) q: IncomeQuery) {
-    return show(me, await this.ledger.income(q.range));
+    return show(me, await this.ledger.income(q.range, periodOf(q)));
   }
 
   @Get("payroll")

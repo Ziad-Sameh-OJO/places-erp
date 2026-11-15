@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { DailyFieldInput, DailyInput, ReportsAccessInput, DayQuery, HandInInput, TargetMonthQuery, ReportInput, TargetInput, TransactionsQuery } from "@places/contracts";
+import { DailyFieldInput, DailyInput, ReportsAccessInput, DayQuery, HandInInput, TargetMonthQuery, ReportInput, periodOf, TargetInput, TransactionsQuery } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendXlsx } from "../../core/http/excel";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -121,7 +121,7 @@ export class ReportsController {
   @Get("targets")
   @Requires("reports", "view")
   targetsView(@Me() me: CurrentUser, @Query(new ZodPipe(TargetMonthQuery)) q: TargetMonthQuery) {
-    return this.targets.view(me, q.month);
+    return this.targets.view(me, q.month, periodOf(q));
   }
 
   @Put("targets")

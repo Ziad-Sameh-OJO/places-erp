@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import type { AccountLedger, AccountNode, ChartView, EntrySaved, EntryView, IncomeView, JournalFilters, JournalView, ManualEntry, MoveEffect, NewAccount, OpeningBalances, PeriodView } from "@places/contracts";
 import {
   PERIOD_STATUS_LABEL, RETAINED_EARNINGS, incomeStatement, YEAR_RESULT, balanceOf, closedProblem, entryProblem, monthLabel, monthOf, periodStatus, fromDecimal, localDate, natureOf, nextChildCode, openingLines, reversalLines, rollUp,
-  toDecimal, type EntryLine, type Nature, type PeriodStatus, type Piasters,
+  toDecimal, nextQuarter, quarterDays, quarterLabel, type EntryLine, type Nature, type PeriodStatus, type Piasters,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -83,9 +83,12 @@ export class LedgerService {
    * 9.7 · قايمة الدخل: «الشهر ده» (entries dated this month) or «من أول السنة», from the chart's leaves, in the stages
    * revenue → direct → selling → admin → other → net (= 4 − 5 = account 34 for the year).
    */
-  async income(range: "month" | "year"): Promise<IncomeView> {
-    const today = localDate(new Date()), from = range === "month" ? `${monthOf(today)}-01` : `${today.slice(0, 4)}-01-01`;
-    const [accounts, sums] = await Promise.all([this.repo.accounts(), this.repo.sumsSince(new Date(`${from}T00:00:00Z`))]);
+  /** 14.12: with `period` («2025-Q4») the statement is that quarter's movement only, a closed quarter included. */
+  async income(range: "month" | "year", period: string | null = null): Promise<IncomeView> {
+    const today = localDate(new Date()), from = period ? quarterDays(period).from : range === "month" ? `${monthOf(today)}-01` : `${today.slice(0, 4)}-01-01`;
+    // entry dates are calendar days kept at UTC midnight, so the quarter's end is compared the same way
+    const until = period ? new Date(`${quarterDays(nextQuarter(period)).from}T00:00:00Z`) : undefined;
+    const [accounts, sums] = await Promise.all([this.repo.accounts(), this.repo.sumsSince(new Date(`${from}T00:00:00Z`), undefined, until)]);
     const parents = new Set(accounts.map((a) => a.parentId));
     const moved = new Map(sums.map((s) => [s.accountId, s]));
     const leaves = accounts.filter((a) => /^[45]/.test(a.code) && !parents.has(a.id)).map((a) => {
@@ -96,7 +99,7 @@ export class LedgerService {
     const ids = new Map(accounts.map((a) => [a.code, a.id]));
     const v = (l: { code: string; name: string; value: Piasters }) => ({ id: ids.get(l.code) ?? "", code: l.code, name: l.name, value: toDecimal(l.value) });
     return {
-      range, from, label: range === "month" ? monthLabel(monthOf(today)) : `من أول ${today.slice(0, 4)}`,
+      range, from, label: period ? quarterLabel(period) : range === "month" ? monthLabel(monthOf(today)) : `من أول ${today.slice(0, 4)}`,
       revenue: toDecimal(st.revenue), direct: toDecimal(st.direct), gross: toDecimal(st.gross), selling: toDecimal(st.selling), contribution: toDecimal(st.contribution),
       admin: toDecimal(st.admin), other: toDecimal(st.other), net: toDecimal(st.net),
       lines: { revenue: st.lines.revenue.map(v), direct: st.lines.direct.map(v), selling: st.lines.selling.map(v), admin: st.lines.admin.map(v), other: st.lines.other.map((o) => ({ head: v(o.head), lines: o.lines.map(v) })) },

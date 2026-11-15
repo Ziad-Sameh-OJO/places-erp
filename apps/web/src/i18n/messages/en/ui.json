@@ -91,5 +91,6 @@
     "optional": "Optional",
     "cancel": "Cancel",
     "send": "Send to Finance"
-  }
+  },
+  "periodPicker": { "label": "Year and quarter", "all": "All periods" }
 }

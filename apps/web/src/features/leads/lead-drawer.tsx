@@ -18,7 +18,8 @@ import { useSendNewLead } from "./use-new-leads";
 import { WhatsAppQuestion } from "./whatsapp-question";
 import { useLeadOptions } from "./use-leads";
 import { Visits } from "./visits";
-import { RecommendedUnits, useRecommendations } from "./recommendations";
+import { useRecommendations } from "./recommendations";
+import { LeadUnitsTab } from "./unit-journey";
 import { EditLead } from "./edit-lead";
 import { DealForm } from "../deals/deal-form";
 import { useRecent } from "@/lib/quick";
@@ -66,7 +67,7 @@ export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; i
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
       {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
-      {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
+      {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <LeadUnitsTab id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
         : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity key={l.id} l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
@@ -74,15 +75,18 @@ export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; i
 
 function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: string) => void; onArchived: () => void }) {
   const t = useTranslations("leads.drawer");
-  const { can } = useMe();
   const onPipe = PIPE.includes(l.stage as LeadStage);
   const fields = useFields("leads"); // M-09: a hidden field has no row (the API blanks it too)
+  // 14.4 (management meeting): the space, rent or sale, the finishing, the company, the campaign, the post, who entered
+  // it and the area first; then the rest
   const kv: [string, React.ReactNode, string?][] = [
-    [t("company"), l.company ?? "—", "company"],
+    ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—", "space"], ["Type", l.type || "—", "type"],
+    ["Condition", l.condition ? serverText(l.condition) : "—", "condition"], [t("company"), l.company ?? "—", "company"],
+    ["Campaign", l.campaign?.name ?? "—", "campaign"], [t("post"), l.post ?? "—", "post"],
+    [t("enteredBy"), <Who key="c" person={l.createdBy} />], ["Area", l.area ? serverText(l.area) : "—", "area"],
+    [t("propertyType"), l.propertyType ?? "—", "propertyType"],
     [t("mobile"), <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>, "phones"],
-    ["Area", l.area ? serverText(l.area) : "—", "area"], ["Type", l.type || "—", "type"], ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—", "space"],
-    ["Condition", l.condition ? serverText(l.condition) : "—", "condition"],
-    ["Budget", money(l.budget), "budget"], ["Channel", l.channel || "—", "channel"], ["Campaign", l.campaign?.name ?? "—", "campaign"], [t("post"), l.post ?? "—", "post"],
+    ["Budget", money(l.budget), "budget"], ["Channel", l.channel || "—", "channel"],
     ["Sales", <Who key="w" person={l.assignedTo} />], [t("cameIn"), `${day(l.createdAt)} · ${ago(l.createdAt)}`],
   ];
   return (
@@ -95,7 +99,7 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
       <NewLeadAction l={l} />
       {/* keyed by the lead (a new lead resets their state), each its own key: siblings with one key make React warn */}
       {l.canWriteTlNote && <TlNote key={`tl-${l.id}`} l={l} />}
-      {can("leads", "approve") && <Reassign key={`re-${l.id}`} l={l} />}
+      {l.canTransfer && <Reassign key={`re-${l.id}`} l={l} />}
     </>
   );
 }
@@ -126,9 +130,10 @@ function Reassign({ l }: { l: LeadDetail }) {
   const refresh = useRefreshLead();
   const people = useLeadOptions().data?.assignable ?? [];
   const [to, setTo] = useState(l.assignedTo?.id ?? "");
+  const [showOld, setShowOld] = useState(false); // 14.7: no by default
   const name = people.find((p) => p.id === to)?.name ?? "";
   return (
-    <form className="card flat" onSubmit={(e) => { e.preventDefault(); if (to && to !== l.assignedTo?.id) void run(async () => { await api.post(`/leads/${l.id}/assign`, { to }); await refresh(l.id); }, t("reassigned", { name })); }}>
+    <form className="card flat" onSubmit={(e) => { e.preventDefault(); if (to && to !== l.assignedTo?.id) void run(async () => { await api.post(`/leads/${l.id}/assign`, { to, showOldComments: showOld }); await refresh(l.id); }, t("reassigned", { name })); }}>
       <div className="card-head"><h3><span className="ico"><Icon name="swap" /></span><span>{t("reassignTitle")}<small>{t("reassignSub")}</small></span></h3></div>
       <div className="row">
         <select value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("moveTo")}>
@@ -137,6 +142,7 @@ function Reassign({ l }: { l: LeadDetail }) {
         </select>
         <button className="btn ghost" disabled={!to || to === l.assignedTo?.id}><Icon name="swap" />{t("move")}</button>
       </div>
+      <label className="tog"><input type="checkbox" checked={showOld} onChange={(e) => setShowOld(e.target.checked)} /><span>{t("showOldComments")}</span></label>
     </form>
   );
 }

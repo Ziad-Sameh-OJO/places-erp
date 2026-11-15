@@ -38,7 +38,8 @@ export class DealSheetService {
     return Object.keys(own).length ? { participants: { some: own } } : {};
   }
 
-  async sheet(me: CurrentUser, f: { q?: string | undefined; statuses?: string[] | undefined } = {}): Promise<DealSheet> {
+  /** `closed` (14.12): only the deals closed in that quarter (the board, the sheet and the revenue tiles). */
+  async sheet(me: CurrentUser, f: { q?: string | undefined; statuses?: string[] | undefined; closed?: { from: Date; to: Date } | null } = {}): Promise<DealSheet> {
     const hidden = me.fields.hidden("deals"); // M-09: hidden fields are blanked, and not searched
     const rows = await this.repo.sheet(this.scope(me), { ...f, byLocation: !hidden.has("location") });
     const people = new Map(rows.flatMap((d) => d.participants.map((p) => [p.employeeId, p.employee] as const)));

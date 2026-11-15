@@ -3,9 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Achievements, CashView, ClaimsView, DealCollectForm, DealDetail, DealForm, DealSheet, DealUnit } from "@places/contracts";
 import type { DealStatus } from "@places/domain";
 import { api } from "@/lib/api";
+import { periodParams } from "@/components/period-picker";
 import { dateLocale } from "@/lib/format";
 
-export const useDealSheet = () => useQuery({ queryKey: ["deals", "sheet"], queryFn: () => api.get<DealSheet>("/deals/sheet") });
+/** `period` (14.12): "2025-Q4" = the deals closed in that quarter; "" = all. */
+export const useDealSheet = (period = "") => useQuery({ queryKey: ["deals", "sheet", period], queryFn: () => api.get<DealSheet>(`/deals/sheet${period ? `?${periodParams(period)}` : ""}`) });
 export const useDeal = (id: string) => useQuery({ queryKey: ["deals", "one", id], queryFn: () => api.get<DealDetail>(`/deals/${id}`), retry: false });
 export const useAchievements = () => useQuery({ queryKey: ["deals", "achv"], queryFn: () => api.get<Achievements>("/deals/achievements") });
 export const useDealForm = () => useQuery({ queryKey: ["deals", "form"], queryFn: () => api.get<DealForm>("/deals/form") });

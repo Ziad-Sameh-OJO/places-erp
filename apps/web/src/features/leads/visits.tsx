@@ -13,7 +13,7 @@ type Kind = VisitRow["kind"];
 
 /**
  * Demo «الزيارات» (1.9, M-01 3.3): every Visit / Meeting with its Alarm when the time came, Done / معملتهاش / تعديل,
- * and the form under it. Booking moves the lead to «Follow up to …», Done to Visit / Meeting (the API decides, forward
+ * and the form under it. Booking or Done moves the lead to Visit / Meeting (14.5; the API decides, forward
  * only). «اتأجلت» (1.24): a reason, then whom the lead rules name (the TL) approves or rejects.
  */
 export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
@@ -44,8 +44,10 @@ export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {
               {v.postpone && <small>{t("postponeReason", { reason: v.postpone.reason })}</small>}
               {v.due && <small className="bad-t"><Icon name="bell" />{t("alarm", { kind: v.kind })}</small>}
             </div>
-            {v.outcome === "done" ? <Chip tone="ok">{t("done")}</Chip>
-              : v.outcome === "not_done" ? <Chip tone="bad">{t("notDone")}</Chip>
+            {v.outcome ? <>
+                {v.outcome === "done" ? <Chip tone="ok">{t("done")}</Chip> : <Chip tone="bad">{t("notDone")}</Chip>}
+                {edit && <button className="btn ghost sm" onClick={() => setEditing(v)}>{t("editUnits")}</button>}
+              </>
               : p(v) === "approved" ? <Chip tone="info">{t("postponedApproved")}</Chip>
               : p(v) === "pending" ? <>
                 <Chip tone="warn">{t("postponedPending")}</Chip>
@@ -99,10 +101,11 @@ function VisitForm({ l, kind, editing, onDone }: { l: LeadDetail; kind: Kind; ed
     <form className="card flat" onSubmit={(e) => { e.preventDefault(); save(); }}>
       <div className="card-head"><h3><span className="ico"><Icon name="pin" /></span><span>{editing ? t("editTime") : t("newTitle")}<small>{t("newSub")}</small></span></h3></div>
       <div className="grid">
+        {editing?.outcome && <p className="hint wide">{t("lockedAfterDone")}</p>}
         <Field label={t("kind")} req>
-          <select value={k} onChange={(e) => setK(e.target.value as Kind)}>{(["Visit", "Meeting"] as const).map((x) => <option key={x} value={x}>{x}</option>)}</select>
+          <select disabled={!!editing?.outcome} value={k} onChange={(e) => setK(e.target.value as Kind)}>{(["Visit", "Meeting"] as const).map((x) => <option key={x} value={x}>{x}</option>)}</select>
         </Field>
-        <Field label={t("time")} req><input type="datetime-local" required value={at} onChange={(e) => setAt(e.target.value)} /></Field>
+        <Field label={t("time")} req><input type="datetime-local" required disabled={!!editing?.outcome} value={at} onChange={(e) => setAt(e.target.value)} /></Field>
         <Field label={t("unitsFromInventory")} wide>
           <div className="search"><Icon name="search" /><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("searchPlaceholder")} aria-label={t("searchLabel")} /></div>
           <select multiple size={6} aria-label={t("units")} value={picked.map((u) => u.id)}

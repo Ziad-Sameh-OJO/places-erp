@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SHEET_FIELD_KEYS, type SheetField } from "@places/domain";
 import { Id, Money } from "./common.ts";
+import { PeriodQuery } from "./period.ts";
 
 /** M-12 · KPI cards (11.1–11.4 · 11.11 · 11.14). Wording from demo kpis.js. */
 
@@ -76,7 +77,7 @@ export const KpiWatch = z.array(Id).max(20);
 export const KpiWatchInput = z.object({ userIds: KpiWatch });
 export type KpiWatchInput = z.infer<typeof KpiWatchInput>;
 /** «mine» (11.19): my card and the ones I follow, Manar's «KPIs الفريق» in the inventory. */
-export const KpiScope = z.object({ scope: z.enum(["me", "team", "mine", "all"]).default("me") });
+export const KpiScope = z.object({ scope: z.enum(["me", "team", "mine", "all"]).default("me"), ...PeriodQuery.shape });
 export type KpiScope = z.infer<typeof KpiScope>;
 
 export interface KpiQuarterView { id: string; label: string; status: "open" | "closed" }

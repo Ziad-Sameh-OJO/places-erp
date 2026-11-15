@@ -1,15 +1,16 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
-import type { TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL } from "@places/domain";
+import { RecommendAnswers, activeValues, periodOf, type Recommendations, type UnitListInput } from "@places/contracts";
+import type { VisitUnitQuery, TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads, quarterBounds } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { leadScope } from "./lead-scope";
-import { type LeadDetailRecord, type LeadRecord, LeadsRepository } from "./leads.repository";
+import { type LeadDetailRecord, type LeadQuery, type LeadRecord, LeadsRepository } from "./leads.repository";
+import { LeadUnitsRepository } from "./lead-units.repository";
 import { LeadDuplicatesService } from "./duplicates.service";
 import { LeadRulesService } from "./lead-rules.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -30,8 +31,12 @@ const TELESALES = "telesales"; // role key (seed-data/roles.json)
 /** The demo's Kanban shows the newest 30 cards of a lane; its header shows the real count. */
 const CARDS_PER_LANE = 30;
 const toDb = (s: LeadStage) => s.toUpperCase().replace(/ /g, "_") as never;
-/** FOLLOW_UP_TO_VISIT → «Follow up to Visit»: the API speaks the stage names the team uses. */
-const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
+/**
+ * NEAR_TO_CLOSE → «Near to Close»: the API speaks the stage names the team uses. The stages dropped in 14.5 keep their
+ * names for the history (old audit lines in the Logs tab); no lead is on them any more.
+ */
+const STAGE_LABEL = new Map<string, string>([...LEAD_STAGES, "Follow up to Visit", "Follow up after Visit", "Follow up to Meeting", "Follow up after Meeting"]
+  .map((s) => [s.toUpperCase().replace(/ /g, "_"), s]));
 
 /** M-01 use cases. The rules themselves live in @places/domain; this class orchestrates them with the database. */
 @Injectable()
@@ -49,21 +54,31 @@ export class LeadsService {
     private readonly documents: DocumentsService,
     private readonly companies: CompaniesService,
     private readonly attendance: AttendanceService, // 7.3: a marked Visit re-reads that day
+    private readonly unitSteps: LeadUnitsRepository, // 14.8: the units log (List of options) · 14.11: visited units first
     private readonly clients: ClientsService, // M-10: Done Deal makes the client's file; an old client's number joins it
   ) {}
 
   /** Sales see their own leads, a TL their team's, operations and the sales director all of them (M-01 4). */
   async list(me: CurrentUser, f: LeadFilters): Promise<Paged<LeadRow>> {
     const hidden = me.fields.hidden("leads");
-    const [rows, total] = await this.repo.list(leadScope(me) as never, shownLeadFilters(f, hidden));
+    const [rows, total] = await this.repo.list(leadScope(me) as never, await this.query(f, hidden));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.map((r) => r.assignedToId)), this.slaClock()]);
     return { items: rows.map((r) => hideLeadRow(toRow(r, names, sla), hidden)), total, page: f.page, pageSize: f.pageSize };
+  }
+
+  /**
+   * The filters as the repository applies them: minus those on hidden fields (M-09), and «التيم» (14.6) read as the
+   * Team Leader's people. The caller's scope is still ANDed in the query, so a TL from another team finds nothing.
+   */
+  private async query(f: LeadFilters, hidden: ReadonlySet<string>): Promise<LeadQuery> {
+    const q = shownLeadFilters(f, hidden);
+    return f.teamLeaderId ? { ...q, team: await this.repo.teamOf(f.teamLeaderId) } : q;
   }
 
   /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
   async board(me: CurrentUser, f: LeadFilters): Promise<LeadBoard> {
     const hidden = me.fields.hidden("leads");
-    const [counts, rows] = await this.repo.board(leadScope(me) as never, shownLeadFilters(f, hidden), LEAD_STAGES.map(toDb), CARDS_PER_LANE);
+    const [counts, rows] = await this.repo.board(leadScope(me) as never, await this.query(f, hidden), LEAD_STAGES.map(toDb), CARDS_PER_LANE);
     const total = new Map(counts.map((c) => [c.stage as string, c._count._all]));
     const [names, sla] = await Promise.all([this.salespeopleNames(rows.flat().map((r) => r.assignedToId)), this.slaClock()]);
     return { lanes: LEAD_STAGES.map((stage, i) => ({ stage, total: total.get(toDb(stage)) ?? 0, items: rows[i]!.map((r) => hideLeadRow(toRow(r, names, sla), hidden)) })) };
@@ -71,12 +86,14 @@ export class LeadsService {
 
   /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */
   async summary(me: CurrentUser, q: SummaryQuery): Promise<LeadSummary> {
-    const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
-    const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], rules, holidayMode] = await Promise.all([
-      this.repo.summary(leadScope(me) as never, q.kind === "broker" ? "BROKER" : "CLIENT", new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
-      this.rules.get(), this.time.isHolidayToday(),
+    const now = Date.now(), DAY = 24 * 60 * 60 * 1000, period = periodOf(q); // 14.12: the leads that came in that quarter
+    const kind = q.kind === "broker" ? "BROKER" : "CLIENT";
+    const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], byStage, rules, holidayMode] = await Promise.all([
+      this.repo.summary(leadScope(me) as never, kind, new Date(now - 7 * DAY), new Date(now - 14 * DAY), period ? quarterBounds(period) : null),
+      this.repo.stageCounts(leadScope(me) as never, kind), this.rules.get(), this.time.isHolidayToday(),
     ]);
-    return { total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
+    const stages = Object.fromEntries(byStage.map((c) => [STAGE_LABEL.get(c.stage) ?? c.stage, c._count._all]));
+    return { total, fresh, qualified, noAnswer, interested, stages, thisWeek, lastWeek, holidayMode, slaRules: slaRulesOf(rules), slaOn: rules.sla.on,
       noAnswerRules: { hours: rules.noAnswer.hours, remindH: rules.noAnswer.remindH },
       drafts: isNamedIn(rules.draft.see, { userId: me.id, roles: me.roles }) ? await this.repo.openDrafts("draft") : null,
       draftRules: { days: rules.draft.days, holdDays: rules.draft.holdDays },
@@ -92,7 +109,7 @@ export class LeadsService {
 
   /** «الليدز» and «البروكرز» with the counts the current filters give (1.28). */
   async tabs(me: CurrentUser, f: LeadFilters): Promise<LeadTabCounts> {
-    const counts = new Map((await this.repo.tabCounts(leadScope(me) as never, shownLeadFilters(f, me.fields.hidden("leads")))).map((c) => [c.kind, c._count._all]));
+    const counts = new Map((await this.repo.tabCounts(leadScope(me) as never, await this.query(f, me.fields.hidden("leads")))).map((c) => [c.kind, c._count._all]));
     return { client: counts.get("CLIENT") ?? 0, broker: counts.get("BROKER") ?? 0 };
   }
 
@@ -101,13 +118,15 @@ export class LeadsService {
     const scope = me.grants.scope;
     const people = scope === "own" ? Promise.resolve([]) : this.repo.salespeople(scope === "team" ? { id: { in: me.teamIds } } : {});
     const [campaigns, holders, assignable] = await Promise.all([
-      this.repo.campaigns(), people, me.grants.can("leads", "approve") ? this.repo.routingPeople() : Promise.resolve([]),
+      this.repo.campaigns(), people, transfersLeads(me.roles, me.grants.can("leads", "approve")) ? this.repo.routingPeople() : Promise.resolve([]),
     ]);
     // demo leads.js «Sales» filter: the salespeople, then Telesales as «<name> (Telesales)»
     const tele = (p: { roles: string[] }) => p.roles.includes(TELESALES) && !p.roles.some((r) => r === "sales" || r === "tl");
     const salespeople = [...holders.filter((p) => !tele(p)), ...holders.filter(tele).map((p) => ({ ...p, name: `${p.name} (Telesales)` }))]
       .map(({ id, name }) => ({ id, name }));
-    return { campaigns, salespeople, assignable };
+    const teamLeaders = holders.filter((p) => p.roles.includes("tl")).map(({ id, name }) => ({ id, name })); // 14.6 «التيم»
+    // 14.7: a Team Leader picks only from his own team (assign() enforces it)
+    return { campaigns, salespeople, teamLeaders, assignable: assignable.filter((p) => transferTargetAllowed(scope, me.teamIds, p.id)) };
   }
 
   /** The SLA as the list shows it, with «قواعد الليدز» (1.29: its times, its working hours) and the official holidays. */
@@ -124,11 +143,13 @@ export class LeadsService {
 
   /** The lead drawer. A lead outside the caller's scope is a 404, not a 403: it doesn't say the lead exists. */
   async get(me: CurrentUser, id: string): Promise<LeadDetail> {
-    const lead = await this.repo.detail(leadScope(me) as never, id);
-    if (!lead) throw new NotFoundException(NO_LEAD);
+    const found = await this.repo.detail(leadScope(me) as never, id);
+    if (!found) throw new NotFoundException(NO_LEAD);
+    const { commentsFrom, ...lead } = found;
+    lead.activities = lead.activities.filter((a) => commentVisible(a, commentsFrom, me.roles)); // 14.7
     const [salespeople, people, sla, { leadLogRoles }] = await Promise.all([
       this.salespeopleNames([lead.assignedToId]),
-      this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), lead.tlNoteById].filter(isId))]),
+      this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), lead.tlNoteById, lead.createdById].filter(isId))]),
       this.slaClock(),
       this.settings.all(),
     ]);
@@ -140,7 +161,7 @@ export class LeadsService {
     if (lead.assignedToId && detail.visits.some((v) => v.postpone?.status === "pending") && (await this.canDecidePostpone(me, lead.assignedToId))) for (const v of detail.visits) if (v.postpone) v.postpone.canDecide = v.postpone.status === "pending";
     // 1.33: the salesperson opening it has seen the Team Leader's note (off «مهامي النهارده»)
     if (lead.tlNoteAt && lead.assignedToId && lead.assignedToId === me.employeeId) await this.repo.markTlNoteSeen(lead.id, lead.tlNoteAt);
-    return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount, canWriteTlNote: writesTlNote(me.roles) && me.grants.can("leads", "edit") };
+    return { ...hideLeadDetail(detail, me.fields.hidden("leads")), canSeeLogs, logCount, canWriteTlNote: writesTlNote(me.roles) && me.grants.can("leads", "edit"), canTransfer: transfersLeads(me.roles, me.grants.can("leads", "approve")) };
   }
 
   /**
@@ -184,7 +205,9 @@ export class LeadsService {
     if (!canSeeLeadLogs(me.roles, (await this.settings.all()).leadLogRoles)) throw new ForbiddenException("الـ Logs للأدمن والأدوار اللي اختارها بس");
     const lead = await this.repo.detail(leadScope(me) as never, id);
     if (!lead) throw new NotFoundException(NO_LEAD);
-    const audits = await this.repo.auditFor(id);
+    // 14.7: the comments hidden on a transfer stay hidden here too (their Activity lines and their audit entries)
+    lead.activities = lead.activities.filter((a) => commentVisible(a, lead.commentsFrom, me.roles));
+    const audits = (await this.repo.auditFor(id)).filter((a) => a.entity !== "LeadActivity" || a.action !== "comment" || commentVisible({ kind: "comment", at: a.at }, lead.commentsFrom, me.roles));
     const names = new Map((await this.repo.userNames([...new Set([...lead.activities.map((a) => a.byUserId), ...audits.map((a) => a.userId)].filter(isId))])).map((p) => [p.userId, p.name]));
     const by = (userId: string | null) => (userId ? { id: userId, name: names.get(userId) ?? "" } : null);
     const rows: LeadLogRow[] = [
@@ -232,11 +255,11 @@ export class LeadsService {
     const need = needOf(lead);
     // M-09: the units follow the inventory's field rules — a question on a hidden unit field isn't applied, its value is blank
     const units = me.fields.hidden("inventory");
-    const { items, projects } = await this.inventory.recommend(need, shownAnswers(answers, units), settings.recommendTolerancePct);
+    const [{ items, projects }, visited] = await Promise.all([this.inventory.recommend(need, shownAnswers(answers, units), settings.recommendTolerancePct), this.unitSteps.visitedUnitIds(id)]);
     return {
       tolerancePct: settings.recommendTolerancePct,
       client: hideClient({ type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, area: lead.area }, me.fields.hidden("leads")),
-      answers, projects, paymentMethods: activeValues(settings.paymentPlans), items: items.map((u) => hideRecommended(u, units)),
+      answers, projects, paymentMethods: activeValues(settings.paymentPlans), items: visitedFirst(items.map((u) => hideRecommended(u, units)), visited),
     };
   }
 
@@ -278,6 +301,7 @@ export class LeadsService {
       const activity = await this.repo.addActivity(tx, id, "comment", text, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.repo.addSuggestedUnits(tx, id, units.map((u) => u.id), me.id);
+      await this.unitSteps.addStep(tx, id, "list", units.map((u) => u.id), me.id); // 14.8: in the units log
       await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "unit-list", userId: me.id,
         after: { leadId: id, unitIds: input.unitIds, text } }, tx);
     });
@@ -378,7 +402,7 @@ export class LeadsService {
       const company = input.company ? await this.repo.companyByName(tx, input.company) : null;
       const lead = await tx.lead.create({
         data: {
-          code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
+          code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, propertyType: input.propertyType ?? null, space: input.space ?? null,
           condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, campaignId: input.campaignId ?? null,
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
           ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
@@ -442,29 +466,35 @@ export class LeadsService {
    * «اسحب الليد وحوّله» (1.14, M-01 Q2 · 4.1): the lead goes to the chosen salesperson with a fresh SLA clock, and
    * that salesperson skips their next turn in the rotation («يتحسبله كأنه أخد دوره»). Audited from whom to whom;
    * the new salesperson is told on the channels of the lead rules' «ليد جديد اتوزع».
+   * 14.7: the Team Leader moves his team's leads, to his team only; the one it was taken from loses it (scope) and
+   * isn't told where it went; the earlier comments are hidden from the new holder unless `showOldComments`.
    */
   async assign(me: CurrentUser, id: string, input: AssignLead) {
+    if (!transfersLeads(me.roles, me.grants.can("leads", "approve"))) throw new ForbiddenException("التحويل للأوبريشن ومدير المبيعات والإدارة والتيم ليدر بس");
     const to = (await this.repo.routingPeople()).find((p) => p.id === input.to);
     if (!to) throw new BadRequestException("اختار سيلز من القايمة");
+    if (!transferTargetAllowed(me.grants.scope, me.teamIds, to.id)) throw new ForbiddenException("التيم ليدر بيحوّل لحد من التيم بتاعه بس"); // 14.7
     const moved = await this.db.$transaction(async (tx) => {
-      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true } });
+      const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] }, select: { id: true, name: true, assignedToId: true, commentsFrom: true } });
       if (!lead) throw new NotFoundException(NO_LEAD);
       if (lead.assignedToId === to.id) throw new BadRequestException(`الليد مع ${to.name} بالفعل`);
       const [from] = lead.assignedToId ? await this.repo.employeeNames([lead.assignedToId], tx) : [];
       const router = new LeadRouter(await this.repo.lockRouting(tx));
       router.assignedByHand(to.id);
       await this.repo.saveRouting(tx, router.snapshot());
+      const now = new Date();
+      const commentsFrom = commentsFromAfterTransfer(lead.commentsFrom, input.showOldComments, now);
       await tx.lead.update({
         where: { id },
         // a fresh start with the new salesperson: the SLA counts from now (demo: assignedAt, touched, alerted)
-        data: { assignedToId: to.id, assignedAt: new Date(), ownedByTelesales: false, touched: false, firstActionAt: null, slaWarnedAt: null, draft: null },
+        data: { assignedToId: to.id, assignedAt: now, ownedByTelesales: false, touched: false, firstActionAt: null, slaWarnedAt: null, draft: null, commentsFrom },
       });
       // handed out of a Draft tab this way too (1.26): that stay ends with this decision
       await tx.leadDraft.updateMany({ where: { leadId: id, decidedAt: null }, data: { decidedAt: new Date(), decidedById: me.id, decision: "hand", toId: to.id } });
       const text = from ? `اتسحب يدوي من ${from.name} واتحوّل لـ ${to.name}` : `اتحوّل يدوي لـ ${to.name}`;
       await this.repo.addActivity(tx, id, "assign", text, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "reassign", userId: me.id,
-        before: { assignedToId: lead.assignedToId, name: from?.name ?? null }, after: { assignedToId: to.id, name: to.name } }, tx);
+        before: { assignedToId: lead.assignedToId, name: from?.name ?? null, commentsFrom: iso(lead.commentsFrom) }, after: { assignedToId: to.id, name: to.name, commentsFrom: iso(commentsFrom) } }, tx);
       return { name: lead.name, from: from?.name ?? null };
     });
     const [rules, owner] = await Promise.all([this.rules.get(), this.repo.ownerAccounts(to.id)]);
@@ -486,15 +516,15 @@ export class LeadsService {
       const lead = await this.repo.editable(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
       // M-09: a field the person may not change (or that their form left out) keeps what the lead has
-      const input = keepFixedUpdate(typed, { phones: lead.phones, area: lead.area, type: lead.type, company: lead.company?.name ?? null, space: lead.space,
+      const input = keepFixedUpdate(typed, { phones: lead.phones, area: lead.area, type: lead.type, propertyType: lead.propertyType, company: lead.company?.name ?? null, space: lead.space,
         condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note }, me.fields.fixed("leads"));
       const added = input.phones.filter((p) => !lead.phones.includes(p));
       const dup = added.length ? await this.repo.findByPhone(added, id) : null;
       if (dup) throw new ConflictException(`الرقم ده موجود في ليد تاني (${dup.code}) · العميل ده مكرر والأوبريشن هي اللي تقرر`);
       const company = input.company || null;
       const before = { name: lead.name, kind: lead.kind === "BROKER" ? "broker" : "client", company: lead.company?.name ?? null, phones: lead.phones, area: lead.area,
-        type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note };
-      const after = { name: input.name, kind: input.kind, company, phones: input.phones, area: input.area, type: input.type, space: input.space ?? null,
+        type: lead.type, propertyType: lead.propertyType, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note };
+      const after = { name: input.name, kind: input.kind, company, phones: input.phones, area: input.area, type: input.type, propertyType: input.propertyType ?? null, space: input.space ?? null,
         condition: input.condition || null, budget: input.budget ? toDecimal(fromDecimal(input.budget)) : null, note: input.note || null };
       const diff = changes(before, after);
       if (!diff) return null;
@@ -502,7 +532,7 @@ export class LeadsService {
       const companyChanged = "company" in diff.after;
       await this.repo.updateLead(tx, id, {
         name: after.name, kind: after.kind === "broker" ? "BROKER" : "CLIENT", phones: after.phones, area: after.area, type: after.type,
-        space: after.space, condition: after.condition, budget: after.budget, note: after.note, ...(companyChanged ? { companyId: inSheet?.id ?? null } : {}),
+        propertyType: after.propertyType, space: after.space, condition: after.condition, budget: after.budget, note: after.note, ...(companyChanged ? { companyId: inSheet?.id ?? null } : {}),
       });
       const newCompany = companyChanged && company && !inSheet ? await this.companies.fromLead(tx, me, { id, code: lead.code }, company, undefined) : null;
       if (newCompany?.companyId) await this.repo.updateLead(tx, id, { companyId: newCompany.companyId });
@@ -541,7 +571,7 @@ export class LeadsService {
     return this.eachLead(input.ids, async (id) => {
       const lead = now.get(id);
       if (!lead) throw new NotFoundException(NO_LEAD);
-      if (input.to && lead.assignedToId !== input.to) await this.assign(me, id, { to: input.to });
+      if (input.to && lead.assignedToId !== input.to) await this.assign(me, id, { to: input.to, showOldComments: false });
       if (input.stage && STAGE_LABEL.get(lead.stage) !== input.stage) await this.changeStage(me, id, { stage: input.stage });
     });
   }
@@ -565,12 +595,12 @@ export class LeadsService {
    */
   async exportRows(me: CurrentUser, f: LeadFilters) {
     const hidden = me.fields.hidden("leads");
-    const rows = (await this.repo.exportRows(leadScope(me) as never, shownLeadFilters(f, hidden), EXPORT_LIMIT)).map((r) => ({ ...r, ...hiddenExport(r, hidden) }));
+    const rows = (await this.repo.exportRows(leadScope(me) as never, await this.query(f, hidden), EXPORT_LIMIT)).map((r) => ({ ...r, ...hiddenExport(r, hidden) }));
     const names = await this.salespeopleNames(rows.map((r) => r.assignedToId));
     await this.audit.record({ module: "leads", entity: "Lead", entityId: "export", action: "export", userId: me.id,
       after: { rows: rows.length, filters: Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== undefined && k !== "page" && k !== "pageSize")) } });
     return rows.map((r) => ({
-      code: r.code, name: r.name, company: r.company?.name ?? "", phones: r.phones.join(" / "), area: r.area, type: r.type, space: r.space,
+      code: r.code, name: r.name, company: r.company?.name ?? "", phones: r.phones.join(" / "), area: r.area, type: r.type, propertyType: r.propertyType ?? "", space: r.space,
       budget: r.budget?.toFixed(2) ?? "", channel: r.channel, campaign: r.campaign?.name ?? "", sales: r.assignedToId ? names.get(r.assignedToId) ?? "" : "",
       stage: STAGE_LABEL.get(r.stage) ?? r.stage, qualified: r.qualified ? "Yes" : "No", createdAt: r.createdAt,
     }));
@@ -662,14 +692,15 @@ export class LeadsService {
   }
 
   /** The Visit form's unit search (1.9): through the inventory's own rule of what a salesperson may see. */
-  async visitUnits(me: CurrentUser, q?: string) {
+  async visitUnits(me: CurrentUser, q: VisitUnitQuery) {
     const noSpace = me.fields.hidden("inventory").has("space"); // M-09: the inventory's hidden field stays hidden here too
-    return (await this.inventory.forVisit(q)).map((u) => (noSpace ? { ...u, space: 0 } : u));
+    // a hidden space isn't searched by its range either
+    return (await this.inventory.forVisit(q.q, noSpace ? {} : { min: q.spaceMin, max: q.spaceMax })).map((u) => (noSpace ? { ...u, space: 0 } : u));
   }
 
   /**
    * «Visit / Meeting جديدة» (1.9, M-01 3.3): the time, units from the inventory and spaces not in the sheet. It is an
-   * action on the lead (stops the SLA clock) and moves it to «Follow up to Visit / Meeting», forward only (visitStage).
+   * action on the lead (stops the SLA clock) and moves it to Visit / Meeting, forward only (visitStage · 14.5).
    */
   async addVisit(me: CurrentUser, id: string, input: VisitInput) {
     const units = await this.visitUnitCodes(input.unitIds, []);
@@ -682,7 +713,7 @@ export class LeadsService {
       await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visit.id, action: "create", userId: me.id,
         after: { leadId: id, kind: input.kind, at: input.at, unitIds: input.unitIds, extra: input.extra ?? null } }, tx);
-      await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), input.kind, "booked"));
+      await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), input.kind));
     });
     return this.get(me, id);
   }
@@ -693,10 +724,11 @@ export class LeadsService {
       if (!(await this.repo.findInScope(leadScope(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
       const before = await this.repo.findVisit(tx, id, visitId);
       if (!before) throw new NotFoundException(NO_VISIT);
-      if (before.outcome) throw new BadRequestException("الميعاد اتعلّم خلاص · مينفعش يتعدّل");
+      const at = new Date(input.at);
+      // 14.10: after Done / معملتهاش the units can still change (one postponed, one not visited); the time and kind were counted (Showings, attendance)
+      if (before.outcome && (at.getTime() !== before.at.getTime() || kindOf(before.kind) !== input.kind)) throw new BadRequestException("الميعاد اتعلّم خلاص · تقدر تعدّل الوحدات بس");
       const kept = before.units.map((u) => u.unitId);
       const units = await this.visitUnitCodes(input.unitIds, kept);
-      const at = new Date(input.at);
       await this.repo.updateVisit(tx, visitId, { kind: input.kind.toLowerCase(), at, extra: input.extra ?? null, unitIds: input.unitIds }, at.getTime() !== before.at.getTime());
       await this.repo.addActivity(tx, id, input.kind === "Meeting" ? "meeting" : "visit", `اتعدّل الـ ${visitText(input, at, units)}`, me.id);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: "update", userId: me.id,
@@ -720,11 +752,14 @@ export class LeadsService {
       if (!(await this.repo.markVisit(tx, visitId, input.outcome)).count) throw new BadRequestException("الميعاد اتعلّم خلاص");
       if (lead.assignedToId) await this.attendance.refreshDay(lead.assignedToId, visit.at, tx); // 7.3: Done = the day starts at the Visit
       const kind = kindOf(visit.kind);
+      // 14.10: Done is a Showing, written the way the salesperson says it: «نزلت معاه على …»
+      const codes = (await this.inventory.codes(visit.units.map((u) => u.unitId))).map((u) => u.code);
+      const shown = [...codes, ...(visit.extra ? [visit.extra] : [])].join("، ");
       await this.repo.addActivity(tx, id, kind === "Meeting" ? "meeting" : "visit",
-        input.outcome === "done" ? `الـ ${kind} خلصت · اتحسبت في الـ activity` : `الـ ${kind} اتعلّمت إنها محصلتش`, me.id);
+        input.outcome === "done" ? `${kind} Done · نزلت معاه على ${shown || "—"} · اتحسبت Showing` : `الـ ${kind} اتعلّمت إنها محصلتش`, me.id);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: input.outcome === "done" ? "done" : "not-done", userId: me.id,
         before: { leadId: id, outcome: null }, after: { leadId: id, outcome: input.outcome } }, tx);
-      if (input.outcome === "done") await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), kind, "done"));
+      if (input.outcome === "done") await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), kind));
       return { kind, at: visit.at, name: lead.name, ownerId: lead.assignedToId };
     });
     if (input.outcome === "not_done" && marked.ownerId) {
@@ -792,6 +827,8 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
     case "LeadVisit:update": return `اتعدّل ميعاد الـ ${field(a.after, "kind")}`;
     case "LeadVisit:done": return "الميعاد اتعلّم Done";
     case "LeadVisit:not-done": return "الميعاد اتعلّم «معملتهاش»";
+    case "LeadUnitStep:list": return "اتبعتله List of options";
+    case "LeadUnitStep:shortlist": return "اتحفظ Short list";
     case "LeadDuplicate:create": return "حد دخّل العميل ده تاني · طلب تكرار للأوبريشن";
     default: return `${a.entity} · ${a.action}`;
   }
@@ -819,12 +856,13 @@ function toRow({ assignedToId, budget, kind, company, ...r }: LeadRecord, names:
   };
 }
 
-function toDetail(lead: LeadDetailRecord, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock, inv: ReadonlySet<string> = new Set()): Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote"> {
-  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, ...row } = lead;
+function toDetail(lead: Omit<LeadDetailRecord, "commentsFrom">, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock, inv: ReadonlySet<string> = new Set()): Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote" | "canTransfer"> {
+  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, createdById, ...row } = lead;
   const now = Date.now();
   return {
     ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
     hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
+    createdBy: people.has(createdById) ? { id: createdById, name: people.get(createdById)! } : null, // 14.4 «مين دخّل الليد»
     tlNote: tlNote && tlNoteAt ? { text: tlNote, by: tlNoteById ? people.get(tlNoteById) ?? null : null, at: tlNoteAt.toISOString() } : null, // 1.33
     firstCallAt: iso(firstCallAt), firstCallOnTime: firstCallOnTime(row.arrivedAt, firstCallAt),
     activities: activities.map(({ byUserId, at, ...a }) => ({

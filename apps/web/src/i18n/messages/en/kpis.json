@@ -257,5 +257,22 @@
     "monthGoal": "This month: {goal}",
     "noMonth": "No monthly figure for this item · showing the quarter's",
     "monthNote": "Month target = quarter target ÷ 3 (a percentage stays the same); actual = what was done since the 1st."
+  },
+  "history": {
+    "tab": "Past quarters",
+    "title": "{period} figures typed by hand",
+    "note": "Figures of the quarters before the system (like Q4 2025): each person's KPI result, target and achieved. They show under that quarter in the year and quarter filter, and nothing deletes them when a new quarter starts.",
+    "person": "Employee",
+    "kind": "Figure",
+    "value": "Value",
+    "note2": "Note",
+    "by": "Entered by",
+    "empty": "No figures for this quarter",
+    "add": "Save the figure",
+    "saved": "Figure saved",
+    "remove": "Delete",
+    "removed": "Figure deleted",
+    "pickPerson": "Pick the employee",
+    "kinds": { "score": "KPI result %", "target": "Target (EGP)", "achieved": "Achieved (EGP)" }
   }
 }

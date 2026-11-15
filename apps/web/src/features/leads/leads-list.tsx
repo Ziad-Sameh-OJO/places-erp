@@ -6,7 +6,8 @@ import { ExportButton, Icon, Note, Tabs } from "@/components/ui";
 import type { DraftKind, LeadKind } from "@places/contracts";
 import { useMe } from "@/lib/me";
 import { num } from "@/lib/format";
-import { keepsCompaniesSheet } from "@places/domain";
+import { keepsCompaniesSheet, quarterDays } from "@places/domain";
+import { PeriodPicker, rangePeriod } from "@/components/period-picker";
 import type { LeadQuery } from "./filters";
 import { toParams, useSavedViews } from "./filters";
 import { BulkBar } from "./bulk-bar";
@@ -74,7 +75,8 @@ export function LeadsList() {
   const [picked, setPicked] = useState<string[]>([]);
   const canPick = can("leads", "edit") || can("leads", "approve");
   useEffect(() => setPicked([]), [f, page, kind, mode]);
-  const summary = useLeadSummary(kind);
+  const period = rangePeriod(f.from, f.to); // 14.12: «السنة والربع» is the «من / لحد» filter set to a whole quarter
+  const summary = useLeadSummary(kind, period);
   const calls = useMyCalls().data;
   const options = useLeadOptions();
   const settings = useSettings();
@@ -98,11 +100,20 @@ export function LeadsList() {
     ...(s?.drafts != null ? [["draft", "Draft", s.drafts] as [DraftKind, string, number]] : []),
     ...(s?.draftAdmin ? [["admin", "Draft Admin", s.draftAdmin.waiting || s.draftAdmin.total] as [DraftKind, string, number]] : []),
   ];
+  // 14.6 · «الأرشيف»: the Draft and the Draft Admin together under one tab, each its own tab inside it
+  const inArchive = draftTab === "draft" || draftTab === "admin";
+  const archiveCount = draftTabs.reduce((n, [, , c]) => n + c, 0);
   const tabRow = (
-    <div className="row">
-      <Tabs<LeadKind | DraftKind | "sent" | "tags"> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin" || k === "sent" || k === "tags"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
-        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...(tagsTab ? [["tags", "Tags", (tagCounts?.toDecide || tagCounts?.pending) || undefined] as ["tags", string, number | undefined]] : []), ...draftTabs, ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
-    </div>
+    <>
+      <div className="row">
+        <Tabs<LeadKind | "archive" | "sent" | "tags"> value={inArchive ? "archive" : draftTab ?? kind} onChange={(k) => {
+          const d = k === "archive" || k === "sent" || k === "tags";
+          setDraftTab(k === "archive" ? draftTabs[0]![0] : d ? k : null); if (!d) setKind(k); setPage(1);
+        }}
+          items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...(tagsTab ? [["tags", "Tags", (tagCounts?.toDecide || tagCounts?.pending) || undefined] as ["tags", string, number | undefined]] : []), ...(draftTabs.length ? [["archive", t("archive"), archiveCount || undefined] as ["archive", string, number | undefined]] : []), ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
+      </div>
+      {inArchive && draftTabs.length > 0 && <div className="row"><Tabs<DraftKind> value={draftTab} onChange={setDraftTab} items={draftTabs} /></div>}
+    </>
   );
   if (draftTab === "sent" && isTelesales) return <>{tabRow}<SentView /></>;
   if (draftTab === "tags" && tagsTab) return <>{tabRow}<TagsView />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;
@@ -132,6 +143,7 @@ export function LeadsList() {
           <button aria-pressed={mode === "board"} title="Kanban" onClick={() => setMode("board")}><Icon name="board" /><span>Kanban</span></button>
         </div>
         <span className="hint num">{t("count", { count: total, n: num(total) })}</span>
+        <PeriodPicker value={period} all onChange={(p) => filter(p ? { ...f, ...quarterDays(p) } : (Object.fromEntries(Object.entries(f).filter(([k]) => k !== "from" && k !== "to")) as LeadQuery))} />
         <span className="spacer" />
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />{t("bulk")}</button>}
         <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind, ...sort }, 1, 100)} filename={t("exportFile")} label={t("export")} />
