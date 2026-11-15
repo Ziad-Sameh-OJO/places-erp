@@ -200,10 +200,13 @@ export class LeadsController {
     return this.leads.create(me, body);
   }
 
-  /** «اسحب الليد وحوّله» (1.14): Operations, the Sales Director and the admin («leads: approve», M-01 4.1). */
+  /**
+   * «اسحب الليد وحوّله» (1.14): Operations, the Sales Director and the admin («leads: approve», M-01 4.1) — and since
+   * 14.7 the Team Leader inside his team; the service checks who (like the TL note below).
+   */
   @Post(":id/assign")
   @HttpCode(200)
-  @Requires("leads", "approve")
+  @Requires("leads", "edit")
   assign(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(AssignLead)) body: AssignLead) {
     return this.leads.assign(me, id, body);
   }

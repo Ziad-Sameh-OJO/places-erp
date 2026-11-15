@@ -74,7 +74,6 @@ export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; i
 
 function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: string) => void; onArchived: () => void }) {
   const t = useTranslations("leads.drawer");
-  const { can } = useMe();
   const onPipe = PIPE.includes(l.stage as LeadStage);
   const fields = useFields("leads"); // M-09: a hidden field has no row (the API blanks it too)
   const kv: [string, React.ReactNode, string?][] = [
@@ -95,7 +94,7 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
       <NewLeadAction l={l} />
       {/* keyed by the lead (a new lead resets their state), each its own key: siblings with one key make React warn */}
       {l.canWriteTlNote && <TlNote key={`tl-${l.id}`} l={l} />}
-      {can("leads", "approve") && <Reassign key={`re-${l.id}`} l={l} />}
+      {l.canTransfer && <Reassign key={`re-${l.id}`} l={l} />}
     </>
   );
 }
@@ -126,9 +125,10 @@ function Reassign({ l }: { l: LeadDetail }) {
   const refresh = useRefreshLead();
   const people = useLeadOptions().data?.assignable ?? [];
   const [to, setTo] = useState(l.assignedTo?.id ?? "");
+  const [showOld, setShowOld] = useState(false); // 14.7: no by default
   const name = people.find((p) => p.id === to)?.name ?? "";
   return (
-    <form className="card flat" onSubmit={(e) => { e.preventDefault(); if (to && to !== l.assignedTo?.id) void run(async () => { await api.post(`/leads/${l.id}/assign`, { to }); await refresh(l.id); }, t("reassigned", { name })); }}>
+    <form className="card flat" onSubmit={(e) => { e.preventDefault(); if (to && to !== l.assignedTo?.id) void run(async () => { await api.post(`/leads/${l.id}/assign`, { to, showOldComments: showOld }); await refresh(l.id); }, t("reassigned", { name })); }}>
       <div className="card-head"><h3><span className="ico"><Icon name="swap" /></span><span>{t("reassignTitle")}<small>{t("reassignSub")}</small></span></h3></div>
       <div className="row">
         <select value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("moveTo")}>
@@ -137,6 +137,7 @@ function Reassign({ l }: { l: LeadDetail }) {
         </select>
         <button className="btn ghost" disabled={!to || to === l.assignedTo?.id}><Icon name="swap" />{t("move")}</button>
       </div>
+      <label className="tog"><input type="checkbox" checked={showOld} onChange={(e) => setShowOld(e.target.checked)} /><span>{t("showOldComments")}</span></label>
     </form>
   );
 }
