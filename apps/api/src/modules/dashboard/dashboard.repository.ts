@@ -21,8 +21,8 @@ export class DashboardRepository {
   }
 
   /** Leads that came in since `from`, and how many of them are Qualified (Interested at least once). */
-  leadsSince(scope: Prisma.LeadWhereInput, from: Date) {
-    const where = listed({ AND: [scope, { createdAt: { gte: from } }] });
+  leadsSince(scope: Prisma.LeadWhereInput, from: Date, to?: Date) {
+    const where = listed({ AND: [scope, { createdAt: { gte: from, ...(to ? { lt: to } : {}) } }] });
     return Promise.all([this.db.lead.count({ where }), this.db.lead.count({ where: { AND: [where, { qualified: true }] } })]);
   }
 
@@ -41,8 +41,41 @@ export class DashboardRepository {
     return this.db.deal.count({ where: { closedAt: { gte: from, lt: to }, status: { notIn: ["REJECTED", "CANCELLED"] } } });
   }
 
-  unitsAdded(from: Date) {
-    return this.db.unit.count({ where: { createdAt: { gte: from }, archivedAt: null } });
+  unitsAdded(from: Date, to?: Date) {
+    return this.db.unit.count({ where: { createdAt: { gte: from, ...(to ? { lt: to } : {}) }, archivedAt: null } });
+  }
+
+  /** Visits and Meetings in [from, to) by who made them (the teams' table). */
+  visitsByPerson(from: Date, to: Date) {
+    return this.db.leadVisit.groupBy({ by: ["byUserId", "kind"], where: { AND: [held, { at: { gte: from, lt: to } }] }, _count: { _all: true } });
+  }
+
+  /** The Done Deals each salesperson is on (buyer or seller side), closed in [from, to), not rejected or cancelled. */
+  dealsByPerson(from: Date, to: Date) {
+    return this.db.dealParticipant.groupBy({ by: ["employeeId"], where: { deal: { closedAt: { gte: from, lt: to }, status: { notIn: ["REJECTED", "CANCELLED"] } } }, _count: { _all: true } });
+  }
+
+  /** The commission that came in [from, to): the deals' payments (a cancelled or rejected deal's don't count). */
+  async collected(from: Date, to: Date): Promise<string> {
+    const r = await this.db.payment.aggregate({ where: { receivedAt: { gte: from, lt: to }, deal: { status: { notIn: ["REJECTED", "CANCELLED"] } } }, _sum: { amount: true } });
+    return r._sum.amount?.toFixed(2) ?? "0.00";
+  }
+
+  /** Fresh leads with a salesperson and no action yet: the ones the SLA clock runs on. */
+  slaRunning(scope: Prisma.LeadWhereInput) {
+    return this.db.lead.findMany({
+      where: listed({ AND: [scope, { stage: "FRESH", touched: false, ownedByTelesales: false, assignedAt: { not: null } }] }),
+      select: { stage: true, touched: true, ownedByTelesales: true, assignedAt: true },
+    });
+  }
+
+  /** Near to Close with no stage change since `before`. */
+  staleNearClose(scope: Prisma.LeadWhereInput, before: Date) {
+    return this.db.lead.count({ where: listed({ AND: [scope, { stage: "NEAR_TO_CLOSE", activities: { none: { kind: "stage", at: { gte: before } } } }] }) });
+  }
+
+  pendingDeals() {
+    return this.db.deal.count({ where: { status: "PENDING_REVIEW" } });
   }
 
   /** The salespeople a lead was pulled from by the SLA since `from` (the worker's «auto-pull» audit rows). */

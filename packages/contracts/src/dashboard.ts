@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { DASHBOARD_LAYOUTS } from "@places/domain";
+import { DASHBOARD_LAYOUTS, DASH_PERIODS } from "@places/domain";
+import { PeriodQuery } from "./period.ts";
 
 /**
  * 14.1–14.3 · the dashboards. Read only: every number comes from the module that owns it, in the caller's scope, and
@@ -56,4 +57,49 @@ export interface MyDashboard {
 export interface PersonPerformance {
   employeeId: string; name: string; team: string | null;
   periods: { key: "week" | "month" | "quarter"; from: string; to: string; visits: number; meetings: number; target: TargetBar | null }[];
+}
+
+/** Ahmed Islam's one-page dashboard: the period picked; a quarter takes the shared year + quarter picker (14.12). */
+export const AhmedQuery = PeriodQuery.extend({ period: z.enum(DASH_PERIODS).default("today") })
+  .refine((q) => !q.year === !q.quarter, { message: "اختار السنة والربع مع بعض", path: ["quarter"] });
+export type AhmedQuery = z.infer<typeof AhmedQuery>;
+
+/** A number of the period and the same number for the previous comparable one (the arrow). Money as a decimal string. */
+export interface Compared<T = number> { now: T; before: T }
+export interface FunnelStep { stage: string; count: number; /** % of this stage's count the next stage has; null = last or nothing */ next: number | null }
+export interface PacedBar extends TargetBar {
+  /** «المفروض نكون هنا النهارده»; "" = hidden or no goal */
+  expected: string;
+  /** «محتاجين X في اليوم»; null = reached, ended, hidden or no goal */
+  perDay: string | null;
+}
+export interface AhmedPerson extends DashPerson { visits: number; meetings: number; deals: number }
+export interface AhmedTeam { tlId: string; tl: string; team: string | null; percent: number | null; visits: number; meetings: number; deals: number; members: AhmedPerson[] }
+/** «محتاج انتباهك»: each line a count and the list behind it; a line the person may not see is left out. */
+export interface AttentionLine { key: "sla" | "approval" | "nearClose" | "installments" | "budget" | "units"; count: number; href: string }
+
+export interface AhmedDashboard {
+  period: (typeof DASH_PERIODS)[number];
+  /** Cairo days of the period so far (both included), the quarter of the target bars, its year */
+  from: string; to: string; quarter: string; year: string;
+  strip: {
+    visits: Compared; meetings: Compared; doneDeals: Compared; leads: Compared; units: Compared;
+    /** the commission that came in (the deals' payments); null = may not see finance */
+    collected: Compared<string> | null;
+  };
+  funnel: FunnelStep[];
+  targets: { quarter: PacedBar; year: PacedBar };
+  teams: AhmedTeam[];
+  attention: AttentionLine[];
+  /** the Near to Close line's days (setting dashboardStaleNearClose) */
+  staleDays: number;
+  /** null = may not see the contracts' installments */
+  money: { collected: string; due: string; receivables: string | null; nextWeek: { count: number; amount: string } } | null;
+  inventory: { rent: number; sale: number; types: { type: string; count: number }[]; newThisWeek: number; closedThisMonth: number } | null;
+  marketing: {
+    today: { channel: string; leads: number }[];
+    /** the period's spend ÷ its Qualified leads (14.13); null = nothing to divide or hidden */
+    costPerQualified: string | null;
+    live: { id: string; name: string }[]; off: { id: string; name: string }[];
+  } | null;
 }
