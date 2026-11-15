@@ -22,6 +22,11 @@ export class KpisRepository {
     return tx.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
   }
 
+  /** One quarter's row (sheets approval), or nothing for a quarter before the system (Q4 2025). */
+  quarter(id: string) {
+    return this.db.kpiQuarter.findUnique({ where: { id }, select: { sheetsAt: true, sheetsById: true } });
+  }
+
   quarters() {
     return this.db.kpiQuarter.findMany({ orderBy: { id: "desc" } });
   }

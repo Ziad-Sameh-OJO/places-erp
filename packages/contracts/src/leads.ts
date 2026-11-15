@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PeriodQuery } from "./period.ts";
 import { LEAD_STAGES, PROPERTY_TYPES } from "@places/domain";
 import { CalendarDay, EgyptianMobile, Id, Money, Page, SortDir } from "./common.ts";
 
@@ -191,7 +192,7 @@ export interface DuplicateRow {
 }
 
 /** The tiles follow the tab: clients or brokers. */
-export const SummaryQuery = z.object({ kind: LeadKind.default("client") });
+export const SummaryQuery = z.object({ kind: LeadKind.default("client"), ...PeriodQuery.shape });
 export type SummaryQuery = z.infer<typeof SummaryQuery>;
 /** Each tab's count under the current filters (they stay when moving between tabs · 1.28). */
 export interface LeadTabCounts { client: number; broker: number }

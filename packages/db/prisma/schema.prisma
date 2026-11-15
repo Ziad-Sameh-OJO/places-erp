@@ -2071,6 +2071,23 @@ model KpiQuarter {
   @@schema("kpi")
 }
 
+/// 14.12 · a past quarter's figures typed by hand (Q4 2025, before the system): one person's KPI result (%), target and
+/// achieved (EGP). They show under that quarter in the «سنة + ربع» filter; nothing recomputes or deletes them.
+model HistoricalFigure {
+  id          String   @id @default(cuid())
+  period      String // "2025-Q4"
+  employeeId  String
+  kind        String // score · target · achieved
+  value       Decimal  @db.Decimal(14, 2)
+  note        String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([period, employeeId, kind])
+  @@schema("kpi")
+}
+
 /// 11.13 · a Farming / Approach a salesperson plans (where, when); after its time he says whether he did it and what
 /// came of it (Farming: brought something new + a note · Approach: the companies). The Farming item counts the done
 /// ones on the day they happened (`at`).

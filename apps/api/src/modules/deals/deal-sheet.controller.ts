@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { AchievementsQuery, DealExportQuery, type DealSheetRow } from "@places/contracts";
-import { fromDecimal, localDate } from "@places/domain";
+import { AchievementsQuery, DealExportQuery, PeriodQuery, periodOf, type DealSheetRow } from "@places/contracts";
+import { fromDecimal, localDate, quarterBounds } from "@places/domain";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { type ExcelColumn, sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -17,8 +17,9 @@ export class DealSheetController {
 
   @Get("sheet")
   @Requires("deals", "view")
-  list(@Me() me: CurrentUser) {
-    return this.sheet.sheet(me);
+  list(@Me() me: CurrentUser, @Query(new ZodPipe(PeriodQuery)) q: PeriodQuery) {
+    const period = periodOf(q);
+    return this.sheet.sheet(me, { closed: period ? quarterBounds(period) : null });
   }
 
   /** Every salesperson sees the ranking among colleagues (M-02 5.1, demo Leaderboard). */

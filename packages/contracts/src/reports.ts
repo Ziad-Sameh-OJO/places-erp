@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PeriodQuery } from "./period.ts";
 import { Id, Money } from "./common.ts";
 
 /** M-12 · scheduled reports (11.10), the daily report (11.12), monthly targets and ranking (11.8). Wording from demo clients.js · kpis.js. */
@@ -101,7 +102,7 @@ export interface DayReport {
 
 // ───────── 11.8 · monthly targets ─────────
 
-export const TargetMonthQuery = z.object({ month: month.optional() });
+export const TargetMonthQuery = z.object({ month: month.optional(), ...PeriodQuery.shape });
 export type TargetMonthQuery = z.infer<typeof TargetMonthQuery>;
 export const TargetInput = z.object({
   employeeId: Id, month,

@@ -104,11 +104,16 @@ export class KpisService {
     return { id: q.id, label: quarterLabel(q.id), status: q.status === "closed" ? "closed" : "open" };
   }
 
-  /** A card of the current quarter the person may see. */
-  private async visibleCard(w: Who, id: string) {
+  /** A card of the current quarter the person may see; `past`: of any quarter, read only (14.12). */
+  private async visibleCard(w: Who, id: string, past = false) {
     const [c, q] = await Promise.all([this.repo.card(id), this.current()]);
-    if (!c || c.quarter !== q.id || !this.canSee(w, c)) throw new NotFoundException(NO_CARD);
-    return { c, q };
+    if (!c || (!past && c.quarter !== q.id) || !this.canSee(w, c)) throw new NotFoundException(NO_CARD);
+    return { c, q: c.quarter === q.id ? q : await this.pastQuarter(c.quarter) };
+  }
+
+  /** 14.12: another quarter than the current one is only read, whatever its row says (Q4 2025 has none). */
+  private async pastQuarter(id: string): Promise<Quarter> {
+    return { ...(await this.repo.quarter(id)), id, status: "closed" };
   }
 
   private async openCard(w: Who, id: string) {
@@ -161,10 +166,10 @@ export class KpisService {
   }
 
   /** «كارتي» · «فريقي» · «كل الشركة»: the scope goes into the query. */
-  async board(me: CurrentUser, scope: "me" | "team" | "mine" | "all"): Promise<KpiBoard> {
+  async board(me: CurrentUser, scope: "me" | "team" | "mine" | "all", period: string | null = null): Promise<KpiBoard> {
     const w = await this.who(me);
     if (scope === "all" && !w.all) throw new ForbiddenException("كل الشركة للإدارة والـ Office Manager ومسؤول الـ KPIs");
-    const q = await this.current();
+    const cur = await this.current(), q = !period || period === cur.id ? cur : await this.pastQuarter(period);
     const mine: Prisma.KpiCardWhereInput = me.employeeId ? { followerId: me.employeeId } : { id: "-" };
     // «الملاك» follow the cards with no follower: a Super Admin sees them under «فريقي», except his own
     const team: Prisma.KpiCardWhereInput = me.roles.includes("admin") ? { OR: [mine, { followerId: null, employeeId: { not: me.employeeId ?? "-" } }] } : mine;
@@ -209,7 +214,7 @@ export class KpisService {
 
   async card(me: CurrentUser, id: string): Promise<KpiCardView> {
     const w = await this.who(me);
-    const { c, q } = await this.visibleCard(w, id);
+    const { c, q } = await this.visibleCard(w, id, true);
     return this.view(w, c, q);
   }
 
@@ -340,7 +345,7 @@ export class KpisService {
   async deliveryFile(me: CurrentUser, deliveryId: string) {
     const d = await this.repo.delivery(deliveryId);
     if (!d?.fileId) throw new NotFoundException("الملف مش موجود");
-    await this.visibleCard(await this.who(me), d.item.cardId);
+    await this.visibleCard(await this.who(me), d.item.cardId, true);
     return this.files.downloadUrl(d.fileId);
   }
 
@@ -662,7 +667,7 @@ ${lines}<h2>البنود</h2><table><tr><th>البند</th><th>الوزن</th><t
 
   async sheet(me: CurrentUser, id: string) {
     const w = await this.who(me);
-    const { c, q } = await this.visibleCard(w, id);
+    const { c, q } = await this.visibleCard(w, id, true);
     if (!this.canSheet(w, q)) throw new ForbiddenException("ورقة الربع بتطلع بعد قفل الربع وموافقة الـ Office Manager");
     const { name, html } = await this.sheetHtml(c, q.id, this.sheetHidden(me));
     return { name, pdf: await this.docs.pdf(html) };

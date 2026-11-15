@@ -2,6 +2,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LeadBoard, LeadKind, LeadOptions, LeadRow, LeadSummary, LeadTabCounts, MyCalls, Paged, Settings } from "@places/contracts";
 import { api } from "@/lib/api";
+import { periodParams } from "@/components/period-picker";
 import { type LeadQuery, toParams } from "./filters";
 
 /** The leads in the caller's scope matching the filters (the API applies the scope). */
@@ -18,7 +19,8 @@ export function useLeadBoard(f: LeadQuery, enabled: boolean) {
 
 export const useMyCalls = () => useQuery({ queryKey: ["my-calls"], queryFn: () => api.get<MyCalls>("/leads/calls/mine") });
 
-export const useLeadSummary = (kind: LeadKind) => useQuery({ queryKey: ["leads-summary", kind], queryFn: () => api.get<LeadSummary>(`/leads/summary?kind=${kind}`) });
+/** `period` (14.12): "2025-Q4" counts the leads that came in that quarter. */
+export const useLeadSummary = (kind: LeadKind, period = "") => useQuery({ queryKey: ["leads-summary", kind, period], queryFn: () => api.get<LeadSummary>(`/leads/summary?kind=${kind}${period ? `&${periodParams(period)}` : ""}`) });
 
 /** «الليدز» / «البروكرز» counts under the same filters (1.28). */
 export function useTabCounts(f: LeadQuery) {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PeriodQuery } from "./period.ts";
 import { DEAL_STATUSES, DEAL_TYPES, type DealStatus, type DealType } from "@places/domain";
 import { CalendarDay, Id, Money, Page } from "./common.ts";
 
@@ -121,6 +122,7 @@ export interface MarketingDeal { id: string; code: string; buyer: string; compan
 export const DealFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
   status: z.enum(DEAL_STATUSES as [DealStatus, ...DealStatus[]]).optional(),
+  ...PeriodQuery.shape, // 14.12: the deals closed in that quarter
 });
 export type DealFilters = z.infer<typeof DealFilters>;
 

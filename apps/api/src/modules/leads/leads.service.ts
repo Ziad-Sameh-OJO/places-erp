@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
+import { RecommendAnswers, activeValues, periodOf, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitUnitQuery, TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads, quarterBounds } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -86,10 +86,10 @@ export class LeadsService {
 
   /** The KPI tiles («كل الليدز» · Fresh · Qualified · No Answer) and the saved views' counts, in the caller's scope. */
   async summary(me: CurrentUser, q: SummaryQuery): Promise<LeadSummary> {
-    const now = Date.now(), DAY = 24 * 60 * 60 * 1000;
+    const now = Date.now(), DAY = 24 * 60 * 60 * 1000, period = periodOf(q); // 14.12: the leads that came in that quarter
     const kind = q.kind === "broker" ? "BROKER" : "CLIENT";
     const [[total, fresh, qualified, noAnswer, interested, thisWeek, lastWeek], byStage, rules, holidayMode] = await Promise.all([
-      this.repo.summary(leadScope(me) as never, kind, new Date(now - 7 * DAY), new Date(now - 14 * DAY)),
+      this.repo.summary(leadScope(me) as never, kind, new Date(now - 7 * DAY), new Date(now - 14 * DAY), period ? quarterBounds(period) : null),
       this.repo.stageCounts(leadScope(me) as never, kind), this.rules.get(), this.time.isHolidayToday(),
     ]);
     const stages = Object.fromEntries(byStage.map((c) => [STAGE_LABEL.get(c.stage) ?? c.stage, c._count._all]));

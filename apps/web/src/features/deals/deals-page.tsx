@@ -10,6 +10,7 @@ import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { DealDrawer } from "./deal-drawer";
 import { DealForm } from "./deal-form";
+import { PeriodPicker } from "@/components/period-picker";
 import { LANES, ST_TONE, monthOf, names, onSheet, useAchievements, useDealSheet } from "./use-deals";
 import { fromDecimal, toDecimal } from "@places/domain";
 
@@ -30,7 +31,8 @@ export function DealsPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   useNewParam("1", () => setCreating(true), can("deals", "create")); // «جديد ← صفقة» from any page (0.16)
-  const sheet = useDealSheet();
+  const [period, setPeriod] = useState(""); // 14.12: "" = every deal
+  const sheet = useDealSheet(period);
   const fields = useFields("deals"); // M-09: what the role doesn't see has no tile, column or tab
   // a notification links to /deals?open=…
   useEffect(() => { const id = new URLSearchParams(window.location.search).get("open"); if (id) setOpen(id); }, []);
@@ -51,6 +53,7 @@ export function DealsPage() {
       <div className="row">
         <Tabs value={t} onChange={setTab} items={tabs} />
         <span className="spacer" />
+        <PeriodPicker value={period} onChange={setPeriod} all />
         {/* the list as it is filtered on screen: the sheet tab is the deals on the sheet with its search */}
         <ExportButton module="deals" path="/deals/export" filename={tr("export.file")} label={tr("export.label")}
           query={new URLSearchParams(t === "sheet" ? { sheet: "1", ...(q.trim() ? { q: q.trim() } : {}) } : {})} />

@@ -22,8 +22,9 @@ export class LeadsRepository {
   }
 
   /** The KPI tiles and saved views' counts over the whole scope (one round trip). */
-  summary(scope: Prisma.LeadWhereInput, kind: "CLIENT" | "BROKER", weekAgo: Date, twoWeeksAgo: Date) {
-    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null, draft: null, kind }, w] } });
+  summary(scope: Prisma.LeadWhereInput, kind: "CLIENT" | "BROKER", weekAgo: Date, twoWeeksAgo: Date, came?: { from: Date; to: Date } | null) {
+    const inPeriod: Prisma.LeadWhereInput = came ? { createdAt: { gte: came.from, lt: came.to } } : {};
+    const count = (w: Prisma.LeadWhereInput) => this.db.lead.count({ where: { AND: [scope, { archivedAt: null, draft: null, kind }, inPeriod, w] } });
     return this.db.$transaction([
       count({}), count({ stage: "FRESH" }), count({ qualified: true }), count({ stage: "NO_ANSWER" }), count({ stage: "INTERESTED" }),
       count({ createdAt: { gte: weekAgo } }), count({ createdAt: { gte: twoWeeksAgo, lt: weekAgo } }),
