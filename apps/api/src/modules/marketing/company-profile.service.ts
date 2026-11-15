@@ -6,6 +6,7 @@ import { logoPages, profileChanges, profileLogos } from "@places/domain";
 import { PDFDocument } from "pdf-lib";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
+import { NotificationsService } from "../../core/notifications/notifications.service";
 import { FilesService } from "../../core/files/files.service";
 import { DocumentsService, FONT_CSS, esc } from "../../core/documents/documents.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -30,6 +31,7 @@ export class CompanyProfileService {
   constructor(
     @Inject(PRISMA) private readonly db: PrismaClient,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
     private readonly files: FilesService,
     private readonly documents: DocumentsService,
     private readonly deals: DealMarketingService,
@@ -115,6 +117,9 @@ export class CompanyProfileService {
       await this.audit.record({ module: "marketing", entity: "CompanyProfile", entityId: id, action: "publish", userId: me.id, before: { logos: last?.dealIds.length ?? 0 }, after: { logos: dealIds.length, file: base.name } }, tx);
       return row;
     });
+    // everyone but the one who pressed it hears of the new version (client, 11 Nov); the home card already shows it
+    const everyone = await this.db.user.findMany({ where: { status: "ACTIVE", id: { not: me.id } }, select: { id: true } });
+    await this.notifications.notify({ event: "marketing.company_profile", text: `اتعمل Update للـ Company Profile · فيه ${dealIds.length} لوجو في «عملاؤنا» · افتحه من الرئيسية`, link: "/", userIds: everyone.map((u) => u.id) });
     return (await this.views([v]))[0]!;
   }
 

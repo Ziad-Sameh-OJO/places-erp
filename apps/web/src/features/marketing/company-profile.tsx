@@ -37,7 +37,7 @@ export function CompanyProfileCard() {
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState(false);
   const data = useCompanyProfileAdmin().data;
-  const edit = can("marketing", "edit");
+  const edit = can("marketing", "approve");
   const latest = data?.versions[0];
   const c = data?.changes;
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ADMIN }), qc.invalidateQueries({ queryKey: LATEST })]);
@@ -115,7 +115,7 @@ export function DealLogoCell({ dealId, logo, company }: { dealId: string; logo: 
   const run = useAction();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const edit = can("marketing", "edit");
+  const edit = can("marketing", "approve");
   const go = (fn: () => Promise<unknown>, done: string) => { setBusy(true); void run(async () => { await fn(); await qc.invalidateQueries({ queryKey: ADMIN }); }, done).finally(() => setBusy(false)); };
   const upload = (f: File | undefined) => f && go(async () => {
     if (!f.type.startsWith("image/")) throw new Error(t("onlyImage"));
