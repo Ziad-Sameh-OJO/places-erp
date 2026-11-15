@@ -74,7 +74,9 @@ test("HR's rule → the daily check flags it once → HR's «مهامي النه
   assert.equal((await call(`/hr/warnings/${w}/dismiss`, { method: "POST", cookie: basant })).status, 400);
   const pdf = await call(`/hr/warnings/${w}/pdf`, { cookie: basant });
   assert.equal(pdf.status, 200);
-  assert.equal((await fetch(pdf.body.url)).headers.get("content-type"), "application/pdf");
+  const file = await fetch(pdf.body.url);
+  assert.equal(file.headers.get("content-type"), "application/pdf");
+  await file.arrayBuffer(); // read the body: an unread one trips undici's parser when the storage server closes the socket
   assert.equal((await call(`/hr/warnings/${w}/pdf`, { cookie: tl })).status, 403);
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Warning", entityId: w, action: "issue" } }));
 
