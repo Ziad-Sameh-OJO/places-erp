@@ -199,7 +199,21 @@ export interface LeadLogRow {
 }
 
 /** The person's own call count against their KPI (demo «مكالماتك النهارده: … من 100»); no goal for other roles. */
-export interface MyCalls { goal: { period: "day" | "week"; target: number } | null; count: number }
+export interface MyCalls {
+  goal: { period: "day" | "week"; target: number } | null;
+  /** the calls logged on leads in the period */
+  count: number;
+  /** Telesales (client, 11 Nov): today's total she wrote (null = not yet), whether she entered a «By Telesales» lead
+   *  today, and what today counts in the KPI (domain dayCalls) */
+  today?: { entered: number | null; telesalesLead: boolean; counts: number };
+}
+
+/** Telesales writes her day's total calls (today, or a past day of the last week she forgot). */
+export const DailyCallsInput = z.object({
+  count: z.number({ invalid_type_error: "اكتب عدد المكالمات" }).int("عدد صحيح").min(0, "مش أقل من صفر").max(2000, "رقم كبير أوي"),
+  day: CalendarDay.optional(),
+});
+export type DailyCallsInput = z.infer<typeof DailyCallsInput>;
 
 /** The Kanban: every stage with its real count under the filters, and its newest cards (the demo shows 30 per lane). */
 export interface LeadBoard { lanes: { stage: string; total: number; items: LeadRow[] }[] }
@@ -391,3 +405,29 @@ export type DraftDecision = z.infer<typeof DraftDecision>;
 export const KEEP = "keep";
 /** The Draft Admin's «Telesales» choice (1.27): the Telesales «قواعد الليدز» names. */
 export const TELESALES = "telesales";
+
+/** M-01 · Telesales' «اللي بعتيها» (client, 11 Nov): today's or all, or only the ones in No Answer now. */
+export const SentLeadsQuery = Page.extend({
+  range: z.enum(["today", "all"]).default("today"),
+  noAnswer: z.preprocess((v) => v === "1" || v === "true" || v === true, z.boolean()).default(false),
+});
+export type SentLeadsQuery = z.infer<typeof SentLeadsQuery>;
+/** A lead she sent: what she entered and to whom it went — none of the salesperson's actions, only «No Answer now». */
+export interface SentLead { id: string; code: string; name: string; phones: string[]; area: string; type: string; to: string | null; sentAt: string; noAnswer: boolean }
+export interface SentLeads { items: SentLead[]; total: number; page: number; pageSize: number; counts: { today: number; all: number; noAnswer: number } }
+
+/** M-01 · Tags (client, 11 Nov): the salespeople working a lead with its owner, each waiting for the TL's approval. */
+export const TagRequest = z.object({ leadId: Id, employeeIds: z.array(Id).min(1, "اختار السيلز اللي شغالين معاك").max(5, "أقصى عدد 5 سيلز") });
+export type TagRequest = z.infer<typeof TagRequest>;
+export const TagDecision = z.object({ approve: z.boolean({ required_error: "وافق أو ارفض" }) });
+export type TagDecision = z.infer<typeof TagDecision>;
+export const TagsQuery = z.object({ leadId: Id.optional() });
+export type TagsQuery = z.infer<typeof TagsQuery>;
+export interface LeadTagRow {
+  id: string; lead: { id: string; code: string; name: string }; tagged: string; by: string; approver: string | null;
+  status: "PENDING" | "APPROVED" | "REJECTED"; at: string; decidedAt: string | null;
+  /** the person reading may approve / reject it */
+  canDecide: boolean;
+}
+export interface LeadTags { items: LeadTagRow[]; toDecide: number; pending: number }
+

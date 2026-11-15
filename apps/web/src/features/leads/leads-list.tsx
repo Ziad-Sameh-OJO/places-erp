@@ -21,10 +21,13 @@ import { BulkNew } from "./bulk";
 import { SecondCalls } from "./second-calls";
 import Link from "next/link";
 import { usePendingCompanies } from "./companies";
+import { SentView, useSentCounts } from "./sent";
+import { DailyCalls } from "./daily-calls";
+import { TagsView, useLeadTags, useTags } from "./lead-tags";
 import { DraftAdminAlarm, DraftView } from "./drafts";
 import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
-import { ListRequestsModal, useListRequests } from "../inventory/list-requests";
+import { ListRequestsModal } from "../inventory/list-requests";
 
 const PAGE = 50;
 
@@ -45,19 +48,23 @@ export function LeadsList() {
   const [bulk, setBulk] = useState(false);
   // 2.32 · demo leads.js: a Team Leader's «اطلب List من الانفنتوري» (who may ask is the API's answer)
   const [lists, setLists] = useState(false);
-  const asksLists = useListRequests(can("tickets", "view")).data?.canAsk;
   // links from the home board and the notifications: «/leads?open=<id>» opens the lead, «/leads?new=1» the form
   const canCreate = can("leads", "create");
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     setOpen(q.get("open"));
     if (q.get("companies") === "1") return window.location.replace("/companies"); // older notifications' link (1.20): the sheet has its own page now
-    if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32)
+    if (q.get("tags") === "1") setDraftTab("tags"); // «طلب Tag» / «اترفض الـ Tag» notifications
+    if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32): the button is gone from here (client, 11 Nov), the notification still opens it
   }, []);
   // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
   useNewParam("1", () => setCreating(true), canCreate);
   useNewParam("bulk", () => setBulk(true), can("leads", "import"));
-  const [draftTab, setDraftTab] = useState<DraftKind | null>(null);
+  const [draftTab, setDraftTab] = useState<DraftKind | "sent" | "tags" | null>(null);
+  const tagsTab = useTags().decides; // «Tags» next to «البروكرز» (client, 11 Nov)
+  const tagCounts = useLeadTags(tagsTab).data;
+  const isTelesales = !!me?.roles.includes("telesales");
+  const sentCounts = useSentCounts(isTelesales); // «اللي بعتيها» (client, 11 Nov): Telesales only
   // «/leads?draft=admin»: the Draft Admin Alarm on «مهامي النهارده» (1.34) opens that tab (only shown to whom may see it)
   useEffect(() => { const d = new URLSearchParams(window.location.search).get("draft"); if (d === "draft" || d === "admin") setDraftTab(d); }, []);
   // the bulk bar's picks (demo shell.js): whoever may change leads or hand them out; cleared when the list changes
@@ -90,11 +97,13 @@ export function LeadsList() {
   ];
   const tabRow = (
     <div className="row">
-      <Tabs<LeadKind | DraftKind> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
-        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...draftTabs]} />
+      <Tabs<LeadKind | DraftKind | "sent" | "tags"> value={draftTab ?? kind} onChange={(k) => { const d = k === "draft" || k === "admin" || k === "sent" || k === "tags"; setDraftTab(d ? k : null); if (!d) setKind(k); setPage(1); }}
+        items={[["client", t("leads"), tabs?.client], ["broker", t("brokers"), tabs?.broker], ...(tagsTab ? [["tags", "Tags", (tagCounts?.toDecide || tagCounts?.pending) || undefined] as ["tags", string, number | undefined]] : []), ...draftTabs, ...(isTelesales ? [["sent", t("sentTab"), sentCounts?.noAnswer || undefined] as ["sent", string, number | undefined]] : [])]} />
     </div>
   );
-  if (draftTab && draftTabs.some(([k]) => k === draftTab)) {
+  if (draftTab === "sent" && isTelesales) return <>{tabRow}<SentView /></>;
+  if (draftTab === "tags" && tagsTab) return <>{tabRow}<TagsView />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;
+  if (draftTab && draftTab !== "sent" && draftTab !== "tags" && draftTabs.some(([k]) => k === draftTab)) {
     return <>{tabRow}<DraftView kind={draftTab} onOpen={setOpen} />{open && <LeadDrawer ids={[]} id={open} onGo={setOpen} onClose={() => setOpen(null)} />}</>;
   }
 
@@ -105,12 +114,12 @@ export function LeadsList() {
       <OperationsQueue />
       <SecondCalls onOpen={setOpen} />
       {newCompanies.length > 0 && <Note kind="warn">{t("newCompanies", { count: newCompanies.length })} <Link className="btn sm" href="/companies">{t("openCompanies")}</Link></Note>}
-      {calls?.goal && (
+      {calls?.goal && calls.today && <DailyCalls calls={{ ...calls, today: calls.today }} />}
+      {calls?.goal && !calls.today && (
         <Note>{calls.goal.period === "day"
           ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
           : t.rich("callsWeek", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })}</Note>
       )}
-      {asksLists && <div className="row end"><button className="btn ghost sm" onClick={() => setLists(true)}><Icon name="list" />{t("askList")}</button></div>}
       <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />

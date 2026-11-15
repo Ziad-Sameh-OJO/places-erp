@@ -384,6 +384,16 @@
     "dupTitle": "خانة منع التكرار"
   },
   "listOfOptions": {
+    "logo": "لوجو الشركة (اختياري)",
+    "logoPick": "ارفع اللوجو",
+    "logoChange": "غيّر اللوجو",
+    "logoRemove": "شيله",
+    "logoHint": "بيظهر على غلاف الـ List جنب اسم العميل",
+    "logoImage": "اللوجو لازم يكون صورة (png / jpg / webp)",
+    "order": "ترتيب الوحدات",
+    "orderHint": "كل وحدة بتظهر في الملف برقمها (OPTION 1، OPTION 2…) بالترتيب ده",
+    "up": "طلّع {code} فوق",
+    "down": "نزّل {code} تحت",
     "bar": "الوحدات المختارة",
     "picked": "وحدة مختارة",
     "make": "اعمل List of options",

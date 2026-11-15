@@ -157,6 +157,18 @@ export class LeadsRepository {
     });
   }
 
+  /** Telesales' «اللي بعتيها»: hers, not kept, with someone else or waiting — only what she entered, newest first. */
+  sent(where: Prisma.LeadWhereInput, page: number, pageSize: number) {
+    return this.db.$transaction([
+      this.db.lead.findMany({ where, select: { id: true, code: true, name: true, phones: true, area: true, type: true, assignedToId: true, createdAt: true, stage: true }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.db.lead.count({ where }),
+    ]);
+  }
+
+  count(where: Prisma.LeadWhereInput) {
+    return this.db.lead.count({ where });
+  }
+
   userNames(userIds: string[]) {
     return this.db.employee.findMany({ where: { userId: { in: userIds } }, select: { userId: true, name: true } });
   }
@@ -224,6 +236,14 @@ export class LeadsRepository {
   /** Only the first call is the one the 30-minute KPI looks at. */
   markFirstCall(tx: Prisma.TransactionClient, id: string, at: Date) {
     return tx.lead.updateMany({ where: { id, firstCallAt: null }, data: { firstCallAt: at } });
+  }
+
+  dailyCalls(userId: string, day: string) {
+    return this.db.dailyCalls.findUnique({ where: { userId_day: { userId, day } } });
+  }
+
+  telesalesLeadSince(createdById: string, channel: string, since: Date) {
+    return this.db.lead.count({ where: { createdById, channel, createdAt: { gte: since } } }).then((n) => n > 0);
   }
 
   countCalls(byUserId: string, since: Date) {

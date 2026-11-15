@@ -3,9 +3,9 @@ import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { DealDetail, DealForm as DealFormData } from "@places/contracts";
 import { DEAL_TYPES } from "@places/domain";
-import { Field, Modal, onFormSubmit, useAction } from "@/components/ui";
+import { Field, Icon, Modal, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useFields } from "@/lib/me";
+import { useFields, useMe } from "@/lib/me";
 import { useDealForm, useDealUnits, useRefreshDeals } from "./use-deals";
 
 /** The company always shows next to the lead's name (demo meeting, 4 Nov). */
@@ -23,6 +23,8 @@ export function DealForm({ onClose, onSaved, leadId }: { onClose: () => void; on
   const run = useAction();
   const refresh = useRefreshDeals();
   const [unitId, setUnitId] = useState("");
+  const [withMe, setWithMe] = useState<string[]>([]); // «حد معاك في الديل Buyer؟»: picked one by one, not a ⌘-click list
+  const { me } = useMe();
   // M-01 / M-02: a salesperson can still close a deal on their own lead that was pulled to the Draft (demo dealNew)
   const held = form?.leads.filter((l) => !l.draft) ?? [];
   const drafted = form?.leads.filter((l) => l.draft) ?? [];
@@ -38,7 +40,7 @@ export function DealForm({ onClose, onSaved, leadId }: { onClose: () => void; on
   const save = onFormSubmit((d) => run(async () => {
     const r = await api.post<DealDetail>("/deals", {
       leadId: d.get("leadId"), unitId: d.get("unitId"), space: Number(d.get("space") ?? (unit?.space || 1)), type: d.get("type") ?? unit?.type,
-      commissionOwner: String(d.get("commissionOwner") || "0"), commissionClient: String(d.get("commissionClient") || "0"), withMe: d.getAll("withMe"),
+      commissionOwner: String(d.get("commissionOwner") || "0"), commissionClient: String(d.get("commissionClient") || "0"), withMe,
     });
     await refresh();
     onSaved(r.id);
@@ -71,7 +73,20 @@ export function DealForm({ onClose, onSaved, leadId }: { onClose: () => void; on
         {only("commissionOwner", <Field label={t("commOwner")}><input name="commissionOwner" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>)}
         {only("commissionClient", <Field label={t("commClient")}><input name="commissionClient" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>)}
         <Field label={t("withMe")} wide>
-          <select name="withMe" multiple size={3}>{form?.salespeople.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+          <div className="tag-picker">
+            <select value="" onChange={(e) => e.target.value && setWithMe([...withMe, e.target.value])} aria-label={t("withMe")}>
+              <option value="">{t("withMePick")}</option>
+              {form?.salespeople.filter((s) => s.id !== me?.employeeId && !withMe.includes(s.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {withMe.length > 0 && (
+              <div className="row wrap">
+                {withMe.map((id) => {
+                  const name = form?.salespeople.find((s) => s.id === id)?.name ?? "";
+                  return <span key={id} className="chip acc tag-chip">{name}<button type="button" onClick={() => setWithMe(withMe.filter((x) => x !== id))} aria-label={t("withMeRemove", { name })}><Icon name="x" /></button></span>;
+                })}
+              </div>
+            )}
+          </div>
         </Field>
         <div className="row end wide">
           <span className="hint spacer">{t("hint")}</span>

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { LeadBatchResult } from "@places/contracts";
-import { LEAD_STAGES } from "@places/domain";
+import { PICKABLE_STAGES } from "@places/domain";
 import { Icon, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
@@ -12,7 +12,7 @@ import { serverText } from "@/lib/server-text";
 import { useLeadOptions } from "./use-leads";
 
 /** Visit / Meeting need a time and units (1.9): from the lead's drawer, not in bulk (demo leaves Visit out). */
-const STAGES = LEAD_STAGES.filter((s) => s !== "Visit" && s !== "Meeting");
+const STAGES = PICKABLE_STAGES.filter((s) => s !== "Visit" && s !== "Meeting"); // the stages picked by hand (client, 11 Nov)
 
 /**
  * The demo's bulk bar (shell.js renderBulk): «n ليد متحدد · حوّل لسيلز… · غيّر المرحلة… · طبّق · أرشفة · إلغاء التحديد».

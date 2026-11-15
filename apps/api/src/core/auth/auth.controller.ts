@@ -61,7 +61,7 @@ export class AuthController {
   @SignedIn() @Get("me")
   async me(@Me() me: CurrentUser) {
     const permissions = Object.fromEntries(MODULES.map((m) => [m, [...me.grants.actions(m)]] as const).filter(([, a]) => a.length));
-    return { id: me.id, name: me.name, email: me.email, emailNotifications: me.emailNotifications, roles: me.roles, roleLabels: me.roleLabels, scope: me.grants.scope, permissions, fields: me.fieldRules,
+    return { id: me.id, employeeId: me.employeeId, name: me.name, email: me.email, emailNotifications: me.emailNotifications, roles: me.roles, roleLabels: me.roleLabels, scope: me.grants.scope, permissions, fields: me.fieldRules,
       profile: await this.auth.profile(me.id) };
   }
 

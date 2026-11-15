@@ -1,6 +1,6 @@
 "use client";
 import { useNewParam } from "@/lib/new-param";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { INVENTORY_MANAGER, keepsInventory, seesInventoryTiles, seesWebsiteAds } from "@places/domain";
 import { UNIT_SORTS } from "@places/contracts";
@@ -43,6 +43,8 @@ export function InventoryList() {
   const [page, setPage] = useState(1);
   // M-03 6.1: the units picked for a List of options, kept across pages and filters until cleared
   const [picked, setPicked] = useState<string[]>([]);
+  // the picked units' code and project, kept when the page changes (the List of options names them in its order)
+  const seen = useRef(new Map<string, { code: string; project: string; space: number }>());
   const [open, setOpen] = useState<string | null>(null);
   // a notification links to one unit (the close to confirm, Q16)
   useEffect(() => {
@@ -91,6 +93,7 @@ export function InventoryList() {
   const toggle = (k: "stale" | "divisible" | "missing") => (e: { target: { checked: boolean } }) => filter({ ...f, [k]: e.target.checked ? "true" : undefined });
   const failed = units.error?.message;
   const list = failed ? [] : units.data?.items ?? [];
+  useEffect(() => { for (const u of list) seen.current.set(u.id, { code: u.code, project: u.project, space: u.space }); }, [list]);
   const total = failed ? 0 : units.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
   // M-09 field permissions: hidden fields have no column and no filter (the API drops such filters too)
@@ -177,7 +180,7 @@ export function InventoryList() {
         : <Table className="has-sheets" head={cols.map(([, l]) => l)} rows={list.map((u) => cols.map(([k]) => (k === "webAd" ? <WebsiteAdCell u={u} /> : cell(u, k, t))))} empty={t("list.empty")} onRow={(i) => setOpen(list[i]!.id)}
           sort={{ keys: cols.map(([k]) => (SORTABLE.has(k) ? k : null)), by: sort.sort, dir: sort.dir, onChange: (by, dir) => { setSort({ sort: by, dir }); setPage(1); } }}
           pick={{ ids: list.map((u) => u.id), picked, onChange: setPicked, all: t("listOfOptions.pickAll"), one: (i) => t("listOfOptions.pickOne", { code: list[i]!.code }) }} />}
-      {picked.length > 0 && <ListOfOptionsBar ids={picked} onClear={() => setPicked([])} />}
+      {picked.length > 0 && <ListOfOptionsBar ids={picked} units={seen.current} onClear={() => setPicked([])} />}
       {fields.shows("space") && <AreaTabsBar tabs={areaTabs} value={f.tabId} onChange={(tabId) => filter({ ...f, tabId })} editable={me.can("inventory", "edit")} />}
       {!failed && pages > 1 && (
         <div className="row end">

@@ -37,7 +37,7 @@ export const LOCKED_VALUES: Partial<Record<ListKey, readonly string[]>> = {};
 export const LIST_DEFAULTS: Record<ListKey, readonly string[]> = {
   areas: [], channels: [], companyCategories: [], vendors: [], // the seed writes the client's real ones
   paymentPlans: ["كاش", "تقسيط 3 سنين", "تقسيط 5 سنين"],
-  finishings: ["متشطب", "نص تشطيب", "Core & Shell"],
+  finishings: ["متشطب", "نص تشطيب", "Core & Shell", "Furnished", "Serviced"], // Furnished · Serviced: client, 11 Nov
   interactionTypes: ["مكالمة", "زيارة", "طلب", "شكوى", "ابديت مع المالك"],
   mkTaskTypes: ["Website leasing", "Market survey", "تصميم بوست", "تصوير فيديو"],
   ticketDepts: ["HR", "Inventory", "Marketing", "Accounts", "Operations", "الإدارة"],

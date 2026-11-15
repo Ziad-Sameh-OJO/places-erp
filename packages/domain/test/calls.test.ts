@@ -16,7 +16,8 @@ test("first call within 30 minutes of arrival (KPI: Hadeer «أول اتصال �
 test("call goals: Telesales 100 a day, sales and TLs 50 a week, others none", () => {
   assert.deepEqual(callGoal(["telesales"]), { period: "day", target: 100 });
   assert.deepEqual(callGoal(["sales"]), { period: "week", target: 50 });
-  assert.deepEqual(callGoal(["tl", "sales"]), { period: "week", target: 50 });
+  assert.equal(callGoal(["tl", "sales"]), null); // a Team Leader doesn't get it, even one who sells (client, 11 Nov)
+  assert.equal(callGoal(["tl"]), null);
   assert.equal(callGoal(["ops"]), null);
   assert.equal(CALL_TARGETS.firstCallMinutes, 30);
 });

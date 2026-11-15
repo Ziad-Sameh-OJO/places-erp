@@ -14,14 +14,39 @@ export function firstCallOnTime(arrivedAt: Date, firstCallAt: Date | null, limit
 
 export interface CallGoal { readonly period: "day" | "week"; readonly target: number }
 
-/** The call target a person's page shows (demo: «مكالماتك النهارده: … من 100» / «آخر 7 أيام: … من 50»). */
+/**
+ * The call target a person's page shows (demo: «مكالماتك النهارده: … من 100» / «آخر 7 أيام: … من 50»). Not for a Team
+ * Leader, even one who also sells (client, 11 Nov: «شيلها من التيم ليدر»).
+ */
 export function callGoal(roles: readonly string[]): CallGoal | null {
   if (roles.includes("telesales")) return { period: "day", target: CALL_TARGETS.telesalesPerDay };
-  if (roles.includes("sales") || roles.includes("tl")) return { period: "week", target: CALL_TARGETS.salesPerWeek };
+  if (roles.includes("tl")) return null;
+  if (roles.includes("sales")) return { period: "week", target: CALL_TARGETS.salesPerWeek };
   return null;
 }
 
 /** Where the goal's count starts: today from Cairo midnight, the week as the last 7 days. */
 export function callPeriodStart(goal: CallGoal, now: Date, cal: WorkCalendar = PLACES_CALENDAR): Date {
   return goal.period === "day" ? dayStart(localDate(now, cal), cal) : new Date(now.getTime() - 7 * 24 * 60 * 60_000);
+}
+
+/**
+ * M-01 · Telesales' «عدد المكالمات اليومية · 100 مكالمة في اليوم» (client, 11 Nov): she writes her day's total calls
+ * herself (many aren't on a lead); the day's count is the larger of that and the calls logged on leads. A day she
+ * entered a lead from the «By Telesales» channel counts as a full day even under 100.
+ */
+export const TELESALES_CHANNEL = "By Telesales";
+
+export interface CallDay { entered: number | null; logged: number; telesalesLead: boolean }
+
+/** One day's count for the KPI. */
+export function dayCalls(d: CallDay, target: number = CALL_TARGETS.telesalesPerDay): number {
+  const calls = Math.max(d.entered ?? 0, d.logged);
+  return d.telesalesLead && calls < target ? target : calls;
+}
+
+/** The KPI's value: the days' counts over the working days so far (a day with nothing counts 0), to one decimal. */
+export function averageDailyCalls(days: readonly CallDay[], workingDays: number, target: number = CALL_TARGETS.telesalesPerDay): number {
+  const sum = days.reduce((n, d) => n + dayCalls(d, target), 0);
+  return Math.round((sum / Math.max(1, workingDays)) * 10) / 10;
 }
