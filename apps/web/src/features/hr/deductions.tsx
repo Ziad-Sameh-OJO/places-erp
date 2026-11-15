@@ -9,6 +9,7 @@ import { ago, money } from "@/lib/format";
 import { moneyChip } from "../kpis/kpis-page";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { DeductionSettings } from "./deduction-settings";
 
 /** M-05 · «التوفير» (7.9): the month's deductions (attendance + approved penalties); HR approves them once and they go to payroll. */
 export function Deductions() {
@@ -47,6 +48,7 @@ export function Deductions() {
         : <Note kind="warn"><span className="spacer">{t("deductions.notApproved")}</span>
             {can("hr", "approve") && can("hr", "edit") && <button className="btn sm" onClick={() => void approve()}><Icon name="check" />{t("deductions.approveBtn")}</button>}</Note>}
       <Note>{t("deductions.note")}</Note>
+      <DeductionSettings />
     </>
   );
 }

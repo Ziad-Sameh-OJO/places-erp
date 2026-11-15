@@ -106,6 +106,16 @@
         "title": "Broadcast waiting for your approval",
         "sub": "{text}",
         "button": "Review"
+      },
+      "oneOnOneLeft": {
+        "title": "Last week of the month: {n} salespeople still without a 1-to-1",
+        "sub": "{names}",
+        "button": "Coverage"
+      },
+      "noPunch": {
+        "title": "{n} haven't punched today: {names}",
+        "sub": "Decide for each: present, absent or Off",
+        "button": "Attendance"
       }
     }
   },

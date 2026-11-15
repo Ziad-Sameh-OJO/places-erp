@@ -24,6 +24,8 @@ export interface IdealResult {
   readonly winner: string | null;
   readonly fund: Piasters;
   readonly points: ReadonlyMap<string, number>;
+  /** the team's order: most points first, anyone with a penalty this month at the bottom (HR, 15 Nov) */
+  readonly order: readonly string[];
 }
 
 export const MIN_KPI_FOR_IDEAL = 80;
@@ -37,7 +39,8 @@ export function idealEmployee(team: readonly MemberMonth[]): IdealResult {
   const winner = [...eligible].sort((a, b) =>
     points.get(b.id)! - points.get(a.id)! || b.targetPercent - a.targetPercent || (b.kpiScore ?? 0) - (a.kpiScore ?? 0))[0];
   const fund = winner ? team.filter((m) => m.id !== winner.id).reduce((s, m) => s + m.deductions, 0) : 0;
-  return { winner: winner?.id ?? null, fund, points };
+  const order = [...team].sort((a, b) => Number(a.hasPenalty) - Number(b.hasPenalty) || points.get(b.id)! - points.get(a.id)!).map((m) => m.id);
+  return { winner: winner?.id ?? null, fund, points, order };
 }
 
 /**

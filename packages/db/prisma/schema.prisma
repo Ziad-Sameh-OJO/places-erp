@@ -228,6 +228,7 @@ enum AttendanceKind {
   FORGOT
   ABSENT
   SPECIAL_SCHEDULE
+  DAY_OFF // HR, 15 Nov: someone who didn't punch given a day off with no deduction; never «غياب»
 
   @@schema("hr")
 }
@@ -293,6 +294,8 @@ model Penalty {
   employee   Employee @relation(fields: [employeeId], references: [id])
   day        DateTime @db.Date
   text       String
+  /// HR, 15 Nov: one of HR's penalty types (Setting `penaltyTypes`); null on penalties recorded before types existed
+  type       String?
   byUserId   String
   /// M-05 7.7: the deduction in days, and HR's approval (a TL's proposal waits for it)
   deductionDays Decimal @default(0) @db.Decimal(4, 2)
@@ -331,6 +334,24 @@ model OneOnOne {
   createdAt   DateTime  @default(now())
 
   @@index([employeeId, heldOn]) // 13.3: an employee's 1:1 history
+  @@schema("hr")
+}
+
+/// M-05 · the employee file (HR, 15 Nov): papers HR uploads, each 1-to-1's PDF sheet, later warnings and insurance.
+/// `kind` is plain text so other features add kinds without a migration: upload · one_on_one · warning · insurance.
+model EmployeeDocument {
+  id         String   @id @default(cuid())
+  employeeId String
+  kind       String
+  title      String
+  docType    String?  // one of the setting `employeeDocTypes` (the required papers)
+  fileId     String?  // system.File, attached as entity "EmployeeDocument"
+  month      String?  // 2026-11 (a 1-to-1's month)
+  refId      String?  // the record it came from (the OneOnOne)
+  byUserId   String
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, createdAt])
   @@schema("hr")
 }
 
@@ -1566,6 +1587,8 @@ model KpiItem {
   required   Int?
   value      Decimal?      @db.Decimal(14, 2) // the manual entry, or the system's latest figure (the daily job, 11.5)
   baseline   Decimal?      @db.Decimal(14, 2) // October 2026's measure for the growth items
+  monthValue Decimal?      @db.Decimal(14, 2) // HR 15 Nov «الشهر»: the daily job's figure since the 1st of `monthOf`
+  monthOf    String?       @db.VarChar(7) // "2026-11"; another month = no figure yet
   deliveries KpiDelivery[]
 
   @@unique([cardId, position])
