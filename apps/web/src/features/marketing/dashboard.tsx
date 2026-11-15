@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { MarketingDashboard } from "@places/contracts";
+import { COST_METRICS, type CostMetric } from "@places/domain";
 import { KpiTile } from "@/components/blocks";
 import { Card, Chip, Empty, Icon, Note, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -41,6 +42,7 @@ export function Dashboard() {
     if (draft.from && draft.to && draft.from > draft.to) { toast(t("badRange"), "bad"); return; }
     setCustom(draft);
   };
+  const [metric, setMetric] = useState<CostMetric>("qualified"); // 14.13 · «الـ Cost تختاره»
   const [channel, setChannel] = useState("");
   const [campaignId, setCampaignId] = useState("");
   const campaigns = useCampaigns().data ?? [];
@@ -50,6 +52,7 @@ export function Dashboard() {
   const d = q.data;
   const fields = useFields("marketing"); // M-09: the money tiles go with a hidden «اتصرف»
   const channels = [...new Set(campaigns.map((c) => c.channel))];
+  const COST = { lead: "costPerLead", qualified: "costPerQualified", deal: "costPerDeal" } as const;
   return (
     <>
       <div className="toolbar">
@@ -70,13 +73,18 @@ export function Dashboard() {
           <option value="">{t("allCampaigns")}</option>
           {campaigns.filter((c) => !channel || c.channel === channel).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        {fields.shows(COST[metric]) && (
+          <select value={metric} onChange={(e) => setMetric(e.target.value as CostMetric)} aria-label={t("cost.label")}>
+            {COST_METRICS.map((m) => <option key={m} value={m}>{t(`cost.${m}`)}</option>)}
+          </select>
+        )}
       </div>
       {q.error && <Note kind="warn">{q.error.message}</Note>}
       <div className="kpis">
         <KpiTile label={t("kpi.leads")} value={d ? num(d.total.leads) : "…"} sub={t("kpi.inPeriod")} icon="users" />
         <KpiTile label="Qualified" value={d ? num(d.total.qualified) : "…"} sub={t("kpi.rate", { rate: d?.total.rate ?? 0 })} icon="star" tone="ok" />
         {fields.shows("spent") && <KpiTile label={t("kpi.spent")} value={d ? money(d.spent) : "…"} sub={t("kpi.campaigns", { count: d?.campaignCount ?? 0 })} icon="megaphone" tone="warn" />}
-        {fields.shows("costPerQualified") && <KpiTile label={t("kpi.costPerQualified")} value={d ? money(d.costPerQualified) : "…"} sub={t("kpi.perLead")} icon="trend" />}
+        {fields.shows(COST[metric]) && <KpiTile label={t(`cost.${metric}`)} value={d ? money(d[COST[metric]]) : "…"} sub={metric === "deal" ? t("cost.deals", { count: d?.total.deals ?? 0 }) : t(`cost.per.${metric}`)} icon="trend" />}
       </div>
       <div className="cols wide">
         <Card title={t("tree.title")} icon="layers" sub={t("tree.sub")}>
@@ -88,7 +96,7 @@ export function Dashboard() {
                   {c.campaigns.map((x) => (
                     <div key={x.id} className="kid">
                       <span>{x.name}{x.target && <small>{x.target}</small>}</span><span className="num">{t("leads", { count: x.leads })}</span>
-                      <Chip tone="ok">{`${x.qualified} Qualified`}</Chip><span className="num hide-sm">{t("rateCost", { rate: x.rate ?? 0, cost: money(x.costPerLead) })}</span>
+                      <Chip tone="ok">{`${x.qualified} Qualified`}</Chip><span className="num hide-sm">{t(`rateCost.${metric}`, { rate: x.rate ?? 0, cost: money(x[COST[metric]]) })}</span>
                     </div>
                   ))}
                   {c.noCampaign > 0 && <div className="kid"><span className="hint">{t("noCampaign")}</span><span className="num">{t("leads", { count: c.noCampaign })}</span><span /><span /></div>}

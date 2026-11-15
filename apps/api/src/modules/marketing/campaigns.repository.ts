@@ -67,7 +67,18 @@ export class CampaignsRepository {
 
   /** The campaigns the filter covers, for «صرف الكامبينز». */
   covered(where: Prisma.CampaignWhereInput) {
-    return this.db.campaign.findMany({ where: { AND: [where, { archivedAt: null }] }, select: { spent: true } });
+    return this.db.campaign.findMany({ where: { AND: [where, { archivedAt: null }] }, select: { id: true, spent: true } });
+  }
+
+  /**
+   * 14.13 · the deals that went through (not rejected or cancelled) on leads of the channel / campaign, with when their
+   * lead came in: the period is the domain's (`dealsByLeadArrival`).
+   */
+  dealLeads(lead: Prisma.LeadWhereInput) {
+    return this.db.deal.findMany({
+      where: { status: { notIn: ["REJECTED", "CANCELLED"] }, leadId: { not: null }, lead: { is: lead } },
+      select: { closedAt: true, lead: { select: { arrivedAt: true, campaignId: true } } },
+    });
   }
 
   /** 4.19 · «أسماء الصفحات», in the order they were added, with how many live campaigns use each. */
