@@ -242,6 +242,8 @@ export const ListOfOptionsInput = z.object({
   kind: z.enum(["pdf", "slide"], { errorMap: () => ({ message: "اختار كامل أو مختصر" }) }),
   format: z.enum(["pdf", "pptx"], { errorMap: () => ({ message: "اختار PDF أو PowerPoint" }) }),
   client: optional(text(120, "اسم العميل طويل")),
+  /** the client company's logo on the cover (optional, client 15 Nov): the person's own finished image upload */
+  clientLogoFileId: Id.optional(),
 });
 export type ListOfOptionsInput = z.infer<typeof ListOfOptionsInput>;
 export const UnitPhotoOrder = z.object({ fileIds: z.array(Id).max(MAX_UNIT_PHOTOS) });

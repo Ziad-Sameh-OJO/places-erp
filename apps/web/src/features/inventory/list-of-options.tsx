@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { MAX_LIST_UNITS, type ListOfOptionsInput } from "@places/contracts";
+import { MAX_LIST_UNITS, UploadRequest, type ListOfOptionsInput, type StoredFile, type UploadTicket } from "@places/contracts";
+import { put } from "@/components/file-upload";
 import { Field, Icon, Modal, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 
@@ -40,12 +41,31 @@ function ListOfOptionsModal({ ids, units, onClose }: { ids: string[]; units: Kno
   const [kind, setKind] = useState<ListOfOptionsInput["kind"]>("pdf");
   const [format, setFormat] = useState<ListOfOptionsInput["format"]>("pdf");
   const [client, setClient] = useState("");
+  // the client company's logo for the cover (optional, client 15 Nov): previewed here, uploaded on «نزّل الملف»
+  const [logo, setLogo] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const pickLogo = (f: File | undefined) => {
+    if (logoUrl) URL.revokeObjectURL(logoUrl);
+    setLogo(f ?? null);
+    setLogoUrl(f ? URL.createObjectURL(f) : null);
+  };
+  const uploadLogo = async (f: File): Promise<string> => {
+    const req = { name: f.name, mime: f.type, size: f.size };
+    const check = UploadRequest.safeParse(req);
+    if (!check.success || !f.type.startsWith("image/")) throw new Error(check.success ? t("logoImage") : check.error.issues[0]!.message);
+    const tk = await api.post<UploadTicket>("/files/uploads", req);
+    await put(tk, f, () => undefined);
+    return (await api.post<StoredFile>(`/files/${tk.id}/complete`)).id;
+  };
   const [busy, setBusy] = useState(false);
   const make = () => {
     setBusy(true);
-    const body: ListOfOptionsInput = { unitIds: order, kind, format, ...(client.trim() ? { client: client.trim() } : {}) };
     void run(async () => {
-      try { await api.download("/inventory/unit-lists", `List of options.${format}`, body); onClose(); } finally { setBusy(false); }
+      try {
+        const body: ListOfOptionsInput = { unitIds: order, kind, format, ...(client.trim() ? { client: client.trim() } : {}), ...(logo ? { clientLogoFileId: await uploadLogo(logo) } : {}) };
+        await api.download("/inventory/unit-lists", `List of options.${format}`, body);
+        onClose();
+      } finally { setBusy(false); }
     }, t("done"));
   };
   return (
@@ -83,6 +103,16 @@ function ListOfOptionsModal({ ids, units, onClose }: { ids: string[]; units: Kno
       </Field>
       <Field label={t("client")}>
         <input value={client} maxLength={120} placeholder={t("clientHint")} onChange={(e) => setClient(e.target.value)} />
+      </Field>
+      <Field label={t("logo")}>
+        <div className="lo-logo">
+          {logoUrl ? <span className="lo-logo-pic"><img src={logoUrl} alt={t("logo")} /></span> : null}
+          <label className="btn ghost sm"><Icon name="upload" />{logo ? t("logoChange") : t("logoPick")}
+            <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { pickLogo(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {logo && <button type="button" className="btn ghost sm" onClick={() => pickLogo(undefined)}><Icon name="x" />{t("logoRemove")}</button>}
+          <small className="hint">{t("logoHint")}</small>
+        </div>
       </Field>
       <div className="row end">
         <button className="btn ghost" onClick={onClose}>{t("cancel")}</button>

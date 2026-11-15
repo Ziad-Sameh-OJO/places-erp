@@ -18,7 +18,7 @@ type Bg = "red" | "paper" | "dark" | "contacts";
 /** a photo box: [photo or none, x, y, w, h] in % of the page */
 type Box = [Photo | null, number, number, number, number];
 type Row = [label: string, value: string, mark?: "area" | "rate"];
-interface Page { bg: Bg; cover?: { title: string; area: string; building: string; code: string }; photos?: Box[]; title?: string; table?: Row[]; thanks?: boolean; option?: number }
+interface Page { bg: Bg; cover?: { title: string; area: string; building: string; code: string; logo?: Photo }; photos?: Box[]; title?: string; table?: Row[]; thanks?: boolean; option?: number }
 
 // the backgrounds come from the client's pptx (copied to the build by nest-cli.json), read once
 let bgs: Record<Bg, string> | undefined;
@@ -77,10 +77,10 @@ function pages(u: UnitDetail, photos: Photo[], kind: "pdf" | "slide"): Page[] {
  * (its cover, building, specs and inside photos; or the slide's specs and photos), then contacts and thank you once.
  */
 export interface ListUnit { u: UnitDetail; photos: Photo[] }
-function listPages(units: readonly ListUnit[], kind: "pdf" | "slide", client?: string): Page[] {
+function listPages(units: readonly ListUnit[], kind: "pdf" | "slide", client?: string, logo?: Photo): Page[] {
   const n = units.length;
   return [
-    { bg: "red", cover: { title: "LIST OF OPTIONS", area: `${n} ${n === 1 ? "UNIT" : "UNITS"}`, building: client ? `PREPARED FOR : ${client.toUpperCase()}` : "", code: "" } },
+    { bg: "red", cover: { title: "LIST OF OPTIONS", area: `${n} ${n === 1 ? "UNIT" : "UNITS"}`, building: client ? `PREPARED FOR : ${client.toUpperCase()}` : "", code: "", ...(logo ? { logo } : {}) } },
     // a unit's «pdf» pages end with contacts + thank you: the list puts those once, at the end
     // each unit's first page says its place in the list («OPTION 1», «OPTION 2»…), in the order picked (client, 15 Nov)
     ...units.flatMap(({ u, photos }, i) => {
@@ -109,13 +109,14 @@ const CSS = `@page{size:1280px 720px;margin:0}
   .b-tbl tr.area td{background:#a7a7a7;color:#e5372b;font-weight:700}.b-tbl tr.rate td{background:#ee3a4f;color:#fff;font-weight:700}
   .b-title{position:absolute;left:37.5%;top:4.6%;width:25%;margin:0;text-align:center;font:400 34px ${SERIF};color:#1d1d1b}
   .b-thanks{position:absolute;left:1.8%;top:3.5%;font:60px 'Book Antiqua',Palatino,${SERIF}}
+  .b-logo{position:absolute;right:4%;top:44%;width:300px;height:190px;background:#fff;border-radius:8px;padding:18px;display:flex;align-items:center;justify-content:center}.b-logo img{width:100%;height:100%;object-fit:contain}
   .b-opt.left{right:auto;left:3.3%;top:5.5%}
   .b-opt{position:absolute;right:2.5%;top:4%;padding:8px 22px;background:#1d1d1b;color:#fff;font:700 26px ${SANS};letter-spacing:2px;border-radius:4px}
   .b-site{position:absolute;left:49.4%;top:80.4%;font:20px 'Book Antiqua',Palatino,${SERIF}}.b-disc{position:absolute;left:49.4%;top:86.2%;width:46%;margin:0;font:8px/1.3 'Book Antiqua',Palatino,${SERIF};opacity:.9}`;
 
 const box = ([src, x, y, w, h]: Box) => `<div class="b-ph" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${src ? `<img src="${esc(src)}" alt="">` : "<span>Photos coming soon</span>"}</div>`;
 const pageHtml = (p: Page) => `<section class="b-pg" style="background-image:url('${esc(bg(p.bg))}')">
-  ${p.cover ? `<div class="b-cover"><h1>${esc(p.cover.title)}</h1><h2>${esc(p.cover.area)}</h2><div class="b-meta"><span>${esc(p.cover.building)}</span><span>${esc(p.cover.code)}</span></div></div>` : ""}
+  ${p.cover ? `<div class="b-cover"><h1>${esc(p.cover.title)}</h1><h2>${esc(p.cover.area)}</h2><div class="b-meta"><span>${esc(p.cover.building)}</span><span>${esc(p.cover.code)}</span></div></div>${p.cover.logo ? `<div class="b-logo"><img src="${esc(p.cover.logo)}" alt=""></div>` : ""}` : ""}
   ${(p.photos ?? []).map(box).join("")}
   ${p.title ? `<h3 class="b-title">${esc(p.title)}</h3>` : ""}
   ${p.table ? `<table class="b-tbl">${p.table.map(([l, v, mark]) => `<tr class="${mark ?? ""}"><td>${esc(l)}</td><td>${esc(v)}</td></tr>`).join("")}</table>` : ""}
@@ -126,7 +127,7 @@ const pageHtml = (p: Page) => `<section class="b-pg" style="background-image:url
 const deckHtml = (name: string, P: Page[]) => layout(name, `<style>${CSS}</style>${P.map(pageHtml).join("")}`);
 /** The deck as HTML for DocumentsService.pdf(…, { slide: true }). */
 export const unitDeckHtml = (u: UnitDetail, photos: Photo[], kind: "pdf" | "slide") => deckHtml(deckName(u, kind), pages(u, photos, kind));
-export const listDeckHtml = (units: readonly ListUnit[], kind: "pdf" | "slide", client?: string) => deckHtml(listName(units.length, client), listPages(units, kind, client));
+export const listDeckHtml = (units: readonly ListUnit[], kind: "pdf" | "slide", client?: string, logo?: Photo) => deckHtml(listName(units.length, client), listPages(units, kind, client, logo));
 /**
  * 2.25 · the demo's deckPreview: the PDF's cover and specs page, each a page of its own (no fonts: the deck's are the
  * system ones), for the small preview in the unit's PDF tab. Only the first photo shows on those two pages.
@@ -153,7 +154,7 @@ function pixels(src: Photo): { w: number; h: number } | null {
 
 /** The same pages as a .pptx (the demo's unitDeckPptx, server-side). */
 export const unitDeckPptx = (u: UnitDetail, photos: Photo[], kind: "pdf" | "slide") => deckPptx(deckName(u, kind), pages(u, photos, kind));
-export const listDeckPptx = (units: readonly ListUnit[], kind: "pdf" | "slide", client?: string) => deckPptx(listName(units.length, client), listPages(units, kind, client));
+export const listDeckPptx = (units: readonly ListUnit[], kind: "pdf" | "slide", client?: string, logo?: Photo) => deckPptx(listName(units.length, client), listPages(units, kind, client, logo));
 
 async function deckPptx(name: string, P: Page[]): Promise<Buffer> {
   const X = (v: number) => (v * 13.333) / 100, Y = (v: number) => (v * 7.5) / 100;
@@ -175,6 +176,13 @@ async function deckPptx(name: string, P: Page[]): Promise<Buffer> {
     if (p.cover) {
       s.addText([{ text: p.cover.title, options: { fontSize: 54, breakLine: true } }, { text: p.cover.area, options: { fontSize: 44 } }], { x: X(1.9), y: Y(5.3), w: X(55), h: Y(44), fontFace: "Arial", bold: true, color: "FFFFFF", valign: "top", lineSpacingMultiple: 0.9 });
       s.addText(p.cover.building, { x: X(1.9), y: Y(52), w: X(50), h: Y(6), fontFace: "Arial", bold: true, fontSize: 18, color: "FFFFFF" });
+      if (p.cover.logo) {
+        // the client company's logo in a white box on the right, kept in its own proportions
+        const bx = X(72.6), by = Y(44), bw = X(23.4), bh = Y(26.4), pad = 0.18, px = pixels(p.cover.logo);
+        s.addShape("rect", { x: bx, y: by, w: bw, h: bh, fill: { color: "FFFFFF" }, line: { color: "FFFFFF" } });
+        const iw = bw - 2 * pad, ih = bh - 2 * pad, r = px ? Math.min(iw / px.w, ih / px.h) : 0;
+        s.addImage({ data: p.cover.logo, x: bx + pad + (px ? (iw - px.w * r) / 2 : 0), y: by + pad + (px ? (ih - px.h * r) / 2 : 0), w: px ? px.w * r : iw, h: px ? px.h * r : ih });
+      }
       s.addText(p.cover.code, { x: X(55), y: Y(52), w: X(35), h: Y(6), fontFace: "Arial", bold: true, fontSize: 18, color: "FFFFFF" });
     }
     if (p.title) s.addText(p.title, { x: X(37.5), y: Y(4.6), w: X(25), h: Y(7.6), align: "center", fontFace: "Times New Roman", fontSize: 28, color: "1D1D1B" });
