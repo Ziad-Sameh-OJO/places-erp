@@ -6,6 +6,8 @@ import { AttendanceService } from "./attendance.service";
 import { ExcusesService } from "./excuses.service";
 import { LeavesService } from "./leaves.service";
 import { PeopleCareService } from "./people-care.service";
+import { WarningsService } from "./warnings.service";
+import { ImprovementService } from "./improvement.service";
 
 /**
  * 0.18 · «مهامي النهارده» from HR (demo home.js): the leaves and Excuses whose turn is mine (the TL's first, then HR's,
@@ -13,21 +15,25 @@ import { PeopleCareService } from "./people-care.service";
  */
 @Injectable()
 export class HrTodayService {
-  constructor(private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly attendance: AttendanceService, private readonly care: PeopleCareService) {}
+  constructor(private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly attendance: AttendanceService, private readonly care: PeopleCareService, private readonly warnings: WarningsService, private readonly plans: ImprovementService) {}
 
   async lines(me: CurrentUser): Promise<TodayLine[]> {
     const approves = me.grants.can("hr", "approve");
-    const [leaves, excuses, forgot, actions] = await Promise.all([
+    const hr = me.grants.scope === "all" && me.grants.can("hr", "edit");
+    const [leaves, excuses, forgot, actions, warnings, plans] = await Promise.all([
       approves ? this.leaves.list(me) : [],
       approves ? this.excuses.list(me) : [],
       approves ? this.attendance.forgotWaiting(me) : [],
       me.grants.can("hr", "edit") ? this.care.actions().then((a) => a.items) : [],
+      hr ? this.warnings.todayLines() : [], // HR 15 Nov: who needs a warning this month
+      approves ? this.plans.todayLines(me) : [], // the TL's plans to write · HR's plans to read and follow
     ]);
     return [
       ...leaves.filter((l) => l.canDecide).map((l): TodayLine => ({ kind: l.canDecide === "tl" ? "leaveTl" : "leaveHr", tone: "warn", id: l.id, values: { name: l.name, type: l.type, from: l.from, to: l.to } })),
       ...excuses.filter((x) => x.canDecide).map((x): TodayLine => ({ kind: x.canDecide === "tl" ? "excuseTl" : "excuseHr", tone: x.number >= 5 ? "bad" : "warn", id: x.id, values: { name: x.name, n: x.number, day: x.day, cost: x.number >= 5 ? "fifth" : excuseDeduction(x.number) ? "half" : "free" } })),
       ...forgot.map((f): TodayLine => ({ kind: "forgot", tone: "bad", id: f.id, values: { name: f.name, day: f.day } })),
       ...actions.filter((a) => a.due <= localDate(new Date())).map((a): TodayLine => ({ kind: "hrAction", tone: "bad", id: a.employeeId, values: { action: a.action, name: a.name, due: a.due } })),
+      ...warnings, ...plans,
     ];
   }
 }

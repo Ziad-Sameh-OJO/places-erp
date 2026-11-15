@@ -101,6 +101,26 @@
         "title": "Broadcast waiting for your approval",
         "sub": "{text}",
         "button": "Review"
+      },
+      "warningDue": {
+        "title": "{name} needs a warning",
+        "sub": "{reason}",
+        "button": "Warnings"
+      },
+      "planRequested": {
+        "title": "Write an improvement plan for {name}",
+        "sub": "KPI {score}%",
+        "button": "Write the plan"
+      },
+      "planSubmitted": {
+        "title": "{name}'s improvement plan arrived",
+        "sub": "From {tl}",
+        "button": "Review"
+      },
+      "planDue": {
+        "title": "{name}'s improvement plan is due",
+        "sub": "{due} · follow up and close",
+        "button": "Follow up"
       }
     }
   },

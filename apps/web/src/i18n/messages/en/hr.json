@@ -312,5 +312,71 @@
     "actionPh": "If something needs to be done",
     "actionDue": "HR action due date (you'll get an Alarm)",
     "save": "Save to employee file"
+  },
+  "warnings": {
+    "tab": "Warnings",
+    "title": "Warnings",
+    "sub": "Whoever reached a rule this month shows here and in «My day» · Issue = a PDF from the template",
+    "allEmployees": "All employees",
+    "reason": "Reason",
+    "type": "Warning type",
+    "by": "By",
+    "issue": "Issue",
+    "dismiss": "Dismiss",
+    "pdf": "PDF",
+    "issued": "Warning issued",
+    "dismissed": "Dismissed",
+    "empty": "No warnings",
+    "status": {
+      "due": "Needs a warning",
+      "issued": "Issued",
+      "dismissed": "Dismissed"
+    },
+    "newTitle": "New warning",
+    "newSub": "A warning by hand, without a rule · issued at once",
+    "rulesTitle": "Warning rules",
+    "rulesSub": "Every morning the system checks who reached this number this month · 0 = rule off",
+    "trigger": {
+      "excuses": "Excuses in the month",
+      "absences": "Absent days in the month",
+      "lateDeductions": "Late with a deduction in the month (times)",
+      "penalties": "Penalties in the month"
+    },
+    "min": "≥ how many",
+    "addRule": "Rule",
+    "removeRule": "Remove the rule",
+    "template": "Warning text",
+    "templateHint": "{type} is where the warning type goes · the header, date, employee name and signature lines are added for you"
+  },
+  "improvement": {
+    "tab": "Improvement plan",
+    "title": "Need an improvement plan",
+    "sub": "KPI under {threshold}% (the quarter's card so far)",
+    "threshold": "Threshold %",
+    "score": "KPI",
+    "tl": "Team Leader / follower",
+    "noTl": "No TL",
+    "request": "Ask for a plan",
+    "requested": "The Team Leader got the request",
+    "none": "Nobody is under the threshold",
+    "plansTitle": "Improvement plans",
+    "plansSub": "The TL writes and sends it · HR follows it and closes it with a note",
+    "plansEmpty": "No plans",
+    "status": {
+      "requested": "Waiting for the TL",
+      "submitted": "Sent to HR",
+      "follow_up": "In follow-up",
+      "closed": "Closed"
+    },
+    "goals": "Goals",
+    "actions": "Actions",
+    "due": "Due",
+    "write": "Write the plan",
+    "send": "Send to HR",
+    "sent": "The plan was sent to HR",
+    "follow": "Follow up",
+    "close": "Close",
+    "note": "Closing note",
+    "closed": "The plan was closed"
   }
 }
