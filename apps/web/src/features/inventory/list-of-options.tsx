@@ -1,11 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { MAX_LIST_UNITS, UploadRequest, type ListOfOptionsInput, type StoredFile, type UploadTicket } from "@places/contracts";
+import { MAX_LIST_UNITS, UploadRequest, type LeadRow, type ListOfOptionsInput, type Paged, type StoredFile, type UploadTicket } from "@places/contracts";
 import { put } from "@/components/file-upload";
 import { Field, Icon, Modal, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useMe } from "@/lib/me";
 
 /**
  * M-03 6.1 «list of options as pdf»: the units picked in the sheet go out as one file for a client — the full deck of
@@ -41,6 +43,17 @@ function ListOfOptionsModal({ ids, units, onClose }: { ids: string[]; units: Kno
   const [kind, setKind] = useState<ListOfOptionsInput["kind"]>("pdf");
   const [format, setFormat] = useState<ListOfOptionsInput["format"]>("pdf");
   const [client, setClient] = useState("");
+  // 14.9 · the client from the salesperson's own leads (optional): the list is recorded on that lead too
+  const { me, can } = useMe();
+  const [leadQ, setLeadQ] = useState(""), [leadSearch, setLeadSearch] = useState("");
+  const [lead, setLead] = useState<LeadRow | null>(null);
+  useEffect(() => { const h = setTimeout(() => setLeadSearch(leadQ.trim()), 300); return () => clearTimeout(h); }, [leadQ]);
+  const leads = useQuery({
+    queryKey: ["leads", "list-of-options", leadSearch, me?.employeeId],
+    queryFn: () => api.get<Paged<LeadRow>>(`/leads?pageSize=20${leadSearch ? `&q=${encodeURIComponent(leadSearch)}` : ""}${me?.employeeId ? `&assignedToId=${me.employeeId}` : ""}`),
+    enabled: can("leads", "edit"),
+  });
+  const leadOptions = [...(lead ? [lead] : []), ...(leads.data?.items ?? []).filter((l) => l.id !== lead?.id)];
   // the client company's logo for the cover (optional, client 15 Nov): previewed here, uploaded on «نزّل الملف»
   const [logo, setLogo] = useState<File | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -63,10 +76,10 @@ function ListOfOptionsModal({ ids, units, onClose }: { ids: string[]; units: Kno
     void run(async () => {
       try {
         const body: ListOfOptionsInput = { unitIds: order, kind, format, ...(client.trim() ? { client: client.trim() } : {}), ...(logo ? { clientLogoFileId: await uploadLogo(logo) } : {}) };
-        await api.download("/inventory/unit-lists", `List of options.${format}`, body);
+        await api.download(lead ? `/leads/${lead.id}/options-list` : "/inventory/unit-lists", `List of options.${format}`, body);
         onClose();
       } finally { setBusy(false); }
-    }, t("done"));
+    }, lead ? t("doneOnLead", { name: lead.name }) : t("done"));
   };
   return (
     <Modal title={t("title", { n: String(ids.length), count: ids.length })} onClose={onClose}>
@@ -101,8 +114,16 @@ function ListOfOptionsModal({ ids, units, onClose }: { ids: string[]; units: Kno
           <button type="button" aria-pressed={format === "pptx"} onClick={() => setFormat("pptx")}>PowerPoint</button>
         </div>
       </Field>
+      {can("leads", "edit") && <Field label={t("lead")}>
+        <div className="search"><Icon name="search" /><input type="search" value={leadQ} onChange={(e) => setLeadQ(e.target.value)} placeholder={t("leadSearch")} aria-label={t("leadSearch")} /></div>
+        <select value={lead?.id ?? ""} aria-label={t("lead")} onChange={(e) => setLead(leadOptions.find((l) => l.id === e.target.value) ?? null)}>
+          <option value="">{t("noLead")}</option>
+          {leadOptions.map((l) => <option key={l.id} value={l.id}>{l.name} · {l.code}</option>)}
+        </select>
+        <small className="hint">{t("leadHint")}</small>
+      </Field>}
       <Field label={t("client")}>
-        <input value={client} maxLength={120} placeholder={t("clientHint")} onChange={(e) => setClient(e.target.value)} />
+        <input value={client} maxLength={120} placeholder={lead?.name ?? t("clientHint")} onChange={(e) => setClient(e.target.value)} />
       </Field>
       <Field label={t("logo")}>
         <div className="lo-logo">

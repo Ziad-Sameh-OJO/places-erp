@@ -52,8 +52,16 @@ export class InventoryRepository {
    * The Visit form's unit list (1.9): open units a salesperson may see, searched by code, project or space. The units
    * already picked stay on the form itself, so a search never drops them.
    */
-  forVisit(q: string | undefined, take: number) {
-    return this.db.unit.findMany({ where: openSearch(q), select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
+  forVisit(q: string | undefined, take: number, space: { min?: number; max?: number } = {}) {
+    // 14.11: «الرقم» is the building number too
+    const search = q ? { OR: [openSearch(q), { AND: [openSearch(undefined), { building: { contains: q, mode: "insensitive" as const } }] }] } : openSearch(undefined);
+    const range: Prisma.UnitWhereInput = space.min != null || space.max != null ? { space: { ...(space.min != null ? { gte: space.min } : {}), ...(space.max != null ? { lte: space.max } : {}) } } : {};
+    return this.db.unit.findMany({ where: { AND: [search, range] }, select: { id: true, code: true, project: true, space: true }, orderBy: { code: "asc" }, take });
+  }
+
+  /** 14.8 · the units a lead's log names, archived ones too. */
+  journeyUnits(ids: string[]) {
+    return this.db.unit.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, project: true } });
   }
 
   /** M-04 Broadcast · the Hot Inventory search: the same open, confirmed units, also by area, with what the sheet shows. */
