@@ -8,9 +8,10 @@ import type nav from "@/i18n/messages/ar/nav.json";
  */
 export type NavSection = "" | "sales" | "ops" | "admin" | "system";
 /** A page in the menu: one with words in nav.modules — a module, or «companies» (the companies sheet, 1.20). */
-export type NavKey = keyof typeof nav.modules & (ModuleKey | "companies" | "events");
+export type NavKey = keyof typeof nav.modules & (ModuleKey | "companies" | "events" | "dashboard");
 export const NAV: Record<NavKey, { code: string; icon: IconName; section: NavSection }> = {
   home: { code: "Today", icon: "home", section: "" },
+  dashboard: { code: "M-00", icon: "chart", section: "" }, // management's first page (14.1); everyone signed in has his role's
   leads: { code: "M-01", icon: "users", section: "sales" },
   settings: { code: "Routing", icon: "route", section: "sales" },
   deals: { code: "M-02", icon: "handshake", section: "sales" },

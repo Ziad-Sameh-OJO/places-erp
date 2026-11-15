@@ -52,6 +52,7 @@ export * from "./fun-days.ts";
 export * from "./warnings.ts";
 export * from "./career.ts";
 export * from "./employee-file.ts";
+export * from "./dashboard.ts";
 export * from "./period.ts";
 export * from "./lead-transfer.ts";
 export * from "./unit-journey.ts";

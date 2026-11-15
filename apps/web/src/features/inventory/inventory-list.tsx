@@ -53,6 +53,8 @@ export function InventoryList() {
     if (q.get("report")) setReport(true); // «التقرير اليومي جاهز» (2.18)
     if (q.get("lists")) setLists(true); // «طلب List من …» (2.32)
     if (q.get("missing")) setF({ missing: "true" }); // «مهامي النهارده»: «N وحدة تانية ناقصها بيانات» (2.20)
+    const type = q.get("type"); // 14.2 · the dashboard's «For Rent» / «For Sale» numbers open their type's tab
+    if (type === "Rent" || type === "Resale" || type === "Income" || type === "Primary") setTab(type);
   }, []);
   const [form, setForm] = useState<"new" | "edit" | null>(null);
   useNewParam("1", () => setForm("new"), me.can("inventory", "create")); // «جديد ← وحدة جديدة» from any page (0.16)

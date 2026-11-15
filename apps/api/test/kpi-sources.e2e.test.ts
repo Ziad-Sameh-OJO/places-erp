@@ -82,8 +82,11 @@ test("Randa's and Manar's new units, Hadeer's calls a day, a salesperson's Broad
   // 5 calls today: one working day (a day off still counts as one)
   const hadeer = who(6);
   const lead = await prisma.lead.create({ data: { code: `L-T34${stamp}`, name: `E2E-T34 ${stamp}`, phones: [`0106${stamp.slice(-7)}`], area: "E2E", type: "Rent", channel: "Facebook", createdById: "e2e", draft: "draft" } });
-  await prisma.leadCall.createMany({ data: Array.from({ length: 5 }, () => ({ leadId: lead.id, byUserId: hadeer.userId, at: ago(HOUR) })) });
-  assert.equal(await measure("callsDaily", { per: "quarter" }, hadeer, c, ago(2 * HOUR)), 5);
+  // the window stays inside today in Cairo: right after midnight «2 hours ago» is yesterday, which would make it two days
+  const today = new Date(Math.max(ago(2 * HOUR).getTime(), dayStart(localDate(now)).getTime()));
+  const callAt = new Date((today.getTime() + now.getTime()) / 2);
+  await prisma.leadCall.createMany({ data: Array.from({ length: 5 }, () => ({ leadId: lead.id, byUserId: hadeer.userId, at: callAt })) });
+  assert.equal(await measure("callsDaily", { per: "quarter" }, hadeer, c, today), 5);
 
   // the approved Broadcast he marked as sent counts, the one still waiting for Rahma's review doesn't
   const s = who(7);

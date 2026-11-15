@@ -3,6 +3,7 @@
     "ref": "u1",
     "name": "أحمد إسلام",
     "email": "ahmed.islam@places.com",
+    "dashboard": "ahmed",
     "department": "الإدارة",
     "roles": [
       "admin"
@@ -12,6 +13,7 @@
     "ref": "u2",
     "name": "محمد صفوت",
     "email": "m.safwat@places.com",
+    "dashboard": "safwat",
     "department": "الإدارة",
     "roles": [
       "admin"

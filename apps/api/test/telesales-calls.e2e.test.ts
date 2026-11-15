@@ -5,7 +5,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { PLACES_CALENDAR, TELESALES_CHANNEL, localDate } from "@places/domain";
+import { PLACES_CALENDAR, TELESALES_CHANNEL, dayStart, localDate } from "@places/domain";
 import { MEASURES, type Ctx, type Who } from "../../worker/src/processors/kpi-refresh.ts";
 import { call, session } from "./helpers.ts";
 
@@ -54,12 +54,13 @@ test("the KPI (worker): each day the larger of written / logged, a «By Telesale
   const now = new Date();
   const c: Ctx = { now, quarter: "2026-Q4", qStart: new Date(now.getTime() - 30 * 24 * HOUR), cal: PLACES_CALENDAR };
   const w: Who = { id: `E2E-TC-e${stamp}`, userId: `E2E-TC-u${stamp}`, target: null as never };
-  const from = new Date(now.getTime() - 2 * HOUR); // one working day
+  // one working day: inside today in Cairo (right after midnight «2 hours ago» is yesterday, two days)
+  const from = new Date(Math.max(now.getTime() - 2 * HOUR, dayStart(localDate(now)).getTime()));
   const measure = () => MEASURES.callsDaily!(c, { per: "quarter" }, from, w);
   assert.equal(await measure(), 0);
   await prisma.dailyCalls.create({ data: { userId: w.userId, day: localDate(now), count: 70 } });
   assert.equal(await measure(), 70);
-  await prisma.lead.create({ data: { code: `L-TC${stamp}2`, name: `E2E-TC ${stamp}`, phones: [`0108${stamp.slice(-7)}`], area: "E2E", type: "Rent", channel: TELESALES_CHANNEL, createdById: w.userId, ownedByTelesales: true, createdAt: new Date(now.getTime() - HOUR) } });
+  await prisma.lead.create({ data: { code: `L-TC${stamp}2`, name: `E2E-TC ${stamp}`, phones: [`0108${stamp.slice(-7)}`], area: "E2E", type: "Rent", channel: TELESALES_CHANNEL, createdById: w.userId, ownedByTelesales: true, createdAt: new Date((from.getTime() + now.getTime()) / 2) } });
   assert.equal(await measure(), 100);
   await prisma.dailyCalls.update({ where: { userId_day: { userId: w.userId, day: localDate(now) } }, data: { count: 130 } });
   assert.equal(await measure(), 130); // over 100 keeps its number

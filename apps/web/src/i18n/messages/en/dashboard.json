@@ -1,0 +1,112 @@
+{
+  "loading": "Loading…",
+  "morning": "Good morning, {name}",
+  "evening": "Good evening, {name}",
+  "companySub": "How the company is doing · {quarter} · every number opens its details",
+  "soon": "Soon",
+  "soonSub": "Not in the system yet",
+  "open": "Open",
+  "nobody": "Nobody",
+  "today": {
+    "title": "Today so far",
+    "titleSafwat": "Today",
+    "leads": "Leads in today",
+    "interested": "{count} of them Interested",
+    "interestedTile": "Interested from today",
+    "visits": "Showings",
+    "meetings": "Meetings",
+    "doneDeals": "Done Deals",
+    "units": "Units added to the inventory",
+    "conforming": "Conforming done",
+    "threshold": "Who took a Threshold",
+    "blocks": "Who took Block leads",
+    "sits": "Sits in and out",
+    "pulled": "Who had a lead pulled",
+    "late": "Late without an Excuse",
+    "paid": "Daily expenses",
+    "received": "Money in today"
+  },
+  "stages": {
+    "title": "The company by stage",
+    "sub": "Not Interested left out · a click opens the leads filtered"
+  },
+  "inventory": {
+    "title": "Inventory",
+    "rent": "For Rent",
+    "sale": "For Sale"
+  },
+  "targets": {
+    "title": "Target",
+    "quarter": "Quarter target ({quarter})",
+    "year": "Year target ({year})",
+    "of": "{achieved} of {goal}",
+    "noGoal": "No target set"
+  },
+  "teams": {
+    "title": "Teams",
+    "sub": "Each team's percent of the quarter's target · a click on a person opens their performance",
+    "team": "Team {team} · {tl}",
+    "none": "No teams"
+  },
+  "company": {
+    "title": "Company",
+    "visitsQ": "Quarter Visits",
+    "meetingsQ": "Quarter Meetings",
+    "visitsY": "Year Visits",
+    "meetingsY": "Year Meetings"
+  },
+  "finance": {
+    "title": "Finance",
+    "balance": "Company balance now",
+    "advances": "Total advances",
+    "receivables": "Owed to us (clients account)",
+    "income": "Income this month",
+    "sits": "Sits in and out",
+    "custody": "Who holds custody",
+    "noCustody": "No open custody",
+    "broken": "Expense lines past their budget",
+    "brokenMark": "Broken",
+    "brokenRow": "{spent} spent of {budget} ({pct}%)",
+    "noBroken": "Every line within its budget",
+    "open": "Open"
+  },
+  "sales": {
+    "title": "Sales",
+    "top": "Top 3 (quarter target)",
+    "none": "No salespeople",
+    "achiever": "Top achiever (year)",
+    "ideal": "Ideal employee",
+    "blocks": "Most Blocks this quarter",
+    "threshold": "Who took a Threshold this quarter"
+  },
+  "marketing": {
+    "title": "Marketing",
+    "live": "running",
+    "off": "stopped",
+    "none": "No campaigns",
+    "open": "Campaigns"
+  },
+  "person": {
+    "title": "{name}'s performance",
+    "loading": "Loading…",
+    "week": "Week",
+    "month": "Month",
+    "quarter": "Quarter",
+    "visits": "Showings",
+    "meetings": "Meetings",
+    "achieved": "Achieved",
+    "target": "Target",
+    "open": "Targets in reports"
+  },
+  "mine": {
+    "loading": "Loading…",
+    "sub": "Your numbers today · your KPIs below",
+    "leads": "New leads today",
+    "visits": "Showings today",
+    "meetings": "Meetings today",
+    "stages": "Your leads by stage",
+    "targets": "Your target",
+    "month": "Month target",
+    "quarter": "Quarter target"
+  }
+}

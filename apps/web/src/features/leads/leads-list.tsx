@@ -57,6 +57,9 @@ export function LeadsList() {
     if (q.get("companies") === "1") return window.location.replace("/companies"); // older notifications' link (1.20): the sheet has its own page now
     if (q.get("tags") === "1") setDraftTab("tags"); // «طلب Tag» / «اترفض الـ Tag» notifications
     if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32): the button is gone from here (client, 11 Nov), the notification still opens it
+    // 14.2 · 14.3: a number on the dashboard opens the list already filtered («?stage=Interested», «?from=…&to=…&qualified=true»)
+    const pre = Object.fromEntries((["stage", "qualified", "from", "to"] as const).flatMap((k) => (q.get(k) ? [[k, q.get(k)]] : []))) as LeadQuery;
+    if (Object.keys(pre).length) setF(pre);
   }, []);
   // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry
   useNewParam("1", () => setCreating(true), canCreate);
