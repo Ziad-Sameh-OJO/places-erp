@@ -39,3 +39,18 @@ export function idealEmployee(team: readonly MemberMonth[]): IdealResult {
   const fund = winner ? team.filter((m) => m.id !== winner.id).reduce((s, m) => s + m.deductions, 0) : 0;
   return { winner: winner?.id ?? null, fund, points };
 }
+
+/**
+ * The ideal employee by KPIs (HR, 15/11): everyone's total KPI score this quarter (out of 100%), highest first; the
+ * highest is the ideal employee of the group (sales apart, Team Leaders apart). No card yet → listed last, never ideal.
+ * A tie at the top makes every tied person ideal.
+ */
+export interface KpiRanked<T extends { readonly score: number | null }> { readonly rows: readonly (T & { rank: number | null; ideal: boolean })[] }
+
+export function rankByKpi<T extends { readonly score: number | null }>(people: readonly T[]): KpiRanked<T> {
+  const scored = people.filter((p) => p.score !== null).sort((a, b) => b.score! - a.score!);
+  const top = scored[0]?.score ?? null;
+  let rank = 0, last: number | null = null;
+  const rows = scored.map((p, i) => { if (p.score !== last) { rank = i + 1; last = p.score; } return { ...p, rank, ideal: top !== null && top > 0 && p.score === top }; });
+  return { rows: [...rows, ...people.filter((p) => p.score === null).map((p) => ({ ...p, rank: null, ideal: false }))] };
+}

@@ -111,6 +111,10 @@ export interface IdealRowView { employeeId: string; name: string; earlyDays: num
 export interface IdealTeamView { name: string; winner: { employeeId: string; name: string } | null; fund: string; rows: IdealRowView[] }
 export interface IdealView { month: string; teams: IdealTeamView[] }
 
+/* ---- «الموظف المثالي» by KPIs (HR, 15/11): the quarter's total KPI score, highest first, sales and Team Leaders apart ---- */
+export interface IdealKpiRowView { employeeId: string; name: string; /** a salesperson's Team Leader */ team: string | null; score: number | null; rank: number | null; ideal: boolean }
+export interface IdealKpiView { quarter: string | null; sales: IdealKpiRowView[]; teamLeaders: IdealKpiRowView[] }
+
 /* ---- 7.7 · penalties · 7.8 · the 1-to-1 ---- */
 export const NewPenalty = z.object({
   employeeId: z.string().min(1), day: CalendarDay,
