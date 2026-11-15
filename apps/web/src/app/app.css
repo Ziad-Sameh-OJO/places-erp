@@ -158,9 +158,9 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 
 /* 14.6 · the leads' filters: «السيلز» ticked in a dropdown, and the area typed or picked */
 .multi-pick { position: relative; }
-.multi-pick > summary { list-style: none; cursor: pointer; display: flex; align-items: center; min-height: 40px; max-width: 190px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 2px; background: var(--surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.multi-pick > summary { list-style: none; cursor: pointer; display: flex; align-items: center; min-height: 40px; max-width: 190px; padding: 8px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .multi-pick > summary::-webkit-details-marker { display: none; }
-.multi-pick > summary::after { content: "▾"; margin-inline-start: auto; padding-inline-start: 8px; color: var(--ink-3); }
+.multi-pick > summary::after { content: none; } /* modern.css draws the chevron, like a select */
 .multi-pick-list { position: absolute; z-index: 30; inset-inline-start: 0; top: calc(100% + 4px); min-width: 220px; max-height: 280px; overflow: auto; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); padding: 6px; display: grid; gap: 2px; }
 .multi-pick-list label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; font-size: 13px; }
 .multi-pick-list input, .toolbar .multi-pick-list label input { width: auto; min-height: 0; flex: none; }
