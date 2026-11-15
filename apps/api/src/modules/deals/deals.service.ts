@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
+import { periodOf } from "@places/contracts";
 import type { CancelDeal, CollectDeal, CreateDeal, EditCollection, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal, TodayLine } from "@places/contracts";
-import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, collected, collectionEditProblem, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
+import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, quarterBounds, collected, collectionEditProblem, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
 import { esc, layout } from "../../core/documents/documents.service";
 import { DocumentsSetupService } from "../settings/documents-setup.service";
 import { SettingsService } from "../settings/settings.service";
@@ -68,7 +69,8 @@ export class DealsService {
 
   async list(me: CurrentUser, f: DealFilters): Promise<Paged<DealRow>> {
     const hidden = me.fields.hidden("deals");
-    const [rows, total] = await this.repo.list(this.scope(me), f, f.status && toDb(f.status), !hidden.has("location"));
+    const period = periodOf(f); // 14.12: by the deal's close date
+    const [rows, total] = await this.repo.list(this.scope(me), f, f.status && toDb(f.status), !hidden.has("location"), period ? quarterBounds(period) : null);
     return { items: rows.map((r) => waitingSellers(hideRow(toRow(r), hidden), me)), total, page: f.page, pageSize: f.pageSize };
   }
 

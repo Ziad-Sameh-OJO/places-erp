@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PeriodQuery } from "./period.ts";
 import { CalendarDay, Id, Money, Page } from "./common.ts";
 
 /** M-07 · the chart of accounts (9.1) and the journal (9.5). */
@@ -157,7 +158,7 @@ export const ClosePeriod = z.object({ kind: z.enum(["month", "quarter"]) });
 export type ClosePeriod = z.infer<typeof ClosePeriod>;
 
 /* ---- 9.7 · the income statement ---- */
-export const IncomeQuery = z.object({ range: z.enum(["month", "year"]).default("month") });
+export const IncomeQuery = z.object({ range: z.enum(["month", "year"]).default("month"), ...PeriodQuery.shape });
 export type IncomeQuery = z.infer<typeof IncomeQuery>;
 export interface StatementLineView { id: string; code: string; name: string; value: string }
 export interface IncomeView {

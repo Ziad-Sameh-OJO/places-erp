@@ -7,6 +7,7 @@ import { money, short } from "./money";
 import { serverText } from "@/lib/server-text";
 import { useChart, useIncome } from "./use-finance";
 import { LedgerModal } from "./ledger-modal";
+import { PeriodPicker } from "@/components/period-picker";
 
 type Why = { title: string; rows: [string, string][]; total: [string, string]; path: string };
 
@@ -17,16 +18,19 @@ type Why = { title: string; rows: [string, string][]; total: [string, string]; p
 export function IncomeStatement() {
   const t = useTranslations("finance");
   const [range, setRange] = useState<"month" | "year">("month");
-  const q = useIncome(range);
+  const [period, setPeriod] = useState(""); // 14.12: a quarter instead of the month / the year
+  const q = useIncome(range, period);
+  const pick = (r: "month" | "year") => { setRange(r); setPeriod(""); };
   const [ledger, setLedger] = useState<string | null>(null);
   const [why, setWhy] = useState<Why | null>(null);
   const s = q.data;
   const seg = (
     <div className="row">
       <div className="seg" role="group">
-        <button aria-pressed={range === "month"} onClick={() => setRange("month")}>{t("pnl.thisMonth")}{s && range === "month" ? ` · ${serverText(s.label)}` : ""}</button>
-        <button aria-pressed={range === "year"} onClick={() => setRange("year")}>{t("pnl.yearToDate")}</button>
+        <button aria-pressed={!period && range === "month"} onClick={() => pick("month")}>{t("pnl.thisMonth")}{s && !period && range === "month" ? ` · ${serverText(s.label)}` : ""}</button>
+        <button aria-pressed={!period && range === "year"} onClick={() => pick("year")}>{t("pnl.yearToDate")}</button>
       </div>
+      <PeriodPicker value={period} onChange={setPeriod} empty={range === "month" ? t("pnl.thisMonth") : t("pnl.yearToDate")} />
       <span className="hint spacer">{range === "month" ? t("pnl.monthHint") : t("pnl.yearHint")} · {t("pnl.clickHint")}</span>
     </div>
   );

@@ -2,6 +2,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CommissionPerson, CommissionStatement, AccountLedger, AccountNode, BillsView, BudgetView, CashView, IncomeView, PayrollView, ChartView, EntryView, JournalView, MoveView, MovesView } from "@places/contracts";
 import { api } from "@/lib/api";
+import { periodParams } from "@/components/period-picker";
 
 /** M-07 · the chart with live balances (9.1). */
 export const useChart = () => useQuery({ queryKey: ["finance", "chart"], queryFn: () => api.get<ChartView>("/finance/accounts") });
@@ -46,7 +47,8 @@ export const KIND: Record<MoveKind, "bad" | "ok" | "info" | "warn" | ""> = {
   payroll: "bad", commission: "bad", pay: "bad", receive: "ok", transfer: "info", advance: "warn", custody: "warn", settle: "",
 };
 export const useBills = () => useQuery({ queryKey: ["finance", "bills"], queryFn: () => api.get<BillsView>("/finance/bills") });
-export const useIncome = (range: "month" | "year") => useQuery({ queryKey: ["finance", "income", range], queryFn: () => api.get<IncomeView>(`/finance/statements/income?range=${range}`) });
+/** `period` (14.12): "2025-Q4" = that quarter's movement, instead of the month / the year. */
+export const useIncome = (range: "month" | "year", period = "") => useQuery({ queryKey: ["finance", "income", range, period], queryFn: () => api.get<IncomeView>(`/finance/statements/income?range=${range}${period ? `&${periodParams(period)}` : ""}`) });
 export const usePayroll = () => useQuery({ queryKey: ["finance", "payroll"], queryFn: () => api.get<PayrollView>("/finance/payroll") });
 /* ---- 9.15 ---- */
 export const useCommissionPeople = () => useQuery({ queryKey: ["finance", "commissions"], queryFn: () => api.get<CommissionPerson[]>("/finance/commissions") });

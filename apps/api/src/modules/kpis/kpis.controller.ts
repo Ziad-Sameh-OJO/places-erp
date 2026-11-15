@@ -3,7 +3,7 @@ import type { Response } from "express";
 import { sendPdf } from "../../core/documents/documents.service";
 import {
   ActivityInput, ActivityResultInput, KpiBandsInput, KpiCopyInput, KpiDeliveryInput, KpiFollowerInput, KpiItemsInput, KpiNewCardInput, KpiPayInput, KpiPlanInput, KpiScope, KpiValueInput,
-  KpiWatchInput, KpiSheetFieldsInput, KpiBonusInput,
+  KpiWatchInput, KpiSheetFieldsInput, KpiBonusInput, periodOf,
 } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -21,7 +21,7 @@ export class KpisController {
   @Get("board")
   @SignedIn()
   board(@Me() me: CurrentUser, @Query(new ZodPipe(KpiScope)) q: KpiScope) {
-    return this.kpis.board(me, q.scope);
+    return this.kpis.board(me, q.scope, periodOf(q));
   }
 
   @Get("company")

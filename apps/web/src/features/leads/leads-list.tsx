@@ -6,7 +6,8 @@ import { ExportButton, Icon, Note, Tabs } from "@/components/ui";
 import type { DraftKind, LeadKind } from "@places/contracts";
 import { useMe } from "@/lib/me";
 import { num } from "@/lib/format";
-import { keepsCompaniesSheet } from "@places/domain";
+import { keepsCompaniesSheet, quarterDays } from "@places/domain";
+import { PeriodPicker, rangePeriod } from "@/components/period-picker";
 import type { LeadQuery } from "./filters";
 import { toParams, useSavedViews } from "./filters";
 import { BulkBar } from "./bulk-bar";
@@ -71,7 +72,8 @@ export function LeadsList() {
   const [picked, setPicked] = useState<string[]>([]);
   const canPick = can("leads", "edit") || can("leads", "approve");
   useEffect(() => setPicked([]), [f, page, kind, mode]);
-  const summary = useLeadSummary(kind);
+  const period = rangePeriod(f.from, f.to); // 14.12: «السنة والربع» is the «من / لحد» filter set to a whole quarter
+  const summary = useLeadSummary(kind, period);
   const calls = useMyCalls().data;
   const options = useLeadOptions();
   const settings = useSettings();
@@ -129,6 +131,7 @@ export function LeadsList() {
           <button aria-pressed={mode === "board"} title="Kanban" onClick={() => setMode("board")}><Icon name="board" /><span>Kanban</span></button>
         </div>
         <span className="hint num">{t("count", { count: total, n: num(total) })}</span>
+        <PeriodPicker value={period} all onChange={(p) => filter(p ? { ...f, ...quarterDays(p) } : (Object.fromEntries(Object.entries(f).filter(([k]) => k !== "from" && k !== "to")) as LeadQuery))} />
         <span className="spacer" />
         {can("leads", "import") && <button className="btn ghost" onClick={() => setBulk(true)}><Icon name="upload" />{t("bulk")}</button>}
         <ExportButton module="leads" path="/leads/export" query={toParams({ ...f, kind, ...sort }, 1, 100)} filename={t("exportFile")} label={t("export")} />

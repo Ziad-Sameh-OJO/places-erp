@@ -3,7 +3,8 @@ import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ReportInput, type ReportsAccessView, type ReportsPage as ReportsData, type ScheduledReportView, type TargetRow, type TargetsView, type TeamRow, type TransactionRow } from "@places/contracts";
-import { isReportsHead } from "@places/domain";
+import { isReportsHead, quarterDays } from "@places/domain";
+import { PeriodPicker, periodParams } from "@/components/period-picker";
 import { useFields, useMe } from "@/lib/me";
 import { Card, Chip, Empty, Field, Icon, Modal, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
@@ -43,7 +44,8 @@ export function ReportsPage() {
 function Targets({ tl }: { tl: boolean }) {
   const tr = useTranslations("reports");
   const [month, setMonth] = useState("");
-  const q = useQuery({ queryKey: ["reports", "targets", month], queryFn: () => api.get<TargetsView>(`/reports/targets${month ? `?month=${month}` : ""}`) });
+  const [period, setPeriod] = useState(""); // 14.12: a quarter's three months added up, instead of one month
+  const q = useQuery({ queryKey: ["reports", "targets", month, period], queryFn: () => api.get<TargetsView>(`/reports/targets?${period ? periodParams(period) : month ? `month=${month}` : ""}`) });
   const [edit, setEdit] = useState<TargetRow | null>(null);
   const f = useFields("reports");
   if (!q.data) return <Empty text={tr("loading")} />;
@@ -69,7 +71,8 @@ function Targets({ tl }: { tl: boolean }) {
   return (
     <>
       <div className="toolbar">
-        <label className="date-f"><span>{tr("month")}</span><input type="month" value={month || v.month} onChange={(e) => setMonth(e.target.value)} aria-label={tr("month")} /></label>
+        {!period && <label className="date-f"><span>{tr("month")}</span><input type="month" value={month || v.month} onChange={(e) => setMonth(e.target.value)} aria-label={tr("month")} /></label>}
+        <PeriodPicker value={period} onChange={setPeriod} empty={tr("month")} />
         <span className="hint">{serverText(v.label)}</span>
       </div>
       {tl ? <TeamLeaders v={v} /> : (
@@ -122,8 +125,10 @@ function TargetForm({ r, month, onClose }: { r: TargetRow; month: string; onClos
 function Transactions({ month }: { month: string }) {
   const tr = useTranslations("reports");
   const [range, setRange] = useState<[string, string] | null>(null);
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }), last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
-  const [from, to] = range ?? [`${month}-01`, today < last ? today : last];
+  // 14.12: `month` is a quarter ("2025-Q4") when the targets show one
+  const quarter = month.includes("Q") ? quarterDays(month) : null;
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }), last = quarter?.to ?? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const [from, to] = range ?? [quarter?.from ?? `${month}-01`, today < last ? today : last];
   const q = useQuery({ queryKey: ["reports", "tx", from, to], queryFn: () => api.get<TransactionRow[]>(`/reports/transactions?from=${from}&to=${to}`) });
   const collected = useFields("reports").shows("collected");
   return (

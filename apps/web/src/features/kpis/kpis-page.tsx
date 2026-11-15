@@ -13,8 +13,10 @@ import { DailyBoard } from "@/features/reports/daily";
 import { IdealEmployee } from "../hr/ideal";
 import { KpiCardBody, KpiDrawer } from "./kpi-drawer";
 import { type Scope, useBoard, useCompany, useKpiLog, useRefreshKpis } from "./use-kpis";
+import { PeriodPicker } from "@/components/period-picker";
+import { HistoryFigures, HistoryTab } from "./history";
 
-type Tab = Scope | "log" | "daily" | "ideal";
+type Tab = Scope | "log" | "daily" | "ideal" | "history";
 const barTone = (t: string) => (t === "ok" ? "" : t);
 export const Bar = ({ pct, tone }: { pct: number; tone: string }) => <div className={`bar ${barTone(tone)}`}><i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} /></div>;
 /** HR 15 Nov · «الربع» / «الشهر»: which progress a card shows (the API sends both). */
@@ -44,6 +46,8 @@ export function KpisPage() {
     ...(all ? [["log", t("tabs.log")] as [Tab, string]] : []),
     // 7.11: not for the KPI watcher (money); the list itself is the HR one, so it needs «hr: view»
     ...(me.data?.seesMoney && can("hr", "view") ? [["ideal", t("tabs.ideal")] as [Tab, string]] : []),
+    // 14.12: past quarters' figures typed by hand, by the admins and HR
+    ...(can("kpis", "edit") || can("hr", "edit") ? [["history", t("history.tab")] as [Tab, string]] : []),
   ];
   const [pick, setPick] = useState<Tab | null>(null);
   // 11.16: «افتح الكارت» from home and its KPI lines: «/kpis?card=<id>»
@@ -55,7 +59,7 @@ export function KpisPage() {
   return (
     <>
       <div className="row"><Tabs<Tab> items={tabs} value={tab} onChange={setPick} /></div>
-      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : tab === "ideal" ? <IdealEmployee /> : <Log />}
+      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : tab === "ideal" ? <IdealEmployee /> : tab === "history" ? <HistoryTab /> : <Log />}
       {deep && <KpiDrawer id={deep} onClose={() => setDeep(null)} />}
     </>
   );
@@ -67,7 +71,9 @@ function MyCard({ id }: { id: string }) {
 
 function Board({ scope, note }: { scope: "team" | "all" | "mine"; note?: ReactNode }) {
   const t = useTranslations("kpis");
-  const q = useBoard(scope);
+  const [pickedQuarter, setPickedQuarter] = useState(""); // 14.12: "" = the current quarter
+  const q = useBoard(scope, true, pickedQuarter);
+  const { can } = useMe();
   const [open, setOpen] = useState<string | null>(null);
   const [sort, setSort] = useState<"low" | "high">("low");
   const [period, setPeriod] = useState<Period>("quarter");
@@ -89,6 +95,7 @@ function Board({ scope, note }: { scope: "team" | "all" | "mine"; note?: ReactNo
         <KpiTile label={t("board.quarter")} value={quarter.status === "open" ? t("board.open") : t("board.closed")} sub={quarter.status === "open" ? t("board.updating") : t("board.saved")} icon="clock" />
       </div>
       <div className="toolbar">
+        <PeriodPicker value={pickedQuarter || quarter.id} onChange={setPickedQuarter} />
         <PeriodSwitch value={period} onChange={setPeriod} />
         <div className="seg" role="group" aria-label={t("board.sort")}>
           <button aria-pressed={sort === "low"} onClick={() => setSort("low")}>{t("board.lowFirst")}</button>
@@ -104,6 +111,7 @@ function Board({ scope, note }: { scope: "team" | "all" | "mine"; note?: ReactNo
           {q.data.missing.map((p) => <NoCard key={p.id} p={p} onMade={setOpen} />)}
         </Card>
       )}
+      {pickedQuarter && (can("kpis", "edit") || can("hr", "edit")) && <HistoryFigures period={pickedQuarter} />}
       {open && <KpiDrawer id={open} onClose={() => setOpen(null)} />}
     </>
   );

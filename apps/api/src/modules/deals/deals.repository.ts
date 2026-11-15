@@ -35,8 +35,8 @@ const DEAL_MAKERS = ["sales", "tl"] as const;
 export class DealsRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  list(scope: Prisma.DealWhereInput, f: DealFilters, status: string | undefined, byLocation = true) {
-    const where: Prisma.DealWhereInput = { AND: [scope, status ? { status: status as never } : {}, search(f.q, byLocation)] };
+  list(scope: Prisma.DealWhereInput, f: DealFilters, status: string | undefined, byLocation = true, closed?: { from: Date; to: Date } | null) {
+    const where: Prisma.DealWhereInput = { AND: [scope, status ? { status: status as never } : {}, search(f.q, byLocation), closed ? { closedAt: { gte: closed.from, lt: closed.to } } : {}] };
     return this.db.$transaction([
       this.db.deal.findMany({ where, select: DEAL_ROW, orderBy: [{ closedAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.deal.count({ where }),
