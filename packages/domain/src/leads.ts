@@ -1,9 +1,12 @@
 /** M-01 · lead stages, the Qualified flag, the SLA clock, and round-robin routing by area. */
 import { type WorkCalendar, PLACES_CALENDAR, wallClockMinutesBetween, workingMinutesBetween } from "./business-time.ts";
 
+/**
+ * 14.5 (management meeting, 15 Nov): the stages in the client's order; «Follow up to / after Visit / Meeting» are gone
+ * (their leads moved to Visit / Meeting by a migration). Hold stays: the stage picker still offers it.
+ */
 export const LEAD_STAGES = [
-  "Fresh", "Interested", "Not Interested", "No Answer", "Follow up to Visit", "Visit", "Follow up after Visit",
-  "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold",
+  "Fresh", "No Answer", "Interested", "Not Interested", "Visit", "Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold",
 ] as const;
 export type LeadStage = (typeof LEAD_STAGES)[number];
 
@@ -32,24 +35,34 @@ export function boardLanes<T extends { stage: string; total: number }>(lanes: re
 }
 
 /** The pipeline, in order (demo PIPE); the side stages (Not Interested, No Answer, Cancellation, Hold) aren't on it. */
-export const LEAD_PIPELINE: readonly LeadStage[] = [
-  "Fresh", "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal",
+export const LEAD_PIPELINE: readonly LeadStage[] = ["Fresh", "Interested", "Visit", "Meeting", "Near to Close", "Done Deal"];
+
+/**
+ * 14.5 · the stage tabs above the list, in this order (no «Qualified» tab any more); Interested opens Visit and
+ * Meeting inside it.
+ */
+export const STAGE_TABS: readonly { readonly stage: LeadStage; readonly sub?: readonly LeadStage[] }[] = [
+  { stage: "Fresh" }, { stage: "No Answer" }, { stage: "Interested", sub: ["Visit", "Meeting"] }, { stage: "Not Interested" },
+  { stage: "Near to Close" }, { stage: "Done Deal" }, { stage: "Cancellation" },
 ];
 
+/** 14.6 · what the space is for: a new field on the lead, optional (older leads have none), and a filter. */
+export const PROPERTY_TYPES = ["Commercial", "Residential", "Admin office"] as const;
+export type PropertyType = (typeof PROPERTY_TYPES)[number];
+
 /** Reaching any of these marks the lead Qualified for good (M-01 2.7, M-04 2.7). */
-const QUALIFYING: ReadonlySet<LeadStage> = new Set([
-  "Interested", "Follow up to Visit", "Visit", "Follow up after Visit", "Follow up to Meeting", "Meeting", "Follow up after Meeting", "Near to Close", "Done Deal",
-]);
+const QUALIFYING: ReadonlySet<LeadStage> = new Set(["Interested", "Visit", "Meeting", "Near to Close", "Done Deal"]);
 
 export type VisitKind = "Visit" | "Meeting";
 
 /**
- * Where a Visit / Meeting moves the lead by itself (4 Nov demo meeting · 1.9): booking it → «Follow up to …», marking it
- * Done → «Visit» / «Meeting». Only forward along the pipeline: a lead already further on (Near to Close) stays where it
- * is, and null means «no move». A lead on a side stage (No Answer, Hold…) joins the pipeline, as in the demo.
+ * Where a Visit / Meeting moves the lead by itself (1.9): to «Visit» / «Meeting» when it's booked (and when it's marked
+ * Done, if it isn't there yet) — the «Follow up to …» stages are gone (14.5). Only forward along the pipeline: a lead
+ * already further on (Near to Close) stays where it is, and null means «no move». A lead on a side stage
+ * (No Answer, Hold…) joins the pipeline, as in the demo.
  */
-export function visitStage(current: LeadStage, kind: VisitKind, event: "booked" | "done"): LeadStage | null {
-  const to: LeadStage = event === "booked" ? `Follow up to ${kind}` : kind;
+export function visitStage(current: LeadStage, kind: VisitKind): LeadStage | null {
+  const to: LeadStage = kind;
   const at = LEAD_PIPELINE.indexOf(current);
   return at >= 0 && LEAD_PIPELINE.indexOf(to) <= at ? null : to;
 }

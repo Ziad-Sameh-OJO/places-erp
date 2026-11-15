@@ -5,9 +5,11 @@ import type { LeadOptions, LeadSummary, Settings } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
 import { Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
 import { num } from "@/lib/format";
-import { type LeadQuery, PRESETS, type SavedView, activeCount, sameFilters } from "./filters";
+import { type LeadQuery, STAGE_TAB_LIST, type SavedView, activeCount, sameFilters, subTabsOf } from "./filters";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
+import { PROPERTY_TYPES } from "@places/domain";
+import { MultiPick } from "./multi-pick";
 
 /** «مقارنة بالأسبوع اللي فات»: % change, none when last week had nothing (demo U.delta). */
 const delta = (cur: number, prev: number) => (prev ? ((cur - prev) / prev) * 100 : null);
@@ -26,7 +28,10 @@ export function LeadKpis({ s, onReset }: { s: LeadSummary; onReset: () => void }
   );
 }
 
-/** The demo's «العروض»: built-in views with counts, the person's own, and «احفظ الفلتر ده كعرض». */
+/**
+ * The demo's «العروض»: «كل الليدز», the stage tabs (14.5) with their counts, the person's own views, and «احفظ الفلتر ده
+ * كعرض». A stage tab keeps the other filters; a saved view replaces them.
+ */
 export function ViewsBar({ f, s, views, onPick, onAdd, onRemove }: {
   f: LeadQuery; s: LeadSummary | undefined; views: SavedView[];
   onPick: (f: LeadQuery) => void; onAdd: (v: SavedView) => void; onRemove: (i: number) => void;
@@ -34,12 +39,19 @@ export function ViewsBar({ f, s, views, onPick, onAdd, onRemove }: {
   const t = useTranslations("leads.views");
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const known = PRESETS.some((p) => sameFilters(p.f, f)) || views.some((v) => sameFilters(v.f, f));
+  const known = (activeCount(f) === 1 && !!f.stage) || views.some((v) => sameFilters(v.f, f));
+  const count = (stage: string) => (s ? num(s.stages[stage] ?? 0) : "…");
+  const stage = (st: string) => onPick({ ...f, stage: st });
+  const sub = subTabsOf(f.stage);
   return (
+    <>
     <div className="views-bar" role="toolbar" aria-label={t("label")}>
       <span className="lbl">{t("title")}</span>
-      {PRESETS.map((p) => (
-        <button key={p.count} className="vchip" aria-pressed={sameFilters(p.f, f)} onClick={() => onPick(p.f)}>{t(`presets.${p.count}`)}<b>{s ? num(s[p.count]) : "…"}</b></button>
+      <button className="vchip" aria-pressed={!f.stage} onClick={() => stage("")}>{t("presets.total")}<b>{s ? num(s.total) : "…"}</b></button>
+      {STAGE_TAB_LIST.map((x) => (
+        <button key={x.stage} className="vchip" aria-pressed={f.stage === x.stage || !!x.sub?.some((y) => y === f.stage)} onClick={() => stage(x.stage)}>
+          {x.stage}<b>{count(x.stage)}</b>
+        </button>
       ))}
       {views.map((v, i) => (
         <button key={`${v.name}-${i}`} className="vchip" aria-pressed={sameFilters(v.f, f)} onClick={() => onPick(v.f)}>
@@ -57,15 +69,24 @@ export function ViewsBar({ f, s, views, onPick, onAdd, onRemove }: {
         </Modal>
       )}
     </div>
+    {sub.length > 0 && (
+      <div className="views-bar" role="toolbar" aria-label={t("insideInterested")}>
+        <span className="lbl">{t("insideInterested")}</span>
+        {sub.map((x) => <button key={x} className="vchip" aria-pressed={f.stage === x} onClick={() => stage(f.stage === x ? "Interested" : x)}>{x}<b>{count(x)}</b></button>)}
+      </div>
+    )}
+    </>
   );
 }
 
-/** The demo's filters. Changing the channel clears the campaign (campaigns belong to a channel). */
+/**
+ * The demo's filters (14.6: no campaign filter; several salespeople, the team, the area typed or picked, the type).
+ * They all work together, and with the stage tabs.
+ */
 export function LeadsToolbar({ f, set, settings, options }: {
   f: LeadQuery; set: (f: LeadQuery) => void; settings: Settings | undefined; options: LeadOptions | undefined;
 }) {
-  const on = (k: keyof LeadQuery) => (e: { target: { value: string } }) => set({ ...f, [k]: e.target.value, ...(k === "channel" ? { campaignId: "" } : {}) });
-  const campaigns = (options?.campaigns ?? []).filter((c) => !f.channel || c.channel === f.channel);
+  const on = (k: keyof LeadQuery) => (e: { target: { value: string } }) => set({ ...f, [k]: e.target.value });
   const t = useTranslations("leads.filters");
   const fields = useFields("leads"); // M-09: no filter on a hidden field (the API drops such filters too)
   const n = activeCount(f);
@@ -75,16 +96,20 @@ export function LeadsToolbar({ f, set, settings, options }: {
       {fields.shows("channel") && <select value={f.channel ?? ""} onChange={on("channel")} aria-label="Channel">
         <option value="">{t("allChannels")}</option>{settings?.channels.map(({ value }) => <option key={value} value={value}>{value}</option>)}
       </select>}
-      {fields.shows("campaign") && <select value={f.campaignId ?? ""} onChange={on("campaignId")} aria-label="Campaign">
-        <option value="">{t("allCampaigns")}</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-      </select>}
       {!!options?.salespeople.length && (
-        <select value={f.assignedToId ?? ""} onChange={on("assignedToId")} aria-label="Sales">
-          <option value="">{t("allSales")}</option>{options.salespeople.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        <MultiPick label="Sales" all={t("allSales")} picked={f.assignedToId ?? ""} options={options.salespeople} onChange={(v) => set({ ...f, assignedToId: v })} />
+      )}
+      {!!options?.teamLeaders.length && (
+        <select value={f.teamLeaderId ?? ""} onChange={on("teamLeaderId")} aria-label={t("team")}>
+          <option value="">{t("allTeams")}</option>{options.teamLeaders.map((p) => <option key={p.id} value={p.id}>{t("teamOf", { name: p.name })}</option>)}
         </select>
       )}
-      {fields.shows("area") && <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">
-        <option value="">{t("allAreas")}</option>{settings?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}
+      {fields.shows("area") && <>
+        <input className="area-f" list="lead-areas" value={f.area ?? ""} onChange={on("area")} placeholder={t("allAreas")} aria-label="Area" />
+        <datalist id="lead-areas">{settings?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}</datalist>
+      </>}
+      {fields.shows("propertyType") && <select value={f.propertyType ?? ""} onChange={on("propertyType")} aria-label={t("type")}>
+        <option value="">{t("allTypes")}</option>{PROPERTY_TYPES.map((x) => <option key={x} value={x}>{x}</option>)}
       </select>}
       <select value={f.qualified ?? ""} onChange={on("qualified")} aria-label="Qualified">
         <option value="">{t("qualifiedAll")}</option><option value="true">{t("qualifiedOnly")}</option><option value="false">{t("notQualified")}</option>

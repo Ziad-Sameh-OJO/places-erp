@@ -13,7 +13,7 @@ type Kind = VisitRow["kind"];
 
 /**
  * Demo «الزيارات» (1.9, M-01 3.3): every Visit / Meeting with its Alarm when the time came, Done / معملتهاش / تعديل,
- * and the form under it. Booking moves the lead to «Follow up to …», Done to Visit / Meeting (the API decides, forward
+ * and the form under it. Booking or Done moves the lead to Visit / Meeting (14.5; the API decides, forward
  * only). «اتأجلت» (1.24): a reason, then whom the lead rules name (the TL) approves or rejects.
  */
 export function Visits({ l, kind }: { l: LeadDetail; kind: Kind }) {

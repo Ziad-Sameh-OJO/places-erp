@@ -281,7 +281,8 @@
     "tagsAsked": "اتبعت {n} طلب Tag للتيم ليدر",
     "companyCategory": "كاتيجوري الشركة",
     "pickCategory": "اختار الكاتيجوري",
-    "straightToSheet": "«{name}» شركة جديدة: هتتضاف على شيت الشركات على طول بالكاتيجوري دي"
+    "straightToSheet": "«{name}» شركة جديدة: هتتضاف على شيت الشركات على طول بالكاتيجوري دي",
+    "propertyType": "النوع"
   },
   "drawer": {
     "notFound": "الليد مش موجود",
@@ -334,7 +335,9 @@
     "tlNoteTitle": "ملاحظة الـ Team Leader على الليد",
     "tlNotePlaceholder": "حاجة محتاجينها في الليد ده",
     "tlNoteSave": "حفظ",
-    "tlNoteSaved": "اتحفظت"
+    "tlNoteSaved": "اتحفظت",
+    "enteredBy": "مين دخّل الليد",
+    "propertyType": "النوع"
   },
   "board": {
     "movedQualified": "{name} بقى {stage} واتعلّم Qualified",
@@ -375,7 +378,8 @@
     "saved": "اتحفظ «{name}» · هتلاقيه فوق الفلاتر",
     "name": "اسم العرض",
     "namePlaceholder": "مثلاً: التجمع · Qualified",
-    "save": "احفظ"
+    "save": "احفظ",
+    "insideInterested": "جوه Interested:"
   },
   "filters": {
     "search": "اسم، موبايل، شركة، كود",
@@ -389,7 +393,12 @@
     "notQualified": "مش Qualified",
     "from": "من",
     "to": "لحد",
-    "clear": "مسح {count} فلتر"
+    "clear": "مسح {count} فلتر",
+    "team": "التيم",
+    "allTeams": "كل التيمز",
+    "teamOf": "تيم {name}",
+    "type": "النوع",
+    "allTypes": "كل الأنواع"
   },
   "list": {
     "leads": "الليدز",
@@ -409,7 +418,8 @@
     "next": "التالي",
     "slaTitle": "الـ SLA",
     "holiday": "(النهارده إجازة رسمية)",
-    "slaNote": ": تنبيه بعد {warn} من غير أكشن، والليد بيتسحب أوتوماتيك بعد {pull} للسيلز اللي عليه الدور."
+    "slaNote": ": تنبيه بعد {warn} من غير أكشن، والليد بيتسحب أوتوماتيك بعد {pull} للسيلز اللي عليه الدور.",
+    "archive": "الأرشيف"
   },
   "units": {
     "loading": "بيحمّل…",

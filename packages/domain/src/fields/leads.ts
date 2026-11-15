@@ -14,6 +14,7 @@ export const leads: readonly FieldDef[] = [
   { key: "company", label: "الشركة", covers: ["companyCategory"] },
   { key: "area", label: "Area", required: true },
   { key: "type", label: "Type", required: true },
+  { key: "propertyType", label: "Commercial / Residential / Admin office" }, // 14.6
   { key: "space", label: "Space" },
   { key: "condition", label: "Condition" },
   { key: "budget", label: "Budget" },
