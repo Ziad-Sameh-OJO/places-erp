@@ -68,7 +68,7 @@ export class UnitListsController {
 }
 
 /** The PDF opens in the browser; the PowerPoint downloads. */
-async function sendDoc(res: Response, doc: Promise<{ name: string; mime: string; body: Buffer }>) {
+export async function sendDoc(res: Response, doc: Promise<{ name: string; mime: string; body: Buffer }>) {
   const { name, mime, body } = await doc;
   res.setHeader("Content-Type", mime);
   res.setHeader("Content-Disposition", `${mime === "application/pdf" ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(name)}`);

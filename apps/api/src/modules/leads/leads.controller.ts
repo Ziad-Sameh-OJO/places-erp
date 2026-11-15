@@ -60,7 +60,7 @@ export class LeadsController {
   @Get("visit-units")
   @Requires("leads", "edit")
   visitUnits(@Me() me: CurrentUser, @Query(new ZodPipe(VisitUnitQuery)) q: VisitUnitQuery) {
-    return this.leads.visitUnits(me, q.q);
+    return this.leads.visitUnits(me, q);
   }
 
   @Get("summary")

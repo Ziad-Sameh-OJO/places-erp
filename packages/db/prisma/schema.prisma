@@ -438,6 +438,7 @@ model Lead {
   tags           LeadTag[]      // M-01 (client, 11 Nov): salespeople working it with its owner, after the TL's approval
   drafts         LeadDraft[]
   suggestedUnits LeadUnit[]
+  unitSteps      LeadUnitStep[]
   deals          Deal[]
   clientId       String?       // the client file it belongs to (M-10 2.1 / 2.3: Done Deal, or an old client's number)
   client         Client?       @relation(fields: [clientId], references: [id])
@@ -525,6 +526,21 @@ model LeadUnit {
 
   @@id([leadId, unitId])
   @@index([unitId])
+  @@schema("sales")
+}
+
+/// 14.8 · the lead's units log: a List of options sent to the client (14.9) or a Short list picked by hand (14.11), with
+/// its date and units. Visits and Meetings are LeadVisit. Ids, not a join table: the log keeps a unit archived since.
+model LeadUnitStep {
+  id       String   @id @default(cuid())
+  leadId   String
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  kind     String   // list · shortlist
+  unitIds  String[]
+  byUserId String
+  at       DateTime @default(now())
+
+  @@index([leadId, at])
   @@schema("sales")
 }
 

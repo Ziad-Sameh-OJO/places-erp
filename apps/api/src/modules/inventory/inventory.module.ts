@@ -32,6 +32,6 @@ import { TicketsModule } from "../tickets/tickets.module";
   controllers: [AreaTabsController, UnitLocksController, UnitPhotosController, UnitLayoutsController, UnitAgreementController, UnitDocumentsController, UnitListsController, TeamTasksController, DailyReportController, InventoryController, NotActiveController, InventoryTodayController, ListRequestsController],
   providers: [InventoryService, UnitsService, UnitPhotosService, UnitLayoutsService, UnitDocumentsService, TeamTasksService, DailyReportService, AreaTabsService, InventoryRepository, NotActiveService, NotActiveRepository, ListRequestsService],
   // UnitsService.lock / release: the deals (5.5) and contracts (6.4) · UnitPhotosService: the Retouch task's folder (4.12)
-  exports: [InventoryService, UnitsService, UnitPhotosService],
+  exports: [InventoryService, UnitsService, UnitPhotosService, UnitDocumentsService], // UnitDocumentsService: a lead's List of options (14.9)
 })
 export class InventoryModule {}

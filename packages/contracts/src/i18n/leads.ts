@@ -164,4 +164,13 @@ export default [
   // M-09 field permissions: the leads catalog's labels (domain fields/leads.ts)
   ["الموبايل", "Mobile"],
   ["الشركة", "Company"],
+  // 14.8 – 14.11 · the units log, the Short list, a List of options on the lead, Done as a Showing
+  ["{kind} Done · نزلت معاه على {units} · اتحسبت Showing", "{kind} Done · showed them {units} · counted as a Showing"],
+  ["الميعاد اتعلّم خلاص · تقدر تعدّل الوحدات بس", "The appointment is already marked · only its units can be edited"],
+  ["Short list: {units}", "Short list: {units}"],
+  ["اتبعتله List of options فيها: {units} · {date}", "Sent a List of options with: {units} · {date}"],
+  ["اتبعتله List of options", "Sent a List of options"],
+  ["اتحفظ Short list", "Short list saved"],
+  ["مش مسموحلك تشوف الانفنتوري", "You aren't allowed to see the inventory"],
+  ["«لحد» أقل من «من»", "«To» is less than «From»"],
 ] satisfies Pair[];
