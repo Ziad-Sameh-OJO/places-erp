@@ -8,6 +8,8 @@ import { ExcusesService } from "./excuses.service";
 import { HrRepository } from "./hr.repository";
 import { LeavesService } from "./leaves.service";
 import { PeopleCareService } from "./people-care.service";
+import { WarningsService } from "./warnings.service";
+import { ImprovementService } from "./improvement.service";
 import { CareerService } from "./career.service";
 import { EmployeeFileService } from "./employee-file.service";
 
@@ -18,12 +20,13 @@ import { EmployeeFileService } from "./employee-file.service";
  */
 @Injectable()
 export class HrTodayService {
-  constructor(private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly attendance: AttendanceService, private readonly care: PeopleCareService, private readonly repo: HrRepository, private readonly file: EmployeeFileService, private readonly career: CareerService) {}
+  constructor(private readonly leaves: LeavesService, private readonly excuses: ExcusesService, private readonly attendance: AttendanceService, private readonly care: PeopleCareService, private readonly repo: HrRepository, private readonly file: EmployeeFileService, private readonly career: CareerService, private readonly warnings: WarningsService, private readonly plans: ImprovementService) {}
 
   async lines(me: CurrentUser): Promise<TodayLine[]> {
     const approves = me.grants.can("hr", "approve"), now = new Date(), today = localDate(now);
-    const decides = me.grants.scope === "all" && me.grants.can("hr", "edit") && clockOn(now, today)! >= WORK_START;
-    const [leaves, excuses, forgot, actions, missing, rules, left, due] = await Promise.all([
+    const hr = me.grants.scope === "all" && me.grants.can("hr", "edit");
+    const decides = hr && clockOn(now, today)! >= WORK_START;
+    const [leaves, excuses, forgot, actions, missing, rules, left, due, warnings, plans] = await Promise.all([
       approves ? this.leaves.list(me) : [],
       approves ? this.excuses.list(me) : [],
       approves ? this.attendance.forgotWaiting(me) : [],
@@ -32,6 +35,8 @@ export class HrTodayService {
       this.repo.deductionRules(),
       me.grants.can("hr", "edit") && me.grants.scope === "all" ? this.file.left(me) : [], // the month's last week: who has no 1-to-1 yet
       me.grants.can("hr", "edit") ? this.career.due(me) : [],
+      hr ? this.warnings.todayLines() : [], // HR 15 Nov: who needs a warning this month
+      approves ? this.plans.todayLines(me) : [], // the TL's plans to write · HR's plans to read and follow
     ]);
     const names = missing.slice(0, 5).map((m) => m.name).join("، ") + (missing.length > 5 ? "…" : "");
     return [
@@ -43,6 +48,7 @@ export class HrTodayService {
       ...left.slice(0, 1).map((): TodayLine => ({ kind: "oneOnOneLeft", tone: "warn", id: "", values: { n: left.length, names: left.join("، ") } })),
       // «المسار الوظيفي»: due a promotion after the latest closed quarter, until HR records it
       ...due.map((r): TodayLine => ({ kind: "careerDue", tone: "warn", id: r.employeeId, values: { name: r.name, from: r.level?.name ?? "", to: r.next?.name ?? "" } })),
+      ...warnings, ...plans,
     ];
   }
 }

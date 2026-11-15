@@ -31,6 +31,10 @@ const LOOK: Record<TodayKind, { icon: IconName; href: (id: string) => string }> 
   noPunch: { icon: "fingerprint", href: () => "/hr?tab=att" },
   postToday: { icon: "bell", href: () => "/marketing?tab=content" },
   broadcastApprove: { icon: "megaphone", href: () => "/marketing?tab=broadcast" },
+  warningDue: { icon: "alert", href: () => "/hr?tab=warnings" },
+  planRequested: { icon: "chart", href: () => "/hr?tab=improve" },
+  planSubmitted: { icon: "chart", href: () => "/hr?tab=improve" },
+  planDue: { icon: "clock", href: () => "/hr?tab=improve" },
   oneOnOneLeft: { icon: "users", href: () => "/hr?tab=ones" },
 };
 

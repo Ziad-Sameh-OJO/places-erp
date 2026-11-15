@@ -2158,6 +2158,50 @@ model SalesTarget {
   @@schema("kpi")
 }
 
+/// M-05 · a warning (إنذار, HR 15 Nov). The daily job writes a «due» row when someone reaches one of HR's rules this month
+/// (unique per person · rule · month, so it's flagged once); HR issues it (the PDF from the template, kept in core/files)
+/// or dismisses it. A warning HR writes by hand has no rule.
+model Warning {
+  id         String    @id @default(cuid())
+  employeeId String
+  month      String    // 2026-11 (Cairo)
+  rule       String?   // the rule's id in the `warningRules` setting; null = written by hand
+  reason     String    // «4 Excuses الشهر ده (القاعدة 3)»
+  type       String    // fills the template's blank: «خد Excuse زيادة»
+  status     String    @default("due") // due · issued · dismissed
+  issuedAt   DateTime?
+  byUserId   String?
+  fileId     String?   // the PDF
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, rule, month])
+  @@index([status])
+  @@schema("hr")
+}
+
+/// M-05 · the improvement plan (HR 15 Nov): HR asks the person's Team Leader / KPI follower for one when the KPI score is
+/// under `improvementThreshold`; the TL writes it and sends it; HR follows it to the end. The employee doesn't see it.
+model ImprovementPlan {
+  id            String    @id @default(cuid())
+  employeeId    String
+  month         String    // 2026-11
+  score         Decimal   @db.Decimal(6, 2) // the KPI score when HR asked
+  tlUserId      String    // who writes it
+  status        String    @default("requested") // requested · submitted · follow_up · closed
+  goals         String?
+  actions       String?
+  dueDate       DateTime? @db.Date
+  note          String?   // HR's closing note
+  requestedById String
+  submittedAt   DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([employeeId, month])
+  @@index([tlUserId, status])
+  @@schema("hr")
+}
+
 /// M-05 · an employee's insurance (HR, 15 Nov): HR records it, Finance sees it, and the monthly amount is deducted in
 /// the payroll run (9.14). Keyed by the user like the payroll rows; `files` are system.File ids (entity "EmployeeInsurance").
 model EmployeeInsurance {

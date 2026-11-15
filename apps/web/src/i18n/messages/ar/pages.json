@@ -107,6 +107,26 @@
         "sub": "{text}",
         "button": "راجع"
       },
+      "warningDue": {
+        "title": "{name} محتاج إنذار",
+        "sub": "{reason}",
+        "button": "الإنذارات"
+      },
+      "planRequested": {
+        "title": "محتاج تحط خطة تحسين لـ {name}",
+        "sub": "الـ KPI {score}%",
+        "button": "اكتب الخطة"
+      },
+      "planSubmitted": {
+        "title": "خطة تحسين {name} وصلت",
+        "sub": "من {tl}",
+        "button": "راجعي"
+      },
+      "planDue": {
+        "title": "ميعاد خطة تحسين {name}",
+        "sub": "{due} · تابعي واقفلي",
+        "button": "تابعي"
+      },
       "oneOnOneLeft": {
         "title": "آخر أسبوع في الشهر: {n} سيلز لسه من غير 1-to-1",
         "sub": "{names}",
