@@ -63,6 +63,11 @@ test("ideal employee: client example — team of 5, the other 4 lost 3,000 → t
   // a penalty or KPIs under 80% rule someone out even with the best points
   assert.equal(idealEmployee([m("a", 10, 0, 0, 0, 90, true), m("b", 4, 3, 1, 1_000)]).winner, "b");
   assert.equal(idealEmployee([m("a", 10, 0, 0, 0, 70), m("b", 4, 3, 1, 1_000)]).winner, "b");
+  // HR, 15 Nov: a penalty this month (pending too) puts them at the bottom of the order, keeping their points
+  const p = idealEmployee([m("a", 10, 0, 0, 0, 90, true), m("b", 4, 3, 1, 1_000), m("c", 2, 5, 0, 800)]);
+  assert.deepEqual([p.order.length, p.order.at(-1)], [3, "a"]);
+  assert.equal(p.points.get("a"), 100);
+  assert.deepEqual(r.order, ["a", "d", "c", "b", "e"].sort((x, y) => r.points.get(y)! - r.points.get(x)!));
 });
 
 test("permissions: roles add up, a personal override replaces them, any action implies view", () => {

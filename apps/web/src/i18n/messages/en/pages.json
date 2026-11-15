@@ -101,6 +101,11 @@
         "title": "Broadcast waiting for your approval",
         "sub": "{text}",
         "button": "Review"
+      },
+      "noPunch": {
+        "title": "{n} haven't punched today: {names}",
+        "sub": "Decide for each: present, absent or Off",
+        "button": "Attendance"
       }
     }
   },

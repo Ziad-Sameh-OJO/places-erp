@@ -164,7 +164,8 @@ export const MEASURES: Record<string, Measure> = {
   // the team is its salespeople (domain team-leader.ts, demo tlStats): the Team Leader's own target and deals stay out
   teamTarget: async (c, p, from, who) => targetShare(c, await prisma.employee.findMany({ where: { teamLeaderId: who.id }, select: { id: true, target: true } })),
   att: async (c, p, from, who) => {
-    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(c.qStart, c) } }, select: { deduction: true } });
+    // a day off HR gave someone who didn't punch (HR, 15 Nov) is neither a good day nor a bad one
+    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(c.qStart, c) }, kind: { not: "DAY_OFF" } }, select: { deduction: true } });
     return pct(days.filter((d) => Number(d.deduction) === 0).length, days.length);
   },
   attSales: async (c, p, from, who) => {
