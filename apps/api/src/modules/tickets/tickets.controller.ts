@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
-import { CreateTicket, SlaReportQuery, TicketFilters, TicketReply, TransferTicket } from "@places/contracts";
+import { AssignTicket, CreateTicket, SlaReportQuery, TicketFilters, TicketReply, TransferTicket } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
@@ -60,6 +60,22 @@ export class TicketsController {
   @Requires("tickets", "edit")
   transfer(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(TransferTicket)) body: TransferTicket) {
     return this.tickets.transfer(me, id, body);
+  }
+
+  /** 15 Nov: transfer to people, or add people. */
+  @Post(":id/assign")
+  @HttpCode(200)
+  @Requires("tickets", "edit")
+  assign(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(AssignTicket)) body: AssignTicket) {
+    return this.tickets.assign(me, id, body);
+  }
+
+  /** «خدها»: take the department's ticket. */
+  @Post(":id/take")
+  @HttpCode(200)
+  @Requires("tickets", "edit")
+  take(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.tickets.take(me, id);
   }
 
   @Post(":id/close")

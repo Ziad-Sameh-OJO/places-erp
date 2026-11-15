@@ -4,4 +4,5 @@ Tickets between departments. The types, the department each one goes to and its 
 
 - `tickets.controller.ts` HTTP + `@Requires` · `tickets.service.ts` use cases, transactions, audit, notifications · `tickets.repository.ts` Prisma only.
 - Who sees what (M-06 4.1): the tickets I opened and my department's; «tickets: approve» sees all. The department the ticket is with replies, transfers and closes it (7.2 · 35).
+- 15 Nov: a ticket can go to named people (`TicketAssignee`, `forDepartment = false`): they handle it from any department, with the head of its department; the rest of that department doesn't see it. «خدها» (`POST :id/take`) assigns a department's ticket to whoever took it; `POST :id/assign` transfers to people or adds people. The rule is `handlesTicket()` / `seesTicket()` in `@places/domain`.
 - The SLA escalation runs every few minutes in `apps/worker/src/processors/ticket-sla.ts`; the response report is `GET /tickets/report`.

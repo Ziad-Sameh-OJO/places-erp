@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { closedInSla, isTicketLate, slaReport, statusAfterReply, ticketDepartment, ticketType, type TicketClock } from "../src/tickets.ts";
+import { closedInSla, handlesTicket, isTicketLate, seesTicket, slaReport, statusAfterReply, ticketDepartment, ticketType, type TicketAudience, type TicketClock, type TicketViewer } from "../src/tickets.ts";
 
 // November 2026, Cairo = UTC+2: 11:00 Cairo = 09:00Z. 8 Nov is a Sunday, 13 Nov a Friday (off).
 const at = (iso: string) => new Date(iso);
@@ -70,4 +70,25 @@ test("the response report per department: closed in the SLA ÷ all tickets, and 
     ["الإدارة", 1, 1, 100, null],
   ]);
   assert.equal(closedInSla(ticket({ createdAt: at(sun) })), false); // still open = not closed in the SLA
+});
+
+test("15 Nov: a ticket sent to named people — they handle it from any department; its department's staff don't, its head does", () => {
+  const viewer = (v: Partial<TicketViewer>): TicketViewer => ({ id: "x", department: null, seesAll: false, managesDepartment: false, ...v });
+  const toPeople: TicketAudience = { fromUserId: "anas", department: "Marketing", forDepartment: false, assigneeIds: ["rahma", "manar"] };
+  assert.equal(handlesTicket(viewer({ id: "manar", department: "Inventory" }), toPeople), true); // assigned, other department
+  assert.equal(handlesTicket(viewer({ id: "staff", department: "Marketing" }), toPeople), false);
+  assert.equal(seesTicket(viewer({ id: "staff", department: "Marketing" }), toPeople), false);
+  assert.equal(handlesTicket(viewer({ id: "head", department: "Marketing", managesDepartment: true }), toPeople), true);
+  assert.equal(handlesTicket(viewer({ id: "head", department: "HR", managesDepartment: true }), toPeople), false);
+  assert.equal(handlesTicket(viewer({ id: "admin", seesAll: true }), toPeople), true);
+  // the one who opened it sees it and writes, but doesn't handle it
+  assert.equal(seesTicket(viewer({ id: "anas", department: "المبيعات" }), toPeople), true);
+  assert.equal(handlesTicket(viewer({ id: "anas", department: "المبيعات" }), toPeople), false);
+});
+
+test("a department's ticket keeps working as before: anyone in it handles it, even after one of them took it", () => {
+  const toDept: TicketAudience = { fromUserId: "anas", department: "Inventory", forDepartment: true, assigneeIds: ["marwa"] };
+  const v = (id: string, department: string): TicketViewer => ({ id, department, seesAll: false, managesDepartment: false });
+  assert.equal(handlesTicket(v("manar", "Inventory"), toDept), true);
+  assert.equal(seesTicket(v("rahma", "Marketing"), toDept), false);
 });

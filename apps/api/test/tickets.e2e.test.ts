@@ -120,6 +120,78 @@ test("SLA (M-06 2.4 · 7.1): no reply in 24 working hours → escalated to Inven
   assert.equal(await prisma.ticketEvent.count({ where: { ticketId: req.id, kind: "escalate" } }), 1);
 });
 
+test("15 Nov: a ticket to a person in another department — they see it, reply and transfer it to a person; others don't see it", async () => {
+  const user = (email: string) => prisma.user.findUniqueOrThrow({ where: { email }, select: { id: true, employee: { select: { name: true } } } });
+  const [marwa, sara, abdo] = await Promise.all(["marwa.mostafa@places.com", "sara.abdelhalim@places.com", "abdelrahman.bayoumi@places.com"].map(user));
+  const [marwaS, saraS, abdoS] = await Promise.all(["marwa.mostafa@places.com", "sara.abdelhalim@places.com", "abdelrahman.bayoumi@places.com"].map((e) => session(e)));
+  const has = (body: { items: { id: string }[] }, id: string) => body.items.some((x) => x.id === id);
+
+  assert.equal((await call("/tickets", { method: "POST", cookie: sales, body: { type: "request", assigneeIds: ["no-such-user"], title: "E2E لحد مش موجود" } })).status, 400);
+  const t = await open(sales, { type: "request", assigneeIds: [marwa!.id], title: "E2E لمروة بالاسم" });
+  const row = await prisma.ticket.findUniqueOrThrow({ where: { id: t.id }, include: { assignees: true } });
+  assert.equal(row.department, "Inventory"); // the person's department: the report and the escalation follow it
+  assert.equal(row.forDepartment, false);
+  assert.deepEqual(row.assignees.map((a) => a.userId), [marwa!.id]);
+  // told: the person, not the rest of the department
+  assert.equal(await prisma.notification.count({ where: { link: { contains: t.id }, userId: marwa!.id } }), 1);
+  assert.equal(await prisma.notification.count({ where: { link: { contains: t.id }, userId: sara!.id } }), 0);
+
+  // the assignee sees it («تيكتات ليا», «مهامي النهارده», by assignee) and replies as the handler
+  const d = (await call(`/tickets/${t.id}`, { cookie: marwaS })).body;
+  assert.deepEqual(d.assignees.map((a: { id: string }) => a.id), [marwa!.id]);
+  assert.equal(d.can.assign, true);
+  assert.ok(has((await call("/tickets?view=forMe&pageSize=100", { cookie: marwaS })).body, t.id));
+  assert.ok(has((await call(`/tickets?assignee=${marwa!.id}&department=Inventory&pageSize=100`, { cookie: admin })).body, t.id));
+  assert.ok((await call("/home/tickets", { cookie: marwaS })).body.some((x: { id: string }) => x.id === t.id));
+  const replied = await call(`/tickets/${t.id}/replies`, { method: "POST", cookie: marwaS, body: { text: "حاضر" } });
+  assert.equal(replied.status, 200, JSON.stringify(replied.body));
+  assert.equal(replied.body.status, "In Progress");
+  assert.ok(replied.body.firstReplyAt);
+  // same department but not named: no; another department: no; the department's head: yes
+  assert.equal((await call(`/tickets/${t.id}`, { cookie: saraS })).status, 404);
+  assert.equal((await call(`/tickets/${t.id}/replies`, { method: "POST", cookie: saraS, body: { text: "x" } })).status, 404);
+  assert.equal((await call(`/tickets/${t.id}`, { cookie: rahma })).status, 404);
+  assert.equal((await call(`/tickets/${t.id}`, { cookie: manar })).status, 200);
+  assert.equal((await call(`/tickets/${t.id}/take`, { method: "POST", cookie: saraS })).status, 404);
+
+  // the opener may not reassign; the assignee transfers it to a person in Marketing — audited, the history line kept
+  assert.equal((await call(`/tickets/${t.id}/assign`, { method: "POST", cookie: sales, body: { userIds: [abdo!.id] } })).status, 403);
+  const moved = await call(`/tickets/${t.id}/assign`, { method: "POST", cookie: marwaS, body: { userIds: [abdo!.id] } });
+  assert.equal(moved.status, 200, JSON.stringify(moved.body));
+  assert.equal((await call(`/tickets/${t.id}`, { cookie: marwaS })).status, 404);
+  const now = (await call(`/tickets/${t.id}`, { cookie: abdoS })).body;
+  assert.equal(now.department, "Marketing");
+  assert.equal(now.events.at(-1).text, `اتحوّلت من ${marwa!.employee!.name} لـ ${abdo!.employee!.name}`);
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Ticket", entityId: t.id, action: "assign" } }), 1);
+  assert.equal(await prisma.notification.count({ where: { link: { contains: t.id }, userId: abdo!.id } }), 1);
+  // add a person: both have it
+  assert.equal((await call(`/tickets/${t.id}/assign`, { method: "POST", cookie: abdoS, body: { userIds: [marwa!.id], add: true } })).status, 200);
+  assert.equal((await call(`/tickets/${t.id}`, { cookie: marwaS })).body.assignees.length, 2);
+  assert.equal((await call(`/tickets/${t.id}/assign`, { method: "POST", cookie: abdoS, body: { userIds: [marwa!.id], add: true } })).status, 400);
+});
+
+test("15 Nov: a department's ticket works as before; «خدها» assigns it to whoever took it", async () => {
+  const sara = await prisma.user.findUniqueOrThrow({ where: { email: "sara.abdelhalim@places.com" }, select: { id: true, employee: { select: { name: true } } } });
+  const [saraS, marwaS] = await Promise.all(["sara.abdelhalim@places.com", "marwa.mostafa@places.com"].map((e) => session(e)));
+  const t = await open(sales, { type: "request", department: "Inventory", title: "E2E لقسم الانفنتوري" });
+  assert.ok((await call("/home/tickets", { cookie: marwaS })).body.some((x: { id: string }) => x.id === t.id));
+  assert.equal((await call(`/tickets/${t.id}/take`, { method: "POST", cookie: rahma })).status, 404);
+  const took = await call(`/tickets/${t.id}/take`, { method: "POST", cookie: saraS });
+  assert.equal(took.status, 200, JSON.stringify(took.body));
+  assert.deepEqual(took.body.assignees.map((a: { id: string }) => a.id), [sara.id]);
+  assert.equal(took.body.events.at(-1).text, `اتحوّلت من Inventory لـ ${sara.employee!.name}`);
+  assert.equal(took.body.can.take, false);
+  // still the department's: the others see it and may answer, but it left their «مهامي النهارده»
+  assert.equal((await call(`/tickets/${t.id}`, { cookie: marwaS })).status, 200);
+  assert.ok(!(await call("/home/tickets", { cookie: marwaS })).body.some((x: { id: string }) => x.id === t.id));
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Ticket", entityId: t.id, action: "take" } }), 1);
+  // a transfer to another department lets the person go
+  assert.equal((await call(`/tickets/${t.id}/transfer`, { method: "POST", cookie: saraS, body: { department: "Marketing" } })).status, 200);
+  const after = (await call(`/tickets/${t.id}`, { cookie: rahma })).body;
+  assert.deepEqual(after.assignees, []);
+  assert.equal(after.events.at(-1).text, `اتحوّلت من ${sara.employee!.name} لـ Marketing`);
+});
+
 test("response report (M-06 6.1): per department, closed in the SLA ÷ all tickets; a bad month is refused", async () => {
   const r = await call("/tickets/report", { cookie: admin });
   assert.equal(r.status, 200);

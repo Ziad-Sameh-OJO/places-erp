@@ -3,8 +3,10 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import type { Paged, SlaReport, TicketDetail, TicketOptions, TicketRow, TicketSummary, TicketView } from "@places/contracts";
 import { api } from "@/lib/api";
 
-export const useTickets = (view: TicketView, q: string, page: number, pageSize: number) => {
-  const qs = new URLSearchParams({ view, page: String(page), pageSize: String(pageSize), ...(q ? { q } : {}) }).toString();
+export const useTickets = (view: TicketView, q: string, page: number, pageSize: number, f: { assignee: string; department: string }) => {
+  const qs = new URLSearchParams({
+    view, page: String(page), pageSize: String(pageSize), ...(q ? { q } : {}), ...(f.assignee ? { assignee: f.assignee } : {}), ...(f.department ? { department: f.department } : {}),
+  }).toString();
   return useQuery({ queryKey: ["tickets", qs], queryFn: () => api.get<Paged<TicketRow>>(`/tickets?${qs}`), placeholderData: keepPreviousData });
 };
 export const useTicketSummary = () => useQuery({ queryKey: ["tickets", "summary"], queryFn: () => api.get<TicketSummary>("/tickets/summary") });
