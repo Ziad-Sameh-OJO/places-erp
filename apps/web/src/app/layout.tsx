@@ -9,8 +9,8 @@ import "@places/ui/src/mobile.css"; // phones last, so their layout wins
 import "@places/ui/src/ltr.css"; // English: the few right-to-left rules mirrored
 import "./app.css";
 
-export const metadata: Metadata = { title: "Places ERP", manifest: "/manifest.webmanifest" };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#f1f1ef" };
+export const metadata: Metadata = { title: "Places ERP", manifest: "/manifest.webmanifest", icons: { icon: "/brand/favicon.png", apple: "/brand/icon-192.png" } };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#111111" };
 
 /** Light only for now (client decision); the dark tokens stay in app.css for later. */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

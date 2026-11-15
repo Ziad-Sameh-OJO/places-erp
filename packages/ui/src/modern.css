@@ -1,21 +1,22 @@
 @charset "utf-8";
-/* «Modern» — the Places ERP look approved from the client's references (Nov 2026): a soft grey canvas, white
-   floating panels with large radii, near-black primary actions and one warm accent. Loaded after app.css and before
+/* «Modern» — the Places ERP look from the client's references (Nov 2026) in the Places identity: brand black and
+   white with the coral red of their posts, the wordmark on a black menu, a soft grey canvas and white floating panels. Loaded after app.css and before
    mobile.css (so the phone layout still wins). Light only, as the client decided. The accent is one set of tokens:
-   change the five --accent* values to re-brand. */
+   change the --accent* values to re-brand.
+   The coral is for what wants attention (new, the current step, a highlight); errors use a deeper red (--bad). */
 
 :root {
-  --accent: #f0562a; --accent-2: #ff6a3d; --accent-text: #c9431a; --accent-soft: #fff1eb; --accent-line: #ffcdb9; --on-accent: #fff;
-  --bg: #f1f1ef; --surface: #ffffff; --surface-2: #f7f7f5; --sunken: #efefec;
-  --ink: #141414; --ink-2: #474745; --ink-3: #82827e;
-  --line: #ebebe8; --line-2: #dcdcd8;
-  --ok: #18874a; --ok-soft: #e6f5ec; --warn: #a3650c; --warn-soft: #fdf2df; --bad: #d32f35; --bad-soft: #fdeceb; --info: #2f5fe0; --info-soft: #ebf0ff;
-  --navy: #141414;
-  --btn: #141414; --btn-2: #2a2a2a; --btn-ink: #fff;
+  --accent: #e3474f; --accent-2: #ec5c63; --accent-text: #c2323a; --accent-soft: #fdeeee; --accent-line: #f6c3c5; --on-accent: #fff;
+  --bg: #f2f2f1; --surface: #ffffff; --surface-2: #f7f7f6; --sunken: #ededec;
+  --ink: #111111; --ink-2: #444444; --ink-3: #808080;
+  --line: #e8e8e7; --line-2: #d9d9d8;
+  --ok: #18874a; --ok-soft: #e6f5ec; --warn: #a3650c; --warn-soft: #fdf2df; --bad: #a8201a; --bad-soft: #fbe9e7; --info: #2f5fe0; --info-soft: #ebf0ff;
+  --navy: #111111;
+  --btn: #111111; --btn-2: #2b2b2b; --btn-ink: #fff;
   --shadow-1: none;
   --shadow-2: 0 1px 2px rgba(20, 20, 20, .03);
   --shadow-3: 0 2px 6px rgba(20, 20, 20, .04), 0 28px 64px -28px rgba(20, 20, 20, .28);
-  --ring: 0 0 0 4px rgba(240, 86, 42, .2);
+  --ring: 0 0 0 4px rgba(227, 71, 79, .2);
   --f-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
   --f-body: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
   --r-xl: 28px; --r-lg: 22px; --r: 16px; --r-sm: 12px;
@@ -33,25 +34,25 @@ h1, h2, h3, h4 { font-weight: 500; letter-spacing: -.01em; }
   .app { grid-template-columns: 256px minmax(0, 1fr); }
   .side { margin: 14px; margin-inline-end: 0; height: calc(100vh - 28px); top: 14px; border-radius: var(--r-xl); border: 1px solid var(--line); }
 }
-.side { background: var(--surface); color: var(--ink); padding: 16px 12px; gap: 6px; box-shadow: none; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
-.brand { border-bottom: 0; padding: 4px 6px 14px; }
-.brand-mark { background: var(--accent); color: #fff; border-radius: 14px; box-shadow: none; }
-.brand strong { color: var(--ink); font-weight: 600; }
-.brand small { color: var(--ink-3); }
-.nav-sec { color: var(--ink-3); font-size: 11px; font-weight: 500; padding: 14px 12px 4px; letter-spacing: 0; text-transform: none; }
-#nav a, .q-item { color: var(--ink-2); border-radius: 14px; padding: 9px 12px; font-size: 13.5px; font-weight: 400; transition: background .15s, color .15s; }
+/* the menu is the brand black, like Places' own banners; the content stays light */
+.side { background: #111111; color: #fff; padding: 18px 12px 12px; gap: 6px; box-shadow: none; border-color: #111111 !important; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+.brand { border-bottom: 1px solid #262626; padding: 6px 10px 18px; margin-bottom: 4px; align-items: center; gap: 10px; }
+.brand-logo { height: 26px; width: auto; display: block; }
+.brand small { color: #8c8c8c; font: 500 10.5px var(--f-display); letter-spacing: .24em; border-inline-start: 1px solid #333; padding-inline-start: 10px; }
+.nav-sec { color: #7a7a7a; font-size: 11px; font-weight: 500; padding: 14px 12px 4px; letter-spacing: 0; text-transform: none; }
+#nav a, .q-item { color: #c9c9c9; border-radius: 14px; padding: 9px 12px; font-size: 13.5px; font-weight: 400; transition: background .15s, color .15s; }
 #nav a svg.i, .q-item svg.i { opacity: .75; }
-#nav a:hover, .q-item:hover, .q-item:focus-visible { background: var(--surface-2); color: var(--ink); }
-#nav a[aria-current="page"] { background: var(--btn); color: var(--btn-ink); font-weight: 500; box-shadow: none; }
-#nav a[aria-current="page"]::before { display: none; }
+#nav a:hover, .q-item:hover, .q-item:focus-visible { background: #1f1f1f; color: #fff; }
+#nav a[aria-current="page"] { background: #fff; color: #111; font-weight: 500; box-shadow: none; position: relative; }
+#nav a[aria-current="page"]::before { content: ""; display: block; position: absolute; inset-inline-start: 5px; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
 #nav a[aria-current="page"] svg.i { opacity: 1; }
-#nav .tag, .q-item .tag { color: var(--ink-3); font-size: 10px; }
+#nav .tag, .q-item .tag { color: #7a7a7a; font-size: 10px; }
 #nav a[aria-current="page"] .tag { color: inherit; opacity: .6; }
 #nav .cnt { background: var(--accent); border-radius: 999px; }
-.side-foot { border-top: 1px solid var(--line); }
-.me-card { background: var(--surface-2); border-radius: 16px; }
-.me-card b { color: var(--ink); } .me-card small { color: var(--ink-3); }
-.me-card .icon-btn { color: var(--ink-3); }
+.side-foot { border-top: 1px solid #262626; }
+.me-card { background: #1c1c1c; border-radius: 16px; }
+.me-card b { color: #fff; } .me-card small { color: #8c8c8c; }
+.me-card .icon-btn { color: #8c8c8c; } .me-card .icon-btn:hover { color: #fff; background: #2a2a2a; }
 .side-scrim { background: rgba(20, 20, 20, .35); backdrop-filter: blur(2px); }
 
 .top { background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 0; box-shadow: none; padding-block: 16px 10px; }
@@ -78,6 +79,7 @@ kbd { background: var(--surface-2); border-color: var(--line); border-radius: 6p
 .btn.sm { border-radius: 999px; padding: 4px 13px; }
 .btn[disabled], .btn:disabled { opacity: .45; transform: none; }
 .create-btn, .btn.accent { background: var(--accent); color: var(--on-accent); }
+.page-ico svg.i { color: var(--ink); }
 .create-btn:hover, .btn.accent:hover { background: var(--accent-2); }
 .icon-btn { border-radius: 10px; }
 input, select, textarea { border-radius: 12px; border-color: var(--line-2); background: var(--surface); transition: border-color .15s, box-shadow .15s; }
@@ -195,6 +197,7 @@ tr.click:hover td, tbody tr:hover td { background: var(--surface-2); }
 /* the menu scrolls on its own, so the signed-in person and «خروج» stay in sight at the bottom */
 @media (min-width: 961px) {
   .side { overflow: hidden; }
+  #nav { scrollbar-color: #333 transparent; }
   #nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-inline: -4px; padding-inline: 4px; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
 }
 
@@ -215,3 +218,15 @@ tr.click:hover td, tbody tr:hover td { background: var(--surface-2); }
   .card { padding: 16px; }
   .kpi strong { font-size: 24px; }
 }
+
+/* ---------- sign-in: the wordmark and its line on the brand black, with the banners' thin grid ---------- */
+.auth { background:
+    linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px) 0 0 / 100% 33.33vh,
+    linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px) 0 0 / 25vw 100%,
+    #111111; align-content: center; gap: 28px; }
+.auth-hero { text-align: center; color: #fff; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.auth-logo { width: min(300px, 70vw); height: auto; }
+.auth-hero p { margin: 0; font: 300 14px var(--f-display); letter-spacing: .04em; color: #bdbdbd; }
+.auth-card { box-shadow: 0 30px 80px -30px rgba(0,0,0,.6); }
+.auth-brand { justify-content: space-between; }
+.auth-erp { font: 500 11px var(--f-display); letter-spacing: .2em; color: var(--ink-3); text-transform: uppercase; }

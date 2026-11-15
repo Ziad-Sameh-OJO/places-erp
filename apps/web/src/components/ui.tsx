@@ -146,7 +146,7 @@ export const Tick = ({ checked, disabled, onChange, label }: { checked: boolean;
   <label className="tick"><input type="checkbox" checked={checked} disabled={disabled} aria-label={label} onChange={(e) => onChange?.(e.target.checked)} /><span /></label>
 );
 
-const AV = ["#0037ff", "#08875c", "#b06a00", "#c22a37", "#6a3df0", "#0a7f9e", "#2c5cff", "#b4479a"];
+const AV = ["#111111", "#e3474f", "#5b5b5b", "#a8201a", "#8a6d3b", "#3a6ea5", "#2f6b4f", "#7a4b8c"];
 export function Avatar({ id, name, sm }: { id: string; name: string; sm?: boolean }) {
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;

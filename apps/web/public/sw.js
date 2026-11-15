@@ -5,7 +5,7 @@
 self.addEventListener("push", (event) => {
   let data = { title: "Places ERP", body: "", link: "/" };
   try { data = { ...data, ...event.data.json() }; } catch { /* a push without a payload still shows */ }
-  event.waitUntil(self.registration.showNotification(data.title, { body: data.body, dir: "rtl", lang: "ar", tag: data.link, data: { link: data.link } }));
+  event.waitUntil(self.registration.showNotification(data.title, { body: data.body, dir: "rtl", lang: "ar", tag: data.link, icon: "/brand/icon-192.png", badge: "/brand/favicon.png", data: { link: data.link } }));
 });
 
 self.addEventListener("notificationclick", (event) => {

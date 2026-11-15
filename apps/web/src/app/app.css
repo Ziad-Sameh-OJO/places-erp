@@ -205,4 +205,4 @@ a.chip { text-decoration: none; }
 .dash-teams tr.click:hover td { background: var(--surface-2); }
 .dash-teams tr.sub td:first-child { padding-inline-start: 28px; color: var(--ink-2); }
 @media (max-width: 1100px) { .dash-row, .dash-row.three { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 760px) { .dash-a .hb { grid-template-columns: minmax(80px, 1fr) 2fr 36px; } .dash-a .hb .conv { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .dash-a .hb { grid-template-columns: max-content minmax(0, 1fr) 32px; } .dash-a .hb-l { white-space: nowrap; } .dash-a .hb .conv { grid-column: 1 / -1; } }

@@ -14,7 +14,8 @@ import { CompetitorsReport } from "./competitors";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 
-const COLORS = ["#0037ff", "#5a7dff", "#08875c", "#f2b64d", "#c22a37", "#6a3df0", "#0a7f9e"];
+// the Places palette first (black, coral, greys), then two calm colours so seven channels stay apart
+const COLORS = ["#111111", "#e3474f", "#7d7d7d", "#f19ea3", "#b9b9b9", "#3a6ea5", "#c9a227"];
 type Range = "today" | "7" | "30" | "month" | "all" | "custom";
 /** Names in marketing.dashboard.ranges.r<key>. */
 const RANGES: readonly Range[] = ["today", "7", "30", "month", "all", "custom"];
