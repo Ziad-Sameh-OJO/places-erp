@@ -21,7 +21,7 @@ export class HrService {
   constructor(private readonly repo: HrRepository, private readonly audit: AuditService, private readonly leaves: LeavesService) {}
 
   /** The data scope as a filter on employees: all · my department · my team · me (M-09 2.7). */
-  private scope(me: CurrentUser): Prisma.EmployeeWhereInput {
+  scope(me: CurrentUser): Prisma.EmployeeWhereInput {
     switch (me.grants.scope) {
       case "all": return {};
       case "dept": return me.department ? { department: me.department } : { userId: me.id };
@@ -62,7 +62,7 @@ export class HrService {
     const fixed = me.fields.fixed("hr");
     const stored = fixed.size ? await this.repo.employee(id, this.scope(me)) : null;
     const p = stored ? keepEmployee(sent, this.view(stored), fixed) : sent;
-    if (p.deductionTiers) { const bad = tiersProblem(p.deductionTiers); if (bad) throw new BadRequestException(bad); }
+    if (p.deductionTiers) { const bad = tiersProblem(p.deductionTiers, (await this.repo.deductionRules()).graceMinutes); if (bad) throw new BadRequestException(bad); }
     if (fromDecimal(p.salary) < 0 || (p.target && fromDecimal(p.target) < 0)) throw new BadRequestException("المبالغ مابتبقاش بالسالب");
     const saved = await run(async (tx) => {
       const before = await this.repo.employee(id, this.scope(me), tx);

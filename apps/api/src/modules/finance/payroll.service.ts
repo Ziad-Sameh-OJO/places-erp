@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { PayrollRunInput, PayrollView } from "@places/contracts";
 import {
-  ADMIN_SALARIES, ADVANCES_PARENT, SALES_SALARIES, VOUCHER_LABEL, formatEGP, fromDecimal, localDate, monthLabel, monthOf, payRow, payrollLines, salaryLine, toDecimal,
+  ADMIN_SALARIES, ADVANCES_PARENT, INSURANCE_DUE, SALES_SALARIES, VOUCHER_LABEL, formatEGP, fromDecimal, localDate, monthLabel, monthOf, payRow, payrollLines, salaryLine, toDecimal,
   type Piasters,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -11,6 +11,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { LedgerService } from "./ledger.service";
 import { AttendanceService } from "../hr/attendance.service";
+import { InsuranceService } from "../hr/insurance.service";
 import type { Tx } from "./ledger.repository";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
@@ -31,6 +32,7 @@ export class PayrollService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly attendance: AttendanceService,
+    private readonly insurance: InsuranceService,
   ) {}
 
   private async payDay(tx: Tx | PrismaClient = this.db) {
@@ -46,13 +48,14 @@ export class PayrollService {
       tx.advanceDeduction.findMany({ where: { month: { lte: month } }, orderBy: { month: "desc" } }),
       this.attendance.approvedDeductions(month, tx),
     ]);
+    const insured = await this.insurance.monthly(month, tx);
     const sums = holders.length ? await tx.journalLine.groupBy({ by: ["accountId"], where: { accountId: { in: holders.map((h) => h.id) } }, _sum: { debit: true, credit: true } }) : [];
     return people.map((p) => {
       const acc = holders.find((h) => h.holderId === p.userId), s = acc ? sums.find((x) => x.accountId === acc.id) : undefined;
       const left = s ? dec(s._sum.debit) - dec(s._sum.credit) : 0;
       // this month's choice, or the latest one before it («الشهر الجاي بيبدأ بنفس الاختيار»)
       const plan = plans.find((x) => x.userId === p.userId);
-      const r = payRow({ salary: dec(p.salary), attendance: approved?.get(p.userId) ?? 0, advanceLeft: Math.max(0, left), advancePlan: plan ? dec(plan.amount) : null });
+      const r = payRow({ salary: dec(p.salary), attendance: approved?.get(p.userId) ?? 0, advanceLeft: Math.max(0, left), advancePlan: plan ? dec(plan.amount) : null, insurance: insured.get(p.userId) ?? 0 });
       return { userId: p.userId, name: p.name, line: salaryLine(p.user.roles.map((x) => x.role.key)), advanceLeft: Math.max(0, left), advanceAccountId: acc?.id ?? null, ...r };
     });
   }
@@ -61,12 +64,12 @@ export class PayrollService {
     const today = localDate(new Date()), month = monthOf(today);
     const [day, rows, run, approved] = await Promise.all([this.payDay(), this.rows(month), this.db.payrollRun.findUnique({ where: { month } }), this.attendance.approvedDeductions(month)]);
     const move = run ? await this.db.treasuryMove.findUnique({ where: { id: run.moveId }, select: { id: true, no: true, from: { select: { name: true } } } }) : null;
-    const t = (k: "salary" | "attendance" | "advance" | "net") => toDecimal(rows.reduce((s, r) => s + r[k], 0));
+    const t = (k: "salary" | "attendance" | "insurance" | "advance" | "net") => toDecimal(rows.reduce((s, r) => s + r[k], 0));
     return {
       month, label: monthLabel(month), payDay: day, deductionsApproved: !!approved, due: !run && Number(today.slice(8, 10)) >= day,
       run: run && move ? { id: run.id, at: run.at.toISOString(), net: toDecimal(dec(run.net)), gross: toDecimal(dec(run.gross)), from: move.from?.name ?? "", move: { id: move.id, no: `MV-${move.no}` } } : null,
-      rows: rows.map((r) => ({ userId: r.userId, name: r.name, line: r.line, salary: toDecimal(r.salary), attendance: toDecimal(r.attendance), advanceLeft: toDecimal(r.advanceLeft), advance: toDecimal(r.advance), net: toDecimal(r.net), advanceAccountId: r.advanceAccountId })),
-      totals: { salary: t("salary"), attendance: t("attendance"), advance: t("advance"), net: t("net"), people: rows.length },
+      rows: rows.map((r) => ({ userId: r.userId, name: r.name, line: r.line, salary: toDecimal(r.salary), attendance: toDecimal(r.attendance), advanceLeft: toDecimal(r.advanceLeft), advance: toDecimal(r.advance), insurance: toDecimal(r.insurance), net: toDecimal(r.net), advanceAccountId: r.advanceAccountId })),
+      totals: { salary: t("salary"), attendance: t("attendance"), insurance: t("insurance"), advance: t("advance"), net: t("net"), people: rows.length },
     };
   }
 
@@ -113,13 +116,15 @@ export class PayrollService {
       const code = (c: string) => accounts.find((a) => a.code === c)?.id;
       const admin = code(ADMIN_SALARIES), sales = code(SALES_SALARIES);
       if (!admin || !sales) throw new BadRequestException("حسابات المرتبات (5202 / 5301) مش موجودة في الشجرة");
-      const lines = payrollLines(rows.map((r) => ({ ...r, ...(r.advanceAccountId ? { advanceAccount: r.advanceAccountId } : {}) })), { admin, sales, from: from.id });
+      const insurance = code(INSURANCE_DUE);
+      if (!insurance && rows.some((r) => r.insurance)) throw new BadRequestException("حساب التأمينات المستحقة (21105) مش موجود في الشجرة");
+      const lines = payrollLines(rows.map((r) => ({ ...r, ...(r.advanceAccountId ? { advanceAccount: r.advanceAccountId } : {}) })), { admin, sales, from: from.id, ...(insurance ? { insurance } : {}) });
       const label = monthLabel(month);
       const entry = await this.ledger.post(me, { date, nature: VOUCHER_LABEL.payroll, source: "voucher", memo: `مرتبات ${label} · ${rows.length} موظف`, lines }, tx);
       const move = await tx.treasuryMove.create({ data: { kind: "payroll", date: new Date(`${date}T00:00:00Z`), fromId: from.id, amount: toDecimal(net), party: `${rows.length} موظف`, memo: `مرتبات ${label} · ${rows.length} موظف`, entryId: entry.id, createdById: me.id } });
       await this.ledger.linkEntry(entry.id, move.id, tx);
       const payroll = await tx.payrollRun.create({ data: { month, moveId: move.id, fromId: from.id, gross: toDecimal(gross), net: toDecimal(net), createdById: me.id,
-        lines: { create: rows.map((r) => ({ userId: r.userId, name: r.name, line: r.line, salary: toDecimal(r.salary), attendance: toDecimal(r.attendance), advance: toDecimal(r.advance), net: toDecimal(r.net) })) } } });
+        lines: { create: rows.map((r) => ({ userId: r.userId, name: r.name, line: r.line, salary: toDecimal(r.salary), attendance: toDecimal(r.attendance), advance: toDecimal(r.advance), insurance: toDecimal(r.insurance), net: toDecimal(r.net) })) } } });
       // this month's deductions stay recorded as the plan that was applied
       for (const r of rows.filter((x) => x.advance)) await tx.advanceDeduction.upsert({ where: { userId_month: { userId: r.userId, month } }, create: { userId: r.userId, month, amount: toDecimal(r.advance), byId: me.id }, update: { amount: toDecimal(r.advance) } });
       await this.audit.record({ module: "finance", entity: "PayrollRun", entityId: payroll.id, action: "create", userId: me.id, after: { month, from: from.code, gross: toDecimal(gross), net: toDecimal(net), people: rows.length, move: `MV-${move.no}`, entry: entry.no } }, tx);

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Pu
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import type { PrismaClient } from "@places/db";
-import { ExcuseAsk, NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, AttendanceExport, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
+import { ExcuseAsk, NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, DecideDay, HrSettings, AttendanceExport, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
 import { sendXlsx } from "../../core/http/excel";
 import { IMPORT_MAX_BYTES, parseSheet, preview, type UploadedSheet } from "../../core/http/import";
 import { AttendanceService } from "./attendance.service";
@@ -88,6 +88,27 @@ export class HrController {
   @Requires("hr", "edit")
   entry(@Me() me: CurrentUser, @Body(new ZodPipe(AttendanceEntry)) body: AttendanceEntry) {
     return this.attendance.entry(me, body, this.run);
+  }
+
+  /** HR, 15 Nov: «حضور» / «غياب» / «Off» for someone who didn't punch (HR only: scope all, checked in the service). */
+  @Post("attendance/decide")
+  @HttpCode(200)
+  @Requires("hr", "edit")
+  decide(@Me() me: CurrentUser, @Body(new ZodPipe(DecideDay)) body: DecideDay) {
+    return this.attendance.decide(me, body, this.run);
+  }
+
+  /* ---- HR, 15 Nov · «شرايح وأنواع الخصم»: whoever sees HR reads them, HR edits ---- */
+  @Get("settings")
+  @Requires("hr", "view")
+  settings() {
+    return this.care.settings();
+  }
+
+  @Put("settings")
+  @Requires("hr", "edit")
+  saveSettings(@Me() me: CurrentUser, @Body(new ZodPipe(HrSettings)) body: HrSettings) {
+    return this.care.saveSettings(me, body, this.run);
   }
 
   /** «Confirm خصم يوم» on «نسي البصمة» (7.3). */

@@ -2,7 +2,7 @@ import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundExce
 import { Prisma, type PrismaClient } from "@places/db";
 import type { Achievements, TargetInput, TargetsView, TeamRow, TransactionRow } from "@places/contracts";
 import {
-  behindPace, dayStart, dealRowOf, fromDecimal, localDate, monthBounds, monthLabel, periodFigures, ranked, targetPercent, teamResult, tlTiersOf, toDecimal,
+  behindPace, dayStart, dealRowOf, fromDecimal, localDate, monthBounds, monthLabel, periodFigures, quarterMonths, ranked, targetPercent, teamResult, tlTiersOf, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -185,6 +185,24 @@ export class TargetsService {
         people: d.participants.map((x) => `${names.get(x.employeeId) ?? "—"} (${x.side === "BUYER" ? "Buyer" : "Seller"})`).join("، "),
       }];
     });
+  }
+
+  /**
+   * M-05 «المسار الوظيفي»: each person's target achievement over a quarter's three months, as the quarterly sheet reads
+   * it (11.18: the months' targets added up, else the person's standing target). null = no target («مالوش تارجت»).
+   */
+  async quarterPercents(quarter: string, employeeIds: string[]): Promise<Map<string, number | null>> {
+    const cal = await this.time.calendar(), months = quarterMonths(quarter), from = monthBounds(months[0], cal).from, to = monthBounds(months[2], cal).to;
+    const [people, targets, deals] = await Promise.all([
+      this.db.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, target: true } }),
+      Promise.all(months.map((m) => this.repo.targets(m, employeeIds))).then((x) => x.flat()),
+      this.repo.deals(employeeIds, from, to),
+    ]);
+    const rows = deals.map(dealRow);
+    return new Map(people.map((p) => {
+      const goal = months.reduce((s, m) => s + piasters(targets.find((t) => t.employeeId === p.id && t.month === m)?.value ?? p.target), 0);
+      return [p.id, goal > 0 ? Math.round(targetPercent(periodFigures(p.id, rows, from, to).achieved, goal) * 10) / 10 : null];
+    }));
   }
 }
 

@@ -10,6 +10,26 @@ test("per-person tiers: after the 16-minute grace and in order (M-05 3.1, Q33)",
   assert.equal(tiersProblem({ quarterFrom: 40, halfFrom: 30, dayFrom: 60 }), "الربع قبل النص، والنص قبل اليوم");
 });
 
+test("the company's rules (HR, 15 Nov): validated, a person's own tiers win, the grace, absence and Excuse numbers apply", async () => {
+  const { rulesProblem, DEFAULT_RULES, rulesFor, deductionRulesOf, attendanceDay, fingerprintDay, excuseDeduction, excuseRefused, penaltyBlocksIdeal } = await import("../src/index.ts");
+  assert.deepEqual(DEFAULT_RULES, { quarterFrom: 17, halfFrom: 30, dayFrom: 60, graceMinutes: 16, absenceDays: 1, excuseHalfFrom: 3, excuseRefusedFrom: 5 });
+  assert.equal(rulesProblem(DEFAULT_RULES), null);
+  assert.match(rulesProblem({ ...DEFAULT_RULES, graceMinutes: 20 })!, /بعد 20/); // the quarter (17) must start after the grace
+  assert.ok(rulesProblem({ ...DEFAULT_RULES, absenceDays: 0 }));
+  assert.ok(rulesProblem({ ...DEFAULT_RULES, absenceDays: 1.3 }));
+  assert.ok(rulesProblem({ ...DEFAULT_RULES, excuseHalfFrom: 6 }));
+  assert.equal(deductionRulesOf(null), DEFAULT_RULES);
+  const company = deductionRulesOf({ graceMinutes: 10, quarterFrom: 11, halfFrom: 20, dayFrom: 45, absenceDays: 2, excuseHalfFrom: 2, excuseRefusedFrom: 4 });
+  const d = (checkIn: string, tiers: Parameters<typeof rulesFor>[0] = null) => fingerprintDay({ checkIn, partTime: false, partTimeDeductions: false, tiers: rulesFor(tiers, company), specialSchedule: false });
+  assert.deepEqual([d("11:12").deduction, d("11:12").lateMinutes], [0.25, 2]);
+  assert.equal(d("11:50").deduction, 1);
+  assert.equal(d("11:50", { quarterFrom: 31, halfFrom: 61, dayFrom: 121 }).deduction, 0.25); // their own tiers win, the company's grace stays
+  assert.equal(attendanceDay({ kind: "absent-without-permission" }, company).deduction, 2);
+  assert.equal(attendanceDay({ kind: "absent-without-permission" }).deduction, 1);
+  assert.deepEqual([excuseDeduction(2, company), excuseRefused(4, company), excuseRefused(4)], [0.5, true, false]);
+  assert.deepEqual(["pending", "approved", "rejected"].map(penaltyBlocksIdeal), [true, true, false]);
+});
+
 test("fingerprint days: 11:16 on time, 11:18 quarter, 11:45 half, 12:10 a day; Weekly Delay from 11:16 (M-05 3.2)", async () => {
   const { fingerprintDay, minutesAfterStart, normTime, normName, deductionAmount } = await import("../src/index.ts");
   const d = (checkIn: string, extra = {}) => fingerprintDay({ checkIn, partTime: false, partTimeDeductions: false, tiers: null, specialSchedule: false, ...extra });
@@ -54,7 +74,7 @@ test("7.15 · the list's «حل HR»: the first open action's date, red from its
 test("the Excuse: 1–2 free, 3–4 half a day, the 5th refused; on the day it replaces «متأخر» (7.4, Q31)", async () => {
   const { excuseNumber, excuseRefused, excuseDeduction, attendanceDay } = await import("../src/index.ts");
   assert.equal(excuseNumber(0), 1);
-  assert.deepEqual([1, 2, 3, 4].map(excuseDeduction), [0, 0, 0.5, 0.5]);
+  assert.deepEqual([1, 2, 3, 4].map((n) => excuseDeduction(n)), [0, 0, 0.5, 0.5]);
   assert.equal(excuseRefused(4), false);
   assert.equal(excuseRefused(5), true);
   const day = attendanceDay({ kind: "excuse", minutesAfterStart: 75, excuseNumberThisMonth: 2 });

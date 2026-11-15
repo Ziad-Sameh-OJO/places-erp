@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AttendanceDayView, AttendanceHistoryView, EmployeesView, FingerprintRow, WeeklyDelayView } from "@places/contracts";
+import type { AttendanceDayView, AttendanceHistoryView, AttendanceRowView, DayDecision, EmployeesView, FingerprintRow, WeeklyDelayView } from "@places/contracts";
 import { Card, Chip, Empty, ExportButton, Field, Icon, ImportDialog, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
@@ -9,6 +9,7 @@ import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { dateLocale, money } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
+import { OneOnOneTab, PenaltyForm } from "./people-care";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const shift = (day: string, n: number) => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -16,6 +17,9 @@ const dayName = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(dat
 const tone = (deduction: number, late: number) => (deduction >= 1 ? "bad" : deduction > 0 ? "warn" : late > 0 ? "info" : "ok");
 const useRefresh = () => { const qc = useQueryClient(); return () => qc.invalidateQueries({ queryKey: ["hr"] }); };
 const useEmployees = () => useQuery({ queryKey: ["hr", "employees", ""], queryFn: () => api.get<EmployeesView>("/hr/employees") });
+const STATUS_TONE = { present: "ok", late: "warn", absent: "bad", off: "info", none: "bad" } as const;
+/** «الموظفين النهارده»: a day's row, or someone who hasn't punched (no row yet). */
+type BoardRow = Pick<AttendanceRowView, "employeeId" | "name" | "department"> & { row: AttendanceRowView | null };
 
 /** M-05 · «حضور النهارده» (7.2 · 7.12, demo hr.js att()): the day's fingerprints through the tiers, who didn't check in, the sheet upload and the names to link. */
 export function AttendanceToday() {
@@ -26,13 +30,25 @@ export function AttendanceToday() {
   const [q, setQ] = useState("");
   const [upload, setUpload] = useState(false);
   const [entry, setEntry] = useState<{ employeeId: string; name: string; checkIn?: string } | null>(null);
+  const [present, setPresent] = useState<{ employeeId: string; name: string } | null>(null);
+  const [penalty, setPenalty] = useState<string | null>(null);
+  const [one, setOne] = useState<{ employeeId: string; name: string } | null>(null);
   const run = useAction();
   const refresh = useRefresh();
   const v = useQuery({ queryKey: ["hr", "attendance", day], queryFn: () => api.get<AttendanceDayView>(`/hr/attendance/day?day=${day}`), placeholderData: keepPreviousData });
   const emps = useEmployees();
   const d = v.data;
   const link = (id: string, employeeId: string, name: string) => run(async () => { await api.post(`/hr/attendance/unmatched/${id}/link`, { employeeId }); await refresh(); }, t("attendance.linked", { name }));
-  const rows = d?.rows.filter((r) => !q || r.name.includes(q)) ?? [];
+  // HR, 15 Nov · one list: the day's rows (HR's decisions among them) and who hasn't punched yet
+  const board: BoardRow[] = [...(d?.rows.map((r) => ({ employeeId: r.employeeId, name: r.name, department: r.department, row: r })) ?? []), ...(d?.missing.map((m) => ({ ...m, row: null })) ?? [])]
+    .filter((b) => !q || b.name.includes(q)).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  const decide = (employeeId: string, name: string, decision: DayDecision, checkIn?: string) =>
+    run(async () => { await api.post("/hr/attendance/decide", { employeeId, day, decision, ...(checkIn ? { checkIn } : {}) }); await refresh(); }, t("attendance.decidedOk", { name }));
+  const pick = (b: BoardRow, v: string) => {
+    if (v === "present") setPresent({ employeeId: b.employeeId, name: b.name });
+    else if (v === "record") setEntry({ employeeId: b.employeeId, name: b.name });
+    else void decide(b.employeeId, b.name, v as DayDecision);
+  };
   return (
     <>
       {d && d.unmatched.length > 0 && can("hr", "edit") && (
@@ -47,7 +63,7 @@ export function AttendanceToday() {
       )}
       <Note>{t("attendance.sourcesNote")}</Note>
       {d && <div className="kpis">
-        <KpiTile label={t("attendance.present")} value={d.totals.present} sub={d.working ? t("attendance.presentOf", { total: d.totals.present + d.missing.length }) : d.holiday ? serverText(d.holiday) : t("attendance.dayOff")} icon="fingerprint" tone="ok" />
+        <KpiTile label={t("attendance.present")} value={d.totals.present} sub={d.working ? t("attendance.presentOf", { total: d.rows.length + d.missing.length }) : d.holiday ? serverText(d.holiday) : t("attendance.dayOff")} icon="fingerprint" tone="ok" />
         <KpiTile label={t("attendance.late")} value={d.totals.late} sub={t("attendance.lateSub")} icon="clock" tone="warn" />
         <KpiTile label={t("attendance.missing")} value={d.missing.length} sub={d.working ? t("attendance.workDay") : t("attendance.notWorkDay")} icon="alert" {...(d.missing.length ? { tone: "bad" as const } : {})} />
         {amounts && <KpiTile label={t("attendance.dayDeductions")} value={money(d.totals.deductions)} sub={t("attendance.dayDeductionsSub")} icon="wallet" />}
@@ -63,29 +79,45 @@ export function AttendanceToday() {
       </div>
       {!d ? <Empty text={t("common.loading")} icon="clock" /> : <>
         {d.holiday && <Note kind="ok">{t("attendance.holidayNote", { day: dayName(d.day), holiday: serverText(d.holiday) })}</Note>}
+        <Card title={t("attendance.boardTitle")} icon="users" sub={t("attendance.boardSub")}>
         <Table head={[t("common.employee"), "Check-in", "Check-out", t("common.lateMinutes"), t("common.status"), t("common.deduction"), ""]} empty={t("attendance.emptyDay")}
-          rows={rows.map((r) => [
-            <span key="n"><b>{r.name}</b><span className="sub">{serverText(r.department)}{r.fixedSchedule ? ` · ${t("attendance.specialSchedule", { schedule: r.fixedSchedule })}` : ""}{r.customTiers ? ` · ${t("attendance.customTiers")}` : ""}</span></span>,
+          rows={board.map(({ row: r, ...b }) => [
+            <span key="n"><b>{b.name}</b><span className="sub">{serverText(b.department)}{r?.fixedSchedule ? ` · ${t("attendance.specialSchedule", { schedule: r.fixedSchedule })}` : ""}{r?.customTiers ? ` · ${t("attendance.customTiers")}` : ""}</span></span>,
             // 7.3: HR sees the Visit that started the day and the real fingerprint, both
-            r.visitAt ? <span key="i">Visit {r.visitAt}{r.checkIn && <span className="sub">{t("attendance.fingerprinted", { time: r.checkIn })}</span>}</span> : r.checkIn ?? "—",
-            r.checkOut ?? "—", r.lateMinutes ? t("common.minutes", { n: r.lateMinutes }) : "—",
-            <Chip key="s" tone={tone(r.deduction, r.lateMinutes)}>{serverText(r.label)}</Chip>,
-            r.deduction ? <span key="d">{r.deduction === 1 ? t("common.fullDay") : r.deduction === 0.5 ? t("common.halfDay") : t("common.quarterDay")}{amounts && <span className="sub">{money(r.deductionAmount)}</span>}</span> : r.confirmForgot ? t("attendance.awaitingConfirm") : "—",
+            r?.visitAt ? <span key="i">Visit {r.visitAt}{r.checkIn && <span className="sub">{t("attendance.fingerprinted", { time: r.checkIn })}</span>}</span> : r?.checkIn ?? "—",
+            r?.checkOut ?? "—", r?.lateMinutes ? t("common.minutes", { n: r.lateMinutes }) : "—",
+            <span key="s"><Chip tone={STATUS_TONE[r?.status ?? "none"]}>{t(`attendance.st.${r?.status ?? "none"}`)}</Chip>{r && <span className="sub">{serverText(r.label)}</span>}</span>,
+            r?.deduction ? <span key="d">{r.deduction === 1 ? t("common.fullDay") : r.deduction === 0.5 ? t("common.halfDay") : r.deduction === 0.25 ? t("common.quarterDay") : t("attendance.days", { n: r.deduction })}{amounts && <span className="sub">{money(r.deductionAmount)}</span>}</span> : r?.confirmForgot ? t("attendance.awaitingConfirm") : "—",
             <span key="e" className="row">
-              {r.confirmForgot && can("hr", "approve") && <button className="btn sm" onClick={() => void run(async () => { await api.post(`/hr/attendance/${r.id}/confirm-forgot`, {}); await refresh(); }, t("attendance.confirmedOk"))}>{t("attendance.confirmBtn")}</button>}
-              {can("hr", "edit") && <button className="btn ghost sm" onClick={() => setEntry({ employeeId: r.employeeId, name: r.name, ...(r.checkIn ? { checkIn: r.checkIn } : {}) })}>{t("common.edit")}</button>}
+              {r?.confirmForgot && can("hr", "approve") && <button className="btn sm" onClick={() => void run(async () => { await api.post(`/hr/attendance/${r.id}/confirm-forgot`, {}); await refresh(); }, t("attendance.confirmedOk"))}>{t("attendance.confirmBtn")}</button>}
+              {/* HR, 15 Nov: who didn't punch (or was decided already) gets HR's decision; a real fingerprint is corrected with «عدّل» */}
+              {can("hr", "edit") && d.working && (!r || r.decided) && (
+                <select value="" aria-label={t("attendance.decideAria", { name: b.name })} onChange={(e) => e.target.value && pick({ ...b, row: r }, e.target.value)}>
+                  <option value="">{r?.decided ? t(`attendance.st.${r.status}`) : t("attendance.decide")}</option>
+                  {(["present", "absent", "off", "record"] as const).map((k) => <option key={k} value={k}>{t(`attendance.dec.${k}`)}</option>)}
+                </select>
+              )}
+              {can("hr", "edit") && r && !r.decided && <button className="btn ghost sm" onClick={() => setEntry({ employeeId: r.employeeId, name: r.name, ...(r.checkIn ? { checkIn: r.checkIn } : {}) })}>{t("common.edit")}</button>}
+              {can("hr", "approve") && <button className="btn ghost sm" onClick={() => setPenalty(b.employeeId)}>{t("attendance.penaltyBtn")}</button>}
+              <button className="btn ghost sm" onClick={() => setOne({ employeeId: b.employeeId, name: b.name })}>1-to-1</button>
             </span>,
           ])} />
-        {d.missing.length > 0 && (
-          <Card title={t("attendance.missing")} icon="alert" sub={t("attendance.missingSub")}>
-            {d.missing.map((m) => <div key={m.employeeId} className="line-item"><span><b>{m.name}</b> · {serverText(m.department)}</span>
-              {can("hr", "edit") && <button className="btn ghost sm" onClick={() => setEntry({ employeeId: m.employeeId, name: m.name })}>{t("attendance.recordDay")}</button>}</div>)}
-          </Card>
-        )}
+        </Card>
       </>}
       <Note>{t("attendance.tiersNote")}</Note>
       {upload && <ImportDialog<FingerprintRow> title={t("attendance.uploadSheet")} path="/hr/attendance/import" template={t("attendance.template")}
         columns={[["name", t("attendance.colName")], ["day", t("attendance.colDate")], ["checkIn", t("attendance.colIn")], ["checkOut", t("attendance.colOut")]]} onDone={() => { setUpload(false); void refresh(); }} onClose={() => setUpload(false)} />}
+      {present && (
+        <Modal title={`${present.name} · ${day}`} onClose={() => setPresent(null)}>
+          <form className="grid" onSubmit={onFormSubmit(async (f) => { await decide(present.employeeId, present.name, "present", String(f.get("checkIn") || "") || undefined); setPresent(null); })}>
+            <Field label="Check-in"><input name="checkIn" type="time" /></Field>
+            <Note>{t("attendance.presentNote")}</Note>
+            <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setPresent(null)}>{t("common.cancel")}</button><button className="btn">{t("common.save")}</button></div>
+          </form>
+        </Modal>
+      )}
+      {penalty && <Modal title={t("attendance.penaltyBtn")} onClose={() => setPenalty(null)}><PenaltyForm employeeId={penalty} onDone={() => setPenalty(null)} /></Modal>}
+      {one && <Modal title={`${one.name} · 1-to-1`} onClose={() => setOne(null)}><OneOnOneTab employeeId={one.employeeId} /></Modal>}
       {entry && (
         <Modal title={`${entry.name} · ${day}`} onClose={() => setEntry(null)}>
           <form className="grid" onSubmit={onFormSubmit(async (f) => run(async () => {

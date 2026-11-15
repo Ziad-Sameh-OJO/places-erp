@@ -216,6 +216,7 @@ model Employee {
   kpiCards        KpiCard[]       @relation("KpiOwner")
   kpiFollowing    KpiCard[]       @relation("KpiFollower")
   salesActivities SalesActivity[]
+  careerMoves     CareerMove[]
   @@schema("hr")
 }
 
@@ -227,6 +228,7 @@ enum AttendanceKind {
   FORGOT
   ABSENT
   SPECIAL_SCHEDULE
+  DAY_OFF // HR, 15 Nov: someone who didn't punch given a day off with no deduction; never «غياب»
 
   @@schema("hr")
 }
@@ -292,6 +294,8 @@ model Penalty {
   employee   Employee @relation(fields: [employeeId], references: [id])
   day        DateTime @db.Date
   text       String
+  /// HR, 15 Nov: one of HR's penalty types (Setting `penaltyTypes`); null on penalties recorded before types existed
+  type       String?
   byUserId   String
   /// M-05 7.7: the deduction in days, and HR's approval (a TL's proposal waits for it)
   deductionDays Decimal @default(0) @db.Decimal(4, 2)
@@ -330,6 +334,24 @@ model OneOnOne {
   createdAt   DateTime  @default(now())
 
   @@index([employeeId, heldOn]) // 13.3: an employee's 1:1 history
+  @@schema("hr")
+}
+
+/// M-05 · the employee file (HR, 15 Nov): papers HR uploads, each 1-to-1's PDF sheet, later warnings and insurance.
+/// `kind` is plain text so other features add kinds without a migration: upload · one_on_one · warning · insurance.
+model EmployeeDocument {
+  id         String   @id @default(cuid())
+  employeeId String
+  kind       String
+  title      String
+  docType    String?  // one of the setting `employeeDocTypes` (the required papers)
+  fileId     String?  // system.File, attached as entity "EmployeeDocument"
+  month      String?  // 2026-11 (a 1-to-1's month)
+  refId      String?  // the record it came from (the OneOnOne)
+  byUserId   String
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, createdAt])
   @@schema("hr")
 }
 
@@ -1565,6 +1587,8 @@ model KpiItem {
   required   Int?
   value      Decimal?      @db.Decimal(14, 2) // the manual entry, or the system's latest figure (the daily job, 11.5)
   baseline   Decimal?      @db.Decimal(14, 2) // October 2026's measure for the growth items
+  monthValue Decimal?      @db.Decimal(14, 2) // HR 15 Nov «الشهر»: the daily job's figure since the 1st of `monthOf`
+  monthOf    String?       @db.VarChar(7) // "2026-11"; another month = no figure yet
   deliveries KpiDelivery[]
 
   @@unique([cardId, position])
@@ -1905,6 +1929,7 @@ model PayrollLine {
   salary     Decimal    @db.Decimal(14, 2)
   attendance Decimal    @db.Decimal(14, 2)
   advance    Decimal    @db.Decimal(14, 2)
+  insurance  Decimal    @default(0) @db.Decimal(14, 2) // the employee's insurance deduction (HR, 15 Nov)
   net        Decimal    @db.Decimal(14, 2)
 
   @@index([runId])
@@ -2153,5 +2178,116 @@ model CompanyEvent {
   updatedAt       DateTime  @updatedAt
 
   @@index([date])
+  @@schema("hr")
+}
+
+/// M-05 · a warning (إنذار, HR 15 Nov). The daily job writes a «due» row when someone reaches one of HR's rules this month
+/// (unique per person · rule · month, so it's flagged once); HR issues it (the PDF from the template, kept in core/files)
+/// or dismisses it. A warning HR writes by hand has no rule.
+model Warning {
+  id         String    @id @default(cuid())
+  employeeId String
+  month      String    // 2026-11 (Cairo)
+  rule       String?   // the rule's id in the `warningRules` setting; null = written by hand
+  reason     String    // «4 Excuses الشهر ده (القاعدة 3)»
+  type       String    // fills the template's blank: «خد Excuse زيادة»
+  status     String    @default("due") // due · issued · dismissed
+  issuedAt   DateTime?
+  byUserId   String?
+  fileId     String?   // the PDF
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, rule, month])
+  @@index([status])
+  @@schema("hr")
+}
+
+/// M-05 · the improvement plan (HR 15 Nov): HR asks the person's Team Leader / KPI follower for one when the KPI score is
+/// under `improvementThreshold`; the TL writes it and sends it; HR follows it to the end. The employee doesn't see it.
+model ImprovementPlan {
+  id            String    @id @default(cuid())
+  employeeId    String
+  month         String    // 2026-11
+  score         Decimal   @db.Decimal(6, 2) // the KPI score when HR asked
+  tlUserId      String    // who writes it
+  status        String    @default("requested") // requested · submitted · follow_up · closed
+  goals         String?
+  actions       String?
+  dueDate       DateTime? @db.Date
+  note          String?   // HR's closing note
+  requestedById String
+  submittedAt   DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([employeeId, month])
+  @@index([tlUserId, status])
+  @@schema("hr")
+}
+
+/// M-05 · an employee's insurance (HR, 15 Nov): HR records it, Finance sees it, and the monthly amount is deducted in
+/// the payroll run (9.14). Keyed by the user like the payroll rows; `files` are system.File ids (entity "EmployeeInsurance").
+model EmployeeInsurance {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  insured      Boolean   @default(true)
+  since        DateTime? @db.Date
+  provider     String    @default("") // التأمينات الاجتماعية or a private company (Setting insuranceProviders)
+  monthly      Decimal   @default(0) @db.Decimal(14, 2) // deducted from the employee every month
+  companyShare Decimal?  @db.Decimal(14, 2)
+  note         String?
+  files        String[]
+  updatedById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@schema("hr")
+}
+
+/// M-05 · «المسار الوظيفي» (HR, 15 Nov): a job track HR defines (Sales: Junior → Senior → Team Leader …). `sample` = the
+/// starter track for the client to replace.
+model CareerTrack {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  sample    Boolean       @default(false)
+  levels    CareerLevel[]
+  createdAt DateTime      @default(now())
+
+  @@schema("hr")
+}
+
+/// One level of a track, in order. The rule to reach it from the level before (null on the first level): `quarters`
+/// closed quarters in a row with total KPIs ≥ `minKpi`% and target ≥ `minTarget`%, and `minMonths` in the level before.
+model CareerLevel {
+  id        String       @id @default(cuid())
+  trackId   String
+  track     CareerTrack  @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  name      String
+  position  Int
+  quarters  Int?
+  minKpi    Int?
+  minTarget Int?
+  minMonths Int?
+  moves     CareerMove[]
+
+  @@unique([trackId, position])
+  @@schema("hr")
+}
+
+/// An employee's level history: HR setting the level (`set`) or recording a promotion (`promotion`). The latest is the
+/// current level; its day starts the months in the level.
+model CareerMove {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  levelId    String
+  level      CareerLevel @relation(fields: [levelId], references: [id])
+  day        DateTime    @db.Date
+  kind       String // set · promotion
+  note       String?
+  byUserId   String
+  createdAt  DateTime    @default(now())
+
+  @@index([employeeId, day])
   @@schema("hr")
 }

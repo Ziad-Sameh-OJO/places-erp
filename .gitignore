@@ -11,3 +11,4 @@ coverage/
 infra/docker/data/
 .local/
 *.tsbuildinfo
+.claude/worktrees/

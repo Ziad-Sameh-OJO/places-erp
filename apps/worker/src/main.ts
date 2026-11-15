@@ -32,6 +32,7 @@ import { postReminderTick } from "./processors/post-reminder.ts";
 import { staleUnitsTick } from "./processors/stale-units.ts";
 import { contractExpiryTick } from "./processors/contract-expiry.ts";
 import { funDayRemindersTick } from "./processors/fun-day-reminders.ts";
+import { warningCheckTick } from "./processors/warning-check.ts";
 
 const connection = { url: env.REDIS_URL };
 const sendMail = mailSender(env);
@@ -64,6 +65,7 @@ const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "post-reminder", pattern: "* * * * *", processor: () => postReminderTick() }, // every minute: the Content plan Reminder at the post's time (M-04 2.4 · 7.1)
   { name: "stale-units", pattern: "20 11 * * *", processor: () => staleUnitsTick() }, // daily at the start of work: a month without an owner update → a follow-up (M-03 2.4 · 2.17)
   { name: "fun-day-reminders", pattern: "0 * * * *", processor: () => funDayRemindersTick() }, // hourly: the day before and the morning of a fun day, from 09:00 (M-05, HR 15 Nov)
+  { name: "warning-check", pattern: "25 11 * * *", processor: () => warningCheckTick() }, // daily at the start of work: who reached HR's warning rules this month (M-05 · HR 15 Nov)
 ];
 
 const queues: Queue[] = [];
