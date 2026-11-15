@@ -60,7 +60,7 @@ test("the KPI (worker): each day the larger of written / logged, a «By Telesale
   assert.equal(await measure(), 0);
   await prisma.dailyCalls.create({ data: { userId: w.userId, day: localDate(now), count: 70 } });
   assert.equal(await measure(), 70);
-  await prisma.lead.create({ data: { code: `L-TC${stamp}2`, name: `E2E-TC ${stamp}`, phones: [`0108${stamp.slice(-7)}`], area: "E2E", type: "Rent", channel: TELESALES_CHANNEL, createdById: w.userId, ownedByTelesales: true, createdAt: new Date(now.getTime() - HOUR) } });
+  await prisma.lead.create({ data: { code: `L-TC${stamp}2`, name: `E2E-TC ${stamp}`, phones: [`0108${stamp.slice(-7)}`], area: "E2E", type: "Rent", channel: TELESALES_CHANNEL, createdById: w.userId, ownedByTelesales: true, createdAt: new Date((from.getTime() + now.getTime()) / 2) } });
   assert.equal(await measure(), 100);
   await prisma.dailyCalls.update({ where: { userId_day: { userId: w.userId, day: localDate(now) } }, data: { count: 130 } });
   assert.equal(await measure(), 130); // over 100 keeps its number
