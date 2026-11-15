@@ -83,9 +83,13 @@ export interface KpiQuarterView { id: string; label: string; status: "open" | "c
 export interface KpiCardSummary {
   id: string; employeeId: string; name: string; title: string; follower: string;
   score: number; tone: "ok" | "warn" | "bad"; tier: string; below: number; approved: boolean;
+  /** HR 15 Nov «الشهر»: the same weighting on this month's figures (KpiMonth) */
+  month: KpiMonthScore;
   /** reward (+) or deduction (−); null for whoever doesn't see money (11.14) */
   money: string | null;
 }
+/** HR 15 Nov «الشهر»: a card's score on this month's figures (an item without one counts its quarter figure). */
+export interface KpiMonthScore { score: number; tone: "ok" | "warn" | "bad" }
 export interface KpiBoard {
   quarter: KpiQuarterView; cards: KpiCardSummary[]; seesMoney: boolean; seesAll: boolean;
   /** 11.19 · scope «mine» for the Inventory Manager: her team's people without a card this quarter (else empty) */
@@ -97,7 +101,7 @@ export interface KpiBoard {
  * KPI lines of «مهامي النهارده». `score` null when the person's field rules hide it (M-09).
  */
 export interface KpiMineView {
-  id: string; quarter: string; score: number | null; tone: "ok" | "warn" | "bad"; follower: string; belowCount: number;
+  id: string; quarter: string; score: number | null; tone: "ok" | "warn" | "bad"; month: KpiMonthScore | null; follower: string; belowCount: number;
   below: { title: string; targetText: string; method: "system" | "report" | "manual"; value: number | null; delivered: number; required: number | null }[];
 }
 export type KpiTodayLineView = { cardId: string; name: string; score: number | null } & (
@@ -115,12 +119,15 @@ export interface KpiItemView {
   detail: string | null;
   /** «بيتحسب: …» */
   calc: string; achievement: number; contribution: number; canEnter: boolean; canDeliver: boolean;
+  /** HR 15 Nov «الشهر»: this month's goal (a third of the quarter's, a % stays) and actual; null = no month figure, the quarter's shows */
+  month: { goal: number; value: number | null; achievement: number; contribution: number } | null;
 }
 export interface KpiPerson { id: string; userId: string; name: string }
 export interface KpiCardView {
   id: string; quarter: KpiQuarterView; employee: { id: string; name: string; title: string };
   follower: { id: string | null; name: string };
   score: number; tone: "ok" | "warn" | "bad"; tier: string; plan: string | null;
+  month: KpiMonthScore;
   approved: { by: string; at: string } | null;
   /** null for whoever doesn't see money (11.14) */
   pay: { base: "salary" | "bonus"; period: "month" | "quarter"; amount: string | null; salary: string; delta: string } | null;
