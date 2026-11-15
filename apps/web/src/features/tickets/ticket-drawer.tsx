@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { useRefreshTickets, useTicket, useTicketOptions } from "./use-tickets";
 import { useRecent } from "@/lib/quick";
+import { PeoplePicker } from "./people-picker";
 
 /** Demo «KIND»: what each line of the Audit Trail is (keys of tickets.drawer.kind). */
 const KIND = ["open", "reply", "transfer", "status", "close", "escalate"] as const;
@@ -27,7 +28,8 @@ export function TicketDrawer({ id, onClose }: { id: string; onClose: () => void 
   if (!t) return <Drawer title="…" onClose={onClose}><p className="hint">{tr("loading")}</p></Drawer>;
   const replyAfter = t.firstReplyAt ? Math.round((Date.parse(t.firstReplyAt) - Date.parse(t.createdAt)) / 60000) : null;
   const kv: [string, ReactNode][] = [
-    [tr("kv.from"), t.from.name], [tr("kv.department"), serverText(t.department)], [tr("kv.type"), serverText(t.typeLabel)], [tr("kv.priority"), priority(t.priority)],
+    [tr("kv.from"), t.from.name], [tr("kv.department"), serverText(t.department)],
+    [tr("kv.assignees"), t.assignees.length ? t.assignees.map((a) => a.name).join("، ") : t.forDepartment ? tr("kv.wholeDepartment") : "—"], [tr("kv.type"), serverText(t.typeLabel)], [tr("kv.priority"), priority(t.priority)],
     [tr("kv.opened"), dayTime(t.createdAt)], [tr("kv.firstReply"), replyAfter === null ? tr("kv.notYet") : tr("kv.after", { minutes: replyAfter })],
   ];
   return (
@@ -44,7 +46,9 @@ export function TicketDrawer({ id, onClose }: { id: string; onClose: () => void 
           </div>
         ))}
       </div>
+      {t.can.take && <TakeButton t={t} />}
       {t.can.reply && <ReplyForm t={t} />}
+      {t.can.assign && <AssignForm t={t} />}
       {t.can.transfer && <TransferForm t={t} />}
       {t.can.close && <CloseButton t={t} />}
     </Drawer>
@@ -91,6 +95,40 @@ function TransferForm({ t }: { t: TicketDetail }) {
       <span className="hint">{tr("wrongDept")}</span>
       <select value={dept} onChange={(e) => setTo(e.target.value)} aria-label={tr("label")}>{others.map((d) => <option key={d} value={d}>{serverText(d)}</option>)}</select>
       <button className="btn ghost sm"><Icon name="swap" />{tr("button")}</button>
+    </form>
+  );
+}
+
+/** «خدها»: one of the department takes its ticket (15 Nov). */
+function TakeButton({ t }: { t: TicketDetail }) {
+  const tr = useTranslations("tickets.drawer.take");
+  const run = useAction();
+  const refresh = useRefreshTickets();
+  return (
+    <div className="row end">
+      <button className="btn" onClick={() => void run(async () => { await api.post(`/tickets/${t.id}/take`); await refresh(); }, tr("done"))}><Icon name="check" />{tr("button")}</button>
+    </div>
+  );
+}
+
+/** 15 Nov: transfer to people (instead of whoever has it) or add people to it. */
+function AssignForm({ t }: { t: TicketDetail }) {
+  const tr = useTranslations("tickets.drawer.assign");
+  const run = useAction();
+  const refresh = useRefreshTickets();
+  const [people, setPeople] = useState<string[]>([]);
+  const [add, setAdd] = useState(false);
+  return (
+    <form className="card flat" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.post(`/tickets/${t.id}/assign`, { userIds: people, add }); setPeople([]); await refresh(); }, tr("done")); }}>
+      <span className="hint">{tr("label")}</span>
+      <PeoplePicker value={people} onChange={setPeople} exclude={add ? t.assignees.map((a) => a.id) : []} />
+      <div className="row end">
+        <select value={add ? "add" : "move"} onChange={(e) => setAdd(e.target.value === "add")} aria-label={tr("mode")} style={{ width: "auto" }}>
+          <option value="move">{tr("move")}</option>
+          <option value="add">{tr("add")}</option>
+        </select>
+        <button className="btn ghost sm" disabled={!people.length}><Icon name="swap" />{tr("button")}</button>
+      </div>
     </form>
   );
 }

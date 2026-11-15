@@ -1302,6 +1302,8 @@ model Ticket {
   resolvedAt   DateTime?     // settled (Resolved, or Closed straight away): «اتقفلت في الـ SLA»
   closedAt     DateTime?
   escalatedAt  DateTime?     // M-06 2.4: the late ticket was escalated (once)
+  forDepartment Boolean      @default(true) // 15 Nov: false = sent to named people (assignees), not to the whole department
+  assignees    TicketAssignee[]
   events       TicketEvent[]
   createdAt    DateTime      @default(now())
 
@@ -1321,6 +1323,18 @@ model TicketEvent {
   at       DateTime @default(now())
 
   @@index([ticketId, at])
+  @@schema("ops")
+}
+
+/// 15 Nov: the people a ticket is assigned to (picked when it's opened, «خدها», or a transfer to a person).
+model TicketAssignee {
+  ticketId String
+  ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId   String
+  at       DateTime @default(now())
+
+  @@id([ticketId, userId])
+  @@index([userId])
   @@schema("ops")
 }
 

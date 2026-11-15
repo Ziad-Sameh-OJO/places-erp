@@ -1,11 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
-import { OPEN_TICKET_STATUSES } from "@places/domain";
+import { DEPARTMENT_MANAGER_TIERS, OPEN_TICKET_STATUSES } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 
 const ROW = {
   id: true, number: true, type: true, department: true, title: true, priority: true, status: true, fromUserId: true,
-  firstReplyAt: true, resolvedAt: true, createdAt: true, _count: { select: { events: true } },
+  firstReplyAt: true, resolvedAt: true, createdAt: true, forDepartment: true, assignees: { select: { userId: true }, orderBy: { at: "asc" } },
+  _count: { select: { events: true } },
 } satisfies Prisma.TicketSelect;
 export type TicketRecord = Prisma.TicketGetPayload<{ select: typeof ROW }>;
 
@@ -47,6 +48,26 @@ export class TicketsRepository {
   async departmentPeople(department: string): Promise<string[]> {
     const rows = await this.db.user.findMany({ where: { status: "ACTIVE", employee: { department } }, select: { id: true } });
     return rows.map((r) => r.id);
+  }
+
+  /** The head of their department (a role of DEPARTMENT_MANAGER_TIERS), as the SLA escalation counts it. */
+  async managesDepartment(userId: string): Promise<boolean> {
+    return (await this.db.userRole.count({ where: { userId, role: { tier: { in: [...DEPARTMENT_MANAGER_TIERS] } } } })) > 0;
+  }
+
+  /** The active people a ticket can go to by name, with their department. */
+  async people(ids?: string[]) {
+    const rows = await this.db.user.findMany({
+      where: { status: "ACTIVE", employee: { isNot: null }, ...(ids ? { id: { in: ids } } : {}) },
+      select: { id: true, employee: { select: { name: true, department: true } } }, orderBy: { employee: { name: "asc" } },
+    });
+    return rows.map((u) => ({ id: u.id, name: u.employee!.name, department: u.employee!.department }));
+  }
+
+  /** Sets who the ticket is assigned to ([] = nobody: the department's). */
+  async assign(tx: Prisma.TransactionClient, ticketId: string, userIds: string[]) {
+    await tx.ticketAssignee.deleteMany({ where: { ticketId } });
+    if (userIds.length) await tx.ticketAssignee.createMany({ data: userIds.map((userId) => ({ ticketId, userId })) });
   }
 
   create(tx: Prisma.TransactionClient, data: Prisma.TicketUncheckedCreateInput) {

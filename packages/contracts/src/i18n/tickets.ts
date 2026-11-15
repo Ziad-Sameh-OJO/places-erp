@@ -22,4 +22,14 @@ export default [
   ["خلّص الطلب الأول (Resolved) وبعدين اقفلها", "Finish the request first (Resolved), then close it"],
   ["قسم {department} نفّذ الطلب وقفل التذكرة", "The {department} department did the request and closed the ticket"],
   ["التذكرة دي اتقفلت", "This ticket is closed"],
+  // 15 Nov: tickets to named people
+  ["تذكرة جديدة ليك: {title}", "New ticket for you: {title}"],
+  ["تذكرة اتحوّلت ليك: {title}", "A ticket was transferred to you: {title}"],
+  ["اتضاف {names}", "{names} added"],
+  ["التحويل للي ماسك التذكرة بس", "Only whoever handles the ticket can transfer it"],
+  ["«خدها» لتذاكر قسمك بس", "«Take it» is only for your department's tickets"],
+  ["التذكرة مع الناس دول أصلاً", "The ticket is already with these people"],
+  ["في شخص مش موجود أو مش شغّال", "Someone picked doesn't exist or isn't active"],
+  ["اختار شخص", "Pick someone"],
+  ["20 شخص بالكتير", "20 people at most"],
 ] satisfies Pair[];

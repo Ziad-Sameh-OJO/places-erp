@@ -92,6 +92,38 @@ export function statusAfterReply(status: string, byHandler: boolean, requested: 
   return status === "Open" ? "In Progress" : status;
 }
 
+/** Who is looking at a ticket: the parts of the signed-in person the rule needs. */
+export interface TicketViewer {
+  readonly id: string;
+  readonly department: string | null;
+  /** «tickets: approve» (the Super Admin by default): every ticket */
+  readonly seesAll: boolean;
+  /** holds a role of DEPARTMENT_MANAGER_TIERS: the head of their department */
+  readonly managesDepartment: boolean;
+}
+
+/** Where a ticket went: a whole department, or named people (client, 15 Nov), and who opened it. */
+export interface TicketAudience {
+  readonly fromUserId: string;
+  readonly department: string;
+  /** true = the department's ticket (anyone in it takes it); false = sent to the named people */
+  readonly forDepartment: boolean;
+  readonly assigneeIds: readonly string[];
+}
+
+/**
+ * Who handles a ticket (replies as the handler, moves its status, reassigns it, closes it): whoever sees every ticket,
+ * the people it's assigned to (even outside their department, 15 Nov), the people of its department when it was sent
+ * to the department (M-06 4.1), and the department's head when it was sent to named people in it.
+ */
+export function handlesTicket(v: TicketViewer, t: TicketAudience): boolean {
+  if (v.seesAll || t.assigneeIds.includes(v.id)) return true;
+  return v.department === t.department && (t.forDepartment || v.managesDepartment);
+}
+
+/** Who sees it: whoever handles it, and whoever opened it. */
+export const seesTicket = (v: TicketViewer, t: TicketAudience): boolean => t.fromUserId === v.id || handlesTicket(v, t);
+
 export interface DepartmentSla {
   readonly department: string;
   readonly total: number;

@@ -11,6 +11,7 @@ import { TicketChips } from "./ticket-bits";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 import { TicketDrawer } from "./ticket-drawer";
+import { PeoplePicker } from "./people-picker";
 import { LeaveAskModal } from "@/features/hr/leaves";
 import { useRefreshTickets, useSlaReport, useTicketOptions, useTicketSummary, useTickets } from "./use-tickets";
 
@@ -25,13 +26,15 @@ export function TicketsPage() {
   const { can } = useMe();
   const [view, setView] = useState<TicketView>("mine");
   const [q, setQ] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [department, setDepartment] = useState("");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   useNewParam("1", () => setCreating(true), can("tickets", "create")); // «جديد ← تذكرة لقسم تاني» (0.16)
   const [selfReq, setSelfReq] = useState<"leave" | "outside" | null>(null); // 8.5: the same forms as «حسابي» (demo tickets.js selfReq)
   const tl = useTranslations("hr");
-  const list = useTickets(view, q, page, PAGE);
+  const list = useTickets(view, q, page, PAGE, { assignee, department });
   const s = useTicketSummary().data;
   const options = useTicketOptions().data;
   // a notification links to /tickets?id=…
@@ -41,7 +44,7 @@ export function TicketsPage() {
   const total = list.error ? 0 : list.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
   const go = (v: TicketView) => { setView(v); setPage(1); };
-  const tabs: [TicketView, string, number?][] = [["mine", t("tabs.mine")], ...(dept ? [["assigned", t("tabs.assigned", { department: serverText(dept) })] as [TicketView, string]] : []), ["late", t("tabs.late")], ["closed", t("tabs.closed")], ["all", t("tabs.all")]];
+  const tabs: [TicketView, string, number?][] = [["mine", t("tabs.mine")], ["forMe", t("tabs.forMe")], ...(dept ? [["assigned", t("tabs.assigned", { department: serverText(dept) })] as [TicketView, string]] : []), ["late", t("tabs.late")], ["closed", t("tabs.closed")], ["all", t("tabs.all")]];
 
   return (
     <>
@@ -60,6 +63,14 @@ export function TicketsPage() {
       </div>
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={t("searchPlaceholder")} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label={t("searchLabel")} /></label>
+        <select value={assignee} onChange={(e) => { setAssignee(e.target.value); setPage(1); }} aria-label={t("filters.assignee")} style={{ width: "auto" }}>
+          <option value="">{t("filters.anyAssignee")}</option>
+          {options?.people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select value={department} onChange={(e) => { setDepartment(e.target.value); setPage(1); }} aria-label={t("filters.department")} style={{ width: "auto" }}>
+          <option value="">{t("filters.anyDepartment")}</option>
+          {options?.departments.map((d) => <option key={d} value={d}>{serverText(d)}</option>)}
+        </select>
       </div>
       {list.error && <Note kind="warn">{list.error.message}</Note>}
       <div className="tk-list">
@@ -68,7 +79,7 @@ export function TicketsPage() {
             <div className="tk-side"><Avatar id={tk.from.id} name={tk.from.name} /></div>
             <div className="tk-main">
               <div className="row"><b className="spacer">{tk.title}</b><TicketChips t={tk} /></div>
-              <small>{t("rowMeta", { code: tk.code, from: tk.from.name, department: serverText(tk.department), ago: ago(tk.createdAt), events: num(tk.events) })}{tk.late && <> · <b className="bad-t">{t("lateEscalated")}</b></>}</small>
+              <small>{t("rowMeta", { code: tk.code, from: tk.from.name, department: tk.forDepartment ? serverText(tk.department) : tk.assignees.map((a) => a.name).join("، "), ago: ago(tk.createdAt), events: num(tk.events) })}{tk.late && <> · <b className="bad-t">{t("lateEscalated")}</b></>}</small>
             </div>
           </article>
         )) : <Empty text={t("empty")} icon="ticket" />}
@@ -120,11 +131,13 @@ function NewTicket({ onClose, onCreated }: { onClose: () => void; onCreated: (id
   const refresh = useRefreshTickets();
   const options = useTicketOptions().data;
   const [type, setType] = useState("request");
+  const [toPeople, setToPeople] = useState(false); // 15 Nov: named people instead of the whole department
+  const [people, setPeople] = useState<string[]>([]);
   const fixed = options?.types.find((t) => t.key === type)?.department ?? null;
   return (
     <Modal title={tr("title")} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
-        const body = { type, priority: f.get("priority"), title: f.get("title"), ...(fixed ? {} : { department: f.get("department") }) };
+        const body = { type, priority: f.get("priority"), title: f.get("title"), ...(toPeople ? { assigneeIds: people } : fixed ? {} : { department: f.get("department") }) };
         const t = await api.post<{ id: string; code: string }>("/tickets", body);
         await refresh();
         onCreated(t.id);
@@ -134,18 +147,24 @@ function NewTicket({ onClose, onCreated }: { onClose: () => void; onCreated: (id
             {options?.types.map((t) => <option key={t.key} value={t.key}>{t.department ? tr("typeWithDept", { label: serverText(t.label), department: serverText(t.department), hours: t.slaHours }) : serverText(t.label)}</option>)}
           </select>
         </Field>
-        <Field label={tr("department")} req>
+        <Field label={tr("to")}>
+          <select value={toPeople ? "people" : "department"} onChange={(e) => setToPeople(e.target.value === "people")}>
+            <option value="department">{tr("toDepartment")}</option>
+            <option value="people">{tr("toPeople")}</option>
+          </select>
+        </Field>
+        {toPeople ? <Field label={tr("people")} req wide><PeoplePicker value={people} onChange={setPeople} /></Field> : <Field label={tr("department")} req>
           {fixed
             ? <select disabled value={fixed}><option>{serverText(fixed)}</option></select>
             : <select name="department" required>{options?.departments.map((d) => <option key={d} value={d}>{serverText(d)}</option>)}</select>}
-        </Field>
+        </Field>}
         <Field label={tr("priority")}>
           <select name="priority" defaultValue="normal"><option value="normal">{tr("normal")}</option><option value="high">{tr("high")}</option></select>
         </Field>
         <Field label={tr("request")} req wide><textarea name="title" required minLength={3} /></Field>
         <div className="row end wide">
           <span className="hint spacer">{tr("slaHint")}</span>
-          <button className="btn"><Icon name="send" />{tr("send")}</button>
+          <button className="btn" disabled={toPeople && !people.length}><Icon name="send" />{tr("send")}</button>
         </div>
       </form>
     </Modal>

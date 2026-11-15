@@ -12,7 +12,9 @@
       "opened": "Opened",
       "firstReply": "First reply",
       "notYet": "Not yet",
-      "after": "After {minutes} min"
+      "after": "After {minutes} min",
+      "assignees": "Assigned to",
+      "wholeDepartment": "The whole department"
     },
     "late": {
       "label": "Late:",
@@ -37,10 +39,19 @@
       "label": "Move to department",
       "button": "Move it"
     },
-    "close": { "done": "Ticket closed", "button": "Request done · close it" }
+    "close": { "done": "Ticket closed", "button": "Request done · close it" },
+    "take": { "done": "Taken · it's yours now", "button": "Take it" },
+    "assign": {
+      "label": "Transfer to someone or add people",
+      "mode": "Transfer type",
+      "move": "Transfer to them",
+      "add": "Add them",
+      "button": "Done",
+      "done": "Transferred · the history is kept"
+    }
   },
   "page": {
-    "tabs": { "mine": "My requests", "assigned": "Assigned to {department}", "late": "Late", "closed": "Closed", "all": "All" },
+    "tabs": { "mine": "My requests", "forMe": "Assigned to me", "assigned": "Assigned to {department}", "late": "Late", "closed": "Closed", "all": "All" },
     "kpi": {
       "open": "Open",
       "late": "Late",
@@ -59,6 +70,7 @@
     "empty": "No tickets here",
     "prev": "Previous",
     "next": "Next",
+    "filters": { "assignee": "Assignee", "anyAssignee": "All assignees", "department": "Department", "anyDepartment": "All departments" },
     "slaNote": "Replies within 24 working hours (4 hours for high priority); late tickets are escalated to the department manager. Every ticket has an official timeline (Audit Trail) and every department a response rate."
   },
   "rate": {
@@ -78,6 +90,11 @@
     "high": "High",
     "request": "Request",
     "slaHint": "Replies within 24 working hours (4 hours for high priority).",
-    "send": "Send"
-  }
+    "send": "Send",
+    "to": "To whom?",
+    "toDepartment": "A whole department",
+    "toPeople": "People by name",
+    "people": "People"
+  },
+  "people": { "search": "Search by name", "remove": "Remove {name}", "none": "Nobody by that name" }
 }
