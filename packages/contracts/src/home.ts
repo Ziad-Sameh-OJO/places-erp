@@ -8,7 +8,7 @@ export const TODAY_KINDS = [
   "dealReview", "dealSeller", "tcrSign", // deals
   "contractEnding", // contracts
   "purchaseApprove", "purchasePay", // procurement
-  "leaveTl", "leaveHr", "excuseTl", "excuseHr", "forgot", "hrAction", "noPunch", // hr
+  "leaveTl", "leaveHr", "excuseTl", "excuseHr", "forgot", "hrAction", "noPunch", "careerDue", // hr
   "postToday", "broadcastApprove", // marketing
   "oneOnOneLeft", // hr · the month's last week: salespeople with no 1-to-1 yet
 ] as const;
