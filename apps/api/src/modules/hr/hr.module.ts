@@ -10,6 +10,8 @@ import { TicketsModule } from "../tickets/tickets.module";
 import { KpisModule } from "../kpis/kpis.module";
 import { HrTodayController } from "./today.controller";
 import { HrTodayService } from "./today.service";
+import { InsuranceController } from "./insurance.controller";
+import { InsuranceService } from "./insurance.service";
 import { CareerController } from "./career.controller";
 import { CareerService } from "./career.service";
 import { EmployeeFileController } from "./employee-file.controller";
@@ -19,5 +21,5 @@ import { EmployeeFileService } from "./employee-file.service";
  * M-05 · الموارد البشرية. 7.1: the employee file; HrService is exported for payroll (9.14) and attendance (7.2);
  * AttendanceService for the approved deductions payroll reads (7.9); LeavesService for who's on leave in lead routing (1.15).
  */
-@Module({ imports: [TicketsModule, KpisModule], controllers: [HrController, HrTodayController, EmployeeFileController, CareerController], providers: [HrService, HrRepository, AttendanceService, LeavesService, PeopleCareService, ExcusesService, HrTodayService, EmployeeFileService, CareerService], exports: [HrService, AttendanceService, LeavesService] })
+@Module({ imports: [TicketsModule, KpisModule], controllers: [HrController, HrTodayController, EmployeeFileController, CareerController, InsuranceController], providers: [HrService, HrRepository, AttendanceService, LeavesService, PeopleCareService, ExcusesService, HrTodayService, EmployeeFileService, CareerService, InsuranceService], exports: [HrService, AttendanceService, LeavesService, InsuranceService] })
 export class HrModule {}

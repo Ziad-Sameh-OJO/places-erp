@@ -29,5 +29,6 @@ export * from "./broadcasts.ts";
 export * from "./company-profile.ts";
 export * from "./i18n/index.ts";
 export * from "./search.ts";
+export * from "./insurance.ts";
 export * from "./career.ts";
 export * from "./employee-file.ts";

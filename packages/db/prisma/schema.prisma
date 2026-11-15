@@ -1929,6 +1929,7 @@ model PayrollLine {
   salary     Decimal    @db.Decimal(14, 2)
   attendance Decimal    @db.Decimal(14, 2)
   advance    Decimal    @db.Decimal(14, 2)
+  insurance  Decimal    @default(0) @db.Decimal(14, 2) // the employee's insurance deduction (HR, 15 Nov)
   net        Decimal    @db.Decimal(14, 2)
 
   @@index([runId])
@@ -2155,6 +2156,25 @@ model SalesTarget {
 
   @@unique([employeeId, month])
   @@schema("kpi")
+}
+
+/// M-05 · an employee's insurance (HR, 15 Nov): HR records it, Finance sees it, and the monthly amount is deducted in
+/// the payroll run (9.14). Keyed by the user like the payroll rows; `files` are system.File ids (entity "EmployeeInsurance").
+model EmployeeInsurance {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  insured      Boolean   @default(true)
+  since        DateTime? @db.Date
+  provider     String    @default("") // التأمينات الاجتماعية or a private company (Setting insuranceProviders)
+  monthly      Decimal   @default(0) @db.Decimal(14, 2) // deducted from the employee every month
+  companyShare Decimal?  @db.Decimal(14, 2)
+  note         String?
+  files        String[]
+  updatedById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@schema("hr")
 }
 
 /// M-05 · «المسار الوظيفي» (HR, 15 Nov): a job track HR defines (Sales: Junior → Senior → Team Leader …). `sample` = the
