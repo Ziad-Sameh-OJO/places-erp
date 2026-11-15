@@ -92,6 +92,11 @@
         "sub": "{name} · {due}",
         "button": "الفايل"
       },
+      "careerDue": {
+        "title": "{name} مستحق ترقية",
+        "sub": "{from} ← {to} · المسار الوظيفي",
+        "button": "المسار الوظيفي"
+      },
       "postToday": {
         "title": "Reminder: {title}",
         "sub": "ميعاد النشر {at} · {channel}",

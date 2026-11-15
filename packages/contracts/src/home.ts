@@ -8,7 +8,7 @@ export const TODAY_KINDS = [
   "dealReview", "dealSeller", "tcrSign", // deals
   "contractEnding", // contracts
   "purchaseApprove", "purchasePay", // procurement
-  "leaveTl", "leaveHr", "excuseTl", "excuseHr", "forgot", "hrAction", // hr
+  "leaveTl", "leaveHr", "excuseTl", "excuseHr", "forgot", "hrAction", "careerDue", // hr
   "postToday", "broadcastApprove", // marketing
 ] as const;
 export type TodayKind = (typeof TODAY_KINDS)[number];

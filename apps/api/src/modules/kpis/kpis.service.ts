@@ -582,6 +582,12 @@ export class KpisService {
     return (await this.repo.currentQuarter())?.id ?? null;
   }
 
+  /** M-05 «المسار الوظيفي»: the latest `take` closed quarters (latest first) with each card's final score. */
+  async closedScores(take: number): Promise<{ quarter: string; scores: Map<string, number> }[]> {
+    const closed = (await this.repo.quarters()).filter((q) => q.status === "closed").slice(0, take);
+    return Promise.all(closed.map(async (q) => ({ quarter: q.id, scores: new Map((await this.repo.finalScores(q.id)).map((c) => [c.employeeId, Number(c.finalScore)])) })));
+  }
+
   /** 11.7: the sheet of a closed quarter, before the Office Manager's approval only for the KPI admins. */
   private canSheet(w: Who, q: Quarter) {
     return q.status === "closed" && !w.noMoney && !w.noScore && !w.noPlan && (!!q.sheetsAt || w.approve || w.edit);
