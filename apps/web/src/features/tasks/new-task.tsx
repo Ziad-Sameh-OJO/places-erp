@@ -2,14 +2,14 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { TaskKpiEffect, TaskOptions } from "@places/contracts";
-import { taskKind } from "@places/domain";
+import { IN_TEAM_KIND, taskKind } from "@places/domain";
 import { Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
 import { useTaskActions, useTaskUnits } from "./use-tasks";
 
 /** The demo's titles of the form, per kind (tasks.js `taskNew`): their words in tasks.newTask.titles. */
-const TITLED = ["photo", "retouch", "toResale", "marketing"] as const;
+const TITLED = ["photo", "retouch", "toResale", "marketing", "inTeam"] as const;
 const titled = (k: string): k is (typeof TITLED)[number] => (TITLED as readonly string[]).includes(k);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 
@@ -24,9 +24,12 @@ export function NewTask({ kind, options, unit, onClose }: {
   const toast = useToast();
   const { create } = useTaskActions();
   const [q, setQ] = useState("");
+  const inTeam = kind === IN_TEAM_KIND;
   const withUnit = taskKind(kind)?.withUnit ?? false;
-  const units = useTaskUnits(q, withUnit).data ?? [];
-  const assignees = options?.kinds.find((k) => k.key === kind)?.assignees ?? [];
+  const units = useTaskUnits(q, withUnit || inTeam).data ?? [];
+  // 14.15: an in-team task goes to a person of the chosen department
+  const [dept, setDept] = useState(options?.departments[0]?.name ?? "");
+  const assignees = inTeam ? options?.departments.find((d) => d.name === dept)?.people ?? [] : options?.kinds.find((k) => k.key === kind)?.assignees ?? [];
   const fields = useFields("tasks");
   const kpiNote = useKpiNote();
   return (
@@ -36,6 +39,7 @@ export function NewTask({ kind, options, unit, onClose }: {
         const r = await create({
           kind, toUserId: text("toUserId"), dueOn: text("dueOn"),
           ...(withUnit ? { unitId: text("unitId") } : { title: text("title") }),
+          ...(inTeam ? { department: dept, ...(text("unitId") ? { unitId: text("unitId") } : {}) } : {}),
           ...(text("note") ? { note: text("note") } : {}),
           countsInKpi: text("countsInKpi") === "yes",
         });
@@ -44,7 +48,23 @@ export function NewTask({ kind, options, unit, onClose }: {
         const done = (kind === "photo" ? t("sentPhoto") : t("sent")) + kpiNote(r.kpi, assignees.find((a) => a.id === text("toUserId"))?.name ?? "");
         toast(r.warning ? `${serverText(r.warning)} · ${done}` : done);
       }))}>
-        {withUnit ? (
+        {inTeam ? (
+          <>
+            <Field label={t("department")} req>
+              <select value={dept} onChange={(e) => setDept(e.target.value)} required>
+                {options?.departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+              </select>
+            </Field>
+            <Field label={t("task")} req wide><input name="title" maxLength={120} required placeholder={t("inTeamTask")} /></Field>
+            <Field label={t("unitOptional")} wide>
+              <input type="search" placeholder={t("searchUnit")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("searchUnitLabel")} />
+              <select name="unitId" aria-label={t("unitOptional")} defaultValue="">
+                <option value="">{t("noUnit")}</option>
+                {units.map((u) => <option key={u.id} value={u.id}>{u.code} · {u.project}</option>)}
+              </select>
+            </Field>
+          </>
+        ) : withUnit ? (
           <Field label={t("unit")} req wide>
             <input type="search" placeholder={t("searchUnit")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("searchUnitLabel")} />
             <select name="unitId" required aria-label={t("unit")} defaultValue={unit?.id}>
@@ -57,7 +77,7 @@ export function NewTask({ kind, options, unit, onClose }: {
           </Field>
         )}
         <Field label={t("assignee")} req>
-          <select name="toUserId" required>{assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
+          <select name="toUserId" required key={dept}>{assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
         </Field>
         <Field label={t("due")} req><input name="dueOn" type="date" defaultValue={today()} required /></Field>
         {/* M-09: a note the person may not set starts empty (the API too), so a new task has no input for it */}

@@ -18,7 +18,8 @@ import { useSendNewLead } from "./use-new-leads";
 import { WhatsAppQuestion } from "./whatsapp-question";
 import { useLeadOptions } from "./use-leads";
 import { Visits } from "./visits";
-import { RecommendedUnits, useRecommendations } from "./recommendations";
+import { useRecommendations } from "./recommendations";
+import { LeadUnitsTab } from "./unit-journey";
 import { EditLead } from "./edit-lead";
 import { DealForm } from "../deals/deal-form";
 import { useRecent } from "@/lib/quick";
@@ -66,7 +67,7 @@ export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; i
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
       {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
-      {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
+      {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <LeadUnitsTab id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
         : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity key={l.id} l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );

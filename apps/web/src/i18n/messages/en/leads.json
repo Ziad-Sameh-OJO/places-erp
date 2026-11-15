@@ -466,7 +466,8 @@
       "auto": "The PDF is made automatically from the units' data, and nobody can edit it.",
       "back": "Back",
       "send": "Send to the client and log a comment"
-    }
+    },
+    "visited": "Visited"
   },
   "secondCalls": {
     "title": "Verification calls (Second Calls)",
@@ -481,7 +482,7 @@
     "cancel": "Cancel"
   },
   "visits": {
-    "doneToast": "The {kind} is done · counted in the activity",
+    "doneToast": "The {kind} is done · counted as a Showing",
     "notDoneToast": "Recorded as not done · visible to HR in attendance",
     "approvedToast": "Postponement approved · no deduction",
     "rejectedToast": "Postponement rejected",
@@ -520,7 +521,9 @@
     "sqm": "{n} m²",
     "extraLabel": "Spaces not in the sheet",
     "extraPlaceholder": "e.g. floor 4 in building B6",
-    "saveTime": "Save the time"
+    "saveTime": "Save the time",
+    "editUnits": "Edit units",
+    "lockedAfterDone": "The appointment is marked · only its units can change (one postponed or not visited)"
   },
   "whatsapp": {
     "saved": "Recorded as a comment on the lead",
@@ -528,5 +531,34 @@
     "question": "Did you send them a WhatsApp?",
     "no": "No",
     "yes": "Yes, I did"
+  },
+  "journey": {
+    "title": "Units log",
+    "sub": "Every stage with its date and units · the PDF is made whenever you ask for it",
+    "loading": "Loading…",
+    "stage": {
+      "list": "List of options",
+      "visit": "Visits",
+      "shortlist": "Short list",
+      "meeting": "Meeting"
+    },
+    "none": "Not yet",
+    "done": "Done",
+    "notDone": "Not done",
+    "extra": "Not in the sheet: {extra}",
+    "pick": {
+      "title": "Manual pick from the inventory",
+      "sub": "What you pick is saved on the lead as its Short list",
+      "search": "Find a unit",
+      "searchPlaceholder": "By code, company or number",
+      "from": "Space from (m)",
+      "to": "To (m)",
+      "pickUnit": "Pick {code}",
+      "sqm": "{n} m",
+      "empty": "No units for this search",
+      "hint": "Type a code, company or number, or set the space",
+      "save": "Save as recommendation ({n})",
+      "saved": "The recommendation was saved on the lead"
+    }
   }
 }

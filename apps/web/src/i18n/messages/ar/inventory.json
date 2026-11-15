@@ -413,7 +413,12 @@
     "making": "بيتعمل…",
     "done": "الـ List اتعملت",
     "pickAll": "حدد كل الوحدات اللي في الصفحة",
-    "pickOne": "حدد {code}"
+    "pickOne": "حدد {code}",
+    "lead": "العميل (من ليدزك · اختياري)",
+    "leadSearch": "دوّر في ليدزك",
+    "noLead": "من غير عميل",
+    "leadHint": "لو اخترت عميل: بتتسجّل في الـ Activity بتاعه وفي سجل الوحدات",
+    "doneOnLead": "الـ List اتعملت واتسجّلت عند {name}"
   },
   "lists": {
     "title": "طلبات الـ Lists",

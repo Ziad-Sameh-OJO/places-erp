@@ -13,7 +13,7 @@ export interface TaskKind {
   /** about one unit: its code reaches the assignee with the sender's notes, nothing else (M-04 2.1 step 4 · 4.16) */
   readonly withUnit: boolean;
   /** the permission that lets someone give this kind; null = only the system creates it (the month job, 2.17) */
-  readonly createdWith: { readonly module: "inventory" | "marketing"; readonly action: "edit" | "create" } | null;
+  readonly createdWith: { readonly module: "inventory" | "marketing" | "tasks"; readonly action: "edit" | "create" } | null;
 }
 
 /** The demo's kinds (tasks.js `KIND`). Marketing tasks carry their type from «أنواع تاسكات التسويق» (Website leasing, Market survey…, M-04 3.1). */
@@ -30,6 +30,9 @@ export const TASK_KINDS: readonly TaskKind[] = [
   { key: "team", label: "مهمة من منار", assigneeRoles: ["resale", "inventory_staff"], withUnit: false, createdWith: null },
   // M-04 3.1: «مدير التسويق (الباقي)»
   { key: "marketing", label: "تسويق", assigneeRoles: ["marketing", "photographer", "designer"], withUnit: false, createdWith: { module: "marketing", action: "create" } },
+  // 14.15 (management meeting, 15 Nov): a task inside the team — the department, the task's text, a unit only if it's
+  // about one, a deadline. It goes to a person of the chosen department, not by role (inTeamDepartments below).
+  { key: "inTeam", label: "مهمة جوه التيم", assigneeRoles: [], withUnit: false, createdWith: { module: "tasks", action: "create" } },
 ];
 export const taskKind = (key: string): TaskKind | undefined => TASK_KINDS.find((k) => k.key === key);
 
@@ -122,3 +125,11 @@ export const needsFollowup = (u: { stale: boolean; openFollowup: boolean }): boo
 export const isTeamTask = (byDept: string | null, toDept: string): boolean => byDept === null || byDept === toDept;
 export const TASK_SIDES = ["team", "outside"] as const;
 export type TaskSide = (typeof TASK_SIDES)[number];
+
+/**
+ * 14.15 «المهام = جوه التيم، التيكتات = بين الأقسام» (#532): the departments a person may give an in-team task to —
+ * their own department; whoever sees the whole company (scope «all») picks any. No department, no team to give to.
+ */
+export const IN_TEAM_KIND = "inTeam";
+export const inTeamDepartments = (scope: string, own: string | null, all: readonly string[]): string[] =>
+  scope === "all" ? [...all] : own ? [own] : [];

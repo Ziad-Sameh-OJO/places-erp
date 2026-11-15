@@ -1,8 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, type Recommendations, type UnitListInput } from "@places/contracts";
-import type { TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL } from "@places/domain";
+import type { VisitUnitQuery, TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -10,6 +10,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
 import { leadScope } from "./lead-scope";
 import { type LeadDetailRecord, type LeadQuery, type LeadRecord, LeadsRepository } from "./leads.repository";
+import { LeadUnitsRepository } from "./lead-units.repository";
 import { LeadDuplicatesService } from "./duplicates.service";
 import { LeadRulesService } from "./lead-rules.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -53,6 +54,7 @@ export class LeadsService {
     private readonly documents: DocumentsService,
     private readonly companies: CompaniesService,
     private readonly attendance: AttendanceService, // 7.3: a marked Visit re-reads that day
+    private readonly unitSteps: LeadUnitsRepository, // 14.8: the units log (List of options) · 14.11: visited units first
     private readonly clients: ClientsService, // M-10: Done Deal makes the client's file; an old client's number joins it
   ) {}
 
@@ -248,11 +250,11 @@ export class LeadsService {
     const need = needOf(lead);
     // M-09: the units follow the inventory's field rules — a question on a hidden unit field isn't applied, its value is blank
     const units = me.fields.hidden("inventory");
-    const { items, projects } = await this.inventory.recommend(need, shownAnswers(answers, units), settings.recommendTolerancePct);
+    const [{ items, projects }, visited] = await Promise.all([this.inventory.recommend(need, shownAnswers(answers, units), settings.recommendTolerancePct), this.unitSteps.visitedUnitIds(id)]);
     return {
       tolerancePct: settings.recommendTolerancePct,
       client: hideClient({ type: lead.type, space: lead.space, condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, area: lead.area }, me.fields.hidden("leads")),
-      answers, projects, paymentMethods: activeValues(settings.paymentPlans), items: items.map((u) => hideRecommended(u, units)),
+      answers, projects, paymentMethods: activeValues(settings.paymentPlans), items: visitedFirst(items.map((u) => hideRecommended(u, units)), visited),
     };
   }
 
@@ -294,6 +296,7 @@ export class LeadsService {
       const activity = await this.repo.addActivity(tx, id, "comment", text, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.repo.addSuggestedUnits(tx, id, units.map((u) => u.id), me.id);
+      await this.unitSteps.addStep(tx, id, "list", units.map((u) => u.id), me.id); // 14.8: in the units log
       await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "unit-list", userId: me.id,
         after: { leadId: id, unitIds: input.unitIds, text } }, tx);
     });
@@ -678,9 +681,10 @@ export class LeadsService {
   }
 
   /** The Visit form's unit search (1.9): through the inventory's own rule of what a salesperson may see. */
-  async visitUnits(me: CurrentUser, q?: string) {
+  async visitUnits(me: CurrentUser, q: VisitUnitQuery) {
     const noSpace = me.fields.hidden("inventory").has("space"); // M-09: the inventory's hidden field stays hidden here too
-    return (await this.inventory.forVisit(q)).map((u) => (noSpace ? { ...u, space: 0 } : u));
+    // a hidden space isn't searched by its range either
+    return (await this.inventory.forVisit(q.q, noSpace ? {} : { min: q.spaceMin, max: q.spaceMax })).map((u) => (noSpace ? { ...u, space: 0 } : u));
   }
 
   /**
@@ -709,10 +713,11 @@ export class LeadsService {
       if (!(await this.repo.findInScope(leadScope(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
       const before = await this.repo.findVisit(tx, id, visitId);
       if (!before) throw new NotFoundException(NO_VISIT);
-      if (before.outcome) throw new BadRequestException("الميعاد اتعلّم خلاص · مينفعش يتعدّل");
+      const at = new Date(input.at);
+      // 14.10: after Done / معملتهاش the units can still change (one postponed, one not visited); the time and kind were counted (Showings, attendance)
+      if (before.outcome && (at.getTime() !== before.at.getTime() || kindOf(before.kind) !== input.kind)) throw new BadRequestException("الميعاد اتعلّم خلاص · تقدر تعدّل الوحدات بس");
       const kept = before.units.map((u) => u.unitId);
       const units = await this.visitUnitCodes(input.unitIds, kept);
-      const at = new Date(input.at);
       await this.repo.updateVisit(tx, visitId, { kind: input.kind.toLowerCase(), at, extra: input.extra ?? null, unitIds: input.unitIds }, at.getTime() !== before.at.getTime());
       await this.repo.addActivity(tx, id, input.kind === "Meeting" ? "meeting" : "visit", `اتعدّل الـ ${visitText(input, at, units)}`, me.id);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: "update", userId: me.id,
@@ -736,8 +741,11 @@ export class LeadsService {
       if (!(await this.repo.markVisit(tx, visitId, input.outcome)).count) throw new BadRequestException("الميعاد اتعلّم خلاص");
       if (lead.assignedToId) await this.attendance.refreshDay(lead.assignedToId, visit.at, tx); // 7.3: Done = the day starts at the Visit
       const kind = kindOf(visit.kind);
+      // 14.10: Done is a Showing, written the way the salesperson says it: «نزلت معاه على …»
+      const codes = (await this.inventory.codes(visit.units.map((u) => u.unitId))).map((u) => u.code);
+      const shown = [...codes, ...(visit.extra ? [visit.extra] : [])].join("، ");
       await this.repo.addActivity(tx, id, kind === "Meeting" ? "meeting" : "visit",
-        input.outcome === "done" ? `الـ ${kind} خلصت · اتحسبت في الـ activity` : `الـ ${kind} اتعلّمت إنها محصلتش`, me.id);
+        input.outcome === "done" ? `${kind} Done · نزلت معاه على ${shown || "—"} · اتحسبت Showing` : `الـ ${kind} اتعلّمت إنها محصلتش`, me.id);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: input.outcome === "done" ? "done" : "not-done", userId: me.id,
         before: { leadId: id, outcome: null }, after: { leadId: id, outcome: input.outcome } }, tx);
       if (input.outcome === "done") await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), kind));
@@ -808,6 +816,8 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
     case "LeadVisit:update": return `اتعدّل ميعاد الـ ${field(a.after, "kind")}`;
     case "LeadVisit:done": return "الميعاد اتعلّم Done";
     case "LeadVisit:not-done": return "الميعاد اتعلّم «معملتهاش»";
+    case "LeadUnitStep:list": return "اتبعتله List of options";
+    case "LeadUnitStep:shortlist": return "اتحفظ Short list";
     case "LeadDuplicate:create": return "حد دخّل العميل ده تاني · طلب تكرار للأوبريشن";
     default: return `${a.entity} · ${a.action}`;
   }

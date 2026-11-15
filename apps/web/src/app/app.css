@@ -167,3 +167,7 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 .toolbar:has(.multi-pick[open]) { animation: none; z-index: 20; } /* the «draw-in» animation ends on a clip-path that would cut the open list */
 .toolbar .area-f { width: 170px; }
 @media (max-width: 760px) { .toolbar > .multi-pick { grid-column: 1 / -1; } .multi-pick > summary { max-width: none; } .toolbar .area-f { width: 100%; } .multi-pick-list { min-width: 100%; } }
+/* 14.8 · the lead's units log: one dated step with its units */
+.uj-step { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.timeline .uj-step small { display: inline; }
+a.chip { text-decoration: none; }

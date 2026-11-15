@@ -160,8 +160,15 @@ export type VisitInput = z.infer<typeof VisitInput>;
 export const VisitOutcome = z.object({ outcome: z.enum(["done", "not_done"], { required_error: "اختار", invalid_type_error: "اختار" }) });
 export type VisitOutcome = z.infer<typeof VisitOutcome>;
 
-/** The Visit form's unit search: by code, project or space (4 Nov demo meeting). */
-export const VisitUnitQuery = z.object({ q: z.string().trim().max(80).optional() });
+/**
+ * The Visit form's unit search: by code, project or space (4 Nov demo meeting); 14.11's manual pick also by the
+ * building number and a space range («من 50 لـ 100 م»).
+ */
+export const VisitUnitQuery = z.object({
+  q: z.string().trim().max(80).optional(),
+  spaceMin: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  spaceMax: z.coerce.number().int().min(0).max(1_000_000).optional(),
+}).refine((f) => f.spaceMin == null || f.spaceMax == null || f.spaceMin <= f.spaceMax, { path: ["spaceMax"], message: "«لحد» أقل من «من»" });
 export type VisitUnitQuery = z.infer<typeof VisitUnitQuery>;
 
 /** Operations' decision on a duplicate: per field, «old» (default) keeps what the lead has, «new» takes the entry's. */
@@ -313,6 +320,8 @@ export interface RecommendedUnit {
   /** the client's price: a month's rent (Rent) or the total; null when the unit has none for this type */
   price: string | null; monthly: boolean;
   split: boolean; sameArea: boolean; match: number;
+  /** 14.11: the client visited it already (shown first, with a mark) */
+  visited?: boolean;
 }
 /** The tab: what the client wants, the ± tolerance (a setting), the answers, the choices for the questions, the units. */
 export interface Recommendations {
