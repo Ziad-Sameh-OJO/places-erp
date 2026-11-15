@@ -16,7 +16,7 @@ export function useMe() {
   /** M-13 4.1: may change this setting (its department's manager, the Super Admin) — the API checks the same rule. */
   const canSet = (key: string) => !!q.data && canEditSetting(key, { roles: q.data.roles, masterEdit: can("master", "edit"), accessEdit: can("access", "edit") });
   /** A page in the menu: a module's page by its «view»; «شيت الشركات» (1.20) is the sheet's keepers' and the lead importers' */
-  const opens = (page: string) => (page === "companies" ? keepsCompaniesSheet(q.data?.roles ?? []) || can("leads", "import") : can(page as ModuleKey));
+  const opens = (page: string) => (page === "events" ? !!q.data : page === "companies" ? keepsCompaniesSheet(q.data?.roles ?? []) || can("leads", "import") : can(page as ModuleKey));
   return { me: q.data, can, canSet, opens, loading: q.isPending };
 }
 

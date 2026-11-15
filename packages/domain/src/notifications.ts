@@ -105,6 +105,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "access.suspicious", label: "دخول غريب", to: "Super Admin", toRoles: ["admin"], channels: ["app", "push", "email"], important: true },
   // M-14 2.3 · 7.1: an email that didn't go out; never by email (that's what's failing), the notification stays in the system
   { key: "mail.failed", label: "إيميل مارجعش", to: "Super Admin", toRoles: ["admin"], channels: ["app"], important: true },
+  // M-05 · fun days (HR, 15 Nov): everyone the event is for (all, or its departments)
+  { key: "hr.fun_day", label: "يوم ترفيه / احتفال جديد", to: "كل اللي الاحتفال ليهم", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "hr.fun_day_reminder", label: "تذكير بيوم ترفيه / احتفال (قبلها بيوم · الصبح)", to: "كل اللي الاحتفال ليهم", toRoles: [], channels: ["app", "push"], important: false },
 ];
 
 /**

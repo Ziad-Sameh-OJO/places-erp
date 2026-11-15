@@ -2132,3 +2132,26 @@ model SalesTarget {
   @@unique([employeeId, month])
   @@schema("kpi")
 }
+
+/// M-05 · «الترفيه والاحتفالات» (HR, 15 Nov): a fun day / celebration HR plans for the year. `departments` empty =
+/// everyone. Reminders go once each (the day before, the morning of); a date change resets them and tells people again.
+model CompanyEvent {
+  id              String    @id @default(cuid())
+  title           String
+  date            DateTime  @db.Date // the Cairo day
+  time            String? // "HH:MM", Cairo
+  place           String?
+  description     String
+  imageFileId     String?
+  departments     String[]
+  createdById     String
+  notifiedAt      DateTime  @default(now())
+  dayBeforeSentAt DateTime?
+  morningSentAt   DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([date])
+  @@schema("hr")
+}
