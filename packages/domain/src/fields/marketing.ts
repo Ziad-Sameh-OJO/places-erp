@@ -10,7 +10,7 @@ export const marketing: readonly FieldDef[] = [
   { key: "period", label: "الفترة", locked: true },
   { key: "page", label: "Page name", locked: true },
   { key: "budget", label: "الميزانية" },
-  { key: "spent", label: "اتصرف", covers: ["costPerLead", "costPerQualified"] },
+  { key: "spent", label: "اتصرف", covers: ["costPerLead", "costPerQualified", "costPerDeal"] },
   { key: "target", label: "المشروع / الوحدات المستهدفة" },
   { key: "adUrl", label: "لينك الإعلان" },
   { key: "note", label: "ملاحظات" },

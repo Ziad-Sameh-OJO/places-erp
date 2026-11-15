@@ -190,20 +190,27 @@
       "inPeriod": "في الفترة دي",
       "rate": "{rate}% نسبة التأهيل",
       "spent": "صرف الكامبينز",
-      "campaigns": "{count} كامبين",
-      "costPerQualified": "تكلفة الـ Qualified",
-      "perLead": "للّيد الواحد"
+      "campaigns": "{count} كامبين"
+    },
+    "cost": {
+      "label": "التكلفة",
+      "lead": "تكلفة الليد (CPL)",
+      "qualified": "تكلفة الـ Qualified (CPQ)",
+      "deal": "تكلفة الصفقة",
+      "per": { "lead": "للّيد الواحد", "qualified": "للـ Qualified الواحد" },
+      "deals": "{count} صفقة · بتتحسب على شهر نزول الليد"
     },
     "tree": { "title": "Channels ← Campaigns", "sub": "إجمالي كل channel ومتفرع منه الكامبينز" },
     "leads": "{count} ليد",
-    "rateCost": "{rate}% · {cost}/ليد",
+    "rateCost": { "lead": "{rate}% · {cost}/ليد", "qualified": "{rate}% · {cost}/Qualified", "deal": "{rate}% · {cost}/صفقة" },
     "noCampaign": "من غير كامبين",
     "empty": "مفيش ليدز في الفترة دي",
     "byChannel": "الليدز حسب الـ channel",
     "lead": "ليد",
     "posts": "البوستات اللي جابت ليدز",
     "noPosts": "مفيش ليدز متربطة ببوست في الفترة دي",
-    "competitors": { "title": "تقرير المنافسين الشهري", "sub": "بينزلوا إيه + تحليل · بيتسلّم يوم {day}", "done": "اتسلّم الشهر ده", "waiting": "مستني يوم {day}", "none": "مفيش", "name": "اسم الملف / اللينك", "submit": "سلّم تقرير الشهر ده", "handed": "اتسلّم" },
+    "competitors": { "title": "تقرير المنافسين الشهري", "sub": "بينزلوا إيه + تحليل · بيتسلّم يوم {day}", "done": "اتسلّم الشهر ده", "waiting": "مستني يوم {day}", "none": "مفيش", "name": "اسم الملف / اللينك", "submit": "سلّم تقرير الشهر ده", "handed": "اتسلّم",
+      "rows": { "title": "المنافسين", "month": "الشهر", "name": "المنافس", "note": "بينزلوا إيه / تحليل", "strength": "قوي ولا لأ", "strong": "قوي", "weak": "مش قوي", "unrated": "لسه متقيّمش", "empty": "مفيش منافسين متضافين للشهر ده", "add": "ضيف منافس", "added": "اتضاف", "rated": "اتسجّل التقييم", "remove": "شيل", "removed": "اتشال" } },
     "notQualified": {
       "title": "الليدز اللي ماكانتش Qualified",
       "sub": "السبب = الأكشن اللي السيلز عمله على الليد + آخر كومنت ليه، وصاحب الكومنت",

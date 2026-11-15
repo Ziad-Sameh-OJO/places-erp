@@ -18,6 +18,7 @@ before(async () => {
 });
 
 after(async () => {
+  await prisma.deal.deleteMany({ where: { code: { startsWith: `D-C${stamp}` } } });
   await prisma.leadArrival.deleteMany({ where: { campaignId: { in: campaigns } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-C${stamp}` } } });
   await prisma.campaign.deleteMany({ where: { id: { in: campaigns } } });
@@ -75,7 +76,7 @@ test("Rahma adds a campaign → leads and Qualified per campaign, every arrival 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
   const dash = await call(`/marketing/campaigns/dashboard?campaignId=${id}&from=${today}&to=${today}`, { cookie: rahma });
   assert.equal(dash.status, 200, JSON.stringify(dash.body));
-  assert.deepEqual(dash.body.total, { leads: 3, qualified: 1, rate: 33.3 });
+  assert.deepEqual(dash.body.total, { leads: 3, qualified: 1, rate: 33.3, deals: 0 });
   assert.equal(dash.body.spent, "1500.00");
   assert.equal(dash.body.costPerQualified, "1500.00");
   const node = dash.body.channels.find((x: { channel: string }) => x.channel === channel);
@@ -184,4 +185,34 @@ test("4.20 · units from the inventory sheet, no end date («مستمرة»), th
   assert.ok(((await call(`/marketing/campaigns/units?campaignId=${id}`, { cookie: rahma })).body as { id: string }[]).some((o) => o.id === u2.id));
   assert.equal((await call(`/marketing/campaigns/${id}`, { method: "PUT", cookie: rahma, body: { ...daily, unitIds: [u2.id] } })).status, 200);
   assert.equal(await prisma.auditLog.count({ where: { entity: "Campaign", entityId: id } }), 4);
+});
+
+test("14.13: a June lead closed in October lowers June's cost per transaction, not October's", async () => {
+  const camp = async (month: string, spent: string) => {
+    const r = await call("/marketing/campaigns", { method: "POST", cookie: rahma, body: body({ name: `E2E ${month} ${stamp}`, startsOn: `2026-${month}-01`, endsOn: `2026-${month}-28`, spent }) });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    campaigns.push(r.body.id);
+    return r.body.id as string;
+  };
+  const june = await camp("06", "60000"), october = await camp("10", "40000");
+  const unit = await prisma.unit.create({ data: { code: `U-C${stamp}d`, type: "Rent", project: `مشروع ${stamp} صفقة`, area: "التجمع الخامس", space: 200, condition: "Finished" } });
+  // two leads on June's campaign (one Qualified) that came in on 12 June; the Qualified one closed on 5 October
+  for (const n of [1, 2]) {
+    const at = new Date("2026-06-12T10:00:00Z");
+    const lead = await prisma.lead.create({ data: { code: `L-C${stamp}j${n}`, name: `E2E ${stamp} j${n}`, phones: [`0103${stamp.slice(-7)}${n}`], area: "التجمع الخامس", type: "Rent", channel, campaignId: june, qualified: n === 1, arrivedAt: at, createdById: "e2e" } });
+    await prisma.leadArrival.create({ data: { leadId: lead.id, channel, campaignId: june, at } });
+    if (n === 1) await prisma.deal.create({ data: { code: `D-C${stamp}1`, leadId: lead.id, unitId: unit.id, type: "Rent", space: 200, location: "التجمع", company: "E2E", source: channel, status: "APPROVED", commissionOwner: "10000", commissionClient: "10000", closedAt: new Date("2026-10-05T10:00:00Z"), createdById: "e2e" } });
+  }
+  const dash = async (from: string, to: string, campaignId: string) => (await call(`/marketing/campaigns/dashboard?campaignId=${campaignId}&from=${from}&to=${to}`, { cookie: rahma })).body;
+  const j = await dash("2026-06-01", "2026-06-30", june);
+  assert.equal(j.total.deals, 1);
+  assert.equal(j.spent, "60000.00");
+  assert.deepEqual([j.costPerLead, j.costPerQualified, j.costPerDeal], ["30000.00", "60000.00", "60000.00"]);
+  const row = j.channels[0].campaigns[0];
+  assert.deepEqual([row.id, row.deals, row.costPerDeal], [june, 1, "60000.00"]);
+  const o = await dash("2026-10-01", "2026-10-31", october);
+  assert.deepEqual([o.total.deals, o.spent, o.costPerDeal], [0, "40000.00", null]);
+  // October's period with June's campaign: it didn't run then, and its deal isn't October's
+  const jo = await dash("2026-10-01", "2026-10-31", june);
+  assert.deepEqual([jo.total.deals, jo.spent, jo.campaignCount], [0, "0.00", 0]);
 });
