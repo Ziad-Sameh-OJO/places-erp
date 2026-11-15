@@ -20,7 +20,7 @@ export function unitListHtml(client: string, units: ClientListUnit[], now: Date,
     <td>${u.totalPrice ? egp(u.totalPrice) : "—"}${u.totalPrice && u.type === "Rent" ? " / شهر" : ""}</td>
   </tr>`).join("");
   return layout(`List of options · ${client}`, `
-    <style>small { color: #6b7489; } .head { border-bottom: 2px solid #0037ff; padding-bottom: 8pt; margin-bottom: 8pt; } td:last-child { white-space: nowrap; }</style>
+    <style>small { color: #808080; } .head { border-bottom: 2px solid #111111; padding-bottom: 8pt; margin-bottom: 8pt; } td:last-child { white-space: nowrap; }</style>
     <div class="head"><h1>Places · List of options</h1><div>لـ ${esc(client)} · ${esc(day(now))}</div></div>
     <table><thead><tr><th>الوحدة</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table>`);
 }

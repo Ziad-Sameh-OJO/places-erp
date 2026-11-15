@@ -1,3 +1,4 @@
+import { PLACES_LOGO_PNG } from "../../core/documents/places-logo";
 import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@places/db";
@@ -165,24 +166,24 @@ function clientsHtml(pages: Array<Array<{ name: string; src: string | null }>>, 
   const cols = w >= h ? 5 : 4, rows = Math.ceil(20 / cols);
   const body = pages.map((cells, i) => `<section class="pg"><header><span class="bar"></span><h1>عملاؤنا</h1>${pages.length > 1 ? `<small>${i + 1} / ${pages.length}</small>` : ""}</header>
 <div class="grid">${cells.map((c) => `<figure>${c.src ? `<div class="pic"><img src="${esc(c.src)}" alt=""></div>` : `<div class="pic none"></div>`}<figcaption>${esc(c.name)}</figcaption></figure>`).join("")}</div>
-<footer>Places · عقارات</footer></section>`).join("");
+<footer><img src="${PLACES_LOGO_PNG}" alt="Places"></footer></section>`).join("");
   return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>
 ${FONT_CSS}
 * { box-sizing: border-box; margin: 0; }
 html, body { width: ${w}px; }
-body { font-family: "IBM Plex Sans Arabic", sans-serif; color: #0b1220; }
+body { font-family: "IBM Plex Sans Arabic", sans-serif; color: #111111; }
 .pg { width: ${w}px; height: ${h - 1}px; overflow: hidden; padding: ${8 * u}px ${8 * u}px ${5 * u}px; display: flex; flex-direction: column; gap: ${4 * u}px; break-after: page; background: #fff; }
 .pg:last-child { break-after: auto; }
 header { display: flex; align-items: center; gap: ${2 * u}px; }
-header .bar { width: ${1.4 * u}px; height: ${7 * u}px; background: #0037ff; border-radius: ${0.6 * u}px; }
+header .bar { width: ${1.4 * u}px; height: ${7 * u}px; background: #e3474f; border-radius: ${0.6 * u}px; }
 h1 { font-size: ${6 * u}px; font-weight: 700; line-height: 1; }
-header small { margin-inline-start: auto; color: #6b7489; font-size: ${2 * u}px; }
+header small { margin-inline-start: auto; color: #808080; font-size: ${2 * u}px; }
 .grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(${cols}, 1fr); grid-template-rows: repeat(${rows}, 1fr); gap: ${2.4 * u}px; }
-figure { min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: ${1.2 * u}px; border: 1px solid #e3e8f1; border-radius: ${1.6 * u}px; padding: ${1.8 * u}px; }
+figure { min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: ${1.2 * u}px; border: 1px solid #e8e8e7; border-radius: ${1.6 * u}px; padding: ${1.8 * u}px; }
 .pic { flex: 1; width: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; }
 .pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.pic.none { background: #f1f4f9; border-radius: ${u}px; }
+.pic.none { background: #f2f2f1; border-radius: ${u}px; }
 figcaption { font-size: ${1.9 * u}px; font-weight: 700; text-align: center; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-footer { text-align: center; color: #6b7489; font-size: ${1.8 * u}px; }
+footer { text-align: center; } footer img { height: ${2.4 * u}px; }
 </style></head><body>${body}</body></html>`;
 }

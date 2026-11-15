@@ -19,10 +19,9 @@ import { CreateMenu } from "./create-menu";
 import { CommandPalette, openSearch } from "./command-palette";
 import { pushSubscription } from "@/features/notifications/push";
 
-const BrandMark = () => (
-  <span className="brand-mark" aria-hidden="true">
-    <svg viewBox="0 0 32 32"><path d="M8 25V7h9a6 6 0 0 1 0 12h-9" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /><circle cx="24" cy="24" r="2.6" fill="currentColor" /></svg>
-  </span>
+/** The Places wordmark (white on the black menu); «ERP» marks the system apart from the brand. */
+const Brand = () => (
+  <div className="brand"><img className="brand-logo" src="/brand/places-logo-white.png" alt="Places" width={936} height={222} /><small>ERP</small></div>
 );
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -65,7 +64,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="app">
       <aside className={`side ${menuOpen ? "open" : ""}`} aria-label={t("mainMenu")}>
-        <div className="brand"><BrandMark /><div className="brand-txt"><strong>Places ERP</strong><small>BY RECA TECH</small></div></div>
+        <Brand />
         <div className="side-quick">
           {favs.length > 0 && <><div className="nav-sec"><Icon name="star" />{t("favs")}</div>
             {favs.map((k) => <Link key={k} className="q-item" href={k === "home" ? "/" : `/${k}`}><Icon name={NAV[k].icon} /><span className="lbl">{label(k)}</span></Link>)}</>}

@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "playwright-core";
 import { FilesService } from "../files/files.service";
+import { PLACES_LOGO_PNG } from "./places-logo";
 import type { CurrentUser } from "../auth/current-user.decorator";
 
 /** Text and attributes going into a template. Everything from the database passes through this. */
@@ -23,17 +24,17 @@ export const FONT_CSS = (() => {
     .join("\n\n");
 })();
 
-const LOGO = `<svg viewBox="0 0 512 512" width="22" height="22"><rect width="512" height="512" rx="112" fill="#0037ff"/><path d="M168 380V132h120a84 84 0 0 1 0 168H168" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/><circle cx="372" cy="372" r="34" fill="#fff"/></svg>`;
+const LOGO = `<img src="${PLACES_LOGO_PNG}" alt="Places" style="height:14pt">`;
 
 /** The base page every PDF uses: A4, right to left, the Places font. `body` is HTML built with esc(). */
 export function layout(title: string, body: string) {
   return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
 ${FONT_CSS}
 * { box-sizing: border-box; }
-body { margin: 0; font-family: "IBM Plex Sans Arabic", sans-serif; font-size: 12pt; color: #0b1220; line-height: 1.6; }
+body { margin: 0; font-family: "IBM Plex Sans Arabic", sans-serif; font-size: 12pt; color: #111111; line-height: 1.6; }
 h1 { font-size: 18pt; margin: 0 0 12pt; } h2 { font-size: 14pt; margin: 16pt 0 8pt; }
-table { width: 100%; border-collapse: collapse; margin: 8pt 0; } th, td { border: 1px solid #d5dbe6; padding: 5pt 8pt; text-align: start; }
-th { background: #f1f4f9; font-weight: 700; } .num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+table { width: 100%; border-collapse: collapse; margin: 8pt 0; } th, td { border: 1px solid #dddddc; padding: 5pt 8pt; text-align: start; }
+th { background: #f2f2f1; font-weight: 700; } .num { font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
 .seal { display: flex; justify-content: flex-end; gap: 24pt; margin-top: 24pt; break-inside: avoid; } .seal img { max-height: 90pt; max-width: 160pt; }
 </style></head><body>${body}</body></html>`;
 }
@@ -50,7 +51,7 @@ export const STAMP_KEY = "stamp";
 export interface StampSetting { stamp?: string | null; signature?: string | null; by?: string; at?: string }
 
 // Chromium's header and footer live outside the page: they don't see its fonts, so they carry their own copy.
-const HEADER = `<style>${FONT_CSS}</style><div style="width:100%;margin:0 14mm;display:flex;align-items:center;gap:6px;direction:rtl;font-family:'IBM Plex Sans Arabic';font-size:9pt;color:#0b1220">${LOGO}<b>Places</b><span style="color:#6b7489">· عقارات</span></div>`;
+const HEADER = `<style>${FONT_CSS}</style><div style="width:100%;margin:0 14mm;display:flex;align-items:center;gap:6px;direction:rtl;font-family:'IBM Plex Sans Arabic';font-size:9pt;color:#0b1220">${LOGO}</div>`;
 const footer = (printedAt: string) => `<style>${FONT_CSS}</style><div style="width:100%;margin:0 14mm;display:flex;justify-content:space-between;direction:rtl;font-family:'IBM Plex Sans Arabic';font-size:8pt;color:#6b7489"><span>صفحة <span class="pageNumber"></span> من <span class="totalPages"></span></span><span>${esc(printedAt)}</span></div>`;
 
 /**
