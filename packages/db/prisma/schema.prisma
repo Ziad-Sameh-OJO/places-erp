@@ -333,6 +333,24 @@ model OneOnOne {
   @@schema("hr")
 }
 
+/// M-05 · the employee file (HR, 15 Nov): papers HR uploads, each 1-to-1's PDF sheet, later warnings and insurance.
+/// `kind` is plain text so other features add kinds without a migration: upload · one_on_one · warning · insurance.
+model EmployeeDocument {
+  id         String   @id @default(cuid())
+  employeeId String
+  kind       String
+  title      String
+  docType    String?  // one of the setting `employeeDocTypes` (the required papers)
+  fileId     String?  // system.File, attached as entity "EmployeeDocument"
+  month      String?  // 2026-11 (a 1-to-1's month)
+  refId      String?  // the record it came from (the OneOnOne)
+  byUserId   String
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, createdAt])
+  @@schema("hr")
+}
+
 // ───────────────────────────── M-01 · leads & companies ─────────────────────────────
 
 /// A lead is a client or a broker (client meeting 4 Nov · 1.28).

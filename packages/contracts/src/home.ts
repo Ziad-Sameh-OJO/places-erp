@@ -10,6 +10,7 @@ export const TODAY_KINDS = [
   "purchaseApprove", "purchasePay", // procurement
   "leaveTl", "leaveHr", "excuseTl", "excuseHr", "forgot", "hrAction", // hr
   "postToday", "broadcastApprove", // marketing
+  "oneOnOneLeft", // hr · the month's last week: salespeople with no 1-to-1 yet
 ] as const;
 export type TodayKind = (typeof TODAY_KINDS)[number];
 

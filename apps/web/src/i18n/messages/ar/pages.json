@@ -101,6 +101,11 @@
         "title": "Broadcast مستني موافقتك",
         "sub": "{text}",
         "button": "راجع"
+      },
+      "oneOnOneLeft": {
+        "title": "آخر أسبوع في الشهر: {n} سيلز لسه من غير 1-to-1",
+        "sub": "{names}",
+        "button": "التغطية"
       }
     }
   },

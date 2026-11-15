@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { day, money, short } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { OneOnOneTab } from "./people-care";
+import { EmployeeDocsTab, useMissingDocs, useSeesEmployeeFile } from "./employee-file";
 
 /** M-05 · الموظفين (7.1, demo hr.js emps()): the list in scope, search and department filter; a row opens the file. */
 export function Employees() {
@@ -36,6 +37,8 @@ export function Employees() {
     ["hrAction", t("employees.hrAction"), (e) => (e.hrAction ? <Chip key="a" tone={e.hrAction.overdue ? "bad" : "warn"}>{day(e.hrAction.due)}</Chip> : "")],
     ["deductionTiers", t("employees.tiers"), (e) => (e.customTiers ? <Chip key="t" tone="acc">{t("employees.custom")}</Chip> : t("employees.default"))],
   ] as [string, string, (e: EmployeesView["items"][number]) => ReactNode][]).filter(([k]) => fields.shows(k));
+  const missing = useMissingDocs(); // «ورق ناقص» (HR, 15 Nov): HR and the admins only
+  if (missing) cols.push(["missingDocs", t("employeeFile.missingCol"), (e) => (missing[e.id] ? <Chip key="m" tone="warn">{missing[e.id]}</Chip> : <Chip key="m" tone="ok">✓</Chip>)]);
   return (
     <>
       <div className="toolbar row">
@@ -57,7 +60,8 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const { can } = useMe();
   const qc = useQueryClient();
   const run = useAction();
-  const [tab, setTab] = useState<"file" | "one" | "edit">("file");
+  const [tab, setTab] = useState<"file" | "one" | "docs" | "edit">("file");
+  const seesFile = useSeesEmployeeFile();
   const q = useQuery({ queryKey: ["hr", "employee", id], queryFn: () => api.get<EmployeeFile>(`/hr/employees/${id}`) });
   const e = q.data;
   const [custom, setCustom] = useState<boolean | null>(null);
@@ -89,7 +93,7 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   ] as [string, string, string][]).filter(([k]) => fields.shows(k)).map(([, k, v]) => [k, v] as const);
   return (
     <Drawer title={e.name} sub={`${serverText(e.department)} · ${tr("employees.file")}`} onClose={onClose} chips={e.partTime ? <Chip tone="info">Part-time</Chip> : <Chip plain>Full-time</Chip>}>
-      <Tabs items={[["file", tr("employees.tabFile")], ["one", "1-to-1"], ...(can("hr", "edit") ? [["edit", tr("employees.tabData")] as ["edit", string]] : [])]} value={tab} onChange={setTab} />
+      <Tabs items={[["file", tr("employees.tabFile")], ["one", "1-to-1"], ...(seesFile ? [["docs", tr("employeeFile.tab")] as ["docs", string]] : []), ...(can("hr", "edit") ? [["edit", tr("employees.tabData")] as ["edit", string]] : [])]} value={tab} onChange={setTab} />
       {tab === "file" ? (
         <>
           {/* 7.16 (demo empDrawer): the month's numbers; three Excuses or more cost half a day each (Q31) */}
@@ -101,7 +105,7 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           </div>
           <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
         </>
-      ) : tab === "one" ? <OneOnOneTab employeeId={id} /> : (
+      ) : tab === "one" ? <OneOnOneTab employeeId={id} /> : tab === "docs" ? <EmployeeDocsTab employeeId={id} /> : (
         <form className="grid" onSubmit={save}>
           {only("salary", <Field label={tr("common.salary")} req><input name="salary" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue={Number(e.salary) ? e.salary : ""} required /></Field>)}
           {only("target", <Field label={tr("employees.target")}><input name="target" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue={Number(e.target) ? e.target : ""} /></Field>)}
