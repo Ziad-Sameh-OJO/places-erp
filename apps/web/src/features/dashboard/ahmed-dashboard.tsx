@@ -3,17 +3,18 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { AhmedDashboard, AhmedTeam, Compared, PacedBar } from "@places/contracts";
-import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, type DashPeriod } from "@places/domain";
+import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, toDecimal, type DashPeriod } from "@places/domain";
 import { Card, Chip, Empty } from "@/components/ui";
 import { PeriodPicker } from "@/components/period-picker";
 import { dateLocale, money, num, short } from "@/lib/format";
 import { useMe } from "@/lib/me";
+import { ChannelDonut, Gauge, MoneyBars, TrendChart } from "./charts";
 import { Person, Tile } from "./dashboard-page";
 import { useAhmedDashboard } from "./use-dashboard";
 
 /**
- * Ahmed Islam's dashboard on one page (management, 16 Nov): everything above the fold on a laptop, cards stacked on a
- * phone. The period against the previous one up to the same point; every number opens the page behind it, filtered
+ * Ahmed Islam's dashboard on one page (management, 16 Nov) as a bento grid (design-lab «modern»): the numbers, the
+ * leads trend and the target above the fold on a laptop, cards stacked on a phone. The period against the previous one up to the same point; every number opens the page behind it, filtered
  * where that page takes a filter. The colours are the current tokens.
  */
 export function AhmedPage() {
@@ -28,15 +29,14 @@ export function AhmedPage() {
       <Header period={period} onPeriod={setPeriod} quarter={quarter} onQuarter={setQuarter} updated={q.dataUpdatedAt} />
       {!d ? <Empty text={t("loading")} icon="clock" /> : <>
         <Strip d={d} />
-        <div className="dash-row">
-          <Funnel d={d} />
+        <div className="bento">
+          <Trend d={d} />
           <Targets d={d} />
-        </div>
-        <div className="dash-row">
+          {d.collections && <Collections c={d.collections} />}
+          <Channels d={d} />
+          <Funnel d={d} />
           <Teams teams={d.teams} onPerson={setPerson} />
           <Attention d={d} />
-        </div>
-        <div className="dash-row three">
           {d.money && <MoneyCard m={d.money} />}
           {d.inventory && <InventoryCard inv={d.inventory} />}
           {d.marketing && <MarketingCard m={d.marketing} />}
@@ -90,7 +90,7 @@ function Funnel({ d }: { d: AhmedDashboard }) {
   const t = useTranslations("dashboard.ahmed.funnel");
   const max = Math.max(1, ...d.funnel.map((s) => s.count));
   return (
-    <Card title={t("title")} icon="layers" className="wide">
+    <Card title={t("title")} icon="layers" className={d.collections ? "b-4" : "b-8"}>
       <div className="hbars">
         {d.funnel.map((s) => (
           <Link key={s.stage} href={`/leads?stage=${encodeURIComponent(s.stage)}`} className="hb">
@@ -104,13 +104,65 @@ function Funnel({ d }: { d: AhmedDashboard }) {
   );
 }
 
-/** The quarter's and the year's target with the «المفروض نكون هنا النهارده» marker, or a link to set it. */
+/** The quarter's target as a half ring with the pace tick, «محتاجين X في اليوم» under it; the year's as a bar. Or a link to set it. */
 function Targets({ d }: { d: AhmedDashboard }) {
   const t = useTranslations("dashboard.ahmed.targets");
+  const q = d.targets.quarter, goal = q.goal === "" ? 0 : fromDecimal(q.goal), label = t("quarter", { quarter: d.quarter });
+  const mark = q.expected && goal ? Math.round((fromDecimal(q.expected) / goal) * 100) : null;
   return (
-    <Card title={t("title")} icon="trend">
-      <Paced label={t("quarter", { quarter: d.quarter })} bar={d.targets.quarter} />
+    <Card title={t("title")} icon="trend" className="b-4 target-a">
+      {!goal ? <div className="paced"><b>{label}</b><Link className="btn ghost sm" href="/kpis">{t("set")}</Link></div> : <Link href="/reports" className="gauge-w">
+        <Gauge bar={q} markTitle={t("mark")} label={t("aria", { label, pct: q.percent ?? 0, mark: mark ?? 0 })} />
+        <div className="gauge-t">
+          <small>{label}</small>
+          <strong className="num">{q.percent == null ? "—" : `${q.percent}%`}</strong>
+          {q.achieved !== "" && <small title={t("of", { achieved: money(q.achieved), goal: money(q.goal) })}>{t("of", { achieved: short(q.achieved), goal: short(q.goal) })}</small>}
+        </div>
+      </Link>}
+      {!!goal && (mark != null || q.perDay) && <div className="pace-a">
+        {mark != null && <span><i className="tick" />{t("should", { amount: short(q.expected) })}</span>}
+        {q.perDay && <b>{t("perDay", { amount: short(q.perDay) })}</b>}
+      </div>}
       <Paced label={t("year", { year: d.year })} bar={d.targets.year} />
+    </Card>
+  );
+}
+
+/** New leads of the period by hour / day / week against the previous period; a point opens the list of its days. */
+function Trend({ d }: { d: AhmedDashboard }) {
+  const t = useTranslations("dashboard.ahmed.trend");
+  const total = d.trend.points.reduce((s, p) => s + (p.now ?? 0), 0), before = d.trend.points.reduce((s, p) => s + (p.before ?? 0), 0);
+  return (
+    <Card title={t("title")} sub={t(`sub.${d.trend.unit}`)} icon="sparkle" className="b-8"
+      extra={<span className="legend-a"><i className="cur" />{t("now")}<i className="prev" />{t("before")}</span>}>
+      <TrendChart points={d.trend.points} unit={d.trend.unit} label={t("aria", { total, before })} hrefOf={(p) => `/leads?from=${p.from}&to=${p.to}`}
+        tip={(p, label) => t("tip", { label, now: num(p.now ?? 0), before: p.before == null ? "—" : num(p.before) })} />
+    </Card>
+  );
+}
+
+/** The deals' payments against the commission of the deals closed, a bar a day or a week. */
+function Collections({ c }: { c: NonNullable<AhmedDashboard["collections"]> }) {
+  const t = useTranslations("dashboard.ahmed.collections");
+  const sum = (k: "collected" | "expected") => toDecimal(c.points.reduce((s, p) => s + fromDecimal(p[k]), 0));
+  return (
+    <Card title={t("title")} sub={t(`sub.${c.unit}`)} icon="wallet" className="b-5"
+      extra={<span className="legend-a"><i className="paid" />{t("collected")}<i className="exp" />{t("expected")}</span>}>
+      <MoneyBars c={c} label={t("aria", { collected: money(sum("collected")), expected: money(sum("expected")) })}
+        tip={(p, label) => t("tip", { label, collected: money(p.collected), expected: money(p.expected) })} />
+    </Card>
+  );
+}
+
+/** The period's new leads by channel around their total; a row opens the list of that channel in the period. */
+function Channels({ d }: { d: AhmedDashboard }) {
+  const t = useTranslations("dashboard.ahmed.channels");
+  const total = d.channels.reduce((s, c) => s + c.leads, 0);
+  return (
+    <Card title={t("title")} icon="megaphone" className={d.collections ? "b-3" : "b-4"}>
+      {!total ? <p className="hint">{t("none")}</p> : <ChannelDonut rows={d.channels} center={t("center")} rest={t("rest")}
+        label={t("aria", { total, list: d.channels.map((c) => `${c.channel} ${c.leads}`).join("، ") })}
+        hrefOf={(c) => `/leads?channel=${encodeURIComponent(c)}&from=${d.from}&to=${d.to}`} />}
     </Card>
   );
 }
@@ -146,7 +198,7 @@ function Teams({ teams, onPerson }: { teams: AhmedTeam[]; onPerson: (id: string)
   const t = useTranslations("dashboard.ahmed.teams");
   const [open, setOpen] = useState<string | null>(null);
   return (
-    <Card title={t("title")} icon="users" className="wide">
+    <Card title={t("title")} icon="users" className="b-8">
       {!teams.length ? <p className="hint">{t("none")}</p> : <div className="tbl-wrap"><table className="dash-teams">
         <thead><tr><th>{t("team")}</th><th>{t("percent")}</th><th>Showings</th><th>Meetings</th><th>Deals</th></tr></thead>
         <tbody>{teams.map((x) => (
@@ -174,7 +226,7 @@ function Teams({ teams, onPerson }: { teams: AhmedTeam[]; onPerson: (id: string)
 function Attention({ d }: { d: AhmedDashboard }) {
   const t = useTranslations("dashboard.ahmed.attention");
   return (
-    <Card title={t("title")} icon="alert">
+    <Card title={t("title")} icon="alert" className="b-4">
       {d.attention.map((a) => (
         <Link key={a.key} href={a.href} className="acct">
           <Chip tone={a.count ? "bad" : "ok"}>{num(a.count)}</Chip><span className="spacer">{t(a.key, { days: d.staleDays })}</span>
@@ -188,7 +240,7 @@ function MoneyCard({ m }: { m: NonNullable<AhmedDashboard["money"]> }) {
   const t = useTranslations("dashboard.ahmed.money");
   const due = m.due ? fromDecimal(m.due) : 0, got = m.collected ? fromDecimal(m.collected) : 0;
   return (
-    <Card title={t("title")} icon="wallet">
+    <Card title={t("title")} icon="wallet" className="b-4">
       <Link href="/contracts" className="paced">
         <div className="row"><span>{t("collected")}</span><span className="spacer" /><b>{money(m.collected || null)}</b></div>
         {due > 0 && <div className="bar"><i style={{ width: `${Math.min(100, (got / due) * 100)}%` }} /></div>}
@@ -203,7 +255,7 @@ function MoneyCard({ m }: { m: NonNullable<AhmedDashboard["money"]> }) {
 function InventoryCard({ inv }: { inv: NonNullable<AhmedDashboard["inventory"]> }) {
   const t = useTranslations("dashboard.ahmed.inventory");
   return (
-    <Card title={t("title")} icon="building">
+    <Card title={t("title")} icon="building" className="b-4">
       <Link href="/inventory?type=Rent" className="acct"><span className="spacer">For Rent</span><b>{num(inv.rent)}</b></Link>
       <Link href="/inventory?type=Resale" className="acct">
         <span className="spacer">For Sale<small>{inv.types.map((x) => `${x.type} ${num(x.count)}`).join(" · ")}</small></span><b>{num(inv.sale)}</b>
@@ -217,7 +269,7 @@ function InventoryCard({ inv }: { inv: NonNullable<AhmedDashboard["inventory"]> 
 function MarketingCard({ m }: { m: NonNullable<AhmedDashboard["marketing"]> }) {
   const t = useTranslations("dashboard.ahmed.marketing");
   return (
-    <Card title={t("title")} icon="megaphone">
+    <Card title={t("title")} icon="megaphone" className="b-4">
       <div className="row">
         <small className="hint">{t("today")}</small>
         {m.today.length ? m.today.map((c) => <Link key={c.channel} href="/marketing"><Chip>{c.channel} {num(c.leads)}</Chip></Link>) : <small className="hint">{t("noLeads")}</small>}

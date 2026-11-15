@@ -73,6 +73,8 @@ export interface PacedBar extends TargetBar {
   /** «محتاجين X في اليوم»; null = reached, ended, hidden or no goal */
   perDay: string | null;
 }
+/** A chart point: its start instant, its Cairo days (both included, for the list's filter); now null = still to come, before null = the previous period is shorter */
+export interface TrendPoint { at: string; from: string; to: string; now: number | null; before: number | null }
 export interface AhmedPerson extends DashPerson { visits: number; meetings: number; deals: number }
 export interface AhmedTeam { tlId: string; tl: string; team: string | null; percent: number | null; visits: number; meetings: number; deals: number; members: AhmedPerson[] }
 /** «محتاج انتباهك»: each line a count and the list behind it; a line the person may not see is left out. */
@@ -88,6 +90,12 @@ export interface AhmedDashboard {
     collected: Compared<string> | null;
   };
   funnel: FunnelStep[];
+  /** New leads by hour / day / week of the whole period, each with the same point of the previous period */
+  trend: { unit: "hour" | "day" | "week"; points: TrendPoint[] };
+  /** The period's new leads by channel, most first (they add up to strip.leads.now) */
+  channels: { channel: string; leads: number }[];
+  /** The deals' payments against the commission of the deals closed, by day or week; null = may not see finance */
+  collections: { unit: "day" | "week"; points: { from: string; to: string; collected: string; expected: string }[] } | null;
   targets: { quarter: PacedBar; year: PacedBar };
   teams: AhmedTeam[];
   attention: AttentionLine[];

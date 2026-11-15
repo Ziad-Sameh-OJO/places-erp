@@ -5,8 +5,8 @@ import {
 } from "@places/contracts";
 import {
   CLIENTS_PARENT, DASHBOARD_STAGES, FUNNEL_STAGES, budgetBroken, comparisonWindows, conversionRate, dashboardLayout, dashboardPeriods, dayStart, fromDecimal,
-  isCampaignLive, lateWithoutExcuse, localDate, monthBounds, opensOnDashboard, periodId, quarterBounds, quarterDays, quarterMonths, quarterOfDay, targetPace,
-  targetProgress, teamProgress, toDecimal, topAchiever, topSales, type Piasters, type WorkCalendar,
+  isCampaignLive, lateWithoutExcuse, localDate, moneyBuckets, monthBounds, opensOnDashboard, periodId, quarterBounds, quarterDays, quarterMonths, quarterOfDay, sumIn,
+  targetPace, targetProgress, teamProgress, toDecimal, topAchiever, topSales, trendBuckets, type Piasters, type WorkCalendar,
 } from "@places/domain";
 import { LeadsService } from "../leads/leads.service";
 import { CampaignsService } from "../marketing/campaigns.service";
@@ -99,7 +99,7 @@ export class DashboardService {
   }
 
   /**
-   * Ahmed Islam's one page: the period against the previous one up to the same point, the funnel, the target line, the
+   * Ahmed Islam's one page: the period against the previous one up to the same point, the funnel, the charts (leads trend, channels, collections), the target line, the
    * teams, «محتاج انتباهك», and the money / inventory / marketing cards. A card the person may not see comes back null,
    * an attention line he may not see is left out.
    */
@@ -112,10 +112,16 @@ export class DashboardService {
     const leads = leadScope(me) as never, can = (m: Parameters<typeof me.grants.can>[0]) => me.grants.can(m, "view");
     const pair = async <T>(f: (w: { from: Date; to: Date }) => Promise<T>) => { const [a, b] = await Promise.all([f(cur), f(prev)]); return { now: a, before: b }; };
     const week = comparisonWindows("week", now, cal).current.from, month = today.slice(0, 7);
+    const seesMoney = can("finance") && !me.fields.hidden("finance").has("amount");
+    const tb = trendBuckets(q.period, now, cal, picked), mb = moneyBuckets(q.period, now, cal, picked);
+    const charts = Promise.all([
+      this.repo.leadTimes(leads, tb.current[0]!.from, tb.current.at(-1)!.to), this.repo.leadTimes(leads, tb.previous[0]!.from, tb.previous.at(-1)!.to),
+      this.repo.leadsByChannel(leads, cur.from, cur.to), seesMoney ? this.repo.moneyRows(mb.buckets[0]!.from, mb.buckets.at(-1)!.to) : null,
+    ]);
     const [visits, doneDeals, newLeads, units, collected, stages, quarterFig, yearFig, byPerson, dealsBy, settings] = await Promise.all([
       pair((w) => this.repo.visits({ leads }, w.from, w.to)), pair((w) => this.repo.dealsClosed(w.from, w.to)),
       pair((w) => this.repo.leadsSince(leads, w.from, w.to).then(([n]) => n)), pair((w) => this.repo.unitsAdded(w.from, w.to)),
-      can("finance") && !me.fields.hidden("finance").has("amount") ? pair((w) => this.repo.collected(w.from, w.to)) : null,
+      seesMoney ? pair((w) => this.repo.collected(w.from, w.to)) : null,
       this.repo.stageCounts(leads, FUNNEL_STAGES.map(toDb)),
       this.targets.rangeFigures(me, qb.from, qb.to, quarterMonths(quarter)), this.targets.rangeFigures(me, yb.from, yb.to, yearMonths),
       this.repo.visitsByPerson(cur.from, cur.to), this.repo.dealsByPerson(cur.from, cur.to), this.settings.all(),
@@ -149,6 +155,15 @@ export class DashboardService {
       };
     }).sort(byPercent);
     const inv = inventory?.[0];
+    const [leadsNow, leadsBefore, byChannel, moneyRows] = await charts;
+    const ones = (times: Date[]) => times.map((at) => ({ at, value: 1 })), days = (w: { from: Date; to: Date }) => ({ from: localDate(w.from, cal), to: lastDay(w, cal) });
+    const n = sumIn(ones(leadsNow), tb.current), b = sumIn(ones(leadsBefore), tb.previous);
+    const collections = moneyRows && (() => {
+      const piasters = (x: { toFixed(n: number): string }) => fromDecimal(x.toFixed(2));
+      const got = sumIn(moneyRows[0].map((p) => ({ at: p.receivedAt, value: piasters(p.amount) })), mb.buckets);
+      const due = sumIn(moneyRows[1].map((d) => ({ at: d.closedAt, value: piasters(d.commissionOwner) + piasters(d.commissionClient) })), mb.buckets);
+      return { unit: mb.unit, points: mb.buckets.map((w, i) => ({ ...days(w), collected: toDecimal(got[i]!), expected: toDecimal(due[i]!) })) };
+    })();
     return {
       period: q.period, from: localDate(cur.from, cal), to: lastDay(cur, cal), quarter, year,
       strip: {
@@ -156,6 +171,9 @@ export class DashboardService {
         doneDeals, leads: newLeads, units, collected,
       },
       funnel: FUNNEL_STAGES.map((stage, i) => ({ stage, count: counts[i]!, next: i < counts.length - 1 ? conversionRate(counts[i]!, counts[i + 1]!) : null })),
+      trend: { unit: tb.unit, points: tb.current.map((w, i) => ({ at: w.from.toISOString(), ...days(w), now: w.from > now ? null : n[i]!, before: i < b.length ? b[i]! : null })) },
+      channels: byChannel.map((c) => ({ channel: c.channel, leads: c._count._all })).sort((x, y) => y.leads - x.leads),
+      collections,
       targets: { quarter: paced(quarterFig, qd.from, qd.to), year: paced(yearFig, `${year}-01-01`, `${year}-12-31`) },
       teams, attention: [...attention, ...(finance ? [{ key: "budget" as const, count: finance.figures.broken.length, href: "/finance?tab=budget" }] : [])],
       staleDays: settings.dashboardStaleNearClose,

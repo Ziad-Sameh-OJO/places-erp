@@ -26,6 +26,26 @@ export class DashboardRepository {
     return Promise.all([this.db.lead.count({ where }), this.db.lead.count({ where: { AND: [where, { qualified: true }] } })]);
   }
 
+  /** When each lead in [from, to) came in (the trend chart buckets them). */
+  async leadTimes(scope: Prisma.LeadWhereInput, from: Date, to: Date): Promise<Date[]> {
+    const rows = await this.db.lead.findMany({ where: listed({ AND: [scope, { createdAt: { gte: from, lt: to } }] }), select: { createdAt: true } });
+    return rows.map((r) => r.createdAt);
+  }
+
+  /** The leads that came in [from, to) by channel. */
+  leadsByChannel(scope: Prisma.LeadWhereInput, from: Date, to: Date) {
+    return this.db.lead.groupBy({ by: ["channel"], where: listed({ AND: [scope, { createdAt: { gte: from, lt: to } }] }), _count: { _all: true } });
+  }
+
+  /** The deals' payments in [from, to) and the commission of the deals closed in it (a cancelled or rejected deal's don't count). */
+  moneyRows(from: Date, to: Date) {
+    const live: Prisma.DealWhereInput = { status: { notIn: ["REJECTED", "CANCELLED"] } };
+    return Promise.all([
+      this.db.payment.findMany({ where: { receivedAt: { gte: from, lt: to }, deal: live }, select: { receivedAt: true, amount: true } }),
+      this.db.deal.findMany({ where: { AND: [live, { closedAt: { gte: from, lt: to } }] }, select: { closedAt: true, commissionOwner: true, commissionClient: true } }),
+    ]);
+  }
+
   stageCounts(scope: Prisma.LeadWhereInput, stages: readonly string[]) {
     return this.db.lead.groupBy({ by: ["stage"], where: { AND: [listed(scope), { stage: { in: stages as never } }] }, _count: { _all: true } });
   }
