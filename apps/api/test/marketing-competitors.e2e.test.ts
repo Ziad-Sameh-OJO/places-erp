@@ -21,6 +21,7 @@ after(async () => {
   await prisma.reportHandIn.deleteMany({ where: { reportId: "sr-competitors", at: { gte: start } } });
   await prisma.notification.deleteMany({ where: { link: "/reports", createdAt: { gte: start }, text: { contains: "تقرير المنافسين" } } });
   await prisma.auditLog.deleteMany({ where: { module: "reports", entityId: "sr-competitors", at: { gte: start } } });
+  await prisma.competitor.deleteMany({ where: { name: { startsWith: "E2E-COMP" } } });
   await prisma.$disconnect();
 });
 
@@ -43,4 +44,25 @@ test("Rahma sees the card, hands this month's report in with its name, and it sa
   assert.equal(seen.state, "done");
   assert.equal(seen.recent[0].note, NOTE);
   assert.equal(await prisma.auditLog.count({ where: { module: "reports", entity: "ReportHandIn", entityId: card.id, at: { gte: start } } }), 1);
+});
+
+test("14.14: the report's competitors — Rahma adds one, rates it «قوي», sales can't see or touch it; every change audited", async () => {
+  const month = "2026-11", name = `E2E-COMP-${Date.now()} شركة منافسة`;
+  assert.equal((await call(`/marketing/competitors-report/rows?month=${month}`, { cookie: sales })).status, 403);
+  assert.equal((await call("/marketing/competitors-report/rows", { method: "POST", cookie: sales, body: { month, name } })).status, 403);
+  assert.equal((await call(`/marketing/competitors-report/rows?month=2026-13`, { cookie: rahma })).status, 400);
+  const r = await call("/marketing/competitors-report/rows", { method: "POST", cookie: rahma, body: { month, name, note: "نزلوا 3 إعلانات للتجمع" } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const id = r.body.id as string;
+  assert.equal(r.body.strong, null);
+  assert.equal((await call("/marketing/competitors-report/rows", { method: "POST", cookie: rahma, body: { month, name } })).status, 409);
+  assert.equal((await call(`/marketing/competitors-report/rows/${id}`, { method: "PATCH", cookie: sales, body: { strong: true } })).status, 403);
+  const rated = await call(`/marketing/competitors-report/rows/${id}`, { method: "PATCH", cookie: rahma, body: { strong: true } });
+  assert.equal(rated.status, 200, JSON.stringify(rated.body));
+  const rows = (await call(`/marketing/competitors-report/rows?month=${month}`, { cookie: rahma })).body as { id: string; strong: boolean | null }[];
+  assert.equal(rows.find((x) => x.id === id)?.strong, true);
+  assert.equal((await call(`/marketing/competitors-report/rows/${id}`, { method: "DELETE", cookie: rahma })).status, 204);
+  assert.equal((await call(`/marketing/competitors-report/rows/${id}`, { method: "PATCH", cookie: rahma, body: { strong: false } })).status, 404);
+  assert.deepEqual((await prisma.auditLog.findMany({ where: { entity: "Competitor", entityId: id }, orderBy: { at: "asc" } })).map((a) => a.action), ["create", "rate", "delete"]);
+  await prisma.auditLog.deleteMany({ where: { entity: "Competitor", entityId: id } });
 });

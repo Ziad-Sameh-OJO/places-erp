@@ -104,3 +104,35 @@ export function pageNameProblem(names: readonly string[], name: string, current:
   if (!n) return "اكتب اسم الصفحة";
   return names.some((x) => x !== current && x.trim().toLowerCase() === n) ? "الاسم ده موجود" : null;
 }
+
+// ───────── 14.13 · the cost the dashboard shows: per lead, per Qualified or per deal ─────────
+
+/** «الـ Cost تختاره»: CPL, CPQ (Qualified) or Cost per transaction. */
+export const COST_METRICS = ["lead", "qualified", "deal"] as const;
+export type CostMetric = (typeof COST_METRICS)[number];
+
+/** What a period's spend is divided by, per metric. */
+export interface CostCounts { readonly leads: number; readonly qualified: number; readonly deals: number }
+
+/** The chosen cost: spent ÷ leads, Qualified or deals, to the piaster; null when there's nothing to divide by. */
+export function costPer(metric: CostMetric, spent: Piasters, n: CostCounts): Piasters | null {
+  return costPerLead(spent, metric === "lead" ? n.leads : metric === "qualified" ? n.qualified : n.deals);
+}
+
+/** A deal seen from its lead: the Cairo day the lead came in, the lead's campaign, and when the deal closed. */
+export interface DealOfLead { readonly leadArrivedOn: string; readonly campaignId: string | null; readonly closedOn: string }
+
+/**
+ * 14.13 (management meeting, 15 Nov): a deal counts for the campaign and the period its LEAD came in, not when it closed —
+ * a lead from June closed in October lowers June's cost per transaction, not October's (so `closedOn` is ignored on
+ * purpose). The deals per campaign (null = none) whose lead came in within the period: Cairo days, both ends included,
+ * a missing end is open.
+ */
+export function dealsByLeadArrival(deals: readonly DealOfLead[], period: { from?: string | undefined; to?: string | undefined }): Map<string | null, number> {
+  const n = new Map<string | null, number>();
+  for (const d of deals) {
+    if ((period.from && d.leadArrivedOn < period.from) || (period.to && d.leadArrivedOn > period.to)) continue;
+    n.set(d.campaignId, (n.get(d.campaignId) ?? 0) + 1);
+  }
+  return n;
+}

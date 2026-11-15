@@ -96,16 +96,21 @@ export interface NotQualifiedView {
 export const NOT_QUALIFIED_ROWS = 60;
 
 export interface SourceCountView { leads: number; qualified: number; rate: number | null }
+/** 14.13 · the three costs the dashboard can show (CPL · CPQ · Cost per transaction); null = nothing to divide by or hidden. */
+export interface CostsView { costPerLead: string | null; costPerQualified: string | null; costPerDeal: string | null }
 export interface MarketingDashboard {
-  total: SourceCountView;
-  /** what the campaigns in the filter cost, and per Qualified lead */
+  /** `deals`: deals whose lead came in within the filter, whenever they closed (14.13) */
+  total: SourceCountView & { deals: number };
+  /** what the campaigns that ran in the filter cost, and per lead / Qualified / deal */
   spent: string;
+  costPerLead: string | null;
   costPerQualified: string | null;
+  costPerDeal: string | null;
   campaignCount: number;
   channels: Array<SourceCountView & {
     channel: string;
     noCampaign: number;
-    campaigns: Array<SourceCountView & { id: string; name: string; target: string | null; costPerLead: string | null }>;
+    campaigns: Array<SourceCountView & CostsView & { id: string; name: string; target: string | null; deals: number }>;
   }>;
   posts: Array<{ post: string; leads: number }>;
 }

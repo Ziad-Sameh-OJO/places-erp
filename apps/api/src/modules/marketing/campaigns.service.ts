@@ -2,7 +2,8 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import type { Prisma, PrismaClient } from "@places/db";
 import { NOT_QUALIFIED_ROWS, type CampaignInput, type CampaignRow, type CampaignUnitOption, type DashboardQuery, type MarketingDashboard, type NotQualifiedQuery, type NotQualifiedView, type PageNameRow } from "@places/contracts";
 import {
-  LEAD_STAGES, allowedValue, campaignBudget, campaignDays, channelTree, countByReason, qualificationRate, costPerLead, dayStart, fromDecimal, isCampaignLive, lastSalesAct, leadsByPost, localDate, pageNameProblem, toDecimal,
+  LEAD_STAGES, allowedValue, campaignBudget, campaignDays, channelTree, countByReason, qualificationRate, costPer, costPerLead, dayStart, dealsByLeadArrival, fromDecimal, isCampaignLive, lastSalesAct, leadsByPost, localDate, pageNameProblem, toDecimal,
+  type CostCounts, type CostMetric, type Piasters,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -61,22 +62,30 @@ export class CampaignsService {
     const arrivals = rows.map((r) => ({ channel: r.channel, campaignId: r.campaignId, qualified: r.lead.qualified, post: r.lead.post }));
     const tree = channelTree(arrivals);
     const camps = new Map((await this.repo.byIds(tree.flatMap((c) => c.campaigns.map((x) => x.campaignId)))).map((c) => [c.id, c]));
-    const covered = await this.repo.covered(q.campaignId ? { id: q.campaignId } : q.channel ? { channel: q.channel } : {});
+    const scope = q.campaignId ? { id: q.campaignId } : q.channel ? { channel: q.channel } : {};
+    // 14.13: the spend of the campaigns that ran in the period (a campaign's spend isn't kept per month)
+    const covered = await this.repo.covered({ ...scope, ...ranIn(q) });
     const spent = covered.reduce((s, c) => s + fromDecimal(money(c.spent)), 0);
+    // 14.13: a deal counts for the period and the campaign its lead came in, whenever it closed
+    const dealRows = await this.repo.dealLeads(q.campaignId ? { campaignId: q.campaignId } : q.channel ? { channel: q.channel } : {});
+    const deals = dealsByLeadArrival(dealRows.map((d) => ({ leadArrivedOn: localDate(d.lead!.arrivedAt), campaignId: d.lead!.campaignId, closedOn: localDate(d.closedAt) })), q);
     const qualified = arrivals.filter((a) => a.qualified).length;
-    const total = { leads: arrivals.length, qualified, rate: qualificationRate(qualified, arrivals.length) };
-    const perQualified = costPerLead(spent, total.qualified);
+    const total = { leads: arrivals.length, qualified, rate: qualificationRate(qualified, arrivals.length), deals: [...deals.values()].reduce((s, n) => s + n, 0) };
+    const costs = (cost: Piasters, n: CostCounts) => {
+      const view = (m: CostMetric, key: string) => { const v = costPer(m, cost, n); return v === null || h(key) ? null : toDecimal(v); };
+      return { costPerLead: view("lead", "costPerLead"), costPerQualified: view("qualified", "costPerQualified"), costPerDeal: view("deal", "costPerDeal") };
+    };
     return {
-      total: { leads: total.leads, qualified: total.qualified, rate: total.rate },
-      spent: h("spent") ? "" : toDecimal(spent), costPerQualified: perQualified === null || h("costPerQualified") ? null : toDecimal(perQualified), campaignCount: covered.length,
+      total,
+      spent: h("spent") ? "" : toDecimal(spent), ...costs(spent, total), campaignCount: covered.length,
       channels: tree.map((c) => ({
         channel: c.channel, leads: c.leads, qualified: c.qualified, rate: c.rate, noCampaign: c.noCampaign,
         campaigns: c.campaigns.map((x) => {
-          const info = camps.get(x.campaignId);
-          const cost = info ? costPerLead(fromDecimal(money(info.spent)), x.leads) : null;
+          const info = camps.get(x.campaignId), n = { ...x, deals: deals.get(x.campaignId) ?? 0 };
+          const none = { costPerLead: null, costPerQualified: null, costPerDeal: null };
           return {
-            id: x.campaignId, name: info?.name ?? "—", target: h("target") ? null : info?.target ?? null, leads: x.leads, qualified: x.qualified, rate: x.rate,
-            costPerLead: cost === null || h("costPerLead") ? null : toDecimal(cost),
+            id: x.campaignId, name: info?.name ?? "—", target: h("target") ? null : info?.target ?? null, leads: x.leads, qualified: x.qualified, rate: x.rate, deals: n.deals,
+            ...(info ? costs(fromDecimal(money(info.spent)), n) : none),
           };
         }),
       })),
@@ -218,6 +227,11 @@ const STAGE_LABEL = new Map<string, string>(LEAD_STAGES.map((s) => [s.toUpperCas
 function arrivalsIn(q: DashboardQuery): Prisma.LeadArrivalWhereInput {
   const at = { ...(q.from ? { gte: dayStart(q.from) } : {}), ...(q.to ? { lt: dayStart(nextDay(q.to)) } : {}) };
   return { ...(q.channel ? { channel: q.channel } : {}), ...(q.campaignId ? { campaignId: q.campaignId } : {}), ...(q.from || q.to ? { at } : {}) };
+}
+/** 14.13 · the campaigns that ran at some point of the period: started by its end, not stopped before its start. */
+function ranIn(q: DashboardQuery): Prisma.CampaignWhereInput {
+  const day = (d: string) => new Date(`${d}T00:00:00Z`);
+  return { AND: [q.to ? { startsOn: { lte: day(q.to) } } : {}, q.from ? { OR: [{ endsOn: null }, { endsOn: { gte: day(q.from) } }] } : {}] };
 }
 /** The calendar day after «YYYY-MM-DD» (a «to» filter includes its whole day). */
 const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);

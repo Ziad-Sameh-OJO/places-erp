@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { campaignBudget, campaignDays, channelTree, costPerLead, countByReason, isCampaignLive, lastSalesAct, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
+import { campaignBudget, campaignDays, channelTree, costPer, costPerLead, countByReason, dealsByLeadArrival, type DealOfLead, isCampaignLive, lastSalesAct, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
 import { fromDecimal, toDecimal } from "../src/money.ts";
 
 test("M-04 3.2: qualification rate = Qualified ÷ Total × 100 (campaign «X» 120 leads, 30 Qualified → 25%)", () => {
@@ -71,4 +71,25 @@ test("4.20 · no end date = «مستمرة»; 1,500 per day from 1 Nov is 13,500
   assert.equal(toDecimal(campaignBudget(stopped, "2026-11-09")), "7500.00");
   assert.equal(campaignDays({ ...c, startsOn: "2026-11-20" }, "2026-11-09"), 0);
   assert.equal(toDecimal(campaignBudget({ ...c, dailyBudget: null, budget: fromDecimal("20000") }, "2026-11-09")), "20000.00");
+});
+
+test("14.13: a deal counts for the month its lead came in — a June lead closed in October lowers June's cost per transaction", () => {
+  const june = { from: "2026-06-01", to: "2026-06-30" }, october = { from: "2026-10-01", to: "2026-10-31" };
+  const deals: DealOfLead[] = [
+    { leadArrivedOn: "2026-06-12", campaignId: "june", closedOn: "2026-10-05" }, // came in June, closed in October
+    { leadArrivedOn: "2026-10-03", campaignId: "october", closedOn: "2026-10-20" },
+  ];
+  // June's campaign spent 60,000 on 120 leads, 30 Qualified; October's 40,000 on 80 leads, 20 Qualified
+  const juneDeals = dealsByLeadArrival(deals, june), octDeals = dealsByLeadArrival(deals, october);
+  assert.deepEqual([...juneDeals], [["june", 1]]);
+  assert.deepEqual([...octDeals], [["october", 1]]); // not 2: the June lead isn't October's
+  const juneN = { leads: 120, qualified: 30, deals: juneDeals.get("june") ?? 0 };
+  assert.equal(toDecimal(costPer("deal", fromDecimal("60000"), juneN)!), "60000.00");
+  assert.equal(toDecimal(costPer("lead", fromDecimal("60000"), juneN)!), "500.00");
+  assert.equal(toDecimal(costPer("qualified", fromDecimal("60000"), juneN)!), "2000.00");
+  assert.equal(toDecimal(costPer("deal", fromDecimal("40000"), { leads: 80, qualified: 20, deals: octDeals.get("october") ?? 0 })!), "40000.00");
+  // before it closed, June had no transaction → no cost per transaction
+  assert.equal(costPer("deal", fromDecimal("60000"), { ...juneN, deals: 0 }), null);
+  // «الكل»: no period → both
+  assert.equal(dealsByLeadArrival(deals, {}).size, 2);
 });
