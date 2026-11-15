@@ -11,6 +11,7 @@ import { ActivitiesCard } from "@/features/kpis/activities-card";
 import { HandoversCard } from "@/features/access/handovers";
 import { MyBroadcasts } from "@/features/marketing/broadcast";
 import { CompanyProfileLink } from "@/features/marketing/company-profile";
+import { UpcomingFunDays } from "@/features/fun-days/fun-days";
 import { Inbox, type InboxLine } from "@/components/inbox";
 import { openSearch } from "@/components/command-palette";
 import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads/today";
@@ -53,6 +54,7 @@ export default function HomePage() {
       <HandoversCard />
       <MyBroadcasts />
       <CompanyProfileLink />
+      <UpcomingFunDays />
       <ActivitiesCard />
       <MyTeamTasks />
       <div className="cols wide">

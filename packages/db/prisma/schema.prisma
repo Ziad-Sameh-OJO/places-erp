@@ -2158,6 +2158,29 @@ model SalesTarget {
   @@schema("kpi")
 }
 
+/// M-05 · «الترفيه والاحتفالات» (HR, 15 Nov): a fun day / celebration HR plans for the year. `departments` empty =
+/// everyone. Reminders go once each (the day before, the morning of); a date change resets them and tells people again.
+model CompanyEvent {
+  id              String    @id @default(cuid())
+  title           String
+  date            DateTime  @db.Date // the Cairo day
+  time            String? // "HH:MM", Cairo
+  place           String?
+  description     String
+  imageFileId     String?
+  departments     String[]
+  createdById     String
+  notifiedAt      DateTime  @default(now())
+  dayBeforeSentAt DateTime?
+  morningSentAt   DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([date])
+  @@schema("hr")
+}
+
 /// M-05 · a warning (إنذار, HR 15 Nov). The daily job writes a «due» row when someone reaches one of HR's rules this month
 /// (unique per person · rule · month, so it's flagged once); HR issues it (the PDF from the template, kept in core/files)
 /// or dismisses it. A warning HR writes by hand has no rule.

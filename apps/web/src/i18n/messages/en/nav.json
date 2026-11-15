@@ -105,6 +105,11 @@
       "label": "Notifications & email",
       "short": "Notifications",
       "sub": "Notifications arrive in the system and by email · the rules of every event"
+    },
+    "events": {
+      "label": "Fun days & celebrations",
+      "short": "Celebrations",
+      "sub": "The year's fun days and celebrations · when and for whom"
     }
   }
 }
