@@ -11,6 +11,7 @@ import { KpiTile } from "@/components/blocks";
 import { dateLocale, money, num } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { MyKpisCard } from "@/features/kpis/today";
+import { AhmedPage } from "./ahmed-dashboard";
 import { markLanded, useCompanyDashboard, useDashboardLayout, useMyDashboard, usePerson } from "./use-dashboard";
 
 /**
@@ -23,10 +24,11 @@ export function DashboardPage() {
   const layout = useDashboardLayout().data?.layout;
   useEffect(() => { markLanded(); }, []);
   if (!layout) return <Empty text={t("loading")} icon="clock" />;
-  return layout === "role" ? <RoleDashboard /> : <Company layout={layout} />;
+  return layout === "role" ? <RoleDashboard /> : layout === "ahmed" ? <AhmedPage /> : <Safwat />;
 }
 
-function Company({ layout }: { layout: "ahmed" | "safwat" }) {
+/** 14.3 · Safwat's layout (Ahmed's is its own page: ahmed-dashboard.tsx). */
+function Safwat() {
   const t = useTranslations("dashboard");
   const { data: d } = useCompanyDashboard(true);
   const [person, setPerson] = useState<string | null>(null);
@@ -34,23 +36,13 @@ function Company({ layout }: { layout: "ahmed" | "safwat" }) {
   return (
     <>
       <Hero sub={t("companySub", { quarter: d.quarter })} />
-      {layout === "ahmed" ? <>
-        <TodayAhmed d={d} />
-        <div className="cols">
-          <Stages stages={d.stages} />
-          <Targets d={d} />
-        </div>
-        {d.inventory && <Inventory inv={d.inventory} />}
-        <Teams d={d} onPerson={setPerson} />
-      </> : <>
-        <TodaySafwat d={d} />
-        <CompanyCard d={d} />
-        {d.finance && <Finance f={d.finance} />}
-        <div className="cols">
-          <Sales d={d} onPerson={setPerson} />
-          {d.marketing && <Marketing m={d.marketing} />}
-        </div>
-      </>}
+      <TodaySafwat d={d} />
+      <CompanyCard d={d} />
+      {d.finance && <Finance f={d.finance} />}
+      <div className="cols">
+        <Sales d={d} onPerson={setPerson} />
+        {d.marketing && <Marketing m={d.marketing} />}
+      </div>
       {person && <Person id={person} onClose={() => setPerson(null)} />}
     </>
   );
@@ -75,9 +67,9 @@ function Hero({ sub }: { sub: string }) {
 }
 
 /** A number that opens its page; a tile without a link is just shown. */
-function Tile({ label, value, sub, icon, href, tone }: { label: string; value: ReactNode; sub?: string; icon: IconName; href?: string; tone?: "ok" | "warn" | "bad" }) {
+export function Tile({ label, value, sub, icon, href, tone, delta }: { label: string; value: ReactNode; sub?: string; icon: IconName; href?: string; tone?: "ok" | "warn" | "bad"; delta?: number | null }) {
   const router = useRouter();
-  return <KpiTile label={label} value={value} {...(sub ? { sub } : {})} icon={icon} {...(tone ? { tone } : {})} {...(href ? { onClick: () => router.push(href) } : {})} />;
+  return <KpiTile label={label} value={value} {...(sub ? { sub } : {})} icon={icon} {...(tone ? { tone } : {})} delta={delta ?? null} {...(href ? { onClick: () => router.push(href) } : {})} />;
 }
 
 /** What the system doesn't hold yet (Sits 14.16, Threshold, Block, كونفورمنج): asked before it's built. */
@@ -97,22 +89,6 @@ function Names({ title, icon, names, href, tone }: { title: string; icon: IconNa
 }
 
 const leadsOn = (day: string, more = "") => `/leads?from=${day}&to=${day}${more}`;
-
-/** 14.2 «النهارده لحد دلوقتي». */
-function TodayAhmed({ d }: { d: CompanyDashboard }) {
-  const t = useTranslations("dashboard.today");
-  return (
-    <Card title={t("title")} icon="clock">
-      <div className="kpis">
-        <Tile label={t("visits")} value={num(d.today.visits)} icon="pin" href="/reports" />
-        <Tile label={t("meetings")} value={num(d.today.meetings)} icon="users" href="/reports" />
-        <Tile label={t("doneDeals")} value={num(d.today.doneDeals)} icon="handshake" tone="ok" href="/deals" />
-        <Tile label={t("units")} value={num(d.today.units)} icon="building" href="/inventory" />
-        <Soon label={t("conforming")} icon="check" />
-      </div>
-    </Card>
-  );
-}
 
 /** 14.3 «Today»: everything that happened today. */
 function TodaySafwat({ d }: { d: CompanyDashboard }) {
@@ -184,21 +160,6 @@ function Targets({ d }: { d: CompanyDashboard }) {
   );
 }
 
-/** 14.2 «الانفنتوري»: For Rent and For Sale (Resale · Income · Primary), each opening its tab. */
-function Inventory({ inv }: { inv: NonNullable<CompanyDashboard["inventory"]> }) {
-  const t = useTranslations("dashboard.inventory");
-  const sale = inv.types.filter((x) => x.type !== "Rent");
-  return (
-    <Card title={t("title")} icon="building">
-      <div className="kpis">
-        <Tile label={t("rent")} value={num(inv.rent)} icon="building" href="/inventory?type=Rent" />
-        <Tile label={t("sale")} value={num(inv.sale)} sub={sale.map((x) => `${x.type} ${num(x.count)}`).join(" · ")} icon="building" href="/inventory?type=Resale" />
-        {sale.map((x) => <Tile key={x.type} label={x.type} value={num(x.count)} icon="layers" href={`/inventory?type=${x.type}`} />)}
-      </div>
-    </Card>
-  );
-}
-
 /** One person on a team or a list: avatar, name, percent; a click opens his performance. */
 function PersonRow({ p, onPerson }: { p: DashPerson; onPerson: (id: string) => void }) {
   return (
@@ -206,21 +167,6 @@ function PersonRow({ p, onPerson }: { p: DashPerson; onPerson: (id: string) => v
       <Avatar id={p.userId} name={p.name} sm /><span className="spacer">{p.name}</span>
       <b className="num">{p.percent == null ? "—" : `${p.percent}%`}</b>
     </div>
-  );
-}
-
-/** 14.2 «التيمز»: each team's percent of the quarter's target, its people under it. */
-function Teams({ d, onPerson }: { d: CompanyDashboard; onPerson: (id: string) => void }) {
-  const t = useTranslations("dashboard.teams");
-  return (
-    <Card title={t("title")} icon="users" sub={t("sub")}>
-      {d.teams.length ? <div className="cols">{d.teams.map((x) => (
-        <div key={x.tlId} style={{ display: "grid", gap: 6 }}>
-          <Goal label={t("team", { team: x.team ?? "—", tl: x.tl })} bar={{ goal: "", achieved: "", percent: x.percent }} />
-          {x.members.map((p) => <PersonRow key={p.employeeId} p={p} onPerson={onPerson} />)}
-        </div>
-      ))}</div> : <p className="hint">{t("none")}</p>}
-    </Card>
   );
 }
 
@@ -305,7 +251,7 @@ function Marketing({ m }: { m: NonNullable<CompanyDashboard["marketing"]> }) {
 }
 
 /** 14.2 · a click on a person: Showings, Meetings and the target for the week, the month and the quarter. */
-function Person({ id, onClose }: { id: string; onClose: () => void }) {
+export function Person({ id, onClose }: { id: string; onClose: () => void }) {
   const t = useTranslations("dashboard.person");
   const p = usePerson(id).data;
   return (

@@ -171,3 +171,38 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 .uj-step { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .timeline .uj-step small { display: inline; }
 a.chip { text-decoration: none; }
+
+/* Ahmed's dashboard on one page: the same cards, tighter, so a 1440×900 laptop sees it all without scrolling */
+.dash-a { display: flex; flex-direction: column; gap: 8px; }
+.dash-a a { color: inherit; text-decoration: none; }
+.dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dash-head h2 { font-size: 20px; margin: 0; }
+.dash-a .card { padding: 8px 12px; gap: 4px; }
+.dash-a .card-head { padding-bottom: 4px; }
+.dash-a .card-head h3 { font-size: 14px; }
+.dash-a .card-head h3 .ico { width: 24px; height: 24px; }
+.dash-a .kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.dash-a .kpi { padding: 6px 10px 10px; gap: 0; }
+.dash-a .kpi::after { bottom: 4px; }
+.dash-a .kpi strong { font-size: 20px; }
+.dash-a .kpi svg.spark { display: none; }
+.dash-a .kpi .ico { width: 22px; height: 22px; }
+.dash-row { display: grid; gap: 10px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+.dash-row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dash-a .hbars { gap: 5px; }
+.dash-a .hb { grid-template-columns: minmax(100px, 1fr) 3fr 44px 110px; }
+.dash-a .hb .conv { white-space: nowrap; }
+.dash-a .acct { padding: 2px 0; font-size: 13px; }
+.dash-a .acct small { display: inline; margin-inline-start: 6px; }
+.dash-a .paced { display: grid; gap: 4px; padding: 2px 0 6px; }
+.dash-a .paced > .btn { justify-self: start; }
+.dash-a .paced .bar { position: relative; overflow: visible; height: 10px; }
+.dash-a .paced .bar .mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
+.dash-a .tbl-wrap { box-shadow: none; max-height: 176px; overflow-y: auto; }
+.dash-teams th, .dash-teams td { padding: 3px 10px; font-size: 13px; }
+.dash-teams td { min-width: 0; }
+.dash-teams tr.click { cursor: pointer; }
+.dash-teams tr.click:hover td { background: var(--surface-2); }
+.dash-teams tr.sub td:first-child { padding-inline-start: 28px; color: var(--ink-2); }
+@media (max-width: 1100px) { .dash-row, .dash-row.three { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .dash-a .hb { grid-template-columns: minmax(80px, 1fr) 2fr 36px; } .dash-a .hb .conv { grid-column: 1 / -1; } }

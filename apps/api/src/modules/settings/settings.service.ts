@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import { LIST_DEFAULTS, LIST_GROUPS, LOCKED_VALUES, ListEditors, SETTINGS, type HolidayInput, type HolidayView, type ImportDone, type ListKey, type SettingKey, type Settings } from "@places/contracts";
-import { DEFAULT_RECOMMEND_TOLERANCE_PCT, LEAD_STAGES, SETTING_OWNERS, asListValues, canChangeList, canEditSetting, isQualifiedAfter, listActions, listChangeProblem, type SettingEditor } from "@places/domain";
+import { DEFAULT_RECOMMEND_TOLERANCE_PCT, DEFAULT_STALE_NEAR_CLOSE_DAYS, LEAD_STAGES, SETTING_OWNERS, asListValues, canChangeList, canEditSetting, isQualifiedAfter, listActions, listChangeProblem, type SettingEditor } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -23,6 +23,7 @@ const DEFAULTS: Settings = {
   tlTiers: [{ below: 70, percent: 4 }, { below: null, percent: 6 }], // the client's example (voice note 6)
   opsCommissionPct: 5, // 9.6: the demo's rate until the client confirms
   externalCommissionPct: 0,
+  dashboardStaleNearClose: DEFAULT_STALE_NEAR_CLOSE_DAYS, // proposed until the client names it
 };
 
 /** M-13: the lists and rules the system is built on, editable without a developer. Every change is audited. */

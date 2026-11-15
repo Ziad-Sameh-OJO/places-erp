@@ -21,8 +21,8 @@ export function SettingsPage() {
   const { can, canSet } = useMe();
   const [tab, setTab] = useState<"lists" | "stages" | "time" | "holidays" | "tpl" | "brand">("lists");
   // M-13 4.1: each card is its department's (the HR: leave types, holidays · the marketing: the WhatsApp limit)
-  const edLeave = canSet("leaveTypes"), edWa = canSet("whatsappDailyLimit"), edHol = canSet("holidays"), edTol = canSet("recommendTolerancePct"), edTiers = canSet("tlTiers");
-  const readOnly = tab === "time" ? !edLeave && !edWa && !edTol && !edTiers : tab === "holidays" ? !edHol : tab === "stages" || (tab === "tpl" && !can("master", "edit"));
+  const edLeave = canSet("leaveTypes"), edWa = canSet("whatsappDailyLimit"), edHol = canSet("holidays"), edTol = canSet("recommendTolerancePct"), edTiers = canSet("tlTiers"), edStale = canSet("dashboardStaleNearClose");
+  const readOnly = tab === "time" ? !edLeave && !edWa && !edTol && !edTiers && !edStale : tab === "holidays" ? !edHol : tab === "stages" || (tab === "tpl" && !can("master", "edit"));
   const [importing, setImporting] = useState(false);
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
   const holidays = useQuery({ queryKey: ["holidays"], queryFn: () => api.get<HolidayView[]>("/settings/holidays") });
@@ -65,6 +65,13 @@ export function SettingsPage() {
           <form className="row" onSubmit={onFormSubmit((f) => set("recommendTolerancePct", +f.get("tol")!))}>
             <span className="hint">±</span><input name="tol" type="number" min={0} max={100} defaultValue={d.recommendTolerancePct} disabled={!edTol} style={{ maxWidth: 90 }} aria-label={t("recommend.tolerance")} /><span className="hint">{t("recommend.ofArea")}</span>
             {edTol && <button className="btn ghost sm">{t("save")}</button>}
+          </form>
+        </Card>
+        {/* Ahmed's dashboard «محتاج انتباهك»: Near to Close this many days without a stage change (proposed 14) */}
+        <Card title={t("staleNearClose.title")} icon="alert" sub={t("staleNearClose.sub")}>
+          <form className="row" onSubmit={onFormSubmit((f) => set("dashboardStaleNearClose", +f.get("days")!))}>
+            <input name="days" type="number" min={1} max={365} defaultValue={d.dashboardStaleNearClose} disabled={!edStale} style={{ maxWidth: 90 }} aria-label={t("staleNearClose.days")} /><span className="hint">{t("staleNearClose.days")}</span>
+            {edStale && <button className="btn ghost sm">{t("save")}</button>}
           </form>
         </Card>
         <TlTiers key={JSON.stringify(d.tlTiers)} tiers={d.tlTiers} canEdit={edTiers} save={(v) => set("tlTiers", v)} />

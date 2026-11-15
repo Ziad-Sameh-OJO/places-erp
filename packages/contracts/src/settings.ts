@@ -85,6 +85,8 @@ export const SETTINGS = {
   // 9.6 (needs-client, the demo's 5% · 0): a deal's operations / external commission as a % of Places' commission
   opsCommissionPct: Pct,
   externalCommissionPct: Pct,
+  // Ahmed's dashboard «محتاج انتباهك»: a lead this many days in Near to Close without a stage change (proposed 14)
+  dashboardStaleNearClose: z.number({ invalid_type_error: "الأيام رقم" }).int("الأيام رقم صحيح").min(1, "يوم واحد على الأقل").max(365),
 } as const;
 export type SettingKey = keyof typeof SETTINGS;
 export type Settings = { [K in SettingKey]: z.infer<(typeof SETTINGS)[K]> };

@@ -2,15 +2,23 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import type { CompanyDashboard, DashboardLayoutView, MyDashboard, PersonPerformance } from "@places/contracts";
+import type { AhmedDashboard, CompanyDashboard, DashboardLayoutView, MyDashboard, PersonPerformance } from "@places/contracts";
 import { api } from "@/lib/api";
+import { periodParams } from "@/components/period-picker";
 
 /** 14.1: which dashboard is mine (the API decides: a company layout only for whoever sees the whole company). */
 export const useDashboardLayout = (enabled = true) =>
   useQuery({ queryKey: ["dashboard", "layout"], queryFn: () => api.get<DashboardLayoutView>("/dashboard/layout"), staleTime: 5 * 60_000, enabled });
 export const useCompanyDashboard = (enabled: boolean) =>
   useQuery({ queryKey: ["dashboard", "company"], queryFn: () => api.get<CompanyDashboard>("/dashboard/company"), enabled, refetchInterval: 5 * 60_000 });
-export const useMyDashboard = (enabled: boolean) =>
+/** Ahmed's one page: `period` today|week|month|quarter, a quarter with its "2026-Q4"; fresh every 60 s. */
+export const useAhmedDashboard = (period: string, quarter: string) =>
+  useQuery({
+    queryKey: ["dashboard", "ahmed", period, quarter],
+    queryFn: () => api.get<AhmedDashboard>(`/dashboard/ahmed?period=${period}${period === "quarter" && quarter ? `&${periodParams(quarter)}` : ""}`),
+    refetchInterval: 60_000, placeholderData: (prev) => prev,
+  });
+export const useMyDashboard =(enabled: boolean) =>
   useQuery({ queryKey: ["dashboard", "mine"], queryFn: () => api.get<MyDashboard>("/dashboard/mine"), enabled });
 export const usePerson = (employeeId: string | null) =>
   useQuery({ queryKey: ["dashboard", "person", employeeId], queryFn: () => api.get<PersonPerformance>(`/dashboard/people/${employeeId}`), enabled: !!employeeId });

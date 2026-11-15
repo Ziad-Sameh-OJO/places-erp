@@ -8,16 +8,13 @@
   "open": "افتح",
   "nobody": "مفيش",
   "today": {
-    "title": "النهارده لحد دلوقتي",
     "titleSafwat": "Today",
     "leads": "ليدز دخلت النهارده",
     "interested": "منهم {count} Interested",
     "interestedTile": "Interested من النهارده",
     "visits": "Showings",
     "meetings": "Meetings",
-    "doneDeals": "Done Deals",
     "units": "وحدات دخلت الانفنتوري",
-    "conforming": "اتعمل كونفورمنج",
     "threshold": "مين خد Threshold",
     "blocks": "مين خد Block leads",
     "sits": "Sits داخل وخارج",
@@ -30,23 +27,12 @@
     "title": "الشركة حسب المرحلة",
     "sub": "من غير Not Interested · الدوسة بتفتح الليدز متفلترة"
   },
-  "inventory": {
-    "title": "الانفنتوري",
-    "rent": "For Rent",
-    "sale": "For Sale"
-  },
   "targets": {
     "title": "التارجت",
     "quarter": "تارجت الربع ({quarter})",
     "year": "تارجت السنة ({year})",
     "of": "{achieved} من {goal}",
     "noGoal": "مفيش تارجت متحدد"
-  },
-  "teams": {
-    "title": "التيمز",
-    "sub": "كل تيم وصل كام في المية من تارجت الربع · الدوسة على شخص بتفتح أداءه",
-    "team": "تيم {team} · {tl}",
-    "none": "مفيش تيمز"
   },
   "company": {
     "title": "Company",
@@ -108,5 +94,74 @@
     "targets": "التارجت بتاعك",
     "month": "تارجت الشهر",
     "quarter": "تارجت الربع"
+  },
+  "ahmed": {
+    "loading": "بنحمّل…",
+    "hello": "صباح الخير يا {name}",
+    "period": "الفترة",
+    "periods": {
+      "today": "النهارده",
+      "week": "الأسبوع ده",
+      "month": "الشهر ده",
+      "quarter": "الربع"
+    },
+    "updated": "آخر تحديث {time}",
+    "strip": {
+      "visits": "Showings",
+      "meetings": "Meetings",
+      "doneDeals": "Done Deals",
+      "collected": "فلوس اتحصّلت",
+      "leads": "ليدز جديدة",
+      "units": "وحدات جديدة",
+      "before": "اللي فات: {n}"
+    },
+    "funnel": {
+      "title": "مراحل الليدز",
+      "next": "{pct}% للي بعدها"
+    },
+    "targets": {
+      "title": "التارجت",
+      "quarter": "الربع ({quarter})",
+      "year": "السنة ({year})",
+      "of": "{achieved} من {goal}",
+      "should": "المفروض نكون هنا النهارده: {amount}",
+      "perDay": "محتاجين {amount} في اليوم",
+      "mark": "المفروض نكون هنا النهارده",
+      "set": "حدد التارجت"
+    },
+    "teams": {
+      "title": "التيمز",
+      "team": "التيم",
+      "percent": "% من تارجت الربع",
+      "none": "مفيش تيمز"
+    },
+    "attention": {
+      "title": "محتاج انتباهك",
+      "sla": "ليدز عدّت الـ SLA",
+      "approval": "صفقات مستنية الموافقة",
+      "nearClose": "Near to Close من أكتر من {days} يوم",
+      "installments": "أقساط متأخرة",
+      "budget": "بنود مصروفات عدّت البادجت",
+      "units": "وحدات ناقصها بيانات"
+    },
+    "money": {
+      "title": "الفلوس",
+      "collected": "اتحصّل الشهر ده",
+      "expected": "المتوقع {amount}",
+      "receivables": "لينا بره (حساب العملاء)",
+      "nextWeek": "أقساط مستحقة الـ 7 أيام الجاية ({count})"
+    },
+    "inventory": {
+      "title": "الانفنتوري",
+      "newWeek": "جديدة الأسبوع ده",
+      "closedMonth": "اتأجرت / اتباعت الشهر ده"
+    },
+    "marketing": {
+      "title": "Marketing",
+      "today": "ليدز النهارده:",
+      "noLeads": "لسه مفيش",
+      "cpq": "تكلفة الـ Qualified",
+      "noCampaigns": "مفيش كامبينز"
+    }
   }
 }
