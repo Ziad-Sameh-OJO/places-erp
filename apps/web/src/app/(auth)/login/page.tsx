@@ -6,6 +6,7 @@ import { otpResendWait } from "@places/domain";
 import { api } from "@/lib/api";
 import { Field } from "@/components/ui";
 import { AuthForm, str } from "../form";
+import { freshLanding } from "@/features/dashboard/use-dashboard";
 
 /** M-09 sign-in: email + password; a 6-digit code by email only for people the admin turned OTP on for. */
 export default function LoginPage() {
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<"login" | "otp" | "forgot" | "sent">("login");
   const [email, setEmail] = useState("");
+  useEffect(() => { freshLanding(); }, []); // 14.1: a new sign-in opens on the Dashboard again (for its people)
 
   if (step === "otp") return <OtpStep email={email} onBack={() => setStep("login")} onDone={() => router.replace("/")} />;
   if (step === "forgot") return (

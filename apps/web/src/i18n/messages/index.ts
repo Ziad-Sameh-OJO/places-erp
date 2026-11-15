@@ -21,6 +21,7 @@ import ar_reports from "./ar/reports.json";
 import ar_settings from "./ar/settings.json";
 import ar_tasks from "./ar/tasks.json";
 import ar_tickets from "./ar/tickets.json";
+import ar_dashboard from "./ar/dashboard.json";
 import en_common from "./en/common.json";
 import en_nav from "./en/nav.json";
 import en_ui from "./en/ui.json";
@@ -44,12 +45,13 @@ import en_reports from "./en/reports.json";
 import en_settings from "./en/settings.json";
 import en_tasks from "./en/tasks.json";
 import en_tickets from "./en/tickets.json";
+import en_dashboard from "./en/dashboard.json";
 
 /**
  * One file per area: common, nav, ui (components/), auth, pages (thin pages under app/), then one per feature folder
  * (features/lead-rules → leadRules). Arabic is the source, word for word from the demo; English must have the same
  * keys — `typeof ar` makes a missing one a type error, scripts/i18n-check.mjs an extra one.
  */
-const ar = { common: ar_common, nav: ar_nav, ui: ar_ui, auth: ar_auth, pages: ar_pages, access: ar_access, clients: ar_clients, contracts: ar_contracts, deals: ar_deals, finance: ar_finance, hr: ar_hr, imports: ar_imports, inventory: ar_inventory, kpis: ar_kpis, leadRules: ar_leadRules, leads: ar_leads, marketing: ar_marketing, notifications: ar_notifications, procurement: ar_procurement, reports: ar_reports, settings: ar_settings, tasks: ar_tasks, tickets: ar_tickets };
-const en: typeof ar = { common: en_common, nav: en_nav, ui: en_ui, auth: en_auth, pages: en_pages, access: en_access, clients: en_clients, contracts: en_contracts, deals: en_deals, finance: en_finance, hr: en_hr, imports: en_imports, inventory: en_inventory, kpis: en_kpis, leadRules: en_leadRules, leads: en_leads, marketing: en_marketing, notifications: en_notifications, procurement: en_procurement, reports: en_reports, settings: en_settings, tasks: en_tasks, tickets: en_tickets };
+const ar = { common: ar_common, nav: ar_nav, ui: ar_ui, auth: ar_auth, pages: ar_pages, access: ar_access, clients: ar_clients, contracts: ar_contracts, deals: ar_deals, finance: ar_finance, hr: ar_hr, imports: ar_imports, inventory: ar_inventory, kpis: ar_kpis, leadRules: ar_leadRules, leads: ar_leads, marketing: ar_marketing, notifications: ar_notifications, procurement: ar_procurement, reports: ar_reports, settings: ar_settings, tasks: ar_tasks, tickets: ar_tickets, dashboard: ar_dashboard };
+const en: typeof ar = { common: en_common, nav: en_nav, ui: en_ui, auth: en_auth, pages: en_pages, access: en_access, clients: en_clients, contracts: en_contracts, deals: en_deals, finance: en_finance, hr: en_hr, imports: en_imports, inventory: en_inventory, kpis: en_kpis, leadRules: en_leadRules, leads: en_leads, marketing: en_marketing, notifications: en_notifications, procurement: en_procurement, reports: en_reports, settings: en_settings, tasks: en_tasks, tickets: en_tickets, dashboard: en_dashboard };
 export const messages = { ar, en };

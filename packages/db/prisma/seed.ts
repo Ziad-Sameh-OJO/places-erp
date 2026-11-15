@@ -23,7 +23,7 @@ interface SeedKpiItem {
 interface SeedKpiCard { follower: string | null; items: SeedKpiItem[] }
 interface SeedKpis { quarter: string; cards: Record<string, SeedKpiCard>; sales: SeedKpiCard; teamLeaders: { quarter: string; people: string[]; card: SeedKpiCard } }
 interface SeedAccount { code: string; name: string; kind?: string }
-interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; manager?: string; team?: string }
+interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; manager?: string; team?: string; dashboard?: string }
 
 /** The settings that are lists (contracts LIST_DEFAULTS · M-13 «القوايم»). */
 const LIST_KEYS = new Set(["areas", "channels", "companyCategories", "vendors", "paymentPlans", "finishings", "interactionTypes", "mkTaskTypes", "ticketDepts"]);
@@ -53,8 +53,9 @@ async function main() {
     const account = passwordHash ? { status: "ACTIVE" as const, passwordHash } : {};
     const known = await prisma.user.findUnique({ where: { email: p.email } });
     const user = known
-      ? await prisma.user.update({ where: { id: known.id }, data: account })
-      : await prisma.user.create({ data: { email: p.email, ...account, roles: { create: p.roles.map((key, i) => ({ roleId: roleIds.get(key)!, primary: i === 0 })) } } });
+      // 14.1: the dashboard layout is only filled when empty (a change made in the app stays)
+      ? await prisma.user.update({ where: { id: known.id }, data: { ...account, ...(p.dashboard && !known.dashboard ? { dashboard: p.dashboard } : {}) } })
+      : await prisma.user.create({ data: { email: p.email, ...account, dashboard: p.dashboard ?? null, roles: { create: p.roles.map((key, i) => ({ roleId: roleIds.get(key)!, primary: i === 0 })) } } });
     const jobTitle = roles.find((r) => r.key === p.roles[0])?.label ?? p.roles[0]!;
     // salary, target and commission are entered by HR / management in the app, not seeded
     const emp = await prisma.employee.upsert({

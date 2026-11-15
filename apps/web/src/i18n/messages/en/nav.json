@@ -11,6 +11,11 @@
       "short": "Home",
       "sub": "What needs you today"
     },
+    "dashboard": {
+      "label": "Dashboard",
+      "short": "Dashboard",
+      "sub": "How the company is doing · every number opens its details"
+    },
     "leads": {
       "label": "Leads",
       "short": "Leads",

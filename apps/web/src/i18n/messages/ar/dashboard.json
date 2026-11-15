@@ -1,0 +1,112 @@
+{
+  "loading": "بنحمّل…",
+  "morning": "Good morning, {name}",
+  "evening": "Good evening, {name}",
+  "companySub": "الشركة ماشية إزاي · {quarter} · كل رقم بيفتح تفاصيله",
+  "soon": "قريباً",
+  "soonSub": "لسه مش في السيستم",
+  "open": "افتح",
+  "nobody": "مفيش",
+  "today": {
+    "title": "النهارده لحد دلوقتي",
+    "titleSafwat": "Today",
+    "leads": "ليدز دخلت النهارده",
+    "interested": "منهم {count} Interested",
+    "interestedTile": "Interested من النهارده",
+    "visits": "Showings",
+    "meetings": "Meetings",
+    "doneDeals": "Done Deals",
+    "units": "وحدات دخلت الانفنتوري",
+    "conforming": "اتعمل كونفورمنج",
+    "threshold": "مين خد Threshold",
+    "blocks": "مين خد Block leads",
+    "sits": "Sits داخل وخارج",
+    "pulled": "مين اتسحب منه ليد",
+    "late": "مين جه متأخر من غير Excuse",
+    "paid": "المصاريف اليومية",
+    "received": "فلوس دخلت النهارده"
+  },
+  "stages": {
+    "title": "الشركة حسب المرحلة",
+    "sub": "من غير Not Interested · الدوسة بتفتح الليدز متفلترة"
+  },
+  "inventory": {
+    "title": "الانفنتوري",
+    "rent": "For Rent",
+    "sale": "For Sale"
+  },
+  "targets": {
+    "title": "التارجت",
+    "quarter": "تارجت الربع ({quarter})",
+    "year": "تارجت السنة ({year})",
+    "of": "{achieved} من {goal}",
+    "noGoal": "مفيش تارجت متحدد"
+  },
+  "teams": {
+    "title": "التيمز",
+    "sub": "كل تيم وصل كام في المية من تارجت الربع · الدوسة على شخص بتفتح أداءه",
+    "team": "تيم {team} · {tl}",
+    "none": "مفيش تيمز"
+  },
+  "company": {
+    "title": "Company",
+    "visitsQ": "Visits الربع",
+    "meetingsQ": "Meetings الربع",
+    "visitsY": "Visits السنة",
+    "meetingsY": "Meetings السنة"
+  },
+  "finance": {
+    "title": "Finance",
+    "balance": "رصيد الشركة الحالي",
+    "advances": "إجمالي السلف",
+    "receivables": "لينا بره (حساب العملاء)",
+    "income": "دخل الشهر ده",
+    "sits": "Sits داخل وخارج",
+    "custody": "مين معاه عهدة",
+    "noCustody": "مفيش عهد مفتوحة",
+    "broken": "بنود المصروفات اللي عدّت البادجت",
+    "brokenMark": "اتكسر",
+    "brokenRow": "اتصرف {spent} من {budget} ({pct}%)",
+    "noBroken": "كل البنود جوه البادجت",
+    "open": "افتح"
+  },
+  "sales": {
+    "title": "Sales",
+    "top": "أول 3 في الترتيب (تارجت الربع)",
+    "none": "مفيش سيلز",
+    "achiever": "Top achiever (السنة)",
+    "ideal": "الموظف المثالي",
+    "blocks": "أكتر حد خد Block في الربع",
+    "threshold": "مين خد Threshold في الربع"
+  },
+  "marketing": {
+    "title": "Marketing",
+    "live": "شغالة",
+    "off": "مطفية",
+    "none": "مفيش كامبينز",
+    "open": "الكامبينز"
+  },
+  "person": {
+    "title": "أداء {name}",
+    "loading": "بنحمّل…",
+    "week": "الأسبوع",
+    "month": "الشهر",
+    "quarter": "الربع",
+    "visits": "Showings",
+    "meetings": "Meetings",
+    "achieved": "المحقق",
+    "target": "التارجت",
+    "open": "التارجت في التقارير"
+  },
+  "mine": {
+    "loading": "بنحمّل…",
+    "sub": "أرقامك النهارده · الـ KPIs بتاعتك تحت",
+    "leads": "ليدز جديدة النهارده",
+    "visits": "Showings النهارده",
+    "meetings": "Meetings النهارده",
+    "stages": "ليدزك حسب المرحلة",
+    "targets": "التارجت بتاعك",
+    "month": "تارجت الشهر",
+    "quarter": "تارجت الربع"
+  }
+}

@@ -45,6 +45,7 @@ model User {
   lastLoginAt   DateTime?
   passwordChangedAt DateTime? // 12.15 «آخر تغيير للباسورد»: activation, reset, change
   endDate       DateTime?     // last working day: the account stops by itself
+  dashboard     String?       // 14.1 · the stored dashboard layout: "ahmed" · "safwat"; null = the role's (domain dashboardLayout)
   employee      Employee?
   roles         UserRole[]
   overrides     PermissionOverride[]

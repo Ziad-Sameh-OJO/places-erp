@@ -188,6 +188,22 @@ export class TargetsService {
   }
 
   /**
+   * 14.2 · 14.3 the dashboards: each salesperson in my scope (or the one asked for) with his goal and what he achieved
+   * in [from, to). The goal is the months' targets added up (11.18: else his standing target); no months (a week) = no goal.
+   */
+  async rangeFigures(me: CurrentUser, from: Date, to: Date, months: readonly string[], employeeId?: string) {
+    const people = await this.repo.salespeople(employeeId ? { AND: [this.scope(me), { id: employeeId }] } : this.scope(me));
+    const ids = people.map((p) => p.id);
+    const [targets, deals] = await Promise.all([Promise.all(months.map((m) => this.repo.targets(m, ids))).then((x) => x.flat()), this.repo.deals(ids, from, to)]);
+    const rows = deals.map(dealRow);
+    return people.map((p) => ({
+      employeeId: p.id, userId: p.userId, name: p.name, team: p.teamLeader?.team ?? p.team, tlId: p.teamLeaderId, tl: p.teamLeader?.name ?? null,
+      goal: months.reduce((s, m) => s + piasters(targets.find((t) => t.employeeId === p.id && t.month === m)?.value ?? p.target), 0),
+      achieved: periodFigures(p.id, rows, from, to).achieved,
+    }));
+  }
+
+  /**
    * M-05 «المسار الوظيفي»: each person's target achievement over a quarter's three months, as the quarterly sheet reads
    * it (11.18: the months' targets added up, else the person's standing target). null = no target («مالوش تارجت»).
    */

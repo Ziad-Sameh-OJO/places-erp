@@ -19,7 +19,8 @@ import { LatestNotifications, useMyNotifications } from "@/features/notification
 import { MyTeamTasks } from "@/features/inventory/team-tasks";
 import { useMissingUnitLines } from "@/features/inventory/today";
 import { useFinanceTodo } from "@/features/finance/today";
-import { MyKpisCard, useKpiLines } from "@/features/kpis/today";
+import { useKpiLines } from "@/features/kpis/today";
+import { useLanding } from "@/features/dashboard/use-dashboard";
 import { useTodayLines } from "@/features/home/today";
 
 /**
@@ -28,6 +29,7 @@ import { useTodayLines } from "@/features/home/today";
  */
 export default function HomePage() {
   const { me, can, opens } = useMe();
+  useLanding(); // 14.1: management's first page of a session is their Dashboard
   const tNav = useTranslations("nav");
   const t = useTranslations("pages");
   const leads = useLeadToday(!!me && can("leads"));
@@ -49,7 +51,6 @@ export default function HomePage() {
   return (
     <>
       <Hero name={me.name} total={lines.length} urgent={urgent} unread={unread} canCreateLead={can("leads", "create")} />
-      <MyKpisCard />
       <MyHandIns />
       <HandoversCard />
       <MyBroadcasts />
