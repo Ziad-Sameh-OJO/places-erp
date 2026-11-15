@@ -122,23 +122,32 @@ const SALES_ROLES = new Set(["sales", "tl", "telesales"]);
 /** Which salaries account a person's pay goes to (demo salLine): sales roles → 5301, everyone else → 5202. */
 export const salaryLine = (roles: readonly string[]): "sales" | "admin" => (roles.some((r) => SALES_ROLES.has(r)) ? "sales" : "admin");
 
-export interface PayRowInput { salary: Piasters; attendance: Piasters; advanceLeft: Piasters; advancePlan: Piasters | null }
-export interface PayRow { salary: Piasters; attendance: Piasters; advance: Piasters; net: Piasters }
+/** Where the employees' insurance deductions are owed until paid to the insurer (chart: «تامينات اجتماعية مستحقة»). */
+export const INSURANCE_DUE = "21105";
+export interface PayRowInput { salary: Piasters; attendance: Piasters; advanceLeft: Piasters; advancePlan: Piasters | null; insurance?: Piasters }
+export interface PayRow { salary: Piasters; attendance: Piasters; insurance: Piasters; advance: Piasters; net: Piasters }
 /**
- * One person's pay (demo payRows): salary − attendance deduction (after HR approves) − the advance deduction the
- * accountant chose (default: everything left; never more than what's left or than the pay itself).
+ * One person's pay (demo payRows): salary − attendance deduction (after HR approves) − the monthly insurance
+ * deduction HR recorded (HR, 15 Nov) − the advance deduction the accountant chose (default: everything left; never
+ * more than what's left or than the pay itself).
  */
 export function payRow(i: PayRowInput): PayRow {
   const afterAttendance = Math.max(0, i.salary - i.attendance);
-  const advance = Math.max(0, Math.min(i.advanceLeft, i.advancePlan ?? i.advanceLeft, afterAttendance));
-  return { salary: i.salary, attendance: Math.min(i.attendance, i.salary), advance, net: afterAttendance - advance };
+  const insurance = Math.max(0, Math.min(i.insurance ?? 0, afterAttendance)), afterInsurance = afterAttendance - insurance;
+  const advance = Math.max(0, Math.min(i.advanceLeft, i.advancePlan ?? i.advanceLeft, afterInsurance));
+  return { salary: i.salary, attendance: Math.min(i.attendance, i.salary), insurance, advance, net: afterInsurance - advance };
 }
+
+/** The month's insurance deduction (HR, 15 Nov): an insured person's monthly amount, from the month it starts. */
+export const insuranceDue = (i: { insured: boolean; since: string | null; monthly: Piasters } | undefined, month: string): Piasters =>
+  i?.insured && (!i.since || i.since.slice(0, 7) <= month) ? i.monthly : 0;
 
 /**
  * The single payroll entry: debit 5202 / 5301 with the gross salaries; credit each person's advance account with its
- * deduction, the attendance deductions (a reduction of the salaries expense) and the safe / bank with the net.
+ * deduction, the attendance deductions (a reduction of the salaries expense), the insurance withheld (21105) and the
+ * safe / bank with the net.
  */
-export function payrollLines(rows: readonly (PayRow & { line: "sales" | "admin"; advanceAccount?: string })[], accounts: { admin: string; sales: string; from: string }): EntryLine[] {
+export function payrollLines(rows: readonly (PayRow & { line: "sales" | "admin"; advanceAccount?: string })[], accounts: { admin: string; sales: string; from: string; insurance?: string }): EntryLine[] {
   const sum = (f: (r: PayRow) => number, line?: "sales" | "admin") => rows.filter((r) => !line || r.line === line).reduce((s, r) => s + f(r), 0);
   // the expense is what was earned: salary − attendance deductions, split by line
   const admin = sum((r) => r.salary - r.attendance, "admin"), sales = sum((r) => r.salary - r.attendance, "sales");
@@ -146,6 +155,9 @@ export function payrollLines(rows: readonly (PayRow & { line: "sales" | "admin";
   if (admin) out.push({ accountId: accounts.admin, debit: admin, credit: 0 });
   if (sales) out.push({ accountId: accounts.sales, debit: sales, credit: 0 });
   for (const r of rows) if (r.advance && r.advanceAccount) out.push({ accountId: r.advanceAccount, debit: 0, credit: r.advance });
+  // the employees' share is withheld from their pay and owed to the insurer
+  const insurance = sum((r) => r.insurance);
+  if (insurance && accounts.insurance) out.push({ accountId: accounts.insurance, debit: 0, credit: insurance });
   const net = sum((r) => r.net);
   if (net) out.push({ accountId: accounts.from, debit: 0, credit: net });
   return out;

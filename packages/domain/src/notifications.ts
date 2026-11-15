@@ -49,6 +49,8 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "hr.penalty", label: "جزاء مقترح من Team Leader", to: "الـ HR", toRoles: ["hr"], channels: ["app"], important: false }, // M-05 7.7
   { key: "hr.action_due", label: "ميعاد «حل الـ HR» من الـ 1-to-1", to: "الـ HR", toRoles: ["hr"], channels: ["app", "email"], important: true }, // M-05 7.8
   { key: "hr.deductions_approved", label: "الـ HR اعتمدت خصومات الشهر", to: "المحاسب", toRoles: ["accountant"], channels: ["app"], important: false }, // M-05 7.9
+  { key: "hr.improvement_plan", label: "خطة تحسين: طلب من الـ HR · الـ TL بعتها", to: "الـ Team Leader · الـ HR", toRoles: ["hr"], channels: ["app", "push"], important: false }, // M-05 · HR 15 Nov
+  { key: "hr.insurance", label: "تأمين موظف اتضاف أو اتعدّل", to: "المحاسب", toRoles: ["accountant"], channels: ["app"], important: false }, // M-05 (HR, 15 Nov)
   { key: "procurement.request", label: "طلب شراء", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push", "email"], important: false },
   { key: "procurement.reminder", label: "تذكير بطلب شراء مستني موافقة", to: "المعتمدين", toRoles: ["approver"], channels: ["app", "push"], important: false }, // M-08 2.4
   { key: "procurement.decided", label: "طلب شراء اتوافق / اترفض / اترحّل", to: "صاحب الطلب", toRoles: [], channels: ["app", "push"], important: false },
@@ -105,6 +107,9 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "access.suspicious", label: "دخول غريب", to: "Super Admin", toRoles: ["admin"], channels: ["app", "push", "email"], important: true },
   // M-14 2.3 · 7.1: an email that didn't go out; never by email (that's what's failing), the notification stays in the system
   { key: "mail.failed", label: "إيميل مارجعش", to: "Super Admin", toRoles: ["admin"], channels: ["app"], important: true },
+  // M-05 · fun days (HR, 15 Nov): everyone the event is for (all, or its departments)
+  { key: "hr.fun_day", label: "يوم ترفيه / احتفال جديد", to: "كل اللي الاحتفال ليهم", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "hr.fun_day_reminder", label: "تذكير بيوم ترفيه / احتفال (قبلها بيوم · الصبح)", to: "كل اللي الاحتفال ليهم", toRoles: [], channels: ["app", "push"], important: false },
 ];
 
 /**

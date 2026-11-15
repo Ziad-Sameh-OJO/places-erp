@@ -248,5 +248,14 @@
     "deliverTitle": "Hand in: {item}",
     "deliverSub": "{done} of {need} · an item on your KPIs",
     "deliver": "Hand in"
+  },
+  "period": {
+    "label": "Period",
+    "quarter": "Quarter",
+    "month": "Month",
+    "monthScore": "This month's score so far",
+    "monthGoal": "This month: {goal}",
+    "noMonth": "No monthly figure for this item · showing the quarter's",
+    "monthNote": "Month target = quarter target ÷ 3 (a percentage stays the same); actual = what was done since the 1st."
   }
 }

@@ -7,6 +7,8 @@ import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { money } from "@/lib/format";
+import { serverText } from "@/lib/server-text";
+import { useHrSettings } from "./deduction-settings";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const useRefresh = () => { const qc = useQueryClient(); return () => qc.invalidateQueries({ queryKey: ["hr"] }); };
@@ -17,20 +19,15 @@ const STATUS = { pending: "warn", approved: "ok", rejected: "bad" } as const;
 /** M-05 · «الجزاءات و1-to-1» (7.7 · 7.8): the month's penalties, «حل الـ HR» that's open, and the 1-to-1 questions. */
 export function PeopleCare() {
   const t = useTranslations("hr");
-  const { can, me } = useMe();
+  const { can } = useMe();
   const amounts = useFields("hr").shows("deductionAmount"); // M-09: a hidden amount isn't shown (the API blanks it)
   const [month, setMonth] = useState(today().slice(0, 7));
   const pens = useQuery({ queryKey: ["hr", "penalties", month], queryFn: () => api.get<PenaltiesView>(`/hr/penalties?month=${month}`) });
-  const emps = useQuery({ queryKey: ["hr", "employees", ""], queryFn: () => api.get<EmployeesView>("/hr/employees") });
   const hr = can("hr", "edit");
   const actions = useQuery({ queryKey: ["hr", "actions"], queryFn: () => api.get<HrActionsView>("/hr/one-on-one/actions"), enabled: hr });
   const questions = useQuery({ queryKey: ["hr", "questions"], queryFn: () => api.get<string[]>("/hr/one-on-one/questions") });
   const run = useAction();
   const refresh = useRefresh();
-  const add = onFormSubmit(async (f) => run(async () => {
-    await api.post("/hr/penalties", { employeeId: f.get("employeeId"), day: f.get("day"), text: f.get("text"), deductionDays: Number(f.get("deductionDays")) });
-    await refresh();
-  }, hr ? t("care.penaltyRecorded") : t("care.penaltySent")));
   const decide = (id: string, ok: boolean) => run(async () => { await api.post(`/hr/penalties/${id}/${ok ? "approve" : "reject"}`); await refresh(); }, ok ? t("care.status.approved") : t("common.rejected"));
   const remove = (id: string) => run(async () => { await api.del(`/hr/penalties/${id}`); await refresh(); }, t("care.deleted"));
   const p = pens.data;
@@ -41,21 +38,13 @@ export function PeopleCare() {
         extra={<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} aria-label={t("common.month")} />}>
         {!p ? <Empty text={t("common.loading")} icon="clock" /> : <>
           <div className="row"><Chip tone="ok">{t("care.approvedCount", { n: p.totals.approved })}</Chip>{p.totals.pending > 0 && <Chip tone="warn">{t("care.pendingCount", { n: p.totals.pending })}</Chip>}{amounts && <Chip>{t("care.deductionsTotal", { amount: money(p.totals.deductions) })}</Chip>}</div>
-          <Table head={[t("common.employee"), t("common.day"), t("care.penalty"), t("common.deduction"), t("care.by"), t("common.status"), ""]} empty={t("care.empty")}
-            rows={p.items.map((x) => [<b key="n">{x.name}</b>, x.day, x.text, x.deductionDays ? <span key="d">{dedLabel(x.deductionDays)}{amounts && <span className="sub">{money(x.deductionAmount)}</span>}</span> : "—", x.by,
+          <Table head={[t("common.employee"), t("common.day"), t("care.type"), t("care.penalty"), t("common.deduction"), t("care.by"), t("common.status"), ""]} empty={t("care.empty")}
+            rows={p.items.map((x) => [<b key="n">{x.name}</b>, x.day, x.type ? serverText(x.type) : "—", x.text, x.deductionDays ? <span key="d">{dedLabel(x.deductionDays)}{amounts && <span className="sub">{money(x.deductionAmount)}</span>}</span> : "—", x.by,
               <Chip key="s" tone={STATUS[x.status]}>{t(`care.status.${x.status}`)}</Chip>,
               <span key="a" className="row">{x.canDecide && <><button className="btn sm" onClick={() => void decide(x.id, true)}>{t("care.approve")}</button><button className="btn ghost sm" onClick={() => void decide(x.id, false)}>{t("care.reject")}</button></>}
                 {can("hr", "delete") && <button className="icon-btn sm" aria-label={t("care.deleteAria")} onClick={() => void remove(x.id)}><Icon name="x" /></button>}</span>])} />
         </>}
-        {can("hr", "approve") && (
-          <form className="grid" onSubmit={add}>
-            <Field label={t("common.employee")} req><select name="employeeId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{emps.data?.items.filter((e) => e.userId !== me?.id).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></Field>
-            <Field label={t("common.day")} req><input name="day" type="date" defaultValue={today()} max={today()} required /></Field>
-            <Field label={t("care.penalty")} req wide><input name="text" required minLength={2} maxLength={300} /></Field>
-            <Field label={t("common.deduction")}><select name="deductionDays" defaultValue="0">{DED.map(([v, k]) => <option key={v} value={v}>{t(`care.ded.${k}`)}</option>)}</select></Field>
-            <div className="row end wide"><button className="btn ghost"><Icon name="plus" />{hr ? t("care.record") : t("care.suggest")}</button></div>
-          </form>
-        )}
+        {can("hr", "approve") && <PenaltyForm />}
       </Card>
       {hr && (
         <div className="cols">
@@ -69,6 +58,31 @@ export function PeopleCare() {
         </div>
       )}
     </>
+  );
+}
+
+/** The penalty form (7.7): HR records, a TL proposes; with `employeeId` it comes filled for that person («الموظفين النهارده»). */
+export function PenaltyForm({ employeeId, onDone }: { employeeId?: string; onDone?: () => void }) {
+  const t = useTranslations("hr");
+  const { can, me } = useMe();
+  const hr = can("hr", "edit");
+  const emps = useQuery({ queryKey: ["hr", "employees", ""], queryFn: () => api.get<EmployeesView>("/hr/employees") });
+  const types = useHrSettings().data?.penaltyTypes ?? [];
+  const run = useAction();
+  const refresh = useRefresh();
+  const add = onFormSubmit(async (f) => run(async () => {
+    await api.post("/hr/penalties", { employeeId: f.get("employeeId"), day: f.get("day"), type: f.get("type"), text: f.get("text"), deductionDays: Number(f.get("deductionDays")) });
+    await refresh(); onDone?.();
+  }, hr ? t("care.penaltyRecorded") : t("care.penaltySent")));
+  return (
+    <form className="grid" onSubmit={add}>
+      <Field label={t("common.employee")} req><select name="employeeId" required defaultValue={employeeId ?? ""}><option value="" disabled>{t("common.choose")}</option>{emps.data?.items.filter((e) => e.userId !== me?.id).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></Field>
+      <Field label={t("common.day")} req><input name="day" type="date" defaultValue={today()} max={today()} required /></Field>
+      <Field label={t("care.type")} req><select name="type" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{types.map((x) => <option key={x} value={x}>{serverText(x)}</option>)}</select></Field>
+      <Field label={t("common.deduction")}><select name="deductionDays" defaultValue="0">{DED.map(([v, k]) => <option key={v} value={v}>{t(`care.ded.${k}`)}</option>)}</select></Field>
+      <Field label={t("care.penalty")} req wide><input name="text" required minLength={2} maxLength={300} /></Field>
+      <div className="row end wide"><button className="btn ghost"><Icon name="plus" />{hr ? t("care.record") : t("care.suggest")}</button></div>
+    </form>
   );
 }
 

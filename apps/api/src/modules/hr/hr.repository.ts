@@ -1,11 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { PRISMA } from "../../core/database/database.module";
-import { ADVANCES_PARENT, fromDecimal } from "@places/domain";
+import { ADVANCES_PARENT, deductionRulesOf, fromDecimal, type DeductionRules } from "@places/domain";
 
 export type Tx = Prisma.TransactionClient;
 const FILE = { include: { user: { select: { email: true } }, manager: { select: { id: true, name: true } } } } as const;
 export type EmployeeRowDb = Prisma.EmployeeGetPayload<typeof FILE>;
+/** HR, 15 Nov · «شرايح وأنواع الخصم»: the company's deduction rules (the key the Setting table already named). */
+export const RULES_KEY = "deductionTiers";
 
 /** Prisma only: the employee file. No decisions here. */
 @Injectable()
@@ -46,6 +48,11 @@ export class HrRepository {
     if (!acc) return 0;
     const s = await this.db.journalLine.aggregate({ where: { accountId: acc.id }, _sum: { debit: true, credit: true } });
     return fromDecimal((s._sum.debit ?? 0).toFixed(2)) - fromDecimal((s._sum.credit ?? 0).toFixed(2));
+  }
+
+  /** The company's deduction rules: what HR saved, the defaults until then. */
+  async deductionRules(tx: Tx | PrismaClient = this.db): Promise<DeductionRules> {
+    return deductionRulesOf((await tx.setting.findUnique({ where: { key: RULES_KEY } }))?.value);
   }
 
   departments(where: Prisma.EmployeeWhereInput) {

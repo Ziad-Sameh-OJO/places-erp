@@ -8,7 +8,7 @@ import type nav from "@/i18n/messages/ar/nav.json";
  */
 export type NavSection = "" | "sales" | "ops" | "admin" | "system";
 /** A page in the menu: one with words in nav.modules — a module, or «companies» (the companies sheet, 1.20). */
-export type NavKey = keyof typeof nav.modules & (ModuleKey | "companies");
+export type NavKey = keyof typeof nav.modules & (ModuleKey | "companies" | "events");
 export const NAV: Record<NavKey, { code: string; icon: IconName; section: NavSection }> = {
   home: { code: "Today", icon: "home", section: "" },
   leads: { code: "M-01", icon: "users", section: "sales" },
@@ -30,6 +30,7 @@ export const NAV: Record<NavKey, { code: string; icon: IconName; section: NavSec
   access: { code: "M-09", icon: "lock", section: "system" },
   master: { code: "M-13", icon: "filter", section: "system" },
   integrations: { code: "M-14", icon: "bolt", section: "system" },
+  events: { code: "M-05", icon: "gift", section: "admin" }, // fun days: everyone signed in (HR, 15 Nov); not "" so it never takes a phone tab from the work pages
 };
 export const SECTIONS: NavSection[] = ["", "sales", "ops", "admin", "system"];
 // the labels live in @places/domain so the API's Excel reports use the same words

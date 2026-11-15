@@ -24,6 +24,7 @@ export const LIST_GROUPS = [
   // «مصادر التوريد» aren't a list: they're «عمولة من عميل» + the «ايرادات اخري» (42) accounts of the chart (9.1)
   { title: "المالية والمشتريات", lists: [["vendors", "الموردين"]] },
   { title: "التسويق والتذاكر", lists: [["mkTaskTypes", "أنواع تاسكات التسويق"], ["ticketDepts", "أقسام التذاكر"]] },
+  { title: "الموارد البشرية", lists: [["insuranceProviders", "جهات التأمين"]] },
 ] as const;
 export type ListKey = (typeof LIST_GROUPS)[number]["lists"][number][0];
 
@@ -41,6 +42,7 @@ export const LIST_DEFAULTS: Record<ListKey, readonly string[]> = {
   interactionTypes: ["مكالمة", "زيارة", "طلب", "شكوى", "ابديت مع المالك"],
   mkTaskTypes: ["Website leasing", "Market survey", "تصميم بوست", "تصوير فيديو"],
   ticketDepts: ["HR", "Inventory", "Marketing", "Accounts", "Operations", "الإدارة"],
+  insuranceProviders: ["التأمينات الاجتماعية"], // HR (15 Nov): a private company's name is added by HR
 };
 
 /** Per list: the roles / people (user ids) who add, and who switch values off or back on (#186). Missing = «master: edit». */
@@ -63,6 +65,7 @@ export const SETTINGS = {
   interactionTypes: List,
   mkTaskTypes: List,
   ticketDepts: List,
+  insuranceProviders: List,
   leaveTypes: z.array(z.object({ name: z.string().trim().min(1).max(40), days: z.number().int().min(0).max(60) })).max(20),
   whatsappDailyLimit: z.number().int().min(0).max(10_000),
   notificationsFrom: z.string().trim().email(),

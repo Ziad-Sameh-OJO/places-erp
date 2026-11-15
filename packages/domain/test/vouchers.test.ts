@@ -57,7 +57,7 @@ test("payroll: salary − attendance − the chosen advance; one balanced entry 
   assert.equal(salaryLine(["sales"]), "sales");
   assert.equal(salaryLine(["accountant", "approver"]), "admin");
   const a = payRow({ salary: 12_000_00, attendance: 461_54, advanceLeft: 3_500_00, advancePlan: 1_000_00 }); // a quarter day at 12,000/26
-  assert.deepEqual(a, { salary: 12_000_00, attendance: 461_54, advance: 1_000_00, net: 10_538_46 });
+  assert.deepEqual(a, { salary: 12_000_00, attendance: 461_54, insurance: 0, advance: 1_000_00, net: 10_538_46 });
   const b = payRow({ salary: 8_000_00, attendance: 0, advanceLeft: 500_00, advancePlan: null }); // default: all that's left
   assert.equal(b.advance, 500_00);
   assert.equal(payRow({ salary: 1_000_00, attendance: 0, advanceLeft: 5_000_00, advancePlan: null }).advance, 1_000_00); // never above the pay
