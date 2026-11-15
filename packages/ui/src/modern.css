@@ -230,3 +230,136 @@ tr.click:hover td, tbody tr:hover td { background: var(--surface-2); }
 .auth-card { box-shadow: 0 30px 80px -30px rgba(0,0,0,.6); }
 .auth-brand { justify-content: space-between; }
 .auth-erp { font: 500 11px var(--f-display); letter-spacing: .2em; color: var(--ink-3); text-transform: uppercase; }
+
+/* =====================================================================================================
+   Components, second pass (client review, Nov 2026: «the cards are plain, the filters are lost»)
+   ===================================================================================================== */
+
+/* ---------- form controls: one height, one radius, a drawn chevron, black focus ---------- */
+:root {
+  --ctl-h: 42px;
+  --chev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23808080' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  --ring: 0 0 0 4px rgba(17, 17, 17, .08);
+}
+input, select, textarea { min-height: var(--ctl-h); border-radius: 12px; border: 1px solid var(--line-2); background-color: var(--surface); font-size: 13.5px; color: var(--ink); }
+input::placeholder, textarea::placeholder { color: #a3a3a3; }
+input:hover, select:hover, textarea:hover { border-color: #bdbdbb; }
+input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow: var(--ring); }
+select { appearance: none; -webkit-appearance: none; background-image: var(--chev); background-repeat: no-repeat; background-size: 16px; background-position: left 12px center; padding-inline-end: 38px; cursor: pointer; text-overflow: ellipsis; }
+[dir="ltr"] select { background-position: right 12px center; }
+select[multiple] { background-image: none; padding-inline-end: 12px; }
+input[type="date"], input[type="month"], input[type="time"] { font-variant-numeric: tabular-nums; }
+input[type="date"]::-webkit-calendar-picker-indicator { opacity: .45; cursor: pointer; }
+input[type="checkbox"], input[type="radio"] { min-height: 0; }
+.field > span { font-size: 12.5px; color: var(--ink-2); font-weight: 500; }
+.search svg.i { color: #9a9a9a; }
+
+/* ---------- filters bar: a tidy row of equal controls; a picked filter is marked; «clear» at the end ---------- */
+.toolbar { gap: 10px; padding: 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); }
+.toolbar > .search { flex: 2 1 260px; max-width: 420px; }
+.toolbar > select, .toolbar > input:not([type="checkbox"]), .toolbar > .multi-pick { flex: 1 1 160px; max-width: 230px; }
+.toolbar .area-f { width: auto; }
+.toolbar > .date-f { flex: 0 1 auto; }
+.toolbar > .spacer { flex: 1 1 0; }
+.date-f { gap: 8px; color: var(--ink-3); font-size: 12.5px; }
+.date-f input { width: 150px; }
+/* a picked filter reads as on: the select's empty «all» option isn't the chosen one, or a text filter has a value */
+.toolbar select:not(:has(option[value=""]:checked)), .toolbar .search input:not(:placeholder-shown), .toolbar > input:not(:placeholder-shown) {
+  border-color: var(--ink); background-color: var(--surface-2); font-weight: 500; }
+.toolbar .btn.ghost.sm { min-height: var(--ctl-h); padding-inline: 14px; }
+.toolbar .multi-pick > summary, .multi-pick > summary { min-height: var(--ctl-h); max-width: none; border-radius: 12px; border-color: var(--line-2); padding-inline-end: 38px; background: var(--surface) var(--chev) no-repeat left 12px center / 16px; }
+[dir="ltr"] .toolbar .multi-pick > summary, [dir="ltr"] .multi-pick > summary { background-position: right 12px center; }
+.multi-pick > summary::after { display: none; }
+.multi-pick[open] > summary { border-color: var(--ink); box-shadow: var(--ring); }
+.multi-pick-list { border-radius: 16px; border-color: var(--line); box-shadow: var(--shadow-3); padding: 6px; }
+.multi-pick-list label { border-radius: 10px; }
+.multi-pick-list label:hover { background: var(--surface-2); }
+.views-bar .lbl { color: var(--ink-3); }
+
+/* ---------- number cards: icon badge, big number, delta pill; the first card of a row leads in brand black ---------- */
+.kpis { gap: 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.kpi { padding: 18px 20px; gap: 10px; border-radius: 22px; min-height: 132px; }
+.kpi .k-top { flex-direction: row-reverse; justify-content: flex-end; gap: 10px; }
+.kpi .k-top > span:first-child { font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.kpi .ico { width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--ink); flex: none; }
+.kpi .ico svg.i { width: 18px; height: 18px; }
+.kpi .k-val { margin-top: auto; gap: 10px; align-items: center; }
+.kpi strong { font: 500 30px/1.1 var(--f-display); letter-spacing: -.02em; }
+.kpi small { font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+.delta { font: 500 11.5px var(--f-display); padding: 3px 9px; border-radius: 999px; direction: ltr; display: inline-flex; align-items: center; gap: 3px; }
+.delta.up { background: var(--ok-soft); color: var(--ok); } .delta.down { background: var(--bad-soft); color: var(--bad); }
+.kpis > .kpi:first-child { background: #111111; border-color: #111111; color: #fff; }
+.kpis > .kpi:first-child .k-top > span:first-child { color: rgba(255, 255, 255, .72); }
+.kpis > .kpi:first-child .ico { background: rgba(255, 255, 255, .1); color: #fff; }
+.kpis > .kpi:first-child small { color: rgba(255, 255, 255, .6); }
+.kpis > .kpi:first-child .delta { background: rgba(255, 255, 255, .12); color: #fff; }
+.kpis > .kpi-btn:first-child:hover { border-color: #111; background: #1d1d1d; }
+.kpis.sm .kpi { min-height: 0; padding: 14px 16px; }
+.kpis.sm .kpi strong { font-size: 22px; }
+
+/* ---------- section cards: a clear head, room to breathe ---------- */
+.card { padding: 22px; gap: 16px; border-radius: 24px; }
+.card-head { gap: 12px; }
+.card-head h3 { gap: 12px; font-size: 16px; font-weight: 500; }
+.card-head h3 .ico { width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--ink); }
+.card-head h3 small { margin-top: 2px; }
+.card.flat { border-radius: 20px; }
+
+/* ---------- tables: quiet head, roomy rows, the first column leads ---------- */
+.tbl-wrap { border-radius: 18px; }
+th { height: 44px; font-size: 12px; color: var(--ink-3); font-weight: 500; background: var(--surface-2); }
+td { height: 56px; padding-block: 10px; font-size: 13.5px; }
+tbody tr:last-child td { border-bottom: 0; }
+td:first-child b, td:first-child strong { font-weight: 500; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: #fafaf9; }
+
+/* ---------- lists of label · bar · value (funnels, breakdowns) ---------- */
+.hb { gap: 14px; }
+.hb .bar, .funnel .f .bar { height: 10px; background: var(--sunken); }
+.hb-v, .funnel .f .n { font: 500 13px var(--f-display); }
+
+/* ---------- empty states: an icon in a soft circle, calm text ---------- */
+.empty { padding: 34px 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.empty svg.i { width: 22px; height: 22px; padding: 13px; box-sizing: content-box; border-radius: 50%; background: var(--surface-2); color: var(--ink-3); }
+.empty p { margin: 0; font-size: 13.5px; }
+
+/* ---------- page head: the title reads first, the module code steps back ---------- */
+.top-title h1 { font-size: 24px; letter-spacing: -.015em; }
+.title-row .crumb { white-space: nowrap; font: 500 10.5px var(--f-display); color: var(--ink-3); border-color: var(--line); background: transparent; }
+.top-title p { font-size: 12.5px; }
+
+@media (max-width: 760px) {
+  .toolbar > .search, .toolbar > select, .toolbar > input:not([type="checkbox"]), .toolbar > .multi-pick { max-width: none; }
+  .title-row .crumb { display: none; }   /* the page title gets the whole width on a phone */
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .kpi { min-height: 112px; padding: 14px; border-radius: 18px; }
+  .kpi strong { font-size: 24px; }
+  .kpi .ico { width: 32px; height: 32px; }
+  .card { padding: 16px; border-radius: 20px; }
+  td { height: auto; }
+}
+
+/* ---------- checkboxes and radios: drawn, black when on (the .tick variant hides its input and draws its own) ---------- */
+input[type="checkbox"]:not(.tick input), input[type="radio"]:not(.tick input) {
+  appearance: none; -webkit-appearance: none; width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; flex: none;
+  border: 1.5px solid #c4c4c2; background: var(--surface); display: inline-grid; place-content: center; cursor: pointer;
+  transition: background .12s, border-color .12s; }
+input[type="checkbox"]:not(.tick input) { border-radius: 6px; }
+input[type="radio"]:not(.tick input) { border-radius: 50%; }
+input[type="checkbox"]:not(.tick input):hover, input[type="radio"]:not(.tick input):hover { border-color: var(--ink-3); }
+input[type="checkbox"]:not(.tick input):checked, input[type="radio"]:not(.tick input):checked { background: #111; border-color: #111; }
+input[type="checkbox"]:not(.tick input):checked::before { content: ""; width: 9px; height: 5px; border-inline-start: 2px solid #fff; border-bottom: 2px solid #fff; transform: translateY(-1px) rotate(-45deg); }
+[dir="rtl"] input[type="checkbox"]:not(.tick input):checked::before { border-inline-start: 0; border-left: 2px solid #fff; }
+input[type="radio"]:not(.tick input):checked::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+input[type="checkbox"]:not(.tick input):indeterminate { background: #111; border-color: #111; }
+input[type="checkbox"]:not(.tick input):indeterminate::before { content: ""; width: 8px; height: 2px; background: #fff; border: 0; transform: none; }
+input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .45; cursor: not-allowed; }
+.tick input:checked + span { background: #111; border-color: #111; }
+.tick span { border-width: 1.5px; border-radius: 7px; }
+
+/* boards: lanes read as columns, the count as a quiet badge */
+.lane { background: transparent; border: 1px dashed var(--line-2); padding: 12px; }
+.lane h4 { font-size: 13px; font-weight: 500; color: var(--ink); padding: 2px 4px 6px; }
+.lane h4 .num { background: var(--surface); border: 1px solid var(--line); font-family: var(--f-display); border-radius: 999px; }
+.lane-empty { color: var(--ink-3); text-align: center; font-size: 12.5px; }
