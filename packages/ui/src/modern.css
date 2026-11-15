@@ -207,7 +207,7 @@ tr.click:hover td, tbody tr:hover td { background: var(--surface-2); }
   .top { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
   .top-actions .round.lang-btn { width: auto; padding: 0 12px; }   /* «English» doesn't fit a 40px circle */
   /* a row of saved views or stage chips slides sideways instead of stacking three rows above the list */
-  .views-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+  .views-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
   .views-bar::-webkit-scrollbar { display: none; }
   .views-bar > * { flex: none; }
   .toolbar > .day-step { grid-column: 1 / -1; }
