@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { followupRole, isTaskLate, isTeamTask, taskNoteProblem, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
+import { followupRole, inTeamDepartments, isTaskLate, isTeamTask, taskNoteProblem, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
 
 const assignee: TaskActor = { assignee: true, manager: false, approver: false };
 const manar: TaskActor = { assignee: false, manager: true, approver: true };
@@ -97,4 +97,15 @@ test("4.16: a shoot, a Retouch or a hand-off goes with the sender's notes (the o
   assert.equal(taskNoteProblem("toResale", ""), need);
   assert.equal(taskNoteProblem("photo", "الدور التالت · الأمن هيفتح · الساعة 1"), null);
   assert.equal(taskNoteProblem("marketing", undefined), null);
+});
+
+test("14.15 a task inside the team: any person of the department, the unit optional, the notes too", () => {
+  const k = taskKind("inTeam")!;
+  assert.deepEqual(k.createdWith, { module: "tasks", action: "create" });
+  assert.equal(k.withUnit, false);
+  assert.equal(taskNoteProblem("inTeam", ""), null);
+  const all = ["HR", "Inventory", "Marketing", "المبيعات"];
+  assert.deepEqual(inTeamDepartments("dept", "Marketing", all), ["Marketing"]); // Rahma: her own team only
+  assert.deepEqual(inTeamDepartments("all", "Operations", all), all); // the Super Admin / ops head picks the department
+  assert.deepEqual(inTeamDepartments("own", null, all), []); // no employee record, no team
 });

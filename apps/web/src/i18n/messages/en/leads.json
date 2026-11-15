@@ -281,7 +281,8 @@
     "tagsAsked": "{n} tag requests sent to the Team Leader",
     "companyCategory": "Company category",
     "pickCategory": "Pick a category",
-    "straightToSheet": "«{name}» is new: it goes straight into the companies sheet under this category"
+    "straightToSheet": "«{name}» is new: it goes straight into the companies sheet under this category",
+    "propertyType": "Type of space"
   },
   "drawer": {
     "notFound": "Lead not found",
@@ -335,7 +336,9 @@
     "tlNoteTitle": "Team Leader's note on the lead",
     "tlNotePlaceholder": "Something we need on this lead",
     "tlNoteSave": "Save",
-    "tlNoteSaved": "Saved"
+    "tlNoteSaved": "Saved",
+    "enteredBy": "Entered by",
+    "propertyType": "Type of space"
   },
   "board": {
     "movedQualified": "{name} is now {stage} and marked Qualified",
@@ -376,7 +379,8 @@
     "saved": "Saved “{name}” · you'll find it above the filters",
     "name": "View name",
     "namePlaceholder": "e.g. Tagamoa · Qualified",
-    "save": "Save"
+    "save": "Save",
+    "insideInterested": "Inside Interested:"
   },
   "filters": {
     "search": "Name, mobile, company, code",
@@ -390,7 +394,12 @@
     "notQualified": "Not Qualified",
     "from": "From",
     "to": "To",
-    "clear": "Clear {count, plural, one {# filter} other {# filters}}"
+    "clear": "Clear {count, plural, one {# filter} other {# filters}}",
+    "team": "Team",
+    "allTeams": "All teams",
+    "teamOf": "{name}'s team",
+    "type": "Type of space",
+    "allTypes": "All types"
   },
   "list": {
     "leads": "Leads",
@@ -410,7 +419,8 @@
     "next": "Next",
     "slaTitle": "SLA",
     "holiday": "(today is an official holiday)",
-    "slaNote": ": alert after {warn} with no action, and the lead is pulled automatically after {pull} to the salesperson next in line."
+    "slaNote": ": alert after {warn} with no action, and the lead is pulled automatically after {pull} to the salesperson next in line.",
+    "archive": "Archive"
   },
   "units": {
     "loading": "Loading…",
@@ -457,7 +467,8 @@
       "auto": "The PDF is made automatically from the units' data, and nobody can edit it.",
       "back": "Back",
       "send": "Send to the client and log a comment"
-    }
+    },
+    "visited": "Visited"
   },
   "secondCalls": {
     "title": "Verification calls (Second Calls)",
@@ -472,7 +483,7 @@
     "cancel": "Cancel"
   },
   "visits": {
-    "doneToast": "The {kind} is done · counted in the activity",
+    "doneToast": "The {kind} is done · counted as a Showing",
     "notDoneToast": "Recorded as not done · visible to HR in attendance",
     "approvedToast": "Postponement approved · no deduction",
     "rejectedToast": "Postponement rejected",
@@ -511,7 +522,9 @@
     "sqm": "{n} m²",
     "extraLabel": "Spaces not in the sheet",
     "extraPlaceholder": "e.g. floor 4 in building B6",
-    "saveTime": "Save the time"
+    "saveTime": "Save the time",
+    "editUnits": "Edit units",
+    "lockedAfterDone": "The appointment is marked · only its units can change (one postponed or not visited)"
   },
   "whatsapp": {
     "saved": "Recorded as a comment on the lead",
@@ -519,5 +532,34 @@
     "question": "Did you send them a WhatsApp?",
     "no": "No",
     "yes": "Yes, I did"
+  },
+  "journey": {
+    "title": "Units log",
+    "sub": "Every stage with its date and units · the PDF is made whenever you ask for it",
+    "loading": "Loading…",
+    "stage": {
+      "list": "List of options",
+      "visit": "Visits",
+      "shortlist": "Short list",
+      "meeting": "Meeting"
+    },
+    "none": "Not yet",
+    "done": "Done",
+    "notDone": "Not done",
+    "extra": "Not in the sheet: {extra}",
+    "pick": {
+      "title": "Manual pick from the inventory",
+      "sub": "What you pick is saved on the lead as its Short list",
+      "search": "Find a unit",
+      "searchPlaceholder": "By code, company or number",
+      "from": "Space from (m)",
+      "to": "To (m)",
+      "pickUnit": "Pick {code}",
+      "sqm": "{n} m",
+      "empty": "No units for this search",
+      "hint": "Type a code, company or number, or set the space",
+      "save": "Save as recommendation ({n})",
+      "saved": "The recommendation was saved on the lead"
+    }
   }
 }

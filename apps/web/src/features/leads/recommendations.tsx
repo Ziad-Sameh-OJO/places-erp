@@ -62,6 +62,7 @@ export function RecommendedUnits({ id, name }: { id: string; name: string }) {
             <span className="rec-match num">{u.match}%</span>
             <div className="rec-main"><b>{u.code} · {u.project}</b><small>{unit.parts(["area", serverText(u.area)], ["floor", t("floor", { floor: u.floor || "—" })], ["space", t("sqm", { n: num(u.space) })], ["condition", u.condition], ["parking", `Parking ${u.parking}`])}</small></div>
             {unit.shows("pricePerSqm") && <div className="rec-price"><b className="num">{money(u.price)}</b><small>{u.monthly ? t("monthly") : t("total")}</small></div>}
+            {u.visited && <Chip tone="acc">{t("visited")}</Chip>}
             {u.split ? <Chip tone="info">{t("splits", { n: num(u.minSplit ?? c.space ?? 0) })}</Chip> : u.sameArea ? <Chip tone="ok">{t("sameArea")}</Chip> : null}
           </label>
         )) : <Empty text={t("empty")} icon="building" />}

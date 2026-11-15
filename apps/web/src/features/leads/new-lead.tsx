@@ -2,7 +2,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { keepsCompaniesSheet } from "@places/domain";
+import { PROPERTY_TYPES, keepsCompaniesSheet } from "@places/domain";
 import { activeValues, type AreaRoute, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -76,6 +76,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
     const text = (k: string) => String(f.get(k) ?? "").trim();
     const body = {
       name: text("name"), kind: text("kind") === "broker" ? "broker" : "client", phones: phonesOf(text("phones")), area: text("area"), type: text("type"), channel: text("channel"),
+      ...(text("propertyType") ? { propertyType: text("propertyType") } : {}), // 14.6: optional
       ...(text("company") ? { company: text("company") } : {}), ...(text("space") ? { space: Number(text("space")) } : {}),
       ...(text("condition") ? { condition: text("condition") } : {}), ...(text("budget") ? { budget: text("budget") } : {}),
       ...(text("campaignId") ? { campaignId: text("campaignId") } : {}), ...(text("assignToId") ? { assignToId: text("assignToId") } : {}),
@@ -133,6 +134,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
           {route && <small className="hint">{route.length ? t("routesTo", { names: route.map((p) => p.name).join(t("nameSep")) }) : t("routesToOps")}</small>}
         </Field>, true)}
         {only("type", <Field label="Type"><select name="type">{TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>, true)}
+        {only("propertyType", <Field label={t("propertyType")}><select name="propertyType"><option value="">—</option>{PROPERTY_TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>)}
         {only("space", <Field label={t("spaceM")}><input name="space" type="number" min="1" step="1" /></Field>)}
         {only("condition", <Field label="Condition"><select name="condition">{activeValues(settings.data?.finishings ?? []).map((c) => <option key={c}>{c}</option>)}</select></Field>)}
         {only("budget", <Field label="Budget"><input name="budget" type="number" min="0" step="1" dir="ltr" /></Field>)}

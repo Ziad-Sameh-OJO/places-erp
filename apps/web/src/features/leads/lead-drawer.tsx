@@ -18,7 +18,8 @@ import { useSendNewLead } from "./use-new-leads";
 import { WhatsAppQuestion } from "./whatsapp-question";
 import { useLeadOptions } from "./use-leads";
 import { Visits } from "./visits";
-import { RecommendedUnits, useRecommendations } from "./recommendations";
+import { useRecommendations } from "./recommendations";
+import { LeadUnitsTab } from "./unit-journey";
 import { EditLead } from "./edit-lead";
 import { DealForm } from "../deals/deal-form";
 import { useRecent } from "@/lib/quick";
@@ -66,7 +67,7 @@ export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; i
         ...(l.canSeeLogs ? [["logs", "Logs", l.logCount ?? undefined] as ["logs", string, number | undefined]] : []),
       ]} />
       {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
-      {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <RecommendedUnits id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
+      {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <LeadUnitsTab id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
         : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity key={l.id} l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
@@ -76,12 +77,16 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
   const t = useTranslations("leads.drawer");
   const onPipe = PIPE.includes(l.stage as LeadStage);
   const fields = useFields("leads"); // M-09: a hidden field has no row (the API blanks it too)
+  // 14.4 (management meeting): the space, rent or sale, the finishing, the company, the campaign, the post, who entered
+  // it and the area first; then the rest
   const kv: [string, React.ReactNode, string?][] = [
-    [t("company"), l.company ?? "—", "company"],
+    ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—", "space"], ["Type", l.type || "—", "type"],
+    ["Condition", l.condition ? serverText(l.condition) : "—", "condition"], [t("company"), l.company ?? "—", "company"],
+    ["Campaign", l.campaign?.name ?? "—", "campaign"], [t("post"), l.post ?? "—", "post"],
+    [t("enteredBy"), <Who key="c" person={l.createdBy} />], ["Area", l.area ? serverText(l.area) : "—", "area"],
+    [t("propertyType"), l.propertyType ?? "—", "propertyType"],
     [t("mobile"), <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>, "phones"],
-    ["Area", l.area ? serverText(l.area) : "—", "area"], ["Type", l.type || "—", "type"], ["Space", l.space != null ? t("sqm", { n: num(l.space) }) : "—", "space"],
-    ["Condition", l.condition ? serverText(l.condition) : "—", "condition"],
-    ["Budget", money(l.budget), "budget"], ["Channel", l.channel || "—", "channel"], ["Campaign", l.campaign?.name ?? "—", "campaign"], [t("post"), l.post ?? "—", "post"],
+    ["Budget", money(l.budget), "budget"], ["Channel", l.channel || "—", "channel"],
     ["Sales", <Who key="w" person={l.assignedTo} />], [t("cameIn"), `${day(l.createdAt)} · ${ago(l.createdAt)}`],
   ];
   return (

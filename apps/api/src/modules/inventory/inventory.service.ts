@@ -43,9 +43,9 @@ export class InventoryService {
     private readonly photos: UnitPhotosService,
   ) {}
 
-  /** For a lead's Visit / Meeting (1.9): open, confirmed units by code, project or space (4 Nov demo meeting). */
-  forVisit(q?: string) {
-    return this.repo.forVisit(q, 30);
+  /** For a lead's Visit / Meeting (1.9) and its manual pick (14.11): open, confirmed units by code, project, building or space, in a space range. */
+  forVisit(q?: string, space: { min?: number; max?: number } = {}) {
+    return this.repo.forVisit(q, 30, space);
   }
 
   /** M-04 Broadcast · the Hot Inventory search, as the sheet shows each unit; fields hidden from `me` come back blank. */
@@ -141,6 +141,11 @@ export class InventoryService {
   }
 
   /** Codes for the units a Visit names (1.9), whatever their state now. */
+  /** 14.8 · the units a lead's log names, archived ones too (the log keeps what happened). */
+  journeyUnits(ids: string[]) {
+    return this.repo.journeyUnits(ids);
+  }
+
   codes(ids: string[]) {
     return ids.length ? this.repo.codes(ids) : Promise.resolve([]);
   }

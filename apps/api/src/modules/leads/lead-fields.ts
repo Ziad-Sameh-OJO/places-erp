@@ -9,11 +9,11 @@ import type { CreateLead, LeadDetail, LeadFilters, LeadRow, LeadSide, RecommendA
  */
 type Hidden = ReadonlySet<string>;
 
-export function hideLeadRow<T extends Pick<LeadRow, "company" | "phones" | "area" | "type" | "space" | "budget" | "channel" | "campaign">>(r: T, hidden: Hidden): T {
+export function hideLeadRow<T extends Pick<LeadRow, "company" | "phones" | "area" | "type" | "propertyType" | "space" | "budget" | "channel" | "campaign">>(r: T, hidden: Hidden): T {
   if (!hidden.size) return r;
   const h = (k: string) => hidden.has(k);
   return {
-    ...r, company: h("company") ? null : r.company, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type, space: h("space") ? null : r.space,
+    ...r, company: h("company") ? null : r.company, propertyType: h("propertyType") ? null : r.propertyType, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type, space: h("space") ? null : r.space,
     budget: h("budget") ? null : r.budget, channel: h("channel") ? "" : r.channel, campaign: h("campaign") ? null : r.campaign,
   };
 }
@@ -49,6 +49,7 @@ export function shownLeadFilters(f: LeadFilters, hidden: Hidden): LeadQuery {
   return {
     ...f, ...(hidden.has("area") ? { area: undefined } : {}), ...(hidden.has("channel") ? { channel: undefined } : {}),
     ...(hidden.has("campaignId") ? { campaignId: undefined } : {}), phoneSearch: !hidden.has("phones"),
+    ...(hidden.has("propertyType") ? { propertyType: undefined } : {}), companySearch: !hidden.has("company"),
     // sorting by a hidden field would tell its value (0.15): the list keeps its default order
     ...(f.sort && hidden.has(f.sort) ? { sort: undefined } : {}),
   };
@@ -62,7 +63,7 @@ export function shownLeadFilters(f: LeadFilters, hidden: Hidden): LeadQuery {
 export function keepFixedCreate<T extends Partial<CreateLead>>(input: T, fixed: Hidden): T {
   if (!fixed.size) return input;
   const out: Record<string, unknown> = { ...input };
-  for (const k of ["company", "companyCategory", "space", "condition", "budget", "campaignId", "note"]) if (fixed.has(k)) out[k] = undefined;
+  for (const k of ["company", "companyCategory", "propertyType", "space", "condition", "budget", "campaignId", "note"]) if (fixed.has(k)) out[k] = undefined;
   return out as T;
 }
 
@@ -76,9 +77,10 @@ export function keepFixedUpdate(input: UpdateLead, before: StoredLead, fixed: Hi
     ...(keep("company") ? { company: before.company ?? undefined } : {}), ...(keep("space") ? { space: before.space ?? undefined } : {}),
     ...(keep("condition") ? { condition: before.condition ?? undefined } : {}), ...(keep("budget") ? { budget: before.budget ?? undefined } : {}),
     ...(keep("note") ? { note: before.note ?? undefined } : {}),
+    ...(keep("propertyType") ? { propertyType: (before.propertyType ?? undefined) as UpdateLead["propertyType"] } : {}),
   } as Required<Pick<UpdateLead, "phones" | "area" | "type">> & UpdateLead;
 }
-export interface StoredLead { phones: string[]; area: string; type: string; company: string | null; space: number | null; condition: string | null; budget: string | null; note: string | null }
+export interface StoredLead { phones: string[]; area: string; type: string; propertyType: string | null; company: string | null; space: number | null; condition: string | null; budget: string | null; note: string | null }
 
 // ───────── the units shown from a lead: the inventory's rules ─────────
 

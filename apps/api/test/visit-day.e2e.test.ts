@@ -31,7 +31,7 @@ const at = (day: string, hhmm: string) => new Date(dayStart(day).getTime() + (Nu
 const asDay = (d: string) => new Date(`${d}T00:00:00Z`);
 async function leadWithVisit(e: Emp, day: string, hhmm: string) {
   const lead = await prisma.lead.create({ data: { code: `L-VD${stamp}${leads.length}`, name: `E2E-VD ${stamp} ${leads.length}`, phones: [`0109${stamp.slice(-6)}${leads.length}`],
-    area: AREA, type: "Rent", channel: "Facebook", assignedToId: e.id, assignedAt: new Date(), createdById: "e2e", stage: "FOLLOW_UP_TO_VISIT" as never, qualified: true } });
+    area: AREA, type: "Rent", channel: "Facebook", assignedToId: e.id, assignedAt: new Date(), createdById: "e2e", stage: "VISIT" as never, qualified: true } });
   leads.push(lead.id);
   mark(lead.id); // «الـ Visit بتاع … اتأجل» links to it without naming it
   const v = await prisma.leadVisit.create({ data: { leadId: lead.id, kind: "visit", at: at(day, hhmm), byUserId: e.userId } });

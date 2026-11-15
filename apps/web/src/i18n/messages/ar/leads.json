@@ -281,7 +281,8 @@
     "tagsAsked": "اتبعت {n} طلب Tag للتيم ليدر",
     "companyCategory": "كاتيجوري الشركة",
     "pickCategory": "اختار الكاتيجوري",
-    "straightToSheet": "«{name}» شركة جديدة: هتتضاف على شيت الشركات على طول بالكاتيجوري دي"
+    "straightToSheet": "«{name}» شركة جديدة: هتتضاف على شيت الشركات على طول بالكاتيجوري دي",
+    "propertyType": "النوع"
   },
   "drawer": {
     "notFound": "الليد مش موجود",
@@ -335,7 +336,9 @@
     "tlNoteTitle": "ملاحظة الـ Team Leader على الليد",
     "tlNotePlaceholder": "حاجة محتاجينها في الليد ده",
     "tlNoteSave": "حفظ",
-    "tlNoteSaved": "اتحفظت"
+    "tlNoteSaved": "اتحفظت",
+    "enteredBy": "مين دخّل الليد",
+    "propertyType": "النوع"
   },
   "board": {
     "movedQualified": "{name} بقى {stage} واتعلّم Qualified",
@@ -376,7 +379,8 @@
     "saved": "اتحفظ «{name}» · هتلاقيه فوق الفلاتر",
     "name": "اسم العرض",
     "namePlaceholder": "مثلاً: التجمع · Qualified",
-    "save": "احفظ"
+    "save": "احفظ",
+    "insideInterested": "جوه Interested:"
   },
   "filters": {
     "search": "اسم، موبايل، شركة، كود",
@@ -390,7 +394,12 @@
     "notQualified": "مش Qualified",
     "from": "من",
     "to": "لحد",
-    "clear": "مسح {count} فلتر"
+    "clear": "مسح {count} فلتر",
+    "team": "التيم",
+    "allTeams": "كل التيمز",
+    "teamOf": "تيم {name}",
+    "type": "النوع",
+    "allTypes": "كل الأنواع"
   },
   "list": {
     "leads": "الليدز",
@@ -410,7 +419,8 @@
     "next": "التالي",
     "slaTitle": "الـ SLA",
     "holiday": "(النهارده إجازة رسمية)",
-    "slaNote": ": تنبيه بعد {warn} من غير أكشن، والليد بيتسحب أوتوماتيك بعد {pull} للسيلز اللي عليه الدور."
+    "slaNote": ": تنبيه بعد {warn} من غير أكشن، والليد بيتسحب أوتوماتيك بعد {pull} للسيلز اللي عليه الدور.",
+    "archive": "الأرشيف"
   },
   "units": {
     "loading": "بيحمّل…",
@@ -457,7 +467,8 @@
       "auto": "الـ PDF بيتعمل أوتوماتيك من بيانات الوحدات، ومحدش يقدر يعدّل عليه.",
       "back": "رجوع",
       "send": "ابعت للعميل وسجّل كومنت"
-    }
+    },
+    "visited": "اتزارت"
   },
   "secondCalls": {
     "title": "مكالمات التحقق (Second Calls)",
@@ -472,7 +483,7 @@
     "cancel": "إلغاء"
   },
   "visits": {
-    "doneToast": "الـ {kind} خلصت · اتحسبت في الـ activity",
+    "doneToast": "الـ {kind} خلصت · اتحسبت Showing",
     "notDoneToast": "اتسجّلت إنها محصلتش · ظاهرة للـ HR في الحضور",
     "approvedToast": "اتوافق على التأجيل · من غير خصم",
     "rejectedToast": "اترفض التأجيل",
@@ -511,7 +522,9 @@
     "sqm": "{n} م",
     "extraLabel": "مساحات مش موجودة في الشيت",
     "extraPlaceholder": "مثلاً: دور 4 في مبنى B6",
-    "saveTime": "حفظ الميعاد"
+    "saveTime": "حفظ الميعاد",
+    "editUnits": "عدّل الوحدات",
+    "lockedAfterDone": "الميعاد اتعلّم · تقدر تعدّل الوحدات بس (وحدة اتأجلت أو ماراحهاش)"
   },
   "whatsapp": {
     "saved": "اتسجّلت كومنت على الليد",
@@ -519,5 +532,34 @@
     "question": "بعتله واتساب؟",
     "no": "لأ",
     "yes": "اه بعتله"
+  },
+  "journey": {
+    "title": "سجل الوحدات",
+    "sub": "كل مرحلة بتاريخها والوحدات اللي فيها · الـ PDF بيتعمل وقت ما تطلبه",
+    "loading": "بيحمّل…",
+    "stage": {
+      "list": "List of options",
+      "visit": "Visits",
+      "shortlist": "Short list",
+      "meeting": "Meeting"
+    },
+    "none": "لسه",
+    "done": "Done",
+    "notDone": "معملهاش",
+    "extra": "مش في الشيت: {extra}",
+    "pick": {
+      "title": "ترشيح يدوي من الانفنتوري",
+      "sub": "اللي تختاره بيتحفظ كـ Short list على الليد",
+      "search": "دوّر على وحدة",
+      "searchPlaceholder": "بالكود أو الشركة أو الرقم",
+      "from": "المساحة من (م)",
+      "to": "لحد (م)",
+      "pickUnit": "اختار {code}",
+      "sqm": "{n} م",
+      "empty": "مفيش وحدات بالبحث ده",
+      "hint": "اكتب كود أو شركة أو رقم، أو حدد المساحة",
+      "save": "احفظ كترشيح ({n})",
+      "saved": "الترشيح اتحفظ على الليد"
+    }
   }
 }
