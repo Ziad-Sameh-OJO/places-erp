@@ -144,3 +144,11 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 
 /* «غيّر المرحلة» (client, 11 Nov): Hold and Cancellation in their own row under the rest */
 .stage-grid.stage-side { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+/* M-03 6.1 List of options: the units in the client's order (OPTION 1, 2…) */
+.lo-order { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+.lo-order li { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.lo-n { width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--ink); color: var(--surface); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.lo-u { flex: 1; display: grid; min-width: 0; }
+.lo-u small { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lo-mv { display: flex; gap: 4px; }

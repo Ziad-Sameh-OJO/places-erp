@@ -384,6 +384,10 @@
     "dupTitle": "Duplicate-check column"
   },
   "listOfOptions": {
+    "order": "Units order",
+    "orderHint": "Each unit shows in the file with its number (OPTION 1, OPTION 2…) in this order",
+    "up": "Move {code} up",
+    "down": "Move {code} down",
     "bar": "Picked units",
     "picked": "{count, plural, one {unit picked} other {units picked}}",
     "make": "Make a List of options",

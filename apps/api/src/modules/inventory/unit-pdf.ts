@@ -18,7 +18,7 @@ type Bg = "red" | "paper" | "dark" | "contacts";
 /** a photo box: [photo or none, x, y, w, h] in % of the page */
 type Box = [Photo | null, number, number, number, number];
 type Row = [label: string, value: string, mark?: "area" | "rate"];
-interface Page { bg: Bg; cover?: { title: string; area: string; building: string; code: string }; photos?: Box[]; title?: string; table?: Row[]; thanks?: boolean }
+interface Page { bg: Bg; cover?: { title: string; area: string; building: string; code: string }; photos?: Box[]; title?: string; table?: Row[]; thanks?: boolean; option?: number }
 
 // the backgrounds come from the client's pptx (copied to the build by nest-cli.json), read once
 let bgs: Record<Bg, string> | undefined;
@@ -82,7 +82,11 @@ function listPages(units: readonly ListUnit[], kind: "pdf" | "slide", client?: s
   return [
     { bg: "red", cover: { title: "LIST OF OPTIONS", area: `${n} ${n === 1 ? "UNIT" : "UNITS"}`, building: client ? `PREPARED FOR : ${client.toUpperCase()}` : "", code: "" } },
     // a unit's «pdf» pages end with contacts + thank you: the list puts those once, at the end
-    ...units.flatMap(({ u, photos }) => (kind === "pdf" ? pages(u, photos, "pdf").slice(0, -2) : pages(u, photos, "slide"))),
+    // each unit's first page says its place in the list («OPTION 1», «OPTION 2»…), in the order picked (client, 15 Nov)
+    ...units.flatMap(({ u, photos }, i) => {
+      const P = kind === "pdf" ? pages(u, photos, "pdf").slice(0, -2) : pages(u, photos, "slide");
+      return P.map((p, j) => (j === 0 ? { ...p, option: i + 1 } : p));
+    }),
     { bg: "contacts" }, { bg: "red", thanks: true },
   ];
 }
@@ -105,6 +109,8 @@ const CSS = `@page{size:1280px 720px;margin:0}
   .b-tbl tr.area td{background:#a7a7a7;color:#e5372b;font-weight:700}.b-tbl tr.rate td{background:#ee3a4f;color:#fff;font-weight:700}
   .b-title{position:absolute;left:37.5%;top:4.6%;width:25%;margin:0;text-align:center;font:400 34px ${SERIF};color:#1d1d1b}
   .b-thanks{position:absolute;left:1.8%;top:3.5%;font:60px 'Book Antiqua',Palatino,${SERIF}}
+  .b-opt.left{right:auto;left:3.3%;top:5.5%}
+  .b-opt{position:absolute;right:2.5%;top:4%;padding:8px 22px;background:#1d1d1b;color:#fff;font:700 26px ${SANS};letter-spacing:2px;border-radius:4px}
   .b-site{position:absolute;left:49.4%;top:80.4%;font:20px 'Book Antiqua',Palatino,${SERIF}}.b-disc{position:absolute;left:49.4%;top:86.2%;width:46%;margin:0;font:8px/1.3 'Book Antiqua',Palatino,${SERIF};opacity:.9}`;
 
 const box = ([src, x, y, w, h]: Box) => `<div class="b-ph" style="left:${x}%;top:${y}%;width:${w}%;height:${h}%">${src ? `<img src="${esc(src)}" alt="">` : "<span>Photos coming soon</span>"}</div>`;
@@ -113,6 +119,7 @@ const pageHtml = (p: Page) => `<section class="b-pg" style="background-image:url
   ${(p.photos ?? []).map(box).join("")}
   ${p.title ? `<h3 class="b-title">${esc(p.title)}</h3>` : ""}
   ${p.table ? `<table class="b-tbl">${p.table.map(([l, v, mark]) => `<tr class="${mark ?? ""}"><td>${esc(l)}</td><td>${esc(v)}</td></tr>`).join("")}</table>` : ""}
+  ${p.option ? `<div class="b-opt${p.table ? " left" : ""}">OPTION ${p.option}</div>` : ""}
   ${p.thanks ? `<div class="b-thanks">Thank you</div><div class="b-site">Places-egy.com</div><p class="b-disc">${esc(DISCLAIMER)}</p>` : ""}
 </section>`;
 
@@ -177,6 +184,8 @@ async function deckPptx(name: string, P: Page[]): Promise<Buffer> {
         fill: { color: mark === "rate" ? "EE3A4F" : mark === "area" ? "A7A7A7" : i % 2 ? "C4C4C4" : "E8E5E0" },
       } }))), { x: X(50), y: Y(5.5), w: X(47.5), colW: [X(23.75), X(23.75)], fontFace: "Times New Roman", fontSize: 14, border: { type: "solid", pt: 1, color: "9B9B9B" }, rowH: 0.36 });
     }
+    // the specs page has its table on the right: the number goes over the photo's corner there
+    if (p.option) s.addText(`OPTION ${p.option}`, { x: X(p.table ? 3.3 : 80), y: Y(p.table ? 5.5 : 4), w: X(17.5), h: Y(8), align: "center", fontFace: "Arial", bold: true, fontSize: 22, color: "FFFFFF", fill: { color: "1D1D1B" }, charSpacing: 2 });
     if (p.thanks) {
       s.addText("Thank you", { x: X(1.8), y: Y(3.5), w: X(40), h: Y(13.5), fontFace: "Book Antiqua", fontSize: 60, color: "FFFFFF" });
       s.addText("Places-egy.com", { x: X(49.4), y: Y(80.4), w: X(30), h: Y(5.8), fontFace: "Book Antiqua", fontSize: 20, color: "FFFFFF" });

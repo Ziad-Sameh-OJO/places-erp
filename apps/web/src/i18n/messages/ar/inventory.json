@@ -384,6 +384,10 @@
     "dupTitle": "خانة منع التكرار"
   },
   "listOfOptions": {
+    "order": "ترتيب الوحدات",
+    "orderHint": "كل وحدة بتظهر في الملف برقمها (OPTION 1، OPTION 2…) بالترتيب ده",
+    "up": "طلّع {code} فوق",
+    "down": "نزّل {code} تحت",
     "bar": "الوحدات المختارة",
     "picked": "وحدة مختارة",
     "make": "اعمل List of options",
