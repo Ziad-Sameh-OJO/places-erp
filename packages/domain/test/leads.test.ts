@@ -149,3 +149,19 @@ test("1.33: the Team Leader, Sales Director and admin write the note; the salesp
   assert.equal(tlNoteUnseen({ tlNote: "جديدة", tlNoteAt: new Date("2026-11-10T10:00:00Z"), tlNoteSeenAt: new Date("2026-11-10T09:05:00Z") }), true);
   assert.equal(tlNoteUnseen({ tlNote: null, tlNoteAt: null, tlNoteSeenAt: null }), false);
 });
+
+test("«غيّر المرحلة» (client, 11 Nov): only the chosen buttons, Hold and Cancellation under the rest", async () => {
+  const { STAGE_PICKER, LEAD_STAGES } = await import("../src/index.ts");
+  assert.deepEqual(STAGE_PICKER.main, ["Fresh", "Interested", "Visit", "No Answer", "Meeting", "Done Deal", "Near to Close"]);
+  assert.deepEqual(STAGE_PICKER.side, ["Hold", "Cancellation"]);
+  for (const s of [...STAGE_PICKER.main, ...STAGE_PICKER.side]) assert.ok((LEAD_STAGES as readonly string[]).includes(s), s);
+});
+
+test("the Kanban: the picked stages in order; a dropped stage's lane only while leads are in it", async () => {
+  const { boardLanes, isPickableStage } = await import("../src/index.ts");
+  const lane = (stage: string, total: number) => ({ stage, total });
+  const api = [lane("Fresh", 2), lane("Interested", 0), lane("Not Interested", 0), lane("Follow up to Visit", 3), lane("Visit", 1), lane("No Answer", 0), lane("Meeting", 0), lane("Near to Close", 0), lane("Done Deal", 0), lane("Cancellation", 0), lane("Hold", 0)];
+  assert.deepEqual(boardLanes(api).map((l) => l.stage), ["Fresh", "Interested", "Visit", "No Answer", "Meeting", "Done Deal", "Near to Close", "Hold", "Cancellation", "Follow up to Visit"]);
+  assert.equal(isPickableStage("Follow up to Visit"), false);
+  assert.equal(isPickableStage("Hold"), true);
+});

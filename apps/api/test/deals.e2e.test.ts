@@ -103,7 +103,11 @@ test("Done Deal: Pending Review, company and source from the lead, the agent as 
   assert.equal(r.body.location, `${C} مشروع 1`);
   assert.equal(r.body.commissionOwner, "50000.00");
   assert.deepEqual(r.body.buyers.map((b: { id: string }) => b.id).sort(), [emp.mohsen!.id, emp.eid!.id].sort());
-  assert.deepEqual(r.body.sellers.map((s: { id: string; approved: boolean }) => [s.id, s.approved]), [[emp.ali!.id, false]]);
+  // the Seller waiting for Manar: no name for the salesperson (client, 11 Nov); Manar, who decides, sees it
+  assert.deepEqual(r.body.sellers.map((s: { id: string; name: string; approved: boolean }) => [s.id, s.name, s.approved]), [["", "", false]]);
+  const aliName = (await prisma.employee.findUniqueOrThrow({ where: { id: emp.ali!.id } })).name;
+  const forManar = (await call("/home/deals", { cookie: await session("manar.ahmed@places.com") })).body as Array<{ kind: string; id: string; values: { seller: string } }>;
+  assert.ok(forManar.some((l) => l.kind === "dealSeller" && l.id === r.body.id && l.values.seller === aliName), JSON.stringify(forManar));
 
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: leadId } })).stage, "DONE_DEAL");
   assert.ok((await unread(emp.nancy!.userId)).some((n) => n.text.includes(code) && n.text.includes("مستنية مراجعتك")));

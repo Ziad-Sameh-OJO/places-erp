@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { useLeadOptions, useSettings } from "./use-leads";
+import { TagPicker, askTags, useTags } from "./lead-tags";
 
 const TYPES = ["Rent", "Resale", "Primary", "Income"] as const; // requirements M-01 (the demo leaves Primary out)
 /** «رقم في كل سطر» (or commas), digits only, as the API normalises them. */
@@ -69,6 +70,8 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   const sheetNames = useQuery({ queryKey: ["company-names", typedCompany], enabled: !!typedCompany, queryFn: () => api.get<string[]>(`/companies/names?q=${encodeURIComponent(typedCompany)}`) }).data;
   const newCompany = !!typedCompany && !!sheetNames && !sheetNames.some((n) => n.toLowerCase() === typedCompany.toLowerCase());
 
+  const { tags: canTag } = useTags();
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const save = async (f: FormData) => {
     const text = (k: string) => String(f.get(k) ?? "").trim();
     const body = {
@@ -83,6 +86,8 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
       const lead = await api.post<CreatedLead>("/leads", body);
       toast(lead.assignedTo === null ? t("savedNoSales")
         : lead.ownedByTelesales || ownLead ? t("savedYours") : t("savedTo", { name: lead.assignedTo.name }));
+      // Tags (client, 11 Nov): asked once the lead exists; a refused tag doesn't undo the lead
+      if (tagIds.length) await askTags(lead.id, tagIds).then(() => toast(t("tagsAsked", { n: tagIds.length })), (e: unknown) => toast(e instanceof Error ? e.message : t("error")));
       onClose();
     } catch (e) {
       const msg = e instanceof Error ? e.message : t("error");
@@ -153,6 +158,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
             <select name="keep"><option value="route">{t("route")}</option><option value="keep">{t("keep")}</option></select>
           </Field>
         )}
+        {canTag && <Field label={t("tags")} wide><TagPicker value={tagIds} onChange={setTagIds} /></Field>}
         {only("note", <Field label="Note" wide><textarea name="note" maxLength={2000} /></Field>)}
         <div className="row end wide">
           <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>

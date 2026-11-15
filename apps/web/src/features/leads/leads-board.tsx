@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { LeadBoard, LeadRow } from "@places/contracts";
-import { type LeadStage, isQualifiedAfter } from "@places/domain";
+import { type LeadStage, boardLanes, isPickableStage, isQualifiedAfter } from "@places/domain";
 import { Kanban } from "@/components/blocks";
 import { Avatar, Chip, Icon, useAction, useToast } from "@/components/ui";
 import { ago, num, short } from "@/lib/format";
@@ -35,6 +35,7 @@ export function LeadsBoard({ board, canMove, onOpen, onVisit }: {
   const [ask, setAsk] = useState<LeadRow | null>(null); // «بعتله واتساب؟» right after No Answer (1.18)
   const move = (l: LeadRow, stage: string) => {
     if (stage === l.stage) return;
+    if (!isPickableStage(stage)) { toast(t("board.notPickable", { stage: serverText(stage) })); return; } // a stage kept for old leads only
     // 1.32 · demo DROP.stage: Visit / Meeting need a time and units — the lead opens on «الزيارات» with that kind; closing
     // it leaves the card where it was (the stage moves only when it's booked, the API's 1.9)
     if (stage === "Visit" || stage === "Meeting") { onVisit(l.id, stage); toast(t("drawer.setVisit", { kind: stage })); return; }
@@ -49,7 +50,7 @@ export function LeadsBoard({ board, canMove, onOpen, onVisit }: {
     },
       willQualify ? t("board.movedQualified", { name: l.name, stage: serverText(stage) }) : t("board.moved", { name: l.name, stage: serverText(stage) }));
   };
-  const lanes = (board?.lanes ?? []).map((l) => ({ key: l.stage, title: serverText(l.stage), tone: LANE_COLOR[stageTone(l.stage)], items: l.items, count: l.total }));
+  const lanes = boardLanes(board?.lanes ?? []).map((l) => ({ key: l.stage, title: serverText(l.stage), tone: LANE_COLOR[stageTone(l.stage)], items: l.items, count: l.total }));
   return (
     <>
     {ask && <WhatsAppQuestion lead={ask} onClose={() => setAsk(null)} />}

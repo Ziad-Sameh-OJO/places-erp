@@ -413,6 +413,7 @@ model Lead {
   duplicates     LeadDuplicate[]
   companyRequests CompanyRequest[] // 1.20: its company isn't in the sheet yet
   visits         LeadVisit[]
+  tags           LeadTag[]      // M-01 (client, 11 Nov): salespeople working it with its owner, after the TL's approval
   drafts         LeadDraft[]
   suggestedUnits LeadUnit[]
   deals          Deal[]
@@ -567,6 +568,34 @@ model LeadDuplicate {
 
 /// Every call a salesperson or Telesales logs on a lead (M-01 3.1): the KPIs count them (Telesales 100 a day,
 /// sales 50 a week) and the first one is measured against the lead's arrival (30 minutes).
+/// M-01 · Tags (client, 11 Nov): a salesperson tagged on a lead to work it with its owner. Pending until the Team
+/// Leader approves (domain tagApprover); approved, the lead is in the tagged salesperson's scope too.
+model LeadTag {
+  id          String        @id @default(cuid())
+  leadId      String
+  lead        Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  employeeId  String        // the tagged salesperson (hr.Employee)
+  byUserId    String        // who asked
+  approverId  String?       // the Team Leader who decides (hr.Employee); null = whoever approves leads
+  status      LeadTagStatus @default(PENDING)
+  decidedAt   DateTime?
+  decidedById String?
+  createdAt   DateTime      @default(now())
+
+  @@unique([leadId, employeeId])
+  @@index([approverId, status])
+  @@index([employeeId, status])
+  @@schema("sales")
+}
+
+enum LeadTagStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@schema("sales")
+}
+
 /// M-01 · Telesales' «عدد المكالمات اليومية» (client, 11 Nov): the day's total calls she writes herself (many aren't on a
 /// lead); the KPI takes the larger of this and the calls logged on leads that day (domain dayCalls).
 model DailyCalls {

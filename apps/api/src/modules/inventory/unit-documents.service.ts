@@ -49,9 +49,19 @@ export class UnitDocumentsService {
     const units: ListUnit[] = [];
     for (const id of b.unitIds) units.push(await this.unit(me, id)); // one at a time: every unit's photos are in memory
     const name = listName(units.length, b.client);
+    const logo = b.clientLogoFileId ? await this.clientLogo(me, b.clientLogoFileId) : undefined;
     return b.format === "pptx"
-      ? { name: `${name}.pptx`, mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", body: await listDeckPptx(units, b.kind, b.client) }
-      : { name: `${name}.pdf`, mime: "application/pdf", body: await this.docs.pdf(listDeckHtml(units, b.kind, b.client), new Date(), { slide: true }) };
+      ? { name: `${name}.pptx`, mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", body: await listDeckPptx(units, b.kind, b.client, logo) }
+      : { name: `${name}.pdf`, mime: "application/pdf", body: await this.docs.pdf(listDeckHtml(units, b.kind, b.client, logo), new Date(), { slide: true }) };
+  }
+
+  /** The client company's logo for the cover: an image the person uploaded themselves and finished (not anyone's file). */
+  private async clientLogo(me: CurrentUser, fileId: string): Promise<Photo> {
+    const f = await this.db.file.findFirst({ where: { id: fileId, uploadedById: me.id, status: "READY" }, select: { mime: true } });
+    if (!f?.mime.startsWith("image/")) throw new BadRequestException("لوجو الشركة لازم يكون صورة إنت رفعتها");
+    const src = await this.files.dataUrl(fileId);
+    if (!src) throw new BadRequestException("اللوجو مش متاح دلوقتي · ارفعه تاني");
+    return src;
   }
 
   /**
