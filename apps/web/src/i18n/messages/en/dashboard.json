@@ -128,7 +128,8 @@
       "perDay": "We need {amount} a day",
       "mark": "Where we should be today",
       "set": "Set the target",
-      "aria": "{label}: {pct}% achieved, we should be at {mark}% today"
+      "aria": "{label}: {pct}% achieved, we should be at {mark}% today",
+      "none": "No quarter or year target yet"
     },
     "teams": {
       "title": "Teams",

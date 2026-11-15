@@ -480,7 +480,9 @@
     "sent": "Sent what they needed",
     "note": "Note",
     "notePlaceholder": "What did the client say?",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "showAll": "Show all ({count})",
+    "showLess": "Show less"
   },
   "visits": {
     "doneToast": "The {kind} is done · counted as a Showing",

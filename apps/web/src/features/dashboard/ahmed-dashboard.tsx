@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { AhmedDashboard, AhmedTeam, Compared, PacedBar } from "@places/contracts";
 import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, toDecimal, type DashPeriod } from "@places/domain";
-import { Card, Chip, Empty } from "@/components/ui";
+import { Card, Chip, Empty, Icon } from "@/components/ui";
 import { PeriodPicker } from "@/components/period-picker";
 import { dateLocale, money, num, short } from "@/lib/format";
 import { useMe } from "@/lib/me";
@@ -109,6 +109,16 @@ function Targets({ d }: { d: AhmedDashboard }) {
   const t = useTranslations("dashboard.ahmed.targets");
   const q = d.targets.quarter, goal = q.goal === "" ? 0 : fromDecimal(q.goal), label = t("quarter", { quarter: d.quarter });
   const mark = q.expected && goal ? Math.round((fromDecimal(q.expected) / goal) * 100) : null;
+  // no target at all: one quiet empty state and one button, not two empty rows
+  if (!goal && !(d.targets.year.goal && fromDecimal(d.targets.year.goal))) return (
+    <Card title={t("title")} icon="trend" className="b-4 target-a">
+      <div className="target-empty">
+        <svg viewBox="0 0 130 70" aria-hidden="true"><path d="M13 64 A52 52 0 0 1 117 64" /></svg>
+        <p>{t("none")}</p>
+        <Link className="btn sm" href="/kpis"><Icon name="plus" />{t("set")}</Link>
+      </div>
+    </Card>
+  );
   return (
     <Card title={t("title")} icon="trend" className="b-4 target-a">
       {!goal ? <div className="paced"><b>{label}</b><Link className="btn ghost sm" href="/kpis">{t("set")}</Link></div> : <Link href="/reports" className="gauge-w">
