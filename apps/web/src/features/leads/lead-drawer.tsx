@@ -93,8 +93,9 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
       {l.note && <div className="quote">{l.note}</div>}
       <LeadActions l={l} onDeal={onDeal} onArchived={onArchived} />
       <NewLeadAction l={l} />
-      {l.canWriteTlNote && <TlNote key={l.id} l={l} />}
-      {can("leads", "approve") && <Reassign key={l.id} l={l} />}
+      {/* keyed by the lead (a new lead resets their state), each its own key: siblings with one key make React warn */}
+      {l.canWriteTlNote && <TlNote key={`tl-${l.id}`} l={l} />}
+      {can("leads", "approve") && <Reassign key={`re-${l.id}`} l={l} />}
     </>
   );
 }
