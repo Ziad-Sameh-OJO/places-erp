@@ -3,12 +3,12 @@ import type { Prisma, PrismaClient } from "@places/db";
 import {
   KpiWatch, type ActivityInput, type ActivityResultInput, type ActivityView, type KpiBandsInput, type KpiBoard, type KpiCardSummary, type KpiCardView,
   type KpiCompany, type KpiDeliveryInput, type KpiItemsInput, type KpiLogEntry, type KpiPayInput, type KpiQuarterView, type KpiToday, type MyActivities, type TaskKpiEffect,
-  type KpiBonusInput, type KpiSheetSetup,
+  type KpiBonusInput, type KpiSheetSetup, type KpiMonthScore,
 } from "@places/contracts";
 import {
   INVENTORY_DEPARTMENT, INVENTORY_MANAGER, canManageCard, invManagerMakesCard,
   type Bands, type LeadClocks, type MetricParams, type Method, kpiTodayLines, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, taskCardFollower, timedTasks, toDecimal, TASKS_ON_TIME_ITEM, type ActivityKind,
-  type SheetField, SHEET_FIELDS, SHEET_FIELD_KEYS, dealRowOf, monthBounds, quarterMonths, sheetFigures,
+  type SheetField, SHEET_FIELDS, SHEET_FIELD_KEYS, dealRowOf, monthBounds, quarterMonths, sheetFigures, localDate, monthItem,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -30,13 +30,15 @@ const NO_MONEY = "الفلوس مش في صلاحياتك";
 const NO_PLAN = "خطة التحسين مش في صلاحياتك";
 
 /** M-09 field permissions: a hidden result leaves no trace (its tier and tone tell it too). */
-function hideScore<T extends { score: number; tone: "ok" | "warn" | "bad"; tier: string }>(w: Who, x: T): T {
-  return w.noScore ? { ...x, score: 0, tone: "ok", tier: "" } : x;
+function hideScore<T extends { score: number; tone: "ok" | "warn" | "bad"; tier: string; month: KpiMonthScore }>(w: Who, x: T): T {
+  return w.noScore ? { ...x, score: 0, tone: "ok", tier: "", month: { score: 0, tone: "ok" } } : x;
 }
 function hideCard(w: Who, v: KpiCardView): KpiCardView {
   const out = hideScore(w, { ...v, plan: w.noPlan ? null : v.plan });
-  return w.noScore ? { ...out, items: out.items.map((it) => ({ ...it, achievement: 0, contribution: 0 })) } : out;
+  return w.noScore ? { ...out, items: out.items.map((it) => ({ ...it, achievement: 0, contribution: 0, month: it.month && { ...it.month, achievement: 0, contribution: 0 } })) } : out;
 }
+/** «2026-11»: the Cairo month the «الشهر» view reads. */
+const thisMonth = () => localDate(new Date()).slice(0, 7);
 
 /** `noScore` / `noPlan` / `fixedMoney` / `fixedPlan`: the person's M-09 field rules on the card (`noMoney` covers them too). */
 export interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean; noScore: boolean; noPlan: boolean; fixedMoney: boolean; fixedPlan: boolean }
@@ -128,6 +130,19 @@ export class KpisService {
     return itemAchievement({ method: it.method as Method, direction: it.direction as "at-least" | "at-most", goal: Number(it.goal), value: num(it.value), required: it.required, delivered: it.deliveries.length });
   }
 
+  /** HR 15 Nov «الشهر»: the item on this month's figure (hand-ins by their day, the rest the daily job's); null = none. */
+  private month(it: CardRecord["items"][number], month: string) {
+    const value = it.method === "report" ? it.deliveries.filter((d) => localDate(d.at).startsWith(month)).length : it.monthOf === month ? num(it.monthValue) : null;
+    const m = monthItem({ method: it.method as Method, metric: it.metric, params: (it.params ?? {}) as MetricParams, direction: it.direction as "at-least" | "at-most", goal: Number(it.goal), required: it.required }, value);
+    return m && { ...m, value };
+  }
+
+  /** The same weighting as the quarter on the month figures; an item without one counts its quarter achievement. */
+  private monthScore(c: CardRecord, b: Bands, month = thisMonth()): KpiMonthScore {
+    const s = c.items.reduce((sum, it) => sum + it.weight * (this.month(it, month)?.achievement ?? this.ach(it)), 0);
+    return { score: Math.round(s * 10) / 10, tone: bandTone(s, b) };
+  }
+
   /** 11.4: reward (+) or deduction (−) on the salary or the bonus (the bonus defaults to one month's salary). */
   private delta(c: CardRecord, score: number, b: Bands) {
     const salary = piasters(c.employee.salary);
@@ -140,7 +155,7 @@ export class KpisService {
     return hideScore(w, {
       id: c.id, employeeId: c.employeeId, name: c.employee.name, title: c.employee.jobTitle, follower: c.follower?.name ?? "الملاك",
       score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b),
-      below: c.items.filter((it) => this.ach(it) < 1).length, approved: !!c.approvedAt,
+      below: c.items.filter((it) => this.ach(it) < 1).length, approved: !!c.approvedAt, month: this.monthScore(c, b),
       money: w.noMoney ? null : toDecimal(this.delta(c, s, b)),
     });
   }
@@ -186,7 +201,7 @@ export class KpisService {
     const c = cards.find((x) => x.employeeId === me.employeeId);
     const below = c ? c.items.filter((it) => this.ach(it) < 1) : [];
     const mine = c && {
-      id: c.id, quarter: quarterLabel(q.id), score: score(c), tone: w.noScore ? "ok" as const : bandTone(this.score(c), b), follower: c.follower?.name ?? "الملاك", belowCount: below.length,
+      id: c.id, quarter: quarterLabel(q.id), score: score(c), tone: w.noScore ? "ok" as const : bandTone(this.score(c), b), month: w.noScore ? null : this.monthScore(c, b), follower: c.follower?.name ?? "الملاك", belowCount: below.length,
       below: below.slice(0, 3).map((it) => ({ title: it.title, targetText: it.targetText, method: it.method as Method, value: num(it.value), delivered: it.deliveries.length, required: it.required })),
     };
     return { mine: mine ?? null, lines };
@@ -200,7 +215,7 @@ export class KpisService {
 
   private async view(w: Who, c: CardRecord, q: Quarter): Promise<KpiCardView> {
     const [bands, people, roles, reports] = await Promise.all([this.repo.bands(), this.repo.people(), this.repo.roles(), this.repo.reportNames()]);
-    const b = bandsOf(bands), s = this.score(c), open = q.status === "open";
+    const b = bandsOf(bands), s = this.score(c), open = q.status === "open", month = thisMonth();
     const names = new Map<string, string>([...people.map((p) => [p.userId, p.name] as const), ...roles.map((r) => [r.key, r.label] as const)]);
     const follower = this.isFollower(w, c), mine = c.employeeId === w.me.employeeId, manage = open && this.canManage(w, c);
     const approver = c.approvedBy ? people.find((p) => p.userId === c.approvedBy)?.name ?? "" : "";
@@ -209,13 +224,14 @@ export class KpisService {
       id: c.id, quarter: this.qView(q), employee: { id: c.employeeId, name: c.employee.name, title: c.employee.jobTitle },
       follower: { id: c.followerId, name: c.follower?.name ?? "الملاك" },
       score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b), plan: c.plan,
+      month: this.monthScore(c, b, month),
       approved: c.approvedAt ? { by: approver, at: c.approvedAt.toISOString() } : null,
       pay: w.noMoney ? null : {
         base: c.payBase === "salary" ? "salary" : "bonus", period: c.payPeriod === "month" ? "month" : "quarter",
         amount: c.payAmount?.toFixed(2) ?? null, salary: c.employee.salary.toFixed(2), delta: toDecimal(this.delta(c, s, b)),
       },
       items: c.items.map((it) => {
-        const a = this.ach(it);
+        const a = this.ach(it), m = this.month(it, month);
         const params = (it.params ?? {}) as Record<string, string | number>;
         return {
           id: it.id, key: it.key, title: it.title, weight: it.weight, targetText: it.targetText, source: it.source,
@@ -225,6 +241,7 @@ export class KpisService {
           deliveries: it.deliveries.map((d) => ({ id: d.id, at: d.at.toISOString(), link: d.link, file: !!d.fileId })),
           calc: calcText({ ...it, method: it.method as Method, params: params as MetricParams, report: it.report && (reports.find((r) => r.id === it.report)?.name ?? it.report) }, (x) => names.get(x) ?? x),
           achievement: Math.round(a * 1000) / 10, contribution: Math.round(it.weight * a * 10) / 10,
+          month: m && { goal: Math.round(m.goal * 10) / 10, value: m.value, achievement: Math.round(m.achievement * 1000) / 10, contribution: Math.round(it.weight * m.achievement * 10) / 10 },
           canEnter: open && it.method === "manual" && canEnterManual(it.enteredBy, { userId: w.me.id, roles: w.me.roles, isFollower: follower }),
           canDeliver: open && mine && it.method === "report" && !it.report && it.deliveries.length < (it.required ?? 0),
         };

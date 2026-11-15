@@ -2,7 +2,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EmployeeFile, EmployeesView } from "@places/contracts";
-import { DEFAULT_TIERS, excuseDeduction } from "@places/domain";
+import { DEFAULT_RULES, excuseDeduction } from "@places/domain";
 import { Chip, Empty, Field, Icon, Note, Table, Tabs, onFormSubmit, useAction } from "@/components/ui";
 import { Drawer, KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
@@ -12,6 +12,7 @@ import { day, money, short } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { OneOnOneTab } from "./people-care";
 import { EmployeeDocsTab, useMissingDocs, useSeesEmployeeFile } from "./employee-file";
+import { useHrSettings } from "./deduction-settings";
 
 /** M-05 · الموظفين (7.1, demo hr.js emps()): the list in scope, search and department filter; a row opens the file. */
 export function Employees() {
@@ -67,11 +68,12 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const [custom, setCustom] = useState<boolean | null>(null);
   const [partTime, setPartTime] = useState<boolean | null>(null);
   const fields = useFields("hr");
+  const rules = useHrSettings().data?.rules ?? DEFAULT_RULES; // the company's (HR, 15 Nov): the Excuse cost and the tiers to start from
   /** M-09: a hidden field's input is gone, a read-only one is shown locked (the API keeps both as they are) */
   const only = (key: string, node: ReactNode) =>
     !fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
   if (!e) return <Drawer title="…" onClose={onClose}><p className="hint">{tr("common.loading")}</p></Drawer>;
-  const tiersOn = custom ?? e.deductionTiers != null, pt = partTime ?? e.partTime, t = e.deductionTiers ?? DEFAULT_TIERS;
+  const tiersOn = custom ?? e.deductionTiers != null, pt = partTime ?? e.partTime, t = e.deductionTiers ?? rules;
   const save = onFormSubmit(async (d) => run(async () => {
     const n = (k: string) => Number(d.get(k));
     await api.patch(`/hr/employees/${id}`, {
@@ -100,7 +102,7 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           <div className="kpis sm">
             <KpiTile label={tr("employees.monthLate")} value={e.month.lateMinutes} icon="clock" tone="warn" />
             <KpiTile label={tr("common.deductionDays")} value={e.month.deductionDays} icon="wallet" tone="bad" />
-            <KpiTile label={tr("employees.monthExcuses")} value={e.month.excuses} icon="ticket" {...(excuseDeduction(e.month.excuses) ? { sub: tr("employees.charged"), tone: "bad" as const } : {})} />
+            <KpiTile label={tr("employees.monthExcuses")} value={e.month.excuses} icon="ticket" {...(excuseDeduction(e.month.excuses, rules) ? { sub: tr("employees.charged"), tone: "bad" as const } : {})} />
             <KpiTile label={tr("employees.leaveBalance")} value={e.month.leaveLeft} sub={tr("employees.ofTotal", { total: e.month.leaveTotal })} icon="calendar" tone="ok" />
           </div>
           <dl className="kv">{kv.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
