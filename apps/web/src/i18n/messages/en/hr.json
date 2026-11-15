@@ -41,6 +41,8 @@
     "balances": "Leave balances",
     "care": "Penalties & 1-to-1",
     "saving": "Savings",
+    "ideal": "Ideal employee",
+    "box": "Employee Box",
     "emps": "Employees"
   },
   "attendance": {
@@ -173,8 +175,22 @@
     "confirm": "Confirm",
     "rejectTitle": "Reject the Excuse"
   },
+  "kpiIdeal": {
+    "title": "Ideal employee",
+    "sub": "Everyone's KPI score out of 100% this quarter · the highest is the ideal employee",
+    "sales": "Sales team",
+    "teamLeaders": "Team Leaders",
+    "rank": "Rank",
+    "team": "Team",
+    "score": "KPIs",
+    "winner": "Ideal employee",
+    "noCard": "No card yet",
+    "nobody": "No KPIs scored yet",
+    "empty": "Nobody here",
+    "note": "The ranking comes from each person's KPI card in the open quarter ({quarter}) and follows the cards."
+  },
   "ideal": {
-    "title": "Ideal employee and team fund",
+    "title": "Employee Box",
     "sub": "The rest of the team's attendance and lateness deductions go to the ideal employee at the end of the month",
     "early": "Early arrival",
     "earlySub": "Days before time · more is better",

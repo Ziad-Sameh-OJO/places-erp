@@ -35,3 +35,19 @@ test("7.11 · HR sees each team's ideal employee and fund; a penalty rules one o
   assert.notEqual(team.winner?.employeeId, youssef.id);
   assert.match(team.fund, /^\d+\.\d{2}$/);
 });
+
+test("«الموظف المثالي» by KPIs: sales and Team Leaders apart, highest first, the top marked ideal; sales 403", async () => {
+  assert.equal((await call("/hr/ideal-kpi", { cookie: sales })).status, 403);
+  const r = await call("/hr/ideal-kpi", { cookie: basant });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  type Row = { employeeId: string; score: number | null; rank: number | null; ideal: boolean };
+  const { sales: s, teamLeaders: tl } = r.body as { sales: Row[]; teamLeaders: Row[] };
+  assert.ok(s.some((x) => x.employeeId === youssef.id), "a salesperson is in the sales list");
+  assert.ok(tl.length >= 1 && !tl.some((x) => s.some((y) => y.employeeId === x.employeeId)), "Team Leaders are listed apart");
+  for (const rows of [s, tl]) {
+    const scored = rows.filter((x) => x.score !== null);
+    assert.deepEqual(scored.map((x) => x.score), [...scored.map((x) => x.score!)].sort((a, b) => b - a), "highest first");
+    const top = scored[0]?.score ?? 0;
+    assert.ok(rows.every((x) => x.ideal === (top > 0 && x.score === top)), "only the highest is ideal");
+  }
+});
