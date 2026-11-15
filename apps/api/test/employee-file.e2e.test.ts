@@ -113,7 +113,7 @@ test("a 1-to-1 → its PDF sheet in the file; the timeline with the penalty; cov
   assert.ok(Buffer.from(await (await fetch(link.url)).arrayBuffer()).subarray(0, 5).toString() === "%PDF-");
   assert.equal((await call(`/hr/employee-docs/${sheet.id}`, { method: "DELETE", cookie: basant })).status, 400); // the system's sheet stays
 
-  assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: target.id, day: today(), text: `${P} تأخير`, deductionDays: 0 } })).status, 201);
+  assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: target.id, day: today(), type: "سلوك", text: `${P} تأخير`, deductionDays: 0 } })).status, 201);
   const tl_ = (await call(`/hr/employees/${target.id}/documents`, { cookie: basant })).body.timeline;
   assert.ok(tl_.some((x: { kind: string; docId: string }) => x.kind === "one_on_one" && x.docId === sheet.id));
   assert.ok(tl_.some((x: { kind: string; title: string }) => x.kind === "penalty" && x.title === `${P} تأخير`));
