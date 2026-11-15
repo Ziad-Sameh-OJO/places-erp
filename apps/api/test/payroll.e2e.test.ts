@@ -86,7 +86,7 @@ test("7.9: HR approves the month's deductions once; payroll reads exactly those;
   assert.equal(before.deductionsApproved, false);
   assert.ok(before.rows.every((r: { attendance: string }) => r.attendance === "0.00")); // nothing until HR approves
   // an approved one-day penalty on Mokhtar (12,000 → 461.54 a day) joins his line
-  assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: today, text: `${P} جزاء`, deductionDays: 1 } })).status, 201);
+  assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: today, type: "سلوك", text: `${P} جزاء`, deductionDays: 1 } })).status, 201);
   const live = (await call("/hr/deductions", { cookie: basant })).body;
   const line = live.rows.find((r: { employeeId: string }) => r.employeeId === mokhtar.id);
   assert.ok(line.penaltyDays >= 1);
@@ -101,7 +101,7 @@ test("7.9: HR approves the month's deductions once; payroll reads exactly those;
   assert.equal((await call("/hr/deductions/approve", { method: "POST", cookie: basant })).body.error, "خصومات الشهر ده اتعتمدت قبل كده");
 
   // frozen: a penalty after the approval doesn't change what was approved
-  await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: today, text: `${P} بعد الاعتماد`, deductionDays: 1 } });
+  await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: today, type: "سلوك", text: `${P} بعد الاعتماد`, deductionDays: 1 } });
   const approved = (await call("/hr/deductions", { cookie: basant })).body.rows.find((x: { employeeId: string }) => x.employeeId === mokhtar.id);
   const pay = (await call("/finance/payroll", { cookie: ahmed })).body;
   assert.equal(pay.deductionsApproved, true);

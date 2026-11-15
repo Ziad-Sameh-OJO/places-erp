@@ -1,17 +1,18 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { ExcuseAsk, ExcuseStatus, ExcuseView } from "@places/contracts";
-import { attendanceDay, excuseDeduction, excuseNumber, excuseRefused, localDate, type DeductionTiers } from "@places/domain";
+import { attendanceDay, excuseDeduction, excuseNumber, excuseRefused, localDate, rulesFor, type DeductionRules, type DeductionTiers } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import { TicketsService } from "../tickets/tickets.service";
-import type { Tx } from "./hr.repository";
+import { HrRepository, type Tx } from "./hr.repository";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const LABEL: Record<ExcuseStatus, string> = { pending_tl: "مستني الـ Team Leader", approved_tl: "الـ TL وافق · مستني الـ HR", confirmed: "اتأكد", rejected: "اترفض", refused: "الخامس · اترفض" };
-const COST = (n: number) => (n >= 5 ? "مرفوض" : excuseDeduction(n) ? "نص يوم" : "من غير خصم");
+/** What the n-th Excuse costs under the company's rules (HR, 15 Nov: HR can move the 3rd and the 5th). */
+const COST = (n: number, r: DeductionRules) => (excuseRefused(n, r) ? "مرفوض" : excuseDeduction(n, r) ? "نص يوم" : "من غير خصم");
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 type Row = Prisma.ExcuseRequestGetPayload<object>;
@@ -23,21 +24,22 @@ type Row = Prisma.ExcuseRequestGetPayload<object>;
  */
 @Injectable()
 export class ExcusesService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService, private readonly tickets: TicketsService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService, private readonly tickets: TicketsService, private readonly repo: HrRepository) {}
 
   private hr = (me: CurrentUser) => me.grants.scope === "all" && me.grants.can("hr", "approve");
 
   private async view(rows: Row[], me: CurrentUser | null): Promise<ExcuseView[]> {
-    const [emps, tks] = await Promise.all([
+    const [emps, tks, rules] = await Promise.all([
       this.db.employee.findMany({ where: { id: { in: rows.map((r) => r.employeeId) } }, select: { id: true, name: true } }),
       this.db.ticket.findMany({ where: { id: { in: rows.map((r) => r.ticketId ?? "") } }, select: { id: true, number: true } }),
+      this.repo.deductionRules(),
     ]);
     return rows.map((r) => {
       const st = r.status as ExcuseStatus;
       const canDecide = !me ? null : st === "pending_tl" && (r.tlUserId === me.id || (!r.tlUserId && this.hr(me))) ? "tl" : st === "approved_tl" && this.hr(me) ? "hr" : null;
       const t = tks.find((x) => x.id === r.ticketId);
       return { id: r.id, employeeId: r.employeeId, name: emps.find((e) => e.id === r.employeeId)?.name ?? "", day: iso(r.day), reason: r.reason, number: r.number, status: st, statusLabel: LABEL[st],
-        cost: COST(r.number), rejectReason: r.rejectReason, ticket: t ? `TK-${t.number}` : null, canDecide };
+        cost: COST(r.number, rules), rejectReason: r.rejectReason, ticket: t ? `TK-${t.number}` : null, canDecide };
     });
   }
 
@@ -60,11 +62,11 @@ export class ExcusesService {
       if (!e) throw new NotFoundException("مالكش فايل موظف");
       if (await tx.excuseRequest.findFirst({ where: { employeeId: e.id, day: day(a.day), status: { notIn: ["rejected"] } } })) throw new BadRequestException("فيه Excuse لليوم ده");
       const earlier = await tx.excuseRequest.count({ where: { employeeId: e.id, day: { gte: day(`${today.slice(0, 7)}-01`) }, status: { in: ["pending_tl", "approved_tl", "confirmed"] } } });
-      const n = excuseNumber(earlier), refused = excuseRefused(n);
+      const n = excuseNumber(earlier), refused = excuseRefused(n, await this.repo.deductionRules(tx));
       const tlUserId = e.teamLeader?.userId && e.teamLeader.userId !== me.id ? e.teamLeader.userId : null;
       const t = await this.tickets.openSystem(tx, { type: "excuse", fromUserId: me.id, title: `Excuse #${n} · ${e.name} · ${a.day}`, text: a.reason });
       const row = await tx.excuseRequest.create({ data: { employeeId: e.id, day: day(a.day), reason: a.reason, number: n, status: refused ? "refused" : "pending_tl", ticketId: t.id, tlUserId, createdById: me.id, ...(refused ? { decidedAt: new Date() } : {}) } });
-      if (refused) await this.tickets.settleSystem(tx, t.id, "الـ Excuse الخامس في الشهر · اترفض (Q31)", me.id);
+      if (refused) await this.tickets.settleSystem(tx, t.id, `الـ Excuse رقم ${n} في الشهر · اترفض (Q31)`, me.id);
       await this.audit.record({ module: "hr", entity: "ExcuseRequest", entityId: row.id, action: "create", userId: me.id, after: { day: a.day, number: n, status: row.status, ticket: t.code } }, tx);
       return { row, name: e.name };
     });
@@ -83,7 +85,7 @@ export class ExcusesService {
       const out = await tx.excuseRequest.update({ where: { id }, data: turn === "tl" ? { status: "approved_tl", ...(r.tlUserId ? {} : { tlUserId: me.id }) } : { status: "confirmed", hrUserId: me.id, decidedAt: new Date() } });
       if (r.ticketId) {
         if (turn === "tl") await this.tickets.noteSystem(tx, r.ticketId, "الـ Team Leader وافق · مستني الـ HR", me.id, true);
-        else await this.tickets.settleSystem(tx, r.ticketId, `الـ HR أكّدت · ${COST(r.number)}`, me.id);
+        else await this.tickets.settleSystem(tx, r.ticketId, `الـ HR أكّدت · ${COST(r.number, await this.repo.deductionRules(tx))}`, me.id);
       }
       if (turn === "hr") await this.applyToDay(tx, r.employeeId, iso(r.day));
       await this.audit.record({ module: "hr", entity: "ExcuseRequest", entityId: id, action: turn === "tl" ? "approve" : "confirm", userId: me.id, before: { status: r.status }, after: { status: out.status } }, tx);
@@ -116,8 +118,9 @@ export class ExcusesService {
     if (!a?.checkInAt) return; // not fingerprinted yet: attendance applies it when the day arrives
     const e = await tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { deductionTiers: true } });
     const n = (await this.confirmedFor(employeeId, dayIso, tx))!;
-    const minutes = a.lateMinutes ? a.lateMinutes + 16 : 0;
-    const r = attendanceDay({ kind: "excuse", minutesAfterStart: minutes, excuseNumberThisMonth: n }, (e.deductionTiers as DeductionTiers | null) ?? undefined);
+    const rules = rulesFor((e.deductionTiers as DeductionTiers | null) ?? null, await this.repo.deductionRules(tx));
+    const minutes = a.lateMinutes ? a.lateMinutes + rules.graceMinutes : 0;
+    const r = attendanceDay({ kind: "excuse", minutesAfterStart: minutes, excuseNumberThisMonth: n }, rules);
     await tx.attendanceDay.update({ where: { id: a.id }, data: { kind: "EXCUSE", deduction: r.deduction } });
   }
 }

@@ -111,6 +111,11 @@
     "m.safwat@places.com",
     "ahmed.ashraf@places.com"
   ],
+  "penaltyTypes": [
+    "تأخير متكرر",
+    "سلوك",
+    "مخالفة نظام الشغل"
+  ],
   "tlTiers": [
     {
       "below": 70,
