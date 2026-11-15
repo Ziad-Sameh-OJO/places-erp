@@ -1,9 +1,17 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { UnitFilters, type CompanyDashboard, type DashPerson, type DashboardLayoutView, type MyDashboard, type PersonPerformance, type StageCount, type TargetBar } from "@places/contracts";
 import {
-  CLIENTS_PARENT, DASHBOARD_STAGES, budgetBroken, dashboardLayout, dashboardPeriods, dayStart, fromDecimal, isCampaignLive, lateWithoutExcuse, localDate,
-  monthBounds, opensOnDashboard, targetProgress, teamProgress, toDecimal, topAchiever, topSales, type Piasters, type WorkCalendar,
+  UnitFilters, type AhmedDashboard, type AhmedPerson, type AhmedQuery, type AttentionLine, type CompanyDashboard, type DashPerson, type DashboardLayoutView,
+  type MyDashboard, type PacedBar, type PersonPerformance, type StageCount, type TargetBar,
+} from "@places/contracts";
+import {
+  CLIENTS_PARENT, DASHBOARD_STAGES, FUNNEL_STAGES, budgetBroken, comparisonWindows, conversionRate, dashboardLayout, dashboardPeriods, dayStart, fromDecimal,
+  isCampaignLive, lateWithoutExcuse, localDate, monthBounds, opensOnDashboard, periodId, quarterBounds, quarterDays, quarterMonths, quarterOfDay, targetPace,
+  targetProgress, teamProgress, toDecimal, topAchiever, topSales, type Piasters, type WorkCalendar,
 } from "@places/domain";
+import { LeadsService } from "../leads/leads.service";
+import { CampaignsService } from "../marketing/campaigns.service";
+import { ContractsService } from "../contracts/contracts.service";
+import { SettingsService } from "../settings/settings.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { leadScope } from "../leads/lead-scope";
@@ -34,6 +42,10 @@ export class DashboardService {
     private readonly ledger: LedgerService,
     private readonly vouchers: VouchersService,
     private readonly attendance: AttendanceService,
+    private readonly leads: LeadsService,
+    private readonly campaigns: CampaignsService,
+    private readonly contracts: ContractsService,
+    private readonly settings: SettingsService,
   ) {}
 
   async layout(me: CurrentUser): Promise<DashboardLayoutView> {
@@ -84,6 +96,117 @@ export class DashboardService {
       finance: money && { ...money.figures },
       marketing: campaigns && live ? { live: live.map(card), off: campaigns.filter((c) => !live.includes(c)).slice(0, 8).map(card) } : null,
     };
+  }
+
+  /**
+   * Ahmed Islam's one page: the period against the previous one up to the same point, the funnel, the target line, the
+   * teams, «محتاج انتباهك», and the money / inventory / marketing cards. A card the person may not see comes back null,
+   * an attention line he may not see is left out.
+   */
+  async ahmed(me: CurrentUser, q: AhmedQuery, now = new Date()): Promise<AhmedDashboard> {
+    const cal = await this.time.calendar(), today = localDate(now, cal), picked = q.year && q.quarter ? periodId(q.year, q.quarter) : undefined;
+    const { current: cur, previous: prev } = comparisonWindows(q.period, now, cal, picked);
+    const quarter = (q.period === "quarter" && picked) || quarterOfDay(today), year = quarter.slice(0, 4), qd = quarterDays(quarter), qb = quarterBounds(quarter, cal);
+    const yearMonths = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
+    const yb = { from: monthBounds(yearMonths[0]!, cal).from, to: monthBounds(yearMonths[11]!, cal).to };
+    const leads = leadScope(me) as never, can = (m: Parameters<typeof me.grants.can>[0]) => me.grants.can(m, "view");
+    const pair = async <T>(f: (w: { from: Date; to: Date }) => Promise<T>) => { const [a, b] = await Promise.all([f(cur), f(prev)]); return { now: a, before: b }; };
+    const week = comparisonWindows("week", now, cal).current.from, month = today.slice(0, 7);
+    const [visits, doneDeals, newLeads, units, collected, stages, quarterFig, yearFig, byPerson, dealsBy, settings] = await Promise.all([
+      pair((w) => this.repo.visits({ leads }, w.from, w.to)), pair((w) => this.repo.dealsClosed(w.from, w.to)),
+      pair((w) => this.repo.leadsSince(leads, w.from, w.to).then(([n]) => n)), pair((w) => this.repo.unitsAdded(w.from, w.to)),
+      can("finance") && !me.fields.hidden("finance").has("amount") ? pair((w) => this.repo.collected(w.from, w.to)) : null,
+      this.repo.stageCounts(leads, FUNNEL_STAGES.map(toDb)),
+      this.targets.rangeFigures(me, qb.from, qb.to, quarterMonths(quarter)), this.targets.rangeFigures(me, yb.from, yb.to, yearMonths),
+      this.repo.visitsByPerson(cur.from, cur.to), this.repo.dealsByPerson(cur.from, cur.to), this.settings.all(),
+    ]);
+    const [money, finance, inventory, marketing, attention] = await Promise.all([
+      can("contracts") ? this.installments(me, today, month, now) : null,
+      can("finance") && !me.fields.hidden("finance").has("amount") ? this.finance() : null,
+      can("inventory") ? Promise.all([this.inventory.tabs(me, UnitFilters.parse({ closedFrom: `${month}-01`, closedTo: today })), this.repo.unitsAdded(week)]) : null,
+      can("marketing") ? this.marketing(me, today, localDate(cur.from, cal), lastDay(cur, cal)) : null,
+      this.attention(me, leads, settings.dashboardStaleNearClose, now),
+    ]);
+
+    const hide = me.fields.hidden("reports");
+    const counts = FUNNEL_STAGES.map((stage) => stages.find((x) => x.stage === toDb(stage))?._count._all ?? 0);
+    const paced = (rows: Figure[], from: string, to: string): PacedBar => {
+      const t = teamProgress(rows), pace = targetPace({ goal: t.goal, achieved: t.achieved, from, to, today }, cal), off = hide.has("value") || t.goal <= 0;
+      return { ...barOf(t, hide), expected: off ? "" : toDecimal(pace.expected), perDay: off || hide.has("achieved") || pace.perDay == null ? null : toDecimal(pace.perDay) };
+    };
+    const seen = (userId: string, kind: string) => byPerson.filter((x) => x.byUserId === userId && x.kind === kind).reduce((n, x) => n + x._count._all, 0);
+    const member = (f: Figure): AhmedPerson => ({
+      employeeId: f.employeeId, userId: f.userId, name: f.name, achieved: hide.has("achieved") ? "" : toDecimal(f.achieved),
+      percent: hide.has("percent") ? null : targetProgress(f.achieved, f.goal) ?? 0, // no target = 0% on this table, not «—»
+      visits: seen(f.userId, "visit"), meetings: seen(f.userId, "meeting"), deals: dealsBy.find((x) => x.employeeId === f.employeeId)?._count._all ?? 0,
+    });
+    const sum = (xs: AhmedPerson[], k: "visits" | "meetings" | "deals") => xs.reduce((n, x) => n + x[k], 0);
+    const teams = [...new Set(quarterFig.flatMap((f) => (f.tlId ? [f.tlId] : [])))].map((tlId) => {
+      const rows = quarterFig.filter((f) => f.tlId === tlId), members = rows.map(member).sort(byPercent);
+      return {
+        tlId, tl: rows[0]!.tl ?? "", team: rows[0]!.team, percent: hide.has("percent") ? null : teamProgress(rows).percent ?? 0,
+        visits: sum(members, "visits"), meetings: sum(members, "meetings"), deals: sum(members, "deals"), members,
+      };
+    }).sort(byPercent);
+    const inv = inventory?.[0];
+    return {
+      period: q.period, from: localDate(cur.from, cal), to: lastDay(cur, cal), quarter, year,
+      strip: {
+        visits: { now: count(visits.now, "visit"), before: count(visits.before, "visit") }, meetings: { now: count(visits.now, "meeting"), before: count(visits.before, "meeting") },
+        doneDeals, leads: newLeads, units, collected,
+      },
+      funnel: FUNNEL_STAGES.map((stage, i) => ({ stage, count: counts[i]!, next: i < counts.length - 1 ? conversionRate(counts[i]!, counts[i + 1]!) : null })),
+      targets: { quarter: paced(quarterFig, qd.from, qd.to), year: paced(yearFig, `${year}-01-01`, `${year}-12-31`) },
+      teams, attention: [...attention, ...(finance ? [{ key: "budget" as const, count: finance.figures.broken.length, href: "/finance?tab=budget" }] : [])],
+      staleDays: settings.dashboardStaleNearClose,
+      money: money && { ...money, receivables: finance?.figures.receivables ?? null },
+      inventory: inv ? {
+        rent: inv.Rent, sale: SALE_TYPES.reduce((s, t) => s + inv[t], 0), types: SALE_TYPES.map((type) => ({ type, count: inv[type] })),
+        newThisWeek: inventory[1], closedThisMonth: inv.closed,
+      } : null,
+      marketing,
+    };
+  }
+
+  /** «Money»: this month's installments collected vs due, and those due in the next 7 days (not paid yet). */
+  private async installments(me: CurrentUser, today: string, month: string, now: Date) {
+    const end = new Date(Date.parse(`${today}T00:00:00Z`) + 7 * DAY).toISOString().slice(0, 10);
+    const months = [...new Set([month, end.slice(0, 7)])];
+    const [report, ...cals] = await Promise.all([this.contracts.collections(me, month, now), ...months.map((m) => this.contracts.calendar(me, m, now))]);
+    const due = cals.flatMap((c) => Object.entries(c.byDay)).filter(([d]) => d >= today && d <= end)
+      .flatMap(([, items]) => items.filter((i) => i.kind === "installment" && i.state !== "paid"));
+    return { collected: report.collected, due: report.due, nextWeek: { count: due.length, amount: toDecimal(due.reduce((s, i) => s + fromDecimal(i.amount ?? "0"), 0)) } };
+  }
+
+  /** «Marketing»: today's leads by channel, the period's cost per Qualified (14.13's rule), the campaigns running or not. */
+  private async marketing(me: CurrentUser, today: string, from: string, to: string): Promise<AhmedDashboard["marketing"]> {
+    const [day, period, campaigns] = await Promise.all([this.campaigns.dashboard(me, { from: today, to: today }), this.campaigns.dashboard(me, { from, to }), this.repo.campaigns()]);
+    const live = campaigns.filter((c) => isCampaignLive({ startsOn: isoDay(c.startsOn), endsOn: c.endsOn ? isoDay(c.endsOn) : null }, today));
+    const card = (c: { id: string; name: string }) => ({ id: c.id, name: c.name });
+    return {
+      today: day.channels.map((c) => ({ channel: c.channel, leads: c.leads })).sort((a, b) => b.leads - a.leads), costPerQualified: period.costPerQualified,
+      live: live.map(card), off: campaigns.filter((c) => !live.includes(c)).slice(0, 6).map(card),
+    };
+  }
+
+  /** «محتاج انتباهك» except the budget line (it comes with the finance figures): each with the list it opens. */
+  private async attention(me: CurrentUser, leads: never, staleDays: number, now: Date): Promise<AttentionLine[]> {
+    const can = (m: Parameters<typeof me.grants.can>[0]) => me.grants.can(m, "view");
+    const [sla, stale, approval, contracts, units] = await Promise.all([
+      can("leads") ? Promise.all([this.repo.slaRunning(leads), this.leads.slaClock(now)]).then(([rows, clock]) => rows.filter((x) => clock(x as never)?.level === "pull").length) : null,
+      can("leads") ? this.repo.staleNearClose(leads, new Date(now.getTime() - staleDays * DAY)) : null,
+      can("deals") ? this.repo.pendingDeals() : null,
+      can("contracts") && !me.fields.hidden("contracts").has("late") ? this.contracts.summary(me, now) : null,
+      can("inventory") ? this.inventory.summary(me) : null,
+    ]);
+    const lines: (AttentionLine | null)[] = [
+      sla == null ? null : { key: "sla", count: sla, href: "/leads?stage=Fresh" },
+      approval == null ? null : { key: "approval", count: approval, href: "/deals" },
+      stale == null ? null : { key: "nearClose", count: stale, href: `/leads?stage=${encodeURIComponent("Near to Close")}` },
+      contracts ? { key: "installments", count: contracts.late.count, href: "/contracts" } : null,
+      units ? { key: "units", count: units.missing, href: "/inventory?missing=1" } : null,
+    ];
+    return lines.filter((x): x is AttentionLine => !!x);
   }
 
   /** The smaller dashboard of a role (14.1): my leads today and by stage, my Visits and Meetings, my month and quarter. */
@@ -154,6 +277,8 @@ function ranges(now: Date, cal: WorkCalendar) {
   };
 }
 
+/** The last Cairo day of a [from, to) window (its first when it's empty). */
+const lastDay = (w: { from: Date; to: Date }, cal: WorkCalendar) => localDate(new Date(Math.max(w.from.getTime(), w.to.getTime() - 1)), cal);
 const count = (rows: { kind: string; _count: { _all: number } }[], kind: string) => rows.filter((x) => x.kind === kind).reduce((n, x) => n + x._count._all, 0);
 const byPercent = (a: { percent: number | null }, b: { percent: number | null }) => (b.percent ?? -1) - (a.percent ?? -1);
 

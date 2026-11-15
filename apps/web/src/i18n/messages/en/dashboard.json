@@ -8,16 +8,13 @@
   "open": "Open",
   "nobody": "Nobody",
   "today": {
-    "title": "Today so far",
     "titleSafwat": "Today",
     "leads": "Leads in today",
     "interested": "{count} of them Interested",
     "interestedTile": "Interested from today",
     "visits": "Showings",
     "meetings": "Meetings",
-    "doneDeals": "Done Deals",
     "units": "Units added to the inventory",
-    "conforming": "Conforming done",
     "threshold": "Who took a Threshold",
     "blocks": "Who took Block leads",
     "sits": "Sits in and out",
@@ -30,23 +27,12 @@
     "title": "The company by stage",
     "sub": "Not Interested left out · a click opens the leads filtered"
   },
-  "inventory": {
-    "title": "Inventory",
-    "rent": "For Rent",
-    "sale": "For Sale"
-  },
   "targets": {
     "title": "Target",
     "quarter": "Quarter target ({quarter})",
     "year": "Year target ({year})",
     "of": "{achieved} of {goal}",
     "noGoal": "No target set"
-  },
-  "teams": {
-    "title": "Teams",
-    "sub": "Each team's percent of the quarter's target · a click on a person opens their performance",
-    "team": "Team {team} · {tl}",
-    "none": "No teams"
   },
   "company": {
     "title": "Company",
@@ -108,5 +94,74 @@
     "targets": "Your target",
     "month": "Month target",
     "quarter": "Quarter target"
+  },
+  "ahmed": {
+    "loading": "Loading…",
+    "hello": "Good morning, {name}",
+    "period": "Period",
+    "periods": {
+      "today": "Today",
+      "week": "This week",
+      "month": "This month",
+      "quarter": "Quarter"
+    },
+    "updated": "Last updated {time}",
+    "strip": {
+      "visits": "Showings",
+      "meetings": "Meetings",
+      "doneDeals": "Done Deals",
+      "collected": "Money collected",
+      "leads": "New leads",
+      "units": "New units",
+      "before": "Previous: {n}"
+    },
+    "funnel": {
+      "title": "Lead stages",
+      "next": "{pct}% to the next"
+    },
+    "targets": {
+      "title": "Target",
+      "quarter": "Quarter ({quarter})",
+      "year": "Year ({year})",
+      "of": "{achieved} of {goal}",
+      "should": "Where we should be today: {amount}",
+      "perDay": "We need {amount} a day",
+      "mark": "Where we should be today",
+      "set": "Set the target"
+    },
+    "teams": {
+      "title": "Teams",
+      "team": "Team",
+      "percent": "% of the quarter target",
+      "none": "No teams"
+    },
+    "attention": {
+      "title": "Needs your attention",
+      "sla": "Leads past the SLA",
+      "approval": "Deals waiting for approval",
+      "nearClose": "Near to Close for over {days} days",
+      "installments": "Overdue installments",
+      "budget": "Expense lines over budget",
+      "units": "Units missing data"
+    },
+    "money": {
+      "title": "Money",
+      "collected": "Collected this month",
+      "expected": "Expected {amount}",
+      "receivables": "Receivables (clients account)",
+      "nextWeek": "Installments due in the next 7 days ({count})"
+    },
+    "inventory": {
+      "title": "Inventory",
+      "newWeek": "New this week",
+      "closedMonth": "Rented / sold this month"
+    },
+    "marketing": {
+      "title": "Marketing",
+      "today": "Leads today:",
+      "noLeads": "None yet",
+      "cpq": "Cost per Qualified",
+      "noCampaigns": "No campaigns"
+    }
   }
 }

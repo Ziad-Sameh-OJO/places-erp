@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import type { CompanyDashboard, DashboardLayoutView, MyDashboard, PersonPerformance } from "@places/contracts";
+import type { AhmedDashboard, CompanyDashboard, DashboardLayoutView, MyDashboard, PersonPerformance } from "@places/contracts";
 import { call, mark, session } from "./helpers.ts";
 
 const T = `DSH${Date.now().toString(36)}`;
@@ -72,4 +72,39 @@ test("14.1 · the role's dashboard: the salesperson's own lead and target", asyn
   assert.ok(d.targets); // a salesperson has his month and quarter
   const admin = await get<MyDashboard>("/dashboard/mine", ahmed);
   assert.equal(admin.targets, null); // not a salesperson
+});
+
+test("Ahmed's one page: a salesperson gets 403, a wrong period 400", async () => {
+  assert.equal((await call("/dashboard/ahmed", { cookie: sales })).status, 403);
+  assert.equal((await call("/dashboard/ahmed?period=year", { cookie: ahmed })).status, 400);
+  assert.equal((await call("/dashboard/ahmed?period=quarter&year=2026", { cookie: ahmed })).status, 400); // year and quarter together
+});
+
+test("Ahmed's one page: today's lead in the strip and the funnel, the target line, the teams, «محتاج انتباهك»", async () => {
+  const d = await get<AhmedDashboard>("/dashboard/ahmed", ahmed);
+  assert.equal(d.period, "today");
+  assert.equal(d.from, d.to);
+  assert.ok(d.strip.leads.now >= 1 && typeof d.strip.leads.before === "number");
+  assert.ok(d.strip.collected && /^\d+\.\d{2}$/.test(d.strip.collected.now));
+  assert.deepEqual(d.funnel.map((s) => s.stage), ["Fresh", "Interested", "Visit", "Meeting", "Near to Close", "Done Deal"]);
+  assert.ok(d.funnel[1]!.count >= 1);
+  assert.equal(d.funnel.at(-1)!.next, null);
+  assert.equal(typeof d.targets.quarter.expected, "string");
+  assert.ok(d.teams.length >= 4);
+  assert.ok(d.teams.every((t, i) => i === 0 || (d.teams[i - 1]!.percent ?? 0) >= (t.percent ?? 0))); // highest first
+  assert.ok(d.teams.flatMap((t) => t.members).every((p) => p.percent !== null)); // 0%, never «—»
+  assert.deepEqual(d.attention.map((a) => a.key).sort(), ["approval", "budget", "installments", "nearClose", "sla", "units"]);
+  assert.equal(d.staleDays, 14);
+  assert.ok(d.money && d.inventory && d.marketing);
+  assert.deepEqual(d.inventory.types.map((t) => t.type), ["Resale", "Income", "Primary"]);
+  assert.equal(d.inventory.sale, d.inventory.types.reduce((s, t) => s + t.count, 0));
+});
+
+test("Ahmed's one page: the period parameter (month, a picked quarter)", async () => {
+  const m = await get<AhmedDashboard>("/dashboard/ahmed?period=month", ahmed);
+  assert.equal(m.period, "month");
+  assert.equal(m.from.slice(8), "01");
+  const q = await get<AhmedDashboard>("/dashboard/ahmed?period=quarter&year=2026&quarter=1", ahmed);
+  assert.deepEqual([q.from, q.to, q.quarter, q.year], ["2026-01-01", "2026-03-31", "2026-Q1", "2026"]); // ended: the whole quarter
+  assert.equal(q.funnel.length, 6);
 });

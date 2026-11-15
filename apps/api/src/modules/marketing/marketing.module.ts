@@ -25,6 +25,6 @@ import { MarketingTodayController } from "./today.controller";
   imports: [InventoryModule, SettingsModule, KpisModule, DealsModule], // Company Profile: the deals on marketing's sheet · «تقرير المنافسين الشهري» (11.10) · the task's unit · «أنواع تاسكات التسويق» and «الـ Channels» (M-13)
   controllers: [TasksController, CampaignsController, PostsController, NewUnitsController, BroadcastsController, CompetitorsController, MarketingTodayController, CompanyProfileController],
   providers: [TasksService, TasksRepository, CampaignsService, CampaignsRepository, PostsService, BroadcastsService, CompanyProfileService, CompetitorsService],
-  exports: [TasksService],
+  exports: [TasksService, CampaignsService], // CampaignsService: the cost per Qualified on Ahmed's dashboard
 })
 export class MarketingModule {}

@@ -112,6 +112,11 @@
       "tolerance": "Closeness",
       "ofArea": "% of the area and budget"
     },
+    "staleNearClose": {
+      "title": "Stalled Near to Close",
+      "sub": "On the dashboard «Needs your attention»: a lead this long in Near to Close without a stage change",
+      "days": "days"
+    },
     "holidays": {
       "title": "Official holidays calendar",
       "sub": "From one day to another (like Eid) · on those days the SLA runs on holiday hours and they don't count as working hours",

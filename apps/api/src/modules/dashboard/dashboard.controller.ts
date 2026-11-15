@@ -1,4 +1,6 @@
-import { Controller, Get, Param } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
+import { AhmedQuery } from "@places/contracts";
+import { ZodPipe } from "../../core/http/zod.pipe";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { DashboardService } from "./dashboard.service";
@@ -21,6 +23,13 @@ export class DashboardController {
   @Requires("reports", "view")
   company(@Me() me: CurrentUser) {
     return this.dashboard.company(me);
+  }
+
+  /** Ahmed Islam's one page: `?period=today|week|month|quarter` (a quarter also `&year=&quarter=`). */
+  @Get("ahmed")
+  @Requires("reports", "view")
+  ahmed(@Me() me: CurrentUser, @Query(new ZodPipe(AhmedQuery)) q: AhmedQuery) {
+    return this.dashboard.ahmed(me, q);
   }
 
   @Get("mine")
