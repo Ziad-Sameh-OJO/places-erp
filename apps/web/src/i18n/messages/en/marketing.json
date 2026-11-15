@@ -190,20 +190,27 @@
       "inPeriod": "In this period",
       "rate": "{rate}% qualification rate",
       "spent": "Campaign spend",
-      "campaigns": "{count, plural, one {# campaign} other {# campaigns}}",
-      "costPerQualified": "Cost per Qualified",
-      "perLead": "per lead"
+      "campaigns": "{count, plural, one {# campaign} other {# campaigns}}"
+    },
+    "cost": {
+      "label": "Cost",
+      "lead": "Cost per lead (CPL)",
+      "qualified": "Cost per Qualified (CPQ)",
+      "deal": "Cost per transaction",
+      "per": { "lead": "per lead", "qualified": "per Qualified lead" },
+      "deals": "{count} deals · counted in the month their lead came in"
     },
     "tree": { "title": "Channels → Campaigns", "sub": "Each channel's total, with its campaigns under it" },
     "leads": "{count, plural, one {# lead} other {# leads}}",
-    "rateCost": "{rate}% · {cost}/lead",
+    "rateCost": { "lead": "{rate}% · {cost}/lead", "qualified": "{rate}% · {cost}/Qualified", "deal": "{rate}% · {cost}/deal" },
     "noCampaign": "No campaign",
     "empty": "No leads in this period",
     "byChannel": "Leads by channel",
     "lead": "leads",
     "posts": "Posts that brought leads",
     "noPosts": "No leads linked to a post in this period",
-    "competitors": { "title": "Monthly competitors report", "sub": "What they're putting out + analysis · due on day {day}", "done": "Handed in this month", "waiting": "Waiting for day {day}", "none": "None", "name": "File name / link", "submit": "Hand in this month's report", "handed": "Handed in" },
+    "competitors": { "title": "Monthly competitors report", "sub": "What they're putting out + analysis · due on day {day}", "done": "Handed in this month", "waiting": "Waiting for day {day}", "none": "None", "name": "File name / link", "submit": "Hand in this month's report", "handed": "Handed in",
+      "rows": { "title": "Competitors", "month": "Month", "name": "Competitor", "note": "What they put out / analysis", "strength": "Strong or not", "strong": "Strong", "weak": "Not strong", "unrated": "Not rated yet", "empty": "No competitors added for this month", "add": "Add competitor", "added": "Added", "rated": "Rating saved", "remove": "Remove", "removed": "Removed" } },
     "notQualified": {
       "title": "Leads that weren't Qualified",
       "sub": "The reason = the action sales took on the lead + its latest comment, and who wrote it",
