@@ -70,9 +70,12 @@ export function AttendanceToday() {
       </div>}
       <div className="toolbar">
         <ExportButton module="hr" path="/hr/attendance/export" query={new URLSearchParams(q ? { day, q } : { day })} filename={t("attendance.exportFile", { day })} label={t("attendance.export")} />
-        <button className="btn ghost sm" onClick={() => setDay(shift(day, -1))} aria-label={t("attendance.prevDay")}>‹</button>
-        <label className="date-f"><span>{t("common.day")}</span><input type="date" value={day} max={today()} onChange={(e) => e.target.value && setDay(e.target.value)} /></label>
-        <button className="btn ghost sm" onClick={() => setDay(shift(day, 1))} disabled={day >= today()} aria-label={t("attendance.nextDay")}>›</button>
+        {/* ‹ day › stay together, also on a phone */}
+        <div className="day-step">
+          <button className="btn ghost sm" onClick={() => setDay(shift(day, -1))} aria-label={t("attendance.prevDay")}>‹</button>
+          <label className="date-f"><span>{t("common.day")}</span><input type="date" value={day} max={today()} onChange={(e) => e.target.value && setDay(e.target.value)} /></label>
+          <button className="btn ghost sm" onClick={() => setDay(shift(day, 1))} disabled={day >= today()} aria-label={t("attendance.nextDay")}>›</button>
+        </div>
         <label className="search"><Icon name="search" /><input type="search" placeholder={t("attendance.searchName")} value={q} onChange={(e) => setQ(e.target.value)} /></label>
         <span className="spacer" />
         {can("hr", "import") && <button className="btn" onClick={() => setUpload(true)}><Icon name="upload" />{t("attendance.uploadSheet")}</button>}

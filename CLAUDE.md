@@ -18,7 +18,7 @@ Requirements win over the demo when they disagree; say so in the PR.
 | `packages/domain` | All business rules: pure TS, no framework, no I/O, fully unit-tested |
 | `packages/db` | Prisma schema (one Postgres schema per area), migrations, seed (real people from `prisma/seed-data`) |
 | `packages/contracts` | Zod schemas shared by API (validation) and web (types/forms) |
-| `packages/ui` | The demo's CSS (`app.css`, `mobile.css`, `theme.css` = design-2) and icons |
+| `packages/ui` | The demo's CSS (`app.css`, `mobile.css`) + `modern.css` (the client-approved look) and icons |
 | `apps/api` | NestJS. `core/` = auth, authz, audit, notifications, mail, business-time. `modules/<name>` = one per requirement module |
 | `apps/web` | Next.js App Router. `features/<module>` + thin pages in `app/(app)/<module>`; shared UI in `components/ui.tsx` |
 | `apps/worker` | BullMQ jobs (SLA pulls, rotations, reminders) |

@@ -2,7 +2,7 @@
 /**
  * Bigger building blocks from the demo (demo/design-2/js/ui.js), with the demo's class names so packages/ui CSS styles
  * them as-is: Drawer (a bottom sheet on phones via mobile.css), Stepper, Kanban (drag a card to another lane),
- * KpiTile (with the decorative spark line) and Fab (the floating «جديد» on phones).
+ * KpiTile and Fab (the floating «جديد» on phones).
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -115,21 +115,6 @@ export function Kanban<T>({ lanes, card, itemKey, cardClass, className = "", onM
   );
 }
 
-/** Same stable decorative line as the demo (seeded by the label, so it doesn't jump between renders). */
-function Spark({ seed, tone }: { seed: string; tone?: string | undefined }) {
-  let h = 0;
-  for (const c of seed) h = (h * 33 + c.charCodeAt(0)) >>> 0;
-  const pts = Array.from({ length: 9 }, (_, i) => { h = (h * 1103515245 + 12345) >>> 0; return [i * 10.5, 26 - (5 + (h % 13) + i * 0.9)] as const; });
-  const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
-  const col = tone === "bad" ? "var(--bad)" : tone === "warn" ? "var(--warn)" : tone === "ok" ? "var(--ok)" : "var(--accent)";
-  return (
-    <svg className="spark" viewBox="0 0 84 28" aria-hidden="true">
-      <path d={`${d} L84 28 L0 28 Z`} fill={col} opacity=".12" />
-      <path d={d} fill="none" stroke={col} strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 /** A headline number. `delta` is the % change vs the previous period; with onClick the tile is a button. */
 export function KpiTile({ label, value, sub, icon, tone, delta, onClick }: {
   label: string; value: ReactNode; sub?: string; icon?: IconName; tone?: "ok" | "warn" | "bad"; delta?: number | null; onClick?: () => void;
@@ -145,7 +130,7 @@ export function KpiTile({ label, value, sub, icon, tone, delta, onClick }: {
         )}
       </div>
       {sub && <small>{sub}</small>}
-      <Spark seed={label} tone={tone} />
+      
     </>
   );
   return onClick

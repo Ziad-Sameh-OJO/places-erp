@@ -117,7 +117,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        {/* keyed by page so theme.css replays its «drawing» entrance on every navigation, as in the demo */}
+        {/* keyed by page so modern.css replays its soft entrance on every navigation */}
         <main id="view" key={path} className="view enter" tabIndex={-1}>{children}</main>
       </div>
 
