@@ -17,6 +17,16 @@ import { type Scope, useBoard, useCompany, useKpiLog, useRefreshKpis } from "./u
 type Tab = Scope | "log" | "daily" | "ideal";
 const barTone = (t: string) => (t === "ok" ? "" : t);
 export const Bar = ({ pct, tone }: { pct: number; tone: string }) => <div className={`bar ${barTone(tone)}`}><i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} /></div>;
+/** HR 15 Nov · «الربع» / «الشهر»: which progress a card shows (the API sends both). */
+export type Period = "quarter" | "month";
+export function PeriodSwitch({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
+  const t = useTranslations("kpis.period");
+  return (
+    <div className="seg" role="group" aria-label={t("label")}>
+      {(["quarter", "month"] as const).map((p) => <button key={p} aria-pressed={value === p} onClick={() => onChange(p)}>{t(p)}</button>)}
+    </div>
+  );
+}
 export const moneyChip = (v: string | null) => (v && Number(v) ? <Chip tone={Number(v) > 0 ? "ok" : "bad"} plain>{Number(v) > 0 ? "+" : "−"}{money(v.replace("-", ""))}</Chip> : null);
 
 /** M-12 · مؤشرات الأداء (demo kpis.js): كارتي · فريقي · كل الشركة · التقارير والتغييرات. */
@@ -60,29 +70,33 @@ function Board({ scope, note }: { scope: "team" | "all" | "mine"; note?: ReactNo
   const q = useBoard(scope);
   const [open, setOpen] = useState<string | null>(null);
   const [sort, setSort] = useState<"low" | "high">("low");
+  const [period, setPeriod] = useState<Period>("quarter");
   const score = useFields("kpis").shows("score");
   if (!q.data) return <Empty text={t("common.loading")} />;
   const { cards, quarter } = q.data;
-  const list = sort === "low" ? cards : [...cards].reverse();
-  const avg = cards.length ? cards.reduce((s, c) => s + c.score, 0) / cards.length : 0;
+  const shown = (c: KpiCardSummary) => (period === "month" ? c.month : c);
+  const sorted = period === "month" ? [...cards].sort((x, y) => x.month.score - y.month.score) : cards;
+  const list = sort === "low" ? sorted : [...sorted].reverse();
+  const avg = cards.length ? cards.reduce((s, c) => s + shown(c).score, 0) / cards.length : 0;
   const approved = cards.filter((c) => c.approved).length;
   return (
     <>
       <Note>{note ?? t.rich("board.note", { b: (x) => <b>{x}</b> })}</Note>
       <div className="kpis sm">
         <KpiTile label={t("board.cards")} value={cards.length} sub={scope === "all" ? t("tabs.all") : t("board.yourTeam")} icon="users" />
-        {score && <KpiTile label={t("board.average")} value={`${Math.round(avg)}%`} sub={serverText(quarter.label)} icon="chart" />}
+        {score && <KpiTile label={t("board.average")} value={`${Math.round(avg)}%`} sub={period === "month" ? t("period.month") : serverText(quarter.label)} icon="chart" />}
         <KpiTile label={t("common.approved")} value={t("board.approvedOf", { n: approved, total: cards.length })} sub={t("board.byFollower")} icon="check" tone={approved === cards.length ? "ok" : "warn"} />
         <KpiTile label={t("board.quarter")} value={quarter.status === "open" ? t("board.open") : t("board.closed")} sub={quarter.status === "open" ? t("board.updating") : t("board.saved")} icon="clock" />
       </div>
       <div className="toolbar">
+        <PeriodSwitch value={period} onChange={setPeriod} />
         <div className="seg" role="group" aria-label={t("board.sort")}>
           <button aria-pressed={sort === "low"} onClick={() => setSort("low")}>{t("board.lowFirst")}</button>
           <button aria-pressed={sort === "high"} onClick={() => setSort("high")}>{t("board.highFirst")}</button>
         </div>
       </div>
       <div className="kpi-cards">
-        {list.map((c) => <CardTile key={c.id} c={c} onOpen={() => setOpen(c.id)} />)}
+        {list.map((c) => <CardTile key={c.id} c={c} period={period} onOpen={() => setOpen(c.id)} />)}
         {!list.length && <Empty text={t("board.empty")} icon="chart" />}
       </div>
       {q.data.missing.length > 0 && (
@@ -109,13 +123,14 @@ export function InventoryKpis({ onBack }: { onBack: () => void }) {
   );
 }
 
-function CardTile({ c, onOpen }: { c: KpiCardSummary; onOpen: () => void }) {
+function CardTile({ c, period, onOpen }: { c: KpiCardSummary; period: Period; onOpen: () => void }) {
   const t = useTranslations("kpis");
   const score = useFields("kpis").shows("score"); // M-09: a hidden result isn't shown (the API blanks it)
+  const s = period === "month" ? c.month : c;
   return (
     <button className="kpi-card" onClick={onOpen}>
-      <span className="row"><Avatar id={c.employeeId} name={c.name} /><span className="kc-who"><b>{c.name}</b><small>{serverText(c.title)} · {t("followedBy", { name: c.follower })}</small></span>{score && <b className={`num kc-score ${c.tone}`}>{Math.round(c.score)}%</b>}</span>
-      {score && <Bar pct={c.score} tone={c.tone} />}
+      <span className="row"><Avatar id={c.employeeId} name={c.name} /><span className="kc-who"><b>{c.name}</b><small>{serverText(c.title)} · {t("followedBy", { name: c.follower })}</small></span>{score && <b className={`num kc-score ${s.tone}`}>{Math.round(s.score)}%</b>}</span>
+      {score && <Bar pct={s.score} tone={s.tone} />}
       <span className="row">
         {score && <Chip tone={c.tone} plain>{serverText(c.tier)}</Chip>}{moneyChip(c.money)}
         {c.below > 0 && <Chip tone="warn" plain>{t("board.below", { count: c.below })}</Chip>}

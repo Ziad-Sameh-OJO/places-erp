@@ -48,3 +48,5 @@ export * from "./telesales-sent.ts";
 export * from "./lead-tags.ts";
 export * from "./table-sort.ts";
 export * from "./kpi-today.ts";
+export * from "./career.ts";
+export * from "./employee-file.ts";
