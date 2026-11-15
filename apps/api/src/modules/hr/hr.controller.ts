@@ -190,6 +190,13 @@ export class HrController {
     return this.attendance.ideal(me, q.month);
   }
 
+  /* ---- «الموظف المثالي» by KPIs (HR, 15/11) ---- */
+  @Get("ideal-kpi")
+  @Requires("hr", "view")
+  idealKpi(@Me() me: CurrentUser) {
+    return this.attendance.idealKpi(me);
+  }
+
   /** HR only (hr: edit + approve, scope all): the Super Admin and a Team Leader can't. */
   @Post("deductions/approve")
   @Requires("hr", "edit")

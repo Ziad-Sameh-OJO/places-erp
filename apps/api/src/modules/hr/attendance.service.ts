@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Prisma, type PrismaClient, clockOn, dayVisits } from "@places/db";
-import type { AttendanceDayView, AttendanceEntry, AttendanceExport, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView, IdealView } from "@places/contracts";
-import { attendanceDay, dayStart, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, type MemberMonth } from "@places/domain";
+import type { AttendanceDayView, AttendanceEntry, AttendanceExport, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView, IdealView, IdealKpiView } from "@places/contracts";
+import { attendanceDay, dayStart, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, rankByKpi, type MemberMonth } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -260,6 +260,27 @@ export class AttendanceService {
       };
     });
     return { month, teams: out.sort((a, b) => a.name.localeCompare(b.name, "ar")) };
+  }
+
+  /**
+   * «الموظف المثالي» by KPIs (HR, 15/11): every salesperson and every Team Leader in my scope with this quarter's total KPI
+   * score; rankByKpi() orders them and marks the highest of each group. The attendance-based teams stay in ideal() («Employee Box»).
+   */
+  async idealKpi(me: CurrentUser): Promise<IdealKpiView> {
+    const [emps, cards, quarter] = await Promise.all([
+      this.db.employee.findMany({
+        where: { AND: [this.scope(me), { user: { status: "ACTIVE", roles: { some: { role: { key: { in: ["sales", "tl"] } } } } } }] },
+        select: { id: true, name: true, teamLeader: { select: { name: true } }, user: { select: { roles: { select: { role: { select: { key: true } } } } } } },
+      }),
+      this.kpis.liveCards(),
+      this.kpis.currentQuarterId(),
+    ]);
+    const score = new Map(cards.map((c) => [c.employeeId, c.score]));
+    type Emp = (typeof emps)[number];
+    const keys = (e: Emp) => new Set(e.user?.roles.map((r) => r.role.key) ?? []);
+    const row = (e: Emp) => ({ employeeId: e.id, name: e.name, team: e.teamLeader?.name ?? null, score: score.has(e.id) ? Math.round(score.get(e.id)! * 10) / 10 : null });
+    const group = (pick: (k: Set<string>) => boolean) => rankByKpi(emps.filter((e) => pick(keys(e))).map(row).sort((a, b) => a.name.localeCompare(b.name, "ar"))).rows.slice();
+    return { quarter, sales: group((k) => k.has("sales") && !k.has("tl")), teamLeaders: group((k) => k.has("tl")) };
   }
 
   /** «اعتمد الخصومات وابعتها للمالية» (7.9, M-05 (32)): once a month, by HR; payroll reads these numbers from then on. */

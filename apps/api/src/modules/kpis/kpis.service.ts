@@ -577,6 +577,11 @@ export class KpisService {
     return q ? (await this.repo.cards({ quarter: q.id })).map((c) => ({ employeeId: c.employeeId, followerId: c.followerId, score: this.score(c) })) : [];
   }
 
+  /** The open quarter («2026-Q4»), or null before the first one. */
+  async currentQuarterId(): Promise<string | null> {
+    return (await this.repo.currentQuarter())?.id ?? null;
+  }
+
   /** 11.7: the sheet of a closed quarter, before the Office Manager's approval only for the KPI admins. */
   private canSheet(w: Who, q: Quarter) {
     return q.status === "closed" && !w.noMoney && !w.noScore && !w.noPlan && (!!q.sheetsAt || w.approve || w.edit);

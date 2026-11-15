@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { egp } from "../src/money.ts";
 import { attendanceDay } from "../src/attendance.ts";
 import { achievement, cardScore, payoutDelta, bandOf } from "../src/kpi.ts";
-import { idealEmployee } from "../src/ideal-employee.ts";
+import { idealEmployee, rankByKpi } from "../src/ideal-employee.ts";
 import { canSendReset, effectiveGrants, gateReports, isReportsHead } from "../src/permissions.ts";
 
 test("attendance tiers from the requirements (work starts 11:00)", () => {
@@ -150,4 +150,11 @@ test("11.20 · «التقارير والتارجت»: the heads only, whatever t
   assert.equal(gateReports(om, ["officemgr"], false).can("reports", "approve"), true);
   assert.equal(isReportsHead(["sales", "admin"]), true);
   assert.equal(isReportsHead(["accountant"]), false);
+});
+
+test("ideal employee by KPIs: highest score first and ideal, ties share the rank, no card last and never ideal", () => {
+  const r = rankByKpi([{ id: "a", score: 82 }, { id: "b", score: 96.5 }, { id: "c", score: null }, { id: "d", score: 96.5 }, { id: "e", score: 70 }]).rows;
+  assert.deepEqual(r.map((x) => [x.id, x.rank, x.ideal]), [["b", 1, true], ["d", 1, true], ["a", 3, false], ["e", 4, false], ["c", null, false]]);
+  assert.deepEqual(rankByKpi([{ id: "a", score: 0 }]).rows.map((x) => x.ideal), [false]); // nobody scored yet
+  assert.deepEqual(rankByKpi([]).rows, []);
 });
