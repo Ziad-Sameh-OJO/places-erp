@@ -1228,6 +1228,21 @@ model CampaignPage {
   @@schema("marketing")
 }
 
+/// 14.14 · the monthly competitors report: one competitor per month, what they put out, and the marketing manager's
+/// «قوي / مش قوي» (null = not rated yet).
+model Competitor {
+  id          String   @id @default(cuid())
+  month       String   // "YYYY-MM"
+  name        String
+  note        String?
+  strong      Boolean?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([month, name])
+  @@schema("marketing")
+}
+
 /// M-04 2.1 step 7: Rahma's Broadcast message (picture + text + logo, with the Hot Inventory units), sent to sales as a task.
 model Broadcast {
   id          String          @id @default(cuid())

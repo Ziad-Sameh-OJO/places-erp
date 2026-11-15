@@ -24,6 +24,7 @@ export * from "./not-active.ts";
 export * from "./imports.ts";
 // one file per module as it is built: deals.ts, inventory.ts, hr.ts, kpis.ts …
 export * from "./campaigns.ts";
+export * from "./competitors.ts";
 export * from "./posts.ts";
 export * from "./broadcasts.ts";
 export * from "./company-profile.ts";
