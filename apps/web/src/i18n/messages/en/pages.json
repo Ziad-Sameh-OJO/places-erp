@@ -137,7 +137,9 @@
         "sub": "Decide for each: present, absent or Off",
         "button": "Attendance"
       }
-    }
+    },
+    "lateOnlySub": "Late only",
+    "showAll": "Show all"
   },
   "profile": {
     "mobile": "Mobile",

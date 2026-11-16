@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { inboxOrder, keepsCompaniesSheet, keepsInventory } from "@places/domain";
 import { useMe } from "@/lib/me";
 import { NAV, type NavKey } from "@/lib/nav";
@@ -14,6 +15,7 @@ import { CompanyProfileLink } from "@/features/marketing/company-profile";
 import { UpcomingFunDays } from "@/features/fun-days/fun-days";
 import { Inbox, type InboxLine } from "@/components/inbox";
 import { openSearch } from "@/components/command-palette";
+import { openBellPanel } from "@/components/bell";
 import { useBulkLines, useLeadToday, useNewCompanyLines } from "@/features/leads/today";
 import { LatestNotifications, useMyNotifications } from "@/features/notifications/latest";
 import { MyTeamTasks } from "@/features/inventory/team-tasks";
@@ -43,14 +45,19 @@ export default function HomePage() {
     hr: !!me && can("hr"), marketing: !!me && can("marketing"), deals: !!me && (can("deals") || can("inventory", "approve")),
   });
   const unread = useMyNotifications().data?.unread ?? 0;
+  const [lateOnly, setLateOnly] = useState(false); // the hero's «متأخر» tile shows only the late lines
   if (!me) return <p className="hint">{t("loading")}</p>;
   const lines: InboxLine[] = inboxOrder([...(leads.data ?? []), ...bulks, ...companies, ...missingUnits, ...collect, ...kpis, ...others]); // each module's lines, the late first
   const urgent = lines.filter((x) => x.tone === "bad").length;
   const pages = (Object.keys(NAV) as NavKey[]).filter((k) => k !== "home" && opens(k));
+  // a hero tile takes you to the list it counts (client, 16 Nov)
+  const goToday = (late: boolean) => { setLateOnly(late); document.getElementById("today")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const shown = lateOnly ? lines.filter((x) => x.tone === "bad") : lines;
 
   return (
     <>
-      <Hero name={me.name} total={lines.length} urgent={urgent} unread={unread} canCreateLead={can("leads", "create")} />
+      <Hero name={me.name} total={lines.length} urgent={urgent} unread={unread} canCreateLead={can("leads", "create")}
+        onToday={() => goToday(false)} onLate={() => goToday(true)} />
       <MyHandIns />
       <HandoversCard />
       <MyBroadcasts />
@@ -59,9 +66,13 @@ export default function HomePage() {
       <ActivitiesCard />
       <MyTeamTasks />
       <div className="cols wide">
-        <Card title={t("home.todayTitle")} icon="check" sub={t("home.todaySub")} extra={<Chip tone={urgent ? "bad" : "ok"}>{urgent ? t("home.late", { count: urgent }) : t("home.onTime")}</Chip>}>
-          {leads.isLoading ? <p className="hint">{t("loading")}</p> : <Inbox lines={lines} />}
-        </Card>
+        <div id="today" className="anchor">
+          <Card title={t("home.todayTitle")} icon="check" sub={t(lateOnly ? "home.lateOnlySub" : "home.todaySub")} extra={
+            lateOnly ? <button className="btn ghost sm" onClick={() => setLateOnly(false)}><Icon name="x" />{t("home.showAll")}</button>
+              : <Chip tone={urgent ? "bad" : "ok"}>{urgent ? t("home.late", { count: urgent }) : t("home.onTime")}</Chip>}>
+            {leads.isLoading ? <p className="hint">{t("loading")}</p> : <Inbox lines={shown} />}
+          </Card>
+        </div>
         <Card title={t("home.latestNotifications")} icon="bell"><LatestNotifications /></Card>
       </div>
       {!can("leads") && pages.length > 0 && <div className="cols">
@@ -76,7 +87,9 @@ export default function HomePage() {
 }
 
 /** The demo's hero: the date, the greeting, how many things wait (and how many are late), the new notifications. */
-function Hero({ name, total, urgent, unread, canCreateLead }: { name: string; total: number; urgent: number; unread: number; canCreateLead: boolean }) {
+function Hero({ name, total, urgent, unread, canCreateLead, onToday, onLate }: {
+  name: string; total: number; urgent: number; unread: number; canCreateLead: boolean; onToday: () => void; onLate: () => void;
+}) {
   const t = useTranslations("pages.home");
   const now = new Date();
   const hour = Number(now.toLocaleString("en-US", { timeZone: "Africa/Cairo", hour: "numeric", hourCycle: "h23" }));
@@ -93,9 +106,9 @@ function Hero({ name, total, urgent, unread, canCreateLead }: { name: string; to
         </div>
       </div>
       <div className="hero-stats">
-        <div><b className="num">{total}</b><span>{t("statToday")}</span></div>
-        <div><b className="num">{urgent}</b><span>{t("statLate")}</span></div>
-        <div><b className="num">{unread}</b><span>{t("statUnread")}</span></div>
+        <button type="button" onClick={onToday}><b className="num">{total}</b><span>{t("statToday")}</span></button>
+        <button type="button" className={urgent ? "bad" : ""} onClick={onLate}><b className="num">{urgent}</b><span>{t("statLate")}</span></button>
+        <button type="button" onClick={openBellPanel}><b className="num">{unread}</b><span>{t("statUnread")}</span></button>
       </div>
     </section>
   );

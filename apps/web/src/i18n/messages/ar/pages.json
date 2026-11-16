@@ -137,7 +137,9 @@
         "sub": "قرّر لكل واحد: حضور أو غياب أو Off",
         "button": "Attendance"
       }
-    }
+    },
+    "lateOnlySub": "المتأخر بس",
+    "showAll": "اعرض الكل"
   },
   "profile": {
     "mobile": "الموبايل",
