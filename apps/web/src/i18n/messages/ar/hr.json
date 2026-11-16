@@ -275,8 +275,8 @@
       "thu": "خميس",
       "fri": "جمعة"
     },
-    "balancesFile": "أرصدة الإجازات {month}.xlsx",
-    "balanceHead": "{type} (الشهر ده / الباقي من)",
+    "balancesFile": "أرصدة الإجازات {from} - {to}.xlsx",
+    "balanceHead": "{type} (الفترة دي / الباقي من)",
     "balanceCell": "{month} / {left} من {total}"
   },
   "care": {

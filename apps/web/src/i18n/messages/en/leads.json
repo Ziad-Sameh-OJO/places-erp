@@ -563,5 +563,10 @@
       "save": "Save as recommendation ({n})",
       "saved": "The recommendation was saved on the lead"
     }
+  },
+  "stageDash": {
+    "title": "Stages",
+    "pct": "{pct}% of leads",
+    "open": "Show {stage} leads"
   }
 }

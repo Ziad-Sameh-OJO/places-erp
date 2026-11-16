@@ -58,6 +58,10 @@ export function Shell({ children }: { children: ReactNode }) {
   // 0.14: only pages and records this person may still open
   const favs = quick.favs.filter((k): k is NavKey => k in NAV && opens(k));
   const recent = quick.recent.filter((r) => can(RECENT[r.kind].module));
+  // «فتحتها مؤخراً» folds on a click (16 Nov), closed by default; the choice stays for this browser
+  const [recentOpen, setRecentOpen] = useState(false);
+  useEffect(() => { try { setRecentOpen(localStorage.getItem("places.recentOpen") === "1"); } catch { /* private mode: stays closed */ } }, []);
+  const flipRecent = () => setRecentOpen((o) => { try { localStorage.setItem("places.recentOpen", o ? "0" : "1"); } catch { /* not kept */ } return !o; });
   const starred = current in NAV && quick.favs.includes(current);
   const star = () => { if (me) toast(toggleFav(me.id, current) ? t("favAdded") : t("favRemoved")); };
 
@@ -68,9 +72,9 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="side-quick">
           {favs.length > 0 && <><div className="nav-sec"><Icon name="star" />{t("favs")}</div>
             {favs.map((k) => <Link key={k} className="q-item" href={k === "home" ? "/" : `/${k}`}><Icon name={NAV[k].icon} /><span className="lbl">{label(k)}</span></Link>)}</>}
-          {recent.length > 0 && <><div className="nav-sec"><Icon name="clock" />{t("recent")}</div>
+          {recent.length > 0 && <><button type="button" className="nav-sec nav-toggle" aria-expanded={recentOpen} onClick={flipRecent}><Icon name="clock" />{t("recent")}<span className="caret" aria-hidden /></button>
             {/* a plain link: a full load, so the page reads «?open=» again even when it's the page already on screen */}
-            {recent.map((r) => <a key={`${r.kind}:${r.id}`} className="q-item" href={RECENT[r.kind].href(r.id)}><Icon name={RECENT[r.kind].icon} /><span className="lbl">{r.label}</span><small className="tag">{t(`recentKind.${r.kind}`)}</small></a>)}</>}
+            {recentOpen && recent.map((r) => <a key={`${r.kind}:${r.id}`} className="q-item" href={RECENT[r.kind].href(r.id)}><Icon name={RECENT[r.kind].icon} /><span className="lbl">{r.label}</span><small className="tag">{t(`recentKind.${r.kind}`)}</small></a>)}</>}
         </div>
         <nav id="nav" aria-label={t("sections")}>
           {keys.map((k) => {

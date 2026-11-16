@@ -1,12 +1,14 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Prisma, type PrismaClient, onLeave } from "@places/db";
-import type { LeaveAsk, LeaveBalance, LeaveBalancesView, LeaveCalendarView, LeaveStatusKey, LeaveView, MyLeaves } from "@places/contracts";
+import type { BalancesQuery, LeaveAsk, LeaveBalance, LeaveBalancesView, LeaveCalendarView, LeaveStatusKey, LeaveView, MyLeaves } from "@places/contracts";
 import { afterReturn, daysWithin, isOutsideRequest, leaveDays, leaveProblem, localDate, OUTSIDE_REQUESTS } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { Tx } from "./hr.repository";
+
+const ANNUAL = "سنوية";
 
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 const STATUS: Record<LeaveStatusKey, string> = { PENDING_TL: "مستني الـ Team Leader", APPROVED_BY_TL: "الـ TL وافق · مستني الـ HR", REJECTED: "اترفض", CLOSED_BY_HR: "اتسجّلت" };
@@ -147,20 +149,24 @@ export class LeavesService {
     return { month, byDay, today: now };
   }
 
-  /** 7.6 · the month's balances report: per person and type — total, used this year, taken this month, left. */
-  async balancesReport(me: CurrentUser, month = localDate(new Date()).slice(0, 7)): Promise<LeaveBalancesView> {
+  /** 7.6 · the balances report, between two dates (the month by default). Only the annual leave: the client
+   *  dropped «عارضة» and «مرضية» from this report (16 Nov) — they're still requested and counted elsewhere. */
+  async balancesReport(me: CurrentUser, q: BalancesQuery = {}): Promise<LeaveBalancesView> {
     const scope = me.grants.scope === "all" ? {} : me.grants.scope === "team" ? { id: { in: me.teamIds } } : me.grants.scope === "dept" && me.department ? { department: me.department } : { userId: me.id };
-    const start = `${month}-01`, end = iso(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)));
-    const [emps, types, inMonth] = await Promise.all([
+    // a missing end takes the month of the other one; nothing at all = the month (or this month)
+    const month = q.month ?? (q.from ?? q.to ?? localDate(new Date())).slice(0, 7);
+    const monthEnd = (m: string) => iso(new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)));
+    const start = q.from ?? (q.to ? `${q.to.slice(0, 7)}-01` : `${month}-01`), end = q.to ?? monthEnd(start.slice(0, 7));
+    const [emps, inPeriod] = await Promise.all([
       this.db.employee.findMany({ where: { AND: [scope, { user: { status: "ACTIVE" } }] }, select: { id: true, name: true, department: true, leaveBalance: true }, orderBy: { name: "asc" } }),
-      this.types(), this.onLeave(start, end, me),
+      this.onLeave(start, end, me),
     ]);
     const rows = await Promise.all(emps.map(async (e) => {
-      const b = await this.balances(e, month.slice(0, 4));
+      const b = (await this.balances(e, end.slice(0, 4))).filter((x) => x.type === ANNUAL);
       return { employeeId: e.id, name: e.name, department: e.department, byType: Object.fromEntries(b.map((x) => [x.type, { total: x.total, used: x.used, left: x.left,
-        month: inMonth.filter((r) => r.employeeId === e.id && r.type === x.type).reduce((s, r) => s + daysWithin(iso(r.fromDay), iso(r.toDay), start, end), 0) }])) };
+        month: inPeriod.filter((r) => r.employeeId === e.id && r.type === x.type).reduce((s, r) => s + daysWithin(iso(r.fromDay), iso(r.toDay), start, end), 0) }])) };
     }));
-    return { month, types: types.map((t) => t.name), rows };
+    return { month, from: start, to: end, types: [ANNUAL], rows };
   }
 
   /** Approved leave days (used by attendance: a person on leave isn't «مبصمش»). */

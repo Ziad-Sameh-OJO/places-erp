@@ -119,8 +119,13 @@ export interface LeaveView {
 export interface LeaveBalance { type: string; total: number; used: number; left: number }
 export interface MyLeaves { items: LeaveView[]; balances: LeaveBalance[]; types: { name: string; afterReturn: boolean }[] }
 export interface LeaveCalendarView { month: string; byDay: Record<string, { name: string; type: string }[]>; today: { employeeId: string; name: string; type: string; to: string }[] }
-export interface LeaveBalancesView { month: string; types: string[]; rows: { employeeId: string; name: string; department: string; byType: Record<string, { total: number; used: number; month: number; left: number }> }[] }
+export interface LeaveBalancesView { month: string; /** the period the «الفترة دي» column counts (default: the month) */ from: string; to: string; types: string[]; rows: { employeeId: string; name: string; department: string; byType: Record<string, { total: number; used: number; month: number; left: number }> }[] }
 export const MonthQuery = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/, "الشهر بالشكل 2026-11").optional() });
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "التاريخ بالشكل 2026-11-15");
+/** «أرصدة الإجازات»: filtered by dates (from–to), falling back to a month, then this month */
+export const BalancesQuery = MonthQuery.extend({ from: isoDay.optional(), to: isoDay.optional() })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, { message: "«من» لازم تكون قبل «لحد»", path: ["to"] });
+export type BalancesQuery = z.infer<typeof BalancesQuery>;
 
 /* ---- 7.9 · «التوفير»: the month's deductions HR approves for payroll ---- */
 export interface DeductionRowView { employeeId: string; name: string; salary: string; attendanceDays: number; penaltyDays: number; lateMinutes: number; /** 11.6: a closed quarter's KPI reward (+) or deduction (−), already inside `amount` */ kpi: string; amount: string; net: string }

@@ -12,7 +12,7 @@ import type { LeadQuery } from "./filters";
 import { toParams, useSavedViews } from "./filters";
 import { BulkBar } from "./bulk-bar";
 import { useDuration } from "./lead-bits";
-import { LeadKpis, LeadsToolbar, ViewsBar } from "./leads-toolbar";
+import { LeadKpis, StageDashboard, LeadsToolbar, ViewsBar } from "./leads-toolbar";
 import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
 import { LeadDrawer } from "./lead-drawer";
@@ -136,6 +136,7 @@ export function LeadsList() {
       )}
       <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
+      {s && <StageDashboard s={s} f={f} onPick={filter} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />
       <div className="row">
         <div className="seg" role="group">
