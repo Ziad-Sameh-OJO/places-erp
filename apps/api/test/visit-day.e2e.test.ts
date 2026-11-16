@@ -140,7 +140,9 @@ test("1.23 · today's rotation: the fingerprint / Visit decides, by hand for tod
   assert.equal((await call("/leads/rotation", { method: "PUT", cookie: ops, body: { ids: [x.id, y.id] } })).status, 403);
   // y fingerprinted, x didn't yet → y first
   await prisma.attendanceDay.create({ data: { employeeId: y.id, day: asDay(TODAY), checkInAt: at(TODAY, "10:30"), source: "sheet" } });
-  const view = (await call("/leads/rotation", { cookie: admin })).body;
+  const res = await call("/leads/rotation", { cookie: admin });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const view = res.body;
   const mine = (v: { people: { id: string }[] }) => v.people.map((p) => p.id).filter((id) => id === x.id || id === y.id);
   assert.deepEqual(mine(view), [y.id, x.id]);
   assert.equal(view.people.find((p: { id: string }) => p.id === y.id).start, "10:30");

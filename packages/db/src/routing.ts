@@ -27,8 +27,13 @@ export async function dayVisits(db: Db, ids: readonly string[], day: string): Pr
   const rows = await db.leadVisit.findMany({ where: { kind: "visit", at: { gte: from, lt: dayStart(nextDay(day)) }, lead: { assignedToId: { in: [...ids] } } },
     select: { at: true, outcome: true, postponeStatus: true, lead: { select: { assignedToId: true } } } });
   const out = new Map<string, DayVisit[]>();
-  for (const v of rows) out.set(v.lead.assignedToId!, [...(out.get(v.lead.assignedToId!) ?? []),
-    { at: clockOn(v.at, day)!, outcome: v.outcome === "done" || v.outcome === "not_done" ? v.outcome : null, postponed: v.postponeStatus === "approved" }]);
+  for (const v of rows) {
+    // the lead is read in a second query: one deleted (or moved) in between comes back null (a 500 on the rotation page)
+    const owner = (v.lead as { assignedToId: string | null } | null)?.assignedToId;
+    if (!owner) continue;
+    out.set(owner, [...(out.get(owner) ?? []),
+      { at: clockOn(v.at, day)!, outcome: v.outcome === "done" || v.outcome === "not_done" ? v.outcome : null, postponed: v.postponeStatus === "approved" }]);
+  }
   return out;
 }
 

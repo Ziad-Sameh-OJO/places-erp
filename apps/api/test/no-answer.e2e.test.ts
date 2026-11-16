@@ -44,7 +44,7 @@ before(async () => {
   L.rotate = await lead({});
   L.pick = await lead({ assignedToId: hadeer.id, ownedByTelesales: true, stage: "INTERESTED", qualified: true, rotation: 3, newLeadRequestedAt: new Date(), newLeadRequestedById: hadeer.userId });
   L.other = await lead({ stage: "NO_ANSWER", touched: true, naMarkedById: heba.id, naMarkedAt: at("2021-01-03T12:00:00") });
-  L.remind = await lead({});
+  L.remind = await lead({ touched: true }); // touched: another file's SLA run would pull a Fresh one from 2021 away from him
 });
 
 after(async () => {

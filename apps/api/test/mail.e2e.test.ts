@@ -83,6 +83,7 @@ test("the worker sends the queue; a failing address is retried, then «الإي�
   const files: string[] = [];
   const send = async (m: OutgoingMail) => {
     if (m.to === bad) throw new Error("550 mailbox unavailable");
+    if (m.to !== good) return; // the queue also holds what other files' tests queue meanwhile
     sent.push(m.to);
     files.push(...(m.attachments ?? []).map((a) => `${a.filename}:${a.content.toString()}`));
   };

@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { DEFAULT_LEAD_RULES } from "@places/domain";
 import { draftAdminAlarmTick } from "../../worker/src/processors/draft-admin-alarm.ts";
-import { call, session, workingNow } from "./helpers.ts";
+import { calendarLock, call, session, workingNow } from "./helpers.ts";
 
 const stamp = String(Date.now());
 type Person = { id: string; userId: string };
@@ -75,7 +75,7 @@ test("Not Interested / Cancellation → gone from the salesperson and Telesales,
   assert.equal((await call("/leads/summary?kind=client", { cookie: c1 })).body.draftAdmin, null);
 });
 
-test("the daily Alarm: once a day, to Operations, with how many wait and how many came today", async () => {
+test("the daily Alarm: once a day, to Operations, with how many wait and how many came today", () => calendarLock(async () => {
   const saved = await prisma.setting.findUnique({ where: { key: "draftAdminAlarm" } });
   const since = new Date(Date.now() - 2_000);
   try {
@@ -92,7 +92,7 @@ test("the daily Alarm: once a day, to Operations, with how many wait and how man
     await prisma.mailLog.deleteMany({ where: { notification: told } });
     await prisma.notification.deleteMany({ where: told });
   }
-});
+}));
 
 test("Operations decides: Telesales · a salesperson (Fresh again) · keep; the decision closes the Alarm", async () => {
   const before = (await call("/leads/summary?kind=client", { cookie: cHeba })).body.draftAdmin.waiting;

@@ -37,8 +37,9 @@ before(async () => {
   [rahmaId, bayoumiId] = await Promise.all([id("rahma.hassan@places.com"), id("abdelrahman.bayoumi@places.com")]);
   unitId = (await prisma.unit.create({ data: { code: `U-F${stamp}`, type: "Rent", project: `${P} مشروع`, area: "التجمع الخامس", space: 120, condition: "Finished", floor: "3", building: "B7", ownerName: "أ. سمير", ownerPhone: "01000000777" } })).id;
   sheetId = (await prisma.notActiveSheet.create({ data: { name: P, dedupeBy: ["الكود"], numberBy: "الرقم", columns: ["الكود", "المالك", "الرقم"] } })).id;
-  // not the two reports.e2e works on (it clears their targets while running beside this file)
-  salesIds = (await prisma.employee.findMany({ where: { user: { status: "ACTIVE", email: { notIn: ["youssef.hosny@places.com", "ahmed.amr@places.com"] }, roles: { some: { role: { key: "sales" } } } } }, select: { id: true }, orderBy: { name: "asc" }, take: 2 })).map((e) => e.id);
+  // seeded people only (other files make «E2E …» salespeople, sorted first, and delete them meanwhile), and not the two
+  // reports.e2e works on (it clears their targets while running beside this file)
+  salesIds = (await prisma.employee.findMany({ where: { user: { status: "ACTIVE", email: { endsWith: "@places.com", notIn: ["youssef.hosny@places.com", "ahmed.amr@places.com"] }, roles: { some: { role: { key: "sales" } } } } }, select: { id: true }, orderBy: { name: "asc" }, take: 2 })).map((e) => e.id);
 });
 after(async () => {
   await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: [roleId, sheetId, ...campaignIds, ...taskIds, ...salesIds.map((e) => `${e}:${MONTH}`)] } }, { userId }] } });

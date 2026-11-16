@@ -132,28 +132,36 @@ export async function workingNow(rules?: LeadRules): Promise<Date> {
 }
 
 const KPI_QUARTER_LOCK = 2026_04;
+const CALENDAR_LOCK = 2026_11;
 /**
  * The test files run in parallel on one database, and kpis.e2e closes Q4 2026 and starts Q1 2027 (then puts it back),
  * while the KPI job and the KPI clocks read «the current quarter». Waiting for Q4 to look open is check-then-act and
  * lost the race on CI; this holds a Postgres advisory lock for `fn`, so a test that switches the quarter and a test
  * that needs Q4 open never overlap. The lock lives in a transaction that `fn` itself doesn't use.
+ * The jobs under it also read the real calendar, so it holds the calendar lock too (shared, taken first: one order).
  */
 export function kpiQuarterLock<T>(fn: () => Promise<T>): Promise<T> {
-  return advisoryLock(KPI_QUARTER_LOCK, fn);
+  return advisoryLock([[CALENDAR_LOCK, "shared"], [KPI_QUARTER_LOCK, "exclusive"]], fn);
 }
 
-const TODAY_HOLIDAY_LOCK = 2026_11;
 /**
- * lead-rules.e2e makes the real today a holiday for a moment, and a job run on a fixed date that happens to be today
- * (kpis.e2e's 11.6 on 16 Nov 2026) then rests and lost the race on CI: the two never overlap under this lock.
+ * lead-rules.e2e makes the real today (and tomorrow) a holiday for a moment; a daily job run meanwhile on «the next
+ * working day» or on a fixed date that is today rests and returns 0 (11.6 lost that race on CI on 15 and 16 Nov 2026).
+ * The test that adds the holiday holds this lock alone; a test that runs a job on the real calendar shares it.
  */
 export function todayHolidayLock<T>(fn: () => Promise<T>): Promise<T> {
-  return advisoryLock(TODAY_HOLIDAY_LOCK, fn);
+  return advisoryLock([[CALENDAR_LOCK, "exclusive"]], fn);
+}
+export function calendarLock<T>(fn: () => Promise<T>): Promise<T> {
+  return advisoryLock([[CALENDAR_LOCK, "shared"]], fn);
 }
 
-function advisoryLock<T>(key: number, fn: () => Promise<T>): Promise<T> {
+function advisoryLock<T>(locks: Array<[number, "shared" | "exclusive"]>, fn: () => Promise<T>): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key}::bigint)`;
+    for (const [key, mode] of locks) {
+      if (mode === "shared") await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(${key}::bigint)`;
+      else await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key}::bigint)`;
+    }
     return fn();
   }, { maxWait: 60_000, timeout: 600_000 });
 }
