@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
 import { DEFAULT_LEAD_RULES, PLACES_CALENDAR, calendarOf, holidayDays, workingMinutesBetween, type LeadRules } from "@places/domain";
-import { call, session } from "./helpers.ts";
+import { call, session, todayHolidayLock } from "./helpers.ts";
 
 const stamp = String(Date.now());
 let admin: string, ops: string, sales: string, saved: unknown;
@@ -103,7 +103,7 @@ test("the leads list's SLA follows the rules: pulled after 2 hours when the pull
   assert.equal(await level(), undefined);
 });
 
-test("a holiday «من … لحد …» added from the page makes today a holiday; removing it undoes that", async () => {
+test("a holiday «من … لحد …» added from the page makes today a holiday; removing it undoes that", () => todayHolidayLock(async () => {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
   const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
   const wasHoliday = (await call("/leads/summary", { cookie: admin })).body.holidayMode;
@@ -116,4 +116,4 @@ test("a holiday «من … لحد …» added from the page makes today a holida
   assert.equal((await prisma.auditLog.findFirstOrThrow({ where: { entity: "Holiday", entityId: made.body.id } })).module, "settings");
   assert.equal((await call(`/leads/rules/holidays/${made.body.id}`, { method: "DELETE", cookie: admin })).status, 204);
   assert.equal((await call("/leads/summary", { cookie: admin })).body.holidayMode, wasHoliday);
-});
+}));
