@@ -15,6 +15,10 @@ import { Tabs } from "./ui";
 interface Notif { id: string; text: string; link: string | null; important: boolean; event: string | null; readAt: string | null; createdAt: string }
 interface Mine { items: Notif[]; unread: number; types: string[] }
 
+/** Opens the bell from anywhere (the home's «إشعارات جديدة» tile), like openSearch for the search. */
+const OPEN_BELL = "places:open-bell";
+export const openBellPanel = () => window.dispatchEvent(new Event(OPEN_BELL));
+
 /** The fallback refresh, for when the stream is down (a proxy cut it, the API restarted). */
 const FALLBACK_REFRESH_MS = 5 * 60_000;
 
@@ -51,6 +55,11 @@ export function useBell() {
     setOpen(true);
     if (unread) { await api.post("/notifications/all/read"); void qc.invalidateQueries({ queryKey: ["notifications"] }); }
   }
+  useEffect(() => {
+    const on = () => void openBell();
+    window.addEventListener(OPEN_BELL, on);
+    return () => window.removeEventListener(OPEN_BELL, on);
+  });
   return { open, setOpen, openBell, unread, data: q.data, type, setType, fresh };
 }
 
