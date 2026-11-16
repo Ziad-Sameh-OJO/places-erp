@@ -8,7 +8,8 @@ import { num } from "@/lib/format";
 import { type LeadQuery, STAGE_TAB_LIST, type SavedView, activeCount, sameFilters, subTabsOf } from "./filters";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
-import { PROPERTY_TYPES } from "@places/domain";
+import { PICKABLE_STAGES, PROPERTY_TYPES } from "@places/domain";
+import { stageTone } from "./lead-bits";
 import { MultiPick } from "./multi-pick";
 
 /** «مقارنة بالأسبوع اللي فات»: % change, none when last week had nothing (demo U.delta). */
@@ -25,6 +26,30 @@ export function LeadKpis({ s, onReset }: { s: LeadSummary; onReset: () => void }
       <KpiTile label="Qualified" value={num(s.qualified)} sub={t("qualifiedSub", { pct: qualifiedPct })} icon="star" tone="ok" />
       <KpiTile label="No Answer" value={num(s.noAnswer)} sub={t("noAnswerSub")} icon="clock" tone="warn" />
     </div>
+  );
+}
+
+/**
+ * The stages of «غيّر المرحلة» as a small dashboard on the leads page (client, 16 Nov): each stage's count and its
+ * share of the leads at a glance. A card filters the list by that stage; pressing it again clears it.
+ */
+export function StageDashboard({ s, f, onPick }: { s: LeadSummary; f: LeadQuery; onPick: (f: LeadQuery) => void }) {
+  const t = useTranslations("leads.stageDash");
+  return (
+    <section className="stage-dash" aria-label={t("title")}>
+      {PICKABLE_STAGES.map((st) => {
+        const n = s.stages[st] ?? 0, pct = s.total ? Math.round((n / s.total) * 100) : 0;
+        return (
+          <button key={st} type="button" className={`sd-tile ${stageTone(st) || "plain"}`} aria-pressed={f.stage === st} title={t("open", { stage: st })}
+            onClick={() => onPick({ ...f, stage: f.stage === st ? "" : st })}>
+            <span className="sd-name">{serverText(st)}</span>
+            <strong className="num">{num(n)}</strong>
+            <span className="sd-bar" aria-hidden><i style={{ width: `${pct}%` }} /></span>
+            <small>{t("pct", { pct })}</small>
+          </button>
+        );
+      })}
+    </section>
   );
 }
 

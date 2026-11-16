@@ -65,6 +65,14 @@ test("the calendar, today's list and the monthly balances report with export (7.
   const rep = (await call(`/hr/leaves/balances?month=${month}`, { cookie: basant })).body;
   const row = rep.rows.find((x: { employeeId: string }) => x.employeeId === employeeId);
   assert.ok(row.byType["سنوية"].month >= 1);
+  assert.deepEqual(rep.types, ["سنوية"]); // «عارضة» and «مرضية» aren't in this report (16 Nov)
+  // by dates: the day of the leave counts, a range before it doesn't; «من» after «لحد» is refused
+  const on = (await call(`/hr/leaves/balances?from=${plus(7)}&to=${plus(9)}`, { cookie: basant })).body;
+  assert.deepEqual([on.from, on.to], [plus(7), plus(9)]);
+  assert.equal(on.rows.find((x: { employeeId: string }) => x.employeeId === employeeId).byType["سنوية"].month >= 1, true); // working days only, so a Friday inside doesn't count
+  const before = (await call(`/hr/leaves/balances?from=${plus(1)}&to=${plus(2)}`, { cookie: basant })).body;
+  assert.equal(before.rows.find((x: { employeeId: string }) => x.employeeId === employeeId).byType["سنوية"].month, 0);
+  assert.equal((await call(`/hr/leaves/balances?from=${plus(3)}&to=${plus(2)}`, { cookie: basant })).status, 400);
   const x = await fetch(`${API}/hr/leaves/balances/export?month=${month}`, { headers: { cookie: basant } });
   assert.equal(x.status, 200);
   assert.equal((await call("/hr/leaves", { cookie: mohsen })).status, 403);

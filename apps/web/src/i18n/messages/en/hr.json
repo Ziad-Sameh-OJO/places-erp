@@ -275,8 +275,8 @@
       "thu": "Thu",
       "fri": "Fri"
     },
-    "balancesFile": "Leave balances {month}.xlsx",
-    "balanceHead": "{type} (this month / left of)",
+    "balancesFile": "Leave balances {from} - {to}.xlsx",
+    "balanceHead": "{type} (this period / left of)",
     "balanceCell": "{month} / {left} of {total}"
   },
   "care": {

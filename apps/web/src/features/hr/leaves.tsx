@@ -133,16 +133,22 @@ function MonthGrid({ month, byDay }: { month: string; byDay: LeaveCalendarView["
   );
 }
 
-/** 7.6 · «تقرير الأرصدة الشهري» (exportable): per person and type — the balance, this month, what's left. */
+/** 7.6 · «تقرير الأرصدة» (exportable): per person — the annual balance, taken between the two dates, what's left. */
 export function LeaveBalances() {
   const tr = useTranslations("hr");
-  const [month, setMonth] = useState(today().slice(0, 7));
-  const q = useQuery({ queryKey: ["hr", "leaves", "balances", month], queryFn: () => api.get<LeaveBalancesView>(`/hr/leaves/balances?month=${month}`) });
+  // dates instead of a month (16 Nov): from the 1st of this month to today by default
+  const [from, setFrom] = useState(`${today().slice(0, 7)}-01`);
+  const [to, setTo] = useState(today());
+  const query = new URLSearchParams({ from, to });
+  const q = useQuery({ queryKey: ["hr", "leaves", "balances", from, to], queryFn: () => api.get<LeaveBalancesView>(`/hr/leaves/balances?${query}`) });
   const d = q.data;
   return (
     <>
-      <div className="toolbar"><label className="date-f"><span>{tr("common.month")}</span><input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></label><span className="spacer" />
-        <ExportButton module="hr" path="/hr/leaves/balances/export" query={new URLSearchParams({ month })} filename={tr("leaves.balancesFile", { month })} /></div>
+      <div className="toolbar">
+        <label className="date-f"><span>{tr("common.from")}</span><input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
+        <label className="date-f"><span>{tr("common.to")}</span><input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} /></label>
+        <span className="spacer" />
+        <ExportButton module="hr" path="/hr/leaves/balances/export" query={query} filename={tr("leaves.balancesFile", { from, to })} /></div>
       {!d ? <Empty text={tr("common.loading")} icon="clock" /> : (
         <Table head={[tr("common.employee"), tr("common.department"), ...d.types.map((t) => tr("leaves.balanceHead", { type: serverText(t) }))]} empty={tr("common.noEmployees")}
           rows={d.rows.map((r) => [<b key="n">{r.name}</b>, serverText(r.department), ...d.types.map((t) => { const x = r.byType[t]; return x ? tr("leaves.balanceCell", { month: x.month, left: x.left, total: x.total }) : "—"; })])} />

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Pu
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import type { PrismaClient } from "@places/db";
-import { ExcuseAsk, NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, AttendanceDayQuery, AttendanceEntry, DecideDay, HrSettings, AttendanceExport, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
+import { ExcuseAsk, NewOneOnOne, NewPenalty, OneQuestions, LeaveAsk, LeaveReject, MonthQuery, BalancesQuery, AttendanceDayQuery, AttendanceEntry, DecideDay, HrSettings, AttendanceExport, AttendanceRange, EmployeeFilters, EmployeePatch, FINGERPRINT_COLUMNS, FingerprintRow, LinkUnmatched } from "@places/contracts";
 import { sendXlsx } from "../../core/http/excel";
 import { IMPORT_MAX_BYTES, parseSheet, preview, type UploadedSheet } from "../../core/http/import";
 import { AttendanceService } from "./attendance.service";
@@ -183,18 +183,18 @@ export class HrController {
 
   @Get("leaves/balances/export")
   @Requires("hr", "export")
-  async exportBalances(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }, @Res() res: Response) {
-    const r = await this.leaves.balancesReport(me, q.month);
-    await sendXlsx(res, `أرصدة الإجازات ${r.month}.xlsx`, [
+  async exportBalances(@Me() me: CurrentUser, @Query(new ZodPipe(BalancesQuery)) q: BalancesQuery, @Res() res: Response) {
+    const r = await this.leaves.balancesReport(me, q);
+    await sendXlsx(res, `أرصدة الإجازات ${r.from} - ${r.to}.xlsx`, [
       { header: "الموظف", value: (x: (typeof r.rows)[number]) => x.name, width: 24 }, { header: "القسم", value: (x) => x.department },
-      ...r.types.flatMap((t) => [{ header: `${t} · الرصيد`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.total }, { header: `${t} · الشهر ده`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.month }, { header: `${t} · الباقي`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.left }]),
+      ...r.types.flatMap((t) => [{ header: `${t} · الرصيد`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.total }, { header: `${t} · الفترة دي`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.month }, { header: `${t} · الباقي`, value: (x: (typeof r.rows)[number]) => x.byType[t]?.left }]),
     ], r.rows, "الأرصدة");
   }
 
   @Get("leaves/balances")
   @Requires("hr", "view")
-  balances(@Me() me: CurrentUser, @Query(new ZodPipe(MonthQuery)) q: { month?: string }) {
-    return this.leaves.balancesReport(me, q.month);
+  balances(@Me() me: CurrentUser, @Query(new ZodPipe(BalancesQuery)) q: BalancesQuery) {
+    return this.leaves.balancesReport(me, q);
   }
 
   /* ---- 7.9 · the month's deductions, approved by HR for payroll ---- */
