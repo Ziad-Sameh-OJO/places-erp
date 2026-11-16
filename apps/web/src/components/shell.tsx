@@ -19,11 +19,11 @@ import { CreateMenu } from "./create-menu";
 import { CommandPalette, openSearch } from "./command-palette";
 import { pushSubscription } from "@/features/notifications/push";
 
-/** The Places wordmark (white on the black menu); «ERP» marks the system apart from the brand; under it, who built it (client, 16 Nov). */
+/** The Places wordmark (white on the black menu); «ERP» marks the system apart from the brand; under it, who built it, linking to their site (client, 16–17 Nov). */
 const Brand = () => (
   <div className="brand">
     <div className="brand-row"><img className="brand-logo" src="/brand/places-logo-white.png" alt="Places" width={936} height={222} /><small>ERP</small></div>
-    <span className="brand-by" dir="ltr">Developed By <b>RECA TECH</b></span>
+    <a className="brand-by" dir="ltr" href="https://reca-tech.com" target="_blank" rel="noopener noreferrer">Developed By <b>RECA TECH</b></a>
   </div>
 );
 export function Shell({ children }: { children: ReactNode }) {
