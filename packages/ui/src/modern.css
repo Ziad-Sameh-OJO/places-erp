@@ -152,11 +152,7 @@ tr.click:hover td, tbody tr:hover td { background: var(--surface-2); }
 .tbl-foot { background: var(--surface-2); }
 
 /* lists, boards and progress */
-.inbox li { border-radius: var(--r); border-color: var(--line); background: var(--surface); transition: background .12s, border-color .12s; }
-.inbox li:hover { background: var(--surface-2); }
-.ib-ico, .a-ico, .int-ico { border-radius: 12px; background: var(--surface-2); color: var(--ink); }
-.inbox li.bad .ib-ico { background: var(--bad-soft); color: var(--bad); }
-.inbox li.warn .ib-ico { background: var(--warn-soft); color: var(--warn); }
+.a-ico, .int-ico { border-radius: 12px; background: var(--surface-2); color: var(--ink); }
 .lane { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); }
 .tcard { border-radius: var(--r); transition: transform .18s var(--ease), border-color .15s; }
 .tcard:hover { border-color: var(--line-2); transform: translateY(-2px); box-shadow: none; }

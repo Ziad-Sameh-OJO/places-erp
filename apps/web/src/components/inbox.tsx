@@ -19,9 +19,11 @@ export function Inbox({ lines }: { lines: InboxLine[] }) {
     <ul className="inbox">
       {lines.map((x) => (
         <li key={x.key} className={x.tone}>
-          <span className="ib-ico"><Icon name={x.icon} /></span>
-          <div className="ib-txt"><b>{x.title}</b><small>{x.sub}</small></div>
-          <Link className={`btn sm ${x.tone === "bad" ? "" : "ghost"}`} href={x.href}>{x.button}</Link>
+          <Link className="ib-row" href={x.href}>
+            <span className="ib-ico"><Icon name={x.icon} /></span>
+            <span className="ib-txt"><b>{x.title}</b><small>{x.sub}</small></span>
+            <span className="ib-act">{x.button}</span>
+          </Link>
         </li>
       ))}
     </ul>

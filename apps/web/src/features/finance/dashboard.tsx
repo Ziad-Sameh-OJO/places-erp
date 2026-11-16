@@ -51,9 +51,9 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
       {todo.length > 0 && (
         <Card title={t("dash.todoTitle")} icon="check" sub={t("dash.todoSub")} className="attn" extra={<Chip tone="warn">{todo.length}</Chip>}>
           <ul className="inbox">{todo.map((x, i) => (
-            <li key={i} className={x.tone}><span className="ib-ico"><Icon name={x.icon} /></span><div className="ib-txt"><b>{x.title}</b><small>{x.sub}</small></div>
-              {x.href ? <Link className={`btn sm ${x.tone === "bad" ? "" : "ghost"}`} href={x.href}>{x.btn}</Link>
-                : <button className={`btn sm ${x.tone === "bad" ? "" : "ghost"}`} onClick={() => x.tab && go(x.tab)}>{x.btn}</button>}</li>
+            <li key={i} className={x.tone}>{x.href
+              ? <Link className="ib-row" href={x.href}><Row x={x} /></Link>
+              : <button type="button" className="ib-row" onClick={() => x.tab && go(x.tab)}><Row x={x} /></button>}</li>
           ))}</ul>
         </Card>
       )}
@@ -86,4 +86,9 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
       {ledger && <LedgerModal id={ledger} onClose={() => setLedger(null)} />}
     </>
   );
+}
+
+/** One line of the finance to-do, shaped like «مهامي النهارده» (the whole row opens it). */
+function Row({ x }: { x: { icon: Parameters<typeof Icon>[0]["name"]; title: string; sub: string; btn: string } }) {
+  return <><span className="ib-ico"><Icon name={x.icon} /></span><span className="ib-txt"><b>{x.title}</b><small>{x.sub}</small></span><span className="ib-act">{x.btn}</span></>;
 }
