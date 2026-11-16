@@ -3,6 +3,8 @@
 .tabbar, .fab, .side-scrim { display: none; }
 
 @media (max-width: 760px) {
+  /* a long chip (e.g. the KPI band «Threshold: …») wraps instead of pushing the page sideways */
+  .chip { white-space: normal; max-width: 100%; }
   :root { --tabbar-h: 62px; --safe-b: env(safe-area-inset-bottom, 0px); }
   html { -webkit-text-size-adjust: 100%; }
   body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
