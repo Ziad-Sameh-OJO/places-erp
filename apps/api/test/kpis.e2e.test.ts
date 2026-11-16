@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { API, call, kpiQuarterLock, lastMail, session } from "./helpers.ts";
+import { API, call, kpiQuarterLock, lastMail, session, todayHolidayLock } from "./helpers.ts";
 import { kpiMidQuarterTick } from "../../worker/src/processors/kpi-mid-quarter.ts";
 
 const start = new Date();
@@ -201,17 +201,18 @@ test("11.14 · the KPI watcher sees and edits every card, is told of changes, an
   assert.equal((await call("/kpis/log", { cookie: hadeer })).status, 403);
 });
 
-test("11.6 · mid-quarter: items under target are told to the owner and the follower once, on a working day from the 15th", async () => {
-  const told = () => prisma.notification.count({ where: { userId: ids.youssefUser, link: "/kpis", text: { startsWith: "نص Q4 2026" } } });
+test("11.6 · mid-quarter: items under target are told to the owner and the follower once, on a working day from the 15th", () => todayHolidayLock(async () => {
+  // only this run's: the real worker's daily tick may have told him already
+  const told = () => prisma.notification.count({ where: { userId: ids.youssefUser, link: "/kpis", text: { startsWith: "نص Q4 2026" }, createdAt: { gte: start } } });
   assert.equal(await kpiMidQuarterTick(new Date("2026-11-12T09:00:00Z")), 0); // before the middle of the quarter
   assert.equal(await kpiMidQuarterTick(new Date("2026-11-20T09:00:00Z")), 0); // a Friday
   assert.ok((await kpiMidQuarterTick(new Date("2026-11-16T09:00:00Z"))) >= 1);
   assert.equal(await told(), 1);
   const follower = (await prisma.employee.findUniqueOrThrow({ where: { id: ids.mahmoud } })).userId; // Youssef's Team Leader
-  assert.ok(await prisma.notification.count({ where: { userId: follower, link: "/kpis", text: { startsWith: "نص Q4 2026" } } }) >= 1);
+  assert.ok(await prisma.notification.count({ where: { userId: follower, link: "/kpis", text: { startsWith: "نص Q4 2026" }, createdAt: { gte: start } } }) >= 1);
   assert.equal(await kpiMidQuarterTick(new Date("2026-11-17T09:00:00Z")), 0); // idempotent: once per card
   assert.equal(await told(), 1);
-});
+}));
 
 test("11.18 · the sheet's lines and award rules: the KPI admin sets them, a salesperson can't, the watcher doesn't see them (money)", async () => {
   fieldsBefore = (await prisma.kpiBands.findUniqueOrThrow({ where: { id: "default" } })).sheetFields;

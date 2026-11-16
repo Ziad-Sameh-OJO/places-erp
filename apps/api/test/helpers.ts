@@ -139,8 +139,21 @@ const KPI_QUARTER_LOCK = 2026_04;
  * that needs Q4 open never overlap. The lock lives in a transaction that `fn` itself doesn't use.
  */
 export function kpiQuarterLock<T>(fn: () => Promise<T>): Promise<T> {
+  return advisoryLock(KPI_QUARTER_LOCK, fn);
+}
+
+const TODAY_HOLIDAY_LOCK = 2026_11;
+/**
+ * lead-rules.e2e makes the real today a holiday for a moment, and a job run on a fixed date that happens to be today
+ * (kpis.e2e's 11.6 on 16 Nov 2026) then rests and lost the race on CI: the two never overlap under this lock.
+ */
+export function todayHolidayLock<T>(fn: () => Promise<T>): Promise<T> {
+  return advisoryLock(TODAY_HOLIDAY_LOCK, fn);
+}
+
+function advisoryLock<T>(key: number, fn: () => Promise<T>): Promise<T> {
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KPI_QUARTER_LOCK}::bigint)`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key}::bigint)`;
     return fn();
   }, { maxWait: 60_000, timeout: 600_000 });
 }
