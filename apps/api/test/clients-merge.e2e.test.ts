@@ -66,7 +66,7 @@ test("suggest by the other file's number, written any way; a number of the same 
   const row = queue.find((m: { id: string }) => m.id === r.body.id);
   assert.equal(row.keep.id, files.A);
   assert.equal(row.drop.id, files.B);
-  assert.equal(row.by, "رندا محمد");
+  assert.equal(row.by, "Randa Mohamed");
   assert.equal((await decide(randa, r.body.id, "approve")).status, 403);
 });
 

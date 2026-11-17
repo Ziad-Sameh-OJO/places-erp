@@ -55,7 +55,7 @@ test("M-01 6.1 · M-03 6.1: the picked units come back as one PDF, and the lead 
   const lead = (await call(`/leads/${leadId}`, { cookie: mohsen })).body;
   const comment = lead.activities.find((a: { kind: string; text: string }) => a.kind === "comment" && a.text.includes(stamp));
   assert.equal(comment.text, `تم إرسال الوحدات التالية للعميل (PDF): U-UL${stamp}-b (برج ${stamp} · 120 م)، U-UL${stamp}-a (مشروع ${stamp} · 100 م)`);
-  assert.equal(comment.by.name, "محمد محسن");
+  assert.equal(comment.by.name, "Mohamed Mohsen");
   // the units are kept as the lead's suggested units, and it's in the audit log
   assert.deepEqual((await prisma.leadUnit.findMany({ where: { leadId } })).map((u) => u.unitId).sort(), [units.a!, units.b!].sort());
   assert.ok(await prisma.auditLog.findFirst({ where: { action: "unit-list", after: { path: ["leadId"], equals: leadId } } }));

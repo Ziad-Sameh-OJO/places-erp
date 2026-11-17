@@ -80,7 +80,7 @@ test("Manar approves once: the time is kept, the management gets the four number
   assert.equal(r.status, 201, JSON.stringify(r.body));
   const body = r.body as { approvedAt: string; approvedBy: { name: string }; newUnits: number };
   assert.ok(body.approvedAt);
-  assert.equal(body.approvedBy.name, "منار أحمد");
+  assert.equal(body.approvedBy.name, "Manar Ahmed");
   assert.equal((await call(`/inventory/daily-report/${today}/approve`, { method: "POST", cookie: manar })).status, 400, "once");
   const sent = await prisma.notification.findFirst({ where: { userId: adminId, text: { startsWith: "التقرير اليومي للانفنتوري: جديد" }, createdAt: { gte: now } } });
   assert.match(sent?.text ?? "", new RegExp(`جديد ${body.newUnits} · متحدّث \\d+ · اتأجر / اتباع \\d+ · مش مؤكد \\d+`));

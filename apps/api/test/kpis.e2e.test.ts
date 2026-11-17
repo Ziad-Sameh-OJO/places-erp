@@ -72,7 +72,7 @@ test("11.1 · the seed: 14 cards from the file + 18 salespeople, weights 100%, Q
 test("11.2 · my card: a salesperson sees his own card with its money, never a colleague's or the company", async () => {
   const me = await board(youssef, "me");
   assert.equal(me.body.cards.length, 1);
-  assert.equal(me.body.cards[0].follower, "محمود علي");
+  assert.equal(me.body.cards[0].follower, "Mahmoud Ali");
   const card = await call(`/kpis/cards/${me.body.cards[0].id}`, { cookie: youssef });
   assert.equal(card.status, 200);
   assert.equal(card.body.items.length, 7);
@@ -81,7 +81,7 @@ test("11.2 · my card: a salesperson sees his own card with its money, never a c
   assert.equal(card.body.can.manage, false);
   assert.equal((await board(youssef, "all")).status, 403);
   assert.equal((await call("/kpis/company", { cookie: youssef })).status, 403);
-  const colleague = (await board(mahmoud, "team")).body.cards.find((c: { name: string }) => c.name !== "يوسف صفوت");
+  const colleague = (await board(mahmoud, "team")).body.cards.find((c: { name: string }) => c.name !== "Youssef Safwat");
   assert.equal((await call(`/kpis/cards/${colleague.id}`, { cookie: youssef })).status, 404);
   assert.equal((await call(`/kpis/cards/${me.body.cards[0].id}/items`, { method: "PUT", cookie: youssef, body: { items: [{ title: "x", weight: 100, method: "manual", goal: 1 }] } })).status, 403);
   assert.equal((await call(`/kpis/cards/${me.body.cards[0].id}/pay`, { method: "PATCH", cookie: youssef, body: { base: "bonus", period: "quarter", amount: "1.00" } })).status, 403);
@@ -104,7 +104,7 @@ test("11.2 · «سلّمت»: the owner hands in with a link, up to the times du
 test("11.3 · my team: the follower types the manual items, writes the plan and approves; the owner can't", async () => {
   const team = await board(mahmoud, "team");
   assert.equal(team.body.cards.length, 5); // team A
-  const card = (await board(nancy, "team")).body.cards.find((c: { name: string }) => c.name === "مختار جمال");
+  const card = (await board(nancy, "team")).body.cards.find((c: { name: string }) => c.name === "Mokhtar Gamal");
   touched.push(card.id);
   const view = (await call(`/kpis/cards/${card.id}`, { cookie: nancy })).body;
   const manual = view.items.find((it: { method: string }) => it.method === "manual");
@@ -118,9 +118,9 @@ test("11.3 · my team: the follower types the manual items, writes the plan and 
   assert.equal((await call(`/kpis/cards/${card.id}/approve`, { method: "POST", cookie: nancy })).status, 409);
   const again = (await call(`/kpis/cards/${card.id}`, { cookie: nancy })).body;
   assert.equal(again.items.find((it: { id: string }) => it.id === manual.id).value, 92);
-  assert.equal(again.approved.by, "نانسي إسلام");
+  assert.equal(again.approved.by, "Nancy Islam");
   // Heba's card: two items Nancy rates although Heba's follower is Nancy too; the owner (Heba) can't
-  const hebaCard = (await board(nancy, "team")).body.cards.find((c: { name: string }) => c.name === "هبة صلاح");
+  const hebaCard = (await board(nancy, "team")).body.cards.find((c: { name: string }) => c.name === "Heba Salah");
   touched.push(hebaCard.id);
   const rated = (await call(`/kpis/cards/${hebaCard.id}`, { cookie: heba })).body.items.filter((it: { method: string }) => it.method === "manual");
   assert.ok(rated.every((it: { canEnter: boolean; enteredBy: string[] }) => !it.canEnter && it.enteredBy.includes(ids.nancyUser)));
@@ -152,7 +152,7 @@ test("11.4 · 11.11 · a card for someone without one, the editor, the follower 
   assert.equal(saved.body.items.length, 2);
   assert.equal(saved.body.items[0].id, first.id, "the kept item keeps its id (and key)");
   assert.equal(saved.body.items[0].calc, "عدد المكالمات اللي سجّلها بنفسه على الليدز · آخر 7 أيام · متوسط في الأسبوع");
-  assert.equal(saved.body.items[1].calc, "بيدخّله نانسي إسلام بإيده · من مراجعة نانسي");
+  assert.equal(saved.body.items[1].calc, "بيدخّله Nancy Islam بإيده · من مراجعة نانسي");
   // an item that names its people (`ids`, the CEO's «القادة الأربعة + رحمة») saves from the editor with its list
   const named = { items: [{ ...items(60).items[0], metric: "team", params: { ids: [ids.nancyEmp] }, goal: 90 }, items(60).items[1]] };
   const withIds = await put(admin, named);

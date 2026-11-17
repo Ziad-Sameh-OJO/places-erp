@@ -136,7 +136,7 @@ test("Q9: only the Office Manager reviews; she corrects the amount (audited old 
   assert.equal(r.body.status, "Approved");
   assert.equal(r.body.commissionOwner, "45000.50");
   assert.deepEqual(r.body.buyers.map((b: { id: string }) => b.id), [emp.mohsen!.id]);
-  assert.equal(r.body.reviewedBy, "نانسي إسلام");
+  assert.equal(r.body.reviewedBy, "Nancy Islam");
 
   const audit = await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "approve" } });
   assert.deepEqual(audit!.before, { status: "PENDING_REVIEW", commissionOwner: "50000.00", buyers: [emp.mohsen!.id, emp.eid!.id].sort() });

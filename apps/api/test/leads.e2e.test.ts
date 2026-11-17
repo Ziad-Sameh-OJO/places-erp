@@ -58,7 +58,7 @@ test("a row has what the list shows (stage name, salesperson name), not the whol
   const row = r.body.items[0];
   assert.equal(r.body.total, 1);
   assert.equal(row.stage, "Interested");
-  assert.equal(row.assignedTo.name, "محمد محسن");
+  assert.equal(row.assignedTo.name, "Mohamed Mohsen");
   assert.equal(row.verification, undefined);
   assert.equal(row.createdById, undefined);
 });
@@ -118,7 +118,7 @@ test("details: in scope 200 with the drawer's fields; out of scope 404 (not 403)
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.code, code(1));
   assert.equal(r.body.stage, "Interested");
-  assert.equal(r.body.assignedTo.name, "محمد محسن");
+  assert.equal(r.body.assignedTo.name, "Mohamed Mohsen");
   assert.ok(Array.isArray(r.body.activities));
   assert.equal(r.body.createdById, undefined);
   assert.equal(r.body.post, null); // the drawer's «البوست اللي جابه»
@@ -138,7 +138,7 @@ test("comment: goes on top of the Activity with who and when, stops the SLA cloc
   const [top] = r.body.activities;
   assert.equal(top.kind, "comment");
   assert.equal(top.text, "كلمته وهيبعت الميزانية"); // trimmed
-  assert.equal(top.by.name, "محمد محسن");
+  assert.equal(top.by.name, "Mohamed Mohsen");
   assert.equal(r.body.touched, true);
   const firstAction = r.body.firstActionAt;
   assert.ok(firstAction);
@@ -168,7 +168,7 @@ test("a new lead's Activity starts with who entered it and who it went to (demo 
   apiLeadId = created.body.id;
   const r = await call(`/leads/${apiLeadId}`, { cookie: mohsen });
   const texts = r.body.activities.map((a: { text: string }) => a.text);
-  assert.ok(texts.includes("اتعمل بواسطة هبة صلاح · اتوزع لـ محمد محسن"), JSON.stringify(texts));
+  assert.ok(texts.includes("اتعمل بواسطة Heba Salah · اتوزع لـ Mohamed Mohsen"), JSON.stringify(texts));
   assert.ok(texts.includes("عايز مكتب قريب من التسعين"));
   assert.equal(r.body.firstActionAt, null); // entering a lead isn't the salesperson's action
 });
@@ -241,9 +241,9 @@ test("Telesales «يفضل عندي»: stays with her, marked «مع Telesales»
   const id = await teleLead(hadeer, 1, { keep: true });
   const r = await call(`/leads/${id}`, { cookie: hadeer });
   assert.equal(r.status, 200);
-  assert.equal(r.body.assignedTo.name, "هدير طارق");
+  assert.equal(r.body.assignedTo.name, "Hadeer Tarek");
   assert.equal(r.body.ownedByTelesales, true);
-  assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة هدير طارق · فضل عند Telesales");
+  assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة Hadeer Tarek · فضل عند Telesales");
   assert.deepEqual(await listCodes(hadeer), [`E2E-T ${stamp} 1`]);
   assert.equal((await call(`/leads/${id}`, { cookie: mohsen })).status, 404);
   // the SLA job reads the lead's own fields: with Telesales → leadSla() is null (domain test)
@@ -258,7 +258,7 @@ test("Telesales «التوزيع» (and the default): goes to the area's salespe
     const r = await call(`/leads/${id}`, { cookie: mohsen });
     assert.equal(r.status, 200, "the salesperson it went to sees it");
     assert.equal(r.body.ownedByTelesales, false);
-    assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة هدير طارق · اتوزع لـ محمد محسن");
+    assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة Hadeer Tarek · اتوزع لـ Mohamed Mohsen");
     assert.equal((await call(`/leads/${id}`, { cookie: hadeer })).status, 404);
     assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: hadeer, body: { text: "x" } })).status, 404);
   }
@@ -268,9 +268,9 @@ test("Telesales «التوزيع» (and the default): goes to the area's salespe
 test("«keep» is Telesales' choice only: a salesperson's own lead stays his, not marked «مع Telesales»", async () => {
   const id = await teleLead(mohsen, 4, { keep: true });
   const r = await call(`/leads/${id}`, { cookie: mohsen });
-  assert.equal(r.body.assignedTo.name, "محمد محسن");
+  assert.equal(r.body.assignedTo.name, "Mohamed Mohsen");
   assert.equal(r.body.ownedByTelesales, false);
-  assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة محمد محسن · فضل عنده (هو اللي دخّله)");
+  assert.equal(r.body.activities.at(-1).text, "اتعمل بواسطة Mohamed Mohsen · فضل عنده (هو اللي دخّله)");
 });
 
 /* ---------------- 1.5 duplicates: every arrival counts, Operations decides (M-01 Q7, M-04 Q22) ---------------- */
@@ -300,7 +300,7 @@ test("a mobile we already have: no new lead, the arrival counts for its channel,
   assert.deepEqual(arrivals.map((a) => [a.channel, a.duplicate]), [["Facebook", false], ["Google Ads", true]]);
 
   const d = await call(`/leads/${dupLeadId}`, { cookie: mohsen });
-  assert.equal(d.body.activities[0].text, `هدير طارق حاول يدخّل العميل ده تاني (${P2} / ${P1}) · مستني قرار الأوبريشن`);
+  assert.equal(d.body.activities[0].text, `Hadeer Tarek حاول يدخّل العميل ده تاني (${P2} / ${P1}) · مستني قرار الأوبريشن`);
   assert.equal(d.body.firstActionAt, null); // someone else's attempt isn't the salesperson's action
 
   const heba = await prisma.user.findUniqueOrThrow({ where: { email: "heba.salah@places.com" } });
@@ -316,9 +316,9 @@ test("the queue is Operations' only: both sides side by side; sales and HR get 4
   const row = r.body.find((x: { lead: { id: string } }) => x.lead.id === dupLeadId);
   assert.ok(row);
   dupId = row.id;
-  assert.equal(row.by.name, "هدير طارق");
+  assert.equal(row.by.name, "Hadeer Tarek");
   assert.equal(row.lead.code, dupCode);
-  assert.equal(row.lead.assignedTo.name, "محمد محسن");
+  assert.equal(row.lead.assignedTo.name, "Mohamed Mohsen");
   assert.deepEqual([row.lead.name, row.lead.channel, row.lead.type, row.lead.budget], [`E2E-D ${stamp} الأول`, "Facebook", "Rent", "50000.00"]);
   assert.deepEqual([row.entry.name, row.entry.channel, row.entry.type, row.entry.space, row.entry.budget], [`E2E-D ${stamp} التاني`, "Google Ads", "Resale", 120, "50000.00"]);
   assert.equal((await call(`/leads/duplicates/${dupId}/decide`, { method: "POST", cookie: mohsen, body: {} })).status, 403);
@@ -390,12 +390,12 @@ test("filter choices: sales get no salespeople, a TL his team only, operations e
   const names = async (cookie: string) => (await call("/leads/options", { cookie })).body.salespeople.map((p: { name: string }) => p.name);
   assert.deepEqual(await names(mohsen), []);
   const team = await names(tl);
-  assert.ok(team.includes("محمد محسن"));
+  assert.ok(team.includes("Mohamed Mohsen"));
   const otherTeamMember = (await prisma.employee.findFirstOrThrow({ where: { teamLeader: { user: { email: "mahmoud.ali@places.com" } } } })).name;
   assert.ok(!team.includes(otherTeamMember));
   const all = await names(ops);
-  assert.ok(all.includes("محمد محسن") && all.includes(otherTeamMember) && all.includes("هدير طارق (Telesales)")); // demo: Telesales by name with «(Telesales)»
-  assert.ok(!all.includes("بسنت الصاوي")); // HR doesn't hold leads
+  assert.ok(all.includes("Mohamed Mohsen") && all.includes(otherTeamMember) && all.includes("Hadeer Tarek (Telesales)")); // demo: Telesales by name with «(Telesales)»
+  assert.ok(!all.includes("Basant Elsawy")); // HR doesn't hold leads
   assert.ok(Array.isArray((await call("/leads/options", { cookie: ops })).body.campaigns));
   assert.equal((await call("/leads/options", { cookie: hr })).status, 403);
 });
@@ -429,7 +429,7 @@ test("duplicate-check: the code for anyone who may create; the lead's id only fo
   const phone = `0128${stamp.slice(-7)}`;
   const made = await call("/leads", { method: "POST", cookie: ops, body: { name: `E2E-N ${stamp}`, phones: [phone], area: "التجمع الخامس", type: "Primary", channel: "Facebook", assignToId: mohsenId, note: "دور أرضي" } });
   assert.equal(made.status, 201, JSON.stringify(made.body));
-  assert.deepEqual([made.body.assignedTo.name, made.body.ownedByTelesales, typeof made.body.code], ["محمد محسن", false, "string"]);
+  assert.deepEqual([made.body.assignedTo.name, made.body.ownedByTelesales, typeof made.body.code], ["Mohamed Mohsen", false, "string"]);
   dupLeads.push(made.body.id);
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: made.body.id } })).note, "دور أرضي"); // the drawer's quote
 
@@ -449,7 +449,7 @@ test("a call: on top of the Activity, stops the SLA clock, the first one is kept
   assert.deepEqual(before.goal, { period: "week", target: 50 });
   const r = await call(`/leads/${id}/calls`, { method: "POST", cookie: mohsen });
   assert.equal(r.status, 201, JSON.stringify(r.body));
-  assert.deepEqual([r.body.activities[0].kind, r.body.activities[0].text, r.body.activities[0].by.name], ["call", "مكالمة اتسجّلت", "محمد محسن"]);
+  assert.deepEqual([r.body.activities[0].kind, r.body.activities[0].text, r.body.activities[0].by.name], ["call", "مكالمة اتسجّلت", "Mohamed Mohsen"]);
   assert.ok(r.body.firstActionAt);
   const first = r.body.firstCallAt;
   assert.ok(first);

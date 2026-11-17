@@ -49,7 +49,7 @@ test("my card with the items under target; the follower's «approve», HR's «en
 
   const mine = await home(me);
   assert.equal(mine.mine?.id, cardId);
-  assert.equal(mine.mine?.follower, "هبة صلاح");
+  assert.equal(mine.mine?.follower, "Heba Salah");
   assert.equal(mine.mine?.belowCount, 3);
   assert.deepEqual(mine.lines.filter((l) => l.cardId === cardId).map(({ kind, item, delivered, required, name }) => ({ kind, item, delivered, required, name })),
     [{ kind: "deliver", item: "Market report", delivered: 0, required: 2, name: `E2E كارت ${stamp}` }]);

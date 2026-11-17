@@ -65,7 +65,7 @@ test("a Team Leader's tag: his own team approved at once, another team's waits f
   const r = await ask("abdallah", [emp.eid, emp.anas]);
   assert.equal(r.status, 201, JSON.stringify(r.body));
   const rows = await tagsOf("abdallah");
-  const eid = rows.find((x) => x.tagged === "محمد عيد")!, anas = rows.find((x) => x.tagged === "أنس")!;
+  const eid = rows.find((x) => x.tagged === "Mohamed Eid")!, anas = rows.find((x) => x.tagged === "Anas")!;
   assert.equal(eid.status, "APPROVED");
   assert.equal(anas.status, "PENDING");
   assert.equal(anas.canDecide, false); // Abdallah isn't Anas's Team Leader

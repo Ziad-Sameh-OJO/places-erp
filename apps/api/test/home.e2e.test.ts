@@ -59,7 +59,7 @@ test("a salesperson: his own late lead and his visits due today or late, the lat
   const items = await mine(mohsen);
   assert.deepEqual(keys(items), ["sla:late", "visit:yesterday", "visit:today"]);
   const [sla, yesterday, today] = items as [Item, Item, Item];
-  assert.deepEqual([sla.tone, sla.sla?.level, sla.salesperson], ["bad", "pull", "محمد محسن"]);
+  assert.deepEqual([sla.tone, sla.sla?.level, sla.salesperson], ["bad", "pull", "Mohamed Mohsen"]);
   assert.deepEqual([yesterday.tone, yesterday.visit?.kind], ["bad", "Visit"]);
   assert.deepEqual([today.tone, today.visit?.kind], ["", "Meeting"]);
 });

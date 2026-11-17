@@ -36,7 +36,7 @@ test("a salesperson signs in without OTP and sees only their own scope", async (
   assert.equal(s.status, 200);
   assert.equal(s.body.otpRequired, false);
   const me = await call("/auth/me", { cookie: s.cookie! });
-  assert.equal(me.body.name, "محمد محسن");
+  assert.equal(me.body.name, "Mohamed Mohsen");
   assert.equal(me.body.scope, "own");
   assert.deepEqual(me.body.permissions.leads, ["view", "create", "edit"]);
   assert.equal(me.body.permissions.finance, undefined);

@@ -16,7 +16,7 @@ let nancy: string, admin: string, sales: string, newId: string, tlEmployeeId: st
 
 before(async () => {
   [nancy, admin, sales] = await Promise.all([session("nancy.islam@places.com"), session("ahmed.islam@places.com"), session("m.mohsen@places.com")]);
-  tlEmployeeId = (await prisma.employee.findFirstOrThrow({ where: { name: "محمود علي" } })).id;
+  tlEmployeeId = (await prisma.employee.findFirstOrThrow({ where: { name: "Mahmoud Ali" } })).id;
 });
 
 // what was said about this file's accounts and role (to the admins too), and the mails to its addresses

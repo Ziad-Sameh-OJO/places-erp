@@ -1,7 +1,8 @@
 [
   {
     "ref": "u1",
-    "name": "أحمد إسلام",
+    "name": "Ahmed Islam",
+    "nameAr": "أحمد إسلام",
     "email": "ahmed.islam@places.com",
     "dashboard": "ahmed",
     "department": "الإدارة",
@@ -11,7 +12,8 @@
   },
   {
     "ref": "u2",
-    "name": "محمد صفوت",
+    "name": "Mohamed Safwat",
+    "nameAr": "محمد صفوت",
     "email": "m.safwat@places.com",
     "dashboard": "safwat",
     "department": "الإدارة",
@@ -21,7 +23,8 @@
   },
   {
     "ref": "u4",
-    "name": "عبدالله سليم",
+    "name": "Abdallah Sleem",
+    "nameAr": "عبدالله سليم",
     "email": "abdallah.sleem@places.com",
     "department": "المبيعات",
     "roles": [
@@ -32,7 +35,8 @@
   },
   {
     "ref": "u19",
-    "name": "محمود علي",
+    "name": "Mahmoud Ali",
+    "nameAr": "محمود علي",
     "email": "mahmoud.ali@places.com",
     "department": "المبيعات",
     "roles": [
@@ -42,7 +46,8 @@
   },
   {
     "ref": "u23",
-    "name": "عبدالرحمن يونس",
+    "name": "Abdelrahman Younes",
+    "nameAr": "عبدالرحمن يونس",
     "email": "abdelrahman.younes@places.com",
     "department": "المبيعات",
     "roles": [
@@ -52,7 +57,8 @@
   },
   {
     "ref": "u24",
-    "name": "مصطفى عزت",
+    "name": "Mostafa Ezzat",
+    "nameAr": "مصطفى عزت",
     "email": "mostafa.ezzat@places.com",
     "department": "المبيعات",
     "roles": [
@@ -62,7 +68,8 @@
   },
   {
     "ref": "s1",
-    "name": "محمد محسن",
+    "name": "Mohamed Mohsen",
+    "nameAr": "محمد محسن",
     "email": "m.mohsen@places.com",
     "department": "المبيعات",
     "roles": [
@@ -73,7 +80,8 @@
   },
   {
     "ref": "s2",
-    "name": "محمد عيد",
+    "name": "Mohamed Eid",
+    "nameAr": "محمد عيد",
     "email": "m.eid@places.com",
     "department": "المبيعات",
     "roles": [
@@ -84,7 +92,8 @@
   },
   {
     "ref": "s17",
-    "name": "أحمد علي",
+    "name": "Ahmed Ali",
+    "nameAr": "أحمد علي",
     "email": "ahmed.ali@places.com",
     "department": "المبيعات",
     "roles": [
@@ -95,7 +104,8 @@
   },
   {
     "ref": "s18",
-    "name": "أحمد يونس",
+    "name": "Ahmed Younes",
+    "nameAr": "أحمد يونس",
     "email": "ahmed.younes@places.com",
     "department": "المبيعات",
     "roles": [
@@ -106,7 +116,8 @@
   },
   {
     "ref": "s3",
-    "name": "عمر جمال",
+    "name": "Omar Gamal",
+    "nameAr": "عمر جمال",
     "email": "omar.gamal@places.com",
     "department": "المبيعات",
     "roles": [
@@ -117,7 +128,8 @@
   },
   {
     "ref": "s14",
-    "name": "أحمد عمرو",
+    "name": "Ahmed Amr",
+    "nameAr": "أحمد عمرو",
     "email": "ahmed.amr@places.com",
     "department": "المبيعات",
     "roles": [
@@ -128,7 +140,8 @@
   },
   {
     "ref": "s15",
-    "name": "أحمد مدحت",
+    "name": "Ahmed Medhat",
+    "nameAr": "أحمد مدحت",
     "email": "ahmed.medhat@places.com",
     "department": "المبيعات",
     "roles": [
@@ -139,7 +152,8 @@
   },
   {
     "ref": "s16",
-    "name": "يوسف حسني",
+    "name": "Youssef Hosny",
+    "nameAr": "يوسف حسني",
     "email": "youssef.hosny@places.com",
     "department": "المبيعات",
     "roles": [
@@ -150,7 +164,8 @@
   },
   {
     "ref": "s4",
-    "name": "يوسف صفوت",
+    "name": "Youssef Safwat",
+    "nameAr": "يوسف صفوت",
     "email": "youssef.safwat@places.com",
     "department": "المبيعات",
     "roles": [
@@ -161,7 +176,8 @@
   },
   {
     "ref": "s5",
-    "name": "زياد مدحت",
+    "name": "Ziad Medhat",
+    "nameAr": "زياد مدحت",
     "email": "ziad.medhat@places.com",
     "department": "المبيعات",
     "roles": [
@@ -172,7 +188,8 @@
   },
   {
     "ref": "s7",
-    "name": "أحمد خالد",
+    "name": "Ahmed Khaled",
+    "nameAr": "أحمد خالد",
     "email": "ahmed.khaled@places.com",
     "department": "المبيعات",
     "roles": [
@@ -183,7 +200,8 @@
   },
   {
     "ref": "s8",
-    "name": "صلاح الدين",
+    "name": "Salah Eldin",
+    "nameAr": "صلاح الدين",
     "email": "salah.eldin@places.com",
     "department": "المبيعات",
     "roles": [
@@ -194,7 +212,8 @@
   },
   {
     "ref": "s9",
-    "name": "محمد ممدوح",
+    "name": "Mohamed Mamdouh",
+    "nameAr": "محمد ممدوح",
     "email": "m.mamdouh@places.com",
     "department": "المبيعات",
     "roles": [
@@ -205,7 +224,8 @@
   },
   {
     "ref": "s6",
-    "name": "محمد خالد",
+    "name": "Mohamed Khaled",
+    "nameAr": "محمد خالد",
     "email": "m.khaled@places.com",
     "department": "المبيعات",
     "roles": [
@@ -216,7 +236,8 @@
   },
   {
     "ref": "s10",
-    "name": "عبدالرحمن صلاح",
+    "name": "Abdelrahman Salah",
+    "nameAr": "عبدالرحمن صلاح",
     "email": "abdelrahman.salah@places.com",
     "department": "المبيعات",
     "roles": [
@@ -227,7 +248,8 @@
   },
   {
     "ref": "s11",
-    "name": "إبراهيم سمير",
+    "name": "Ibrahim Samir",
+    "nameAr": "إبراهيم سمير",
     "email": "ibrahim.samir@places.com",
     "department": "المبيعات",
     "roles": [
@@ -238,7 +260,8 @@
   },
   {
     "ref": "s12",
-    "name": "أنس",
+    "name": "Anas",
+    "nameAr": "أنس",
     "email": "anas@places.com",
     "department": "المبيعات",
     "roles": [
@@ -249,7 +272,8 @@
   },
   {
     "ref": "s13",
-    "name": "محمد سامي",
+    "name": "Mohamed Samy",
+    "nameAr": "محمد سامي",
     "email": "m.samy@places.com",
     "department": "المبيعات",
     "roles": [
@@ -260,7 +284,8 @@
   },
   {
     "ref": "u5",
-    "name": "هدير طارق",
+    "name": "Hadeer Tarek",
+    "nameAr": "هدير طارق",
     "email": "hadeer.tarek@places.com",
     "department": "المبيعات",
     "roles": [
@@ -270,7 +295,8 @@
   },
   {
     "ref": "u6",
-    "name": "هبة صلاح",
+    "name": "Heba Salah",
+    "nameAr": "هبة صلاح",
     "email": "heba.salah@places.com",
     "department": "Operations",
     "roles": [
@@ -280,7 +306,8 @@
   },
   {
     "ref": "u7",
-    "name": "منار أحمد",
+    "name": "Manar Ahmed",
+    "nameAr": "منار أحمد",
     "email": "manar.ahmed@places.com",
     "department": "Inventory",
     "roles": [
@@ -290,7 +317,8 @@
   },
   {
     "ref": "u8",
-    "name": "رندا محمد",
+    "name": "Randa Mohamed",
+    "nameAr": "رندا محمد",
     "email": "randa.mohamed@places.com",
     "department": "Inventory",
     "roles": [
@@ -300,7 +328,8 @@
   },
   {
     "ref": "u9",
-    "name": "سارة عبدالحليم",
+    "name": "Sara Abdelhalim",
+    "nameAr": "سارة عبدالحليم",
     "email": "sara.abdelhalim@places.com",
     "department": "Inventory",
     "roles": [
@@ -310,7 +339,8 @@
   },
   {
     "ref": "u10",
-    "name": "مروة مصطفى",
+    "name": "Marwa Mostafa",
+    "nameAr": "مروة مصطفى",
     "email": "marwa.mostafa@places.com",
     "department": "Inventory",
     "roles": [
@@ -320,7 +350,8 @@
   },
   {
     "ref": "u11",
-    "name": "رحمة حسن",
+    "name": "Rahma Hassan",
+    "nameAr": "رحمة حسن",
     "email": "rahma.hassan@places.com",
     "department": "Marketing",
     "roles": [
@@ -330,7 +361,8 @@
   },
   {
     "ref": "u12",
-    "name": "عبدالرحمن بيومي",
+    "name": "Abdelrahman Bayoumi",
+    "nameAr": "عبدالرحمن بيومي",
     "email": "abdelrahman.bayoumi@places.com",
     "department": "Marketing",
     "roles": [
@@ -340,7 +372,8 @@
   },
   {
     "ref": "u14",
-    "name": "بسنت الصاوي",
+    "name": "Basant Elsawy",
+    "nameAr": "بسنت الصاوي",
     "email": "basant.elsawy@places.com",
     "department": "HR",
     "roles": [
@@ -350,7 +383,8 @@
   },
   {
     "ref": "u16",
-    "name": "مختار جمال",
+    "name": "Mokhtar Gamal",
+    "nameAr": "مختار جمال",
     "email": "mokhtar.gamal@places.com",
     "department": "Accounts",
     "roles": [
@@ -360,7 +394,8 @@
   },
   {
     "ref": "u18",
-    "name": "أحمد أشرف",
+    "name": "Ahmed Ashraf",
+    "nameAr": "أحمد أشرف",
     "email": "ahmed.ashraf@places.com",
     "department": "Accounts",
     "roles": [
@@ -371,7 +406,8 @@
   },
   {
     "ref": "u21",
-    "name": "نانسي إسلام",
+    "name": "Nancy Islam",
+    "nameAr": "نانسي إسلام",
     "email": "nancy.islam@places.com",
     "department": "الإدارة",
     "roles": [
