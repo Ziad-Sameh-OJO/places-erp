@@ -35,7 +35,7 @@ export function RoutingTab({ editable }: { editable: boolean }) {
               <thead>
                 <tr>
                   <th>Area</th>
-                  {salespeople.map((s) => <th key={s.id} title={s.name}><span className="who"><Avatar id={s.id} name={s.name} sm /><span>{s.name.split(" ")[0]}</span></span></th>)}
+                  {salespeople.map((s) => <th key={s.id} title={s.name}><span className="who"><Avatar id={s.id} name={s.name} sm /><span>{s.name.split(" ").slice(0, 2).join(" ")}</span>{/* two words: six columns read «أحمد» with the first name alone */}</span></th>)}
                 </tr>
               </thead>
               <tbody>

@@ -11,8 +11,8 @@ import { UnitLayoutFolder } from "./unit-layout";
 import { serverText } from "@/lib/server-text";
 
 export type UnitTypeName = UnitRow["type"];
-export const TYPE_TONE: Record<UnitTypeName, "info" | "acc" | "ok" | "warn"> = { Rent: "info", Resale: "acc", Income: "ok", Primary: "warn" };
-export const TypeChip = ({ type }: { type: UnitTypeName }) => <Chip tone={TYPE_TONE[type]}>{type}</Chip>;
+/** A unit's type is a category, not a status: one neutral chip, no colour per type (client, 17 Nov). */
+export const TypeChip = ({ type }: { type: string }) => <Chip>{type}</Chip>;
 
 /** The inventory namespace's translator, for the helpers here that build a sheet's words. */
 export type InventoryT = ReturnType<typeof useTranslations<"inventory">>;

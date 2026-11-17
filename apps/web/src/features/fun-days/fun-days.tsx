@@ -111,7 +111,7 @@ function Starters({ plan, onPick }: { plan: FunDayPlan; onPick: (d: Draft) => vo
   const t = useTranslations("hr.funDays");
   const planned = new Set(plan.events.filter((e) => !e.cancelled).map((e) => e.title));
   return (
-    <Card title={t("starters")} icon="sparkle" sub={t("startersSub")}>
+    <Card title={t("starters")} icon="play" sub={t("startersSub")}>
       <div className="row">
         {plan.starters.map((s) => (
           <button key={s.key} type="button" className="btn ghost sm" onClick={() => onPick({ title: s.title, date: s.date ?? "" })}>

@@ -5,7 +5,7 @@
 .perm td.ov { background: var(--warn-soft); }
 .role-list { display: flex; flex-direction: column; gap: 4px; }
 .role-list button { display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: start; padding: 9px 12px; border-radius: var(--r-sm); border: 1px solid transparent; background: none; }
-.role-list button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-text); }
+.role-list button[aria-pressed="true"] { background: var(--surface-2); border-color: var(--ink); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); } /* selected = ink outline like the other pickers, not a coral alert */
 .role-list small { color: var(--ink-3); }
 .access-grid { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .access-grid { grid-template-columns: 1fr; } }
@@ -58,7 +58,7 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 .hot-thumb svg.i { width: 22px; height: 22px; stroke-width: 1.4; }
 .hot-thumb > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .hot-thumb > span { position: absolute; bottom: 3px; inset-inline-end: 3px; background: rgba(0,0,0,.45); color: #fff; font-size: 10px; padding: 0 5px; border-radius: 6px; }
-.u-Primary { background: linear-gradient(135deg, #7a4b00, #c98a12); }
+.u-Primary { background: #2b2b2b; }
 .hot-main { min-width: 0; display: grid; gap: 3px; }
 .hot-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .hot-top .mono { color: var(--accent-text); font-size: 12px; flex: none; }
@@ -253,7 +253,7 @@ a.chip { text-decoration: none; }
 .dash-a .hbars { gap: 6px; }
 .dash-a .hb { grid-template-columns: minmax(90px, 1fr) 3fr 40px minmax(0, 92px); border-radius: 8px; }
 .dash-a .hb .bar { height: 18px; border-radius: 6px; background: var(--surface-2); }
-.dash-a .hb .bar i { background: var(--accent); border-radius: 6px; }
+.dash-a .hb .bar i { background: var(--ink); border-radius: 6px; } /* a count, not an alarm: the funnel fades in ink */
 .dash-a .hb:nth-child(2) .bar i { opacity: .85; } .dash-a .hb:nth-child(3) .bar i { opacity: .72; } .dash-a .hb:nth-child(4) .bar i { opacity: .6; } .dash-a .hb:nth-child(5) .bar i { opacity: .5; }
 .dash-a .hb:last-child .bar i { background: var(--btn); opacity: 1; }
 .dash-a .hb:hover .hb-l { color: var(--ink); }

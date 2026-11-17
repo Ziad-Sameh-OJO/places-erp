@@ -104,8 +104,6 @@
   .tbl-wrap:has(table.perm) { margin-inline: -4px; }
   table.kpi-items.cardable { min-width: 0 !important; }
   table.kpi-items.cardable td:first-child { min-width: 0 !important; }
-  table.kpi-items.cardable tr.under { border-inline-start: 4px solid var(--warn); }
-  table.kpi-items.cardable tr.under td:first-child { box-shadow: none; }
   table.kpi-items.cardable tr.edit td { flex-wrap: wrap; }
   table.kpi-items.cardable tr.edit input, table.kpi-items.cardable tr.edit select { width: 100% !important; }
 

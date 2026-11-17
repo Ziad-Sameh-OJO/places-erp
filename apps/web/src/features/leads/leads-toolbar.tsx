@@ -22,7 +22,7 @@ export function LeadKpis({ s, onReset }: { s: LeadSummary; onReset: () => void }
   return (
     <div className="kpis">
       <KpiTile label={t("all")} value={num(s.total)} sub={t("allSub")} icon="users" delta={delta(s.thisWeek, s.lastWeek)} onClick={onReset} />
-      <KpiTile label="Fresh" value={num(s.fresh)} sub={t("freshSub")} icon="sparkle" />
+      <KpiTile label="Fresh" value={num(s.fresh)} sub={t("freshSub")} icon="phone" />
       <KpiTile label="Qualified" value={num(s.qualified)} sub={t("qualifiedSub", { pct: qualifiedPct })} icon="star" tone="ok" />
       <KpiTile label="No Answer" value={num(s.noAnswer)} sub={t("noAnswerSub")} icon="clock" tone="warn" />
     </div>
@@ -54,28 +54,28 @@ export function StageDashboard({ s, f, onPick }: { s: LeadSummary; f: LeadQuery;
 }
 
 /**
- * The demo's «العروض»: «كل الليدز», the stage tabs (14.5) with their counts, the person's own views, and «احفظ الفلتر ده
- * كعرض». A stage tab keeps the other filters; a saved view replaces them.
+ * The demo's «العروض»: «كل الليدز», the stage tabs (14.5), the person's own views, and «احفظ الفلتر ده كعرض». A stage
+ * tab keeps the other filters; a saved view replaces them. The counts live in the tiles and the stage dashboard above,
+ * not here too (client, 17 Nov: the same number three times on one page).
  */
-export function ViewsBar({ f, s, views, onPick, onAdd, onRemove }: {
-  f: LeadQuery; s: LeadSummary | undefined; views: SavedView[];
+export function ViewsBar({ f, views, onPick, onAdd, onRemove }: {
+  f: LeadQuery; views: SavedView[];
   onPick: (f: LeadQuery) => void; onAdd: (v: SavedView) => void; onRemove: (i: number) => void;
 }) {
   const t = useTranslations("leads.views");
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const known = (activeCount(f) === 1 && !!f.stage) || views.some((v) => sameFilters(v.f, f));
-  const count = (stage: string) => (s ? num(s.stages[stage] ?? 0) : "…");
   const stage = (st: string) => onPick({ ...f, stage: st });
   const sub = subTabsOf(f.stage);
   return (
     <>
     <div className="views-bar" role="toolbar" aria-label={t("label")}>
       <span className="lbl">{t("title")}</span>
-      <button className="vchip" aria-pressed={!f.stage} onClick={() => stage("")}>{t("presets.total")}<b>{s ? num(s.total) : "…"}</b></button>
+      <button className="vchip" aria-pressed={!f.stage} onClick={() => stage("")}>{t("presets.total")}</button>
       {STAGE_TAB_LIST.map((x) => (
         <button key={x.stage} className="vchip" aria-pressed={f.stage === x.stage || !!x.sub?.some((y) => y === f.stage)} onClick={() => stage(x.stage)}>
-          {x.stage}<b>{count(x.stage)}</b>
+          {x.stage}
         </button>
       ))}
       {views.map((v, i) => (
@@ -97,7 +97,7 @@ export function ViewsBar({ f, s, views, onPick, onAdd, onRemove }: {
     {sub.length > 0 && (
       <div className="views-bar" role="toolbar" aria-label={t("insideInterested")}>
         <span className="lbl">{t("insideInterested")}</span>
-        {sub.map((x) => <button key={x} className="vchip" aria-pressed={f.stage === x} onClick={() => stage(f.stage === x ? "Interested" : x)}>{x}<b>{count(x)}</b></button>)}
+        {sub.map((x) => <button key={x} className="vchip" aria-pressed={f.stage === x} onClick={() => stage(f.stage === x ? "Interested" : x)}>{x}</button>)}
       </div>
     )}
     </>

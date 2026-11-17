@@ -98,7 +98,7 @@ function TodaySafwat({ d }: { d: CompanyDashboard }) {
       <Card title={t("titleSafwat")} icon="clock">
         <div className="kpis">
           <Tile label={t("leads")} value={num(d.today.leads)} sub={t("interested", { count: d.today.interested })} icon="users" href={leadsOn(d.day)} />
-          <Tile label={t("interestedTile")} value={num(d.today.interested)} icon="sparkle" href={leadsOn(d.day, "&qualified=true")} />
+          <Tile label={t("interestedTile")} value={num(d.today.interested)} icon="star" href={leadsOn(d.day, "&qualified=true")} />
           <Tile label={t("units")} value={num(d.today.units)} icon="building" href="/inventory" />
           <Tile label={t("visits")} value={num(d.today.visits)} icon="pin" href="/reports" />
           <Tile label={t("meetings")} value={num(d.today.meetings)} icon="users" href="/reports" />
