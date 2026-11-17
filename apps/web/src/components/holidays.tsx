@@ -1,7 +1,7 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { HolidayView } from "@places/contracts";
-import { Chip, Icon, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Chip, Icon, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import { dateLocale, num } from "@/lib/format";
@@ -37,8 +37,8 @@ export function Holidays({ path, editable, upcoming = false }: { path: string; e
       {editable && (
         <form className="row" onSubmit={(e) => { const form = e.currentTarget; onFormSubmit((d) => add(d, form))(e); }}>
           <input name="label" placeholder={t("namePlaceholder")} aria-label={t("name")} required minLength={2} maxLength={80} />
-          <label className="field inline"><span>{t("from")}</span><input type="date" name="from" required /></label>
-          <label className="field inline"><span>{t("to")}</span><input type="date" name="to" aria-label={t("toLabel")} /></label>
+          <label className="field inline"><span>{t("from")}</span><DateInput name="from" required /></label>
+          <label className="field inline"><span>{t("to")}</span><DateInput name="to" aria-label={t("toLabel")} /></label>
           <button className="btn ghost"><Icon name="plus" />{t("add")}</button>
         </form>
       )}

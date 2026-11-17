@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { DailyForm, DayReport, MyHandIn } from "@places/contracts";
-import { Card, Chip, Empty, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { dateLocale } from "@/lib/format";
 import { useMe } from "@/lib/me";
@@ -118,7 +118,7 @@ export function DailyBoard() {
           <button aria-pressed={view === "shape"} onClick={() => setView("shape")}>{t("shape")}</button>
         </div>
         {view === "day" && <>
-          <label className="date-f"><span>{t("day")}</span><input type="date" value={day || shown} max={today} onChange={(e) => setDay(e.target.value)} aria-label={t("theDay")} /></label>
+          <label className="date-f"><span>{t("day")}</span><DateInput value={day || shown} max={today} onChange={(e) => setDay(e.target.value)} aria-label={t("theDay")} /></label>
           <span className="hint">{t("handedCount", { day: dayLbl, got: String(d.team.filter((x) => x.handed).length), of: String(d.team.length) })}</span>
         </>}
       </div>

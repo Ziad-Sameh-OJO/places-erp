@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { FunDayPlan, FunDayView } from "@places/contracts";
-import { Card, Chip, Empty, Field, Icon, Modal, Note, Tick, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Modal, Note, Tick, onFormSubmit, useAction } from "@/components/ui";
 import { FileUpload } from "@/components/file-upload";
 import { api } from "@/lib/api";
 import { dateLocale } from "@/lib/format";
@@ -145,7 +145,7 @@ function FunDayForm({ draft, departments, onClose, onSaved }: { draft: Draft; de
     <Modal title={draft.id ? t("editTitle") : t("new")} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit(save)}>
         <Field label={t("name")} req wide><input name="title" defaultValue={draft.title} required minLength={2} maxLength={120} /></Field>
-        <Field label={t("date")} req><input name="date" type="date" defaultValue={draft.date} required /></Field>
+        <Field label={t("date")} req><DateInput name="date" defaultValue={draft.date} required /></Field>
         <Field label={t("time")}><input name="time" type="time" defaultValue={draft.time ?? ""} /></Field>
         <Field label={t("place")} wide><input name="place" defaultValue={draft.place ?? ""} maxLength={120} placeholder={t("placePh")} /></Field>
         <Field label={t("description")} req wide><textarea name="description" defaultValue={draft.description ?? ""} required minLength={2} maxLength={2000} rows={3} placeholder={t("descriptionPh")} /></Field>

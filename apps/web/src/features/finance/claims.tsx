@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { ClaimView, ClaimsView } from "@places/contracts";
 import { localDate } from "@places/domain";
-import { Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
 import { money } from "./money";
@@ -82,7 +82,7 @@ export function Claims() {
           <form className="grid" onSubmit={onFormSubmit((d) => step(modal.c!, "einvoice", t("claims.einvoiceSaved"), { no: d.get("no"), date: d.get("date") }))}>
             <Note>{modal.c.company} · {money(modal.c.amount)} · {t("claims.einvoiceNote")}</Note>
             <Field label={t("claims.einvoiceNo")} req><input name="no" required placeholder={t("claims.einvoicePlaceholder")} dir="ltr" /></Field>
-            <Field label={t("claims.einvoiceDate")} req><input name="date" type="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
+            <Field label={t("claims.einvoiceDate")} req><DateInput name="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
             <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setModal(null)}>{t("common.cancel")}</button><button className="btn"><Icon name="check" />{t("claims.uploaded")}</button></div>
           </form>
         </Modal>
@@ -103,7 +103,7 @@ function Collect({ c, incomes, onSave, onClose }: { c: ClaimView; incomes: Claim
         <Note>{c.company} · <b>{money(c.amount)}</b> · {serverText(c.kind)} · {t("claims.collectNote")}</Note>
         <Field label={t("claims.collectedIn")} req><select name="toId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{cash?.accounts.map((a) => <option key={a.id} value={a.id}>{serverText(a.name)}</option>)}</select></Field>
         <Field label={t("claims.incomeLine")} req><select name="accountId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{incomes.map((a) => <option key={a.id} value={a.id}>{a.code} · {serverText(a.name)}</option>)}</select></Field>
-        <Field label={t("common.date")} req><input name="date" type="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
+        <Field label={t("common.date")} req><DateInput name="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
         <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{t("common.cancel")}</button><button className="btn"><Icon name="check" />{t("claims.collectSave")}</button></div>
       </form>
     </Modal>

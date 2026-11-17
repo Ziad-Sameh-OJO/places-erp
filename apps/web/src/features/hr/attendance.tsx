@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AttendanceDayView, AttendanceHistoryView, AttendanceRowView, DayDecision, EmployeesView, FingerprintRow, WeeklyDelayView } from "@places/contracts";
-import { Card, Chip, Empty, ExportButton, Field, Icon, ImportDialog, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, ExportButton, Field, Icon, ImportDialog, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
@@ -73,7 +73,7 @@ export function AttendanceToday() {
         {/* ‹ day › stay together, also on a phone */}
         <div className="day-step">
           <button className="btn ghost sm" onClick={() => setDay(shift(day, -1))} aria-label={t("attendance.prevDay")}>‹</button>
-          <label className="date-f"><span>{t("common.day")}</span><input type="date" value={day} max={today()} onChange={(e) => e.target.value && setDay(e.target.value)} /></label>
+          <label className="date-f"><span>{t("common.day")}</span><DateInput value={day} max={today()} onChange={(e) => e.target.value && setDay(e.target.value)} /></label>
           <button className="btn ghost sm" onClick={() => setDay(shift(day, 1))} disabled={day >= today()} aria-label={t("attendance.nextDay")}>›</button>
         </div>
         <label className="search"><Icon name="search" /><input type="search" placeholder={t("attendance.searchName")} value={q} onChange={(e) => setQ(e.target.value)} /></label>
@@ -152,8 +152,8 @@ export function AttendanceHistory() {
     <>
       <div className="toolbar">
         <select value={emp} onChange={(e) => setEmp(e.target.value)} aria-label={t("common.employee")}><option value="">{t("common.pickEmployee")}</option>{emps.data?.items.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select>
-        <label className="date-f"><span>{t("common.from")}</span><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label className="date-f"><span>{t("common.to")}</span><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <label className="date-f"><span>{t("common.from")}</span><DateInput value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+        <label className="date-f"><span>{t("common.to")}</span><DateInput value={to} onChange={(e) => setTo(e.target.value)} /></label>
       </div>
       {!emp ? <Empty text={t("history.pick")} icon="fingerprint" /> : !h.data ? <Empty text={t("common.loading")} icon="clock" /> : <>
         <div className="kpis sm">
@@ -181,7 +181,7 @@ export function WeeklyDelay() {
     <>
       <div className="toolbar">
         <div className="seg" role="group">{([["week", t("delay.thisWeek")], ["2w", t("delay.twoWeeks")], ["custom", t("delay.custom")]] as const).map(([k, l]) => <button key={k} aria-pressed={preset === k} onClick={() => setPreset(k)}>{l}</button>)}</div>
-        {preset === "custom" && <><label className="date-f"><span>{t("common.from")}</span><input type="date" value={cf} onChange={(e) => setCf(e.target.value)} /></label><label className="date-f"><span>{t("common.to")}</span><input type="date" value={ct} onChange={(e) => setCt(e.target.value)} /></label></>}
+        {preset === "custom" && <><label className="date-f"><span>{t("common.from")}</span><DateInput value={cf} onChange={(e) => setCf(e.target.value)} /></label><label className="date-f"><span>{t("common.to")}</span><DateInput value={ct} onChange={(e) => setCt(e.target.value)} /></label></>}
       </div>
       {!d ? <Empty text={t("common.loading")} icon="clock" /> : (
         <div className="tbl-wrap"><table className="heat"><thead><tr><th>{t("common.employee")}</th>{d.days.map((x) => <th key={x} className="n">{dayName(x)}</th>)}<th>{t("delay.period")}</th><th>{t("delay.allTime")}</th></tr></thead>

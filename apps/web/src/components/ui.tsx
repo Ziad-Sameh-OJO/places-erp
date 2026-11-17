@@ -4,12 +4,13 @@
  * them as-is: Icon, Chip, Card, Tabs, Table (cards on phones), Field, Note, Empty, Modal (bottom sheet on phones),
  * Tick, Avatar, and a toast.
  */
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Children, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { nextSort, sortOrder, type Action, type ModuleKey, type SortDir } from "@places/domain";
 import type { ImportDone, ImportPreview } from "@places/contracts";
 import { ICONS, type IconName } from "@places/ui";
 import { api } from "@/lib/api";
+import { fullDay } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { useTranslations } from "next-intl";
@@ -280,5 +281,29 @@ export function ImportDialog<T extends Record<string, unknown>>({ title, path, c
         <button type="button" className="btn" disabled={!p || busy || (!skipErrors && p.errors.length > 0) || p.valid === 0} onClick={confirm}>{busy && p ? t("saving") : p?.valid && (skipErrors || !p.errors.length) ? t("confirmRows", { count: p.valid }) : t("confirm")}</button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * A date field that reads «17 نوفمبر 2026»: the browser's own field shows the day in its language's order
+ * («11/17/2026»), which an Egyptian reads as 11 October. The native picker and typing stay (shown while focused).
+ */
+export function DateInput(p: Omit<ComponentProps<"input">, "type">) {
+  const t = useTranslations("ui");
+  const [own, setOwn] = useState(String(p.defaultValue ?? ""));
+  const v = String(p.value ?? own);
+  return <input {...p} type="date" data-day={/^\d{4}-\d{2}-\d{2}$/.test(v) ? fullDay(v) : t("pickDate")} onChange={(e) => { setOwn(e.target.value); p.onChange?.(e); }} />;
+}
+
+/** «⋯ أكتر»: the page's secondary actions under one button, so its main one stands alone. Closes after a choice. */
+export function More({ children }: { children: ReactNode }) {
+  const t = useTranslations("ui");
+  const kids = Children.toArray(children);
+  if (!kids.length) return null;
+  return (
+    <details className="more" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.open = false; }}>
+      <summary className="btn ghost">⋯ {t("more")}</summary>
+      <div className="more-menu" onClick={(e) => { e.currentTarget.parentElement!.removeAttribute("open"); }}>{kids}</div>
+    </details>
   );
 }

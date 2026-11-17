@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { activeValues, type CostCenterView, type Settings } from "@places/contracts";
-import { Card, Empty, Note, onFormSubmit, Table, useAction } from "@/components/ui";
+import { DateInput, Card, Empty, Note, onFormSubmit, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { money } from "./money";
@@ -33,8 +33,8 @@ export function CostCenter() {
         {sel("campaignId", t("cost.allCampaigns"), (v?.options.campaigns ?? []).map((c) => [c.id, c.name]), t("cost.campaign"))}
         {sel("salesId", t("cost.allSales"), (v?.options.sales ?? []).map((p) => [p.id, p.name]), t("cost.sales"))}
         {sel("area", t("cost.allAreas"), activeValues(s?.areas ?? []).map((a) => [a, a]), t("cost.area"))}
-        <label className="date-f"><span>{t("common.from")}</span><input type="date" value={f.from ?? ""} onChange={set("from")} /></label>
-        <label className="date-f"><span>{t("common.until")}</span><input type="date" value={f.to ?? ""} onChange={set("to")} /></label>
+        <label className="date-f"><span>{t("common.from")}</span><DateInput value={f.from ?? ""} onChange={set("from")} /></label>
+        <label className="date-f"><span>{t("common.until")}</span><DateInput value={f.to ?? ""} onChange={set("to")} /></label>
       </div>
       {!v ? <Empty text={t("common.loading")} icon="clock" /> : <>
         <Card title={t("cost.byChannelTitle")} icon="chart">

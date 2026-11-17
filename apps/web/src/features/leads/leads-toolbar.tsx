@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { LeadOptions, LeadSummary, Settings } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
-import { Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
+import { DateInput, Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
 import { num } from "@/lib/format";
 import { type LeadQuery, STAGE_TAB_LIST, type SavedView, activeCount, sameFilters, subTabsOf } from "./filters";
 import { serverText } from "@/lib/server-text";
@@ -139,8 +139,8 @@ export function LeadsToolbar({ f, set, settings, options }: {
       <select value={f.qualified ?? ""} onChange={on("qualified")} aria-label="Qualified">
         <option value="">{t("qualifiedAll")}</option><option value="true">{t("qualifiedOnly")}</option><option value="false">{t("notQualified")}</option>
       </select>
-      <label className="date-f"><span>{t("from")}</span><input type="date" value={f.from ?? ""} onChange={on("from")} /></label>
-      <label className="date-f"><span>{t("to")}</span><input type="date" value={f.to ?? ""} onChange={on("to")} /></label>
+      <label className="date-f"><span>{t("from")}</span><DateInput value={f.from ?? ""} onChange={on("from")} /></label>
+      <label className="date-f"><span>{t("to")}</span><DateInput value={f.to ?? ""} onChange={on("to")} /></label>
       {n > 0 && <button className="btn ghost sm" onClick={() => set({})}><Icon name="x" />{t("clear", { count: n })}</button>}
     </div>
   );

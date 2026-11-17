@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { EntrySaved, MoveEffect, PeriodView } from "@places/contracts";
-import { Chip, Empty, Icon, Modal, Note, Table, useAction } from "@/components/ui";
+import { DateInput, Chip, Empty, Icon, Modal, Note, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { money } from "./money";
@@ -33,8 +33,8 @@ export function Journal() {
       <Periods />
       <div className="row">
         {fields.shows("memo") && <input type="search" placeholder={t("journal.search")} onChange={(e) => set("q", e.target.value)} />}
-        <label className="hint">{t("common.from")} <input type="date" onChange={(e) => set("from", e.target.value)} /></label>
-        <label className="hint">{t("common.until")} <input type="date" onChange={(e) => set("to", e.target.value)} /></label>
+        <label className="hint">{t("common.from")} <DateInput onChange={(e) => set("from", e.target.value)} /></label>
+        <label className="hint">{t("common.until")} <DateInput onChange={(e) => set("to", e.target.value)} /></label>
         <span className="spacer" />
         {can("finance", "create") && fields.edits("amount") && <button className="btn" onClick={() => setForm(true)}><Icon name="plus" />{t("entry.newTitle")}</button>}
       </div>

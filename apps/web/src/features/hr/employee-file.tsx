@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { FILE_KINDS, UploadRequest, type EmployeeFileDocs, type OneOnOneCoverage, type OneOnOneReportRow, type StoredFile, type UploadTicket } from "@places/contracts";
-import { Card, Chip, Empty, ExportButton, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, ExportButton, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { put } from "@/components/file-upload";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
@@ -129,8 +129,8 @@ export function OneOnOnes() {
       <Card title={t("reportTitle")} icon="chart" sub={t("reportSub")}
         extra={<ExportButton module="hr" path="/hr/one-on-one/report/export" query={qs} filename={t("reportFile", { from: range.from, to: range.to })} />}>
         <div className="toolbar row">
-          <Field label={t("from")}><input type="date" value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} /></Field>
-          <Field label={t("to")}><input type="date" value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} /></Field>
+          <Field label={t("from")}><DateInput value={range.from} max={range.to} onChange={(e) => e.target.value && setRange({ ...range, from: e.target.value })} /></Field>
+          <Field label={t("to")}><DateInput value={range.to} min={range.from} onChange={(e) => e.target.value && setRange({ ...range, to: e.target.value })} /></Field>
         </div>
         {!rep ? <Empty text={t("loading")} icon="clock" /> : (
           <Table head={[t("employee"), t("date"), t("by"), t("summary"), t("hrAction"), t("actionDone")]} empty={t("noneInRange")}

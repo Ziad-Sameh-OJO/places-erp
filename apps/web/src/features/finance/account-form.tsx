@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { AccountNode } from "@places/contracts";
-import { Field, Modal, Note, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Field, Modal, Note, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
@@ -47,7 +47,7 @@ export function AccountForm({ roots, parentId, onClose }: { roots: AccountNode[]
         <Field label={t("accountForm.counter")}>
           <select name="counterId" defaultValue=""><option value="">{t("accountForm.retained")}</option>{leaves.map(({ node }) => <option key={node.id} value={node.id}>{node.code} · {serverText(node.name)}</option>)}</select>
         </Field>
-        <Field label={t("accountForm.date")}><input type="date" name="date" defaultValue={today()} max={today()} /></Field>
+        <Field label={t("accountForm.date")}><DateInput name="date" defaultValue={today()} max={today()} /></Field>
         <Note>{t("accountForm.note")}</Note>
         <button className="btn" disabled={busy}>{busy ? t("common.saving") : t("accountForm.submit")}</button>
       </form>

@@ -7,7 +7,7 @@ import { CONTRACT_ENDING_DAYS, OUTBOUND_WEEKLY_TARGET, keepsCompaniesSheet } fro
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
 import { useMe } from "@/lib/me";
-import { Card, ExportButton, Field, Icon, Modal, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { DateInput, Card, ExportButton, Field, Icon, Modal, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { OldDataImport } from "../imports/old-data-import";
 
 const KEY = ["companies"];
@@ -150,8 +150,8 @@ function EditCompany({ company: c, categories, onClose }: { company: CompanyRow;
         <Field label="email"><input name="email" type="email" maxLength={200} defaultValue={v(c.email)} /></Field>
         <Field label="current location"><input name="currentLocation" maxLength={200} defaultValue={v(c.currentLocation)} /></Field>
         <Field label="current space"><input name="currentSpace" type="number" min={1} step={1} defaultValue={v(c.currentSpace)} /></Field>
-        <Field label="start contract date"><input name="contractStart" type="date" defaultValue={v(c.contractStart)} /></Field>
-        <Field label="end contract date"><input name="contractEnd" type="date" defaultValue={v(c.contractEnd)} /></Field>
+        <Field label="start contract date"><DateInput name="contractStart" defaultValue={v(c.contractStart)} /></Field>
+        <Field label="end contract date"><DateInput name="contractEnd" defaultValue={v(c.contractEnd)} /></Field>
         <Field label="average current price rent"><input name="averageRent" inputMode="decimal" defaultValue={c.averageRent ? String(Number(c.averageRent)) : ""} /></Field>
         <Field label="annual escalation (%)"><input name="annualEscalation" type="number" min={0} max={100} step="0.01" defaultValue={c.annualEscalation ? String(Number(c.annualEscalation)) : ""} /></Field>
         <Field label={t("category")} req>

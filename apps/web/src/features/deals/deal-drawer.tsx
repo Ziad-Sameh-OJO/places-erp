@@ -5,7 +5,7 @@ import type { DealCollected, DealSheetRow, DealTcr } from "@places/contracts";
 import { DEAL_TYPES, execState, localDate } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { NewClaim } from "@/components/new-claim";
-import { Chip, Field, Icon, Modal, Note, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Chip, Field, Icon, Modal, Note, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { day, money, num } from "@/lib/format";
 import { useFields, useMe } from "@/lib/me";
@@ -139,7 +139,7 @@ function ExecPapers({ d, post }: { d: DealSheetRow; post: (path: string, body: u
       {fields.shows("execution") && <div className="row">
         {om ? (
           <>
-            <label className="row hint">{t("due")} <input type="date" defaultValue={d.execDueAt ?? ""} onBlur={(e) => { if (e.target.value && e.target.value !== d.execDueAt) void post("execution", { execDueAt: e.target.value }, t("dueSaved"), "put"); }} /></label>
+            <label className="row hint">{t("due")} <DateInput defaultValue={d.execDueAt ?? ""} onBlur={(e) => { if (e.target.value && e.target.value !== d.execDueAt) void post("execution", { execDueAt: e.target.value }, t("dueSaved"), "put"); }} /></label>
             {d.executedAt ? <span className="hint">{t("executedOn", { date: day(d.executedAt) })}</span> : <button className="btn ghost sm" onClick={() => void post("execution", { executed: true }, t("executedToast"), "put")}><Icon name="check" />{t("executed")}</button>}
           </>
         ) : <span className="hint">{t("dueRead", { date: day(d.execDueAt) })}{d.executedAt && ` · ${t("executedOn", { date: day(d.executedAt) })}`}</span>}
@@ -238,7 +238,7 @@ function Collect({ d, onDone }: { d: DealSheetRow; onDone: () => Promise<unknown
         <select name="toId" required defaultValue=""><option value="" disabled>{cash ? td("pick") : td("loading")}</option>{cash?.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
       </Field>
       <Field label={t("amountLeft", { left: money(d.remaining) })} req><input name="amount" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required placeholder={t("amount")} /></Field>
-      <Field label={t("date")} req><input name="date" type="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
+      <Field label={t("date")} req><DateInput name="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
       {first && (
         <Field label={t("revenue")} req wide>
           <select name="revenueId" required defaultValue=""><option value="" disabled>{td("pick")}</option>{incomes.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select>

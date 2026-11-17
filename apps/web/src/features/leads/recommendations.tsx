@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { RecommendAnswers, RecommendedUnit, Recommendations } from "@places/contracts";
-import { Chip, Empty, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
+import { DateInput, Chip, Empty, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { useFields, useMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import { dateLocale, money, num } from "@/lib/format";
@@ -104,7 +104,7 @@ function Questions({ r, onAsk, onReset }: { r: Recommendations; onAsk: (k: keyof
         <option value="">{t("anyPayment")}</option>
         {[...new Set([...r.paymentMethods, ...(a.payment ? [a.payment] : [])])].map((p) => <option key={p} value={p}>{p}</option>)}
       </select>}
-      {sale && shows("delivery") && <label className="qs-t">{t("deliveryBy")}<input type="date" value={a.deliveryBy ?? ""} onChange={(e) => onAsk("deliveryBy", e.target.value)} aria-label={t("deliveryBy")} /></label>}
+      {sale && shows("delivery") && <label className="qs-t">{t("deliveryBy")}<DateInput value={a.deliveryBy ?? ""} onChange={(e) => onAsk("deliveryBy", e.target.value)} aria-label={t("deliveryBy")} /></label>}
       {Object.values(a).some((v) => v != null && v !== "") && <button className="btn ghost sm" onClick={onReset}>{t("reset")}</button>}
     </div>
   );

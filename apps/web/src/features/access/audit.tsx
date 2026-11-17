@@ -5,7 +5,7 @@ import type { Paged } from "@places/contracts";
 import { AUDIT_ACTION_LABEL } from "@places/domain";
 import { api } from "@/lib/api";
 import { MODULE_LABEL } from "@/lib/nav";
-import { ExportButton, Table } from "@/components/ui";
+import { DateInput, ExportButton, Table } from "@/components/ui";
 import { useTranslations } from "next-intl";
 import { dayTime } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
@@ -46,8 +46,8 @@ export function AuditTab() {
           <option value="">{t("allPeople")}</option>
           {(people.data?.items ?? []).filter((u) => u.employee).map((u) => <option key={u.id} value={u.id}>{u.employee!.name}</option>)}
         </select>
-        <label className="date-f"><span>{t("from")}</span><input type="date" value={from} max={to || undefined} onChange={set(setFrom)} /></label>
-        <label className="date-f"><span>{t("to")}</span><input type="date" value={to} min={from || undefined} onChange={set(setTo)} /></label>
+        <label className="date-f"><span>{t("from")}</span><DateInput value={from} max={to || undefined} onChange={set(setFrom)} /></label>
+        <label className="date-f"><span>{t("to")}</span><DateInput value={to} min={from || undefined} onChange={set(setTo)} /></label>
         <span className="spacer" />
         <span className="hint">{t("count", { count: log.data?.total ?? 0 })}</span>
         <ExportButton module="access" path="/access/audit/export" query={new URLSearchParams(filters)} filename="Audit Log.xlsx" />

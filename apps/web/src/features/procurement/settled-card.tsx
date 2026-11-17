@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { CashView, PurchaseView } from "@places/contracts";
-import { Card, Chip, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { day } from "@/lib/format";
@@ -58,7 +58,7 @@ function PostForm({ p, onClose }: { p: PurchaseView; onClose: () => void }) {
             {cash.data.accounts.map((a) => <option key={a.id} value={a.id}>{serverText(a.name)} · {money(a.balance)}</option>)}
           </select>
         </Field>
-        <Field label={t("common.date")}><input name="date" type="date" /></Field>
+        <Field label={t("common.date")}><DateInput name="date" /></Field>
         <Field label={t("common.line")}><input value={`${p.account.code} · ${serverText(p.account.name)}`} readOnly /></Field>
         <Field label={t("common.amount")}><input value={money(p.amount)} readOnly /></Field>
         <Field label={t("common.memo")} wide><input value={`${p.item}${p.vendor ? ` · ${p.vendor}` : ""}`} readOnly /></Field>

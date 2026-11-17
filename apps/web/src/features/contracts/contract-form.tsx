@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ContractDetail, StoredFile } from "@places/contracts";
-import { Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { DateInput, Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { FileUpload } from "@/components/file-upload";
 import { api } from "@/lib/api";
 import { useFields } from "@/lib/me";
@@ -44,8 +44,8 @@ export function ContractForm({ onClose, onCreated }: { onClose: () => void; onCr
             {deals.map((x) => <option key={x.id} value={x.id}>{x.code} · {x.company} · {x.unitCode}</option>)}
           </select>
         </Field>
-        <Field label={t("fields.starts")} req><input name="startsOn" type="date" required /></Field>
-        <Field label={t("fields.ends")} req><input name="endsOn" type="date" required /></Field>
+        <Field label={t("fields.starts")} req><DateInput name="startsOn" required /></Field>
+        <Field label={t("fields.ends")} req><DateInput name="endsOn" required /></Field>
         <Field label={t("fields.value")} req><input name="value" required inputMode="decimal" type="number" min={1} step="0.01" /></Field>
         {/* M-09: a hidden yearly increase has no input, a read-only one is locked at 0 (the API sets 0 either way) */}
         {fields.shows("escalation") && (fields.edits("escalation")
