@@ -19,6 +19,7 @@ import { BellPanel, useBell } from "./bell";
 import { CreateMenu } from "./create-menu";
 import { CommandPalette, openSearch } from "./command-palette";
 import { pushSubscription } from "@/features/notifications/push";
+import { Tour, startTour } from "@/features/tour/tour";
 
 /** The Places wordmark (white on the black menu); «ERP» marks the system apart from the brand; under it, who built it, linking to their site (client, 16–17 Nov). */
 const Brand = () => (
@@ -34,6 +35,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const { me, can, opens } = useMe();
   const t = useTranslations("common.shell");
   const tNav = useTranslations("nav");
+  const tTour = useTranslations("tour");
   const [menuOpen, setMenuOpen] = useState(false);
   const bell = useBell();
   const toast = useToast();
@@ -100,6 +102,8 @@ export function Shell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="side-foot">
+          {/* #580: the tour opens only from here (never by itself) */}
+          {me && <button type="button" className="tour-start" onClick={() => { setMenuOpen(false); startTour(); }}><Icon name="sparkle" />{tTour("start")}</button>}
           {me && (
             <div className="me-card">
               <Link href="/profile" className="me-link" title={t("myAccount")}><Avatar id={me.id} name={me.name} /><div><b>{me.name}</b><small>{me.roleLabels.join(" + ")}</small></div></Link>
@@ -135,6 +139,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {bell.open && <BellPanel bell={bell} />}
       <CommandPalette />
+      <Tour />
 
       <nav className="tabbar" aria-label={t("quickNav")}>
         {keys.slice(0, 4).map((k) => (
