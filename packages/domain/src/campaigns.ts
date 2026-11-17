@@ -92,7 +92,7 @@ export function lastSalesAct<T extends LeadAct>(acts: readonly T[]): T | null {
 export function countByReason(stages: readonly string[]): Array<{ reason: string; count: number }> {
   const m = new Map<string, number>();
   for (const s of stages) m.set(s, (m.get(s) ?? 0) + 1);
-  return [...m].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
+  return [...m].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)); // ties: a stable order, not the rows' order
 }
 
 /**

@@ -114,7 +114,7 @@ test("4.18 · the leads that weren't Qualified: per reason, the salesperson's la
   const r = await call(`/marketing/campaigns/not-qualified?campaignId=${id}`, { cookie: rahma });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.deepEqual([r.body.total, r.body.notQualified, r.body.matching], [5, 4, 4]);
-  assert.deepEqual(r.body.byReason, [{ reason: "No Answer", count: 2 }, { reason: "Not Interested", count: 1 }, { reason: "Fresh", count: 1 }]);
+  assert.deepEqual(r.body.byReason, [{ reason: "No Answer", count: 2 }, { reason: "Fresh", count: 1 }, { reason: "Not Interested", count: 1 }]);
   const ni = r.body.rows.find((x: { code: string }) => x.code === `L-C${stamp}5`);
   assert.deepEqual(ni.comment && [ni.comment.text, ni.comment.by], ["مش محتاج مكتب دلوقتي", anas.employee?.name ?? "anas@places.com"]);
   assert.equal(r.body.rows.find((x: { code: string }) => x.code === `L-C${stamp}6`).comment, null);

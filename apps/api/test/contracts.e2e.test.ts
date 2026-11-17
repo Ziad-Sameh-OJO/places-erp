@@ -9,7 +9,7 @@ import { prisma } from "@places/db";
 import { localDate } from "@places/domain";
 import { contractRenewalTick } from "../../worker/src/processors/contract-renewal.ts";
 import { contractExpiryTick } from "../../worker/src/processors/contract-expiry.ts";
-import { call, mark, session, workingNow } from "./helpers.ts";
+import { calendarLock, call, mark, session, workingNow } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const C = `E2E ${stamp} عقد`;
@@ -113,7 +113,7 @@ test("a table written line by line, and «قرّبت تخلص» for an active co
 
 let endingId: string;
 
-test("6.3 · M-11 2.4 · 7.1: 60 days left → one renewal alert to the salesperson and Finance, and a renewal lead with him; once", async () => {
+test("6.3 · M-11 2.4 · 7.1: 60 days left → one renewal alert to the salesperson and Finance, and a renewal lead with him; once", () => calendarLock(async () => {
   const ashrafUser = (await prisma.user.findUniqueOrThrow({ where: { email: "ahmed.ashraf@places.com" } })).id;
   const mine = (userId: string) => prisma.notification.findMany({ where: { userId, text: { contains: C } } });
   const workday = await workingNow(); // the job rests on days off (a Friday run of the suite)
@@ -136,7 +136,7 @@ test("6.3 · M-11 2.4 · 7.1: 60 days left → one renewal alert to the salesper
   assert.equal((await mine(mohsenUser)).length, 1);
   assert.equal(await audited(), 1);
   assert.equal((await prisma.contract.findUniqueOrThrow({ where: { id: contractId } })).renewalAlerts.length, 0); // ends in a year
-});
+}));
 
 test("scope (M-11 4.1): the salesperson his clients' contracts, Finance all, another salesperson none", async () => {
   const q = `?q=${encodeURIComponent(C)}`;
