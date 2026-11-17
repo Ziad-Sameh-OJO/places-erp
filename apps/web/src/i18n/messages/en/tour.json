@@ -1,0 +1,102 @@
+{
+  "start": "Quick tour",
+  "progress": "{sec} · {n} / {total}",
+  "jump": "Go to a section",
+  "prev": "Back",
+  "next": "Next",
+  "done": "Done",
+  "end": "End",
+  "sections": {
+    "start": "Getting started",
+    "leads": "Leads",
+    "deals": "Deals",
+    "inventory": "Inventory",
+    "tasks": "Tasks & marketing",
+    "clients": "Clients & contracts",
+    "hr": "HR",
+    "tickets": "Tickets & procurement",
+    "finance": "Finance",
+    "reports": "Reports",
+    "kpis": "KPIs",
+    "admin": "Admin & system",
+    "end": "Wrap-up"
+  },
+  "steps": {
+    "me": { "t": "Everyone has their own account", "x": "Each employee signs in with their email and password. An account locks after 5 wrong tries, there is «Forgot password», and the admin creates the accounts. «My account» opens from here." },
+    "menu": { "t": "A menu that fits your permissions", "x": "The menu is split into Sales · Operations · Admin · System. Everyone sees only the modules they may open, and the star next to a page title pins it to your favourites." },
+    "inbox": { "t": "My tasks today", "x": "As soon as you open the system you see everything waiting for you: a late lead, a deal to approve, a TCR to sign, a leave request, a KPI card to approve, a handover… The late ones first, each with a button to act on it." },
+    "search": { "t": "Search everything", "x": "⌘K or / · find a lead by name or mobile, a unit by code, an employee, a ticket, a deal… and open it without going to its page." },
+    "create": { "t": "Create anything from anywhere", "x": "Lead, deal, unit, ticket, leave request, purchase request… the button shows only what your permissions allow. On phones it is the + at the bottom; the bottom bar moves between your main pages and «More» has them all." },
+    "bell": { "t": "Notifications", "x": "Every important event arrives in the system, as a push and by email, following the rules set in «Notifications & email»." },
+
+    "leadNew": { "t": "Registering a lead", "x": "A lead is saved with name, mobiles, area, type, size, budget, channel and campaign. The system blocks duplicates by mobile, routes it to the area's sales in turn, and records when it arrived." },
+    "leadVerify": { "t": "Verification calls (Second Calls)", "x": "Every week the system picks 10% of new leads and the call centre calls the client: did the sales call? Did they send what was needed? If not, the Team Leader is alerted." },
+    "leadFilters": { "t": "Filters and saved views", "x": "Filter by stage, sales, area, channel, campaign, date… save any filter as a «view» and come back in one click. Excel export follows your permissions. Bulk import from an Excel sheet is here too." },
+    "leadTable": { "t": "Smart table or Kanban", "x": "Sort by any column, select several leads and reassign them or change their stage at once. Or switch to Kanban and drag a lead between stages. The SLA timer is shown next to each lead." },
+    "leadFile": { "t": "The lead file", "x": "Click any lead to open its file. Logging a call stops the SLA; the stage moves Fresh ← Interested ← Visit ← Meeting ← Near to Close ← Done Deal. It holds recommended units, visits and the whole activity." },
+    "leadTl": { "t": "The Team Leader", "x": "If the sales hasn't called a lead within two and a half hours the Team Leader is alerted, and after 3 hours the lead moves to the next one. The Team Leader also requests a unit list for a client, ready within 24 hours." },
+    "companies": { "t": "Companies sheet", "x": "The companies archive is split into categories. Outbound companies are added here, with the daily call counter in front of you." },
+    "routing": { "t": "Routing settings", "x": "Which sales each area goes to and in what order, plus the SLA and rotation rules. Holiday mode pauses the timers on official holidays. All editable without code." },
+
+    "dealNew": { "t": "Closing a Done Deal", "x": "The sales picks the unit from inventory, the commission from the owner and from the client, and who is with them on the Buyer side. The Seller comes from the unit's agent." },
+    "dealReview": { "t": "Review and approval", "x": "Every new deal goes to the Office Manager, who can edit any field before approving. Once approved it joins the Done Deals sheet and marketing gets an alarm with only the data it may see." },
+    "dealSheet": { "t": "Done Deals sheet", "x": "The same sheet you work with: every deal with unit, size, commission, collected, remaining and the sales on each side." },
+    "dealMoney": { "t": "Collection, TCR and papers", "x": "Collections from the client or the owner; each one issues a TCR with a serial code, printable as PDF, and the commission is split between Buyer and Seller. Deal papers and the execution date are reviewed here too." },
+    "dealAchv": { "t": "Achievements", "x": "Each sales person's share of commission, transactions and how much of the target is done. Sales see only «My achievements»." },
+
+    "units": { "t": "Unit inventory", "x": "Rent · Resale · Income in one filtered list, with size tabs like the sheet. A unit can be available for Rent and Resale at once." },
+    "unitsMode": { "t": "Sheet or folders", "x": "Show the units as a sheet, or as folders like you were used to on the Drive." },
+    "unitsDaily": { "t": "Daily work", "x": "Excel import shows what's new and what's duplicate before you confirm. The daily report (new / updated / rented / unconfirmed) is approved and sent to management. Team Leaders' list requests are all here." },
+    "unitFile": { "t": "The unit file", "x": "Details, the PDF and slide checked before sales sends them, photo and retouch tasks, and the location. When the unit was received and entered, and when the photo and PDF links were uploaded." },
+    "notActive": { "t": "Not Active Inventory", "x": "Sheets of numbers that aren't active are uploaded as Excel and merged without duplicates. Each number is marked No Answer, Not True with a reason, or Done." },
+    "notActiveDone": { "t": "Done adds a new unit", "x": "When a number turns out active and becomes Done, the unit form opens right away, the unit enters inventory and marketing is told it's new." },
+
+    "tasks": { "t": "Tasks", "x": "Photography, retouch, owner follow-up, sale updates and marketing tasks. Every task has an owner, a due date and a status." },
+    "tasksPhoto": { "t": "Photography tasks", "x": "The photographer sees only their tasks: shooting within 72 hours of the unit being added, edited material within 48 hours. A retouch closes only once approved." },
+    "mkDash": { "t": "Marketing dashboard", "x": "Leads per channel and per campaign, how many are qualified and the cost per lead, for any period. Plus website ads and the monthly competitors report." },
+    "mkCampaigns": { "t": "Campaigns", "x": "Each campaign with its budget and platform, how many leads it brought, how many became qualified and how many deals." },
+    "mkContent": { "t": "Content plan", "x": "The post plan with dates and platforms. Anything made by someone other than the marketing manager waits for their approval before it's published." },
+    "mkBroadcast": { "t": "Broadcast + Hot Inventory", "x": "A bulk WhatsApp message sent to sales as a task, with a Hot Inventory list. New units and closed deals reach marketing with only the data it may see." },
+
+    "clients": { "t": "One file per client and owner", "x": "Everything with a client or owner in one place: leads, units, deals, calls and contracts." },
+    "contracts": { "t": "Contracts", "x": "Renewal alerts 90, 60 and 30 days ahead that create a renewal lead, the instalment and arrears schedule (aging), and receipts." },
+
+    "hrAttendance": { "t": "Attendance and fingerprint", "x": "Fingerprints come from the device link or the fingerprint sheet. The system works out lateness by bands, excuses and unexcused absence on its own. People with special hours are not counted late." },
+    "hrDelay": { "t": "Weekly delay", "x": "Each employee's lateness in the week in minutes, with each day's status." },
+    "hrPeople": { "t": "Employees and 1-to-1", "x": "Each employee's file: details, salary, leaves, and the monthly 1-to-1 sessions with HR's follow-up and its date." },
+    "hrLeaves": { "t": "Leaves and requests", "x": "The employee requests, the direct manager approves first, then HR confirms. The leave balance is worked out automatically." },
+    "hrIdeal": { "t": "Ideal employee and team fund", "x": "In each team, among those with KPIs of 80% or more and no administrative penalty: 40% early attendance days + 30% late hours + 30% unexcused absence. The winner takes the rest of the team's attendance and lateness deductions at month end." },
+    "hrRules": { "t": "Bands and settings", "x": "Lateness and deduction bands, excuses and attendance rules — all editable here." },
+
+    "tickets": { "t": "Tickets between departments", "x": "Any request from one department to another is now a ticket instead of WhatsApp: it has an owner and a reply time by type. Leave and work-from-outside requests are here too." },
+    "purchase": { "t": "Purchase or payment request", "x": "Request ← approval ← payment ← deducted from the item's budget. Large amounts need a receipt or two quotes." },
+    "custody": { "t": "Petty cash and office assets", "x": "The petty cash balance against its ceiling, the share of requests done within 48 hours, and the office assets register with its monthly review." },
+    "budget": { "t": "Budget per item", "x": "How much was spent and how much is left on each item; approvers see the requests waiting for them." },
+
+    "fnDash": { "t": "Finance dashboard", "x": "From revenue to net profit over the months, cash and bank balances, and how much marketing each deal cost by platform." },
+    "fnStatements": { "t": "Income statement and balance sheet", "x": "The income statement and balance sheet come straight from the entries. Month and quarter closing is for whoever holds the permission." },
+    "fnCost": { "t": "Cost center", "x": "Each department's expenses and revenue on their own." },
+    "fnPayroll": { "t": "Payroll", "x": "Each employee's monthly salary, with the deductions coming from HR." },
+    "fnTree": { "t": "Chart of accounts", "x": "All accounts split into assets, liabilities, revenue and expenses." },
+
+    "rpTargets": { "t": "Targets and transactions", "x": "Each sales person's share of commission counts toward their target and as a transaction. The Office Manager sets the monthly target." },
+    "rpTeams": { "t": "Teams", "x": "A team's target is the sum of its members' targets, and the Team Leader earns a share by achievement band." },
+    "rpSheet": { "t": "Quarterly employee sheet", "x": "The system builds a sheet for each sales person: salary, target, scheme, commission, prizes. The Office Manager approves, and each one gets theirs by email." },
+    "rpScheduled": { "t": "Scheduled reports", "x": "Any report can be emailed automatically every day, week or month." },
+
+    "kpiCard": { "t": "The KPI card", "x": "Every employee has a card: for each item the target, how it's measured (automatic / hand-in / manual), the actual, the achievement and its weight in the card. An item can go past 100% and is kept as is." },
+    "kpiTeam": { "t": "The Team Leader and the team", "x": "A Team Leader sees only their team's cards: edits items, weights and targets, enters the manual ones, writes the improvement plan and approves." },
+    "kpiManage": { "t": "Each manager runs their team's cards", "x": "Add or remove an item, change its weight, target and measure. Under the card is the result in money: on the salary or the quarter bonus, monthly or quarterly." },
+    "kpiCompany": { "t": "The whole company", "x": "Management sees every card, the company average and who is approved. When the quarter closes, results and amounts are emailed to everyone." },
+    "kpiBands": { "t": "Money bands", "x": "100% and above: 15% reward · 96%: full bonus · 70–95%: partial bonus · below 70%: 15% deduction and an improvement plan · below 50%: bonus cancelled, 15% salary deduction and a warning. The bands are editable here." },
+
+    "roles": { "t": "Roles", "x": "Create a role, copy an existing one or edit it: its name, level in the structure, who it works like, and its data scope (own / team / department / all)." },
+    "perms": { "t": "Permission matrix", "x": "For each module: view, add, edit, approve, archive, import, export. Any change applies at once to the menu and the buttons." },
+    "users": { "t": "Users", "x": "A new account with an activation email, several roles for one person, unlock, password reset, last working day. You can also grant or remove a single permission without changing the role." },
+    "audit": { "t": "Audit log", "x": "Every action in the system is recorded: who did what, when, and in which module." },
+    "master": { "t": "Settings and lists", "x": "Areas, channels, company categories, suppliers, lead stages, times and rules, official holidays and expense items. All editable without code." },
+    "notify": { "t": "Notifications and email", "x": "The sending email, who each event goes to and how (in-app, push, email), and everyone sets their own preferences." },
+
+    "end": { "t": "That's the tour", "x": "You've seen the parts your permissions open. You can start the tour again any time from the «Quick tour» button here. (Use the arrow keys to move, Esc to close)" }
+  }
+}

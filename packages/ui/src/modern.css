@@ -451,3 +451,19 @@ input[type="date"][data-day] { display: inline-flex; align-items: center; gap: 6
   .dr-head .row { flex-wrap: wrap; gap: 6px 14px; }
   .dr-head .chip { white-space: nowrap; }
 }
+
+/* #580 guided tour: the demo's tour in the new look — neutral dim, the brand red ring, above the menus and the tab bar */
+.tour { z-index: 70; }
+.tour-hole { border-radius: var(--r-lg); box-shadow: 0 0 0 9999px rgba(10, 10, 10, .62), 0 0 0 2px var(--accent), 0 0 28px 4px rgba(227, 71, 79, .35); }
+.tour-card { border-radius: var(--r-xl); padding: 20px; gap: 10px; box-shadow: 0 24px 60px rgba(0, 0, 0, .22); }
+.tour-card h3 { font-size: 17px; font-weight: 600; color: var(--ink); }
+.tour-card p { line-height: 1.75; }
+.tour-card .bar i { background: var(--accent); }
+.tour-card select { width: auto; max-width: 170px; height: 34px; font-size: 12.5px; }
+.tour-start { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 1px dashed #333; border-radius: 14px; background: transparent; color: #c9c9c9; font: inherit; font-size: 13.5px; cursor: pointer; transition: background .15s, color .15s; }
+.tour-start:hover, .tour-start:focus-visible { background: #1f1f1f; color: #fff; }
+.tour-start svg.i { opacity: .75; }
+@media (max-width: 760px) {
+  /* the lit part sits low (the + button, the tab bar): the docked card moves up instead of covering it */
+  .tour-card.up { top: calc(10px + env(safe-area-inset-top, 0px)) !important; bottom: auto !important; }
+}
