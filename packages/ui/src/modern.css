@@ -19,7 +19,7 @@
   --ring: 0 0 0 4px rgba(227, 71, 79, .2);
   --f-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
   --f-body: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --r-xl: 28px; --r-lg: 22px; --r: 16px; --r-sm: 12px;
+  --r-xl: 20px; --r-lg: 16px; --r: 12px; --r-sm: 10px;
   --ease: cubic-bezier(.2, .8, .2, 1);
 }
 
@@ -110,6 +110,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .sheet-tabs button { border-radius: 999px; font-family: var(--f-display); }
 .sheet-tabs button[aria-selected="true"] { background: var(--btn); color: var(--btn-ink); border-color: transparent; }
 .chip { border-radius: 999px; font-weight: 500; }
+/* a status reads as a dot and a word, not a filled pill: 36 red pills down a table shouted (client, 17 Nov) */
+span.chip:not(.plain) { background: none; border: 0; padding: 0; border-radius: 0; color: var(--ink-2); }
+span.chip:not(.plain)::before { opacity: 1; }
+span.chip.ok { color: var(--ok); } span.chip.warn { color: var(--warn); } span.chip.bad { color: var(--bad); } span.chip.info, span.chip.acc { color: var(--ink-2); } /* «acc» / «info» mark a highlight or a kind, never an alarm: no coral */
+span.chip.plain { background: none; border: 1px solid var(--line-2); border-radius: 6px; color: var(--ink-2); padding: 1px 8px; }
+.u-img span.chip, .uf span.chip { background: var(--surface); padding: 2px 8px; border-radius: 6px; } /* on a picture it still needs its ground */
 button.chip.acc, .stage-btn.on, .vchip[aria-pressed="true"] { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); }
 .tog input, .tick input, input[type="checkbox"], input[type="radio"] { accent-color: var(--btn); }
 
@@ -118,20 +124,19 @@ button.chip.acc, .stage-btn.on, .vchip[aria-pressed="true"] { background: var(--
 .card, .kpi, .tbl-wrap, .rec, .ucard, .int, .tier, .tier-h, .choice-card, .cal, .qs, details.hist { border-radius: var(--r-lg); border-color: var(--line); box-shadow: none; }
 .card { padding: 20px; }
 .card h3 { font-weight: 500; font-size: 16px; }
-.card-head h3 .ico, .kpi .ico { background: var(--surface-2); color: var(--ink); border-radius: 12px; }
-.kpi .ico.ok { background: var(--ok-soft); color: var(--ok); } .kpi .ico.warn { background: var(--warn-soft); color: var(--warn); } .kpi .ico.bad { background: var(--bad-soft); color: var(--bad); }
+/* a tile's icon is a plain glyph: no tinted square, no rainbow of tones (client, 17 Nov: the AI-template look) */
+.kpi .ico, .kpi .ico.ok, .kpi .ico.warn, .kpi .ico.bad { width: auto; height: auto; background: none; color: var(--ink-3); border-radius: 0; }
 .card.flat { background: var(--surface-2); border-color: transparent; }
 .card.attn { border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); background: var(--surface); }
 .kpi { padding: 18px; gap: 6px; transition: border-color .15s, transform .2s var(--ease); }
 .kpi strong { font-weight: 500; font-size: 28px; letter-spacing: -.02em; }
-.kpi-btn:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.kpi-btn:hover { border-color: var(--ink-3); }
 .delta { border-radius: 999px; }
 /* a plain note is information, not a warning: neutral, so the warm accent keeps meaning «act here» */
 .note { border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }
 .note svg.i { color: var(--ink-3); }
 .note.warn { background: var(--warn-soft); border-color: transparent; color: var(--ink); }
 .note.ok { background: var(--ok-soft); border-color: transparent; } .note.ok svg.i { color: var(--ok); }
-.chip.info { background: var(--info-soft); color: var(--info); }
 .hero { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: none; }
 .hero::before, .hero::after { display: none; }
 .hero .eyebrow { color: var(--ink-3); } .hero p { color: var(--ink-2); } .hero h2 { font-weight: 500; font-size: 30px; }
@@ -140,7 +145,7 @@ button.chip.acc, .stage-btn.on, .vchip[aria-pressed="true"] { background: var(--
 .hero-stats span { color: var(--ink-3); }
 /* the tiles open what they count (16 Nov); the count in «عندك __ حاجة» was white on white */
 .hero-stats button { font: inherit; cursor: pointer; transition: box-shadow .15s var(--ease), transform .15s var(--ease); }
-.hero-stats button:hover { box-shadow: inset 0 0 0 1px var(--ink); transform: translateY(-1px); }
+.hero-stats button:hover { box-shadow: inset 0 0 0 1px var(--ink); }
 .hero-stats button.bad b { color: var(--bad); }
 .hero-txt p b { color: var(--ink); }
 .anchor { scroll-margin-top: 90px; min-width: 0; }
@@ -157,14 +162,16 @@ tr.click:hover td, tbody tr:hover td { background: var(--surface-2); }
 /* lists, boards and progress */
 .a-ico, .int-ico { border-radius: 12px; background: var(--surface-2); color: var(--ink); }
 .lane { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.board { grid-auto-columns: minmax(210px, 1fr); }   /* four lanes fit beside the menu at 1366, none cut off */
+.lane h4 i, .lane h4 i.ld-info, .lane h4 i.ld-acc { background: var(--ink-3); } /* «To Do» is not an alarm */
 .tcard { border-radius: var(--r); transition: transform .18s var(--ease), border-color .15s; }
-.tcard:hover { border-color: var(--line-2); transform: translateY(-2px); box-shadow: none; }
+.tcard:hover { border-color: var(--ink-3); box-shadow: none; }
 .tcard.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .bar { background: var(--sunken); border-radius: 999px; }
-.bar i { background: var(--accent); border-radius: 999px; }
+.bar i { background: var(--ink); border-radius: 999px; }
 .stepper li.cur span { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 .stepper li.done span { background: var(--btn); border-color: var(--btn); }
-.timeline > div::before { border-color: var(--accent); }
+.timeline > div::before { width: 8px; height: 8px; border: 0; background: var(--line-2); inset-inline-start: -5px; top: 15px; } /* a quiet dot on the line, not a red ring per item */
 .kv { border-radius: var(--r); }
 .avatar { box-shadow: 0 0 0 2px var(--surface); }
 .f-toggle b { background: var(--accent); color: #fff; border-radius: 999px; padding: 0 6px; font-size: 10.5px; }
@@ -265,7 +272,7 @@ input[type="checkbox"], input[type="radio"] { min-height: 0; }
 .search svg.i { color: #9a9a9a; }
 
 /* ---------- filters bar: a tidy row of equal controls; a picked filter is marked; «clear» at the end ---------- */
-.toolbar { gap: 10px; padding: 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); }
+.toolbar { gap: 10px; padding: 12px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); }
 .toolbar > .search { flex: 2 1 260px; max-width: 420px; }
 .toolbar > select, .toolbar > input:not([type="checkbox"]), .toolbar > .multi-pick { flex: 1 1 160px; max-width: 230px; }
 .toolbar .area-f { width: auto; }
@@ -288,35 +295,30 @@ input[type="checkbox"], input[type="radio"] { min-height: 0; }
 
 /* ---------- number cards: icon badge, big number, delta pill; the first card of a row leads in brand black ---------- */
 .kpis { gap: 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
-.kpi { padding: 18px 20px; gap: 10px; border-radius: 22px; min-height: 132px; }
+.kpi { padding: 18px 20px; gap: 10px; border-radius: var(--r-lg); min-height: 132px; }
 .kpi .k-top { flex-direction: row-reverse; justify-content: flex-end; gap: 10px; }
 .kpi .k-top > span:first-child { font-size: 13px; font-weight: 500; color: var(--ink-2); }
-.kpi .ico { width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--ink); flex: none; }
-.kpi .ico svg.i { width: 18px; height: 18px; }
+.kpi .ico { flex: none; }
+.kpi .ico svg.i { width: 16px; height: 16px; }
 .kpi .k-val { margin-top: auto; gap: 10px; align-items: center; }
 .kpi strong { font: 500 30px/1.1 var(--f-display); letter-spacing: -.02em; }
 .kpi small { font-size: 12px; color: var(--ink-3); line-height: 1.5; }
 .delta { font: 500 11.5px var(--f-display); padding: 3px 9px; border-radius: 999px; direction: ltr; display: inline-flex; align-items: center; gap: 3px; }
 .delta.up { background: var(--ok-soft); color: var(--ok); } .delta.down { background: var(--bad-soft); color: var(--bad); }
-.kpis > .kpi:first-child { background: #111111; border-color: #111111; color: #fff; }
-.kpis > .kpi:first-child .k-top > span:first-child { color: rgba(255, 255, 255, .72); }
-.kpis > .kpi:first-child .ico { background: rgba(255, 255, 255, .1); color: #fff; }
-.kpis > .kpi:first-child small { color: rgba(255, 255, 255, .6); }
-.kpis > .kpi:first-child .delta { background: rgba(255, 255, 255, .12); color: #fff; }
-.kpis > .kpi-btn:first-child:hover { border-color: #111; background: #1d1d1d; }
 .kpis.sm .kpi { min-height: 0; padding: 14px 16px; }
 .kpis.sm .kpi strong { font-size: 22px; }
 
 /* ---------- section cards: a clear head, room to breathe ---------- */
-.card { padding: 22px; gap: 16px; border-radius: 24px; }
+.card { padding: 22px; gap: 16px; border-radius: var(--r-lg); }
 .card-head { gap: 12px; }
 .card-head h3 { gap: 12px; font-size: 16px; font-weight: 500; }
-.card-head h3 .ico { width: 38px; height: 38px; border-radius: 12px; background: var(--surface-2); color: var(--ink); }
+.card:not(.kpi-btn) > .card-head h3 > .ico { display: none; }   /* an icon square on every card title was decoration, not information */
+.kpi-btn .card-head h3 .ico { width: 38px; height: 38px; border-radius: var(--r-sm); background: var(--surface-2); color: var(--ink); }
 .card-head h3 small { margin-top: 2px; }
-.card.flat { border-radius: 20px; }
+.card.flat { border-radius: var(--r); }
 
 /* ---------- tables: quiet head, roomy rows, the first column leads ---------- */
-.tbl-wrap { border-radius: 18px; }
+.tbl-wrap { border-radius: var(--r); }
 th { height: 44px; font-size: 12px; color: var(--ink-3); font-weight: 500; background: var(--surface-2); }
 td { height: 56px; padding-block: 10px; font-size: 13.5px; }
 tbody tr:last-child td { border-bottom: 0; }
@@ -343,10 +345,9 @@ tr.click:hover td { background: #fafaf9; }
   .toolbar > .search, .toolbar > select, .toolbar > input:not([type="checkbox"]), .toolbar > .multi-pick { max-width: none; }
   .title-row .crumb { display: none; }   /* the page title gets the whole width on a phone */
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .kpi { min-height: 112px; padding: 14px; border-radius: 18px; }
+  .kpi { min-height: 112px; padding: 14px; border-radius: var(--r); }
   .kpi strong { font-size: 24px; }
-  .kpi .ico { width: 32px; height: 32px; }
-  .card { padding: 16px; border-radius: 20px; }
+  .card { padding: 16px; border-radius: var(--r); }
   td { height: auto; }
 }
 
@@ -393,14 +394,17 @@ a.btn, a.btn:hover { text-decoration: none; }
 /* the leads page: the stages of «غيّر المرحلة» as cards (client, 16 Nov) */
 .stage-dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
 .sd-tile { --c: var(--ink); --soft: var(--sunken); display: flex; flex-direction: column; gap: 6px; text-align: start; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
-.sd-tile:hover { border-color: var(--c); }
-.sd-tile[aria-pressed="true"] { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); background: var(--soft); }
-.sd-tile.ok { --c: var(--ok); --soft: var(--ok-soft); } .sd-tile.warn { --c: var(--warn); --soft: var(--warn-soft); }
-.sd-tile.bad { --c: var(--bad); --soft: var(--bad-soft); } .sd-tile.info { --c: var(--info); --soft: var(--info-soft); }
-.sd-tile.plain { --c: var(--ink); --soft: var(--sunken); }
-.sd-name { font-size: 12px; font-weight: 600; color: var(--c); }
+.sd-tile:hover { border-color: var(--ink-3); }
+.sd-tile[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.sd-name { font-size: 12px; font-weight: 600; color: var(--ink-2); }
 .sd-tile strong { font-size: 24px; line-height: 1; font-family: var(--f-display); }
 .sd-bar { height: 4px; border-radius: 4px; background: var(--sunken); overflow: hidden; }
 .sd-bar i { display: block; height: 100%; background: var(--c); border-radius: 4px; }
 .sd-tile small { font-size: 11px; color: color-mix(in srgb, var(--ink) 55%, transparent); }
 @media (max-width: 480px) { .stage-dash { grid-template-columns: repeat(3, 1fr); gap: 8px; } .sd-tile { padding: 10px; } .sd-tile strong { font-size: 20px; } }
+
+/* ---------- no boxes in boxes (client, 17 Nov) ---------- */
+.card .card.flat { background: none; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 18px 0 0; }
+/* a notification is a link to its record, read as text (not the browser's blue underline) */
+.ntf a { color: var(--ink); text-decoration: none; }
+.ntf a:hover { text-decoration: underline; text-underline-offset: 3px; }

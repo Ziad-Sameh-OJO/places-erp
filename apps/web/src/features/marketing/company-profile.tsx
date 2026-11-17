@@ -77,7 +77,7 @@ export function CompanyProfileCard() {
           )}
         </div>
         <div className={`cp-state ${c?.any ? "on" : ""}`}>
-          <Icon name={c?.any ? "sparkle" : "check"} />
+          <Icon name={c?.any ? "upload" : "check"} />
           <span>{summary}</span>
         </div>
         <div className="row end cp-actions">

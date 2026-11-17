@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFields, useMe } from "@/lib/me";
 import { num, short } from "@/lib/format";
-import { TYPE_TONE, cell, columnsFor } from "./unit-bits";
+import { TypeChip, cell, columnsFor } from "./unit-bits";
 import { UnitDrawer } from "./unit-drawer";
 import { UnitForm } from "./unit-form";
 import { OwnerUpdateButton } from "./owner-update";
@@ -174,7 +174,7 @@ export function InventoryList() {
                 <b>{u.project}</b>
                 <small>{serverText(u.area)} · {t("list.floor", { floor: String(u.floor || "—") })}</small>
                 <div className="row"><span className="num u-space">{t("list.meters", { space: num(u.space) })}</span><span className="spacer" /><b className="num">{short(u.totalPrice)}</b></div>
-                <div className="row"><Chip tone={TYPE_TONE[u.type]}>{u.type}</Chip>{u.divisible && <Chip tone="info">{t("chips.divisible")}</Chip>}{u.stale && <Chip tone="bad">{t("list.update")}</Chip>}</div>
+                <div className="row"><TypeChip type={u.type} />{u.divisible && <Chip>{t("chips.divisible")}</Chip>}{u.stale && <Chip tone="bad">{t("list.update")}</Chip>}</div>
               </div>
             </article>
           ))}</div>

@@ -134,7 +134,7 @@ export function LeadsList() {
           ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
           : t.rich("callsWeek", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })}</Note>
       )}
-      <ViewsBar f={f} s={s} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
+      <ViewsBar f={f} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       {s && <StageDashboard s={s} f={f} onPick={filter} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />

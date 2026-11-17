@@ -67,7 +67,7 @@ function Items({ c, sumW, period }: { c: KpiCardView; sumW: number; period: Peri
   const score = useFields("kpis").shows("score");
   return (
     <div className="tbl-wrap">
-      <table className="kpi-items">
+      <table className="kpi-items cardable">{/* cards on phones, like the other tables (it was squeezed sideways) */}
         <thead><tr><th>{t("items.item")}</th><th className="c">{t("items.weight")}</th><th>{t("items.target")}</th><th>{t("items.measure")}</th><th className="c">{t("items.actual")}</th><th className="c">{t("items.achievement")}</th><th className="c">{t("items.inCard")}</th></tr></thead>
         <tbody>{c.items.map((it) => <ItemRow key={it.id} c={c} it={it} period={period} />)}</tbody>
         <tfoot><tr><td><b>{t("items.total")}</b></td><td className="c">{sumW}%</td><td colSpan={4} /><td className="c num"><b>{score ? `${(period === "month" ? c.month.score : c.score).toFixed(1)}%` : "—"}</b></td></tr></tfoot>
@@ -96,17 +96,17 @@ function ItemRow({ c, it, period }: { c: KpiCardView; it: KpiItemView; period: P
         {it.detail && <span className="sub"><b>{serverText(it.detail)}</b></span>}
         {noMonth && <span className="sub">{t("period.noMonth")}</span>}
         {it.deliveries.length > 0 && <span className="sub">{t("items.deliveredOn", { days: it.deliveries.map((d) => day(d.at)).join(t("items.listSep")) })}</span>}</td>
-      <td className="c">{it.weight}%</td>
-      <td>{serverText(it.targetText)}{m && it.method !== "report" && <span className="sub">{t("period.monthGoal", { goal: m.goal })}</span>}</td>
-      <td><Chip tone={HOW[it.method]} plain>{t(`how.${it.method}`)}</Chip>{it.module && <small className="mono hint"> {it.module}</small>}</td>
-      <td className="c">
+      <td className="c" data-label={t("items.weight")}>{it.weight}%</td>
+      <td data-label={t("items.target")}>{serverText(it.targetText)}{m && it.method !== "report" && <span className="sub">{t("period.monthGoal", { goal: m.goal })}</span>}</td>
+      <td data-label={t("items.measure")}><Chip tone={HOW[it.method]} plain>{t(`how.${it.method}`)}</Chip>{it.module && <small className="mono hint"> {it.module}</small>}</td>
+      <td className="c" data-label={t("items.actual")}>
         {it.canEnter ? <input type="number" step="any" defaultValue={it.value ?? ""} style={{ width: 72 }} aria-label={t("items.value")} onBlur={(e) => setValue(e.target.value)} /> : actual}
         {it.canDeliver && (link == null
           ? <button className="btn ghost sm" onClick={() => setLink("")}><Icon name="upload" />{t("items.delivered")}</button>
           : <span className="row"><input type="url" placeholder={t("items.fileLink")} value={link} onChange={(e) => setLink(e.target.value)} aria-label={t("items.deliveryLink")} style={{ width: 140 }} /><button className="btn sm" onClick={deliver}>{t("items.deliver")}</button></span>)}
       </td>
-      <td className="c">{score ? <div className="cell-bar"><b className="num">{Math.round(ach)}%</b><Bar pct={ach} tone={tone} /></div> : "—"}</td>
-      <td className="c num"><b>{score ? `${contribution.toFixed(1)}%` : "—"}</b></td>
+      <td className="c" data-label={t("items.achievement")}>{score ? <div className="cell-bar"><b className="num">{Math.round(ach)}%</b><Bar pct={ach} tone={tone} /></div> : "—"}</td>
+      <td className="c num" data-label={t("items.inCard")}><b>{score ? `${contribution.toFixed(1)}%` : "—"}</b></td>
     </tr>
   );
 }

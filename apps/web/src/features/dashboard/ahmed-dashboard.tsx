@@ -79,7 +79,7 @@ function Strip({ d }: { d: AhmedDashboard }) {
       {tile("meetings", s.meetings, "users", "/reports")}
       {tile("doneDeals", s.doneDeals, "handshake", "/deals")}
       {s.collected && <Tile label={t("collected")} value={money(s.collected.now)} sub={t("before", { n: money(s.collected.before) })} delta={moneyDelta(s.collected)} icon="wallet" href="/finance?tab=cash" />}
-      {tile("leads", s.leads, "sparkle", leads)}
+      {tile("leads", s.leads, "users", leads)}
       {tile("units", s.units, "building", "/inventory")}
     </div>
   );
@@ -143,7 +143,7 @@ function Trend({ d }: { d: AhmedDashboard }) {
   const t = useTranslations("dashboard.ahmed.trend");
   const total = d.trend.points.reduce((s, p) => s + (p.now ?? 0), 0), before = d.trend.points.reduce((s, p) => s + (p.before ?? 0), 0);
   return (
-    <Card title={t("title")} sub={t(`sub.${d.trend.unit}`)} icon="sparkle" className="b-8"
+    <Card title={t("title")} sub={t(`sub.${d.trend.unit}`)} icon="chart" className="b-8"
       extra={<span className="legend-a"><i className="cur" />{t("now")}<i className="prev" />{t("before")}</span>}>
       <TrendChart points={d.trend.points} unit={d.trend.unit} label={t("aria", { total, before })} hrefOf={(p) => `/leads?from=${p.from}&to=${p.to}`}
         tip={(p, label) => t("tip", { label, now: num(p.now ?? 0), before: p.before == null ? "—" : num(p.before) })} />

@@ -38,6 +38,7 @@ export function Card({ title, icon, sub, extra, children, className = "" }: { ti
 }
 
 export function Tabs<K extends string>({ items, value, onChange }: { items: [K, string, (number | undefined)?][]; value: K; onChange: (k: K) => void }) {
+  if (items.length < 2) return null; // one tab is a bar with nothing to choose (a salesperson's «كارتي» alone)
   return (
     <div className="tabs" role="tablist">
       {items.map(([k, label, n]) => (
@@ -139,14 +140,15 @@ export const Note = ({ kind, children }: { kind?: "warn" | "ok"; children: React
 );
 
 /** The demo's U.empty(text, icon): «sparkle» unless the screen picks one (a timeline's is «clock»). */
-export const Empty = ({ text, icon = "sparkle" }: { text: string; icon?: IconName }) => <div className="empty"><Icon name={icon} /><p>{text}</p></div>;
+export const Empty = ({ text, icon = "list" }: { text: string; icon?: IconName }) => <div className="empty"><Icon name={icon} /><p>{text}</p></div>;
 
 /** A checkbox in the demo's style (the permission matrix, the notification rules). */
 export const Tick = ({ checked, disabled, onChange, label }: { checked: boolean; disabled?: boolean; onChange?: (v: boolean) => void; label: string }) => (
   <label className="tick"><input type="checkbox" checked={checked} disabled={disabled} aria-label={label} onChange={(e) => onChange?.(e.target.checked)} /><span /></label>
 );
 
-const AV = ["#111111", "#e3474f", "#5b5b5b", "#a8201a", "#8a6d3b", "#3a6ea5", "#2f6b4f", "#7a4b8c"];
+/** Shades of the brand ink only: a rainbow of avatars down a list was decoration (client, 17 Nov); the initial tells people apart. */
+const AV = ["#111111", "#2b2b2b", "#3d3d3d", "#525252", "#666666"];
 export function Avatar({ id, name, sm }: { id: string; name: string; sm?: boolean }) {
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;

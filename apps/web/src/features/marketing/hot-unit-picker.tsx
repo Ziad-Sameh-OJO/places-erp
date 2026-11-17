@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { num, short } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { useTranslations } from "next-intl";
-import { TYPE_TONE, type UnitTypeName } from "../inventory/unit-bits";
+import { TypeChip } from "../inventory/unit-bits";
 
 /**
  * M-04 2.1 step 7 · the Broadcast's Hot Inventory picker: a search over the inventory sheet (code, project, area or
@@ -86,7 +86,7 @@ export function HotUnitPicker({ picked, onChange }: { picked: HotUnitOption[]; o
                   <div className="hot-top"><span className="mono">{u.code}</span><b>{u.project || "—"}</b></div>
                   <small><Parts items={[u.area && serverText(u.area), u.floor && t("floor", { floor: u.floor }), u.condition && serverText(u.condition)]} /></small>
                   <div className="row">
-                    <Chip tone={TYPE_TONE[u.type as UnitTypeName] ?? ""}>{u.type}</Chip>
+                    <TypeChip type={u.type} />
                     {u.divisible && <Chip tone="info">{t("divisible")}</Chip>}
                   </div>
                 </div>
