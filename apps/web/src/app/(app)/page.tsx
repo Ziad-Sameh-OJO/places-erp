@@ -102,7 +102,7 @@ function Hero({ name, total, urgent, unread, canCreateLead, onToday, onLate }: {
         <p>{total ? <>{t.rich("waiting", { total, b: (c) => <b>{c}</b> })}{urgent ? t.rich("waitingLate", { urgent, b: (c) => <b>{c}</b> }) : null}.</> : t("nothing")}</p>
         <div className="hero-actions">
           {canCreateLead && <Link className="btn" href="/leads?new=1"><Icon name="plus" />{t("newLead")}</Link>}
-          <button className="btn ghost" onClick={openSearch}><Icon name="search" />{t("quickSearch")} <kbd>⌘K</kbd></button>
+          <button className="btn ghost" onClick={openSearch}><Icon name="search" />{t("quickSearch")}</button>
         </div>
       </div>
       <div className="hero-stats">

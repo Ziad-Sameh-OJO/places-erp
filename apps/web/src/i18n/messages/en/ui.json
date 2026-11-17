@@ -31,6 +31,8 @@
   },
   "bell": {
     "title": "Notifications",
+    "readAll": "Mark all as read",
+    "readAllDone": "All notifications read",
     "all": "All",
     "new": "New",
     "type": "Notification type",
