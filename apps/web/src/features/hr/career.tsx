@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { CareerRowView, CareerTrackView, CareerView } from "@places/contracts";
-import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
@@ -83,7 +83,7 @@ function Person({ row, tracks, canEdit, onClose }: { row: CareerRowView; tracks:
           <Field label={t("kind")}><select value={kind} onChange={(e) => setKind(e.target.value as "promotion" | "set")}><option value="promotion">{t("kinds.promotion")}</option><option value="set">{t("kinds.set")}</option></select></Field>
           <Field label={t("newLevel")} req><select name="levelId" required defaultValue={row.next?.id ?? ""}><option value="" disabled>{t("choose")}</option>
             {tracks.map((x) => <optgroup key={x.id} label={x.name}>{x.levels.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}</optgroup>)}</select></Field>
-          <Field label={t("day")} req><input name="day" type="date" defaultValue={today()} required /></Field>
+          <Field label={t("day")} req><DateInput name="day" defaultValue={today()} required /></Field>
           <Field label={t("note")} wide><input name="note" maxLength={500} /></Field>
           <div className="row end wide"><button className="btn"><Icon name="check" />{t("record")}</button></div>
         </form>

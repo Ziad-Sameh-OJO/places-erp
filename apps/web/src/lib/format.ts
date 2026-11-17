@@ -3,7 +3,8 @@ import { currentLocale } from "./locale";
 
 const en = () => currentLocale() === "en";
 /** Dates in Arabic as the demo shows them; English as day-month («4 Nov»), Cairo time either way. */
-export const dateLocale = () => (en() ? "en-GB" : "ar-EG");
+// «nu-latn»: the same 0-9 digits as every other number on the page (the sheet, the money), not ٠-٩ in dates only
+export const dateLocale = () => (en() ? "en-GB" : "ar-EG-u-nu-latn");
 export const egp = () => (en() ? "EGP" : "ج.م");
 
 const nf = new Intl.NumberFormat("en-US");
@@ -55,3 +56,6 @@ export function day(value: string | null | undefined, now = new Date()) {
 
 /** The demo's date and time on a timeline line (fmtDate + fmtTime): «٤ نوفمبر ٩:١٥ م», Cairo time. */
 export const dayTime = (iso: string) => `${day(iso)} ${new Date(iso).toLocaleTimeString(dateLocale(), { timeZone: "Africa/Cairo", hour: "numeric", minute: "2-digit" })}`;
+
+/** A calendar day «YYYY-MM-DD» in full, with its year («17 نوفمبر 2026»): what a date field shows. */
+export const fullDay = (value: string) => new Date(`${value}T12:00:00Z`).toLocaleDateString(dateLocale(), { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });

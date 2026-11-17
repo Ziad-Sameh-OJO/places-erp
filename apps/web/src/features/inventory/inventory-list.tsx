@@ -6,7 +6,7 @@ import { INVENTORY_MANAGER, keepsInventory, seesInventoryTiles, seesWebsiteAds }
 import { UNIT_SORTS } from "@places/contracts";
 import { WebsiteAdCell } from "./website-ad";
 import { Fab, KpiTile } from "@/components/blocks";
-import { Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction } from "@/components/ui";
+import { DateInput, Chip, Empty, ExportButton, Icon, Note, Table, Tabs, useAction, More } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFields, useMe } from "@/lib/me";
@@ -125,6 +125,8 @@ export function InventoryList() {
       <div className="row">
         <Tabs value={tab} onChange={(x) => { setTab(x); setPage(1); }} items={types} />
         <span className="spacer" />
+        {/* the secondary actions under «⋯ أكتر», so «وحدة جديدة» stands alone on one line with the tabs */}
+        <More>
         {invManager && <button className="btn ghost" onClick={() => setKpis(true)}><Icon name="chart" />{t("list.teamKpis")}</button>}
         {me.can("inventory", "import") && <UnitImport />}{/* 13.1 · 2.38 · demo «استيراد Excel» */}
         {me.can("inventory", "approve") && <button className="btn ghost" onClick={() => setReport(true)}><Icon name="file" />{t("list.dailyReport")}</button>}
@@ -132,6 +134,7 @@ export function InventoryList() {
         {prepares && <button className="btn ghost" onClick={() => setLists(true)}><Icon name="list" />{t("list.listRequests")}</button>}
         {/* 2.28: the sheet as filtered now, every page (the API drops what the reader may not see) */}
         <ExportButton module="inventory" path="/inventory/units/export" query={toParams(sorted, 1, PAGE)} filename={t("list.exportFile")} label={t("list.export")} />
+        </More>
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
       <div className="toolbar">
@@ -152,8 +155,8 @@ export function InventoryList() {
           <select value={closedBy.type ?? ""} onChange={onClosed("type")} aria-label={t("list.closedAs")}>
             <option value="">{t("list.allClosedTypes")}</option>{(["Rent", "Resale", "Income"] as const).map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
-          <label className="date-f"><span>{t("list.from")}</span><input type="date" value={closedBy.closedFrom ?? ""} max={closedBy.closedTo} onChange={onClosed("closedFrom")} aria-label={t("list.closedFrom")} /></label>
-          <label className="date-f"><span>{t("list.to")}</span><input type="date" value={closedBy.closedTo ?? ""} min={closedBy.closedFrom} onChange={onClosed("closedTo")} aria-label={t("list.closedTo")} /></label>
+          <label className="date-f"><span>{t("list.from")}</span><DateInput value={closedBy.closedFrom ?? ""} max={closedBy.closedTo} onChange={onClosed("closedFrom")} aria-label={t("list.closedFrom")} /></label>
+          <label className="date-f"><span>{t("list.to")}</span><DateInput value={closedBy.closedTo ?? ""} min={closedBy.closedFrom} onChange={onClosed("closedTo")} aria-label={t("list.closedTo")} /></label>
         </>}
         {fields.shows("stale") && <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={toggle("stale")} /><span>{t("chips.stale")}</span></label>}
         {fields.shows("divisible") && <label className="tog"><input type="checkbox" checked={!!f.divisible} onChange={toggle("divisible")} /><span>{t("list.divisible")}</span></label>}

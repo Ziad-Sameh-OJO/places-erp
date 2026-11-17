@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { activeValues, type InsuranceRow, type InsuranceView, type Settings, type StoredFile } from "@places/contracts";
-import { Chip, Empty, ExportButton, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Chip, Empty, ExportButton, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { FileUpload } from "@/components/file-upload";
 import { api } from "@/lib/api";
@@ -82,7 +82,7 @@ function InsuranceForm({ row, onClose }: { row: InsuranceRow; onClose: () => voi
             <input name="provider" list="insurance-providers" defaultValue={row.provider || (providers ? activeValues(providers.insuranceProviders)[0] : "")} required maxLength={80} />
             <datalist id="insurance-providers">{providers && activeValues(providers.insuranceProviders).map((v) => <option key={v} value={v}>{serverText(v)}</option>)}</datalist>
           </Field>
-          <Field label={t("insurance.since")} req><input name="since" type="date" defaultValue={row.since ?? ""} required /></Field>
+          <Field label={t("insurance.since")} req><DateInput name="since" defaultValue={row.since ?? ""} required /></Field>
           <Field label={t("insurance.monthlyField")} req><input name="monthly" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue={row.recorded ? row.monthly : ""} required /></Field>
           <Field label={t("insurance.companyShareField")}><input name="companyShare" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue={row.companyShare ?? ""} /></Field>
         </>}

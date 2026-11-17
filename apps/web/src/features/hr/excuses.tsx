@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ExcuseView } from "@places/contracts";
-import { Card, Chip, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Field, Icon, Modal, Table, onFormSubmit, useAction } from "@/components/ui";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { serverText } from "@/lib/server-text";
@@ -26,7 +26,7 @@ export function MyExcusesCard() {
       {ask && (
         <Modal title={t("excuses.ask")} onClose={() => setAsk(false)}>
           <form className="grid" onSubmit={onFormSubmit(async (f) => run(async () => { await api.post("/hr/excuses", { day: f.get("day"), reason: f.get("reason") }); await refresh(); setAsk(false); }, t("excuses.sentToTl")))}>
-            <Field label={t("common.day")} req><input name="day" type="date" defaultValue={today()} min={today()} required /></Field>
+            <Field label={t("common.day")} req><DateInput name="day" defaultValue={today()} min={today()} required /></Field>
             <Field label={t("common.reason")} req wide><input name="reason" required minLength={2} maxLength={300} /></Field>
             <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setAsk(false)}>{t("common.cancel")}</button><button className="btn">{t("excuses.send")}</button></div>
           </form>

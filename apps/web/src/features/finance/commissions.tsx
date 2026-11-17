@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { CommissionPaid, CommissionPerson, CommissionStatement } from "@places/contracts";
-import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { money } from "./money";
@@ -118,7 +118,7 @@ function PayoutForm({ people, start, onClose, onSaved }: { people: CommissionPer
             : <Note kind="warn">{t("commissions.nothingDue")}</Note>}
           {due && <>
             <Field label={t("common.amount")} req><input name="amount" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required defaultValue={due} /></Field>
-            <Field label={t("common.payDate")} req><input name="date" type="date" defaultValue={today()} max={today()} required /></Field>
+            <Field label={t("common.payDate")} req><DateInput name="date" defaultValue={today()} max={today()} required /></Field>
             <Field label={t("common.memo")} wide><input name="memo" placeholder={t("common.optional")} /></Field>
           </>}
           <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{t("common.cancel")}</button>{due && <button className="btn" disabled={busy}><Icon name="check" />{busy ? t("common.saving") : t("common.record")}</button>}</div>

@@ -3,7 +3,7 @@ import { useNewParam } from "@/lib/new-param";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { CampaignInput, CampaignRow, CampaignUnitOption } from "@places/contracts";
-import { Chip, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Chip, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { day, money, num, short } from "@/lib/format";
 import { useTranslations } from "next-intl";
@@ -192,7 +192,7 @@ function CampaignForm({ campaign: c, onClose }: { campaign: CampaignRow | null; 
           </select>
           {page === NEW_PAGE && <input name="pageNew" required autoFocus placeholder={t("pageNewPh")} aria-label={t("pageNewPh")} />}
         </Field>
-        <Field label={t("start")} req><input name="startsOn" type="date" required defaultValue={c?.startsOn ?? today} /></Field>
+        <Field label={t("start")} req><DateInput name="startsOn" required defaultValue={c?.startsOn ?? today} /></Field>
         {only("budget", <Field label={t("daily")} req={!c}><input name="daily" inputMode="decimal" required={!c} defaultValue={c?.dailyBudget ?? ""} placeholder={c && !c.dailyBudget && c.budget ? t("before", { total: money(c.budget) }) : ""} /></Field>)}
         {c && only("spent", <Field label={t("spent")}><input name="spent" inputMode="decimal" defaultValue={c.spent} /></Field>)}
         {c && (

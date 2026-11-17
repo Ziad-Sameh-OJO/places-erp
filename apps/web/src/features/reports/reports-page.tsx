@@ -6,7 +6,7 @@ import { ReportInput, type ReportsAccessView, type ReportsPage as ReportsData, t
 import { isReportsHead, quarterDays } from "@places/domain";
 import { PeriodPicker, periodParams } from "@/components/period-picker";
 import { useFields, useMe } from "@/lib/me";
-import { Card, Chip, Empty, Field, Icon, Modal, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Modal, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { day, dayTime, money } from "@/lib/format";
@@ -134,8 +134,8 @@ function Transactions({ month }: { month: string }) {
   return (
     <Card title={tr("tx.title")} icon="file" sub={tr("tx.sub")} extra={<Chip tone="info">{q.data?.length ?? 0}</Chip>}>
       <div className="toolbar">
-        <label className="date-f"><span>{tr("tx.from")}</span><input type="date" value={from} onChange={(e) => setRange([e.target.value, to])} aria-label={tr("tx.from")} /></label>
-        <label className="date-f"><span>{tr("tx.to")}</span><input type="date" value={to} onChange={(e) => setRange([from, e.target.value])} aria-label={tr("tx.to")} /></label>
+        <label className="date-f"><span>{tr("tx.from")}</span><DateInput value={from} onChange={(e) => setRange([e.target.value, to])} aria-label={tr("tx.from")} /></label>
+        <label className="date-f"><span>{tr("tx.to")}</span><DateInput value={to} onChange={(e) => setRange([from, e.target.value])} aria-label={tr("tx.to")} /></label>
       </div>
       <Table head={[tr("tx.deal"), tr("tx.type"), tr("tx.client"), tr("sales"), ...(collected ? [tr("tx.collected")] : []), tr("tx.firstAt"), tr("tx.status")]} empty={tr("tx.empty")}
         rows={(q.data ?? []).map((x) => [<b key="c" className="mono">{x.code}</b>, serverText(x.type), x.company, x.people, ...(collected ? [money(x.collected)] : []), day(x.firstAt), serverText(x.status)])} />

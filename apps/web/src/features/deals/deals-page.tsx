@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { Achievements, DealSheetRow } from "@places/contracts";
 import { Fab, Kanban, KpiTile } from "@/components/blocks";
-import { Card, Chip, Empty, ExportButton, Icon, Note, Table, Tabs } from "@/components/ui";
+import { Card, Chip, Empty, ExportButton, Icon, Note, Table, Tabs, More } from "@/components/ui";
 import { day, money, num, short } from "@/lib/format";
 import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
@@ -53,11 +53,13 @@ export function DealsPage() {
       <div className="row">
         <Tabs value={t} onChange={setTab} items={tabs} />
         <span className="spacer" />
-        <PeriodPicker value={period} onChange={setPeriod} all />
+        <PeriodPicker value={period} onChange={setPeriod} all bare />
+        <More>
         {/* the list as it is filtered on screen: the sheet tab is the deals on the sheet with its search */}
         <ExportButton module="deals" path="/deals/export" filename={tr("export.file")} label={tr("export.label")}
           query={new URLSearchParams(t === "sheet" ? { sheet: "1", ...(q.trim() ? { q: q.trim() } : {}) } : {})} />
         <ExportButton module="deals" path="/deals/split/export" filename={tr("export.splitFile")} label={tr("export.splitLabel")} />
+        </More>
         {can("deals", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{tr("newDeal")}</button>}
       </div>
       {sheet.error && <Note kind="warn">{sheet.error.message}</Note>}

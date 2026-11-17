@@ -403,11 +403,12 @@ input[type="checkbox"]:disabled, input[type="radio"]:disabled { opacity: .45; cu
 a.btn, a.btn:hover { text-decoration: none; }
 
 /* the leads page: the stages of «غيّر المرحلة» as cards (client, 16 Nov) */
-.stage-dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+/* auto-fit at 96px: the nine stages share one row on a desktop instead of leaving two alone on a second one */
+.stage-dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; }
 .sd-tile { --c: var(--ink); --soft: var(--sunken); display: flex; flex-direction: column; gap: 6px; text-align: start; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
 .sd-tile:hover { border-color: var(--ink-3); }
 .sd-tile[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.sd-name { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.sd-name { font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sd-tile strong { font-size: 24px; line-height: 1; font-family: var(--f-display); }
 .sd-bar { height: 4px; border-radius: 4px; background: var(--sunken); overflow: hidden; }
 .sd-bar i { display: block; height: 100%; background: var(--c); border-radius: 4px; }
@@ -419,3 +420,34 @@ a.btn, a.btn:hover { text-decoration: none; }
 /* a notification is a link to its record, read as text (not the browser's blue underline) */
 .ntf a { color: var(--ink); text-decoration: none; }
 .ntf a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- UI polish (17 Nov) ---- */
+/* a date field reads «17 نوفمبر 2026» (DateInput's data-day) until it is focused; then the browser's own editable parts */
+input[type="date"][data-day]:not(:focus)::-webkit-datetime-edit { display: none; }
+input[type="date"][data-day]:not(:focus)::before { content: attr(data-day); flex: 1; unicode-bidi: plaintext; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+input[type="date"][data-day] { display: inline-flex; align-items: center; gap: 6px; }
+.date-f { white-space: nowrap; }
+
+/* «⋯ أكتر»: a page's secondary actions in one menu (ui.tsx More) */
+.more { position: relative; flex: none; }
+/* the open menu sits over the cards below the row (each is its own stacking context while it animates in) */
+.row:has(> .more[open]) { position: relative; z-index: 30; }
+.more > summary { list-style: none; cursor: pointer; }
+.more > summary::-webkit-details-marker { display: none; }
+.more-menu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 30; min-width: 210px; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 12px 30px rgba(0, 0, 0, .12); }
+.more-menu .btn { width: 100%; justify-content: flex-start; border-color: transparent; box-shadow: none; background: transparent; }
+.more-menu .btn:hover { background: var(--sunken); }
+
+/* the home page: a short card («آخر الإشعارات» with one line) keeps its own height next to a long one */
+.cols.top { align-items: start; }
+
+@media (max-width: 600px) {
+  /* a card's counters go under its title instead of squeezing it into three lines («مكالمات التحقق») */
+  .card-head { flex-wrap: wrap; row-gap: 8px; }
+  .card-head > h3 { flex: 1 1 100%; }
+  /* a drawer's head: the tools on their own line, so the name gets the full width and the chips sit side by side */
+  .dr-head { flex-wrap: wrap; }
+  .dr-head > .dr-tools { order: -1; flex-basis: 100%; display: flex; justify-content: space-between; align-items: center; }
+  .dr-head .row { flex-wrap: wrap; gap: 6px 14px; }
+  .dr-head .chip { white-space: nowrap; }
+}

@@ -65,7 +65,7 @@ export default function HomePage() {
       <UpcomingFunDays />
       <ActivitiesCard />
       <MyTeamTasks />
-      <div className="cols wide">
+      <div className="cols wide top">
         <div id="today" className="anchor">
           <Card title={t("home.todayTitle")} icon="check" sub={t(lateOnly ? "home.lateOnlySub" : "home.todaySub")} extra={
             lateOnly ? <button className="btn ghost sm" onClick={() => setLateOnly(false)}><Icon name="x" />{t("home.showAll")}</button>

@@ -3,7 +3,7 @@ import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PURCHASE_STATUS, type ProcurementOverview } from "@places/contracts";
-import { Card, Chip, ExportButton, Icon, Table } from "@/components/ui";
+import { DateInput, Card, Chip, ExportButton, Icon, Table } from "@/components/ui";
 import { Fab, KpiTile } from "@/components/blocks";
 import { useFields, useMe } from "@/lib/me";
 import { ago } from "@/lib/format";
@@ -85,8 +85,8 @@ function Toolbar({ f, o, onChange, onNew }: { f: PurchaseFilter; o: ProcurementO
       {fields.shows("account") && <select value={f.accountId ?? ""} onChange={on("accountId")} aria-label={t("common.line")}><option value="">{t("toolbar.allLines")}</option>{(o?.lines ?? []).filter((l) => l.budget).map((l) => <option key={l.accountId} value={l.accountId}>{serverText(l.name)}</option>)}</select>}
       {fields.shows("account") && <select value={f.group ?? ""} onChange={on("group")} aria-label={t("toolbar.group")}><option value="">{t("toolbar.allGroups")}</option>{(o?.groups ?? []).map((g) => <option key={g.code} value={g.code}>{serverText(g.name)}</option>)}</select>}
       {fields.shows("vendor") && <select value={f.vendor ?? ""} onChange={on("vendor")} aria-label={t("common.vendor")}><option value="">{t("toolbar.allVendors")}</option>{(vendors.data ?? []).map((v) => <option key={v} value={v}>{v}</option>)}</select>}
-      <label className="date-f"><span>{t("common.from")}</span><input type="date" value={f.from ?? ""} onChange={on("from")} /></label>
-      <label className="date-f"><span>{t("common.until")}</span><input type="date" value={f.to ?? ""} onChange={on("to")} /></label>
+      <label className="date-f"><span>{t("common.from")}</span><DateInput value={f.from ?? ""} onChange={on("from")} /></label>
+      <label className="date-f"><span>{t("common.until")}</span><DateInput value={f.to ?? ""} onChange={on("to")} /></label>
       <span className="spacer" />
       <ExportButton module="procurement" path="/procurement/purchases/export" query={filterQuery(f)} filename={t("toolbar.file")} label={t("toolbar.export")} />
       {onNew && <button className="btn" onClick={onNew}><Icon name="plus" />{t("form.title")}</button>}

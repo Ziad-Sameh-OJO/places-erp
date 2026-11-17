@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { TaskKpiEffect, TaskOptions } from "@places/contracts";
 import { IN_TEAM_KIND, taskKind } from "@places/domain";
-import { Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { DateInput, Field, Icon, Modal, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
 import { useTaskActions, useTaskUnits } from "./use-tasks";
@@ -79,7 +79,7 @@ export function NewTask({ kind, options, unit, onClose }: {
         <Field label={t("assignee")} req>
           <select name="toUserId" required key={dept}>{assignees.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
         </Field>
-        <Field label={t("due")} req><input name="dueOn" type="date" defaultValue={today()} required /></Field>
+        <Field label={t("due")} req><DateInput name="dueOn" defaultValue={today()} required /></Field>
         {/* M-09: a note the person may not set starts empty (the API too), so a new task has no input for it */}
         {/* 4.16 (demo `taskNew`): with a unit, the notes are all that goes with its code, so they're required */}
         {fields.edits("note") && <Field label={withUnit ? t("unitNotes") : t("notes")} req={withUnit} wide>

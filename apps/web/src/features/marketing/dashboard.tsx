@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { MarketingDashboard } from "@places/contracts";
 import { COST_METRICS, type CostMetric } from "@places/domain";
 import { KpiTile } from "@/components/blocks";
-import { Card, Chip, Empty, Icon, Note, useToast } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Icon, Note, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { useFields } from "@/lib/me";
@@ -62,8 +62,8 @@ export function Dashboard() {
         </div>
         {range === "custom" && (
           <>
-            <label className="date-f"><span>{t("from")}</span><input type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
-            <label className="date-f"><span>{t("to")}</span><input type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
+            <label className="date-f"><span>{t("from")}</span><DateInput value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
+            <label className="date-f"><span>{t("to")}</span><DateInput value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
             <button className="btn" onClick={apply}><Icon name="search" />{t("search")}</button>
           </>
         )}

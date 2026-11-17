@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { PayrollRowView } from "@places/contracts";
-import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
@@ -85,7 +85,7 @@ export function Payroll() {
             <div className="wide"><Table head={[t("journal.total"), t("payroll.salary"), t("payroll.attendance"), t("insurance.column"), t("payroll.advance"), t("payroll.netShort")]}
               rows={[[t("payroll.employees", people), money(p.totals.salary), money(p.totals.attendance), money(p.totals.insurance), money(p.totals.advance), <b key="n">{money(p.totals.net)}</b>]]} /></div>
             <Field label={t("common.paidFrom")} req><select name="fromId" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{cash.data.accounts.map((a) => <option key={a.id} value={a.id}>{serverText(a.name)} · {money(a.balance)}</option>)}</select></Field>
-            <Field label={t("common.payDate")} req><input name="date" type="date" defaultValue={today()} max={today()} required /></Field>
+            <Field label={t("common.payDate")} req><DateInput name="date" defaultValue={today()} max={today()} required /></Field>
             <div className="row end wide"><button type="button" className="btn ghost" onClick={() => setPaying(false)}>{t("common.cancel")}</button><button className="btn"><Icon name="check" />{t("commissions.payAmount", { amount: money(p.totals.net) })}</button></div>
           </form>
         </Modal>

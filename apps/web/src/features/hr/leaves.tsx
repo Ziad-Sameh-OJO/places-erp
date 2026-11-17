@@ -3,7 +3,7 @@ import { useNewParam } from "@/lib/new-param";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LeaveBalancesView, LeaveCalendarView, LeaveView, MyLeaves } from "@places/contracts";
-import { Card, Chip, Empty, ExportButton, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, ExportButton, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { FileUpload } from "@/components/file-upload";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
@@ -61,8 +61,8 @@ export function LeaveAskModal({ kind, onClose }: { kind?: "leave" | "outside"; o
     <Modal title={title} onClose={onClose}>
       <form className="grid" onSubmit={submit}>
         <Field label={tr("common.type")} req><select name="type" value={type || types[0]?.name || ""} onChange={(e) => setType(e.target.value)}>{types.map((t) => <option key={t.name} value={t.name}>{serverText(t.name)}</option>)}</select></Field>
-        <Field label={tr("common.from")} req><input name="from" type="date" required {...(after ? { max: today() } : { min: today() })} /></Field>
-        <Field label={tr("common.to")} req><input name="to" type="date" required /></Field>
+        <Field label={tr("common.from")} req><DateInput name="from" required {...(after ? { max: today() } : { min: today() })} /></Field>
+        <Field label={tr("common.to")} req><DateInput name="to" required /></Field>
         <Field label={tr("common.reason")} wide><input name="reason" maxLength={300} /></Field>
         {after && <div className="wide"><Note>{tr("leaves.afterReturn")}</Note><FileUpload kind="pdf" label={tr("leaves.document")} onUploaded={(f) => setDoc(f.id)} />{doc && <Chip tone="ok">{tr("leaves.documentUploaded")}</Chip>}</div>}
         <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{tr("common.cancel")}</button><button className="btn">{tr("leaves.send")}</button></div>
@@ -145,8 +145,8 @@ export function LeaveBalances() {
   return (
     <>
       <div className="toolbar">
-        <label className="date-f"><span>{tr("common.from")}</span><input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
-        <label className="date-f"><span>{tr("common.to")}</span><input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} /></label>
+        <label className="date-f"><span>{tr("common.from")}</span><DateInput value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} /></label>
+        <label className="date-f"><span>{tr("common.to")}</span><DateInput value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} /></label>
         <span className="spacer" />
         <ExportButton module="hr" path="/hr/leaves/balances/export" query={query} filename={tr("leaves.balancesFile", { from, to })} /></div>
       {!d ? <Empty text={tr("common.loading")} icon="clock" /> : (

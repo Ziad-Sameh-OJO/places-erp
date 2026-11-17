@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { CashView, MoveSaved } from "@places/contracts";
-import { Field, Modal, Note, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { DateInput, Field, Modal, Note, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money } from "./money";
 import { serverText } from "@/lib/server-text";
@@ -69,7 +69,7 @@ export function MoveForm({ kind, cash, settle, prefill, onClose, onSaved }: { ki
         {settle && <Note>{t("move.custodyNow")} <b>{money(settle.balance)}</b></Note>}
         {prefill?.note && <Note>{prefill.note}</Note>}
         {prefill?.billId && <input type="hidden" name="billId" value={prefill.billId} />}
-        {kind !== "settle" && <Field label={t("common.date")} req><input name="date" type="date" defaultValue={today()} max={today()} required /></Field>}
+        {kind !== "settle" && <Field label={t("common.date")} req><DateInput name="date" defaultValue={today()} max={today()} required /></Field>}
         {kind === "pay" && <>{safes("fromId", t("common.fromSafe"))}{expenses("accountId", t("move.expenseType"))}
           {only(fields, "party", <Field label={t("move.recipient")} req><input name="party" list="pp-list" required placeholder={t("move.recipientPlaceholder")} defaultValue={prefill?.party ?? ""} /><datalist id="pp-list">{cash.people.map((p) => <option key={p.userId} value={p.name} />)}</datalist></Field>)}
           {only(fields, "ref", <Field label={t("move.ref")}><input name="ref" placeholder={t("common.optional")} /></Field>)}</>}

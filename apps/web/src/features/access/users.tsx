@@ -6,7 +6,7 @@ import type { Paged, UserStatusCounts } from "@places/contracts";
 import { type ModuleKey, canSendReset } from "@places/domain";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
-import { Avatar, Chip, ExportButton, Field, Icon, Modal, Note, onFormSubmit, Table, useAction } from "@/components/ui";
+import { DateInput, Avatar, Chip, ExportButton, Field, Icon, Modal, Note, onFormSubmit, Table, useAction } from "@/components/ui";
 import type { IconName } from "@places/ui";
 import { KpiTile } from "@/components/blocks";
 import { Matrix, type MatrixValue } from "./matrix";
@@ -137,7 +137,7 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
           <legend><span>{t("extraRoles")}</span></legend>
           <div className="chips-edit">{choosable.map((r) => <label key={r.key} className="tog"><input type="checkbox" name="extra" value={r.key} defaultChecked={extra.has(r.key)} />{serverText(r.label)}</label>)}</div>
         </fieldset>
-        {only("endDate", <Field label={t("endDate")}><input name="endDate" type="date" defaultValue={user?.endDate?.slice(0, 10) ?? ""} /></Field>)}
+        {only("endDate", <Field label={t("endDate")}><DateInput name="endDate" defaultValue={user?.endDate?.slice(0, 10) ?? ""} /></Field>)}
         {only("otpRequired", <label className="tog"><input type="checkbox" name="otp" defaultChecked={user?.otpRequired ?? false} />{t("otp")}</label>)}
         <div className="row end wide">
           {!user && <span className="hint spacer">{t("newHint")}</span>}

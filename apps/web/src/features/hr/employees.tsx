@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EmployeeFile, EmployeesView } from "@places/contracts";
 import { DEFAULT_RULES, excuseDeduction } from "@places/domain";
-import { Chip, Empty, Field, Icon, Note, Table, Tabs, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Chip, Empty, Field, Icon, Note, Table, Tabs, onFormSubmit, useAction } from "@/components/ui";
 import { Drawer, KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
@@ -115,7 +115,7 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           {only("partTime", <Field label={tr("employees.schedule")}><select value={pt ? "pt" : "ft"} onChange={(x) => setPartTime(x.target.value === "pt")}><option value="ft">Full-time</option><option value="pt">{tr("employees.ptNoFingerprint")}</option></select></Field>)}
           {pt && only("partTimeDeductions", <Field label={tr("employees.ptDeductions")}><select name="ptDeduct" defaultValue={e.partTimeDeductions ? "yes" : "no"}><option value="no">{tr("employees.noDeductions")}</option><option value="yes">{tr("employees.withTierDeductions")}</option></select></Field>)}
           <Field label={tr("employees.annualLeave")}><input name="leaveBalance" type="number" min={0} max={60} defaultValue={e.leaveBalance} /></Field>
-          {only("joinedAt", <Field label={tr("employees.startedWork")}><input name="joinedAt" type="date" defaultValue={e.joinedAt ?? ""} /></Field>)}
+          {only("joinedAt", <Field label={tr("employees.startedWork")}><DateInput name="joinedAt" defaultValue={e.joinedAt ?? ""} /></Field>)}
           {only("deductionTiers", <><Field label={tr("employees.tiers")}><select value={tiersOn ? "custom" : "default"} onChange={(x) => setCustom(x.target.value === "custom")}><option value="default">{tr("employees.defaultTiers")}</option><option value="custom">{tr("employees.customForThis")}</option></select></Field>
           {tiersOn && <>
             <Field label={tr("employees.quarterFrom")}><input name="quarterFrom" type="number" min={17} defaultValue={t.quarterFrom} required /></Field>

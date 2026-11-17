@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { activeValues, type AreaTabView, type CreatedUnit, type UnitDetail, type UnitOptions } from "@places/contracts";
 import { FIELDS, areaTabLabel, fromDecimal, incomeFigures, toDecimal, unitAreaTab, unitFiguresFit, unitTotal } from "@places/domain";
-import { Field, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
+import { DateInput, Field, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { moneyExact } from "@/lib/format";
 import { AgreementLink, type ColWord, type UnitTypeName, w } from "./unit-bits";
@@ -235,7 +235,7 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
         </Field>)}
         {/* 2.34 · a Google Maps link (an old unit's «lat, lng» still saves and opens) */}
         {only("location", <Field label={t("form.location")}><input name="location" dir="ltr" placeholder="https://maps.app.goo.gl/…" value={f.location} onChange={set("location")} /></Field>)}
-        {only("lastOwnerUpdateAt", <Field label={t("form.lastUpdate")}><input name="lastOwnerUpdateAt" type="date" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>)}
+        {only("lastOwnerUpdateAt", <Field label={t("form.lastUpdate")}><DateInput name="lastOwnerUpdateAt" value={f.lastOwnerUpdateAt} onChange={set("lastOwnerUpdateAt")} /></Field>)}
         {TYPE_FIELDS[type].map((x) => (type === "Income" && x[0] === "commission" ? [agreementField, input(x)] : input(x)))}
         {/* 2.35 · «Layout file»: files for the unit's Layout folder instead of Yes / No */}
         {only("layout", <Field label={unit ? t("layout.formAdd") : t("layout.formLabel")}>

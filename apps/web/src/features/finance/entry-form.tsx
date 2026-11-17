@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { EntrySaved, EntryView } from "@places/contracts";
-import { Field, Icon, Modal, useAction } from "@/components/ui";
+import { DateInput, Field, Icon, Modal, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money } from "./money";
 import { serverText } from "@/lib/server-text";
@@ -48,7 +48,7 @@ export function EntryForm({ entry, onClose, onSaved }: { entry?: EntryView; onCl
   return (
     <Modal title={entry ? t("entry.editTitle", { no: entry.no }) : t("entry.newTitle")} onClose={onClose}>
       <form className="grid" onSubmit={submit}>
-        <Field label={t("common.date")} req><input type="date" value={date} max={today()} required onChange={(e) => setDate(e.target.value)} /></Field>
+        <Field label={t("common.date")} req><DateInput value={date} max={today()} required onChange={(e) => setDate(e.target.value)} /></Field>
         {only(fields, "memo", <Field label={t("common.memo")} req><input value={memo} required minLength={2} placeholder={t("entry.memoPlaceholder")} onChange={(e) => setMemo(e.target.value)} /></Field>)}
         <div className="wide tbl-wrap">
           <fieldset className="field-lock" disabled={lock}><table className="je">

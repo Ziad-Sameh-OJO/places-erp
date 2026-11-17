@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { EmployeesView, ImprovementView, WarningSettingsView, WarningView } from "@places/contracts";
 import { WARNING_TRIGGERS, type WarningRule } from "@places/domain";
-import { Card, Chip, Empty, Field, Icon, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 
@@ -135,7 +135,7 @@ export function Improvement() {
               <form className="grid" onSubmit={submit(p.id)}>
                 <Field label={t("improvement.goals")} req wide><textarea name="goals" rows={3} defaultValue={p.goals ?? ""} required minLength={2} maxLength={2000} /></Field>
                 <Field label={t("improvement.actions")} req wide><textarea name="actions" rows={3} defaultValue={p.actions ?? ""} required minLength={2} maxLength={2000} /></Field>
-                <Field label={t("improvement.due")} req><input name="dueDate" type="date" min={today()} defaultValue={p.dueDate ?? ""} required /></Field>
+                <Field label={t("improvement.due")} req><DateInput name="dueDate" min={today()} defaultValue={p.dueDate ?? ""} required /></Field>
                 <div className="row end wide"><button className="btn">{t("improvement.send")}</button></div>
               </form>
             )}

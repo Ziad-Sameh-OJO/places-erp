@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import type { InstallmentRow } from "@places/contracts";
-import { Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Chip, Empty, Field, Icon, Modal, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { Drawer } from "@/components/blocks";
 import { useFields, useMe } from "@/lib/me";
 import { api } from "@/lib/api";
@@ -69,7 +69,7 @@ function PayForm({ i, onClose }: { i: InstallmentRow; onClose: () => void }) {
     <Modal title={t("title", { date: day(i.dueOn) })} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit(send)}>
         <Field label={t("amountLeft", { left: money(left) })} req><input name="amount" inputMode="decimal" defaultValue={left} required /></Field>
-        <Field label={t("paidOn")} req><input name="paidOn" type="date" defaultValue={today} max={today} required /></Field>
+        <Field label={t("paidOn")} req><DateInput name="paidOn" defaultValue={today} max={today} required /></Field>
         <div className="row end wide"><button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button><button className="btn">{t("submit")}</button></div>
       </form>
     </Modal>

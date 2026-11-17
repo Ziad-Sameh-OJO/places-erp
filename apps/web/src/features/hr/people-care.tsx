@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { EmployeesView, HrActionsView, OneOnOnesView, PenaltiesView } from "@places/contracts";
-import { Card, Chip, Empty, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
+import { DateInput, Card, Chip, Empty, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
@@ -77,7 +77,7 @@ export function PenaltyForm({ employeeId, onDone }: { employeeId?: string; onDon
   return (
     <form className="grid" onSubmit={add}>
       <Field label={t("common.employee")} req><select name="employeeId" required defaultValue={employeeId ?? ""}><option value="" disabled>{t("common.choose")}</option>{emps.data?.items.filter((e) => e.userId !== me?.id).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select></Field>
-      <Field label={t("common.day")} req><input name="day" type="date" defaultValue={today()} max={today()} required /></Field>
+      <Field label={t("common.day")} req><DateInput name="day" defaultValue={today()} max={today()} required /></Field>
       <Field label={t("care.type")} req><select name="type" required defaultValue=""><option value="" disabled>{t("common.choose")}</option>{types.map((x) => <option key={x} value={x}>{serverText(x)}</option>)}</select></Field>
       <Field label={t("common.deduction")}><select name="deductionDays" defaultValue="0">{DED.map(([v, k]) => <option key={v} value={v}>{t(`care.ded.${k}`)}</option>)}</select></Field>
       <Field label={t("care.penalty")} req wide><input name="text" required minLength={2} maxLength={300} /></Field>
@@ -129,10 +129,10 @@ export function OneOnOneTab({ employeeId }: { employeeId: string }) {
       {can("hr", "edit") && (
         <form className="card flat grid" onSubmit={save}>
           <h3 className="mini-h wide"><Icon name="plus" /> {t("one.new")}</h3>
-          <Field label={t("one.date")} req wide><input name="heldOn" type="date" defaultValue={today()} max={today()} required /></Field>
+          <Field label={t("one.date")} req wide><DateInput name="heldOn" defaultValue={today()} max={today()} required /></Field>
           {d.questions.map((x, i) => <Field key={x} label={x} wide><textarea name={`q${i}`} rows={2} /></Field>)}
           <Field label={t("one.action")} wide><input value={action} onChange={(e) => setAction(e.target.value)} placeholder={t("one.actionPh")} /></Field>
-          {action && <Field label={t("one.actionDue")} req wide><input name="due" type="date" min={today()} required /></Field>}
+          {action && <Field label={t("one.actionDue")} req wide><DateInput name="due" min={today()} required /></Field>}
           <div className="row end wide"><button className="btn">{t("one.save")}</button></div>
         </form>
       )}
