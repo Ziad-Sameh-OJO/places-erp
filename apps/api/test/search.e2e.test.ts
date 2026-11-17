@@ -62,7 +62,7 @@ test("a mobile hidden by field permissions isn't searched and doesn't come back"
 });
 
 test("only the modules the person may view: HR gets no leads but employees; one letter is 400; signed out 401", async () => {
-  const kinds = new Set((await find(hr, "محمد")).map((h) => h.kind));
+  const kinds = new Set((await find(hr, "Mohamed")).map((h) => h.kind));
   assert.ok(!kinds.has("lead") && !kinds.has("deal"));
   assert.ok(kinds.has("employee"));
   assert.equal((await call("/search?q=a", { cookie: ops })).status, 400);
