@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { NAV, SECTIONS, type NavKey } from "@/lib/nav";
+import { SUPER_ADMIN_ROLE } from "@places/domain";
 import { LanguageSwitch } from "./language-switch";
 import { Avatar, Icon, useToast } from "./ui";
 import { RECENT, toggleFav, useQuick } from "@/lib/quick";
@@ -51,7 +52,10 @@ export function Shell({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  const keys = (Object.keys(NAV) as NavKey[]).filter((k) => opens(k)).sort((a, b) => SECTIONS.indexOf(NAV[a].section) - SECTIONS.indexOf(NAV[b].section));
+  // a Super Admin's day starts on the company Dashboard, so it comes before «مهامي النهارده» in his menu (client, 17 Nov)
+  const dashFirst = !!me?.roles.includes(SUPER_ADMIN_ROLE);
+  const rank = (k: NavKey) => SECTIONS.indexOf(NAV[k].section) * 2 - (dashFirst && k === "dashboard" ? 1 : 0);
+  const keys = (Object.keys(NAV) as NavKey[]).filter((k) => opens(k)).sort((a, b) => rank(a) - rank(b));
   const current = path.split("/")[1] || "home";
   const nav = current in NAV ? NAV[current as NavKey] : null;
   const label = (k: NavKey) => tNav(`modules.${k}.label`);
@@ -62,9 +66,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const favs = quick.favs.filter((k): k is NavKey => k in NAV && opens(k));
   const recent = quick.recent.filter((r) => can(RECENT[r.kind].module));
   // «فتحتها مؤخراً» folds on a click (16 Nov), closed by default; the choice stays for this browser
-  const [recentOpen, setRecentOpen] = useState(false);
-  useEffect(() => { try { setRecentOpen(localStorage.getItem("places.recentOpen") === "1"); } catch { /* private mode: stays closed */ } }, []);
-  const flipRecent = () => setRecentOpen((o) => { try { localStorage.setItem("places.recentOpen", o ? "0" : "1"); } catch { /* not kept */ } return !o; });
+  const [recentOpen, flipRecent] = useFold("places.recentOpen", false);
+  const [favsOpen, flipFavs] = useFold("places.favsOpen", true);
   const starred = current in NAV && quick.favs.includes(current);
   const star = () => { if (me) toast(toggleFav(me.id, current) ? t("favAdded") : t("favRemoved")); };
 
@@ -73,11 +76,14 @@ export function Shell({ children }: { children: ReactNode }) {
       <aside className={`side ${menuOpen ? "open" : ""}`} aria-label={t("mainMenu")}>
         <Brand />
         <div className="side-quick">
-          {favs.length > 0 && <><div className="nav-sec"><Icon name="star" />{t("favs")}</div>
-            {favs.map((k) => <Link key={k} className="q-item" href={k === "home" ? "/" : `/${k}`}><Icon name={NAV[k].icon} /><span className="lbl">{label(k)}</span></Link>)}</>}
           {recent.length > 0 && <><button type="button" className="nav-sec nav-toggle" aria-expanded={recentOpen} onClick={flipRecent}><Icon name="clock" />{t("recent")}<span className="caret" aria-hidden /></button>
             {/* a plain link: a full load, so the page reads «?open=» again even when it's the page already on screen */}
             {recentOpen && recent.map((r) => <a key={`${r.kind}:${r.id}`} className="q-item" href={RECENT[r.kind].href(r.id)}><Icon name={RECENT[r.kind].icon} /><span className="lbl">{r.label}</span><small className="tag">{t(`recentKind.${r.kind}`)}</small></a>)}</>}
+          {/* «المفضلة» under «فتحتها مؤخراً» (client, 17 Nov): always there, so people learn the ☆ beside a page's title fills it */}
+          <button type="button" className="nav-sec nav-toggle" aria-expanded={favsOpen} onClick={flipFavs}><Icon name="star" />{t("favs")}{favs.length > 0 && <small className="nav-n">{favs.length}</small>}<span className="caret" aria-hidden /></button>
+          {favsOpen && (favs.length
+            ? favs.map((k) => <Link key={k} className="q-item" href={k === "home" ? "/" : `/${k}`}><Icon name={NAV[k].icon} /><span className="lbl">{label(k)}</span></Link>)
+            : <p className="q-hint">{t("favsEmpty")}</p>)}
         </div>
         <nav id="nav" aria-label={t("sections")}>
           {keys.map((k) => {
@@ -113,7 +119,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="title-row"><h1>{page?.label ?? ""}</h1>{current in NAV && <button className="fav-btn" aria-pressed={starred} title={starred ? t("favRemove") : t("favAdd")} aria-label={starred ? t("favRemove") : t("favAdd")} onClick={star}><Icon name="star" /></button>}<span className="crumb">{page?.code}</span></div>
             {page?.sub && <p>{page.sub}</p>}
           </div>
-          <button className="search-pill" onClick={openSearch} aria-label={t("searchLabel")}><Icon name="search" /><span>{t("searchPill")}</span><kbd>⌘K</kbd></button>
+          <button className="search-pill" onClick={openSearch} aria-label={t("searchLabel")}><Icon name="search" /><span>{t("searchPill")}</span></button>
           <div className="top-actions">
             {me && <CreateMenu can={can} />}
             {/* always in sight, next to the bell (not at the end of a scrolling menu) */}
@@ -140,4 +146,12 @@ export function Shell({ children }: { children: ReactNode }) {
       </nav>
     </div>
   );
+}
+
+/** A menu section that opens and closes, remembered on this browser (a convenience: private mode just forgets it). */
+function useFold(key: string, initial: boolean): [boolean, () => void] {
+  const [open, setOpen] = useState(initial);
+  useEffect(() => { try { const v = localStorage.getItem(key); if (v !== null) setOpen(v === "1"); } catch { /* not kept */ } }, [key]);
+  const flip = () => setOpen((o) => { try { localStorage.setItem(key, o ? "0" : "1"); } catch { /* not kept */ } return !o; });
+  return [open, flip];
 }

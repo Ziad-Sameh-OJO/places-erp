@@ -27,9 +27,9 @@ const TOUR: [string, Step[]][] = [
       await form.locator("[name=phones]").fill(`${["010", "011"][made++]}${stamp}`) // one new lead per screen width;
       await form.locator("[name=area]").selectOption("التجمع الخامس");
       await form.locator("[name=channel]").selectOption("Facebook");
-      await form.locator("[name=assignToId]").selectOption({ label: "محمد محسن" });
+      await form.locator("[name=assignToId]").selectOption({ label: "Mohamed Mohsen" });
       await form.getByRole("button", { name: "حفظ الليد" }).click();
-      await page.getByText("الليد راح لـ محمد محسن").waitFor();
+      await page.getByText("الليد راح لـ Mohamed Mohsen").waitFor();
     } },
     { as: "u6", go: "leads", t: "فلاتر وعروض محفوظة", sel: ".toolbar" },
     { as: "u6", go: "leads", t: "جدول ذكي أو Kanban", act: async (page) => { await page.getByRole("button", { name: "Kanban" }).click(); await shown(page, ".leads-board"); } },

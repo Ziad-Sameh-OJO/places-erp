@@ -1,7 +1,7 @@
 {
   "loading": "Loading…",
-  "morning": "Good morning, {name}",
-  "evening": "Good evening, {name}",
+  "morning": "Good morning {name}",
+  "evening": "Good evening {name}",
   "companySub": "How the company is doing · {quarter} · every number opens its details",
   "soon": "Soon",
   "soonSub": "Not in the system yet",
@@ -97,7 +97,7 @@
   },
   "ahmed": {
     "loading": "Loading…",
-    "hello": "Good morning, {name}",
+    "hello": "Good morning {name}",
     "period": "Period",
     "periods": {
       "today": "Today",

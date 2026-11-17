@@ -55,6 +55,17 @@ a.brand-by:hover b, a.brand-by:focus-visible b { color: #fff; text-decoration: u
 #nav a[aria-current="page"]::before { content: ""; display: block; position: absolute; inset-inline-start: 5px; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
 #nav a[aria-current="page"] svg.i { opacity: 1; }
 #nav .tag, .q-item .tag { color: #7a7a7a; font-size: 10px; }
+/* «فتحتها مؤخراً» and «المفضلة»: a raised panel inside the black menu, a soft black-to-graphite gradient, so they read
+   apart from the sections below (client, 17 Nov); their icons take the brand coral, the one accent in the menu */
+.side-quick { margin: 4px 0 12px; padding: 4px 6px 8px; border-radius: var(--r); background: linear-gradient(180deg, #2a2a2a 0%, #1b1b1b 100%); border: 1px solid #333; }
+.side-quick .nav-sec { color: #b3b3b3; padding: 10px 8px 4px; }
+.side-quick .nav-sec svg.i { color: var(--accent-2); opacity: 1; }
+.side-quick .q-item { color: #fff; background: rgba(255, 255, 255, .05); margin-top: 3px; }
+.side-quick .q-item svg.i { color: var(--accent-2); opacity: 1; }
+.side-quick .q-item:hover, .side-quick .q-item:focus-visible { background: rgba(255, 255, 255, .12); }
+.side-quick .q-item .tag { color: #9a9a9a; }
+.side-quick .q-hint { color: #bdbdbd; opacity: 1; }
+.app.rail .side-quick { padding: 4px; }
 #nav a[aria-current="page"] .tag { color: inherit; opacity: .6; }
 #nav .cnt { background: var(--accent); border-radius: 999px; }
 .side-foot { border-top: 1px solid #262626; }

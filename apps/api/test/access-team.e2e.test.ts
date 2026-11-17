@@ -52,13 +52,13 @@ test("12.1 the seed's org structure (M-09 7.2): everyone but the two owners has 
   const people = await prisma.employee.findMany({ where: { user: { email: { endsWith: "@places.com" } } }, select: { name: true, managerId: true, id: true } });
   const byId = new Map(people.map((p) => [p.id, p.name]));
   const managerOf = (name: string) => byId.get(people.find((p) => p.name === name)!.managerId ?? "");
-  assert.deepEqual(people.filter((p) => !p.managerId).map((p) => p.name).sort(), ["أحمد إسلام", "محمد صفوت"]);
-  assert.equal(managerOf("نانسي إسلام"), "محمد صفوت");
-  assert.equal(managerOf("مصطفى عزت"), "أحمد إسلام"); // a Team Leader
-  assert.equal(managerOf("هدير طارق"), "هبة صلاح");
-  assert.equal(managerOf("سارة عبدالحليم"), "منار أحمد");
-  assert.equal(managerOf("عبدالرحمن بيومي"), "رحمة حسن");
-  assert.equal(managerOf("محمد محسن"), "عبدالله سليم"); // a salesperson follows their TL
+  assert.deepEqual(people.filter((p) => !p.managerId).map((p) => p.name).sort(), ["Ahmed Islam", "Mohamed Safwat"]);
+  assert.equal(managerOf("Nancy Islam"), "Mohamed Safwat");
+  assert.equal(managerOf("Mostafa Ezzat"), "Ahmed Islam"); // a Team Leader
+  assert.equal(managerOf("Hadeer Tarek"), "Heba Salah");
+  assert.equal(managerOf("Sara Abdelhalim"), "Manar Ahmed");
+  assert.equal(managerOf("Abdelrahman Bayoumi"), "Rahma Hassan");
+  assert.equal(managerOf("Mohamed Mohsen"), "Abdallah Sleem"); // a salesperson follows their TL
 });
 
 test("12.1 editing an account keeps its manager unless a new one is chosen", async () => {

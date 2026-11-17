@@ -1,7 +1,7 @@
 {
   "loading": "بنحمّل…",
-  "morning": "Good morning, {name}",
-  "evening": "Good evening, {name}",
+  "morning": "Good morning {name}",
+  "evening": "Good evening {name}",
   "companySub": "الشركة ماشية إزاي · {quarter} · كل رقم بيفتح تفاصيله",
   "soon": "قريباً",
   "soonSub": "لسه مش في السيستم",

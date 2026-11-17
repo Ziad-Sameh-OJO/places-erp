@@ -97,7 +97,7 @@ test("14.6: the type is saved on a new lead and changed by «تعديل البي
   assert.equal(r.status, 201, JSON.stringify(r.body));
   const d = (await call(`/leads/${r.body.id}`, { cookie: ops })).body as LeadDetail;
   assert.equal(d.propertyType, "Commercial");
-  assert.equal(d.createdBy?.name, "محمد محسن");
+  assert.equal(d.createdBy?.name, "Mohamed Mohsen");
   assert.deepEqual(await list(ops, "&propertyType=Commercial"), ["a", "new"]);
 
   const e = await call(`/leads/${r.body.id}`, { method: "PUT", cookie: ops, body: { name: `${NAME} new`, propertyType: "Residential" } });

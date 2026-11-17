@@ -278,7 +278,13 @@ button.chip b { font-family: var(--f-mono); font-weight: 600; opacity: .8; }
 .panel { position: fixed; top: 0; bottom: 0; left: 0; width: min(400px, 100%); background: var(--surface); border-inline-end: 1px solid var(--line); z-index: 25; display: flex; flex-direction: column; box-shadow: var(--shadow-3); padding-top: env(safe-area-inset-top, 0px); animation: slide .2s ease-out; }
 @keyframes slide { from { transform: translateX(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
 .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--line); }
-#notifList { overflow-y: auto; display: flex; flex-direction: column; }
+/* the list takes what's left of the panel and scrolls on its own (trackpad, wheel, its own bar); reaching its end doesn't
+   scroll the page behind (client, 17 Nov: it was cut off at the bottom, «.panel > *» kept it from shrinking) */
+#notifList { overflow-y: auto; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+#notifList::-webkit-scrollbar { width: 8px; }
+#notifList::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 8px; border: 2px solid var(--surface); }
+#notifList::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+#notifList::-webkit-scrollbar-track { background: transparent; }
 .ntf { padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: 13.5px; display: flex; flex-direction: column; gap: 2px; }
 .ntf small { color: var(--ink-3); }
 .toast { position: fixed; bottom: max(22px, env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 11px 20px; border-radius: 14px; z-index: 40; font-size: 13.5px; max-width: calc(100% - 32px); box-shadow: var(--shadow-3); display: flex; gap: 8px; align-items: center; animation: pop .18s ease-out; }
@@ -693,7 +699,7 @@ details.hist summary { cursor: pointer; font-weight: 500; }
 .toast-undo svg.i { width: 14px; height: 14px; }
 .ntf.new { background: var(--accent-soft); }
 
-@media (max-width: 1100px) { .search-pill { min-width: 0; } .search-pill span, .search-pill kbd { display: none; } .clock-btn span { display: none; } }
+@media (max-width: 1100px) { .search-pill { min-width: 0; } .search-pill span { display: none; } .clock-btn span { display: none; } }
 @media (max-width: 960px) {
   .hero-stats { grid-template-columns: repeat(3, 1fr); width: 100%; }
   .choice { grid-template-columns: 1fr; }
@@ -765,6 +771,9 @@ table.perm .who small { color: var(--ink-3); }
 .q-item { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; color: var(--rail-ink); font-size: 13px; transition: background .15s; }
 .q-item:hover, .q-item:focus-visible { background: var(--rail-hover); }
 .q-item svg.i { width: 16px; height: 16px; opacity: .7; }
+.side-quick .nav-n { font: 500 10.5px var(--f-display); opacity: .6; margin-inline-start: 2px; }
+.q-hint { margin: 2px 10px 6px; font-size: 11.5px; line-height: 1.6; color: var(--rail-ink); opacity: .55; }
+.app.rail .q-hint, .app.rail .side-quick .nav-n { display: none; }
 .q-item .lbl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-item .tag { font-size: 10px; color: var(--rail-ink-2); }
 

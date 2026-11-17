@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { dateLocale } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
-import { Tabs } from "./ui";
+import { Icon, Tabs, useToast } from "./ui";
 
 interface Notif { id: string; text: string; link: string | null; important: boolean; event: string | null; readAt: string | null; createdAt: string }
 interface Mine { items: Notif[]; unread: number; types: string[] }
@@ -55,22 +55,34 @@ export function useBell() {
     setOpen(true);
     if (unread) { await api.post("/notifications/all/read"); void qc.invalidateQueries({ queryKey: ["notifications"] }); }
   }
+  /** «قراءة كل الإشعارات» (client, 17 Nov): everything read now, and nothing left highlighted as new in the open panel. */
+  async function readAll() {
+    setFresh(new Set());
+    if (unread) await api.post("/notifications/all/read");
+    void qc.invalidateQueries({ queryKey: ["notifications"] });
+  }
   useEffect(() => {
     const on = () => void openBell();
     window.addEventListener(OPEN_BELL, on);
     return () => window.removeEventListener(OPEN_BELL, on);
   });
-  return { open, setOpen, openBell, unread, data: q.data, type, setType, fresh };
+  return { open, setOpen, openBell, readAll, unread, data: q.data, type, setType, fresh };
 }
 
 export function BellPanel({ bell }: { bell: ReturnType<typeof useBell> }) {
   const t = useTranslations("ui.bell");
   const tUi = useTranslations("ui");
+  const toast = useToast();
   const [only, setOnly] = useState<"all" | "new">("all");
   const items = (bell.data?.items ?? []).filter((x) => only === "all" || bell.fresh.has(x.id) || !x.readAt);
   return (
     <div className="panel" role="dialog" aria-label={t("title")}>
-      <div className="panel-head"><strong>{t("title")}</strong><button className="icon-btn" onClick={() => bell.setOpen(false)} aria-label={tUi("close")}>✕</button></div>
+      <div className="panel-head"><strong>{t("title")}</strong>
+        <span className="row" style={{ gap: 4 }}>
+          <button className="btn ghost sm" disabled={!bell.unread && bell.fresh.size === 0} onClick={() => void bell.readAll().then(() => toast(t("readAllDone")))}><Icon name="check" />{t("readAll")}</button>
+          <button className="icon-btn" onClick={() => bell.setOpen(false)} aria-label={tUi("close")}>✕</button>
+        </span>
+      </div>
       <div className="row" style={{ padding: "0 12px 8px", gap: 8, flexWrap: "wrap" }}>
         <Tabs value={only} onChange={setOnly} items={[["all", t("all")], ["new", t("new")]]} />
         <select value={bell.type} onChange={(e) => bell.setType(e.target.value)} aria-label={t("type")} style={{ maxWidth: 200 }}>

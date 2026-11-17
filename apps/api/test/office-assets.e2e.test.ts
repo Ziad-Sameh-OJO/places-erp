@@ -56,7 +56,7 @@ test("the assets register: Mokhtar adds, changes, reviews and removes; Nancy rea
   assert.equal(review.status, 201, JSON.stringify(review.body));
   const reg = (await call("/procurement/office-assets", { cookie: nancy })).body as { reviewedThisMonth: boolean; lastReview: { at: string; by: string } };
   assert.equal(reg.reviewedThisMonth, true);
-  assert.equal(reg.lastReview.by, "مختار جمال");
+  assert.equal(reg.lastReview.by, "Mokhtar Gamal");
   reviewIds.push(review.body.id as string);
 
   assert.equal((await call(`/procurement/office-assets/${id}`, { method: "DELETE", cookie: mokhtar })).status, 204);

@@ -5,6 +5,7 @@
 @media (max-width: 760px) {
   /* a long chip (e.g. the KPI band «Threshold: …») wraps instead of pushing the page sideways */
   .chip { white-space: normal; max-width: 100%; }
+  .tog { white-space: normal; min-width: 0; max-width: 100%; } /* a long checkbox label («Contract ends within 90 days») wraps instead of widening the page */
   :root { --tabbar-h: 62px; --safe-b: env(safe-area-inset-bottom, 0px); }
   html { -webkit-text-size-adjust: 100%; }
   body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
@@ -19,7 +20,7 @@
   .top-title h1 { font-size: 18px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top .bc, .top-title p, .fav-btn, .page-ico, #viewCrumb, .menu-btn, .round.menu-btn, #createBtn, #densBtn, .top-actions .chip { display: none !important; }
   .search-pill { min-width: 0 !important; width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 12px; flex: none; }
-  .search-pill span, .search-pill kbd, .clock-btn span { display: none !important; }
+  .search-pill span, .clock-btn span { display: none !important; }
   .top-actions { gap: 6px; margin: 0 !important; }
   .top-actions .round, .clock-btn { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; }
   .demo-panel { position: fixed; top: auto; bottom: calc(var(--tabbar-h) + var(--safe-b) + 8px); left: 8px; right: 8px; width: auto; max-height: 70vh; overflow-y: auto; border-radius: var(--r-xl); z-index: 31; }

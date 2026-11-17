@@ -23,7 +23,7 @@ interface SeedKpiItem {
 interface SeedKpiCard { follower: string | null; items: SeedKpiItem[] }
 interface SeedKpis { quarter: string; cards: Record<string, SeedKpiCard>; sales: SeedKpiCard; teamLeaders: { quarter: string; people: string[]; card: SeedKpiCard } }
 interface SeedAccount { code: string; name: string; kind?: string }
-interface SeedPerson { ref: string; name: string; email: string; department: string; roles: string[]; teamLeader?: string; manager?: string; team?: string; dashboard?: string }
+interface SeedPerson { ref: string; name: string; nameAr?: string; email: string; department: string; roles: string[]; teamLeader?: string; manager?: string; team?: string; dashboard?: string }
 
 /** The settings that are lists (contracts LIST_DEFAULTS · M-13 «القوايم»). */
 const LIST_KEYS = new Set(["areas", "channels", "companyCategories", "vendors", "paymentPlans", "finishings", "interactionTypes", "mkTaskTypes", "ticketDepts"]);
@@ -63,6 +63,9 @@ async function main() {
       create: { userId: user.id, name: p.name, jobTitle, department: p.department, salary: 0, team: p.team ?? null },
       update: {},
     });
+    // client, 17 Nov: account names in English, as in the email. A name still the Arabic one this seed first wrote is
+    // renamed; one changed in the app since then stays.
+    if (p.nameAr && emp.name === p.nameAr) await prisma.employee.update({ where: { id: emp.id }, data: { name: p.name } });
     employeeIds.set(p.ref, emp.id);
     userIds.set(p.ref, user.id);
   }

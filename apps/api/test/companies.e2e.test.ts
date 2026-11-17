@@ -67,7 +67,7 @@ test("a new company on someone else's lead → Telesales is notified and adds it
   assert.deepEqual(await call("/companies/pending", { cookie: heba }).then((r) => r.status), 403);
   const pending = (await call("/companies/pending", { cookie: hadeer })).body as { id: string; name: string; lead: { code: string }; by: string }[];
   const p = pending.find((x) => x.name === `${NAME} جديدة`)!;
-  assert.deepEqual([p.lead.code, p.by], [lead.code, "محمد محسن"]);
+  assert.deepEqual([p.lead.code, p.by], [lead.code, "Mohamed Mohsen"]);
   const r = await call(`/companies/pending/${p.id}`, { method: "POST", cookie: hadeer, body: { category } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: lead.id }, include: { company: true } })).company?.name, `${NAME} جديدة`);

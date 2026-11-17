@@ -47,7 +47,7 @@ test("Sara gets it on her home page and is told; only she marks it done; it's au
   const id = (r.body as { id: string }).id;
   const mine = (await call("/inventory/team-tasks/mine", { cookie: sara })).body as Array<{ id: string; status: string; by: { name: string } }>;
   assert.equal(mine.find((t) => t.id === id)?.status, "todo");
-  assert.equal(mine.find((t) => t.id === id)?.by.name, "منار أحمد");
+  assert.equal(mine.find((t) => t.id === id)?.by.name, "Manar Ahmed");
   assert.ok(await prisma.notification.findFirst({ where: { userId: users.sara, text: { contains: `${T} صور U-104` } } }));
   assert.equal((await call(`/inventory/team-tasks/${id}/done`, { method: "POST", cookie: marwa })).status, 404, "not hers");
   assert.equal((await call(`/inventory/team-tasks/${id}/done`, { method: "POST", cookie: sara })).status, 204);
