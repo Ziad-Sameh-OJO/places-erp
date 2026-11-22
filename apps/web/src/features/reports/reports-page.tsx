@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useState, type ReactNode, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ReportInput, type ReportsAccessView, type ReportsPage as ReportsData, type ScheduledReportView, type TargetRow, type TargetsView, type TeamRow, type TransactionRow } from "@places/contracts";
@@ -43,7 +43,9 @@ export function ReportsPage() {
 
 function Targets({ tl }: { tl: boolean }) {
   const tr = useTranslations("reports");
+  // «حدد التارجت» on the dashboard opens the targets of its month («/reports?month=2026-11», 22 Nov)
   const [month, setMonth] = useState("");
+  useEffect(() => { const m = new URLSearchParams(window.location.search).get("month"); if (m && /^\d{4}-\d{2}$/.test(m)) setMonth(m); }, []);
   const [period, setPeriod] = useState(""); // 14.12: a quarter's three months added up, instead of one month
   const q = useQuery({ queryKey: ["reports", "targets", month, period], queryFn: () => api.get<TargetsView>(`/reports/targets?${period ? periodParams(period) : month ? `month=${month}` : ""}`) });
   const [edit, setEdit] = useState<TargetRow | null>(null);

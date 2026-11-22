@@ -2,7 +2,9 @@
  * 14.4 · 14.5 · 14.6 (management meeting, 15 Nov) against the real API and database: the lead's type (Commercial /
  * Residential / Admin office) is saved and filtered; several salespeople, the Team Leader's team, the channel, the
  * area (any part of it) and the stage filter together; the search finds the company and its number; the stage tabs'
- * counts; «مين دخّل الليد» in the drawer; the removed «Follow up …» stages are refused.
+ * counts; «مين دخّل الليد» in the drawer; the removed «Follow up …» stages are refused. The client's list (22 Nov):
+ * Type, the company, Space, Budget, Duplicated, Created by, Assign from, Assign date, Action date / Last action, the
+ * cancel reason.
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -38,6 +40,7 @@ after(async () => {
   await prisma.auditLog.deleteMany({ where: { entityId: { in: leadIds } } });
   await prisma.notification.deleteMany({ where: { text: { contains: NAME } } });
   await prisma.leadActivity.deleteMany({ where: { leadId: { in: leadIds } } });
+  await prisma.leadDraft.deleteMany({ where: { leadId: { in: leadIds } } });
   await prisma.leadArrival.deleteMany({ where: { leadId: { in: leadIds } } });
   await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
   await prisma.company.deleteMany({ where: { id: companyId } });
@@ -118,4 +121,58 @@ test("14.5: the stage tabs' counts by stage, no «Qualified» or «Follow up …
   const stages = (await call("/settings/stages", { cookie: ops })).body as { stage: string }[];
   assert.deepEqual(stages.map((x) => x.stage), ["Fresh", "No Answer", "Interested", "Not Interested", "Visit", "Meeting", "Near to Close", "Done Deal", "Cancellation", "Hold"]);
   assert.equal(await prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM "sales"."LeadDraft" WHERE "stage" LIKE 'FOLLOW_UP%'`.then((r) => Number(r[0]!.n)), 0);
+});
+
+test("the client's filters (22 Nov): type, company, space, budget, duplicated, created by, assign from / date, action, cancel reason", async () => {
+  const K = `${NAME} K`, opsUser = await prisma.user.findUniqueOrThrow({ where: { email: "heba.salah@places.com" }, select: { id: true } });
+  const make = async (n: number, extra: object) => (await prisma.lead.create({ data: { code: `L-LK${stamp}${n}`, name: `${K}${n}`, phones: [phone(6 + n)], area: "التجمع الخامس",
+    channel: "Facebook", stage: "INTERESTED", createdById: "e2e", ...extra } })).id;
+  const k1 = await make(1, { type: "Resale", space: 120, budget: "500000", companyId, createdById: opsUser.id, assignedToId: mohsenId, assignedAt: new Date() });
+  const k2 = await make(2, { type: "Rent", space: 300, budget: "2000000", assignedToId: mohsenId, assignedAt: new Date() });
+  const k3 = await make(3, { type: "Income", space: 80, assignedToId: amrId, assignedAt: new Date("2025-01-10T10:00:00Z") });
+  const k = async (q: string) => {
+    const r = await call(`/leads?pageSize=100&q=${encodeURIComponent(K)}${q}`, { cookie: ops });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    return (r.body.items as LeadRow[]).map((l) => l.name.slice(K.length)).sort();
+  };
+  assert.deepEqual(await k(""), ["1", "2", "3"]);
+  assert.deepEqual(await k("&type=Resale"), ["1"]);
+  assert.deepEqual(await k(`&company=${encodeURIComponent(" co")}`), ["1"]); // any part of the company's name, any case
+  assert.deepEqual(await k("&spaceMin=100&spaceMax=200"), ["1"]);
+  assert.deepEqual(await k("&spaceMax=120"), ["1", "3"]); // both ends included
+  assert.deepEqual(await k("&budgetMin=1000000"), ["2"]);
+  assert.deepEqual(await k(`&createdById=${opsUser.id}`), ["1"]);
+  assert.deepEqual(await k("&assignedFrom=2025-01-01&assignedTo=2025-01-31"), ["3"]);
+
+  // Duplicated: its number came in again
+  await prisma.leadArrival.create({ data: { leadId: k2, channel: "Instagram", duplicate: true } });
+  assert.deepEqual(await k("&duplicated=true"), ["2"]);
+  assert.deepEqual(await k("&duplicated=false"), ["1", "3"]);
+
+  // Action date / Last action: what a person did, not the system
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date());
+  const logged = await call(`/leads/${k1}/calls`, { method: "POST", cookie: ops });
+  assert.ok(logged.status < 300, JSON.stringify(logged.body));
+  await prisma.leadActivity.create({ data: { leadId: k2, kind: "assign", text: "system", byUserId: null } });
+  assert.deepEqual(await k(`&actionFrom=${today}&actionTo=${today}`), ["1"]);
+  assert.deepEqual(await k("&action=call"), ["1"]);
+  assert.deepEqual(await k("&action=visit"), []);
+  assert.deepEqual(await k("&actionFrom=2020-01-01&actionTo=2020-01-02"), []);
+
+  // Assign from: moved away from a salesperson (the transfer writes it in the audit); the one who has it now isn't «from»
+  const moved = await call(`/leads/${k3}/assign`, { method: "POST", cookie: ops, body: { to: eidId } });
+  assert.equal(moved.status, 200, JSON.stringify(moved.body));
+  assert.deepEqual(await k(`&previousOwnerId=${amrId}`), ["3"]);
+  assert.deepEqual(await k(`&previousOwnerId=${eidId}`), []);
+
+  // the cancel reason: the note typed with Cancellation / Not Interested
+  await prisma.leadActivity.create({ data: { leadId: k2, kind: "stage", text: "المرحلة بقت Cancellation · السعر عالي على العميل", byUserId: opsUser.id } });
+  await prisma.leadActivity.create({ data: { leadId: k1, kind: "comment", text: "السعر عالي", byUserId: opsUser.id } }); // a comment isn't a reason
+  assert.deepEqual(await k(`&cancelReason=${encodeURIComponent("السعر")}`), ["2"]);
+
+  // «Created by» lists who entered the leads; refused: an unknown type, a budget that isn't money, dates the wrong way round
+  assert.ok(((await call("/leads/options", { cookie: ops })).body as LeadOptions).creators.some((c) => c.id === opsUser.id));
+  for (const q of ["&type=Villa", "&budgetMin=abc", "&actionFrom=2026-02-01&actionTo=2026-01-01", "&assignedFrom=2026-02-01&assignedTo=2026-01-01", "&action=dance"]) {
+    assert.equal((await call(`/leads?q=x${q}`, { cookie: ops })).status, 400, q);
+  }
 });

@@ -117,14 +117,15 @@ function Targets({ d, onMonth }: { d: AhmedDashboard; onMonth: (m: string) => vo
     <Card title={t("title")} icon="trend" className="b-4 target-a"
       extra={<input type="month" value={d.month} onChange={(e) => e.target.value && onMonth(e.target.value)} aria-label={t("pickMonth")} />}>
       <div className="gauges-a">
-        <Meter label={t("year", { year: d.year })} bar={d.targets.year} />
-        <Meter label={t("month", { month: monthName })} bar={d.targets.month} />
+        <Meter label={t("year", { year: d.year })} bar={d.targets.year} href={`/reports?month=${d.month}`} />
+        <Meter label={t("month", { month: monthName })} bar={d.targets.month} href={`/reports?month=${d.month}`} />
       </div>
     </Card>
   );
 }
 
-function Meter({ label, bar }: { label: string; bar: PacedBar }) {
+/** `href`: the targets of the card's month on «التقارير والتارجت», where a salesperson's month target is set. */
+function Meter({ label, bar, href }: { label: string; bar: PacedBar; href: string }) {
   const t = useTranslations("dashboard.ahmed.targets");
   const goal = bar.goal === "" ? 0 : fromDecimal(bar.goal);
   if (!goal) return (
@@ -132,12 +133,12 @@ function Meter({ label, bar }: { label: string; bar: PacedBar }) {
       <svg viewBox="0 0 130 74" aria-hidden="true"><path d="M13 66 A52 52 0 0 1 117 66" /></svg>
       <small>{label}</small>
       <p>{t("none")}</p>
-      <Link className="btn ghost sm" href="/kpis"><Icon name="plus" />{t("set")}</Link>
+      <Link className="btn ghost sm" href={href}><Icon name="plus" />{t("set")}</Link>
     </div>
   );
   const mark = bar.expected ? Math.round((fromDecimal(bar.expected) / goal) * 100) : null;
   return (
-    <Link href="/reports" className="meter-a">
+    <Link href={href} className="meter-a">
       <div className="gauge-w">
         <Gauge bar={bar} markTitle={t("mark")} label={t("aria", { label, pct: bar.percent ?? 0, mark: mark ?? 0 })} />
         <div className="gauge-t"><strong className="num">{bar.percent == null ? "—" : `${bar.percent}%`}</strong></div>

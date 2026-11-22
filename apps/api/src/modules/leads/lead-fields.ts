@@ -48,7 +48,11 @@ export function shownLeadFilters(f: LeadFilters, hidden: Hidden): LeadQuery {
   if (!hidden.size) return f;
   return {
     ...f, ...(hidden.has("area") ? { area: undefined } : {}), ...(hidden.has("channel") ? { channel: undefined } : {}),
-    ...(hidden.has("campaignId") ? { campaignId: undefined } : {}), phoneSearch: !hidden.has("phones"),
+    ...(hidden.has("campaignId") || hidden.has("campaign") ? { campaignId: undefined } : {}), phoneSearch: !hidden.has("phones"),
+    ...(hidden.has("type") ? { type: undefined } : {}), ...(hidden.has("company") ? { company: undefined } : {}),
+    ...(hidden.has("space") ? { spaceMin: undefined, spaceMax: undefined } : {}), ...(hidden.has("budget") ? { budgetMin: undefined, budgetMax: undefined } : {}),
+    // the reason is in the stage line of the Activity: whoever may not read the notes may not search them either
+    ...(hidden.has("note") ? { cancelReason: undefined } : {}),
     ...(hidden.has("propertyType") ? { propertyType: undefined } : {}), companySearch: !hidden.has("company"),
     // sorting by a hidden field would tell its value (0.15): the list keeps its default order
     ...(f.sort && hidden.has(f.sort) ? { sort: undefined } : {}),
