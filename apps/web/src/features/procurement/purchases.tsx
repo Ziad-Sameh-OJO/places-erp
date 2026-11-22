@@ -1,4 +1,5 @@
 "use client";
+import { SavedFilters } from "@/components/saved-filters";
 import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -42,6 +43,7 @@ export function Purchases() {
   return (
     <>
       {o.data && <Kpis o={o.data} />}
+      <SavedFilters page="procurement" value={{ ...f }} onPick={(v) => { setF(v as PurchaseFilter); setPage(1); }} />
       <Toolbar f={f} o={o.data} onChange={(k, v) => { setF({ ...f, [k]: v }); setPage(1); }} onNew={buyer ? () => setForm(true) : undefined} />
       <div className="cols wide">
         <div>

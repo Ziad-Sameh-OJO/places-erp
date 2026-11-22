@@ -96,5 +96,17 @@
   },
   "periodPicker": { "label": "Year and quarter", "all": "All periods" },
   "pickDate": "Pick a date",
-  "more": "More"
+  "more": "More",
+  "savedFilters": {
+    "label": "My saved filters",
+    "title": "My filters:",
+    "remove": "Remove saved filter",
+    "removed": "Saved filter removed",
+    "saveThis": "Save these filters",
+    "saveTitle": "Save the filters you picked",
+    "saved": "Saved «{name}» · you'll find it above the filters",
+    "name": "Filter name",
+    "namePlaceholder": "e.g. New Cairo · Resale",
+    "save": "Save"
+  }
 }

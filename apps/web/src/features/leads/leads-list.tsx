@@ -9,7 +9,8 @@ import { num } from "@/lib/format";
 import { keepsCompaniesSheet, quarterDays } from "@places/domain";
 import { PeriodPicker, rangePeriod } from "@/components/period-picker";
 import type { LeadQuery } from "./filters";
-import { toParams, useSavedViews } from "./filters";
+import { toParams } from "./filters";
+import { useSavedFilters } from "@/lib/saved-filters";
 import { BulkBar } from "./bulk-bar";
 import { useDuration } from "./lead-bits";
 import { LeadKpis, StageDashboard, LeadsToolbar, ViewsBar } from "./leads-toolbar";
@@ -80,7 +81,7 @@ export function LeadsList() {
   const calls = useMyCalls().data;
   const options = useLeadOptions();
   const settings = useSettings();
-  const saved = useSavedViews();
+  const saved = useSavedFilters("leads", "places.leads.views"); // before 22 Nov: one list per browser
   // 0.15: a header click sorts every page in the API (back to page 1); not a filter, so saved views don't keep it
   const [sort, setSort] = useState<Pick<LeadQuery, "sort" | "dir">>({});
   const leads = useLeads({ ...f, kind, ...sort }, page, PAGE);
@@ -134,7 +135,7 @@ export function LeadsList() {
           ? t.rich("callsToday", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })
           : t.rich("callsWeek", { count: num(calls.count), target: calls.goal.target, b: (c) => <b>{c}</b> })}</Note>
       )}
-      <ViewsBar f={f} views={saved.views} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
+      <ViewsBar f={f} views={saved.list} onPick={filter} onAdd={saved.add} onRemove={saved.remove} />
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       {s && <StageDashboard s={s} f={f} onPick={filter} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />
