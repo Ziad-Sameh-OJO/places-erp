@@ -417,6 +417,7 @@
       "assign": "Assign / transfer"
     },
     "assignFrom": "Assign from",
+    "assignTo": "Assign to",
     "createdBy": "Created by",
     "dupYes": "Duplicated",
     "dupNo": "Not duplicated",
