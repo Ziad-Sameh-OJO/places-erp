@@ -1,8 +1,8 @@
 "use client";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { PROPERTY_TYPES, keepsCompaniesSheet } from "@places/domain";
+import { PROPERTY_TYPES, keepsCompaniesSheet, sameName } from "@places/domain";
 import { activeValues, type AreaRoute, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -10,6 +10,7 @@ import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { useLeadOptions, useSettings } from "./use-leads";
 import { TagPicker, askTags, useTags } from "./lead-tags";
+import { CloseCompanies, useSettled } from "./company-names";
 
 const TYPES = ["Rent", "Resale", "Primary", "Income"] as const; // requirements M-01 (the demo leaves Primary out)
 /** «رقم في كل سطر» (or commas), digits only, as the API normalises them. */
@@ -18,13 +19,6 @@ const phonesOf = (text: string) => text.split(/[\n,]/).map((p) => p.replace(/\D/
 function sentToOperations(msg: string) {
   const [head = "", tail = ""] = serverText("العميل ده موجود (\u0000) · اتبعت للأوبريشن تقرر").split("\u0000");
   return msg.startsWith(head) && msg.endsWith(tail);
-}
-
-/** Waits for the typing to settle before asking the API about the mobiles. */
-function useSettled(value: string, ms = 400) {
-  const [v, setV] = useState(value);
-  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
-  return v;
 }
 
 /**
@@ -68,7 +62,8 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   // «اكتب أو اختار من شيت الشركات» (1.20): a name that isn't in the sheet is a new company
   const typedCompany = useSettled(company.trim());
   const sheetNames = useQuery({ queryKey: ["company-names", typedCompany], enabled: !!typedCompany, queryFn: () => api.get<string[]>(`/companies/names?q=${encodeURIComponent(typedCompany)}`) }).data;
-  const newCompany = !!typedCompany && !!sheetNames && !sheetNames.some((n) => n.toLowerCase() === typedCompany.toLowerCase());
+  // the same name spelled another way («اعمار» / «إعمار») is the sheet's company, not a new one (client, 22 Nov)
+  const newCompany = !!typedCompany && !!sheetNames && !sheetNames.some((n) => sameName(n, typedCompany));
 
   const { tags: canTag } = useTags();
   const [tagIds, setTagIds] = useState<string[]>([]);
@@ -109,6 +104,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
           <input name="company" maxLength={160} placeholder={t("companyPlaceholder")} list="coList" value={company} onChange={(e) => setCompany(e.target.value)} />
           <datalist id="coList">{(sheetNames ?? []).map((n) => <option key={n} value={n} />)}</datalist>
         </Field>)}
+        {newCompany && fields.edits("company") && <CloseCompanies name={company} onPick={setCompany} />}
         {newCompany && fields.edits("company") && (keepsSheet
           ? <Field label={t("companyCategory")} req>
             <select name="companyCategory" required defaultValue="">

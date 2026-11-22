@@ -373,9 +373,10 @@ export class LeadsRepository {
     return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   }
 
-  /** A company from the companies sheet, by name in any case (the form's «الشركة»; adding new ones is 1.20). */
-  companyByName(tx: Prisma.TransactionClient, name: string) {
-    return tx.company.findFirst({ where: { name: { equals: name.trim(), mode: "insensitive" } }, select: { id: true } });
+  /** The names of the companies on the leads in this scope (the «تقصد» suggestions). */
+  async companyNamesInScope(scope: Prisma.LeadWhereInput) {
+    const rows = await this.db.company.findMany({ where: { leads: { some: { AND: [scope, { archivedAt: null, draft: null }] } } }, select: { name: true } });
+    return rows.map((c) => c.name);
   }
 
   salesForArea(area: string) {
@@ -421,7 +422,7 @@ export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DU
  * The list's filters; `phoneSearch` / `companySearch` false (M-09: the field is hidden from the caller): the search
  * doesn't look at it. `team`: the «التيم» filter's people (the service reads them from `teamLeaderId`).
  */
-export type LeadQuery = LeadFilters & { phoneSearch?: boolean; companySearch?: boolean; team?: string[]; movedFrom?: string[]; wentTo?: string[] };
+export type LeadQuery = LeadFilters & { phoneSearch?: boolean; companySearch?: boolean; team?: string[]; movedFrom?: string[]; wentTo?: string[]; companyIds?: string[] };
 
 /** 0.15: the column clicked, across every page (empty budgets last either way); then newest first, the id keeps pages stable. */
 function leadOrder(f: LeadQuery): Prisma.LeadOrderByWithRelationInput[] {
@@ -445,7 +446,8 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
       f.propertyType ? { propertyType: f.propertyType } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
       // the whole mobile (the GIN index), any part of the name or the company's name, the company's number, or the code typed in any case («l-1001»)
       f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { code: f.q.toUpperCase() }, ...(digits.length >= 10 && f.phoneSearch !== false ? [{ phones: { has: digits } }] : []),
-        ...(f.companySearch !== false ? [{ company: { OR: [{ name: { contains: f.q, mode: "insensitive" as const } }, { number: f.q }] } }] : [])] } : {},
+        // `companyIds`: the companies whose name holds the search spelled either way (the service's, @places/domain)
+        ...(f.companySearch !== false ? [{ companyId: { in: f.companyIds ?? [] } }, { company: { number: f.q } }] : [])] } : {},
       // Cairo days, «to» included: up to the start of the next day
       f.from || f.to ? { createdAt: days(f.from, f.to) } : {},
       // the client's list (22 Nov)

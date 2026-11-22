@@ -1,4 +1,5 @@
 "use client";
+import { CloseCompanies } from "./company-names";
 import { type FormEvent, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -100,24 +101,28 @@ function AddRow({ categories, outbound }: { categories: string[]; outbound: numb
   const run = useAction();
   const toast = useToast();
   const qc = useQueryClient();
+  const [name, setName] = useState(""); // «فيه شركة اسمها قريب» while typing (client, 22 Nov)
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget, f = new FormData(form);
     return run(async () => {
       const c = await api.post<AddedCompany>("/companies", { name: f.get("name"), category: f.get("category"), number: f.get("number") });
       toast(c.leadCode ? t("addedInLead", { code: c.leadCode }) : t("addedOutbound"));
-      form.reset(); // only once it was added: a refused one keeps what was typed
+      form.reset(); setName(""); // only once it was added: a refused one keeps what was typed
       await qc.invalidateQueries({ queryKey: KEY });
     });
   };
   return (
+    <>
     <form className="row" onSubmit={submit}>
-      <input name="name" required maxLength={160} placeholder={t("newCompany")} aria-label={t("companyName")} />
+      <input name="name" required maxLength={160} placeholder={t("newCompany")} aria-label={t("companyName")} value={name} onChange={(e) => setName(e.target.value)} />
       <select name="category" aria-label={t("category")} style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
       <input name="number" required maxLength={40} placeholder={t("number")} style={{ maxWidth: 130 }} aria-label={t("number")} />
       <button className="btn sm"><Icon name="plus" />{t("add")}</button>
       <span className="hint">{t.rich("outbound", { count: outbound, target: OUTBOUND_WEEKLY_TARGET, b: (c) => <b>{c}</b> })}</span>
     </form>
+    <CloseCompanies name={name} onPick={setName} />
+    </>
   );
 }
 

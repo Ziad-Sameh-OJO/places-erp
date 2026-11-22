@@ -10,8 +10,9 @@ type Tx = Prisma.TransactionClient | PrismaClient;
 export class CompaniesRepository {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient) {}
 
-  page(f: CompanyFilters, ending?: Window) {
-    const where = companyWhere(f, ending);
+  /** `ids`: the companies whose name matches «بحث» however it was spelled (the service's, @places/domain nameContains). */
+  page(f: CompanyFilters, ending: Window | undefined, ids: string[] | undefined) {
+    const where = companyWhere(f, ending, ids);
     return this.db.$transaction([
       this.db.company.findMany({ where, orderBy: ending ? [{ contractEnd: "asc" }, { id: "asc" }] : [{ createdAt: "desc" }, { id: "desc" }], skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.company.count({ where }),
@@ -19,8 +20,8 @@ export class CompaniesRepository {
   }
 
   /** The report's rows for Excel (1.21): the same filters, every row up to the export limit. */
-  all(f: CompanyFilters, ending: Window | undefined, limit: number) {
-    return this.db.company.findMany({ where: companyWhere(f, ending), orderBy: ending ? [{ contractEnd: "asc" }, { id: "asc" }] : [{ name: "asc" }], take: limit });
+  all(f: CompanyFilters, ending: Window | undefined, ids: string[] | undefined, limit: number) {
+    return this.db.company.findMany({ where: companyWhere(f, ending, ids), orderBy: ending ? [{ contractEnd: "asc" }, { id: "asc" }] : [{ name: "asc" }], take: limit });
   }
 
   /** Every name in the sheet, in lower case: the archive import skips the ones already there. */
@@ -36,14 +37,18 @@ export class CompaniesRepository {
     return this.db.company.count({ where: { outbound: true, createdById: userId, createdAt: { gte: since } } });
   }
 
-  /** Names for the new-lead form's «اكتب أو اختار من شيت الشركات». */
-  names(q: string) {
-    return this.db.company.findMany({ where: { name: { contains: q, mode: "insensitive" } }, select: { name: true }, orderBy: { name: "asc" }, take: 10 });
+  /** Every company's id and name: names are compared in the service, spelled either way (@places/domain company-names). */
+  nameList(tx: Tx = this.db) {
+    return tx.company.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
   }
 
-  /** The same company by name (any case) or by number. */
-  findSame(name: string, number: string | null, tx: Tx = this.db, exceptId?: string) {
-    return tx.company.findFirst({ where: { ...(exceptId ? { id: { not: exceptId } } : {}), OR: [{ name: { equals: name.trim(), mode: "insensitive" } }, ...(number ? [{ number }] : [])] }, select: { id: true, name: true } });
+  /** Another company with this number. */
+  byNumber(number: string, tx: Tx = this.db, exceptId?: string) {
+    return tx.company.findFirst({ where: { number, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { id: true, name: true } });
+  }
+
+  pendingRequestNames(tx: Tx) {
+    return tx.companyRequest.findMany({ where: { status: "pending" }, select: { id: true, name: true } });
   }
 
   /** A lead that has this number as one of its mobiles («رقم الشركة بيتقارن بأرقام الليدز»). */
@@ -64,10 +69,10 @@ export class CompaniesRepository {
 type Window = { from: string; to: string };
 const asDay = (d: string) => new Date(`${d}T00:00:00Z`);
 
-function companyWhere(f: CompanyFilters, ending?: Window): Prisma.CompanyWhereInput {
+function companyWhere(f: CompanyFilters, ending: Window | undefined, ids: string[] | undefined): Prisma.CompanyWhereInput {
   return {
     ...(f.category ? { category: f.category } : {}),
-    ...(f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { number: { contains: f.q } }] } : {}),
+    ...(f.q ? { OR: [{ id: { in: ids ?? [] } }, { number: { contains: f.q } }] } : {}),
     ...(ending ? { contractEnd: { gte: asDay(ending.from), lte: asDay(ending.to) } } : {}),
   };
 }
