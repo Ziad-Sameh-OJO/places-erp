@@ -78,7 +78,7 @@ test("Ahmed's one page: a salesperson gets 403, a wrong period 400", async () =>
   assert.equal((await call("/dashboard/ahmed", { cookie: sales })).status, 403);
   assert.equal((await call("/dashboard/ahmed?period=year", { cookie: ahmed })).status, 400);
   assert.equal((await call("/dashboard/ahmed?period=quarter&year=2026", { cookie: ahmed })).status, 400); // year and quarter together
-  assert.equal((await call("/dashboard/ahmed?month=2026-13", { cookie: ahmed })).status, 400);
+  assert.equal((await call("/dashboard/ahmed?tq=2026-Q5", { cookie: ahmed })).status, 400);
 });
 
 test("Ahmed's one page: today's lead in the strip and the funnel, the target line, the teams, «محتاج انتباهك»", async () => {
@@ -91,7 +91,11 @@ test("Ahmed's one page: today's lead in the strip and the funnel, the target lin
   assert.ok(d.funnel[1]!.count >= 1);
   assert.equal(d.funnel.at(-1)!.next, null);
   assert.equal(typeof d.targets.year.expected, "string");
-  assert.equal(typeof d.targets.month.expected, "string");
+  assert.equal(typeof d.targets.quarter.expected, "string");
+  // «Total leads»: every lead in scope but the archive, so at least the funnel's leads
+  assert.ok(d.totalLeads >= d.funnel.reduce((n, s) => n + s.count, 0));
+  const archived = await prisma.lead.count({ where: { archivedAt: { not: null } } }), all = await prisma.lead.count();
+  assert.ok(d.totalLeads <= all - archived);
   assert.ok(d.teams.length >= 4);
   assert.ok(d.teams.every((t, i) => i === 0 || (d.teams[i - 1]!.percent ?? 0) >= (t.percent ?? 0))); // highest first
   assert.ok(d.teams.flatMap((t) => t.members).every((p) => p.percent !== null)); // 0%, never «—»
@@ -116,17 +120,19 @@ test("Ahmed's one page: the period parameter (month, a picked quarter)", async (
   assert.equal(m.trend.points[0]!.from, m.from);
 });
 
-test("Ahmed's one page: the target card is the year and one month of it, this month by default", async () => {
+test("Ahmed's one page: the target card is the year and one quarter of it, the period's by default", async () => {
   const thisMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+  const thisQuarter = `${thisMonth.slice(0, 4)}-Q${Math.ceil(Number(thisMonth.slice(5)) / 3)}`;
   const d = await get<AhmedDashboard>("/dashboard/ahmed", ahmed);
-  assert.deepEqual([d.month, d.year], [thisMonth, thisMonth.slice(0, 4)]);
+  assert.deepEqual([d.targetQuarter, d.year], [thisQuarter, thisQuarter.slice(0, 4)]);
   const goal = (s: string) => (s === "" ? 0 : Number(s));
-  assert.ok(goal(d.targets.year.goal) >= goal(d.targets.month.goal)); // the year holds the month
-  const m = await get<AhmedDashboard>("/dashboard/ahmed?month=2025-03", ahmed);
-  assert.deepEqual([m.month, m.year], ["2025-03", "2025"]); // the year follows the month picked
-  assert.equal(m.targets.month.perDay, null); // ended: nothing left to make a day
+  assert.ok(goal(d.targets.year.goal) >= goal(d.targets.quarter.goal)); // the year holds the quarter
+  const m = await get<AhmedDashboard>("/dashboard/ahmed?tq=2025-Q1", ahmed);
+  assert.deepEqual([m.targetQuarter, m.year], ["2025-Q1", "2025"]); // the year follows the quarter picked
+  assert.equal(m.targets.quarter.perDay, null); // ended: nothing left to make a day
+  assert.equal(m.quarter, thisQuarter); // the teams keep the period's quarter
   const q = await get<AhmedDashboard>("/dashboard/ahmed?period=quarter&year=2026&quarter=1", ahmed);
-  assert.equal(q.month, "2026-03"); // a past quarter: its last month
+  assert.equal(q.targetQuarter, "2026-Q1"); // a picked period: its quarter
 });
 
 test("Ahmed's one page: the charts add up to the strip's numbers", async () => {
