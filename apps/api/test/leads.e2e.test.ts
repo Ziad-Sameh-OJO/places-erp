@@ -590,7 +590,8 @@ const gapLead = async (n: number, email: string, extra: object = {}) => {
   return (await prisma.lead.create({ data: { code: gapCode(n), name: `E2E-G ${stamp} ${n}`, phones: [gapPhone(n)], area: "التجمع الخامس",
     type: "Rent", channel: "Facebook", assignedToId: owner, assignedAt: new Date(), createdById: "e2e", ...extra } })).id;
 };
-const stageTo = (id: string, cookie: string, stage: string) => call(`/leads/${id}/stage`, { method: "PATCH", cookie, body: { stage } });
+// Cancellation needs a reason from the client's list (22 Nov)
+const stageTo = (id: string, cookie: string, stage: string) => call(`/leads/${id}/stage`, { method: "PATCH", cookie, body: { stage, ...(stage === "Cancellation" ? { reason: "Rented" } : {}) } });
 
 test("Qualified through the API (M-01 2.7, Q8): Cancellation / Hold before Interested don't qualify; once Interested it never goes back", async () => {
   const id = await gapLead(1, "m.mohsen@places.com");
