@@ -1,9 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
 import { STAGE_TABS } from "@places/domain";
 
 /** The toolbar's filters, as the API's query names (LeadFilters in @places/contracts). Empty = not filtered. */
-export interface LeadQuery {
+export type LeadQuery = {
   // assignedToId: one or several salespeople, comma separated (14.6) · teamLeaderId: «التيم» · propertyType: «النوع»
   q?: string; stage?: string; channel?: string; campaignId?: string; assignedToId?: string; teamLeaderId?: string; area?: string; propertyType?: string;
   qualified?: "true" | "false"; from?: string; to?: string;
@@ -14,7 +13,7 @@ export interface LeadQuery {
   cancelReason?: string;
   kind?: "client" | "broker" | undefined; // the tab, not a filter: saved views don't keep it
   sort?: string; dir?: "asc" | "desc"; // 0.15: the column the API sorts by (not a filter either)
-}
+};
 
 export function toParams(f: LeadQuery, page: number, pageSize: number) {
   const p = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
@@ -39,26 +38,3 @@ export const moreCount = (f: LeadQuery) => MORE_FILTERS.filter((k) => f[k]).leng
  */
 export const STAGE_TAB_LIST = STAGE_TABS;
 export const subTabsOf = (stage: string | undefined) => STAGE_TABS.find((t) => t.stage === stage || t.sub?.some((x) => x === stage))?.sub ?? [];
-
-export interface SavedView { name: string; f: LeadQuery }
-const STORE = "places.leads.views";
-
-/**
- * The person's own saved filters. Kept in this browser only (a comfort, like the demo); storage can be blocked or
- * empty (private window), so every access is guarded and the page works without it.
- */
-export function useSavedViews() {
-  const [views, setViews] = useState<SavedView[]>([]);
-  useEffect(() => {
-    try { setViews(JSON.parse(localStorage.getItem(STORE) ?? "[]") as SavedView[]); } catch { setViews([]); }
-  }, []);
-  const save = useCallback((next: SavedView[]) => {
-    setViews(next);
-    try { localStorage.setItem(STORE, JSON.stringify(next)); } catch { /* storage blocked: the views last until reload */ }
-  }, []);
-  return {
-    views,
-    add: (v: SavedView) => save([...views, v]),
-    remove: (i: number) => save(views.filter((_, j) => j !== i)),
-  };
-}

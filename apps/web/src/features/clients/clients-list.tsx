@@ -1,4 +1,5 @@
 "use client";
+import { SavedFilters } from "@/components/saved-filters";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ClientRow } from "@places/contracts";
@@ -54,6 +55,7 @@ export function ClientsList() {
         <KpiTile label={t("tiles.both")} value={s ? num(s.both) : "…"} sub={t("tiles.bothSub")} icon="users" tone="warn" />
       </div>
       <MergeQueue />
+      <SavedFilters page="clients" value={{ ...f }} onPick={(v) => filter(v as ClientQuery)} />
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={t("search")} value={f.q ?? ""} onChange={(e) => filter({ ...f, q: e.target.value })} aria-label={t("searchLabel")} /></label>
         <div className="seg" role="group" aria-label={t("kind")}>

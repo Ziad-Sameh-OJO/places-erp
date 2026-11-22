@@ -3,16 +3,18 @@ import { type ReactNode, useState } from "react";
 import { useTranslations } from "next-intl";
 import { LEAD_ACTIONS, type LeadOptions, type LeadSummary, type Settings } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
-import { DateInput, Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
+import { DateInput, Icon, useToast } from "@/components/ui";
 import { num } from "@/lib/format";
-import { type LeadQuery, STAGE_TAB_LIST, type SavedView, activeCount, moreCount, sameFilters, subTabsOf } from "./filters";
+import { type LeadQuery, STAGE_TAB_LIST, activeCount, moreCount, sameFilters, subTabsOf } from "./filters";
+import type { SavedFilter } from "@/lib/saved-filters";
+import { SaveModal, SavedChip } from "@/components/saved-filters";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
 import { PICKABLE_STAGES, PROPERTY_TYPES } from "@places/domain";
-
-const LEAD_TYPES = ["Rent", "Resale", "Primary", "Income"] as const;
 import { stageTone } from "./lead-bits";
 import { MultiPick } from "./multi-pick";
+
+const LEAD_TYPES = ["Rent", "Resale", "Primary", "Income"] as const;
 
 /** «مقارنة بالأسبوع اللي فات»: % change, none when last week had nothing (demo U.delta). */
 const delta = (cur: number, prev: number) => (prev ? ((cur - prev) / prev) * 100 : null);
@@ -61,13 +63,13 @@ export function StageDashboard({ s, f, onPick }: { s: LeadSummary; f: LeadQuery;
  * not here too (client, 17 Nov: the same number three times on one page).
  */
 export function ViewsBar({ f, views, onPick, onAdd, onRemove }: {
-  f: LeadQuery; views: SavedView[];
-  onPick: (f: LeadQuery) => void; onAdd: (v: SavedView) => void; onRemove: (i: number) => void;
+  f: LeadQuery; views: SavedFilter[];
+  onPick: (f: LeadQuery) => void; onAdd: (v: SavedFilter) => void; onRemove: (i: number) => void;
 }) {
   const t = useTranslations("leads.views");
   const toast = useToast();
   const [saving, setSaving] = useState(false);
-  const known = (activeCount(f) === 1 && !!f.stage) || views.some((v) => sameFilters(v.f, f));
+  const known = (activeCount(f) === 1 && !!f.stage) || views.some((v) => sameFilters(v.f as LeadQuery, f));
   const stage = (st: string) => onPick({ ...f, stage: st });
   const sub = subTabsOf(f.stage);
   return (
@@ -81,19 +83,13 @@ export function ViewsBar({ f, views, onPick, onAdd, onRemove }: {
         </button>
       ))}
       {views.map((v, i) => (
-        <button key={`${v.name}-${i}`} className="vchip" aria-pressed={sameFilters(v.f, f)} onClick={() => onPick(v.f)}>
-          <Icon name="star" />{v.name}
-          <span className="vx" role="button" aria-label={t("remove")} onClick={(e) => { e.stopPropagation(); onRemove(i); toast(t("removed")); }}>×</span>
-        </button>
+        <SavedChip key={`${v.name}-${i}`} name={v.name} on={sameFilters(v.f as LeadQuery, f)} removeLabel={t("remove")}
+          onPick={() => onPick(v.f as LeadQuery)} onRemove={() => { onRemove(i); toast(t("removed")); }} />
       ))}
-      {activeCount(f) > 0 && !known && <button className="vchip add" onClick={() => setSaving(true)}><Icon name="plus" />{t("saveThis")}</button>}
+      {activeCount(f) > 0 && !known && <button type="button" className="vchip add" onClick={() => setSaving(true)}><Icon name="plus" />{t("saveThis")}</button>}
       {saving && (
-        <Modal title={t("saveTitle")} onClose={() => setSaving(false)}>
-          <form className="grid" onSubmit={onFormSubmit((d) => { const name = String(d.get("name") ?? "").trim(); if (!name) return; onAdd({ name, f }); setSaving(false); toast(t("saved", { name })); })}>
-            <Field label={t("name")} req wide><input name="name" required placeholder={t("namePlaceholder")} /></Field>
-            <div className="row end wide"><button className="btn"><Icon name="star" />{t("save")}</button></div>
-          </form>
-        </Modal>
+        <SaveModal title={t("saveTitle")} label={t("name")} placeholder={t("namePlaceholder")} save={t("save")} onClose={() => setSaving(false)}
+          onSave={(name) => { onAdd({ name, f: { ...f } }); setSaving(false); toast(t("saved", { name })); }} />
       )}
     </div>
     {sub.length > 0 && (
