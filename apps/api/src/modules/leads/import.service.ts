@@ -7,6 +7,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { IMPORT_TX, type ImportReport, type ParsedSheet } from "../../core/http/import";
 import { ClientsService } from "../clients/clients.service";
 import { LeadsRepository } from "./leads.repository";
+import { CompaniesService } from "./companies.service";
 
 /**
  * 13.1 · the old leads and the company archive from their templates, each in one transaction. Duplicates (a lead with
@@ -20,6 +21,7 @@ export class LeadImportService {
     private readonly repo: LeadsRepository,
     private readonly audit: AuditService,
     private readonly clients: ClientsService,
+    private readonly sheet: CompaniesService,
   ) {}
 
   /** Old leads come in Fresh and unassigned (Operations hands them out), not through today's rotation or its notifications. */
@@ -33,7 +35,7 @@ export class LeadImportService {
       r.phones.forEach((p) => seen.add(p));
       if (!save) return true;
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
-      const company = r.company ? await this.repo.companyByName(tx, r.company) : null;
+      const company = r.company ? await this.sheet.byName(tx, r.company) : null;
       const at = r.arrivedAt ? new Date(`${r.arrivedAt}T00:00:00Z`) : undefined;
       const lead = await tx.lead.create({
         data: {

@@ -44,6 +44,13 @@ export class CompaniesController {
     return this.companies.names(q.q);
   }
 
+  /** «فيه شركة اسمها قريب»: the same people as the suggestions above. */
+  @Get("similar")
+  @Requires("leads", "create")
+  similar(@Query(new ZodPipe(NamesQuery)) q: z.infer<typeof NamesQuery>) {
+    return this.companies.similar(q.q);
+  }
+
   @Post()
   @Requires("leads", "import")
   add(@Me() me: CurrentUser, @Body(new ZodPipe(NewCompany)) body: NewCompany) {

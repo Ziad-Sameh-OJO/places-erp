@@ -6,7 +6,10 @@ import { sendPdf } from "../../core/documents/documents.service";
 import { sendXlsx, type ExcelColumn } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
+import { z } from "zod";
 import { LeadsService } from "./leads.service";
+
+const SuggestQuery = z.object({ q: z.string().trim().max(120).default("") });
 
 type ExportRow = Awaited<ReturnType<LeadsService["exportRows"]>>[number];
 /** The demo's export columns (ui.js cols.leads). */
@@ -81,6 +84,13 @@ export class LeadsController {
   @Requires("leads", "view")
   tabs(@Me() me: CurrentUser, @Query(new ZodPipe(LeadFilters)) f: LeadFilters) {
     return this.leads.tabs(me, f);
+  }
+
+  /** «تقصد: …؟» under the search: the closest company names on the leads this person sees. */
+  @Get("company-suggestions")
+  @Requires("leads", "view")
+  companySuggestions(@Me() me: CurrentUser, @Query(new ZodPipe(SuggestQuery)) q: z.infer<typeof SuggestQuery>) {
+    return this.leads.companySuggestions(me, q.q);
   }
 
   @Get("options")

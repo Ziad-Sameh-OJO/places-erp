@@ -14,6 +14,7 @@ import { useSavedFilters } from "@/lib/saved-filters";
 import { BulkBar } from "./bulk-bar";
 import { useDuration } from "./lead-bits";
 import { LeadKpis, StageDashboard, LeadsToolbar, ViewsBar } from "./leads-toolbar";
+import { DidYouMean } from "./company-names";
 import { LeadsTable } from "./leads-table";
 import { LeadsBoard } from "./leads-board";
 import { LeadDrawer } from "./lead-drawer";
@@ -145,6 +146,7 @@ export function LeadsList() {
       {s && <LeadKpis s={s} onReset={() => filter({})} />}
       {s && <StageDashboard s={s} f={f} onPick={filter} />}
       <LeadsToolbar f={f} set={filter} settings={settings.data} options={options.data} />
+      {!!f.q && <DidYouMean q={f.q} onPick={(q) => filter({ ...f, q })} />}
       <div className="row">
         <div className="seg" role="group">
           <button aria-pressed={mode === "list"} title={t("list")} onClick={() => setMode("list")}><Icon name="list" /><span>{t("list")}</span></button>
