@@ -399,6 +399,7 @@ model Lead {
   campaignId     String?
   campaign       Campaign?     @relation(fields: [campaignId], references: [id])
   stage          LeadStage     @default(FRESH)
+  cancelReason   String?       // client, 22 Nov: why it was last put in Cancellation (domain CANCEL_REASONS); the filter reads it
   kind           LeadKind      @default(CLIENT) // client meeting 4 Nov (1.28): brokers have their own tab, same stages
   selfEntered    Boolean       @default(false)  // the salesperson entered it himself (KPI 11.15)
   qualified      Boolean       @default(false) // sticky, see isQualifiedAfter

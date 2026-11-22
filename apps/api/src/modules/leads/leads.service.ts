@@ -625,13 +625,14 @@ export class LeadsService {
         where: { id },
         data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), touched: true,
           ...(noAnswer ? { noAnswerCount: { increment: 1 }, naMarkedAt: new Date(), naMarkedById: me.employeeId, naRemindedAt: null } : {}),
+          ...(input.reason ? { cancelReason: input.reason } : {}), // client, 22 Nov: the Cancellation's reason, kept for the filter
           ...(toAdmin ? { draft: "admin", assignedToId: null, ownedByTelesales: false } : {}) },
       });
-      const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.note ? ` · ${input.note}` : ""}`, me.id);
+      const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.reason ? ` · السبب: ${input.reason}` : ""}${input.note ? ` · ${input.note}` : ""}`, me.id);
       await this.repo.markActed(tx, id, activity.at);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id,
-        before: { stage: lead.stage, ...(toAdmin ? { assignedToId: lead.assignedToId } : {}) },
-        after: { stage: next.stage, ...(toAdmin ? { assignedToId: null, draft: "admin" } : {}) } }, tx);
+        before: { stage: lead.stage, ...(input.reason ? { cancelReason: lead.cancelReason } : {}), ...(toAdmin ? { assignedToId: lead.assignedToId } : {}) },
+        after: { stage: next.stage, ...(input.reason ? { cancelReason: input.reason } : {}), ...(toAdmin ? { assignedToId: null, draft: "admin" } : {}) } }, tx);
       if (input.stage === "Done Deal") await this.clientFile(tx, me, id);
       if (toAdmin) await tx.leadDraft.create({ data: { leadId: id, kind: "admin", fromId: lead.assignedToId, stage: toDb(input.stage) } });
       return { next, toAdmin, from: lead.assignedToId };

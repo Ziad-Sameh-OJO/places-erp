@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, placeNewLead, slaView, canSeeLeadLogs, tlNoteUnseen, writesTlNote } from "../src/leads.ts";
+import { CANCEL_REASONS, LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, needsCancelReason, placeNewLead, slaView, canSeeLeadLogs, tlNoteUnseen, writesTlNote } from "../src/leads.ts";
 
 const cairo = (iso: string) => new Date(`${iso}+03:00`);
 const fresh = (assignedAt: Date) => ({ stage: "Fresh" as const, touched: false, ownedByTelesales: false, assignedAt });
@@ -172,4 +172,10 @@ test("the Kanban: the picked stages in order; a dropped stage's lane only while 
   assert.deepEqual(boardLanes(api).map((l) => l.stage), ["Fresh", "Interested", "Visit", "No Answer", "Meeting", "Done Deal", "Near to Close", "Hold", "Cancellation", "Not Interested"]);
   assert.equal(isPickableStage("Not Interested"), false);
   assert.equal(isPickableStage("Hold"), true);
+});
+
+test("Cancellation needs a reason from the client's list (22 Nov); no other stage does", () => {
+  assert.deepEqual([...CANCEL_REASONS], ["Not Interested", "No Budget", "Destination", "No Answer", "Rented"]);
+  assert.equal(needsCancelReason("Cancellation"), true);
+  for (const s of ["Fresh", "Not Interested", "No Answer", "Hold", "Done Deal"]) assert.equal(needsCancelReason(s), false, s);
 });
