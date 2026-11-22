@@ -72,7 +72,8 @@ export class LeadsService {
    */
   private async query(f: LeadFilters, hidden: ReadonlySet<string>): Promise<LeadQuery> {
     const q = shownLeadFilters(f, hidden);
-    return f.teamLeaderId ? { ...q, team: await this.repo.teamOf(f.teamLeaderId) } : q;
+    const [team, movedFrom] = await Promise.all([f.teamLeaderId ? this.repo.teamOf(f.teamLeaderId) : undefined, f.previousOwnerId ? this.repo.movedFrom(f.previousOwnerId) : undefined]);
+    return { ...q, ...(team ? { team } : {}), ...(movedFrom ? { movedFrom } : {}) };
   }
 
   /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
@@ -117,8 +118,9 @@ export class LeadsService {
   async options(me: CurrentUser): Promise<LeadOptions> {
     const scope = me.grants.scope;
     const people = scope === "own" ? Promise.resolve([]) : this.repo.salespeople(scope === "team" ? { id: { in: me.teamIds } } : {});
-    const [campaigns, holders, assignable] = await Promise.all([
+    const [campaigns, holders, assignable, creators] = await Promise.all([
       this.repo.campaigns(), people, transfersLeads(me.roles, me.grants.can("leads", "approve")) ? this.repo.routingPeople() : Promise.resolve([]),
+      scope === "own" ? Promise.resolve([]) : this.repo.creators(leadScope(me) as never),
     ]);
     // demo leads.js «Sales» filter: the salespeople, then Telesales as «<name> (Telesales)»
     const tele = (p: { roles: string[] }) => p.roles.includes(TELESALES) && !p.roles.some((r) => r === "sales" || r === "tl");
@@ -126,7 +128,7 @@ export class LeadsService {
       .map(({ id, name }) => ({ id, name }));
     const teamLeaders = holders.filter((p) => p.roles.includes("tl")).map(({ id, name }) => ({ id, name })); // 14.6 «التيم»
     // 14.7: a Team Leader picks only from his own team (assign() enforces it)
-    return { campaigns, salespeople, teamLeaders, assignable: assignable.filter((p) => transferTargetAllowed(scope, me.teamIds, p.id)) };
+    return { campaigns, salespeople, teamLeaders, creators, assignable: assignable.filter((p) => transferTargetAllowed(scope, me.teamIds, p.id)) };
   }
 
   /** The SLA as the list shows it, with «قواعد الليدز» (1.29: its times, its working hours) and the official holidays. */

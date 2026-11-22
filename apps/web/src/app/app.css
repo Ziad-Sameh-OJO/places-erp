@@ -166,6 +166,12 @@ fieldset.field-lock :is(input, select, textarea) { background: var(--sunken); co
 .multi-pick-list input, .toolbar .multi-pick-list label input { width: auto; min-height: 0; flex: none; }
 .toolbar:has(.multi-pick[open]) { animation: none; z-index: 20; } /* the «draw-in» animation ends on a clip-path that would cut the open list */
 .toolbar .area-f { width: 170px; }
+/* «فلاتر أكتر» under the leads' toolbar: a grid of labelled filters, ranges as two inputs side by side */
+.more-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; padding: 12px 14px; margin: -4px 0 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.more-filters .ff { display: grid; gap: 4px; min-width: 0; font-size: 12.5px; color: var(--ink-3); }
+.more-filters .ff select, .more-filters .ff input { width: 100%; min-width: 0; }
+.more-filters .ff.range > div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+@media (max-width: 760px) { .more-filters { grid-template-columns: minmax(0, 1fr); padding: 10px; } }
 @media (max-width: 760px) { .toolbar > .multi-pick { grid-column: 1 / -1; } .multi-pick > summary { max-width: none; } .toolbar .area-f { width: 100%; } .multi-pick-list { min-width: 100%; } }
 /* 14.8 · the lead's units log: one dated step with its units */
 .uj-step { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }

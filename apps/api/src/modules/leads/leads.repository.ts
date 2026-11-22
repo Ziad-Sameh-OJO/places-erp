@@ -37,6 +37,21 @@ export class LeadsRepository {
   }
 
   /** 14.6 · «التيم»: the Team Leader and the people under him. */
+  /** The leads that were with this employee and moved on: every move writes `before.assignedToId` in the audit. */
+  movedFrom(employeeId: string): Promise<string[]> {
+    return this.db.auditLog.findMany({
+      where: { module: "leads", entity: "Lead", before: { path: ["assignedToId"], equals: employeeId }, NOT: { after: { path: ["assignedToId"], equals: employeeId } } },
+      select: { entityId: true }, distinct: ["entityId"],
+    }).then((rows) => rows.map((r) => r.entityId));
+  }
+
+  /** «Created by»: whoever entered the leads this person can see, by name. */
+  async creators(scope: Prisma.LeadWhereInput) {
+    const ids = await this.db.lead.findMany({ where: scope, select: { createdById: true }, distinct: ["createdById"] });
+    return this.db.employee.findMany({ where: { userId: { in: ids.map((x) => x.createdById) } }, select: { userId: true, name: true }, orderBy: { name: "asc" } })
+      .then((rows) => rows.map((r) => ({ id: r.userId, name: r.name })));
+  }
+
   teamOf(teamLeaderId: string) {
     return this.db.employee.findMany({ where: { OR: [{ id: teamLeaderId }, { teamLeaderId }] }, select: { id: true } }).then((rows) => rows.map((r) => r.id));
   }
@@ -395,7 +410,7 @@ export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DU
  * The list's filters; `phoneSearch` / `companySearch` false (M-09: the field is hidden from the caller): the search
  * doesn't look at it. `team`: the «التيم» filter's people (the service reads them from `teamLeaderId`).
  */
-export type LeadQuery = LeadFilters & { phoneSearch?: boolean; companySearch?: boolean; team?: string[] };
+export type LeadQuery = LeadFilters & { phoneSearch?: boolean; companySearch?: boolean; team?: string[]; movedFrom?: string[] };
 
 /** 0.15: the column clicked, across every page (empty budgets last either way); then newest first, the id keeps pages stable. */
 function leadOrder(f: LeadQuery): Prisma.LeadOrderByWithRelationInput[] {
@@ -421,9 +436,30 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
       f.q ? { OR: [{ name: { contains: f.q, mode: "insensitive" } }, { code: f.q.toUpperCase() }, ...(digits.length >= 10 && f.phoneSearch !== false ? [{ phones: { has: digits } }] : []),
         ...(f.companySearch !== false ? [{ company: { OR: [{ name: { contains: f.q, mode: "insensitive" as const } }, { number: f.q }] } }] : [])] } : {},
       // Cairo days, «to» included: up to the start of the next day
-      f.from ? { createdAt: { gte: dayStart(f.from) } } : {},
-      f.to ? { createdAt: { lt: dayStart(nextDay(f.to)) } } : {}],
+      f.from || f.to ? { createdAt: days(f.from, f.to) } : {},
+      // the client's list (22 Nov)
+      f.type ? { type: f.type } : {}, f.company ? { company: { name: { contains: f.company, mode: "insensitive" } } } : {},
+      f.spaceMin !== undefined || f.spaceMax !== undefined ? { space: { gte: f.spaceMin, lte: f.spaceMax } } : {},
+      f.budgetMin || f.budgetMax ? { budget: { gte: f.budgetMin, lte: f.budgetMax } } : {},
+      // «Duplicated»: its number came in again (a duplicate arrival, 1.5), whatever Operations decided about it
+      f.duplicated === undefined ? {} : f.duplicated ? { arrivals: { some: { duplicate: true } } } : { arrivals: { none: { duplicate: true } } },
+      f.createdById ? { createdById: f.createdById } : {},
+      f.assignedFrom || f.assignedTo ? { assignedAt: days(f.assignedFrom, f.assignedTo) } : {},
+      // «Assign from»: it was with that salesperson (the service read which leads from the audit) and isn't any more
+      f.movedFrom ? { id: { in: f.movedFrom }, OR: [{ assignedToId: null }, { assignedToId: { not: f.previousOwnerId } }] } : {},
+      // «Action date» / «Last action»: a person (not the system) did something on it, that kind, in those days
+      f.actionFrom || f.actionTo || f.action ? { activities: { some: {
+        byUserId: { not: null }, ...(f.action ? { kind: f.action } : {}), ...(f.actionFrom || f.actionTo ? { at: days(f.actionFrom, f.actionTo) } : {}),
+      } } } : {},
+      // the note typed with Cancellation / Not Interested is on that stage line of the Activity («المرحلة بقت Cancellation · …»)
+      f.cancelReason ? { activities: { some: { kind: "stage", AND: [
+        { OR: CANCEL_STAGES.map((s) => ({ text: { startsWith: `المرحلة بقت ${s}` } })) }, { text: { contains: f.cancelReason, mode: "insensitive" } },
+      ] } } } : {}],
   };
 }
+
+const CANCEL_STAGES = ["Cancellation", "Not Interested"];
+/** Cairo days, both included: from the start of the first up to the start of the day after the last. */
+const days = (from?: string, to?: string) => ({ ...(from ? { gte: dayStart(from) } : {}), ...(to ? { lt: dayStart(nextDay(to)) } : {}) });
 
 const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);

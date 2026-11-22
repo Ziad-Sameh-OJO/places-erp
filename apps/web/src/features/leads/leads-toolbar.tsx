@@ -1,14 +1,16 @@
 "use client";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { LeadOptions, LeadSummary, Settings } from "@places/contracts";
+import { LEAD_ACTIONS, type LeadOptions, type LeadSummary, type Settings } from "@places/contracts";
 import { KpiTile } from "@/components/blocks";
 import { DateInput, Field, Icon, Modal, onFormSubmit, useToast } from "@/components/ui";
 import { num } from "@/lib/format";
-import { type LeadQuery, STAGE_TAB_LIST, type SavedView, activeCount, sameFilters, subTabsOf } from "./filters";
+import { type LeadQuery, STAGE_TAB_LIST, type SavedView, activeCount, moreCount, sameFilters, subTabsOf } from "./filters";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
 import { PICKABLE_STAGES, PROPERTY_TYPES } from "@places/domain";
+
+const LEAD_TYPES = ["Rent", "Resale", "Primary", "Income"] as const;
 import { stageTone } from "./lead-bits";
 import { MultiPick } from "./multi-pick";
 
@@ -105,8 +107,10 @@ export function ViewsBar({ f, views, onPick, onAdd, onRemove }: {
 }
 
 /**
- * The demo's filters (14.6: no campaign filter; several salespeople, the team, the area typed or picked, the type).
- * They all work together, and with the stage tabs.
+ * The leads' filters, the client's list (22 Nov): the ones used every day in the row (search, Sales, the team,
+ * Channel, Area), the rest under «فلاتر أكتر» (Project, Type, Campaign, the company, Space, Budget, the creation /
+ * assign / action dates, Last action, Assign from, Created by, Duplicated, the cancel reason). They all work together,
+ * and with the stage tabs; a filter on a field hidden from the person isn't offered (the API drops it too).
  */
 export function LeadsToolbar({ f, set, settings, options }: {
   f: LeadQuery; set: (f: LeadQuery) => void; settings: Settings | undefined; options: LeadOptions | undefined;
@@ -114,13 +118,21 @@ export function LeadsToolbar({ f, set, settings, options }: {
   const on = (k: keyof LeadQuery) => (e: { target: { value: string } }) => set({ ...f, [k]: e.target.value });
   const t = useTranslations("leads.filters");
   const fields = useFields("leads"); // M-09: no filter on a hidden field (the API drops such filters too)
-  const n = activeCount(f);
+  const n = activeCount(f), more = moreCount(f);
+  const [open, setOpen] = useState(false);
+  const range = (label: string, a: keyof LeadQuery, b: keyof LeadQuery, input: (k: keyof LeadQuery, ph: string) => ReactNode) => (
+    <div className="ff range" role="group" aria-label={label}><span>{label}</span><div>{input(a, t("from"))}{input(b, t("to"))}</div></div>
+  );
+  const day = (k: keyof LeadQuery, ph: string) => <DateInput value={f[k] ?? ""} onChange={on(k)} aria-label={ph} />;
+  const number = (k: keyof LeadQuery, ph: string) => <input type="number" min="0" inputMode="numeric" value={f[k] ?? ""} onChange={on(k)} placeholder={ph} aria-label={ph} />;
+  const pick = (label: string, k: keyof LeadQuery, all: string, opts: { value: string; label: string }[]) => (
+    <label className="ff"><span>{label}</span><select value={f[k] ?? ""} onChange={on(k)}><option value="">{all}</option>{opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+  );
+  const people = (xs: { id: string; name: string }[] | undefined) => (xs ?? []).map((p) => ({ value: p.id, label: p.name }));
   return (
+    <>
     <div className="toolbar">
       <label className="search"><Icon name="search" /><input type="search" placeholder={t("search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("searchLabel")} /></label>
-      {fields.shows("channel") && <select value={f.channel ?? ""} onChange={on("channel")} aria-label="Channel">
-        <option value="">{t("allChannels")}</option>{settings?.channels.map(({ value }) => <option key={value} value={value}>{value}</option>)}
-      </select>}
       {!!options?.salespeople.length && (
         <MultiPick label="Sales" all={t("allSales")} picked={f.assignedToId ?? ""} options={options.salespeople} onChange={(v) => set({ ...f, assignedToId: v })} />
       )}
@@ -129,19 +141,37 @@ export function LeadsToolbar({ f, set, settings, options }: {
           <option value="">{t("allTeams")}</option>{options.teamLeaders.map((p) => <option key={p.id} value={p.id}>{t("teamOf", { name: p.name })}</option>)}
         </select>
       )}
+      {fields.shows("channel") && <select value={f.channel ?? ""} onChange={on("channel")} aria-label="Channel">
+        <option value="">{t("allChannels")}</option>{settings?.channels.map(({ value }) => <option key={value} value={value}>{value}</option>)}
+      </select>}
       {fields.shows("area") && <>
         <input className="area-f" list="lead-areas" value={f.area ?? ""} onChange={on("area")} placeholder={t("allAreas")} aria-label="Area" />
         <datalist id="lead-areas">{settings?.areas.map(({ value }) => <option key={value} value={value}>{serverText(value)}</option>)}</datalist>
       </>}
-      {fields.shows("propertyType") && <select value={f.propertyType ?? ""} onChange={on("propertyType")} aria-label={t("type")}>
-        <option value="">{t("allTypes")}</option>{PROPERTY_TYPES.map((x) => <option key={x} value={x}>{x}</option>)}
-      </select>}
-      <select value={f.qualified ?? ""} onChange={on("qualified")} aria-label="Qualified">
-        <option value="">{t("qualifiedAll")}</option><option value="true">{t("qualifiedOnly")}</option><option value="false">{t("notQualified")}</option>
-      </select>
-      <label className="date-f"><span>{t("from")}</span><DateInput value={f.from ?? ""} onChange={on("from")} /></label>
-      <label className="date-f"><span>{t("to")}</span><DateInput value={f.to ?? ""} onChange={on("to")} /></label>
+      <button type="button" className={`btn sm ${open || more ? "" : "ghost"}`} aria-expanded={open} aria-controls="lead-more-filters" onClick={() => setOpen(!open)}>
+        <Icon name="filter" />{more ? t("moreOn", { count: more }) : t("more")}
+      </button>
       {n > 0 && <button className="btn ghost sm" onClick={() => set({})}><Icon name="x" />{t("clear", { count: n })}</button>}
     </div>
+    {open && (
+      <div className="more-filters" id="lead-more-filters">
+        {fields.shows("propertyType") && pick("Project", "propertyType", t("all"), PROPERTY_TYPES.map((x) => ({ value: x, label: x })))}
+        {fields.shows("type") && pick("Type", "type", t("all"), LEAD_TYPES.map((x) => ({ value: x, label: x })))}
+        {fields.shows("campaign") && !!options?.campaigns.length && pick("Campaign", "campaignId", t("allCampaigns"),
+          options.campaigns.filter((c) => !f.channel || c.channel === f.channel).map((c) => ({ value: c.id, label: c.name })))}
+        {fields.shows("company") && <label className="ff"><span>{t("company")}</span><input value={f.company ?? ""} onChange={on("company")} placeholder={t("companyPh")} /></label>}
+        {fields.shows("space") && range(t("space"), "spaceMin", "spaceMax", number)}
+        {fields.shows("budget") && range("Budget", "budgetMin", "budgetMax", number)}
+        {range(t("created"), "from", "to", day)}
+        {range(t("assigned"), "assignedFrom", "assignedTo", day)}
+        {range(t("actionDate"), "actionFrom", "actionTo", day)}
+        {pick(t("lastAction"), "action", t("anyAction"), LEAD_ACTIONS.map((x) => ({ value: x, label: t(`actions.${x}`) })))}
+        {!!options?.salespeople.length && pick(t("assignFrom"), "previousOwnerId", t("anyone"), people(options.salespeople))}
+        {!!options?.creators.length && pick(t("createdBy"), "createdById", t("anyone"), people(options.creators))}
+        {pick("Duplicated", "duplicated", t("all"), [{ value: "true", label: t("dupYes") }, { value: "false", label: t("dupNo") }])}
+        {fields.shows("note") && <label className="ff"><span>{t("cancelReason")}</span><input value={f.cancelReason ?? ""} onChange={on("cancelReason")} placeholder={t("cancelReasonPh")} /></label>}
+      </div>
+    )}
+    </>
   );
 }

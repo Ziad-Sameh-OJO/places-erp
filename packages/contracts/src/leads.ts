@@ -51,9 +51,14 @@ export type LeadSort = (typeof LEAD_SORTS)[number];
 /** 14.6: «a,b,c» in the query string (several salespeople ticked) → the ids, at most 50. */
 const IdList = z.string().max(2100).transform((s) => [...new Set(s.split(",").map((x) => x.trim()).filter(Boolean))]).pipe(z.array(Id).max(50));
 
+/** The Activity kinds a person does on a lead: the «الأكشن» filter (client, 22 Nov). */
+export const LEAD_ACTIONS = ["call", "stage", "comment", "visit", "meeting", "whatsapp", "assign"] as const;
+/** Query numbers are text too: "" = not filtered. */
+const QueryInt = z.coerce.number().int().min(0).max(10_000_000);
+
 /**
- * The leads list (M-01 · 14.6): the toolbar's filters, all ANDed (Meeting + two salespeople…), and the search by
- * name, mobile, company, the company's number or the lead's code.
+ * The leads list (M-01 · 14.6 · the client's list of 22 Nov): the toolbar's filters, all ANDed (Meeting + two
+ * salespeople…), and the search by name, mobile, company, the company's number or the lead's code.
  */
 export const LeadFilters = Page.extend({
   q: z.string().trim().max(80).optional(),
@@ -63,14 +68,27 @@ export const LeadFilters = Page.extend({
   campaignId: Id.optional(),
   assignedToId: IdList.optional(), // one salesperson or several ticked
   teamLeaderId: Id.optional(), // «التيم»: the Team Leader's people and the TL himself
-  propertyType: z.enum(PROPERTY_TYPES).optional(),
-  qualified: QueryBool.optional(),
+  propertyType: z.enum(PROPERTY_TYPES).optional(), // «Project» on the toolbar (client: Commercial / Residential / Admin office)
+  type: z.enum(["Rent", "Resale", "Primary", "Income"]).optional(),
+  qualified: QueryBool.optional(), // not on the toolbar any more; the dashboard's links still use it
+  company: z.string().trim().max(80).optional(), // any part of the company's name
+  spaceMin: QueryInt.optional(), spaceMax: QueryInt.optional(), // m², both ends included
+  budgetMin: Money.optional(), budgetMax: Money.optional(),
+  duplicated: QueryBool.optional(), // its number came in again (a duplicate arrival on it)
+  createdById: Id.optional(), // the user who entered it
+  previousOwnerId: Id.optional(), // «Assign from»: it was with this salesperson before and moved on
+  assignedFrom: CalendarDay.optional(), assignedTo: CalendarDay.optional(), // «Assign date»: when it reached its salesperson
+  actionFrom: CalendarDay.optional(), actionTo: CalendarDay.optional(), // «Action date»: someone did something on it then
+  action: z.enum(LEAD_ACTIONS).optional(), // «Last action»: what a person did on it (in the action dates when they're set)
+  cancelReason: z.string().trim().max(80).optional(), // the note written on Cancellation / Not Interested
   kind: LeadKind.optional(), // the page's tab: «الليدز» (client) or «البروكرز»
   from: CalendarDay.optional(), // Cairo days, both ends included
   to: CalendarDay.optional(),
   sort: z.enum(LEAD_SORTS).optional(), // 0.15: by a column, across every page
   dir: SortDir.optional(),
-}).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" });
+}).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" })
+  .refine((f) => !f.assignedFrom || !f.assignedTo || f.assignedFrom <= f.assignedTo, { path: ["assignedTo"], message: "«لحد» قبل «من»" })
+  .refine((f) => !f.actionFrom || !f.actionTo || f.actionFrom <= f.actionTo, { path: ["actionTo"], message: "«لحد» قبل «من»" });
 export type LeadFilters = z.infer<typeof LeadFilters>;
 
 /** The new-lead form checks the mobiles while they're typed (demo «الرقم ده موجود قبل كده»). */
@@ -248,6 +266,8 @@ export interface LeadOptions {
   salespeople: { id: string; name: string }[];
   /** 14.6 · «التيم»: the Team Leaders a person may filter by (inside their scope; none for sales) */
   teamLeaders: { id: string; name: string }[];
+  /** «Created by»: the users who entered leads the person can see */
+  creators: { id: string; name: string }[];
   /** «اسحب الليد وحوّله» (1.14): the salespeople a lead can be handed to; empty for whoever may not */
   assignable: { id: string; name: string }[];
 }
