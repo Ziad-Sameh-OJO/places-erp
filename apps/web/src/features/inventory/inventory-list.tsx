@@ -24,6 +24,8 @@ import { ListOfOptionsBar } from "./list-of-options";
 import { ListRequestsModal, useListRequests } from "./list-requests";
 import { type UnitQuery, toParams, useAreaTabs, useUnit, useUnitOptions, useUnitSummary, useUnitTabs, useUnits } from "./use-units";
 import { serverText } from "@/lib/server-text";
+import { SavedFilters } from "@/components/saved-filters";
+import { activeCount } from "@/lib/saved-filters";
 
 const PAGE = 50;
 const SORTABLE: ReadonlySet<string> = new Set(UNIT_SORTS);
@@ -113,6 +115,15 @@ export function InventoryList() {
     ["closed", "Rented / Sold", tabs?.closed],
   ];
 
+  // «فلاتري»: the sheet's tab and the closed units' filters are saved with the rest, so one click brings all of them back
+  // (a sheet tab alone is one click already: it's kept only with other filters)
+  const filtered = activeCount({ ...f, ...closedBy }) > 0;
+  const savedValue = { ...f, sheet: filtered && tab !== "all" ? tab : undefined, closedType: closedBy.type, closedFrom: closedBy.closedFrom, closedTo: closedBy.closedTo };
+  const pickSaved = ({ sheet, closedType, closedFrom, closedTo, ...rest }: Record<string, string | undefined>) => {
+    setTab((sheet as TypeTab | undefined) ?? "all");
+    setClosedBy({ ...(closedType ? { type: closedType as UnitQuery["type"] } : {}), ...(closedFrom ? { closedFrom } : {}), ...(closedTo ? { closedTo } : {}) });
+    filter(rest as UnitQuery);
+  };
   if (kpis) return <InventoryKpis onBack={() => setKpis(false)} />;
   return (
     <>
@@ -137,6 +148,7 @@ export function InventoryList() {
         </More>
         {me.can("inventory", "create") && <button className="btn" onClick={() => setForm("new")}><Icon name="plus" />{t("list.newUnit")}</button>}
       </div>
+      <SavedFilters page="inventory" value={savedValue} onPick={pickSaved} />
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={insider && fields.shows("ownerName") ? t("list.searchInsider") : t("list.search")} value={f.q ?? ""} onChange={on("q")} aria-label={t("list.searchLabel")} /></label>
         {fields.shows("area") && <select value={f.area ?? ""} onChange={on("area")} aria-label="Area">

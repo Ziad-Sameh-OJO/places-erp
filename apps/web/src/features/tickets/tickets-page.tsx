@@ -1,4 +1,5 @@
 "use client";
+import { SavedFilters } from "@/components/saved-filters";
 import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState } from "react";
 import type { TicketView } from "@places/contracts";
@@ -61,6 +62,9 @@ export function TicketsPage() {
         <button className="btn ghost" onClick={() => setSelfReq("outside")}><Icon name="pin" />{tl("leaves.outside")}</button>
         {can("tickets", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{t("newTicket")}</button>}
       </div>
+      {/* «فلاتري»: the search and both filters, with the tab they were picked on (a tab alone is one click already) */}
+      <SavedFilters page="tickets" value={{ view: (q || assignee || department) && view !== "mine" ? view : undefined, q, assignee, department }}
+        onPick={(v) => { setView((v.view as TicketView | undefined) ?? "mine"); setQ(v.q ?? ""); setAssignee(v.assignee ?? ""); setDepartment(v.department ?? ""); setPage(1); }} />
       <div className="toolbar">
         <label className="search"><Icon name="search" /><input type="search" placeholder={t("searchPlaceholder")} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} aria-label={t("searchLabel")} /></label>
         <select value={assignee} onChange={(e) => { setAssignee(e.target.value); setPage(1); }} aria-label={t("filters.assignee")} style={{ width: "auto" }}>
