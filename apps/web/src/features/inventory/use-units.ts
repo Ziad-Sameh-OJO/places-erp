@@ -8,6 +8,7 @@ export interface UnitQuery {
   q?: string; area?: string; condition?: string; agentId?: string; stale?: "true"; divisible?: "true"; missing?: "true"; tabId?: string | undefined;
   type?: "Rent" | "Resale" | "Income" | "Primary" | undefined; view?: "available" | "closed" | undefined;
   closedFrom?: string; closedTo?: string; // the rented / sold sheet (M-03 5.2)
+  addedFrom?: string; addedTo?: string; // the dashboard's «وحدات اتضافت» (a chip, cleared by ×)
   sort?: string; dir?: "asc" | "desc"; // 0.15: the column the API sorts by, across every page
   websiteAd?: "yes" | "no" | undefined; // 4.13 · marketing's filter
 }

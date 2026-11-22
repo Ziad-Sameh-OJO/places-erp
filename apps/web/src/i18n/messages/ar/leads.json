@@ -421,7 +421,8 @@
     "dupYes": "متكرر",
     "dupNo": "مش متكرر",
     "cancelReason": "سبب الإلغاء",
-    "cancelReasonPh": "كلمة من السبب"
+    "cancelReasonPh": "كلمة من السبب",
+    "visitDate": "تاريخ الـ Showing / Meeting"
   },
   "list": {
     "leads": "الليدز",

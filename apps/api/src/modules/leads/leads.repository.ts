@@ -454,7 +454,12 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
       // the note typed with Cancellation / Not Interested is on that stage line of the Activity («المرحلة بقت Cancellation · …»)
       f.cancelReason ? { activities: { some: { kind: "stage", AND: [
         { OR: CANCEL_STAGES.map((s) => ({ text: { startsWith: `المرحلة بقت ${s}` } })) }, { text: { contains: f.cancelReason, mode: "insensitive" } },
-      ] } } } : {}],
+      ] } } } : {},
+      // the dashboard's Showings / Meetings (as it counts them: held or not marked yet, not «ما اتعملتش»)
+      f.visit || f.visitFrom || f.visitTo ? { visits: { some: {
+        ...(f.visit ? { kind: f.visit } : {}), ...(f.visitFrom || f.visitTo ? { at: days(f.visitFrom, f.visitTo) } : {}),
+        OR: [{ outcome: null }, { outcome: { not: "not_done" } }],
+      } } } : {}],
   };
 }
 

@@ -8,7 +8,11 @@
   "sales": "Sales",
   "inTarget": "Counted in target",
   "newDeal": "Log a deal",
-  "tabs": { "me": "My achievements", "sheet": "Done Deals sheet", "split": "Deal details" },
+  "tabs": {
+    "me": "My achievements",
+    "sheet": "Done Deals sheet",
+    "split": "Deal details"
+  },
   "kpis": {
     "net": "Net commission",
     "netSub": "{count, plural, one {{n} deal collected on} other {{n} deals collected on}} · Owner + Client",
@@ -25,7 +29,9 @@
     "splitFile": "Deal details.xlsx",
     "splitLabel": "Export deal details"
   },
-  "board": { "sellerWaiting": "Seller waiting for Manar" },
+  "board": {
+    "sellerWaiting": "Seller waiting for Manar"
+  },
   "sheet": {
     "search": "Company, unit, salesperson",
     "searchLabel": "Search the sheet",
@@ -136,7 +142,11 @@
     "edited": "Corrected manually: {from} ← {to} · {reason}"
   },
   "exec": {
-    "chip": { "onTime": "Carried out on time", "late": "Carried out late", "overdue": "Past its execution date" },
+    "chip": {
+      "onTime": "Carried out on time",
+      "late": "Carried out late",
+      "overdue": "Past its execution date"
+    },
     "whatsWrong": "What's wrong?",
     "reviewed": "Review saved",
     "title": "Execution and papers",
@@ -194,5 +204,7 @@
     "reasonPh": "e.g. the amount was entered wrong",
     "save": "Save the correction",
     "saved": "The correction is in the Audit Log"
-  }
+  },
+  "range": "Closed {from} to {to}",
+  "rangeClear": "Clear the dates filter"
 }

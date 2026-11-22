@@ -55,6 +55,9 @@ export function InventoryList() {
     if (q.get("report")) setReport(true); // «التقرير اليومي جاهز» (2.18)
     if (q.get("lists")) setLists(true); // «طلب List من …» (2.32)
     if (q.get("missing")) setF({ missing: "true" }); // «مهامي النهارده»: «N وحدة تانية ناقصها بيانات» (2.20)
+    const added = (k: string) => /^\d{4}-\d{2}-\d{2}$/.test(q.get(k) ?? "") ? q.get(k)! : undefined; // the dashboard's «وحدات اتضافت»
+    const addedFrom = added("addedFrom"), addedTo = added("addedTo");
+    if (addedFrom || addedTo) setF({ ...(addedFrom ? { addedFrom } : {}), ...(addedTo ? { addedTo } : {}) });
     const type = q.get("type"); // 14.2 · the dashboard's «For Rent» / «For Sale» numbers open their type's tab
     if (type === "Rent" || type === "Resale" || type === "Income" || type === "Primary") setTab(type);
   }, []);
@@ -173,6 +176,8 @@ export function InventoryList() {
         {fields.shows("stale") && <label className="tog"><input type="checkbox" checked={!!f.stale} onChange={toggle("stale")} /><span>{t("chips.stale")}</span></label>}
         {fields.shows("divisible") && <label className="tog"><input type="checkbox" checked={!!f.divisible} onChange={toggle("divisible")} /><span>{t("list.divisible")}</span></label>}
         <label className="tog"><input type="checkbox" checked={!!f.missing} onChange={toggle("missing")} /><span>{t("list.missing")}</span></label>
+        {(f.addedFrom || f.addedTo) && <button type="button" className="btn ghost sm" onClick={() => filter(Object.fromEntries(Object.entries(f).filter(([k]) => k !== "addedFrom" && k !== "addedTo")) as UnitQuery)} title={t("list.addedClear")}>
+          <Icon name="x" />{t("list.added", { from: f.addedFrom ?? "…", to: f.addedTo ?? "…" })}</button>}
         <span className="spacer" />
         <div className="seg" role="group" aria-label={t("list.view")}>
           <button aria-pressed={mode === "table"} title={t("list.sheet")} onClick={() => setMode("table")}><Icon name="list" /><span>{t("list.sheet")}</span></button>

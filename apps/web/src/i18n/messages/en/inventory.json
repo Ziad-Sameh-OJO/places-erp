@@ -45,7 +45,9 @@
     "hint": "The tabs below are customized: the team sets the ranges and adds or removes them. A unit whose last update is more than a month old shows as late and counts in Manar's and Randa's activity.",
     "edit": "Edit details",
     "archive": "Archive",
-    "listRequests": "List requests"
+    "listRequests": "List requests",
+    "added": "Added {from} to {to}",
+    "addedClear": "Clear the added-dates filter"
   },
   "cols": {
     "buildingName": "Building name",

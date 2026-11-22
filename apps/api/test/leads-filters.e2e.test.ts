@@ -41,6 +41,7 @@ after(async () => {
   await prisma.notification.deleteMany({ where: { text: { contains: NAME } } });
   await prisma.leadActivity.deleteMany({ where: { leadId: { in: leadIds } } });
   await prisma.leadDraft.deleteMany({ where: { leadId: { in: leadIds } } });
+  await prisma.leadVisit.deleteMany({ where: { leadId: { in: leadIds } } });
   await prisma.leadArrival.deleteMany({ where: { leadId: { in: leadIds } } });
   await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
   await prisma.company.deleteMany({ where: { id: companyId } });
@@ -170,9 +171,19 @@ test("the client's filters (22 Nov): type, company, space, budget, duplicated, c
   await prisma.leadActivity.create({ data: { leadId: k1, kind: "comment", text: "السعر عالي", byUserId: opsUser.id } }); // a comment isn't a reason
   assert.deepEqual(await k(`&cancelReason=${encodeURIComponent("السعر")}`), ["2"]);
 
+  // the dashboard's Showings / Meetings: a Visit / Meeting held in those days; one marked «ما اتعملتش» doesn't count
+  await prisma.leadVisit.createMany({ data: [
+    { leadId: k1, kind: "visit", at: new Date("2025-03-10T10:00:00Z"), outcome: "done", byUserId: opsUser.id },
+    { leadId: k2, kind: "meeting", at: new Date("2025-03-10T12:00:00Z"), byUserId: opsUser.id },
+    { leadId: k3, kind: "visit", at: new Date("2025-03-10T13:00:00Z"), outcome: "not_done", byUserId: opsUser.id },
+  ] });
+  assert.deepEqual(await k("&visit=visit&visitFrom=2025-03-10&visitTo=2025-03-10"), ["1"]);
+  assert.deepEqual(await k("&visit=meeting&visitFrom=2025-03-01&visitTo=2025-03-31"), ["2"]);
+  assert.deepEqual(await k("&visitFrom=2025-03-11&visitTo=2025-03-31"), []);
+
   // «Created by» lists who entered the leads; refused: an unknown type, a budget that isn't money, dates the wrong way round
   assert.ok(((await call("/leads/options", { cookie: ops })).body as LeadOptions).creators.some((c) => c.id === opsUser.id));
-  for (const q of ["&type=Villa", "&budgetMin=abc", "&actionFrom=2026-02-01&actionTo=2026-01-01", "&assignedFrom=2026-02-01&assignedTo=2026-01-01", "&action=dance"]) {
+  for (const q of ["&type=Villa", "&budgetMin=abc", "&actionFrom=2026-02-01&actionTo=2026-01-01", "&assignedFrom=2026-02-01&assignedTo=2026-01-01", "&action=dance", "&visit=call", "&visitFrom=2026-02-01&visitTo=2026-01-01"]) {
     assert.equal((await call(`/leads?q=x${q}`, { cookie: ops })).status, 400, q);
   }
 });

@@ -12,7 +12,7 @@ import { DealDrawer } from "./deal-drawer";
 import { DealForm } from "./deal-form";
 import { PeriodPicker } from "@/components/period-picker";
 import { LANES, ST_TONE, monthOf, names, onSheet, useAchievements, useDealSheet } from "./use-deals";
-import { fromDecimal, toDecimal } from "@places/domain";
+import { fromDecimal, localDate, toDecimal } from "@places/domain";
 
 type Tab = "me" | "board" | "sheet" | "split" | "achv";
 const pct = (a: string, b: string) => (Number(b) > 0 ? Math.min(100, (Number(a) / Number(b)) * 100) : 0);
@@ -35,9 +35,17 @@ export function DealsPage() {
   const sheet = useDealSheet(period);
   const fields = useFields("deals"); // M-09: what the role doesn't see has no tile, column or tab
   // a notification links to /deals?open=…
-  useEffect(() => { const id = new URLSearchParams(window.location.search).get("open"); if (id) setOpen(id); }, []);
+  // the dashboard's «Done Deals» opens the deals closed in its period («?from=…&to=…», Cairo days), shown as a chip
+  const [range, setRange] = useState<{ from?: string; to?: string }>({});
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search), d = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(q.get(k) ?? "") ? q.get(k)! : undefined);
+    if (q.get("open")) setOpen(q.get("open"));
+    const from = d("from"), to = d("to");
+    if (from || to) setRange({ ...(from ? { from } : {}), ...(to ? { to } : {}) });
+  }, []);
   const t = tab ?? (isSales ? "me" : "board");
-  const items = sheet.data?.items ?? [];
+  const inRange = (closedAt: string) => { const x = localDate(new Date(closedAt)); return (!range.from || x >= range.from) && (!range.to || x <= range.to); };
+  const items = (sheet.data?.items ?? []).filter((d) => inRange(d.closedAt));
   const tot = sheet.data?.totals;
   const openRow = items.find((d) => d.id === open);
   const tabs: [Tab, string][] = [...(isSales ? [["me", tr("tabs.me")] as [Tab, string]] : []), ["board", "Done Deals board"], ["sheet", tr("tabs.sheet")], ...(fields.shows("shares") ? [["split", tr("tabs.split")] as [Tab, string]] : []), ["achv", "Achievements"]];
@@ -53,6 +61,8 @@ export function DealsPage() {
       <div className="row">
         <Tabs value={t} onChange={setTab} items={tabs} />
         <span className="spacer" />
+        {(range.from || range.to) && <button type="button" className="btn ghost sm" onClick={() => setRange({})} title={tr("rangeClear")}>
+          <Icon name="x" />{tr("range", { from: range.from ?? "…", to: range.to ?? "…" })}</button>}
         <PeriodPicker value={period} onChange={setPeriod} all bare />
         <More>
         {/* the list as it is filtered on screen: the sheet tab is the deals on the sheet with its search */}

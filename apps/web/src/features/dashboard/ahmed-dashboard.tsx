@@ -21,18 +21,18 @@ export function AhmedPage() {
   const t = useTranslations("dashboard.ahmed");
   const [period, setPeriod] = useState<DashPeriod>("today");
   const [quarter, setQuarter] = useState(() => quarterOfDay(localDate(new Date())));
-  const [month, setMonth] = useState(""); // "" = the API's default: this month, or the picked quarter's last
+  const [tq, setTq] = useState(""); // the target card's quarter; "" = the API's default: the period's quarter
   const [person, setPerson] = useState<string | null>(null);
-  const q = useAhmedDashboard(period, quarter, month);
+  const q = useAhmedDashboard(period, quarter, tq);
   const d = q.data;
   return (
     <div className="dash-a">
-      <Header period={period} onPeriod={setPeriod} quarter={quarter} onQuarter={(v) => { setQuarter(v); setMonth(""); }} updated={q.dataUpdatedAt} />
+      <Header period={period} onPeriod={setPeriod} quarter={quarter} onQuarter={(v) => { setQuarter(v); setTq(""); }} updated={q.dataUpdatedAt} />
       {!d ? <Empty text={t("loading")} icon="clock" /> : <>
         <Strip d={d} />
         <div className="bento">
           <Trend d={d} />
-          <Targets d={d} onMonth={setMonth} />
+          <Targets d={d} onQuarter={setTq} />
           {d.collections && <Collections c={d.collections} />}
           <Channels d={d} />
           <Funnel d={d} />
@@ -76,12 +76,13 @@ function Strip({ d }: { d: AhmedDashboard }) {
     <Tile key={key} label={t(key)} value={num(c.now)} sub={t("before", { n: num(c.before) })} delta={delta(c)} icon={icon} href={href} />;
   return (
     <div className="kpis sm">
-      {tile("visits", s.visits, "pin", "/reports")}
-      {tile("meetings", s.meetings, "users", "/reports")}
-      {tile("doneDeals", s.doneDeals, "handshake", "/deals")}
+      {/* every number opens its own list, filtered to the same days (management, 22 Nov) */}
+      {tile("visits", s.visits, "pin", `/leads?visit=visit&visitFrom=${d.from}&visitTo=${d.to}`)}
+      {tile("meetings", s.meetings, "users", `/leads?visit=meeting&visitFrom=${d.from}&visitTo=${d.to}`)}
+      {tile("doneDeals", s.doneDeals, "handshake", `/deals?from=${d.from}&to=${d.to}`)}
       {s.collected && <Tile label={t("collected")} value={money(s.collected.now)} sub={t("before", { n: money(s.collected.before) })} delta={moneyDelta(s.collected)} icon="wallet" href="/finance?tab=cash" />}
       {tile("leads", s.leads, "users", leads)}
-      {tile("units", s.units, "building", "/inventory")}
+      {tile("units", s.units, "building", `/inventory?addedFrom=${d.from}&addedTo=${d.to}`)}
     </div>
   );
 }
@@ -91,7 +92,8 @@ function Funnel({ d }: { d: AhmedDashboard }) {
   const t = useTranslations("dashboard.ahmed.funnel");
   const max = Math.max(1, ...d.funnel.map((s) => s.count));
   return (
-    <Card title={t("title")} icon="layers" className={d.collections ? "b-4" : "b-8"}>
+    <Card title={t("title")} icon="layers" className={d.collections ? "b-4" : "b-8"}
+      extra={<Link href="/leads" className="total-a" title={t("totalHint")}>{t("total")} <b className="num">{num(d.totalLeads)}</b></Link>}>
       <div className="hbars">
         {d.funnel.map((s) => (
           <Link key={s.stage} href={`/leads?stage=${encodeURIComponent(s.stage)}`} className="hb">
@@ -106,25 +108,24 @@ function Funnel({ d }: { d: AhmedDashboard }) {
 }
 
 /**
- * What the company must make (management, 22 Nov): the year's target and one month's, each a half ring with the pace
- * tick and «محتاجين X في اليوم»; the month is picked on the card and the year follows it. Or a quiet empty ring with
- * a link to set it.
+ * What the company must make (management, 22 Nov): the year's target and one quarter's, each a half ring with the
+ * pace tick and «محتاجين X في اليوم»; the quarter is picked on the card and the year follows it. Or a quiet empty
+ * ring with a link to set it. Both open the targets of that quarter on «التقارير والتارجت».
  */
-function Targets({ d, onMonth }: { d: AhmedDashboard; onMonth: (m: string) => void }) {
+function Targets({ d, onQuarter }: { d: AhmedDashboard; onQuarter: (q: string) => void }) {
   const t = useTranslations("dashboard.ahmed.targets");
-  const monthName = new Date(`${d.month}-15T12:00:00Z`).toLocaleDateString(dateLocale(), { month: "long", timeZone: "UTC" });
+  const href = `/reports?quarter=${d.targetQuarter}`;
   return (
-    <Card title={t("title")} icon="trend" className="b-4 target-a"
-      extra={<input type="month" value={d.month} onChange={(e) => e.target.value && onMonth(e.target.value)} aria-label={t("pickMonth")} />}>
+    <Card title={t("title")} icon="trend" className="b-4 target-a" extra={<PeriodPicker value={d.targetQuarter} onChange={(v) => v && onQuarter(v)} bare />}>
       <div className="gauges-a">
-        <Meter label={t("year", { year: d.year })} bar={d.targets.year} href={`/reports?month=${d.month}`} />
-        <Meter label={t("month", { month: monthName })} bar={d.targets.month} href={`/reports?month=${d.month}`} />
+        <Meter label={t("year", { year: d.year })} bar={d.targets.year} href={href} />
+        <Meter label={t("quarter", { quarter: d.targetQuarter.replace(/^(\d{4})-(Q\d)$/, "$2 $1") })} bar={d.targets.quarter} href={href} />
       </div>
     </Card>
   );
 }
 
-/** `href`: the targets of the card's month on «التقارير والتارجت», where a salesperson's month target is set. */
+/** `href`: the targets of the card's quarter on «التقارير والتارجت», where each salesperson's month targets are set. */
 function Meter({ label, bar, href }: { label: string; bar: PacedBar; href: string }) {
   const t = useTranslations("dashboard.ahmed.targets");
   const goal = bar.goal === "" ? 0 : fromDecimal(bar.goal);

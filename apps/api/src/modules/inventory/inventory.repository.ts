@@ -303,6 +303,7 @@ function unitWhere(s: UnitScope, f: Omit<ListFilters, "page" | "pageSize">, tabs
     status: "locked", ...(f.type ? { type: f.type } : {}),
     lockedAt: { ...(f.closedFrom ? { gte: dayStart(f.closedFrom) } : {}), ...(f.closedTo ? { lt: dayStart(nextDay(f.closedTo)) } : {}) },
   } } });
+  if (f.addedFrom || f.addedTo) and.push({ createdAt: { ...(f.addedFrom ? { gte: dayStart(f.addedFrom) } : {}), ...(f.addedTo ? { lt: dayStart(nextDay(f.addedTo)) } : {}) } });
   if (f.area) and.push({ area: f.area });
   if (f.condition) and.push({ condition: f.condition });
   if (f.agentId) and.push({ agentId: f.agentId });
