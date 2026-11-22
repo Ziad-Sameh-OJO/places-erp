@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslations } from "next-intl";
 import { activeValues, type LeadDetail } from "@places/contracts";
 import { PROPERTY_TYPES } from "@places/domain";
@@ -9,6 +9,8 @@ import { useSettings } from "./use-leads";
 import { useRefreshLead } from "./use-lead";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
+import { sameName } from "@places/domain";
+import { CloseCompanies } from "./company-names";
 
 const TYPES = ["Rent", "Resale", "Primary", "Income"] as const; // as the new-lead form (requirements M-01)
 /** «رقم في كل سطر» (or commas), digits only, as the API normalises them. */
@@ -25,6 +27,7 @@ export function EditLead({ l, onClose }: { l: LeadDetail; onClose: () => void })
   const settings = useSettings().data;
   // M-09: a hidden field isn't in the form, a read-only one is locked; neither is sent (the API keeps what the lead has)
   const fields = useFields("leads");
+  const [company, setCompany] = useState(l.company ?? "");
   const only = (key: string, node: ReactNode) => (!fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>);
   // a value the settings no longer list (renamed, switched off) still shows, so saving doesn't change it by itself
   const withCurrent = (list: string[], v: string | null) => (v && !list.includes(v) ? [v, ...list] : list);
@@ -45,7 +48,9 @@ export function EditLead({ l, onClose }: { l: LeadDetail; onClose: () => void })
       <form key={settings ? "ready" : "loading"} className="grid" onSubmit={save}>
         <Field label={t("kind")} req><select name="kind" defaultValue={l.kind}><option value="client">{t("client")}</option><option value="broker">Broker</option></select></Field>
         <Field label={t("name")} req><input name="name" required minLength={2} maxLength={120} defaultValue={l.name} /></Field>
-        {only("company", <Field label={t("company")}><input name="company" maxLength={160} defaultValue={l.company ?? ""} /></Field>)}
+        {only("company", <Field label={t("company")}><input name="company" maxLength={160} value={company} onChange={(e) => setCompany(e.target.value)} /></Field>)}
+        {/* a changed company that may be the sheet's spelled another way (client, 22 Nov) */}
+        {only("company", company.trim() && !sameName(company, l.company ?? "") ? <CloseCompanies name={company} onPick={setCompany} /> : null)}
         {only("phones", <Field label={t("phones")} req><textarea name="phones" required defaultValue={l.phones.join("\n")} /></Field>)}
         {only("area", <Field label="Area">
           <select name="area" defaultValue={l.area}>{withCurrent(activeValues(settings?.areas ?? []), l.area).map((a) => <option key={a} value={a}>{serverText(a)}</option>)}</select>

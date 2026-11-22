@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, periodOf, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitUnitQuery, TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads, quarterBounds } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads, quarterBounds, similarNames } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -72,8 +72,19 @@ export class LeadsService {
    */
   private async query(f: LeadFilters, hidden: ReadonlySet<string>): Promise<LeadQuery> {
     const q = shownLeadFilters(f, hidden);
-    const [team, movedFrom] = await Promise.all([f.teamLeaderId ? this.repo.teamOf(f.teamLeaderId) : undefined, f.previousOwnerId ? this.repo.movedFrom(f.previousOwnerId) : undefined]);
-    return { ...q, ...(team ? { team } : {}), ...(movedFrom ? { movedFrom } : {}) };
+    // «بحث» finds the company spelled either way («اعمار» finds «إعمار مصر», client 22 Nov)
+    const [team, movedFrom, companyIds] = await Promise.all([f.teamLeaderId ? this.repo.teamOf(f.teamLeaderId) : undefined, f.previousOwnerId ? this.repo.movedFrom(f.previousOwnerId) : undefined,
+      q.q && q.companySearch !== false ? this.companies.matchingIds(q.q) : undefined]);
+    return { ...q, ...(team ? { team } : {}), ...(movedFrom ? { movedFrom } : {}), ...(companyIds ? { companyIds } : {}) };
+  }
+
+  /**
+   * «تقصد: …؟» under a search that may be a misspelt company (client, 22 Nov): the closest company names among the
+   * leads this person sees — so picking one always finds something — and nothing when the company is hidden (M-09).
+   */
+  async companySuggestions(me: CurrentUser, q: string): Promise<string[]> {
+    if (!q || me.fields.hidden("leads").has("company")) return [];
+    return similarNames(q, await this.repo.companyNamesInScope(leadScope(me) as never));
   }
 
   /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */
@@ -401,7 +412,7 @@ export class LeadsService {
       await this.repo.saveRouting(tx, router.snapshot());
 
       const [{ n }] = (await this.repo.nextCode(tx)) as [{ n: bigint }];
-      const company = input.company ? await this.repo.companyByName(tx, input.company) : null;
+      const company = input.company ? await this.companies.byName(tx, input.company) : null;
       const lead = await tx.lead.create({
         data: {
           code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, propertyType: input.propertyType ?? null, space: input.space ?? null,
@@ -530,7 +541,7 @@ export class LeadsService {
         condition: input.condition || null, budget: input.budget ? toDecimal(fromDecimal(input.budget)) : null, note: input.note || null };
       const diff = changes(before, after);
       if (!diff) return null;
-      const inSheet = company ? await this.repo.companyByName(tx, company) : null;
+      const inSheet = company ? await this.companies.byName(tx, company) : null;
       const companyChanged = "company" in diff.after;
       await this.repo.updateLead(tx, id, {
         name: after.name, kind: after.kind === "broker" ? "BROKER" : "CLIENT", phones: after.phones, area: after.area, type: after.type,

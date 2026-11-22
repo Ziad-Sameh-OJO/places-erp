@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { activeValues, type AddedCompany, type CompanyFilters, type CompanyRow, type CompanySheet, type CompanyUpdate, type NewCompany, type PendingCompany } from "@places/contracts";
-import { OUTBOUND_WINDOW_DAYS, contractEndingWindow, keepsCompaniesSheet, localDate } from "@places/domain";
+import { OUTBOUND_WINDOW_DAYS, contractEndingWindow, keepsCompaniesSheet, localDate, nameContains, sameName, similarNames } from "@places/domain";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -28,7 +28,7 @@ export class CompaniesService {
 
   async sheet(me: CurrentUser, f: CompanyFilters): Promise<CompanySheet> {
     const since = new Date(Date.now() - OUTBOUND_WINDOW_DAYS * 864e5);
-    const [[rows, total], counts, settings, outbound] = await Promise.all([this.repo.page(f, ending(f)), this.repo.categoryCounts(), this.settings.all(), this.repo.outboundSince(me.id, since)]);
+    const [[rows, total], counts, settings, outbound] = await Promise.all([this.repo.page(f, ending(f), await this.matching(f.q)), this.repo.categoryCounts(), this.settings.all(), this.repo.outboundSince(me.id, since)]);
     const byCat = new Map(counts.map((c) => [c.category, c._count._all]));
     return {
       items: rows.map(toRow), total, page: f.page, pageSize: f.pageSize, outboundThisWeek: outbound,
@@ -38,13 +38,39 @@ export class CompaniesService {
 
   /** 1.21 · the report as Excel (M-01 6.1): the same filters as the screen, audited. */
   async exportRows(me: CurrentUser, f: CompanyFilters) {
-    const rows = await this.repo.all(f, ending(f), EXPORT_LIMIT);
+    const rows = await this.repo.all(f, ending(f), await this.matching(f.q), EXPORT_LIMIT);
     await this.audit.record({ module: "leads", entity: "Company", entityId: "report", action: "export", userId: me.id, after: { rows: rows.length, category: f.category ?? null, endingWithin: f.endingWithin ?? null } });
     return rows.map(toRow);
   }
 
-  names(q: string) {
-    return q ? this.repo.names(q).then((r) => r.map((x) => x.name)) : Promise.resolve([]);
+  /** The new-lead form's «اكتب أو اختار من شيت الشركات»: the names that hold what was typed, spelled either way. */
+  async names(q: string) {
+    return q ? (await this.repo.nameList()).filter((c) => nameContains(c.name, q)).slice(0, 10).map((c) => c.name) : [];
+  }
+
+  /** «تقصد: …؟» / «فيه شركة اسمها قريب» (client, 22 Nov): the sheet's names closest to what was typed. */
+  async similar(q: string) {
+    return q ? similarNames(q, (await this.repo.nameList()).map((c) => c.name)) : [];
+  }
+
+  /** The ids of the companies whose name holds `q` however it's spelled (the leads' and the sheet's «بحث»). */
+  async matchingIds(q: string) {
+    return (await this.repo.nameList()).filter((c) => nameContains(c.name, q)).map((c) => c.id);
+  }
+
+  /** The company in the sheet with this name, spelled either way («اعمار مصر» is «إعمار مصر»). */
+  async byName(tx: Prisma.TransactionClient, name: string) {
+    return (await this.repo.nameList(tx)).find((c) => sameName(c.name, name)) ?? null;
+  }
+
+  private matching(q: string | undefined) {
+    return q ? this.matchingIds(q) : Promise.resolve(undefined);
+  }
+
+  /** The same company: its name spelled either way, or its number. */
+  private async findSame(name: string, number: string | null, tx: Prisma.TransactionClient, exceptId?: string) {
+    const byName = (await this.repo.nameList(tx)).find((c) => c.id !== exceptId && sameName(c.name, name));
+    return byName ?? (number ? await this.repo.byNumber(number, tx, exceptId) : null);
   }
 
   /** «أضف» (Outbound): Telesales found it herself. Same name or number = already in the sheet. */
@@ -52,7 +78,7 @@ export class CompaniesService {
     if (!keepsCompaniesSheet(me.roles)) throw new ForbiddenException(KEEPERS_ONLY);
     await this.checkCategory(input.category);
     const company = await this.db.$transaction(async (tx) => {
-      if (await this.repo.findSame(input.name, input.number, tx)) throw new ConflictException("الشركة دي موجودة في الشيت");
+      if (await this.findSame(input.name, input.number, tx)) throw new ConflictException("الشركة دي موجودة في الشيت");
       const c = await tx.company.create({ data: { name: input.name, category: input.category, number: input.number, outbound: true, createdById: me.id } });
       await this.audit.record({ module: "leads", entity: "Company", entityId: c.id, action: "create", userId: me.id, after: c }, tx);
       return c;
@@ -69,7 +95,7 @@ export class CompaniesService {
     const c = await this.db.$transaction(async (tx) => {
       const before = await tx.company.findUnique({ where: { id } });
       if (!before) throw new NotFoundException("الشركة دي مش في الشيت");
-      if (await this.repo.findSame(input.name, input.number, tx, id)) throw new ConflictException("فيه شركة تانية في الشيت بنفس الاسم أو الرقم");
+      if (await this.findSame(input.name, input.number, tx, id)) throw new ConflictException("فيه شركة تانية في الشيت بنفس الاسم أو الرقم");
       const day = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`) : null);
       const after = await tx.company.update({ where: { id }, data: {
         ...input, contractStart: day(input.contractStart), contractEnd: day(input.contractEnd),
@@ -95,11 +121,12 @@ export class CompaniesService {
       const req = await tx.companyRequest.findUnique({ where: { id }, select: { id: true, name: true, status: true, leadId: true } });
       if (!req) throw new NotFoundException("الطلب ده مش موجود");
       if (req.status !== "pending") throw new ConflictException("الشركة دي اتضافت خلاص");
-      const same = await this.repo.findSame(req.name, null, tx);
+      const same = await this.findSame(req.name, null, tx);
       const company = same ?? await tx.company.create({ data: { name: req.name, category, createdById: me.id } });
       await tx.lead.update({ where: { id: req.leadId }, data: { companyId: company.id } });
       // every request for the same name goes with it
-      await tx.companyRequest.updateMany({ where: { status: "pending", name: { equals: req.name, mode: "insensitive" } }, data: { status: "added", companyId: company.id } });
+      const sameRequests = (await this.repo.pendingRequestNames(tx)).filter((r) => sameName(r.name, req.name)).map((r) => r.id);
+      await tx.companyRequest.updateMany({ where: { id: { in: [req.id, ...sameRequests] } }, data: { status: "added", companyId: company.id } });
       await this.audit.record({ module: "leads", entity: "Company", entityId: company.id, action: same ? "link" : "create", userId: me.id, after: { name: company.name, category: same ? undefined : category, from: id } }, tx);
       return { id: company.id, name: company.name, category: same ? (await tx.company.findUniqueOrThrow({ where: { id: company.id } })).category : category, leadCode: null };
     });

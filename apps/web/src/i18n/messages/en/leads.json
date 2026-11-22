@@ -591,5 +591,11 @@
     "title": "Stages",
     "pct": "{pct}% of leads",
     "open": "Show {stage} leads"
+  },
+  "companyNames": {
+    "didYouMean": "Did you mean:",
+    "didYouMeanLabel": "Companies with a name close to your search",
+    "close": "The sheet has a company with a name close to «{name}» — is it this one?",
+    "useIt": "Yes, {name}"
   }
 }
