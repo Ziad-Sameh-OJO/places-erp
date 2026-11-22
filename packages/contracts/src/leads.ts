@@ -77,6 +77,7 @@ export const LeadFilters = Page.extend({
   duplicated: QueryBool.optional(), // its number came in again (a duplicate arrival on it)
   createdById: Id.optional(), // the user who entered it
   previousOwnerId: Id.optional(), // «Assign from»: it was with this salesperson before and moved on
+  wentToId: Id.optional(), // «Assign to»: it went to this salesperson at some point, whether it's still there or moved on
   assignedFrom: CalendarDay.optional(), assignedTo: CalendarDay.optional(), // «Assign date»: when it reached its salesperson
   actionFrom: CalendarDay.optional(), actionTo: CalendarDay.optional(), // «Action date»: someone did something on it then
   action: z.enum(LEAD_ACTIONS).optional(), // «Last action»: what a person did on it (in the action dates when they're set)

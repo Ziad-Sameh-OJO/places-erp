@@ -165,6 +165,10 @@ test("the client's filters (22 Nov): type, company, space, budget, duplicated, c
   assert.equal(moved.status, 200, JSON.stringify(moved.body));
   assert.deepEqual(await k(`&previousOwnerId=${amrId}`), ["3"]);
   assert.deepEqual(await k(`&previousOwnerId=${eidId}`), []);
+  // Assign to: it went to that salesperson, whether it's still there (k3 with Eid) or moved on (k3 was with Amr)
+  assert.deepEqual(await k(`&wentToId=${eidId}`), ["3"]);
+  assert.deepEqual(await k(`&wentToId=${amrId}`), ["3"]);
+  assert.deepEqual(await k(`&wentToId=${mohsenId}`), ["1", "2"]); // never moved: with him now
 
   // the cancel reason: the note typed with Cancellation / Not Interested
   await prisma.leadActivity.create({ data: { leadId: k2, kind: "stage", text: "المرحلة بقت Cancellation · السعر عالي على العميل", byUserId: opsUser.id } });

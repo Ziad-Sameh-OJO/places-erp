@@ -9,7 +9,7 @@ export type LeadQuery = {
   // the client's list (22 Nov): «Type», company, space and budget ranges, duplicated, «Created by», «Assign from»,
   // «Assign date», «Action date» + «Last action», the cancel reason
   type?: string; company?: string; spaceMin?: string; spaceMax?: string; budgetMin?: string; budgetMax?: string; duplicated?: "true" | "false";
-  createdById?: string; previousOwnerId?: string; assignedFrom?: string; assignedTo?: string; actionFrom?: string; actionTo?: string; action?: string;
+  createdById?: string; previousOwnerId?: string; wentToId?: string; assignedFrom?: string; assignedTo?: string; actionFrom?: string; actionTo?: string; action?: string;
   cancelReason?: string;
   visit?: string; visitFrom?: string; visitTo?: string; // the dashboard's Showings / Meetings: a Visit / Meeting held in those days
   kind?: "client" | "broker" | undefined; // the tab, not a filter: saved views don't keep it
@@ -29,7 +29,7 @@ export const activeCount = (f: LeadQuery) => Object.entries(f).filter(([k, v]) =
 const NOT_FILTERS = new Set(["kind", "sort", "dir"]);
 /** The filters under «فلاتر أكتر»: how many of them are on (shown on the button, so a closed panel doesn't hide one). */
 export const MORE_FILTERS = ["propertyType", "type", "campaignId", "company", "spaceMin", "spaceMax", "budgetMin", "budgetMax", "from", "to", "assignedFrom", "assignedTo",
-  "actionFrom", "actionTo", "action", "previousOwnerId", "createdById", "duplicated", "cancelReason", "qualified", "visit", "visitFrom", "visitTo"] as const satisfies readonly (keyof LeadQuery)[];
+  "actionFrom", "actionTo", "action", "previousOwnerId", "wentToId", "createdById", "duplicated", "cancelReason", "qualified", "visit", "visitFrom", "visitTo"] as const satisfies readonly (keyof LeadQuery)[];
 export const moreCount = (f: LeadQuery) => MORE_FILTERS.filter((k) => f[k]).length;
 
 /**

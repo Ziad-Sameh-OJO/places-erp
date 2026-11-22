@@ -73,9 +73,10 @@ export class LeadsService {
   private async query(f: LeadFilters, hidden: ReadonlySet<string>): Promise<LeadQuery> {
     const q = shownLeadFilters(f, hidden);
     // «بحث» finds the company spelled either way («اعمار» finds «إعمار مصر», client 22 Nov)
-    const [team, movedFrom, companyIds] = await Promise.all([f.teamLeaderId ? this.repo.teamOf(f.teamLeaderId) : undefined, f.previousOwnerId ? this.repo.movedFrom(f.previousOwnerId) : undefined,
+    const [team, movedFrom, wentTo, companyIds] = await Promise.all([f.teamLeaderId ? this.repo.teamOf(f.teamLeaderId) : undefined,
+      f.previousOwnerId ? this.repo.movedFrom(f.previousOwnerId) : undefined, f.wentToId ? this.repo.wentTo(f.wentToId) : undefined,
       q.q && q.companySearch !== false ? this.companies.matchingIds(q.q) : undefined]);
-    return { ...q, ...(team ? { team } : {}), ...(movedFrom ? { movedFrom } : {}), ...(companyIds ? { companyIds } : {}) };
+    return { ...q, ...(team ? { team } : {}), ...(movedFrom ? { movedFrom } : {}), ...(wentTo ? { wentTo } : {}), ...(companyIds ? { companyIds } : {}) };
   }
 
   /**
