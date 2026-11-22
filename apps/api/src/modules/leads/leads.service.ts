@@ -72,8 +72,9 @@ export class LeadsService {
    */
   private async query(f: LeadFilters, hidden: ReadonlySet<string>): Promise<LeadQuery> {
     const q = shownLeadFilters(f, hidden);
-    const [team, movedFrom] = await Promise.all([f.teamLeaderId ? this.repo.teamOf(f.teamLeaderId) : undefined, f.previousOwnerId ? this.repo.movedFrom(f.previousOwnerId) : undefined]);
-    return { ...q, ...(team ? { team } : {}), ...(movedFrom ? { movedFrom } : {}) };
+    const [team, movedFrom, wentTo] = await Promise.all([f.teamLeaderId ? this.repo.teamOf(f.teamLeaderId) : undefined,
+      f.previousOwnerId ? this.repo.movedFrom(f.previousOwnerId) : undefined, f.wentToId ? this.repo.wentTo(f.wentToId) : undefined]);
+    return { ...q, ...(team ? { team } : {}), ...(movedFrom ? { movedFrom } : {}), ...(wentTo ? { wentTo } : {}) };
   }
 
   /** The Kanban, lane by lane, so a lane's count is the real one and older leads aren't left out of it. */

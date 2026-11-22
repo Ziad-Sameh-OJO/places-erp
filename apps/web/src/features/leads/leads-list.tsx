@@ -33,7 +33,7 @@ import { ListRequestsModal } from "../inventory/list-requests";
 
 /** The filters a link may set: the toolbar's, minus the tab, the sort and the paging. */
 const URL_FILTERS = ["stage", "qualified", "channel", "from", "to", "area", "campaignId", "assignedToId", "teamLeaderId", "propertyType", "type", "company",
-  "spaceMin", "spaceMax", "budgetMin", "budgetMax", "duplicated", "createdById", "previousOwnerId", "assignedFrom", "assignedTo", "actionFrom", "actionTo",
+  "spaceMin", "spaceMax", "budgetMin", "budgetMax", "duplicated", "createdById", "previousOwnerId", "wentToId", "assignedFrom", "assignedTo", "actionFrom", "actionTo",
   "action", "cancelReason", "visit", "visitFrom", "visitTo"] as const satisfies readonly (keyof LeadQuery)[];
 
 const PAGE = 50;

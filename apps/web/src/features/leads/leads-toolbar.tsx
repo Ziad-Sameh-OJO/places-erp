@@ -163,6 +163,7 @@ export function LeadsToolbar({ f, set, settings, options }: {
         {range(t("actionDate"), "actionFrom", "actionTo", day)}
         {pick(t("lastAction"), "action", t("anyAction"), LEAD_ACTIONS.map((x) => ({ value: x, label: t(`actions.${x}`) })))}
         {!!options?.salespeople.length && pick(t("assignFrom"), "previousOwnerId", t("anyone"), people(options.salespeople))}
+        {!!options?.salespeople.length && pick(t("assignTo"), "wentToId", t("anyone"), people(options.salespeople))}
         {!!options?.creators.length && pick(t("createdBy"), "createdById", t("anyone"), people(options.creators))}
         {pick("Duplicated", "duplicated", t("all"), [{ value: "true", label: t("dupYes") }, { value: "false", label: t("dupNo") }])}
         {pick("Showing / Meeting", "visit", t("all"), [{ value: "visit", label: "Showing" }, { value: "meeting", label: "Meeting" }])}

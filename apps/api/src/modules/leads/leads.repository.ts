@@ -45,6 +45,17 @@ export class LeadsRepository {
     }).then((rows) => rows.map((r) => r.entityId));
   }
 
+  /**
+   * «Assign to»: the leads that were ever with this employee and left (the audit's `before`) or reached him by a move
+   * (its `after`). The ones he has now are added by the query itself.
+   */
+  wentTo(employeeId: string): Promise<string[]> {
+    return this.db.auditLog.findMany({
+      where: { module: "leads", entity: "Lead", OR: [{ before: { path: ["assignedToId"], equals: employeeId } }, { after: { path: ["assignedToId"], equals: employeeId } }] },
+      select: { entityId: true }, distinct: ["entityId"],
+    }).then((rows) => rows.map((r) => r.entityId));
+  }
+
   /** «Created by»: whoever entered the leads this person can see, by name. */
   async creators(scope: Prisma.LeadWhereInput) {
     const ids = await this.db.lead.findMany({ where: scope, select: { createdById: true }, distinct: ["createdById"] });
@@ -410,7 +421,7 @@ export type DuplicateRecord = Prisma.LeadDuplicateGetPayload<{ select: typeof DU
  * The list's filters; `phoneSearch` / `companySearch` false (M-09: the field is hidden from the caller): the search
  * doesn't look at it. `team`: the «التيم» filter's people (the service reads them from `teamLeaderId`).
  */
-export type LeadQuery = LeadFilters & { phoneSearch?: boolean; companySearch?: boolean; team?: string[]; movedFrom?: string[] };
+export type LeadQuery = LeadFilters & { phoneSearch?: boolean; companySearch?: boolean; team?: string[]; movedFrom?: string[]; wentTo?: string[] };
 
 /** 0.15: the column clicked, across every page (empty budgets last either way); then newest first, the id keeps pages stable. */
 function leadOrder(f: LeadQuery): Prisma.LeadOrderByWithRelationInput[] {
@@ -447,6 +458,8 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
       f.assignedFrom || f.assignedTo ? { assignedAt: days(f.assignedFrom, f.assignedTo) } : {},
       // «Assign from»: it was with that salesperson (the service read which leads from the audit) and isn't any more
       f.movedFrom ? { id: { in: f.movedFrom }, OR: [{ assignedToId: null }, { assignedToId: { not: f.previousOwnerId } }] } : {},
+      // «Assign to»: with that salesperson now, or at some point before (the service read which from the audit)
+      f.wentTo && f.wentToId ? { OR: [{ assignedToId: f.wentToId }, { id: { in: f.wentTo } }] } : {},
       // «Action date» / «Last action»: a person (not the system) did something on it, that kind, in those days
       f.actionFrom || f.actionTo || f.action ? { activities: { some: {
         byUserId: { not: null }, ...(f.action ? { kind: f.action } : {}), ...(f.actionFrom || f.actionTo ? { at: days(f.actionFrom, f.actionTo) } : {}),
