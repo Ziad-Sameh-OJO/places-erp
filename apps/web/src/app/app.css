@@ -235,7 +235,7 @@ a.chip { text-decoration: none; }
 .donut-a li i { width: 10px; height: 10px; border-radius: 3px; }
 .donut-a li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .donut-a li small { color: var(--ink-3); text-align: end; }
-/* the quarter's target gauge and its pace */
+/* the target gauges and their pace */
 .gauge-w { position: relative; display: grid; justify-items: center; }
 .gauge { width: 100%; max-width: 230px; display: block; }
 .gauge path { fill: none; stroke-width: 12; stroke-linecap: round; }
@@ -246,9 +246,22 @@ a.chip { text-decoration: none; }
 .gauge-t { position: absolute; bottom: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
 .gauge-t strong { font: 500 28px/1.1 var(--f-display, inherit); }
 .gauge-t small { color: var(--ink-3); font-size: 11.5px; }
-.pace-a { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; background: var(--surface-2); border-radius: 12px; padding: 8px 12px; font-size: 12.5px; color: var(--ink-2); }
-.pace-a .tick { display: inline-block; width: 2.5px; height: 12px; border-radius: 2px; background: var(--ink); margin-inline-end: 6px; vertical-align: -2px; }
-.pace-a b { color: var(--accent-text); font-weight: 600; }
+/* the year and the month side by side, each its ring, its label and its pace (stacked when the card is too narrow) */
+.gauges-a { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px 12px; align-items: start; }
+.meter-a { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; padding: 6px 4px; border-radius: 12px; color: inherit; text-decoration: none; min-width: 0; }
+a.meter-a:hover { background: var(--surface-2); }
+.meter-a .gauge-w { width: 100%; }
+.meter-a .gauge { max-width: 170px; }
+.meter-a .gauge .trk { stroke: var(--sunken); } /* the card is already surface-2: the empty part needs to show */
+.meter-a .gauge-t strong { font-size: 24px; }
+.meter-a > small { color: var(--ink-3); font-size: 12px; }
+.meter-a > b { font: 500 13.5px var(--f-display, inherit); }
+.meter-a .tick { display: inline-block; width: 2.5px; height: 11px; border-radius: 2px; background: var(--ink); margin-inline-end: 5px; vertical-align: -1px; }
+.meter-a .per { color: var(--accent-text); font-weight: 600; font-size: 12px; }
+.meter-a.empty > svg { width: 100%; max-width: 150px; }
+.meter-a.empty > svg path { fill: none; stroke: var(--sunken); stroke-width: 12; stroke-linecap: round; }
+.meter-a.empty p { margin: 0; color: var(--ink-3); font-size: 12.5px; }
+.target-a .card-head input[type="month"] { width: auto; }
 /* the funnel: coral fading stage by stage, Done Deal in black (design-lab «مراحل الليدز») */
 .dash-a .hbars { gap: 6px; }
 .dash-a .hb { grid-template-columns: minmax(90px, 1fr) 3fr 40px minmax(0, 92px); border-radius: 8px; }
@@ -262,9 +275,7 @@ a.chip { text-decoration: none; }
 .dash-a .acct { padding: 2px 0; font-size: 13px; }
 .dash-a .acct small { display: inline; margin-inline-start: 6px; }
 .dash-a .paced { display: grid; gap: 4px; padding: 2px 0 6px; }
-.dash-a .paced > .btn { justify-self: start; }
 .dash-a .paced .bar { position: relative; overflow: visible; height: 10px; }
-.dash-a .paced .bar .mark { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); }
 .dash-a .tbl-wrap { box-shadow: none; max-height: 176px; overflow-y: auto; }
 .dash-teams th, .dash-teams td { padding: 3px 10px; font-size: 13px; }
 .dash-teams td { min-width: 0; }
@@ -278,9 +289,3 @@ a.chip { text-decoration: none; }
   .mbars { gap: 4px; } .trend { min-height: 170px; }
   .donut-a { flex-direction: row; align-items: center; } .donut-a svg { width: 112px; height: 112px; }
 }
-/* the target card with no target yet: a quiet empty gauge, one line, one button */
-.dash-a .target-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 8px 0; }
-.dash-a .target-empty > svg { width: 150px; }
-.dash-a .target-empty .btn { align-self: center; }
-.dash-a .target-empty > svg path { fill: none; stroke: var(--sunken); stroke-width: 12; stroke-linecap: round; }
-.dash-a .target-empty p { margin: 0; color: var(--ink-3); font-size: 13px; }

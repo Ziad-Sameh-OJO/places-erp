@@ -121,15 +121,16 @@
     },
     "targets": {
       "title": "Target",
-      "quarter": "Quarter ({quarter})",
       "year": "Year ({year})",
+      "month": "Month ({month})",
       "of": "{achieved} of {goal}",
       "should": "Where we should be today: {amount}",
       "perDay": "We need {amount} a day",
       "mark": "Where we should be today",
       "set": "Set the target",
       "aria": "{label}: {pct}% achieved, we should be at {mark}% today",
-      "none": "No quarter or year target yet"
+      "none": "No target set",
+      "pickMonth": "Target month"
     },
     "teams": {
       "title": "Teams",
