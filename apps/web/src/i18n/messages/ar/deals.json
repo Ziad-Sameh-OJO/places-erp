@@ -8,7 +8,11 @@
   "sales": "السيلز",
   "inTarget": "دخل في التارجت",
   "newDeal": "سجّل صفقة",
-  "tabs": { "me": "إنجازاتي", "sheet": "شيت الـ Done Deals", "split": "تفاصيل الصفقات" },
+  "tabs": {
+    "me": "إنجازاتي",
+    "sheet": "شيت الـ Done Deals",
+    "split": "تفاصيل الصفقات"
+  },
   "kpis": {
     "net": "صافي الكوميشن",
     "netSub": "{n} صفقة اتحصّل منها · Owner + Client",
@@ -25,7 +29,9 @@
     "splitFile": "تفاصيل الصفقات.xlsx",
     "splitLabel": "تصدير تفاصيل الصفقات"
   },
-  "board": { "sellerWaiting": "Seller مستني منار" },
+  "board": {
+    "sellerWaiting": "Seller مستني منار"
+  },
   "sheet": {
     "search": "الشركة، الوحدة، السيلز",
     "searchLabel": "بحث في الشيت",
@@ -136,7 +142,11 @@
     "edited": "اتعدّل يدوي: {from} ← {to} · {reason}"
   },
   "exec": {
-    "chip": { "onTime": "اتنفذت في ميعادها", "late": "اتنفذت متأخر", "overdue": "متأخرة عن ميعاد التنفيذ" },
+    "chip": {
+      "onTime": "اتنفذت في ميعادها",
+      "late": "اتنفذت متأخر",
+      "overdue": "متأخرة عن ميعاد التنفيذ"
+    },
     "whatsWrong": "الخطأ إيه؟",
     "reviewed": "المراجعة اتسجّلت",
     "title": "التنفيذ والأوراق",
@@ -194,5 +204,7 @@
     "reasonPh": "مثلاً: المبلغ اتسجّل غلط",
     "save": "احفظ التعديل",
     "saved": "التعديل اتسجّل في الـ Audit Log"
-  }
+  },
+  "range": "اتقفلت من {from} لحد {to}",
+  "rangeClear": "شيل فلتر التاريخ"
 }

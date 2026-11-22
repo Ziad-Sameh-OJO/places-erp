@@ -50,6 +50,11 @@ export class DashboardRepository {
     return this.db.lead.groupBy({ by: ["stage"], where: { AND: [listed(scope), { stage: { in: stages as never } }] }, _count: { _all: true } });
   }
 
+  /** «مراحل الليدز»'s total (management, 22 Nov): every lead in scope, any stage, tab or Draft, the archive left out. */
+  leadsNotArchived(scope: Prisma.LeadWhereInput) {
+    return this.db.lead.count({ where: { AND: [scope, { archivedAt: null }] } });
+  }
+
   /** Visits and Meetings in [from, to): on the leads in scope, or by one person. */
   visits(by: { leads: Prisma.LeadWhereInput } | { userId: string }, from: Date, to: Date) {
     const who: Prisma.LeadVisitWhereInput = "userId" in by ? { byUserId: by.userId } : { lead: by.leads };

@@ -117,20 +117,21 @@
     },
     "funnel": {
       "title": "Lead stages",
-      "next": "{pct}% to the next"
+      "next": "{pct}% to the next",
+      "total": "Total leads",
+      "totalHint": "Every lead in every stage, the archive left out"
     },
     "targets": {
       "title": "Target",
       "year": "Year ({year})",
-      "month": "Month ({month})",
+      "quarter": "Quarter ({quarter})",
       "of": "{achieved} of {goal}",
       "should": "Where we should be today: {amount}",
       "perDay": "We need {amount} a day",
       "mark": "Where we should be today",
       "set": "Set the target",
       "aria": "{label}: {pct}% achieved, we should be at {mark}% today",
-      "none": "No target set",
-      "pickMonth": "Target month"
+      "none": "No target set"
     },
     "teams": {
       "title": "Teams",

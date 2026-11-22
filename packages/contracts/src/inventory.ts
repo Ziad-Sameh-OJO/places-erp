@@ -153,12 +153,16 @@ export const UnitFilters = Page.extend({
   /** the rented / sold sheet (M-03 5.2): closed between these Cairo days, both included */
   closedFrom: CalendarDay.optional(),
   closedTo: CalendarDay.optional(),
+  /** the dashboard's «وحدات اتضافت»: added between these Cairo days, both included */
+  addedFrom: CalendarDay.optional(),
+  addedTo: CalendarDay.optional(),
   sort: z.enum(UNIT_SORTS).optional(), // 0.15: by a column, across every page
   dir: SortDir.optional(),
 })
   .refine((f) => f.minSpace == null || f.maxSpace == null || f.minSpace <= f.maxSpace, { path: ["maxSpace"], message: "أقصى مساحة أصغر من أقل مساحة" })
   .refine((f) => f.minPrice == null || f.maxPrice == null || Number(f.minPrice) <= Number(f.maxPrice), { path: ["maxPrice"], message: "أقصى سعر أصغر من أقل سعر" })
-  .refine((f) => !f.closedFrom || !f.closedTo || f.closedFrom <= f.closedTo, { path: ["closedTo"], message: "«لحد» قبل «من»" });
+  .refine((f) => !f.closedFrom || !f.closedTo || f.closedFrom <= f.closedTo, { path: ["closedTo"], message: "«لحد» قبل «من»" })
+  .refine((f) => !f.addedFrom || !f.addedTo || f.addedFrom <= f.addedTo, { path: ["addedTo"], message: "«لحد» قبل «من»" });
 export type UnitFilters = z.infer<typeof UnitFilters>;
 
 export interface Person { id: string; name: string }

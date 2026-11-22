@@ -43,9 +43,13 @@ export function ReportsPage() {
 
 function Targets({ tl }: { tl: boolean }) {
   const tr = useTranslations("reports");
-  // «حدد التارجت» on the dashboard opens the targets of its month («/reports?month=2026-11», 22 Nov)
+  // the dashboard's target card opens the targets of its quarter («/reports?quarter=2026-Q4») or of a month («?month=2026-11»)
   const [month, setMonth] = useState("");
-  useEffect(() => { const m = new URLSearchParams(window.location.search).get("month"); if (m && /^\d{4}-\d{2}$/.test(m)) setMonth(m); }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search), m = q.get("month"), quarter = q.get("quarter");
+    if (quarter && /^\d{4}-Q[1-4]$/.test(quarter)) setPeriod(quarter);
+    else if (m && /^\d{4}-\d{2}$/.test(m)) setMonth(m);
+  }, []);
   const [period, setPeriod] = useState(""); // 14.12: a quarter's three months added up, instead of one month
   const q = useQuery({ queryKey: ["reports", "targets", month, period], queryFn: () => api.get<TargetsView>(`/reports/targets?${period ? periodParams(period) : month ? `month=${month}` : ""}`) });
   const [edit, setEdit] = useState<TargetRow | null>(null);

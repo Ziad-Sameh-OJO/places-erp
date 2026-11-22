@@ -149,7 +149,7 @@ export function LeadsToolbar({ f, set, settings, options }: {
       </button>
       {n > 0 && <button className="btn ghost sm" onClick={() => set({})}><Icon name="x" />{t("clear", { count: n })}</button>}
     </div>
-    {open && (
+    {(open || more > 0) && (
       <div className="more-filters" id="lead-more-filters">
         {fields.shows("propertyType") && pick("Project", "propertyType", t("all"), PROPERTY_TYPES.map((x) => ({ value: x, label: x })))}
         {fields.shows("type") && pick("Type", "type", t("all"), LEAD_TYPES.map((x) => ({ value: x, label: x })))}
@@ -165,6 +165,8 @@ export function LeadsToolbar({ f, set, settings, options }: {
         {!!options?.salespeople.length && pick(t("assignFrom"), "previousOwnerId", t("anyone"), people(options.salespeople))}
         {!!options?.creators.length && pick(t("createdBy"), "createdById", t("anyone"), people(options.creators))}
         {pick("Duplicated", "duplicated", t("all"), [{ value: "true", label: t("dupYes") }, { value: "false", label: t("dupNo") }])}
+        {pick("Showing / Meeting", "visit", t("all"), [{ value: "visit", label: "Showing" }, { value: "meeting", label: "Meeting" }])}
+        {range(t("visitDate"), "visitFrom", "visitTo", day)}
         {fields.shows("note") && <label className="ff"><span>{t("cancelReason")}</span><input value={f.cancelReason ?? ""} onChange={on("cancelReason")} placeholder={t("cancelReasonPh")} /></label>}
       </div>
     )}

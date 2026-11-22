@@ -421,7 +421,8 @@
     "dupYes": "Duplicated",
     "dupNo": "Not duplicated",
     "cancelReason": "Cancel reason",
-    "cancelReasonPh": "A word of the reason"
+    "cancelReasonPh": "A word of the reason",
+    "visitDate": "Showing / Meeting date"
   },
   "list": {
     "leads": "Leads",

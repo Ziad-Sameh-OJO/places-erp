@@ -117,20 +117,21 @@
     },
     "funnel": {
       "title": "مراحل الليدز",
-      "next": "{pct}% للي بعدها"
+      "next": "{pct}% للي بعدها",
+      "total": "Total leads",
+      "totalHint": "كل الليدز في كل المراحل، من غير الأرشيف"
     },
     "targets": {
       "title": "التارجت",
       "year": "السنة ({year})",
-      "month": "الشهر ({month})",
+      "quarter": "الربع ({quarter})",
       "of": "{achieved} من {goal}",
       "should": "المفروض نكون هنا النهارده: {amount}",
       "perDay": "محتاجين {amount} في اليوم",
       "mark": "المفروض نكون هنا النهارده",
       "set": "حدد التارجت",
       "aria": "{label}: اتحقق {pct}%، والمفروض نكون عند {mark}% النهارده",
-      "none": "مفيش تارجت متحدد",
-      "pickMonth": "شهر التارجت"
+      "none": "مفيش تارجت متحدد"
     },
     "teams": {
       "title": "التيمز",

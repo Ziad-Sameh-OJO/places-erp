@@ -31,6 +31,11 @@ import { Fab } from "@/components/blocks";
 import { useLeadBoard, useLeadOptions, useLeadSummary, useLeads, useMyCalls, useSettings, useTabCounts } from "./use-leads";
 import { ListRequestsModal } from "../inventory/list-requests";
 
+/** The filters a link may set: the toolbar's, minus the tab, the sort and the paging. */
+const URL_FILTERS = ["stage", "qualified", "channel", "from", "to", "area", "campaignId", "assignedToId", "teamLeaderId", "propertyType", "type", "company",
+  "spaceMin", "spaceMax", "budgetMin", "budgetMax", "duplicated", "createdById", "previousOwnerId", "assignedFrom", "assignedTo", "actionFrom", "actionTo",
+  "action", "cancelReason", "visit", "visitFrom", "visitTo"] as const satisfies readonly (keyof LeadQuery)[];
+
 const PAGE = 50;
 
 /** M-01 · the leads list (demo «العملاء المحتملين»): the tabs, Operations' queue, tiles, saved views, filters, list or Kanban, the SLA note. */
@@ -58,8 +63,9 @@ export function LeadsList() {
     if (q.get("companies") === "1") return window.location.replace("/companies"); // older notifications' link (1.20): the sheet has its own page now
     if (q.get("tags") === "1") setDraftTab("tags"); // «طلب Tag» / «اترفض الـ Tag» notifications
     if (q.get("lists") === "1") setLists(true); // «الـ List … جاهزة» (2.32): the button is gone from here (client, 11 Nov), the notification still opens it
-    // 14.2 · 14.3: a number on the dashboard opens the list already filtered («?stage=Interested», «?from=…&to=…&qualified=true», «?channel=Facebook»)
-    const pre = Object.fromEntries((["stage", "qualified", "channel", "from", "to"] as const).flatMap((k) => (q.get(k) ? [[k, q.get(k)]] : []))) as LeadQuery;
+    // 14.2 · 14.3: a number on the dashboard opens the list already filtered («?stage=Interested», «?from=…&to=…&qualified=true»,
+    // «?channel=Facebook», «?visit=visit&visitFrom=…&visitTo=…»); the API checks every value
+    const pre = Object.fromEntries(URL_FILTERS.flatMap((k) => (q.get(k) ? [[k, q.get(k)]] : []))) as LeadQuery;
     if (Object.keys(pre).length) setF(pre);
   }, []);
   // «جديد» from any page (0.16): «?new=1» the form, «?new=bulk» the bulk entry

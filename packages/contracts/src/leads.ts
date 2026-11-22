@@ -81,6 +81,8 @@ export const LeadFilters = Page.extend({
   actionFrom: CalendarDay.optional(), actionTo: CalendarDay.optional(), // «Action date»: someone did something on it then
   action: z.enum(LEAD_ACTIONS).optional(), // «Last action»: what a person did on it (in the action dates when they're set)
   cancelReason: z.string().trim().max(80).optional(), // the note written on Cancellation / Not Interested
+  // the dashboard's Showings / Meetings: a Visit / Meeting held on it in those days (one marked «ما اتعملتش» doesn't count)
+  visit: z.enum(["visit", "meeting"]).optional(), visitFrom: CalendarDay.optional(), visitTo: CalendarDay.optional(),
   kind: LeadKind.optional(), // the page's tab: «الليدز» (client) or «البروكرز»
   from: CalendarDay.optional(), // Cairo days, both ends included
   to: CalendarDay.optional(),
@@ -88,7 +90,8 @@ export const LeadFilters = Page.extend({
   dir: SortDir.optional(),
 }).refine((f) => !f.from || !f.to || f.from <= f.to, { path: ["to"], message: "«لحد» قبل «من»" })
   .refine((f) => !f.assignedFrom || !f.assignedTo || f.assignedFrom <= f.assignedTo, { path: ["assignedTo"], message: "«لحد» قبل «من»" })
-  .refine((f) => !f.actionFrom || !f.actionTo || f.actionFrom <= f.actionTo, { path: ["actionTo"], message: "«لحد» قبل «من»" });
+  .refine((f) => !f.actionFrom || !f.actionTo || f.actionFrom <= f.actionTo, { path: ["actionTo"], message: "«لحد» قبل «من»" })
+  .refine((f) => !f.visitFrom || !f.visitTo || f.visitFrom <= f.visitTo, { path: ["visitTo"], message: "«لحد» قبل «من»" });
 export type LeadFilters = z.infer<typeof LeadFilters>;
 
 /** The new-lead form checks the mobiles while they're typed (demo «الرقم ده موجود قبل كده»). */

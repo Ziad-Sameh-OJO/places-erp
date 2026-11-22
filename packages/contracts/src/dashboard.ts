@@ -62,8 +62,8 @@ export interface PersonPerformance {
 /** Ahmed Islam's one-page dashboard: the period picked; a quarter takes the shared year + quarter picker (14.12). */
 export const AhmedQuery = PeriodQuery.extend({
   period: z.enum(DASH_PERIODS).default("today"),
-  /** the target card's month ("2026-11"); its year is the year gauge's. Default: this month, or the picked quarter's last */
-  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "الشهر غلط").optional(),
+  /** the target card's quarter ("2026-Q4"); its year is the year gauge's. Default: the period's quarter */
+  tq: z.string().regex(/^\d{4}-Q[1-4]$/, "الربع غلط").optional(),
 })
   .refine((q) => !q.year === !q.quarter, { message: "اختار السنة والربع مع بعض", path: ["quarter"] });
 export type AhmedQuery = z.infer<typeof AhmedQuery>;
@@ -86,8 +86,8 @@ export interface AttentionLine { key: "sla" | "approval" | "nearClose" | "instal
 
 export interface AhmedDashboard {
   period: (typeof DASH_PERIODS)[number];
-  /** Cairo days of the period so far (both included), the teams' quarter, the target card's month and its year */
-  from: string; to: string; quarter: string; month: string; year: string;
+  /** Cairo days of the period so far (both included), the teams' quarter, the target card's quarter and its year */
+  from: string; to: string; quarter: string; targetQuarter: string; year: string;
   strip: {
     visits: Compared; meetings: Compared; doneDeals: Compared; leads: Compared; units: Compared;
     /** the commission that came in (the deals' payments); null = may not see finance */
@@ -100,8 +100,10 @@ export interface AhmedDashboard {
   channels: { channel: string; leads: number }[];
   /** The deals' payments against the commission of the deals closed, by day or week; null = may not see finance */
   collections: { unit: "day" | "week"; points: { from: string; to: string; collected: string; expected: string }[] } | null;
-  /** what the company must make in the year, and in the month picked on the card */
-  targets: { year: PacedBar; month: PacedBar };
+  /** what the company must make in the year, and in the quarter picked on the card (management, 22 Nov) */
+  targets: { year: PacedBar; quarter: PacedBar };
+  /** every lead in the person's scope, any stage, tab or Draft; the archive doesn't count */
+  totalLeads: number;
   teams: AhmedTeam[];
   attention: AttentionLine[];
   /** the Near to Close line's days (setting dashboardStaleNearClose) */

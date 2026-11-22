@@ -5,7 +5,7 @@ import {
 } from "@places/contracts";
 import {
   CLIENTS_PARENT, DASHBOARD_STAGES, FUNNEL_STAGES, budgetBroken, comparisonWindows, conversionRate, dashboardLayout, dashboardPeriods, dayStart, fromDecimal,
-  isCampaignLive, lateWithoutExcuse, localDate, moneyBuckets, monthBounds, opensOnDashboard, periodId, quarterBounds, quarterMonths, quarterOfDay, sumIn,
+  isCampaignLive, lateWithoutExcuse, localDate, moneyBuckets, monthBounds, opensOnDashboard, periodId, quarterBounds, quarterDays, quarterMonths, quarterOfDay, sumIn,
   targetPace, targetProgress, teamProgress, toDecimal, topAchiever, topSales, trendBuckets, type Piasters, type WorkCalendar,
 } from "@places/domain";
 import { LeadsService } from "../leads/leads.service";
@@ -107,8 +107,8 @@ export class DashboardService {
     const cal = await this.time.calendar(), today = localDate(now, cal), picked = q.year && q.quarter ? periodId(q.year, q.quarter) : undefined;
     const { current: cur, previous: prev } = comparisonWindows(q.period, now, cal, picked);
     const quarter = (q.period === "quarter" && picked) || quarterOfDay(today), qb = quarterBounds(quarter, cal);
-    // the target card: the year to make and one month of it (management, 22 Nov); a past quarter shows its last month
-    const tm = q.month ?? (quarterOfDay(today) === quarter ? today.slice(0, 7) : quarterMonths(quarter)[2]), tmb = monthBounds(tm, cal), year = tm.slice(0, 4);
+    // the target card: the year to make and one quarter of it (management, 22 Nov), the period's unless picked on the card
+    const tq = q.tq ?? quarter, tqb = quarterBounds(tq, cal), tqd = quarterDays(tq), year = tq.slice(0, 4);
     const yearMonths = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
     const yb = { from: monthBounds(yearMonths[0]!, cal).from, to: monthBounds(yearMonths[11]!, cal).to };
     const leads = leadScope(me) as never, can = (m: Parameters<typeof me.grants.can>[0]) => me.grants.can(m, "view");
@@ -120,13 +120,14 @@ export class DashboardService {
       this.repo.leadTimes(leads, tb.current[0]!.from, tb.current.at(-1)!.to), this.repo.leadTimes(leads, tb.previous[0]!.from, tb.previous.at(-1)!.to),
       this.repo.leadsByChannel(leads, cur.from, cur.to), seesMoney ? this.repo.moneyRows(mb.buckets[0]!.from, mb.buckets.at(-1)!.to) : null,
     ]);
-    const [visits, doneDeals, newLeads, units, collected, stages, quarterFig, yearFig, monthFig, byPerson, dealsBy, settings] = await Promise.all([
+    const [visits, doneDeals, newLeads, units, collected, stages, quarterFig, yearFig, tqFig, byPerson, dealsBy, settings, totalLeads] = await Promise.all([
       pair((w) => this.repo.visits({ leads }, w.from, w.to)), pair((w) => this.repo.dealsClosed(w.from, w.to)),
       pair((w) => this.repo.leadsSince(leads, w.from, w.to).then(([n]) => n)), pair((w) => this.repo.unitsAdded(w.from, w.to)),
       seesMoney ? pair((w) => this.repo.collected(w.from, w.to)) : null,
       this.repo.stageCounts(leads, FUNNEL_STAGES.map(toDb)),
       this.targets.rangeFigures(me, qb.from, qb.to, quarterMonths(quarter)), this.targets.rangeFigures(me, yb.from, yb.to, yearMonths),
-      this.targets.rangeFigures(me, tmb.from, tmb.to, [tm]), this.repo.visitsByPerson(cur.from, cur.to), this.repo.dealsByPerson(cur.from, cur.to), this.settings.all(),
+      tq === quarter ? null : this.targets.rangeFigures(me, tqb.from, tqb.to, quarterMonths(tq)), this.repo.visitsByPerson(cur.from, cur.to), this.repo.dealsByPerson(cur.from, cur.to), this.settings.all(),
+      this.repo.leadsNotArchived(leads),
     ]);
     const [money, finance, inventory, marketing, attention] = await Promise.all([
       can("contracts") ? this.installments(me, today, month, now) : null,
@@ -167,7 +168,7 @@ export class DashboardService {
       return { unit: mb.unit, points: mb.buckets.map((w, i) => ({ ...days(w), collected: toDecimal(got[i]!), expected: toDecimal(due[i]!) })) };
     })();
     return {
-      period: q.period, from: localDate(cur.from, cal), to: lastDay(cur, cal), quarter, month: tm, year,
+      period: q.period, from: localDate(cur.from, cal), to: lastDay(cur, cal), quarter, targetQuarter: tq, year, totalLeads,
       strip: {
         visits: { now: count(visits.now, "visit"), before: count(visits.before, "visit") }, meetings: { now: count(visits.now, "meeting"), before: count(visits.before, "meeting") },
         doneDeals, leads: newLeads, units, collected,
@@ -176,7 +177,7 @@ export class DashboardService {
       trend: { unit: tb.unit, points: tb.current.map((w, i) => ({ at: w.from.toISOString(), ...days(w), now: w.from > now ? null : n[i]!, before: i < b.length ? b[i]! : null })) },
       channels: byChannel.map((c) => ({ channel: c.channel, leads: c._count._all })).sort((x, y) => y.leads - x.leads),
       collections,
-      targets: { year: paced(yearFig, `${year}-01-01`, `${year}-12-31`), month: paced(monthFig, `${tm}-01`, lastDay(tmb, cal)) },
+      targets: { year: paced(yearFig, `${year}-01-01`, `${year}-12-31`), quarter: paced(tqFig ?? quarterFig, tqd.from, tqd.to) },
       teams, attention: [...attention, ...(finance ? [{ key: "budget" as const, count: finance.figures.broken.length, href: "/finance?tab=budget" }] : [])],
       staleDays: settings.dashboardStaleNearClose,
       money: money && { ...money, receivables: finance?.figures.receivables ?? null },
