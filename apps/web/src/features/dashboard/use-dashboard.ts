@@ -11,11 +11,11 @@ export const useDashboardLayout = (enabled = true) =>
   useQuery({ queryKey: ["dashboard", "layout"], queryFn: () => api.get<DashboardLayoutView>("/dashboard/layout"), staleTime: 5 * 60_000, enabled });
 export const useCompanyDashboard = (enabled: boolean) =>
   useQuery({ queryKey: ["dashboard", "company"], queryFn: () => api.get<CompanyDashboard>("/dashboard/company"), enabled, refetchInterval: 5 * 60_000 });
-/** Ahmed's one page: `period` today|week|month|quarter, a quarter with its "2026-Q4"; fresh every 60 s. */
-export const useAhmedDashboard = (period: string, quarter: string) =>
+/** Ahmed's one page: `period` today|week|month|quarter, a quarter with its "2026-Q4", the target card's month ("" = default); fresh every 60 s. */
+export const useAhmedDashboard = (period: string, quarter: string, month: string) =>
   useQuery({
-    queryKey: ["dashboard", "ahmed", period, quarter],
-    queryFn: () => api.get<AhmedDashboard>(`/dashboard/ahmed?period=${period}${period === "quarter" && quarter ? `&${periodParams(quarter)}` : ""}`),
+    queryKey: ["dashboard", "ahmed", period, quarter, month],
+    queryFn: () => api.get<AhmedDashboard>(`/dashboard/ahmed?period=${period}${period === "quarter" && quarter ? `&${periodParams(quarter)}` : ""}${month ? `&month=${month}` : ""}`),
     refetchInterval: 60_000, placeholderData: (prev) => prev,
   });
 export const useMyDashboard =(enabled: boolean) =>

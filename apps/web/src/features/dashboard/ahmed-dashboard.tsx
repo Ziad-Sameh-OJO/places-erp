@@ -21,17 +21,18 @@ export function AhmedPage() {
   const t = useTranslations("dashboard.ahmed");
   const [period, setPeriod] = useState<DashPeriod>("today");
   const [quarter, setQuarter] = useState(() => quarterOfDay(localDate(new Date())));
+  const [month, setMonth] = useState(""); // "" = the API's default: this month, or the picked quarter's last
   const [person, setPerson] = useState<string | null>(null);
-  const q = useAhmedDashboard(period, quarter);
+  const q = useAhmedDashboard(period, quarter, month);
   const d = q.data;
   return (
     <div className="dash-a">
-      <Header period={period} onPeriod={setPeriod} quarter={quarter} onQuarter={setQuarter} updated={q.dataUpdatedAt} />
+      <Header period={period} onPeriod={setPeriod} quarter={quarter} onQuarter={(v) => { setQuarter(v); setMonth(""); }} updated={q.dataUpdatedAt} />
       {!d ? <Empty text={t("loading")} icon="clock" /> : <>
         <Strip d={d} />
         <div className="bento">
           <Trend d={d} />
-          <Targets d={d} />
+          <Targets d={d} onMonth={setMonth} />
           {d.collections && <Collections c={d.collections} />}
           <Channels d={d} />
           <Funnel d={d} />
@@ -104,37 +105,48 @@ function Funnel({ d }: { d: AhmedDashboard }) {
   );
 }
 
-/** The quarter's target as a half ring with the pace tick, «محتاجين X في اليوم» under it; the year's as a bar. Or a link to set it. */
-function Targets({ d }: { d: AhmedDashboard }) {
+/**
+ * What the company must make (management, 22 Nov): the year's target and one month's, each a half ring with the pace
+ * tick and «محتاجين X في اليوم»; the month is picked on the card and the year follows it. Or a quiet empty ring with
+ * a link to set it.
+ */
+function Targets({ d, onMonth }: { d: AhmedDashboard; onMonth: (m: string) => void }) {
   const t = useTranslations("dashboard.ahmed.targets");
-  const q = d.targets.quarter, goal = q.goal === "" ? 0 : fromDecimal(q.goal), label = t("quarter", { quarter: d.quarter });
-  const mark = q.expected && goal ? Math.round((fromDecimal(q.expected) / goal) * 100) : null;
-  // no target at all: one quiet empty state and one button, not two empty rows
-  if (!goal && !(d.targets.year.goal && fromDecimal(d.targets.year.goal))) return (
-    <Card title={t("title")} icon="trend" className="b-4 target-a">
-      <div className="target-empty">
-        <svg viewBox="0 0 130 70" aria-hidden="true"><path d="M13 64 A52 52 0 0 1 117 64" /></svg>
-        <p>{t("none")}</p>
-        <Link className="btn sm" href="/kpis"><Icon name="plus" />{t("set")}</Link>
+  const monthName = new Date(`${d.month}-15T12:00:00Z`).toLocaleDateString(dateLocale(), { month: "long", timeZone: "UTC" });
+  return (
+    <Card title={t("title")} icon="trend" className="b-4 target-a"
+      extra={<input type="month" value={d.month} onChange={(e) => e.target.value && onMonth(e.target.value)} aria-label={t("pickMonth")} />}>
+      <div className="gauges-a">
+        <Meter label={t("year", { year: d.year })} bar={d.targets.year} />
+        <Meter label={t("month", { month: monthName })} bar={d.targets.month} />
       </div>
     </Card>
   );
+}
+
+function Meter({ label, bar }: { label: string; bar: PacedBar }) {
+  const t = useTranslations("dashboard.ahmed.targets");
+  const goal = bar.goal === "" ? 0 : fromDecimal(bar.goal);
+  if (!goal) return (
+    <div className="meter-a empty">
+      <svg viewBox="0 0 130 74" aria-hidden="true"><path d="M13 66 A52 52 0 0 1 117 66" /></svg>
+      <small>{label}</small>
+      <p>{t("none")}</p>
+      <Link className="btn ghost sm" href="/kpis"><Icon name="plus" />{t("set")}</Link>
+    </div>
+  );
+  const mark = bar.expected ? Math.round((fromDecimal(bar.expected) / goal) * 100) : null;
   return (
-    <Card title={t("title")} icon="trend" className="b-4 target-a">
-      {!goal ? <div className="paced"><b>{label}</b><Link className="btn ghost sm" href="/kpis">{t("set")}</Link></div> : <Link href="/reports" className="gauge-w">
-        <Gauge bar={q} markTitle={t("mark")} label={t("aria", { label, pct: q.percent ?? 0, mark: mark ?? 0 })} />
-        <div className="gauge-t">
-          <small>{label}</small>
-          <strong className="num">{q.percent == null ? "—" : `${q.percent}%`}</strong>
-          {q.achieved !== "" && <small title={t("of", { achieved: money(q.achieved), goal: money(q.goal) })}>{t("of", { achieved: short(q.achieved), goal: short(q.goal) })}</small>}
-        </div>
-      </Link>}
-      {!!goal && (mark != null || q.perDay) && <div className="pace-a">
-        {mark != null && <span><i className="tick" />{t("should", { amount: short(q.expected) })}</span>}
-        {q.perDay && <b>{t("perDay", { amount: short(q.perDay) })}</b>}
-      </div>}
-      <Paced label={t("year", { year: d.year })} bar={d.targets.year} />
-    </Card>
+    <Link href="/reports" className="meter-a">
+      <div className="gauge-w">
+        <Gauge bar={bar} markTitle={t("mark")} label={t("aria", { label, pct: bar.percent ?? 0, mark: mark ?? 0 })} />
+        <div className="gauge-t"><strong className="num">{bar.percent == null ? "—" : `${bar.percent}%`}</strong></div>
+      </div>
+      <small>{label}</small>
+      {bar.achieved !== "" && <b className="num" title={t("of", { achieved: money(bar.achieved), goal: money(bar.goal) })}>{t("of", { achieved: short(bar.achieved), goal: short(bar.goal) })}</b>}
+      {mark != null && <small className="hint"><i className="tick" />{t("should", { amount: short(bar.expected) })}</small>}
+      {bar.perDay && <small className="per">{t("perDay", { amount: short(bar.perDay) })}</small>}
+    </Link>
   );
 }
 
@@ -174,30 +186,6 @@ function Channels({ d }: { d: AhmedDashboard }) {
         label={t("aria", { total, list: d.channels.map((c) => `${c.channel} ${c.leads}`).join("، ") })}
         hrefOf={(c) => `/leads?channel=${encodeURIComponent(c)}&from=${d.from}&to=${d.to}`} />}
     </Card>
-  );
-}
-
-function Paced({ label, bar }: { label: string; bar: PacedBar }) {
-  const t = useTranslations("dashboard.ahmed.targets");
-  const goal = bar.goal === "" ? 0 : fromDecimal(bar.goal);
-  if (!goal) return <div className="paced"><b>{label}</b><Link className="btn ghost sm" href="/kpis">{t("set")}</Link></div>;
-  const pct = bar.percent ?? 0, mark = bar.expected ? (fromDecimal(bar.expected) / goal) * 100 : null, behind = mark != null && pct < mark;
-  return (
-    <Link href="/reports" className="paced">
-      <div className="row">
-        <b>{label}</b><span className="spacer" />
-        {bar.achieved !== "" && <small className="hint" title={t("of", { achieved: money(bar.achieved), goal: money(bar.goal) })}>{t("of", { achieved: short(bar.achieved), goal: short(bar.goal) })}</small>}
-        <Chip tone={pct >= 100 ? "ok" : behind ? "bad" : "warn"}>{bar.percent == null ? "—" : `${bar.percent}%`}</Chip>
-      </div>
-      <div className={`bar ${pct >= 100 ? "" : behind ? "bad" : "warn"}`}>
-        <i style={{ width: `${Math.min(100, pct)}%` }} />
-        {mark != null && <b className="mark" style={{ insetInlineStart: `${Math.min(100, mark)}%` }} title={t("mark")} />}
-      </div>
-      {(mark != null || bar.perDay) && <small className="hint">
-        {mark != null && t("should", { amount: short(bar.expected) })}
-        {bar.perDay && <> · {t("perDay", { amount: short(bar.perDay) })}</>}
-      </small>}
-    </Link>
   );
 }
 
