@@ -170,11 +170,6 @@ test("the client's filters (22 Nov): type, company, space, budget, duplicated, c
   assert.deepEqual(await k(`&wentToId=${amrId}`), ["3"]);
   assert.deepEqual(await k(`&wentToId=${mohsenId}`), ["1", "2"]); // never moved: with him now
 
-  // the cancel reason: the note typed with Cancellation / Not Interested
-  await prisma.leadActivity.create({ data: { leadId: k2, kind: "stage", text: "المرحلة بقت Cancellation · السعر عالي على العميل", byUserId: opsUser.id } });
-  await prisma.leadActivity.create({ data: { leadId: k1, kind: "comment", text: "السعر عالي", byUserId: opsUser.id } }); // a comment isn't a reason
-  assert.deepEqual(await k(`&cancelReason=${encodeURIComponent("السعر")}`), ["2"]);
-
   // the dashboard's Showings / Meetings: a Visit / Meeting held in those days; one marked «ما اتعملتش» doesn't count
   await prisma.leadVisit.createMany({ data: [
     { leadId: k1, kind: "visit", at: new Date("2025-03-10T10:00:00Z"), outcome: "done", byUserId: opsUser.id },
@@ -185,9 +180,27 @@ test("the client's filters (22 Nov): type, company, space, budget, duplicated, c
   assert.deepEqual(await k("&visit=meeting&visitFrom=2025-03-01&visitTo=2025-03-31"), ["2"]);
   assert.deepEqual(await k("&visitFrom=2025-03-11&visitTo=2025-03-31"), []);
 
+  // the cancel reason (client, 22 Nov): Cancellation needs one from the list, a comment is optional; the filter reads it,
+  // also while the lead waits in the Draft Admin
+  const stage = (id: string, body: object) => call(`/leads/${id}/stage`, { method: "PATCH", cookie: ops, body });
+  assert.equal((await stage(k2, { stage: "Cancellation" })).status, 400); // no reason
+  assert.equal((await stage(k2, { stage: "Cancellation", reason: "Bored" })).status, 400); // not on the list
+  assert.equal((await stage(k2, { stage: "Hold", reason: "No Budget" })).status, 400); // a reason is for Cancellation only
+  const cancelled = await stage(k2, { stage: "Cancellation", reason: "No Budget", note: "الميزانية نصّ السعر" });
+  assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
+  assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: k2 }, select: { cancelReason: true } })).cancelReason, "No Budget");
+  const line = await prisma.leadActivity.findFirstOrThrow({ where: { leadId: k2, kind: "stage" }, orderBy: { at: "desc" }, select: { text: true } });
+  assert.equal(line.text, "المرحلة بقت Cancellation · السبب: No Budget · الميزانية نصّ السعر");
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: k2, action: "stage" }, orderBy: { at: "desc" }, select: { after: true } });
+  assert.equal((audit.after as { cancelReason?: string }).cancelReason, "No Budget");
+  assert.deepEqual(await k("&cancelReason=No%20Budget"), ["2"]);
+  assert.deepEqual(await k("&cancelReason=Rented"), []);
+  // bulk can't cancel: each lead needs its own reason
+  assert.equal((await call("/leads/batch", { method: "POST", cookie: ops, body: { ids: [k1], stage: "Cancellation" } })).status, 400);
+
   // «Created by» lists who entered the leads; refused: an unknown type, a budget that isn't money, dates the wrong way round
   assert.ok(((await call("/leads/options", { cookie: ops })).body as LeadOptions).creators.some((c) => c.id === opsUser.id));
-  for (const q of ["&type=Villa", "&budgetMin=abc", "&actionFrom=2026-02-01&actionTo=2026-01-01", "&assignedFrom=2026-02-01&assignedTo=2026-01-01", "&action=dance", "&visit=call", "&visitFrom=2026-02-01&visitTo=2026-01-01"]) {
+  for (const q of ["&type=Villa", "&budgetMin=abc", "&actionFrom=2026-02-01&actionTo=2026-01-01", "&assignedFrom=2026-02-01&assignedTo=2026-01-01", "&action=dance", "&visit=call", "&visitFrom=2026-02-01&visitTo=2026-01-01", "&cancelReason=Bored"]) {
     assert.equal((await call(`/leads?q=x${q}`, { cookie: ops })).status, 400, q);
   }
 });

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PeriodQuery } from "./period.ts";
-import { LEAD_STAGES, PROPERTY_TYPES } from "@places/domain";
+import { CANCEL_REASONS, LEAD_STAGES, PROPERTY_TYPES, needsCancelReason } from "@places/domain";
 import { CalendarDay, EgyptianMobile, Id, Money, Page, SortDir } from "./common.ts";
 
 /** A lead is a client or a broker (client meeting 4 Nov · 1.28): brokers have their own tab, same stages. */
@@ -38,7 +38,10 @@ export const UpdateLead = CreateLead.pick({ name: true, kind: true, company: tru
   .partial({ phones: true, area: true, type: true });
 export type UpdateLead = z.infer<typeof UpdateLead>;
 
-export const ChangeStage = z.object({ stage: z.enum(LEAD_STAGES), note: z.string().max(2000).optional() });
+/** Cancellation needs one of the client's reasons (22 Nov) and may carry a comment (`note`); no other stage takes a reason. */
+export const ChangeStage = z.object({ stage: z.enum(LEAD_STAGES), note: z.string().trim().max(2000).optional(), reason: z.enum(CANCEL_REASONS).optional() })
+  .refine((b) => !needsCancelReason(b.stage) || !!b.reason, { path: ["reason"], message: "اختار سبب الإلغاء" })
+  .refine((b) => needsCancelReason(b.stage) || !b.reason, { path: ["reason"], message: "السبب للـ Cancellation بس" });
 export type ChangeStage = z.infer<typeof ChangeStage>;
 
 /** Query strings are text: "false" must mean false (z.coerce.boolean() would read any non-empty text as true). */
@@ -81,7 +84,7 @@ export const LeadFilters = Page.extend({
   assignedFrom: CalendarDay.optional(), assignedTo: CalendarDay.optional(), // «Assign date»: when it reached its salesperson
   actionFrom: CalendarDay.optional(), actionTo: CalendarDay.optional(), // «Action date»: someone did something on it then
   action: z.enum(LEAD_ACTIONS).optional(), // «Last action»: what a person did on it (in the action dates when they're set)
-  cancelReason: z.string().trim().max(80).optional(), // the note written on Cancellation / Not Interested
+  cancelReason: z.enum(CANCEL_REASONS).optional(), // the reason picked with Cancellation (client, 22 Nov)
   // the dashboard's Showings / Meetings: a Visit / Meeting held on it in those days (one marked «ما اتعملتش» doesn't count)
   visit: z.enum(["visit", "meeting"]).optional(), visitFrom: CalendarDay.optional(), visitTo: CalendarDay.optional(),
   kind: LeadKind.optional(), // the page's tab: «الليدز» (client) or «البروكرز»
@@ -306,7 +309,8 @@ export interface AreaRoute { salespeople: { id: string; name: string }[] }
 export const LeadBatch = z.object({
   ids: z.array(z.string().min(1).max(40)).min(1, "اختار ليد واحد على الأقل").max(100, "100 ليد بالكتير في المرة"),
   to: z.string().min(1).max(40).optional(),
-  stage: z.enum(LEAD_STAGES).refine((s) => s !== "Visit" && s !== "Meeting", "الـ Visit / Meeting محتاجة ميعاد ووحدات · من درج الليد").optional(),
+  stage: z.enum(LEAD_STAGES).refine((s) => s !== "Visit" && s !== "Meeting", "الـ Visit / Meeting محتاجة ميعاد ووحدات · من درج الليد")
+    .refine((s) => !needsCancelReason(s), "الـ Cancellation محتاجة سبب لكل ليد · من درج الليد").optional(),
 }).refine((b) => b.to || b.stage, { message: "اختار سيلز أو مرحلة" });
 export type LeadBatch = z.infer<typeof LeadBatch>;
 export const LeadBatchIds = z.object({ ids: LeadBatch.innerType().shape.ids });

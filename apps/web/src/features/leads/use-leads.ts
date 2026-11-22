@@ -33,8 +33,9 @@ export const useSettings = () => useQuery({ queryKey: ["settings"], queryFn: () 
 
 export function useChangeStage() {
   const qc = useQueryClient();
-  return async (id: string, stage: string) => {
-    await api.patch(`/leads/${id}/stage`, { stage });
+  // Cancellation carries its reason and comment (client, 22 Nov)
+  return async (id: string, stage: string, extra: { reason?: string; note?: string } = {}) => {
+    await api.patch(`/leads/${id}/stage`, { stage, ...extra });
     await Promise.all([qc.invalidateQueries({ queryKey: ["leads"] }), qc.invalidateQueries({ queryKey: ["leads-summary"] })]);
   };
 }

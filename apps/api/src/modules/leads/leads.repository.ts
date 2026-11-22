@@ -437,7 +437,8 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
   const digits = f.q?.replace(/\D/g, "") ?? "";
   return {
     // a lead in a Draft tab shows only there (1.26, demo): not in the list, the board or the counts
-    AND: [scope, { archivedAt: null, draft: null },
+    // the cancel reason also finds the cancelled leads still waiting in the Draft Admin for Operations' decision
+    AND: [scope, f.cancelReason ? { archivedAt: null } : { archivedAt: null, draft: null },
       f.stage ? { stage: f.stage.toUpperCase().replace(/ /g, "_") as Prisma.LeadWhereInput["stage"] } : {},
       f.kind ? { kind: f.kind === "broker" ? "BROKER" : "CLIENT" } : {},
       // 14.6: the area typed or picked, any part of its name
@@ -466,10 +467,8 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
       f.actionFrom || f.actionTo || f.action ? { activities: { some: {
         byUserId: { not: null }, ...(f.action ? { kind: f.action } : {}), ...(f.actionFrom || f.actionTo ? { at: days(f.actionFrom, f.actionTo) } : {}),
       } } } : {},
-      // the note typed with Cancellation / Not Interested is on that stage line of the Activity («المرحلة بقت Cancellation · …»)
-      f.cancelReason ? { activities: { some: { kind: "stage", AND: [
-        { OR: CANCEL_STAGES.map((s) => ({ text: { startsWith: `المرحلة بقت ${s}` } })) }, { text: { contains: f.cancelReason, mode: "insensitive" } },
-      ] } } } : {},
+      // the reason picked with Cancellation (client, 22 Nov)
+      f.cancelReason ? { cancelReason: f.cancelReason } : {},
       // the dashboard's Showings / Meetings (as it counts them: held or not marked yet, not «ما اتعملتش»)
       f.visit || f.visitFrom || f.visitTo ? { visits: { some: {
         ...(f.visit ? { kind: f.visit } : {}), ...(f.visitFrom || f.visitTo ? { at: days(f.visitFrom, f.visitTo) } : {}),
@@ -478,7 +477,6 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
   };
 }
 
-const CANCEL_STAGES = ["Cancellation", "Not Interested"];
 /** Cairo days, both included: from the start of the first up to the start of the day after the last. */
 const days = (from?: string, to?: string) => ({ ...(from ? { gte: dayStart(from) } : {}), ...(to ? { lt: dayStart(nextDay(to)) } : {}) });
 

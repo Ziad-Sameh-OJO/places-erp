@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { LeadBoard, LeadRow } from "@places/contracts";
-import { type LeadStage, boardLanes, isPickableStage, isQualifiedAfter } from "@places/domain";
+import { type LeadStage, boardLanes, isPickableStage, isQualifiedAfter, needsCancelReason } from "@places/domain";
+import { CancelReasonModal } from "./cancel-reason";
 import { Kanban } from "@/components/blocks";
 import { Avatar, Chip, Icon, useAction, useToast } from "@/components/ui";
 import { ago, num, short } from "@/lib/format";
@@ -33,8 +34,10 @@ export function LeadsBoard({ board, canMove, onOpen, onVisit }: {
   const changeStage = useChangeStage();
   const fields = useFields("leads"); // M-09: the card leaves a hidden field out
   const [ask, setAsk] = useState<LeadRow | null>(null); // «بعتله واتساب؟» right after No Answer (1.18)
-  const move = (l: LeadRow, stage: string) => {
+  const [cancelling, setCancelling] = useState<LeadRow | null>(null); // dropped on Cancellation: its reason first (client, 22 Nov)
+  const move = (l: LeadRow, stage: string, extra: { reason?: string; note?: string } = {}) => {
     if (stage === l.stage) return;
+    if (needsCancelReason(stage) && !extra.reason) { setCancelling(l); return; }
     if (!isPickableStage(stage)) { toast(t("board.notPickable", { stage: serverText(stage) })); return; } // a stage kept for old leads only
     // 1.32 · demo DROP.stage: Visit / Meeting need a time and units — the lead opens on «الزيارات» with that kind; closing
     // it leaves the card where it was (the stage moves only when it's booked, the API's 1.9)
@@ -44,7 +47,7 @@ export function LeadsBoard({ board, canMove, onOpen, onVisit }: {
     if (stage === "Done Deal" && can("deals", "create") && l.qualified) { void qc.invalidateQueries({ queryKey: ["deals", "form"] }); setDeal(l.id); return; }
     const willQualify = !l.qualified && isQualifiedAfter(false, stage as LeadStage); // the toast says so, like the demo
     void run(async () => {
-      await changeStage(l.id, stage);
+      await changeStage(l.id, stage, extra);
       if (stage === "No Answer") setAsk(l);
       if (stage === "Done Deal" && can("deals", "create")) { void qc.invalidateQueries({ queryKey: ["deals", "form"] }); setDeal(l.id); }
     },
@@ -54,6 +57,8 @@ export function LeadsBoard({ board, canMove, onOpen, onVisit }: {
   return (
     <>
     {ask && <WhatsAppQuestion lead={ask} onClose={() => setAsk(null)} />}
+    {cancelling && <CancelReasonModal name={cancelling.name} onClose={() => setCancelling(null)}
+      onSave={(reason, note) => { const l = cancelling; setCancelling(null); move(l, "Cancellation", { reason, ...(note ? { note } : {}) }); }} />}
     {deal && <DealForm leadId={deal} onClose={() => setDeal(null)} onSaved={() => { setDeal(null); void qc.invalidateQueries({ queryKey: ["leads"] }); }} />}
     <Kanban className="leads-board" lanes={lanes} itemKey={(l) => l.id} empty={t("board.dropHere")} onOpen={(l) => onOpen(l.id)}
       cardClass={(l) => `lead-card ${l.sla ? `sla-${slaTone(l.sla)}` : ""}`}

@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { LeadDetail, LeadLogRow } from "@places/contracts";
-import { LEAD_PIPELINE, STAGE_PICKER, type LeadStage, isQualifiedAfter } from "@places/domain";
+import { LEAD_PIPELINE, STAGE_PICKER, type LeadStage, isQualifiedAfter, needsCancelReason } from "@places/domain";
+import { CancelReasonModal } from "./cancel-reason";
 import { Drawer, Stepper } from "@/components/blocks";
 import { Chip, Empty, Icon, Note, Tabs, useAction, useToast } from "@/components/ui";
 import type { Settings } from "@places/contracts";
@@ -155,14 +156,16 @@ function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit"
   const toast = useToast();
   const refresh = useRefreshLead();
   const [ask, setAsk] = useState(false); // «بعتله واتساب؟» right after No Answer (1.18)
-  const pick = (stage: LeadStage) => {
+  const [cancelling, setCancelling] = useState(false); // Cancellation asks for its reason first (client, 22 Nov)
+  const pick = (stage: LeadStage, extra: { reason?: string; note?: string } = {}) => {
     if (stage === l.stage) return;
     if (stage === "Visit" || stage === "Meeting") { onVisit(stage); toast(t("setVisit", { kind: stage })); return; }
+    if (needsCancelReason(stage) && !extra.reason) { setCancelling(true); return; }
     const qualifies = !l.qualified && isQualifiedAfter(false, stage);
     // refreshed even when refused (e.g. the lead was taken away meanwhile): the drawer then shows why
     void run(async () => {
       try {
-        await api.patch(`/leads/${l.id}/stage`, { stage });
+        await api.patch(`/leads/${l.id}/stage`, { stage, ...extra });
         if (stage === "No Answer") setAsk(true);
         if (stage === "Done Deal" && !l.hasDeal && can("deals", "create")) onDeal(l.id); // demo: Done Deal opens «سجّل صفقة»
       } finally { await refresh(l.id); }
@@ -171,6 +174,8 @@ function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit"
   return (
     <section className="card flat">
       {ask && <WhatsAppQuestion lead={l} onClose={() => setAsk(false)} />}
+      {cancelling && <CancelReasonModal name={l.name} onClose={() => setCancelling(false)}
+        onSave={(reason, note) => { setCancelling(false); pick("Cancellation", { reason, ...(note ? { note } : {}) }); }} />}
       <div className="card-head"><h3><span className="ico"><Icon name="layers" /></span><span>{t("changeStage")}</span></h3></div>
       {[STAGE_PICKER.main, STAGE_PICKER.side].map((row, i) => (
         <div key={i} className={`stage-grid ${i ? "stage-side" : ""}`}>

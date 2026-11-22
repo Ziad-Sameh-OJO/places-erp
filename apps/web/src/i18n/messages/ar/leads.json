@@ -422,7 +422,6 @@
     "dupYes": "متكرر",
     "dupNo": "مش متكرر",
     "cancelReason": "سبب الإلغاء",
-    "cancelReasonPh": "كلمة من السبب",
     "visitDate": "تاريخ الـ Showing / Meeting"
   },
   "list": {
@@ -592,6 +591,15 @@
     "title": "المراحل",
     "pct": "{pct}% من الليدز",
     "open": "اعرض ليدز {stage}"
+  },
+  "cancel": {
+    "title": "سبب إلغاء {name}",
+    "reason": "سبب الإلغاء",
+    "pick": "اختار السبب",
+    "comment": "كومنت",
+    "commentPh": "اكتب أي تفاصيل (اختياري)",
+    "back": "رجوع",
+    "save": "سجّل Cancellation"
   },
   "companyNames": {
     "didYouMean": "تقصد:",

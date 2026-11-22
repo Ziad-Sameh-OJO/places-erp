@@ -10,7 +10,7 @@ import type { SavedFilter } from "@/lib/saved-filters";
 import { SaveModal, SavedChip } from "@/components/saved-filters";
 import { serverText } from "@/lib/server-text";
 import { useFields } from "@/lib/me";
-import { PICKABLE_STAGES, PROPERTY_TYPES } from "@places/domain";
+import { CANCEL_REASONS, PICKABLE_STAGES, PROPERTY_TYPES } from "@places/domain";
 import { stageTone } from "./lead-bits";
 import { MultiPick } from "./multi-pick";
 
@@ -168,7 +168,7 @@ export function LeadsToolbar({ f, set, settings, options }: {
         {pick("Duplicated", "duplicated", t("all"), [{ value: "true", label: t("dupYes") }, { value: "false", label: t("dupNo") }])}
         {pick("Showing / Meeting", "visit", t("all"), [{ value: "visit", label: "Showing" }, { value: "meeting", label: "Meeting" }])}
         {range(t("visitDate"), "visitFrom", "visitTo", day)}
-        {fields.shows("note") && <label className="ff"><span>{t("cancelReason")}</span><input value={f.cancelReason ?? ""} onChange={on("cancelReason")} placeholder={t("cancelReasonPh")} /></label>}
+        {pick(t("cancelReason"), "cancelReason", t("all"), CANCEL_REASONS.map((x) => ({ value: x, label: x })))}
       </div>
     )}
     </>

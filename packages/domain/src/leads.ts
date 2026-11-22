@@ -25,6 +25,14 @@ export const PICKABLE_STAGES: readonly LeadStage[] = [...STAGE_PICKER.main, ...S
 export const isPickableStage = (s: string): boolean => (PICKABLE_STAGES as readonly string[]).includes(s);
 
 /**
+ * Client, 22 Nov: Cancellation isn't saved straight away; the salesperson picks one of these reasons (and may add a
+ * comment). The reason is kept on the lead: «سبب الإلغاء» filters the leads by it.
+ */
+export const CANCEL_REASONS = ["Not Interested", "No Budget", "Destination", "No Answer", "Rented"] as const;
+export type CancelReason = (typeof CANCEL_REASONS)[number];
+export const needsCancelReason = (stage: string): boolean => stage === "Cancellation";
+
+/**
  * The Kanban's lanes: the pickable stages in their order, then a lane of a stage no longer picked only while leads
  * are still in it (so none disappears); nothing can be dropped there.
  */
