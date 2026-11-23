@@ -137,8 +137,12 @@ export function LeadsToolbar({ f, set, settings, options }: {
           <option value="">{t("allTeams")}</option>{options.teamLeaders.map((p) => <option key={p.id} value={p.id}>{t("teamOf", { name: p.name })}</option>)}
         </select>
       )}
-      {fields.shows("channel") && <select value={f.channel ?? ""} onChange={on("channel")} aria-label="Channel">
+      {fields.shows("channel") && <select value={f.channel ?? ""} onChange={(e) => set({ ...f, channel: e.target.value, channelType: "" })} aria-label="Channel">
         <option value="">{t("allChannels")}</option>{settings?.channels.map(({ value }) => <option key={value} value={value}>{value}</option>)}
+      </select>}
+      {/* «نوع الـ Channel» (22 Nov): the picked channel's types, switched-off ones too (old leads keep theirs) */}
+      {fields.shows("channel") && !!f.channel && !!settings?.channelTypes[f.channel]?.length && <select value={f.channelType ?? ""} onChange={on("channelType")} aria-label={t("channelType")}>
+        <option value="">{t("allChannelTypes")}</option>{(settings.channelTypes[f.channel] ?? []).map(({ value }) => <option key={value} value={value}>{value}</option>)}
       </select>}
       {fields.shows("area") && <>
         <input className="area-f" list="lead-areas" value={f.area ?? ""} onChange={on("area")} placeholder={t("allAreas")} aria-label="Area" />

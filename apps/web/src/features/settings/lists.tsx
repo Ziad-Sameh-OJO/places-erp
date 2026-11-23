@@ -41,7 +41,7 @@ export function ListsTab({ settings }: { settings: Settings }) {
               </Card>
             )}
             {g.lists.map(([key, label]) => <ListCard key={key} listKey={key} label={serverText(label)} items={settings[key]} canAdd={may(key, "add")} canOff={may(key, "off")}
-              editors={can("access", "edit") ? settings.listEditors : undefined} />)}
+              editors={can("access", "edit") ? settings.listEditors : undefined} {...(key === "channels" ? { channelTypes: settings.channelTypes } : {})} />)}
           </div>
         </section>
       ))}
@@ -49,12 +49,16 @@ export function ListsTab({ settings }: { settings: Settings }) {
   );
 }
 
-function ListCard({ listKey, label, items, canAdd, canOff, editors }: { listKey: ListKey; label: string; items: ListItem[]; canAdd: boolean; canOff: boolean; editors: ListEditors | undefined }) {
+function ListCard({ listKey, label, items, canAdd, canOff, editors, channelTypes }: {
+  listKey: ListKey; label: string; items: ListItem[]; canAdd: boolean; canOff: boolean; editors: ListEditors | undefined;
+  channelTypes?: Settings["channelTypes"]; // the channels card only: each channel opens its «نوع الـ Channel» list (22 Nov)
+}) {
   const t = useTranslations("settings.lists.card");
   const qc = useQueryClient();
   const run = useAction();
   const [showOff, setShowOff] = useState(false);
   const [showWho, setShowWho] = useState(false);
+  const [openChannel, setOpenChannel] = useState<string | null>(null);
   const locked = new Set(LOCKED_VALUES[listKey] ?? []);
   const active = items.filter((i) => i.active), off = items.filter((i) => !i.active);
   const save = (next: ListItem[], ok: string) => run(async () => {
@@ -81,13 +85,20 @@ function ListCard({ listKey, label, items, canAdd, canOff, editors }: { listKey:
       {editors && showWho && <WhoEdits listKey={listKey} editors={editors} />}
       <div className="chips-edit">
         {active.map((i) => (
-          <span className="chip-e" key={i.value}>{serverText(i.value)}
+          <span className={`chip-e${openChannel === i.value ? " on" : ""}`} key={i.value}>
+            {channelTypes
+              ? <button type="button" className="chip-open" aria-expanded={openChannel === i.value} onClick={() => setOpenChannel(openChannel === i.value ? null : i.value)}>
+                {serverText(i.value)}{!!channelTypes[i.value]?.filter((x) => x.active).length && <small className="num">{channelTypes[i.value]!.filter((x) => x.active).length}</small>}
+              </button>
+              : serverText(i.value)}
             {locked.has(i.value) ? <span title={t("locked")}><Icon name="lock" /></span>
               : canOff && <button aria-label={t("switchOff", { value: serverText(i.value) })} onClick={() => void toggle(i.value, false)}><Icon name="x" /></button>}
           </span>
         ))}
         {!active.length && <span className="hint">{t("empty")}</span>}
       </div>
+      {channelTypes && active.length > 0 && !openChannel && <p className="hint">{t("channelTypesHint")}</p>}
+      {channelTypes && openChannel && <ChannelTypesEditor channel={openChannel} all={channelTypes} canAdd={canAdd} canOff={canOff} onClose={() => setOpenChannel(null)} />}
       {canAdd && (
         <form className="row" onSubmit={onFormSubmit((d) => add(document.getElementById(`ls-${listKey}`) as HTMLFormElement, String(d.get("v") ?? "")))} id={`ls-${listKey}`}>
           <input name="v" placeholder={t("addPlaceholder")} required maxLength={80} aria-label={t("addTo", { label })} /><button className="btn ghost sm"><Icon name="plus" />{t("add")}</button>
@@ -149,6 +160,56 @@ function WhoEdits({ listKey, editors }: { listKey: ListKey; editors: ListEditors
       {!editors[listKey] && <Note>{t("notSetUp")}</Note>}
       {row("add", t("adds"))}
       {row("off", t("offs"))}
+    </div>
+  );
+}
+
+/**
+ * «نوع الـ Channel» (client, 22 Nov): the list under one channel — Instagram → Reel, Story, Post… — typed here and
+ * offered on a lead of that channel. Same rules as the lists: ✕ switches a type off (old leads keep it), «رجّع» brings
+ * it back; who edits the channels edits these (the API checks it).
+ */
+function ChannelTypesEditor({ channel, all, canAdd, canOff, onClose }: { channel: string; all: Settings["channelTypes"]; canAdd: boolean; canOff: boolean; onClose: () => void }) {
+  const t = useTranslations("settings.lists.channelTypes");
+  const qc = useQueryClient();
+  const run = useAction();
+  const items = all[channel] ?? [];
+  const active = items.filter((i) => i.active), off = items.filter((i) => !i.active);
+  const save = (next: ListItem[], ok: string) => run(async () => {
+    await api.put("/settings/channelTypes", { value: { ...all, [channel]: next } });
+    await qc.invalidateQueries({ queryKey: ["settings"] });
+  }, ok);
+  const toggle = (value: string, on: boolean) => save(items.map((i) => (i.value === value ? { ...i, active: on } : i)), on ? t("back", { value }) : t("off", { value }));
+  const add = (form: HTMLFormElement, raw: string) => {
+    const value = raw.trim();
+    if (!value) return;
+    const had = items.find((i) => i.value === value);
+    if (had?.active) { void run(async () => { throw new Error(t("exists")); }); return; }
+    void save(had ? items.map((i) => (i.value === value ? { ...i, active: true } : i)) : [...items, { value, active: true }], had ? t("back", { value }) : t("added", { value }))
+      .then(() => form.reset());
+  };
+  return (
+    <div className="channel-types">
+      <div className="row"><b className="spacer">{t("title", { channel: serverText(channel) })}</b><button type="button" className="icon-btn" aria-label={t("close")} onClick={onClose}><Icon name="x" /></button></div>
+      <div className="chips-edit">
+        {active.map((i) => (
+          <span className="chip-e" key={i.value}>{i.value}
+            {canOff && <button aria-label={t("switchOff", { value: i.value })} onClick={() => void toggle(i.value, false)}><Icon name="x" /></button>}
+          </span>
+        ))}
+        {!active.length && <span className="hint">{t("empty")}</span>}
+        {off.map((i) => (
+          <span className="chip-e" key={i.value} style={{ opacity: 0.65 }}>{i.value}
+            {canOff && <button className="btn ghost sm" style={{ padding: "0 6px" }} onClick={() => void toggle(i.value, true)}>{t("restore")}</button>}
+          </span>
+        ))}
+      </div>
+      {canAdd && (
+        <form className="row" id={`ct-${channel}`} onSubmit={onFormSubmit((d) => add(document.getElementById(`ct-${channel}`) as HTMLFormElement, String(d.get("v") ?? "")))}>
+          <input name="v" placeholder={t("placeholder")} required maxLength={80} aria-label={t("addTo", { channel: serverText(channel) })} autoFocus />
+          <button className="btn ghost sm"><Icon name="plus" />{t("add")}</button>
+        </form>
+      )}
     </div>
   );
 }

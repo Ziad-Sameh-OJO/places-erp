@@ -18,7 +18,7 @@ export const leads: readonly FieldDef[] = [
   { key: "space", label: "Space" },
   { key: "condition", label: "Condition" },
   { key: "budget", label: "Budget" },
-  { key: "channel", label: "Channel", required: true },
+  { key: "channel", label: "Channel", required: true, covers: ["channelType"] }, // «نوع الـ Channel» goes with it (22 Nov)
   { key: "campaign", label: "Campaign", covers: ["campaignId", "post"] },
   { key: "note", label: "Note" },
 ];

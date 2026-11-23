@@ -58,6 +58,8 @@ const Pct = z.number({ invalid_type_error: "النسبة رقم" }).min(0, "ال
 export const SETTINGS = {
   areas: List,
   channels: List,
+  // «نوع الـ Channel» (client, 22 Nov): per channel, the types the marketing types itself (Instagram → Reel, Story…)
+  channelTypes: z.record(z.string().trim().min(1).max(80), List),
   companyCategories: List,
   vendors: List,
   paymentPlans: List,

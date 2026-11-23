@@ -83,7 +83,7 @@ export class LeadsRepository {
 
   /** «تصدير الليدز»: the list under the same scope, filters and sort (newest first by default), up to `limit` rows. */
   exportRows(scope: Prisma.LeadWhereInput, f: LeadQuery, limit: number) {
-    return this.db.lead.findMany({ where: leadWhere(scope, f), select: { ...LEAD_ROW, company: { select: { name: true } } }, orderBy: leadOrder(f), take: limit });
+    return this.db.lead.findMany({ where: leadWhere(scope, f), select: { ...LEAD_ROW, channelType: true, company: { select: { name: true } } }, orderBy: leadOrder(f), take: limit });
   }
 
   /**
@@ -398,7 +398,7 @@ const LEAD_ROW = {
 export type LeadRecord = Prisma.LeadGetPayload<{ select: typeof LEAD_ROW }>;
 
 const LEAD_DETAIL = {
-  ...LEAD_ROW, condition: true, note: true, post: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
+  ...LEAD_ROW, condition: true, note: true, post: true, channelType: true, firstCallAt: true, noAnswerCount: true, rotation: true, firstActionAt: true,
   newLeadRequestedAt: true, newLeadRoutedAt: true, tlNote: true, tlNoteAt: true, tlNoteById: true, commentsFrom: true, createdById: true,
   company: { select: { name: true } }, _count: { select: { deals: true } },
   activities: { select: { id: true, kind: true, text: true, byUserId: true, at: true }, orderBy: [{ at: "desc" }, { id: "desc" }] },
@@ -442,7 +442,7 @@ function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhere
       f.stage ? { stage: f.stage.toUpperCase().replace(/ /g, "_") as Prisma.LeadWhereInput["stage"] } : {},
       f.kind ? { kind: f.kind === "broker" ? "BROKER" : "CLIENT" } : {},
       // 14.6: the area typed or picked, any part of its name
-      f.area ? { area: { contains: f.area, mode: "insensitive" } } : {}, f.channel ? { channel: f.channel } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
+      f.area ? { area: { contains: f.area, mode: "insensitive" } } : {}, f.channel ? { channel: f.channel } : {}, f.channelType ? { channelType: f.channelType } : {}, f.campaignId ? { campaignId: f.campaignId } : {},
       f.assignedToId?.length ? { assignedToId: { in: f.assignedToId } } : {}, f.team ? { assignedToId: { in: f.team } } : {},
       f.propertyType ? { propertyType: f.propertyType } : {}, f.qualified !== undefined ? { qualified: f.qualified } : {},
       // the whole mobile (the GIN index), any part of the name or the company's name, the company's number, or the code typed in any case («l-1001»)

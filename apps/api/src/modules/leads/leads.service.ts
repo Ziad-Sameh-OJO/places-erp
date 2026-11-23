@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import { RecommendAnswers, activeValues, periodOf, type Recommendations, type UnitListInput } from "@places/contracts";
 import type { VisitUnitQuery, TlNoteInput, LeadBatch, LeadBatchResult, UpdateLead, VisitInput, VisitOutcome, VisitRow, AddComment, AssignLead, ChangeStage, CreateLead, CreatedLead, DuplicateCheck, DuplicateCheckResult, LeadBoard, LeadLogRow, LogRoles, LeadTabCounts, MyCalls, SummaryQuery, LeadDetail, LeadFilters, LeadOptions, LeadRow, LeadSummary, Paged, SentLeads, SentLeadsQuery, DailyCallsInput } from "@places/contracts";
-import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads, quarterBounds, similarNames } from "@places/domain";
+import { LEAD_STAGES, type VisitKind, visitStage, type LeadPlacement, type LeadStage, LeadRouter, isQualifiedAfter, placeNewLead, slaView, slaRulesOf, ruleRecipients, callGoal, callPeriodStart, firstCallOnTime, canSeeLeadLogs, ruleHas, fromDecimal, type ClientNeed, isNamedIn, goesToDraftAdmin, draftAdminAlarm, type LeadRules, changes, toDecimal, writesTlNote, sentNoAnswer, dayStart, localDate, dayCalls, TELESALES_CHANNEL, visitedFirst, commentVisible, commentsFromAfterTransfer, transferTargetAllowed, transfersLeads, quarterBounds, similarNames, channelTypeProblem } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { EXPORT_LIMIT } from "../../core/http/excel";
 import { AuditService } from "../../core/audit/audit.service";
@@ -390,6 +390,9 @@ export class LeadsService {
   /** Create → duplicate check by phone (Q7: Operations decides) → route by area round-robin (Q1–Q3) → audit. */
   async create(me: CurrentUser, typed: CreateLead): Promise<CreatedLead> {
     const input = keepFixedCreate(typed, me.fields.fixed("leads")); // M-09: what the person may not set starts empty
+    // «نوع الـ Channel» (22 Nov): one of the channel's types in the settings, or none
+    const typeProblem = input.channelType ? channelTypeProblem((await this.settings.all()).channelTypes, input.channel, input.channelType) : null;
+    if (typeProblem) throw new BadRequestException(typeProblem);
     const dup = await this.repo.findByPhone(input.phones);
     if (dup) {
       await this.duplicates.record(me, dup, input);
@@ -417,7 +420,7 @@ export class LeadsService {
       const lead = await tx.lead.create({
         data: {
           code: `L-${n}`, name: input.name, phones: input.phones, area: input.area, type: input.type, propertyType: input.propertyType ?? null, space: input.space ?? null,
-          condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, campaignId: input.campaignId ?? null,
+          condition: input.condition ?? null, budget: input.budget ?? null, channel: input.channel, channelType: input.channelType || null, campaignId: input.campaignId ?? null,
           assignedToId, assignedAt: assignedToId ? new Date() : null, createdById: me.id,
           ownedByTelesales: placement.kind === "telesales", // stops the SLA clock while it's with her (leadSla)
           kind: input.kind === "broker" ? "BROKER" : "CLIENT", selfEntered: placement.kind === "own", // 1.28 · KPI 11.15
@@ -615,7 +618,7 @@ export class LeadsService {
       after: { rows: rows.length, filters: Object.fromEntries(Object.entries(f).filter(([k, v]) => v !== undefined && k !== "page" && k !== "pageSize")) } });
     return rows.map((r) => ({
       code: r.code, name: r.name, company: r.company?.name ?? "", phones: r.phones.join(" / "), area: r.area, type: r.type, propertyType: r.propertyType ?? "", space: r.space,
-      budget: r.budget?.toFixed(2) ?? "", channel: r.channel, campaign: r.campaign?.name ?? "", sales: r.assignedToId ? names.get(r.assignedToId) ?? "" : "",
+      budget: r.budget?.toFixed(2) ?? "", channel: r.channel, channelType: r.channelType ?? "", campaign: r.campaign?.name ?? "", sales: r.assignedToId ? names.get(r.assignedToId) ?? "" : "",
       stage: STAGE_LABEL.get(r.stage) ?? r.stage, qualified: r.qualified ? "Yes" : "No", createdAt: r.createdAt,
     }));
   }
@@ -851,11 +854,12 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
 const iso = (d: Date | null) => d?.toISOString() ?? null;
 
 /** M-09: the export's hidden columns, blank (the controller leaves them out too). */
-function hiddenExport(r: { company: { name: string } | null; phones: string[]; area: string; type: string; space: number | null; budget: Prisma.Decimal | null; channel: string; campaign: { id: string; name: string } | null }, hidden: ReadonlySet<string>) {
+function hiddenExport(r: { company: { name: string } | null; phones: string[]; area: string; type: string; space: number | null; budget: Prisma.Decimal | null; channel: string; channelType: string | null; campaign: { id: string; name: string } | null }, hidden: ReadonlySet<string>) {
   const h = (k: string) => hidden.has(k);
   return {
     company: h("company") ? null : r.company, phones: h("phones") ? [] : r.phones, area: h("area") ? "" : r.area, type: h("type") ? "" : r.type,
     space: h("space") ? null : r.space, budget: h("budget") ? null : r.budget, channel: h("channel") ? "" : r.channel, campaign: h("campaign") ? null : r.campaign,
+    channelType: h("channelType") ? null : r.channelType,
   };
 }
 
@@ -872,10 +876,10 @@ function toRow({ assignedToId, budget, kind, company, ...r }: LeadRecord, names:
 }
 
 function toDetail(lead: Omit<LeadDetailRecord, "commentsFrom">, salespeople: Map<string, string>, people: Map<string, string>, sla: SlaClock, inv: ReadonlySet<string> = new Set()): Omit<LeadDetail, "canSeeLogs" | "logCount" | "canWriteTlNote" | "canTransfer"> {
-  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, createdById, ...row } = lead;
+  const { activities, visits, firstActionAt, firstCallAt, condition, note, post, channelType, noAnswerCount, rotation, newLeadRequestedAt, newLeadRoutedAt, _count, tlNote, tlNoteAt, tlNoteById, createdById, ...row } = lead;
   const now = Date.now();
   return {
-    ...toRow(row, salespeople, sla), condition, note, post, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
+    ...toRow(row, salespeople, sla), condition, note, post, channelType, noAnswerCount, rotation, newLeadPending: !!newLeadRequestedAt && !newLeadRoutedAt,
     hasDeal: _count.deals > 0, firstActionAt: iso(firstActionAt),
     createdBy: people.has(createdById) ? { id: createdById, name: people.get(createdById)! } : null, // 14.4 «مين دخّل الليد»
     tlNote: tlNote && tlNoteAt ? { text: tlNote, by: tlNoteById ? people.get(tlNoteById) ?? null : null, at: tlNoteAt.toISOString() } : null, // 1.33

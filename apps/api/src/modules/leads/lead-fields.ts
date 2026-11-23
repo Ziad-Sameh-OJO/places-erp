@@ -23,7 +23,8 @@ export function hideLeadDetail<T extends Omit<LeadDetail, "canSeeLogs" | "logCou
   const h = (k: string) => hidden.has(k);
   // the duplicate-attempt line repeats the typed mobiles: gone with the phones
   const activities = h("phones") ? d.activities.filter((a) => a.kind !== "duplicate") : d.activities;
-  return { ...hideLeadRow(d, hidden), activities, condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post };
+  return { ...hideLeadRow(d, hidden), activities, condition: h("condition") ? null : d.condition, note: h("note") ? null : d.note, post: h("post") ? null : d.post,
+    channelType: h("channelType") ? null : d.channelType };
 }
 
 /** One side of Operations' duplicate comparison. */
@@ -48,7 +49,7 @@ export function shownLeadFilters(f: LeadFilters, hidden: Hidden): LeadQuery {
   if (!hidden.size) return f;
   return {
     ...f, ...(hidden.has("area") ? { area: undefined } : {}), ...(hidden.has("channel") ? { channel: undefined } : {}),
-    ...(hidden.has("campaignId") || hidden.has("campaign") ? { campaignId: undefined } : {}), phoneSearch: !hidden.has("phones"),
+    ...(hidden.has("campaignId") || hidden.has("campaign") ? { campaignId: undefined } : {}), ...(hidden.has("channelType") ? { channelType: undefined } : {}), phoneSearch: !hidden.has("phones"),
     ...(hidden.has("type") ? { type: undefined } : {}), ...(hidden.has("company") ? { company: undefined } : {}),
     ...(hidden.has("space") ? { spaceMin: undefined, spaceMax: undefined } : {}), ...(hidden.has("budget") ? { budgetMin: undefined, budgetMax: undefined } : {}),
     ...(hidden.has("propertyType") ? { propertyType: undefined } : {}), companySearch: !hidden.has("company"),
