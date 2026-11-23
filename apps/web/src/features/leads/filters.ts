@@ -4,7 +4,7 @@ import { STAGE_TABS } from "@places/domain";
 /** The toolbar's filters, as the API's query names (LeadFilters in @places/contracts). Empty = not filtered. */
 export type LeadQuery = {
   // assignedToId: one or several salespeople, comma separated (14.6) · teamLeaderId: «التيم» · propertyType: «النوع»
-  q?: string; stage?: string; channel?: string; campaignId?: string; assignedToId?: string; teamLeaderId?: string; area?: string; propertyType?: string;
+  q?: string; stage?: string; channel?: string; channelType?: string; campaignId?: string; assignedToId?: string; teamLeaderId?: string; area?: string; propertyType?: string;
   qualified?: "true" | "false"; from?: string; to?: string;
   // the client's list (22 Nov): «Type», company, space and budget ranges, duplicated, «Created by», «Assign from»,
   // «Assign date», «Action date» + «Last action», the cancel reason

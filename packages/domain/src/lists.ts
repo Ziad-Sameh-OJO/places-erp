@@ -63,6 +63,7 @@ export const SETTING_OWNERS: Readonly<Record<string, SettingOwner>> = {
   holidays: ["hr"],
   insuranceProviders: ["hr"], // M-05 (HR, 15 Nov)
   channels: ["marketing"],
+  channelTypes: ["marketing"], // «نوع الـ Channel»: with the channels (client, 22 Nov)
   whatsappDailyLimit: ["marketing"],
   areas: "super", // 3.1: «المناطق · Super Admin»
   notificationsFrom: "super", // M-14: «Super Admin (الإعداد)»

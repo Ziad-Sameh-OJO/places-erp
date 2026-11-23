@@ -53,7 +53,22 @@
       "sub": "Commission from a client + «Other revenue» (42) accounts in the chart",
       "note": "The sources are the other-revenue accounts in the chart of accounts, so any new revenue is added as a sub-account under 42."
     },
+    "channelTypes": {
+      "title": "Types under «{channel}»",
+      "close": "Close",
+      "empty": "No types yet · type the first one below",
+      "placeholder": "e.g. Reel, Story, Post",
+      "addTo": "Add a type under {channel}",
+      "add": "Add",
+      "added": "«{value}» added",
+      "exists": "This type is there already",
+      "off": "«{value}» switched off",
+      "back": "«{value}» is back",
+      "switchOff": "Switch off {value}",
+      "restore": "Restore"
+    },
     "card": {
+      "channelTypesHint": "Click a channel to type the types under it (Reel, Story…)",
       "back": "«{value}» is back · showing in the forms again",
       "off": "«{value}» switched off · it won't show on new records; old data stays as it is",
       "exists": "This value already exists",

@@ -22,6 +22,7 @@ export const CreateLead = z.object({
   condition: z.string().optional(),
   budget: Money.optional(),
   channel: z.string().min(1, "اختار الـ Channel"),
+  channelType: z.string().trim().max(80).optional(), // «نوع الـ Channel»: one of the channel's types in the settings (22 Nov)
   campaignId: Id.optional(),
   assignToId: Id.optional(), // Operations choosing a salesperson by hand (uses up their turn)
   keep: z.boolean().optional(), // Telesales: «يفضل عندي (بكلّمه أنا)» instead of «التوزيع (حسب الـ area)»
@@ -68,6 +69,7 @@ export const LeadFilters = Page.extend({
   stage: z.enum(LEAD_STAGES).optional(),
   area: z.string().trim().max(80).optional(), // typed or picked: any part of the area's name
   channel: z.string().optional(),
+  channelType: z.string().trim().max(80).optional(), // «نوع الـ Channel» (22 Nov)
   campaignId: Id.optional(),
   assignedToId: IdList.optional(), // one salesperson or several ticked
   teamLeaderId: Id.optional(), // «التيم»: the Team Leader's people and the TL himself
@@ -134,6 +136,7 @@ export interface LeadDetail extends LeadRow {
   /** a deal is registered on it already: the drawer's «سجّل الصفقة» hides (demo) */
   hasDeal: boolean;
   post: string | null; // the campaign post it came from (demo «البوست اللي جابه»)
+  channelType: string | null; // «نوع الـ Channel» (22 Nov): Instagram → Reel…
   /** 14.4 · «مين دخّل الليد»: the person who entered it (null: imported / the system) */
   createdBy: { id: string; name: string } | null;
   /** the first logged call, and whether it came within 30 minutes of arrival (KPI; null until someone calls) */

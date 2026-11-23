@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import { LIST_DEFAULTS, LIST_GROUPS, LOCKED_VALUES, ListEditors, SETTINGS, type HolidayInput, type HolidayView, type ImportDone, type ListKey, type SettingKey, type Settings } from "@places/contracts";
-import { DEFAULT_RECOMMEND_TOLERANCE_PCT, DEFAULT_STALE_NEAR_CLOSE_DAYS, LEAD_STAGES, SETTING_OWNERS, asListValues, canChangeList, canEditSetting, isQualifiedAfter, listActions, listChangeProblem, type SettingEditor } from "@places/domain";
+import { DEFAULT_RECOMMEND_TOLERANCE_PCT, DEFAULT_STALE_NEAR_CLOSE_DAYS, LEAD_STAGES, SETTING_OWNERS, asListValues, canChangeList, canEditSetting, isQualifiedAfter, listActions, listChangeProblem, channelTypesChange, type SettingEditor } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -17,6 +17,7 @@ const DEFAULTS: Settings = {
   whatsappDailyLimit: 250,
   notificationsFrom: "notifications@places.com",
   leadLogRoles: [], // only the admin until the admin picks more (1.25)
+  channelTypes: {}, // «نوع الـ Channel»: none until the marketing types them (client, 22 Nov)
   listEditors: {}, // every list with its department (or «master: edit») until the admin sets it up (#186 · M-13 4.1)
   procurementBigApprovers: [], // the seed writes the client's (M-08 Q44)
   recommendTolerancePct: DEFAULT_RECOMMEND_TOLERANCE_PCT, // the proposed ±20% until the client confirms (M-03 7.2)
@@ -56,6 +57,18 @@ export class SettingsService {
       const allowed = acts.length ? acts.every((a) => canChangeList(s.listEditors[key], a, who))
         : canChangeList(s.listEditors[key], "add", who) || canChangeList(s.listEditors[key], "off", who);
       if (!allowed) throw new ForbiddenException(`مش مسموحلك ${acts.includes("add") && !canChangeList(s.listEditors[key], "add", who) ? "تضيف في" : "توقّف أو ترجّع قيم في"} «${listLabel(key)}»`);
+      return this.set(me, key, after);
+    }
+    if (key === "channelTypes") {
+      // the types under each channel: who adds to / switches off in the channels list does the same here (#186)
+      const s = await this.all();
+      const after = SETTINGS.channelTypes.parse(value);
+      const { problem, actions } = channelTypesChange(s.channelTypes, after, s.channels.map((c) => c.value));
+      if (problem) throw new BadRequestException(problem);
+      const who = { id: me.id, roles: me.roles, masterEdit: canEditSetting("channels", editorOf(me)) };
+      const allowed = actions.length ? actions.every((a) => canChangeList(s.listEditors.channels, a, who))
+        : canChangeList(s.listEditors.channels, "add", who) || canChangeList(s.listEditors.channels, "off", who);
+      if (!allowed) throw new ForbiddenException("مش مسموحلك تعدّل أنواع الـ Channels");
       return this.set(me, key, after);
     }
     this.mustOwn(me, key);

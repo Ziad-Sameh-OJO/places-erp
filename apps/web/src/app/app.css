@@ -295,3 +295,11 @@ a.meter-a:hover { background: var(--surface-2); }
   .mbars { gap: 4px; } .trend { min-height: 170px; }
   .donut-a { flex-direction: row; align-items: center; } .donut-a svg { width: 112px; height: 112px; }
 }
+
+/* «نوع الـ Channel» (22 Nov): a channel chip in the settings opens the types under it */
+.chip-e .chip-open { padding: 0; color: inherit; font: inherit; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.chip-e .chip-open:hover { background: none; color: var(--ink); text-decoration: underline; }
+.chip-e .chip-open small { font-size: 11px; color: var(--ink-3); }
+.chip-e.on { border-color: var(--ink); }
+.channel-types { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 8px; background: var(--surface-2); }
+.channel-types .chip-e { background: var(--surface); }

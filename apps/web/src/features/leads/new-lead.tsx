@@ -2,7 +2,7 @@
 import { type ReactNode, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { PROPERTY_TYPES, keepsCompaniesSheet, sameName } from "@places/domain";
+import { PROPERTY_TYPES, channelTypesOf, keepsCompaniesSheet, sameName } from "@places/domain";
 import { activeValues, type AreaRoute, type CreatedLead, type DuplicateCheckResult } from "@places/contracts";
 import { Field, Modal, Note, onFormSubmit, useToast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -54,6 +54,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   const ownLead = me?.scope === "own" && !isTelesales;
   const byHand = can("leads", "approve") && !!options.data?.salespeople.length;
   const campaigns = (options.data?.campaigns ?? []).filter((c) => c.channel === channel);
+  const channelTypes = channelTypesOf(settings.data?.channelTypes ?? {}, channel);
   // demo «بتروح لـ: …» (1.30): who the area's rotation would send it to — not shown on a salesperson's own lead
   const route = useQuery({
     queryKey: ["area-route", area], enabled: !!area && !ownLead,
@@ -71,6 +72,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
     const text = (k: string) => String(f.get(k) ?? "").trim();
     const body = {
       name: text("name"), kind: text("kind") === "broker" ? "broker" : "client", phones: phonesOf(text("phones")), area: text("area"), type: text("type"), channel: text("channel"),
+      ...(text("channelType") ? { channelType: text("channelType") } : {}), // 22 Nov
       ...(text("propertyType") ? { propertyType: text("propertyType") } : {}), // 14.6: optional
       ...(text("company") ? { company: text("company") } : {}), ...(text("space") ? { space: Number(text("space")) } : {}),
       ...(text("condition") ? { condition: text("condition") } : {}), ...(text("budget") ? { budget: text("budget") } : {}),
@@ -139,6 +141,12 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
             <option value="">{t("pick")}</option>{activeValues(settings.data?.channels ?? []).map((c) => <option key={c}>{c}</option>)}
           </select>
         </Field>, true)}
+        {/* «نوع الـ Channel» (client, 22 Nov): only for a channel that has types in the settings */}
+        {channelTypes.length > 0 && only("channel", <Field label={t("channelType")}>
+          <select name="channelType" defaultValue="" key={channel}>
+            <option value="">—</option>{channelTypes.map((x) => <option key={x}>{x}</option>)}
+          </select>
+        </Field>)}
         {only("campaign", <Field label="Campaign name">
           <select name="campaignId">
             {channel ? <><option value="">—</option>{campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</> : <option value="">{t("channelFirst")}</option>}

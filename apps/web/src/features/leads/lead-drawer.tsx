@@ -87,7 +87,7 @@ function Overview({ l, onDeal, onArchived }: { l: LeadDetail; onDeal: (id: strin
     [t("enteredBy"), <Who key="c" person={l.createdBy} />], ["Area", l.area ? serverText(l.area) : "—", "area"],
     [t("propertyType"), l.propertyType ?? "—", "propertyType"],
     [t("mobile"), <>{l.phones.map((p) => <span key={p} className="mono">{p}<br /></span>)}</>, "phones"],
-    ["Budget", money(l.budget), "budget"], ["Channel", l.channel || "—", "channel"],
+    ["Budget", money(l.budget), "budget"], ["Channel", l.channel ? [l.channel, l.channelType].filter(Boolean).join(" · ") : "—", "channel"], // «Instagram · Reel» (22 Nov)
     ["Sales", <Who key="w" person={l.assignedTo} />], [t("cameIn"), `${day(l.createdAt)} · ${ago(l.createdAt)}`],
   ];
   return (
