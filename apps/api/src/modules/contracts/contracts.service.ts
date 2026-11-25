@@ -80,14 +80,15 @@ export class ContractsService {
           payments: i.payments.map((p, n) => ({ id: p.id, amount: p.amount.toFixed(2), paidOn: day(p.paidOn), receiptNo: receiptNo(c.code, k, n) })),
         };
       }),
-    }, me.fields.hidden("contracts"));
+    }, me.fields.hidden("contracts"), today);
   }
 
   /** The demo's tiles (active · ending · late installments · collected), the renewals card and the Aging (M-11 5.1 · 6.1). */
   async summary(me: CurrentUser, now = new Date()): Promise<ContractSummary> {
     const today = localDate(now);
     const all = await this.repo.forSummary(this.scope(me));
-    const lines = all.filter((c) => c.status === "ACTIVE").flatMap((c) => c.installments.map((i) => ({ dueOn: day(i.dueOn), amount: fromDecimal(i.amount.toFixed(2)), paid: fromDecimal(i.paid.toFixed(2)) })));
+    // M-11 3.2 «المتأخرات = الأقساط اللي ميعادها عدّى − المحصّل»: an ended or terminated contract still owes its arrears
+    const lines = all.flatMap((c) => c.installments.map((i) => ({ dueOn: day(i.dueOn), amount: fromDecimal(i.amount.toFixed(2)), paid: fromDecimal(i.paid.toFixed(2)) })));
     const late = lines.filter((l) => l.paid < l.amount && l.dueOn < today);
     const rows = all.map((c) => toRow(c, today));
     const renewals = rows.filter((r) => r.endingSoon).sort((a, b) => a.daysLeft - b.daysLeft);
@@ -109,9 +110,11 @@ export class ContractsService {
     const byDay: Record<string, CalendarItem[]> = {};
     const add = (d: Date, item: CalendarItem) => (byDay[day(d)] ??= []).push(item);
     // M-09: the installments are the table's: without it the calendar has the contracts' ends only
+    const paidHidden = me.fields.hidden("contracts").has("paid");
     for (const i of me.fields.hidden("contracts").has("installments") ? [] : installments) {
       const amount = fromDecimal(i.amount.toFixed(2)), paid = fromDecimal(i.paid.toFixed(2));
-      add(i.dueOn, { contractId: i.contract.id, code: i.contract.code, client: i.contract.deal.company, kind: "installment", amount: toDecimal(amount), state: installmentState({ dueOn: day(i.dueOn), amount, paid }, today) });
+      add(i.dueOn, { contractId: i.contract.id, code: i.contract.code, client: i.contract.deal.company, kind: "installment", amount: toDecimal(amount),
+        state: installmentState({ dueOn: day(i.dueOn), amount, paid: paidHidden ? 0 : paid }, today) }); // a hidden «المدفوع» shows no paid / partial
     }
     for (const c of ends) add(c.endsOn, { contractId: c.id, code: c.code, client: c.deal.company, kind: "end", amount: null, state: null });
     return { month, byDay };
@@ -186,7 +189,8 @@ export class ContractsService {
       const c = await this.load(me, id, tx); // read inside: a second «فسخ» at the same time sees the first
       const problem = terminationProblem(label(c.status), input.reason, penalty);
       if (problem) throw new BadRequestException(problem);
-      const data = { status: "TERMINATED" as const, endedOn: new Date(localDate(new Date())), endReason: input.reason, penalty: toDecimal(penalty) };
+      const data = { status: "TERMINATED" as const, endedOn: new Date(localDate(new Date())), endReason: input.reason, penalty: toDecimal(penalty),
+        pendingValue: null, pendingReason: null, pendingById: null, pendingAt: null }; // a value request dies with the contract
       await this.repo.update(tx, id, data);
       await this.units.release(c.deal.unit.id, c.deal.id, { userId: me.id }, tx);
       await this.audit.record({ module: "contracts", entity: "Contract", entityId: id, action: "terminate", userId: me.id,
@@ -200,6 +204,7 @@ export class ContractsService {
     if (me.fields.fixed("contracts").has("value")) throw new ForbiddenException(LOCKED);
     const c = await this.load(me, id);
     if (c.status !== "ACTIVE") throw new BadRequestException("العقد ده مش شغال");
+    if (c.pendingValue) throw new ConflictException("فيه طلب تغيير قيمة مستني"); // a second request would silently replace the first
     const value = toDecimal(fromDecimal(input.value));
     if (value === c.value.toFixed(2)) throw new BadRequestException("دي نفس قيمة العقد");
     await this.db.$transaction(async (tx) => {
@@ -221,6 +226,7 @@ export class ContractsService {
     await this.db.$transaction(async (tx) => {
       const c = await this.load(me, id, tx); // read inside: a payment recorded right now must count in the respread
       if (!c.pendingValue) throw new BadRequestException("مفيش طلب تغيير قيمة على العقد ده");
+      if (c.status !== "ACTIVE") throw new BadRequestException("العقد ده مش شغال"); // an ended or terminated contract keeps its value
       if (c.pendingById === me.id) throw new ForbiddenException("الموافقة لحد غير اللي طلب التغيير");
       const lines = c.installments.map((i) => ({ amount: fromDecimal(i.amount.toFixed(2)), paid: fromDecimal(i.paid.toFixed(2)) }));
       const spread = input.decision === "approve" ? respread(lines, fromDecimal(c.pendingValue.toFixed(2))) : null;
@@ -284,6 +290,14 @@ export class ContractsService {
       await this.files.attach(me, [input.fileId], FILE_ENTITY, c.id, tx);
       await this.audit.record({ module: "contracts", entity: "Contract", entityId: c.id, action: "create", userId: me.id,
         after: { ...data, startsOn: input.startsOn, endsOn: input.endsOn, installments: plan.map((x) => ({ dueOn: x.dueOn, amount: toDecimal(x.amount) })) } }, tx);
+      // M-11 3.3 «اتجدد: اتعمل عقد جديد»: the deal came from the renewal lead an old contract's alert opened (7.1), so
+      // that contract is renewed — out of «تجديدات قريبة», no more renewal alerts, and it doesn't «خلص» by itself
+      const old = deal.leadId ? await this.repo.renewedBy(tx, deal.leadId) : null;
+      if (old) {
+        await this.repo.update(tx, old.id, { status: "RENEWED" });
+        await this.audit.record({ module: "contracts", entity: "Contract", entityId: old.id, action: "renewed", userId: me.id,
+          before: { status: "ACTIVE" }, after: { status: "RENEWED", by: c.code } }, tx);
+      }
       return c;
     });
     return this.get(me, created.id);
@@ -304,13 +318,15 @@ function hideRow<T extends ContractRow>(r: T, h: ReadonlySet<string>): T {
   return { ...r, value: h.has("value") ? "" : r.value, escalation: h.has("escalation") ? 0 : r.escalation, paid: h.has("paid") ? "" : r.paid };
 }
 
-function hideDetail(d: ContractDetail, h: ReadonlySet<string>): ContractDetail {
+function hideDetail(d: ContractDetail, h: ReadonlySet<string>, today: string): ContractDetail {
   if (!h.size) return d;
   return {
     ...hideRow(d, h),
     nextYearValue: h.has("nextYearValue") ? "" : d.nextYearValue, pending: h.has("pending") ? null : d.pending,
     file: h.has("file") ? null : d.file, penalty: h.has("penalty") ? null : d.penalty,
-    installments: h.has("installments") ? [] : h.has("paid") ? d.installments.map((i) => ({ ...i, paid: "", payments: [] })) : d.installments,
+    installments: h.has("installments") ? [] : h.has("paid")
+      // «اتدفع» / «جزء» would tell what was collected: by its date alone
+      ? d.installments.map((i) => ({ ...i, paid: "", payments: [], state: installmentState({ dueOn: i.dueOn, amount: fromDecimal(i.amount), paid: 0 }, today) })) : d.installments,
   };
 }
 

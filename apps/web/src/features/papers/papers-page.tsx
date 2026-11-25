@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { PaperOptions, PaperRow, StoredFile, TemplateCard, TemplateView } from "@places/contracts";
 import { managesTemplates } from "@places/domain";
 import { api } from "@/lib/api";
@@ -35,30 +36,44 @@ export function PapersPage() {
   const { me } = useMe();
   const manages = managesTemplates(me?.roles ?? []);
   const [tab, setTab] = useState<Tab>("request");
+  const [adding, setAdding] = useState(false);
+  const linked = useSearchParams().get("tab");
+  const router = useRouter();
   const approvals = useQuery({ queryKey: [...KEY, "approvals"], queryFn: () => api.get<PaperRow[]>("/papers/approvals") });
   const waiting = approvals.data?.filter((d) => d.status === "pending").length ?? 0;
-  // the notification «مستند مستني موافقتك» opens «/papers?tab=approvals»
-  useEffect(() => { const q = new URLSearchParams(window.location.search).get("tab"); if (q === "approvals" || q === "mine" || q === "templates") setTab(q); }, []);
+  // the notification «مستند مستني موافقتك» opens «/papers?tab=approvals», also when the page is already open (it stays
+  // mounted); the param is dropped once read, so the same link works again
+  useEffect(() => {
+    if (linked !== "approvals" && linked !== "mine" && linked !== "templates") return;
+    setTab(linked);
+    router.replace("/papers", { scroll: false });
+  }, [linked, router]);
   const items: [Tab, string, number?][] = [["request", t("tabs.request")], ["mine", t("tabs.mine")],
     ...(approvals.data?.length ? [["approvals", t("tabs.approvals"), waiting || undefined] as [Tab, string, number?]] : []),
     ...(manages ? [["templates", t("tabs.templates")] as [Tab, string]] : [])];
   return (
     <>
       <div className="row"><Tabs<Tab> items={items} value={tab} onChange={setTab} /></div>
-      {tab === "request" && <Request onIssued={() => setTab("mine")} />}
+      {tab === "request" && <Request onIssued={() => setTab("mine")} onNewTemplate={manages ? () => { setTab("templates"); setAdding(true); } : undefined} />}
       {tab === "mine" && <Mine />}
       {tab === "approvals" && <Approvals rows={approvals.data ?? []} />}
-      {tab === "templates" && manages && <Templates />}
+      {tab === "templates" && manages && <Templates adding={adding} setAdding={setAdding} />}
     </>
   );
 }
 
-function Request({ onIssued }: { onIssued: () => void }) {
+function Request({ onIssued, onNewTemplate }: { onIssued: () => void; onNewTemplate?: (() => void) | undefined }) {
   const t = useTranslations("papers");
   const q = useQuery({ queryKey: [...KEY, "cards"], queryFn: () => api.get<TemplateCard[]>("/papers/templates") });
   const [open, setOpen] = useState<TemplateCard | null>(null);
   if (!q.data) return <Empty text={t("loading")} icon="clock" />;
-  if (!q.data.length) return <Card><Empty text={t("request.none")} icon="folder" /></Card>;
+  // a manager's first visit: what the page is for, and where templates come from
+  if (!q.data.length) return (
+    <Card>
+      <Empty text={onNewTemplate ? t("request.firstTime") : t("request.none")} icon="folder" />
+      {onNewTemplate && <div className="row" style={{ justifyContent: "center" }}><button className="btn" onClick={onNewTemplate}><Icon name="plus" />{t("templates.new")}</button></div>}
+    </Card>
+  );
   return (
     <>
       <div className="paper-cards">
@@ -131,9 +146,15 @@ function Mine() {
   );
 }
 
-/** «استخدمه تاني»: the old values back in the form, field by field (by label: the ids are the template's). */
+/**
+ * «استخدمه تاني»: the old values back in the form, field by field — by id (two blanks may share a label, «التاريخ»),
+ * by label only if the document came from another template.
+ */
 const valuesOf = (card: TemplateCard, d: PaperRow) =>
-  Object.fromEntries(card.fields.flatMap((f) => { const v = d.values.find((x) => x.label === f.label); return v ? [[String(f.id), v.value]] : []; }));
+  Object.fromEntries(card.fields.flatMap((f) => {
+    const v = d.template.id === card.id ? d.values.find((x) => x.id === f.id) : d.values.find((x) => x.label === f.label);
+    return v ? [[String(f.id), v.value]] : [];
+  }));
 
 function Status({ d }: { d: PaperRow }) {
   const t = useTranslations("papers.status");
@@ -182,13 +203,12 @@ function Approvals({ rows }: { rows: PaperRow[] }) {
   );
 }
 
-function Templates() {
+function Templates({ adding, setAdding }: { adding: boolean; setAdding: (v: boolean) => void }) {
   const t = useTranslations("papers");
   const qc = useQueryClient();
   const run = useAction();
   const q = useQuery({ queryKey: [...KEY, "manage"], queryFn: () => api.get<TemplateView[]>("/papers/templates/manage") });
-  const [editing, setEditing] = useState<TemplateView | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<{ v: TemplateView; fresh: boolean } | null>(null);
   return (
     <Card title={t("tabs.templates")} icon="folder" sub={t("templates.sub")} extra={<button className="btn sm" onClick={() => setAdding(true)}><Icon name="plus" />{t("templates.new")}</button>}>
       {!q.data ? <Empty text={t("loading")} icon="clock" /> : (
@@ -197,13 +217,13 @@ function Templates() {
             <b key="n">{x.name}</b>, String(x.fields.filter((f) => !f.skip).length), t(`templates.mode.${x.mode}`), String(x.issued),
             <Chip key="s" tone={x.active ? "ok" : ""}>{x.active ? t("templates.on") : t("templates.off")}</Chip>,
             <span key="a" className="row">
-              <button className="btn ghost sm" onClick={() => setEditing(x)}><Icon name="filter" />{t("templates.setup")}</button>
+              <button className="btn ghost sm" onClick={() => setEditing({ v: x, fresh: false })}><Icon name="filter" />{t("templates.setup")}</button>
               <button className="btn ghost sm" onClick={() => void run(async () => { const { url } = await api.get<{ url: string }>(`/papers/templates/${x.id}/file`); window.location.href = url; })}><Icon name="download" />{t("templates.file")}</button>
             </span>,
           ])} />
       )}
-      {adding && <NewTemplate onClose={() => setAdding(false)} onCreated={(v) => { setAdding(false); setEditing(v); void qc.invalidateQueries({ queryKey: KEY }); }} />}
-      {editing && <Setup v={editing} onClose={() => setEditing(null)} />}
+      {adding && <NewTemplate onClose={() => setAdding(false)} onCreated={(v) => { setAdding(false); setEditing({ v, fresh: true }); void qc.invalidateQueries({ queryKey: KEY }); }} />}
+      {editing && <Setup v={editing.v} fresh={editing.fresh} onClose={() => setEditing(null)} />}
     </Card>
   );
 }
@@ -228,14 +248,14 @@ function NewTemplate({ onClose, onCreated }: { onClose: () => void; onCreated: (
 }
 
 /** Everything about one template: the names of its fields, who issues it, «بلّغ بس» or «لازم موافقة», the stamp. */
-function Setup({ v, onClose }: { v: TemplateView; onClose: () => void }) {
+function Setup({ v, fresh, onClose }: { v: TemplateView; fresh: boolean; onClose: () => void }) {
   const t = useTranslations("papers.templates");
   const qc = useQueryClient();
   const run = useAction();
   const toast = useToast();
   const opts = useQuery({ queryKey: [...KEY, "options"], queryFn: () => api.get<PaperOptions>("/papers/templates/options") });
   const [fields, setFields] = useState(v.fields);
-  const [s, setS] = useState({ seeRoles: v.seeRoles, seeUserIds: v.seeUserIds.join(","), mode: v.mode, approverIds: v.approverIds.join(","), notifyIds: v.notifyIds.join(","), stamp: v.stamp, active: v.active });
+  const [s, setS] = useState({ seeRoles: v.seeRoles, seeUserIds: v.seeUserIds.join(","), mode: v.mode, approverIds: v.approverIds.join(","), notifyIds: v.notifyIds.join(","), stamp: v.stamp, active: fresh || v.active });
   const ids = (x: string) => (x ? x.split(",") : []);
   const save = (name: string) => void run(async () => {
     await api.put(`/papers/templates/${v.id}`, { name, fields: fields.map((f) => ({ id: f.id, label: f.label, skip: f.skip })), seeRoles: s.seeRoles, seeUserIds: ids(s.seeUserIds), mode: s.mode,
@@ -243,11 +263,12 @@ function Setup({ v, onClose }: { v: TemplateView; onClose: () => void }) {
     await qc.invalidateQueries({ queryKey: KEY });
     onClose();
   }, t("saved"));
-  const archive = () => void run(async () => { await api.del(`/papers/templates/${v.id}`); await qc.invalidateQueries({ queryKey: KEY }); onClose(); toast(t("archived")); });
+  const archive = () => confirm(t("archiveConfirm", { name: v.name })) && void run(async () => { await api.del(`/papers/templates/${v.id}`); await qc.invalidateQueries({ queryKey: KEY }); onClose(); toast(t("archived")); });
   const people = opts.data?.people ?? [];
   return (
     <Modal title={t("setupOf", { name: v.name })} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit((d) => save(String(d.get("name") ?? "").trim()))}>
+        {!v.active && <div className="wide"><Note kind="warn">{t(fresh ? "draftNew" : "draft")}</Note></div>}
         <Field label={t("name")} req wide><input name="name" required minLength={2} maxLength={80} defaultValue={v.name} /></Field>
         <div className="wide paper-fields">
           <b>{t("fields")}</b>

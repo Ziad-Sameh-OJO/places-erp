@@ -38,7 +38,13 @@ const textNodes = (p: string): TextNode[] =>
   [...p.matchAll(/(<w:t(?:\s[^>]*)?>)([^<]*)<\/w:t>/g)].map((m) => ({ start: m.index, end: m.index + m[0].length, open: m[1]!, text: m[2]! }));
 
 const unescape = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-export const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/**
+ * Text for a `<w:t>`. Characters XML 1.0 forbids (a pasted Word line break \v, other C0 controls, U+FFFE/FFFF) would
+ * make the file one Word calls damaged: line breaks and tabs become a space (a field is one line), the rest go.
+ */
+export const escapeXml = (s: string) => s
+  .replace(/[\t\n\v\f\r]/g, " ").replace(/[\u0000-\u0008\u000E-\u001F￾￿]/g, "")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 interface Hit { from: number; to: number; named: string | null }
 

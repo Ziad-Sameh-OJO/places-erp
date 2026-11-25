@@ -1,7 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import JSZip from "jszip";
 import type { DecideDocument, IssueDocument, NewTemplate, PaperOptions, PaperRow, TemplateCard, TemplateField, TemplateSettings, TemplateView } from "@places/contracts";
 import { addImagePart, fillWordTemplate, imageMarks, imageRun, imageSize, managesTemplates, seesTemplate, templateFields, type TemplateMode } from "@places/domain";
+import { assertSmallZip } from "../../core/http/import";
 import { AuditService } from "../../core/audit/audit.service";
 import { FilesService } from "../../core/files/files.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -11,6 +12,9 @@ import { PapersRepository } from "./papers.repository";
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const NO_TEMPLATE = "القالب مش موجود";
 const NO_DOC = "المستند مش موجود";
+const DECIDED = "المستند ده اتقرر فيه قبل كده";
+/** S8 · a .docx is a ZIP: unpacked with the import's cap (50 MB, 1,000 entries) so a crafted file can't fill the memory. */
+const SMALL_DOCX = { notZip: "ده مش ملف Word سليم (.docx)", tooBig: "ملف الوورد كبير أوي لما يتفك · احفظه من جديد من غير صور كبيرة" };
 type Stored = { id: number; label: string; context: string; named: boolean; skip: boolean };
 type Template = NonNullable<Awaited<ReturnType<PapersRepository["template"]>>>;
 
@@ -22,6 +26,9 @@ type Template = NonNullable<Awaited<ReturnType<PapersRepository["template"]>>>;
  */
 @Injectable()
 export class PapersService {
+  /** A template file never changes once READY (#597), so where its stamp and signature go is read once per file. */
+  private readonly marks = new Map<string, { stamp: boolean; signature: boolean }>();
+
   constructor(private readonly repo: PapersRepository, private readonly files: FilesService, private readonly audit: AuditService, private readonly notifications: NotificationsService) {}
 
   private manager(me: CurrentUser) {
@@ -60,7 +67,8 @@ export class PapersService {
     const xml = await this.documentXml(f.id);
     const fields: Stored[] = templateFields(xml).map((x) => ({ ...x, skip: false }));
     const t = await this.repo.db.$transaction(async (tx) => {
-      const row = await tx.wordTemplate.create({ data: { name: input.name, fileId: f.id, fields, createdById: me.id } });
+      // off until the manager saves its setup: an empty «who» means everyone, «بلّغ بس», and labels like «خانة 3»
+      const row = await tx.wordTemplate.create({ data: { name: input.name, fileId: f.id, fields, active: false, createdById: me.id } });
       await this.files.attach(me, [f.id], "WordTemplate", row.id, tx);
       await this.audit.record({ module: "master", entity: "WordTemplate", entityId: row.id, action: "create", userId: me.id, after: { name: row.name, fields: fields.length } }, tx);
       return row;
@@ -124,7 +132,7 @@ export class PapersService {
     }
     await this.repo.db.wordDocument.update({ where: { id: doc.id }, data: { fileId } });
     const link = "/papers";
-    if (approve) await this.notifications.notify({ event: "paper.request", text: `${me.name} طالب «${t.name}» (${doc.code}) · مستني موافقتك`, link: `${link}?tab=approvals`, userIds: t.approverIds });
+    if (approve) await this.notifications.notify({ event: "paper.request", text: `${me.name} طالب «${t.name}» (${doc.code}) · مستني موافقتك`, link: `${link}?tab=approvals`, userIds: t.approverIds.filter((u) => u !== me.id) });
     else if (t.notifyIds.length) await this.notifications.notify({ event: "paper.issued", text: `${me.name} طلّع «${t.name}» (${doc.code})`, link, userIds: t.notifyIds });
     return (await this.rows([doc.id], me))[0]!;
   }
@@ -135,17 +143,21 @@ export class PapersService {
 
   /** What waits for me, then what I decided lately. */
   async approvals(me: CurrentUser) {
-    const docs = await this.repo.documents({ template: { approverIds: { has: me.id } }, OR: [{ status: "pending" }, { decidedById: me.id }] });
+    // never what I asked for myself: that waits for another approver
+    const docs = await this.repo.documents({ template: { approverIds: { has: me.id } }, OR: [{ status: "pending", userId: { not: me.id } }, { decidedById: me.id }] });
     return this.toRows(docs.sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending")), me);
   }
 
   async decide(me: CurrentUser, id: string, input: DecideDocument): Promise<PaperRow> {
     const d = await this.repo.document(id);
     if (!d || !d.template.approverIds.includes(me.id)) throw new NotFoundException(NO_DOC);
-    if (d.status !== "pending") throw new BadRequestException("المستند ده اتقرر فيه قبل كده");
+    if (d.userId === me.id) throw new ForbiddenException("الموافقة لحد غير اللي طلب المستند"); // else «لازم موافقة» means nothing for an approver
+    if (d.status !== "pending") throw new BadRequestException(DECIDED);
     const status = input.approve ? "approved" : "rejected";
     await this.repo.db.$transaction(async (tx) => {
-      await tx.wordDocument.update({ where: { id }, data: { status, decidedById: me.id, decidedAt: new Date(), decisionNote: input.note ?? null } });
+      // only while still pending: two approvers pressing at once, the second gets 409 instead of overwriting the first
+      const claimed = await tx.wordDocument.updateMany({ where: { id, status: "pending" }, data: { status, decidedById: me.id, decidedAt: new Date(), decisionNote: input.note ?? null } });
+      if (!claimed.count) throw new ConflictException(DECIDED);
       await this.audit.record({ module: "master", entity: "WordDocument", entityId: id, action: input.approve ? "approve" : "reject", userId: me.id,
         before: { status: "pending" }, after: { status, note: input.note ?? null } }, tx);
     });
@@ -162,7 +174,8 @@ export class PapersService {
   async download(me: CurrentUser, id: string) {
     const d = await this.repo.document(id);
     if (!d?.fileId) throw new NotFoundException(NO_DOC);
-    const reviewer = d.template.approverIds.includes(me.id) || managesTemplates(me.roles);
+    // an approver reads what others asked for; their own waits for the approval like anyone's
+    const reviewer = (d.template.approverIds.includes(me.id) && d.userId !== me.id) || managesTemplates(me.roles);
     if (!reviewer && !(d.userId === me.id && (d.status === "ready" || d.status === "approved"))) throw new NotFoundException(NO_DOC);
     return this.files.downloadUrl(d.fileId, false);
   }
@@ -178,6 +191,7 @@ export class PapersService {
   private async documentXml(fileId: string): Promise<string> {
     const f = await this.files.bytes(fileId);
     if (!f) throw new BadRequestException("الملف مش متاح دلوقتي، جرّب تاني");
+    assertSmallZip(f.body, SMALL_DOCX);
     const xml = await JSZip.loadAsync(f.body).then((z) => z.file("word/document.xml")?.async("string")).catch(() => undefined);
     if (!xml) throw new BadRequestException("ده مش ملف Word سليم (.docx)");
     return xml;
@@ -187,6 +201,7 @@ export class PapersService {
   private async build(t: Template, values: Record<number, string>): Promise<Buffer> {
     const f = await this.files.bytes(t.fileId);
     if (!f) throw new BadRequestException("ملف القالب مش متاح دلوقتي، جرّب تاني");
+    assertSmallZip(f.body, SMALL_DOCX);
     const zip = await JSZip.loadAsync(f.body);
     const xml = await zip.file("word/document.xml")!.async("string");
     const images: { stamp?: string; signature?: string } = {};
@@ -214,7 +229,12 @@ export class PapersService {
   }
 
   private async view(t: Template, fileName: string, issued: number, xml?: string): Promise<TemplateView> {
-    const marks = imageMarks(xml ?? await this.documentXml(t.fileId).catch(() => ""));
+    let marks = this.marks.get(t.fileId);
+    if (!marks) {
+      const read = xml ?? await this.documentXml(t.fileId).catch(() => null);
+      marks = imageMarks(read ?? "");
+      if (read !== null) this.marks.set(t.fileId, marks); // storage down for a moment: try again next time
+    }
     return {
       id: t.id, name: t.name, mode: t.mode as TemplateMode, fields: t.fields as unknown as TemplateField[], file: { id: t.fileId, name: fileName },
       seeRoles: t.seeRoles, seeUserIds: t.seeUserIds, approverIds: t.approverIds, notifyIds: t.notifyIds, stamp: t.stamp, active: t.active,
@@ -232,7 +252,7 @@ export class PapersService {
       const fields = d.template.fields as Stored[], vals = d.values as Record<string, string>;
       return {
         id: d.id, code: d.code, template: { id: d.template.id, name: d.template.name }, by: { id: d.userId, name: names.get(d.userId) ?? "" },
-        values: fields.filter((f) => vals[String(f.id)]).map((f) => ({ label: f.label, value: vals[String(f.id)]! })),
+        values: fields.filter((f) => vals[String(f.id)]).map((f) => ({ id: f.id, label: f.label, value: vals[String(f.id)]! })),
         status: d.status as PaperRow["status"],
         canDownload: !!d.fileId && (d.userId !== me.id || d.status === "ready" || d.status === "approved"),
         decidedBy: d.decidedById ? names.get(d.decidedById) ?? null : null, decidedAt: d.decidedAt?.toISOString() ?? null, note: d.decisionNote,

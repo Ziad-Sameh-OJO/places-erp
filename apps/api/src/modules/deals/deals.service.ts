@@ -103,7 +103,7 @@ export class DealsService {
   /** M-11 2.1: the deal a contract is uploaded on — in the caller's scope and on the sheet (approved, collected or not). */
   async forContract(me: CurrentUser, id: string) {
     const d = await this.repo.detail(this.scope(me), id);
-    return d && takesNote(label(d.status)) ? { id: d.id, code: d.code, company: d.company, unitId: d.unit.id, unitCode: d.unit.code } : null;
+    return d && takesNote(label(d.status)) ? { id: d.id, code: d.code, company: d.company, unitId: d.unit.id, unitCode: d.unit.code, leadId: d.leadId } : null;
   }
 
   /** «عقد جديد» (M-11): the caller's approved deals with no contract yet. */

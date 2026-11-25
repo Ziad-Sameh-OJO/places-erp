@@ -8,6 +8,7 @@ import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
 import { eventByKey, fromDecimal, nextYearValue, renewalAlert, toDecimal } from "@places/domain";
 import { workingDay } from "../calendar.ts";
+import { tellEvent } from "../notify.ts";
 
 const EVENT = "contract.renewal";
 const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -40,7 +41,7 @@ export async function contractRenewalTick(now = new Date()): Promise<void> {
       const text = `العقد ${c.code} (${c.deal.company} · ${c.deal.unit.code}) بينتهي بعد ${due.days} يوم · ${day(c.endsOn)}${lead ? ` · اتعمل ليد تجديد ${lead.code}` : ""}`;
       const to = [...new Set([...sales.map((s) => s.userId), ...finance.map((u) => u.id)])];
       const link = lead ? `/leads?open=${lead.id}` : `/contracts?open=${c.id}`;
-      await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: EVENT, text, link, important: eventByKey(EVENT)!.important })) });
+      await tellEvent(tx, EVENT, { userIds: to, text, link });
       return { userIds: to, text, link };
     });
     if (told) await pushEvent(EVENT, told);

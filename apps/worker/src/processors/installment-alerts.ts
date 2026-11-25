@@ -1,5 +1,5 @@
 /**
- * M-11 2.1 step 3 · 2.4 · 7.1 (+ M-02 2.4): an active contract's unpaid installment → 3 days before its day the
+ * M-11 2.1 step 3 · 2.4 · 7.1 (+ M-02 2.4): an unpaid installment → 3 days before its day (active contracts) the
  * salesperson and Finance are reminded; the day after, it's late (the salesperson, Finance and the sales manager);
  * 7 days late it's escalated to management. Once a day, on a working day (the configured days off and official holidays
  * skipped, like the other daily jobs); what came due meanwhile goes out the next working day. Idempotent: the alerts sent are
@@ -9,6 +9,7 @@ import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
 import { eventByKey, formatEGP, fromDecimal, installmentAlerts, type InstallmentAlert } from "@places/domain";
 import { workingDay } from "../calendar.ts";
+import { tellEvent } from "../notify.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const EVENT: Record<InstallmentAlert, string> = { reminder: "contract.installment_due", late: "contract.installment_late", escalated: "contract.installment_escalated" };
@@ -18,10 +19,10 @@ export async function installmentAlertsTick(now = new Date()): Promise<number> {
   if (!today) return 0;
   const horizon = new Date(Date.parse(`${today}T00:00:00Z`) + 3 * 86_400_000);
   const rows = await prisma.installment.findMany({
-    where: { dueOn: { lte: horizon }, contract: { status: "ACTIVE" }, NOT: { alerts: { hasEvery: ["late", "escalated"] } } },
+    where: { dueOn: { lte: horizon }, NOT: { alerts: { hasEvery: ["late", "escalated"] } } },
     select: {
       id: true, dueOn: true, amount: true, paid: true, alerts: true,
-      contract: { select: { id: true, code: true, deal: { select: { company: true, participants: { where: { side: "BUYER" }, select: { employee: { select: { userId: true } } } } } } } },
+      contract: { select: { id: true, code: true, status: true, deal: { select: { company: true, participants: { where: { side: "BUYER" }, select: { employee: { select: { userId: true } } } } } } } },
     },
   });
   const unpaid = rows.filter((i) => i.paid.lessThan(i.amount));
@@ -35,7 +36,7 @@ export async function installmentAlertsTick(now = new Date()): Promise<number> {
 
   let sent = 0;
   for (const i of unpaid) {
-    const due = installmentAlerts(day(i.dueOn), today, i.alerts);
+    const due = installmentAlerts(day(i.dueOn), today, i.alerts, i.contract.status === "ACTIVE");
     if (!due.length) continue;
     const told = await prisma.$transaction(async (tx) => {
       // claimed only if nobody else marked it meanwhile
@@ -50,7 +51,7 @@ export async function installmentAlertsTick(now = new Date()): Promise<number> {
           : alert === "late" ? `${what} · اتأخر ومتحصّلش` : `تصعيد: ${what} · متأخر 7 أيام أو أكتر`;
         const to = [...new Set([...(alert === "escalated" ? [] : sales), ...byRole.get(alert)!])];
         const link = `/contracts?open=${c.id}`;
-        await tx.notification.createMany({ data: to.map((userId) => ({ userId, event: EVENT[alert], text, link, important: eventByKey(EVENT[alert])!.important })) });
+        await tellEvent(tx, EVENT[alert], { userIds: to, text, link });
         notes.push({ event: EVENT[alert], userIds: to, text, link });
         sent += to.length;
       }

@@ -17,9 +17,9 @@ export const PROFILE_PDF_MAX = { maxBytes: 80 * MB, max: "80 ميجا" } as cons
 export type FileKind = keyof typeof FILE_KINDS;
 export const fileKind = (mime: string): FileKind | undefined =>
   (Object.keys(FILE_KINDS) as FileKind[]).find((k) => (FILE_KINDS[k].mimes as readonly string[]).includes(mime));
-/** Browsers give a DWG / DXF no type (or octet-stream): it's named by its extension. */
+/** Browsers give a DWG / DXF no type (or octet-stream), and some phones a .docx too: it's named by its extension. */
 export const uploadMime = (name: string, type: string): string =>
-  /\.dwg$/i.test(name) ? "image/vnd.dwg" : /\.dxf$/i.test(name) ? "image/vnd.dxf" : type;
+  /\.dwg$/i.test(name) ? "image/vnd.dwg" : /\.dxf$/i.test(name) ? "image/vnd.dxf" : /\.docx$/i.test(name) ? FILE_KINDS.word.mimes[0] : type;
 
 /** Checked before any upload link is handed out; the size and type are checked again once the file is in storage. */
 export const UploadRequest = z.object({

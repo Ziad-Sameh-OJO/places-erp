@@ -152,11 +152,12 @@ async function loadBook(file: UploadedSheet) {
 
 /**
  * S8 · an .xlsx is a ZIP: walk its central directory and unpack every entry with a hard output cap before ExcelJS
- * touches it, so the sizes the file declares can't lie. Throws the Arabic error when it's too big or not a ZIP.
+ * touches it, so the sizes the file declares can't lie. Throws the Arabic error when it's too big or not a ZIP (a .docx
+ * template passes its own words).
  */
-export function assertSmallZip(buf: Buffer) {
-  const notExcel = () => new BadRequestException("الملف مش Excel (.xlsx) ولا CSV");
-  const tooBig = () => new BadRequestException("الملف كبير أوي لما يتفك · قسّم الشيت أو احفظه من جديد كـ .xlsx");
+export function assertSmallZip(buf: Buffer, words = { notZip: "الملف مش Excel (.xlsx) ولا CSV", tooBig: "الملف كبير أوي لما يتفك · قسّم الشيت أو احفظه من جديد كـ .xlsx" }) {
+  const notExcel = () => new BadRequestException(words.notZip);
+  const tooBig = () => new BadRequestException(words.tooBig);
   const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   if (eocd < 0 || eocd + 22 > buf.length) throw notExcel();
   const count = buf.readUInt16LE(eocd + 10);

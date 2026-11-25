@@ -50,6 +50,12 @@ test("fillWordTemplate: values go where the blanks were, the runs around keep th
   assert.equal(t[6], "ختم الشركة : ");
 });
 
+test("fillWordTemplate: a pasted Word line break or another control character can't break the XML; breaks and tabs become spaces", () => {
+  const out = fillWordTemplate(doc(p(run("اسم العميل: {{ اسم العميل }}"))), { 1: "شارع\u000B9\u0001\tالدور\n2￿" });
+  assert.equal(text(out)[0], "اسم العميل: شارع 9 الدور 2");
+  assert.doesNotMatch(out, /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/);
+});
+
 test("fillWordTemplate: the stamp's picture run goes where «{{الختم}}» was, the text after it carries on", () => {
   const xml = doc(p(run("ختم الشركة : {{الختم}} شكراً")));
   const out = fillWordTemplate(xml, {}, { stamp: "<w:r><w:drawing>STAMP</w:drawing></w:r>" });

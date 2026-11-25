@@ -10,6 +10,7 @@
   },
   "request": {
     "none": "No documents are available to you yet.",
+    "firstTime": "Here staff issue ready Word documents (claims, authorisations, contracts…) by filling their blanks. There are no templates yet: upload a Word file, name its blanks and choose who issues it.",
     "fields": "{count, plural, =0 {no fields} one {# field} other {# fields}}",
     "needsApproval": "needs approval"
   },
@@ -98,6 +99,9 @@
     "archive": "Delete the template",
     "save": "Save",
     "saved": "Saved",
-    "archived": "The template is gone; documents issued from it stay"
+    "archiveConfirm": "Delete the template «{name}»? It disappears for everyone and can't be brought back; documents already issued stay.",
+    "draft": "The template is off: staff don't see it. Tick «The template is on» and save to show it.",
+    "draftNew": "Nobody sees the template yet. Check its blanks and who issues it, then save to turn it on.",
+    "archived":"The template is gone; documents issued from it stay"
   }
 }

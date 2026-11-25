@@ -61,6 +61,11 @@ export class ContractsRepository {
     return tx.contract.update({ where: { id }, data, select: { id: true } });
   }
 
+  /** M-11 3.3 «اتجدد»: the running contract whose renewal alert opened this lead. */
+  renewedBy(tx: Prisma.TransactionClient, leadId: string) {
+    return tx.contract.findFirst({ where: { renewalLeadId: leadId, status: "ACTIVE" }, select: { id: true, code: true } });
+  }
+
   setInstallmentAmount(tx: Prisma.TransactionClient, id: string, amount: string) {
     return tx.installment.update({ where: { id }, data: { amount } });
   }

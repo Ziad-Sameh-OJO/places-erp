@@ -82,12 +82,16 @@ test("the Office Manager uploads it as it is: the blanks are found and named by 
   templateId = v.id;
   assert.deepEqual(v.fields.map((x) => [x.id, x.label, x.named]), [[1, "السادة", false], [2, "تحية طيبة و بعد", false], [3, "المبلغ", false], [4, "اسم العميل", true]]);
   assert.deepEqual(v.marks, { stamp: false, signature: false });
+  // off until its setup is saved: nobody can issue «خانة 3» with no approval meanwhile
+  assert.equal(v.active, false);
+  assert.equal(((await call("/papers/templates", { cookie: sales })).body as TemplateCard[]).some((c) => c.id === templateId), false);
+  assert.equal((await call("/papers", { method: "POST", cookie: sales, body: { templateId, values: { 1: "x" } } })).status, 404);
 });
 
 test("setup: names, «مش خانة», sales only, needs the Office Manager's approval; refused without an approver", { skip }, async () => {
   const body = {
     name: NAME, fields: [{ id: 1, label: "اسم الشركة", skip: false }, { id: 2, label: "x", skip: true }, { id: 3, label: "قيمة العمولة", skip: false }, { id: 4, label: "اسم العميل", skip: false }],
-    seeRoles: ["sales"], seeUserIds: [], mode: "approve", approverIds: [officeUser], notifyIds: [], stamp: false, active: true,
+    seeRoles: ["sales"], seeUserIds: [], mode: "approve", approverIds: [officeUser, salesUser], notifyIds: [], stamp: false, active: true,
   };
   assert.equal((await call(`/papers/templates/${templateId}`, { method: "PUT", cookie: office, body: { ...body, approverIds: [] } })).status, 400);
   assert.equal((await call(`/papers/templates/${templateId}`, { method: "PUT", cookie: office, body: { ...body, fields: [{ id: 99, label: "x", skip: false }] } })).status, 400);
@@ -114,7 +118,9 @@ test("«لازم موافقة»: waits for the Office Manager; he can't download
   // the approver reads it before deciding: every blank filled, the skipped ellipsis untouched
   const text = await filled(d.id, office) as string[];
   assert.deepEqual(text.slice(1), ["السادة / شركة المثال", "تحية طيبة و بعد ...", "المبلغ ( 50,000 ) جنيه", "العميل: عميل &amp; شركاه"]);
-  assert.equal((await call(`/papers/${d.id}/decide`, { method: "POST", cookie: sales, body: { approve: true } })).status, 404); // not his to approve
+  // he is an approver of the template too, but never of what he asked for himself — and he isn't asked
+  assert.equal((await call(`/papers/${d.id}/decide`, { method: "POST", cookie: sales, body: { approve: true } })).status, 403);
+  assert.equal(await prisma.notification.count({ where: { userId: salesUser, event: "paper.request", text: { contains: d.code } } }), 0);
   assert.equal((await call(`/papers/${d.id}/decide`, { method: "POST", cookie: office, body: { approve: false } })).status, 400); // no reason
   const ok = await call(`/papers/${d.id}/decide`, { method: "POST", cookie: office, body: { approve: true } });
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
@@ -124,6 +130,23 @@ test("«لازم موافقة»: waits for the Office Manager; he can't download
   assert.equal(mine.find((x) => x.id === d.id)?.status, "approved");
   assert.ok(await prisma.notification.findFirst({ where: { userId: salesUser, event: "paper.decided", text: { contains: d.code } } }));
   assert.ok(await prisma.auditLog.findFirst({ where: { entityId: d.id, action: "approve", userId: officeUser } }));
+});
+
+test("two decisions at once: only one lands, the other is told it was decided; a pasted Word line break still makes a valid file", { skip }, async () => {
+  const r = await call("/papers", { method: "POST", cookie: sales, body: { templateId, values: { 1: "شركة\u000Bالمثال\u0001", 3: "1\t000" } } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const d = r.body as PaperRow;
+  docIds.push(d.id);
+  const text = await filled(d.id, office) as string[]; // JSZip read it; the XML is well-formed (no raw \v)
+  assert.equal(text[1], "السادة / شركة المثال");
+  assert.equal(text[3], "المبلغ ( 1 000 ) جنيه");
+  const decide = (approve: boolean) => call(`/papers/${d.id}/decide`, { method: "POST", cookie: office, body: approve ? { approve } : { approve, note: "مش مظبوط" } });
+  const [a, b] = await Promise.all([decide(true), decide(false)]);
+  assert.deepEqual([a.status, b.status].filter((s) => s === 200), [200], `${a.status} ${b.status}`);
+  assert.ok([a.status, b.status].every((s) => [200, 400, 409].includes(s)));
+  assert.equal(await prisma.auditLog.count({ where: { entityId: d.id, action: { in: ["approve", "reject"] } } }), 1);
+  const won = (a.status === 200 ? a : b).body as PaperRow;
+  assert.equal((await prisma.wordDocument.findUniqueOrThrow({ where: { id: d.id } })).status, won.status);
 });
 
 test("«بلّغ بس»: ready at once and the people listed are told; a deleted template is gone from the list", { skip }, async () => {

@@ -56,7 +56,8 @@ export const PAPER_STATUSES = ["pending", "approved", "rejected", "ready"] as co
 export interface PaperRow {
   id: string; code: string; template: { id: string; name: string };
   by: { id: string; name: string };
-  values: Array<{ label: string; value: string }>;
+  /** by field id («استخدمه تاني» fills the same field again; two fields may share a label) */
+  values: Array<{ id: number; label: string; value: string }>;
   status: (typeof PAPER_STATUSES)[number];
   /** the file may be downloaded (ready or approved) */
   canDownload: boolean;

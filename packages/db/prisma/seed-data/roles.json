@@ -732,9 +732,7 @@
       ],
       "contracts": [
         "view",
-        "create",
         "edit",
-        "approve",
         "export"
       ],
       "tickets": [

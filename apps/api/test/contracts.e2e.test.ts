@@ -42,10 +42,10 @@ before(async () => {
 after(async () => {
   const renewals = (await prisma.contract.findMany({ where: { deal: { code: { startsWith: `D-K${stamp}` } } }, select: { renewalLeadId: true } })).map((c) => c.renewalLeadId).filter((x): x is string => !!x);
   await prisma.notification.deleteMany({ where: { text: { contains: C } } });
-  await prisma.auditLog.deleteMany({ where: { entity: "Lead", entityId: { in: renewals } } });
-  await prisma.lead.deleteMany({ where: { id: { in: renewals } } });
   await prisma.contract.deleteMany({ where: { deal: { code: { startsWith: `D-K${stamp}` } } } });
   await prisma.deal.deleteMany({ where: { code: { startsWith: `D-K${stamp}` } } });
+  await prisma.auditLog.deleteMany({ where: { entity: "Lead", entityId: { in: renewals } } });
+  await prisma.lead.deleteMany({ where: { id: { in: renewals } } });
   await prisma.file.deleteMany({ where: { name: { startsWith: C } } });
   await prisma.lead.deleteMany({ where: { code: `L-K${stamp}` } });
   await prisma.unit.deleteMany({ where: { code: { startsWith: `U-K${stamp}` } } });
@@ -196,7 +196,12 @@ test("6.4 · M-11 2.2: a new value waits for management, never the one who asked
 
   await call(`/contracts/${contractId}/value`, { method: "POST", cookie: admin, body: { value: "100000", reason: `${C} خصم` } });
   assert.equal((await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: admin, body: { decision: "approve" } })).status, 403); // asked it himself
-  const no = await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: ashraf, body: { decision: "reject" } });
+  // one request at a time: a second one doesn't silently replace the first
+  assert.equal((await call(`/contracts/${contractId}/value`, { method: "POST", cookie: mohsen, body: { value: "90000", reason: `${C} تاني` } })).status, 409);
+  // M-11 4.1 · 2.2: Finance records payments but may not change the value — neither ask, nor approve, nor refuse
+  assert.equal((await call(`/contracts/${contractId}/value`, { method: "POST", cookie: ashraf, body: { value: "90000", reason: `${C} مالية` } })).status, 403);
+  assert.equal((await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: ashraf, body: { decision: "approve" } })).status, 403);
+  const no = await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: await session("m.safwat@places.com"), body: { decision: "reject" } });
   assert.equal(no.body.value, "132000.00");
   assert.equal(no.body.pending, null);
 });
@@ -205,6 +210,9 @@ test("6.4 · M-11 2.3 · 6.2: early termination records the reason and penalty a
   const admin = await session("ahmed.islam@places.com");
   const unitId = await closeUnit(approved);
   assert.equal((await call(`/contracts/${contractId}/terminate`, { method: "POST", cookie: mohsen, body: { reason: "x" } })).status, 403);
+  assert.equal((await call(`/contracts/${contractId}/terminate`, { method: "POST", cookie: ashraf, body: { reason: "x" } })).status, 403); // Finance doesn't terminate
+  const ask = await call(`/contracts/${contractId}/value`, { method: "POST", cookie: mohsen, body: { value: "100000", reason: `${C} قبل الفسخ` } });
+  assert.equal(ask.status, 200, JSON.stringify(ask.body));
   const r = await call(`/contracts/${contractId}/terminate`, { method: "POST", cookie: admin, body: { reason: `${C} العميل نقل`, penalty: "20000" } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.status, "Terminated");
@@ -212,6 +220,10 @@ test("6.4 · M-11 2.3 · 6.2: early termination records the reason and penalty a
   assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).status, "available");
   assert.equal(await prisma.unitLock.count({ where: { unitId } }), 0);
   assert.equal((await call(`/contracts/${contractId}/terminate`, { method: "POST", cookie: admin, body: { reason: "تاني" } })).status, 400);
+  // the value request died with the contract: nothing left to approve, the value and the table stay
+  assert.equal(r.body.pending, null);
+  assert.equal((await call(`/contracts/${contractId}/value/decision`, { method: "POST", cookie: admin, body: { decision: "approve" } })).status, 400);
+  assert.equal((await call(`/contracts/${contractId}`, { cookie: admin })).body.value, "132000.00");
 });
 
 test("6.4: a contract past its last day ends by itself (job) and its unit is open again", async () => {
@@ -220,10 +232,40 @@ test("6.4: a contract past its last day ends by itself (job) and its unit is ope
   const r = await create(mohsen, body({ dealId: approved3, fileId: pdf3, startsOn: plus(-365), endsOn: plus(-1), value: "12000", escalation: 0, schedule: { count: 12, everyMonths: 1 } }));
   assert.equal(r.status, 201, JSON.stringify(r.body));
   const unitId = await closeUnit(approved3);
+  const ask = await call(`/contracts/${r.body.id}/value`, { method: "POST", cookie: mohsen, body: { value: "10000", reason: `${C} قبل النهاية` } });
+  assert.equal(ask.status, 200, JSON.stringify(ask.body));
+  const before = (await call("/contracts/summary", { cookie: mohsen })).body;
   await contractExpiryTick();
   const c = await prisma.contract.findUniqueOrThrow({ where: { id: r.body.id } });
   assert.equal(c.status, "ENDED");
   assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: unitId } })).status, "available");
   await contractExpiryTick(); // again: nothing changes
   assert.equal(await prisma.auditLog.count({ where: { entityId: r.body.id, action: "ended" } }), 1);
+
+  // M-11 3.2: its 12 unpaid installments are still arrears once it ended (other files' contracts may move by one or two)
+  const after = (await call("/contracts/summary", { cookie: mohsen })).body;
+  assert.ok(before.late.count - after.late.count < 12, `${before.late.count} → ${after.late.count}`);
+  assert.ok(after.late.count >= 12);
+  // an ended contract keeps its value: the request made while it ran can't be approved now
+  const admin = await session("ahmed.islam@places.com");
+  const late = await call(`/contracts/${r.body.id}/value/decision`, { method: "POST", cookie: admin, body: { decision: "approve" } });
+  assert.equal(late.status, 400);
+  assert.match(JSON.stringify(late.body), /العقد ده مش شغال/);
+  assert.equal((await prisma.contract.findUniqueOrThrow({ where: { id: r.body.id } })).value.toFixed(2), "12000.00");
+});
+
+test("M-11 3.3 «اتجدد»: a contract on the deal of its renewal lead marks the old one Renewed (out of the renewals)", async () => {
+  const old = await prisma.contract.findUniqueOrThrow({ where: { id: endingId } });
+  const unit = await prisma.unit.create({ data: { code: `U-K${stamp}9`, type: "Rent", project: `${C} 9`, area: "التجمع الخامس", space: 300, condition: "Finished", pdfStatus: "confirmed" } });
+  const deal = await prisma.deal.create({ data: {
+    code: `D-K${stamp}9`, leadId: old.renewalLeadId!, unitId: unit.id, type: "Rent", space: 300, location: `${C} 9`, company: `${C} شركة 9`, source: "Referral",
+    status: "APPROVED", commissionOwner: "10000", commissionClient: "0", closedAt: new Date(), createdById: "e2e", participants: { create: [{ employeeId: mohsenEmp, side: "BUYER" }] },
+  } });
+  const file = await prisma.file.create({ data: { key: `e2e/${stamp}-9.pdf`, name: `${C} 9.pdf`, mime: "application/pdf", size: 100, status: "READY", uploadedById: mohsenUser } });
+  const r = await create(mohsen, body({ dealId: deal.id, fileId: file.id }));
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal((await prisma.contract.findUniqueOrThrow({ where: { id: endingId } })).status, "RENEWED");
+  assert.equal((await call(`/contracts/${endingId}`, { cookie: mohsen })).body.status, "Renewed");
+  assert.ok(await prisma.auditLog.findFirst({ where: { entityId: endingId, action: "renewed" } }));
+  assert.equal((await call("/contracts/summary", { cookie: mohsen })).body.renewals.some((x: { id: string }) => x.id === endingId), false);
 });
