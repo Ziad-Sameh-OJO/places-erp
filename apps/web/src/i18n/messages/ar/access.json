@@ -153,6 +153,8 @@
     "teamLeader": "الـ Team Leader (للسيلز)",
     "manager": "المدير المباشر",
     "managerNone": "— (الـ Team Leader لو سيلز)",
+    "currentChoice": "(المختار حالياً)",
+    "loading": "بيحمّل…",
     "extraRoles": "أدوار إضافية (لو بيعمل أكتر من حاجة)",
     "endDate": "آخر يوم شغل (الحساب بيتوقف بعده)",
     "otp": "كود OTP على الإيميل مع كل دخول",
