@@ -100,7 +100,7 @@ export function UsersTab() {
 function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: () => void; onSaved: () => void }) {
   const t = useTranslations("access.userForm");
   const run = useAction();
-  const { me } = useMe();
+  const { me, can } = useMe();
   const roles = useQuery({ queryKey: ["roles"], queryFn: () => api.get<RoleRow[]>("/access/roles") });
   const tls = useQuery({ queryKey: ["users", "tl"], queryFn: () => api.get<Paged<UserRow>>("/access/users?role=tl&pageSize=50") });
   const everyone = useQuery({ queryKey: ["users", "all"], queryFn: () => api.get<Paged<UserRow>>("/access/users?pageSize=100") });
@@ -111,7 +111,9 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
   /** M-09: a hidden input is gone, a read-only one locked (left out of the save: the API keeps it). A new account always takes its required fields. */
   const only = (key: string, node: ReactNode, required = false) =>
     !user && required ? node : !fields.shows(key) ? null : fields.edits(key) ? node : <fieldset key={key} className="field-lock" disabled>{node}</fieldset>;
-  const choosable = (roles.data ?? []).filter((r) => r.key !== "admin" || isAdmin || primary === "admin" || extra.has("admin"));
+  const had = (k: string) => k === primary || extra.has(k);
+  // M-09 4.1: a role with more over permissions than mine isn't mine to give (the API refuses it too): HR doesn't see the Office Manager's
+  const choosable = (roles.data ?? []).filter((r) => had(r.key) || ((r.key !== "admin" || isAdmin) && (r.permissions.access ?? []).every((a) => can("access", a))));
 
   async function submit(f: FormData) {
     const role = String(f.get("role"));

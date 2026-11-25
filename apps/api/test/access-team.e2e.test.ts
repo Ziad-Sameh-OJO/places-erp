@@ -161,3 +161,24 @@ test("12.5 «مين عنده أنهي صلاحية»: one line per account with 
   assert.equal(row.getCell(6).value, "مخزون الوحدات");
   assert.equal((await fetch(`${API}/access/report/permissions`, { headers: { cookie: sales } })).status, 403);
 });
+
+test("M-09 4.1: HR can't give a role that manages permissions — no Office Manager account from HR", async () => {
+  const body = (role: string, extraRoles: string[] = []) => ({ name: "تجربة HR2", email: mail("hr-om"), department: "HR", role, extraRoles });
+  const r = await call("/access/users", { method: "POST", cookie: hr, body: body("officemgr") });
+  assert.equal(r.status, 403);
+  assert.match(r.body.error, /حدود صلاحياتك/);
+  assert.equal((await call("/access/users", { method: "POST", cookie: hr, body: body("sales", ["officemgr"]) })).status, 403);
+  assert.equal(await prisma.user.count({ where: { email: mail("hr-om") } }), 0);
+});
+
+test("the Audit Log shows a reader only the modules he may open, and an exception's change keeps its old value (Q50)", async () => {
+  const mine = (await call("/auth/me", { cookie: head })).body.permissions as Record<string, string[]>;
+  assert.equal(mine.deals, undefined); // the Operations Head has no «الصفقات»
+  assert.equal((await call("/access/audit?module=deals", { cookie: head })).body.total, 0);
+  assert.equal((await call("/access/audit?module=hr", { cookie: head })).body.total, 0);
+  for (const x of (await call("/access/audit?pageSize=100", { cookie: head })).body.items as { module: string }[]) assert.ok(mine[x.module] || x.module === "files", x.module);
+  const log = await call(`/access/audit?entityId=${member}&module=access`, { cookie: nancy });
+  const change = (log.body.items as { entity: string; before: unknown; after: unknown }[]).find((x) => x.entity === "PermissionOverride");
+  assert.deepEqual(change?.before, { inventory: null });
+  assert.deepEqual(change?.after, { inventory: ["view", "export"] });
+});

@@ -50,8 +50,9 @@ export class AccessRepository {
     return this.db.role.findMany({ where: { key: { in: keys } }, include: { permissions: true, fieldRules: true } });
   }
 
-  audit(f: AuditFilters) {
-    const where = auditWhere(f);
+  /** `unseen`: the modules whose records the reader may not see. */
+  audit(f: AuditFilters, unseen: string[]) {
+    const where = auditWhere(f, unseen);
     return this.db.$transaction([
       this.db.auditLog.findMany({ where, orderBy: { at: "desc" }, skip: (f.page - 1) * f.pageSize, take: f.pageSize }),
       this.db.auditLog.count({ where }),
@@ -59,8 +60,8 @@ export class AccessRepository {
   }
 
   /** Same filters, every row (the Excel export), capped by the caller. */
-  allAudit(f: AuditFilters, take: number) {
-    return this.db.auditLog.findMany({ where: auditWhere(f), orderBy: { at: "desc" }, take });
+  allAudit(f: AuditFilters, take: number, unseen: string[]) {
+    return this.db.auditLog.findMany({ where: auditWhere(f, unseen), orderBy: { at: "desc" }, take });
   }
 
   /** Who each account is, for the log's «مين» and «على» columns. */
@@ -87,8 +88,8 @@ export class AccessRepository {
   }
 }
 
-const auditWhere = (f: AuditFilters): Prisma.AuditLogWhereInput => ({
-  ...(f.module ? { module: f.module } : {}),
+const auditWhere = (f: AuditFilters, unseen: string[]): Prisma.AuditLogWhereInput => ({
+  module: { ...(f.module ? { equals: f.module } : {}), notIn: unseen },
   ...(f.entityId ? { entityId: f.entityId } : {}),
   ...(f.userId ? { userId: f.userId } : {}),
   // Cairo calendar days: from the start of `from` to the end of `to`
