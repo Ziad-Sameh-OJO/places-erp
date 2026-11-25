@@ -131,7 +131,8 @@ export interface KpiCardView {
   month: KpiMonthScore;
   approved: { by: string; at: string } | null;
   /** null for whoever doesn't see money (11.14) */
-  pay: { base: "salary" | "bonus"; period: "month" | "quarter"; amount: string | null; salary: string; delta: string } | null;
+  /** salary null: hidden by HR's «salary» field rule; delta null: it would give the hidden salary away (it's a share of it) */
+  pay: { base: "salary" | "bonus"; period: "month" | "quarter"; amount: string | null; salary: string | null; delta: string | null } | null;
   items: KpiItemView[];
   can: { manage: boolean; approve: boolean; plan: boolean; pay: boolean; admin: boolean; sheet: boolean };
   /** for the editor's pickers, to whoever manages the card */
