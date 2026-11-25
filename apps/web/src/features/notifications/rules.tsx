@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { Card, Field, Icon, Note, onFormSubmit, Table, Tick, useAction, useToast } from "@/components/ui";
 import { MailLog } from "./mail-log";
+import { MailServerCard } from "./mail-server";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
 
@@ -34,7 +35,8 @@ export function NotificationRules() {
   return (
     <>
       <div className="cols">
-        <Card title={t("from.title")} icon="send" sub={t("from.sub")}>
+        {/* whoever sets the rules sees the whole server (M-14 3.1); the others the From and the test */}
+        {ed ? <MailServerCard /> : <Card title={t("from.title")} icon="send" sub={t("from.sub")}>
           {s.data && <form className="form" onSubmit={onFormSubmit((f) => run(async () => { await api.put("/settings/notificationsFrom", { value: f.get("from") }); await qc.invalidateQueries({ queryKey: ["settings"] }); }, t("saved")))}>
             <Field label={t("from.label")}><input name="from" type="email" dir="ltr" defaultValue={s.data.notificationsFrom} disabled={!canSet("notificationsFrom")} /></Field>
             <div className="row end">
@@ -43,7 +45,7 @@ export function NotificationRules() {
               {canSet("notificationsFrom") && <button className="btn ghost sm">{t("save")}</button>}
             </div>
           </form>}
-        </Card>
+        </Card>}
         <Card title={t("prefs.title")} icon="bell" sub={t("prefs.sub")}>
           <Note>{t("prefs.note")}</Note>
         </Card>

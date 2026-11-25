@@ -9,8 +9,11 @@ const Env = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
-  // M-14 2.4: the worker sends the queued emails; without SMTP (development) it writes them to .local/outbox/
+  // M-14 2.4 · 3.1: the worker sends the queued emails through the server set on the notifications page, else this
+  // SMTP_URL; with neither (development) it writes them to .local/outbox/
   SMTP_URL: z.string().url().optional(),
+  // opens the page's saved app password (the API seals it with the same key); missing = that server can't be used
+  SESSION_SECRET: z.string().optional(),
   MAIL_FROM: z.string().default("Places ERP <notifications@places.com>"),
   S3_ENDPOINT: z.string().url(),
   S3_BUCKET: z.string().min(3),
