@@ -48,8 +48,8 @@ export function TicketDrawer({ id, onClose }: { id: string; onClose: () => void 
       </div>
       {t.can.take && <TakeButton t={t} />}
       {t.can.reply && <ReplyForm t={t} />}
-      {t.can.assign && <AssignForm t={t} />}
-      {t.can.transfer && <TransferForm t={t} />}
+      {t.can.assign && <AssignForm t={t} onClose={onClose} />}
+      {t.can.transfer && <TransferForm t={t} onClose={onClose} />}
       {t.can.close && <CloseButton t={t} />}
     </Drawer>
   );
@@ -81,8 +81,9 @@ function ReplyForm({ t }: { t: TicketDetail }) {
   );
 }
 
-/** M-06 2.3: sent to the wrong department → moved, not closed; the history stays. */
-function TransferForm({ t }: { t: TicketDetail }) {
+/** M-06 2.3: sent to the wrong department → moved, not closed; the history stays. Whoever moved it may not see it any
+ * more, so the drawer closes instead of reloading into «مش موجودة». */
+function TransferForm({ t, onClose }: { t: TicketDetail; onClose: () => void }) {
   const tr = useTranslations("tickets.drawer.transfer");
   const run = useAction();
   const refresh = useRefreshTickets();
@@ -91,7 +92,7 @@ function TransferForm({ t }: { t: TicketDetail }) {
   const dept = to || others[0] || "";
   if (!others.length) return null;
   return (
-    <form className="row" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.post(`/tickets/${t.id}/transfer`, { department: dept }); await refresh(); }, tr("done", { department: serverText(dept) })); }}>
+    <form className="row" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.post(`/tickets/${t.id}/transfer`, { department: dept }); onClose(); await refresh(); }, tr("done", { department: serverText(dept) })); }}>
       <span className="hint">{tr("wrongDept")}</span>
       <select value={dept} onChange={(e) => setTo(e.target.value)} aria-label={tr("label")}>{others.map((d) => <option key={d} value={d}>{serverText(d)}</option>)}</select>
       <button className="btn ghost sm"><Icon name="swap" />{tr("button")}</button>
@@ -112,14 +113,14 @@ function TakeButton({ t }: { t: TicketDetail }) {
 }
 
 /** 15 Nov: transfer to people (instead of whoever has it) or add people to it. */
-function AssignForm({ t }: { t: TicketDetail }) {
+function AssignForm({ t, onClose }: { t: TicketDetail; onClose: () => void }) {
   const tr = useTranslations("tickets.drawer.assign");
   const run = useAction();
   const refresh = useRefreshTickets();
   const [people, setPeople] = useState<string[]>([]);
   const [add, setAdd] = useState(false);
   return (
-    <form className="card flat" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.post(`/tickets/${t.id}/assign`, { userIds: people, add }); setPeople([]); await refresh(); }, tr("done")); }}>
+    <form className="card flat" onSubmit={(e) => { e.preventDefault(); void run(async () => { await api.post(`/tickets/${t.id}/assign`, { userIds: people, add }); setPeople([]); if (!add) onClose(); await refresh(); }, tr("done")); }}>
       <span className="hint">{tr("label")}</span>
       <PeoplePicker value={people} onChange={setPeople} exclude={add ? t.assignees.map((a) => a.id) : []} />
       <div className="row end">
