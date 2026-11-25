@@ -144,7 +144,8 @@ export class NotActiveService {
   }
 
   /** 2.40 · «غيّر خانة منع التكرار»: how many of the file's rows would show as repeats (nothing saved). */
-  async dedupePreview(sheetId: string, columns: string[]): Promise<{ marked: number }> {
+  async dedupePreview(me: CurrentUser, sheetId: string, columns: string[]): Promise<{ marked: number }> {
+    this.mayFile(me); // like saving it: the count reads every row of the file, not only the ones sent to Marwa
     const sheet = await this.fileWith(sheetId, columns);
     return { marked: duplicateCounts(await this.repo.rowData(sheet.id), columns).size };
   }

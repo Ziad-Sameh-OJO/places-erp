@@ -238,6 +238,12 @@ export type UnitPhotosInput = z.infer<typeof UnitPhotosInput>;
 export const UnitAgreementInput = z.object({ fileId: Id });
 export type UnitAgreementInput = z.infer<typeof UnitAgreementInput>;
 /** The unit's photos in the new order: the first one is the main photo. */
+/**
+ * Q15 · Q19 · Manar's «Confirm وانشره للسيلز»: `seen` = the unit's `updatedAt` as her screen showed it, so an edit or a
+ * photo that came in while she was looking isn't published unseen (the API refuses, she looks again).
+ */
+export const PdfConfirmInput = z.object({ seen: z.string().datetime({ offset: true, message: "حدّث الصفحة وجرّب تاني" }).optional() });
+export type PdfConfirmInput = z.infer<typeof PdfConfirmInput>;
 /** M-03 6.1 «list of options as pdf»: the picked units in one file for a client — the full deck or the slide, PDF or PowerPoint. */
 export const MAX_LIST_UNITS = 20;
 export const ListOfOptionsInput = z.object({
