@@ -2,7 +2,7 @@
 import { useNewParam } from "@/lib/new-param";
 import { useEffect, useState, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { INVENTORY_MANAGER, keepsInventory, seesInventoryTiles, seesWebsiteAds } from "@places/domain";
+import { INVENTORY_MANAGER, UNIT_TYPES, keepsInventory, seesInventoryTiles, seesWebsiteAds } from "@places/domain";
 import { UNIT_SORTS } from "@places/contracts";
 import { WebsiteAdCell } from "./website-ad";
 import { Fab, KpiTile } from "@/components/blocks";
@@ -168,7 +168,7 @@ export function InventoryList() {
         </select>}
         {tab === "closed" && <>
           <select value={closedBy.type ?? ""} onChange={onClosed("type")} aria-label={t("list.closedAs")}>
-            <option value="">{t("list.allClosedTypes")}</option>{(["Rent", "Resale", "Income"] as const).map((x) => <option key={x} value={x}>{x}</option>)}
+            <option value="">{t("list.allClosedTypes")}</option>{UNIT_TYPES.map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
           <label className="date-f"><span>{t("list.from")}</span><DateInput value={closedBy.closedFrom ?? ""} max={closedBy.closedTo} onChange={onClosed("closedFrom")} aria-label={t("list.closedFrom")} /></label>
           <label className="date-f"><span>{t("list.to")}</span><DateInput value={closedBy.closedTo ?? ""} min={closedBy.closedFrom} onChange={onClosed("closedTo")} aria-label={t("list.closedTo")} /></label>

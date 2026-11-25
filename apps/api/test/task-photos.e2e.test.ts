@@ -13,7 +13,7 @@ const up = await fetch(process.env.S3_ENDPOINT ?? "http://localhost:9000").then(
 const skip = !up && !process.env.CI ? "file storage isn't running (pnpm files:local or pnpm infra:up)" : false;
 
 const stamp = Date.now().toString(36);
-const today = new Date().toISOString().slice(0, 10);
+const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }); // the API's day (a past one is refused)
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 let manar: string, bayoumi: string, rahma: string, sales: string, bayoumiId: string, unitId: string;
 const tasks: string[] = [], files: string[] = [];

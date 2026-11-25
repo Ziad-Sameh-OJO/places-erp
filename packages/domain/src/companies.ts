@@ -7,6 +7,15 @@
 const SHEET_KEEPERS: ReadonlySet<string> = new Set(["telesales", "admin"]);
 export const keepsCompaniesSheet = (roles: readonly string[]): boolean => roles.some((r) => SHEET_KEEPERS.has(r));
 
+/**
+ * A category as the settings list spells it (M-13, the 63 of M-01), for one typed in an archive's tab or column:
+ * «banks », «BANKS» are «banks». null = not on the list — a company under it would sit outside every category tab.
+ */
+export const listedCategory = (typed: string, list: readonly string[]): string | null => {
+  const key = typed.trim().toLowerCase();
+  return list.find((c) => c.trim().toLowerCase() === key) ?? null;
+};
+
 /** «شركة جديدة Outbound» (KPI M-12): 15 a week, the last 7 days (demo «Outbound الأسبوع ده: N من 15»). */
 export const OUTBOUND_WEEKLY_TARGET = 15;
 export const OUTBOUND_WINDOW_DAYS = 7;

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import { keepsInventory } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -82,12 +82,17 @@ export class UnitDocumentsService {
     return { u, photos };
   }
 
-  /** Q15: Manar's confirm publishes the unit to the sales; marketing and sales hear of it (the demo's pdfConfirm). */
-  async confirm(me: CurrentUser, unitId: string): Promise<void> {
+  /**
+   * Q15: Manar's confirm publishes the unit to the sales; marketing and sales hear of it (the demo's pdfConfirm). Under
+   * the unit's row lock, so two confirms can't both publish; `seen` (Q19): an edit since her screen loaded is looked at first.
+   */
+  async confirm(me: CurrentUser, unitId: string, seen?: string): Promise<void> {
     const u = await this.db.$transaction(async (tx) => {
+      await this.repo.lockRow(unitId, tx);
       const unit = await this.repo.detail({ insider: keepsInventory(me.grants), staleBefore: new Date(0) }, unitId, tx);
       if (!unit) throw new NotFoundException("الوحدة مش موجودة");
       if (unit.pdfStatus === "confirmed") throw new BadRequestException("الـ PDF ده اتعمله Confirm قبل كده");
+      if (seen && Date.parse(seen) !== unit.updatedAt.getTime()) throw new ConflictException("الوحدة اتعدلت وإنت فاتحها · راجع الـ PDF تاني وبعدين اعمل Confirm");
       await tx.unit.update({ where: { id: unitId }, data: { pdfStatus: "confirmed" } });
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: unitId, action: "pdf-confirm", userId: me.id, before: { pdfStatus: "draft" }, after: { pdfStatus: "confirmed" } }, tx);
       return unit;

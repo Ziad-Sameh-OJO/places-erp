@@ -154,7 +154,7 @@
     "fileEnding": "Companies with contracts ending soon.xlsx",
     "file": "Companies sheet.xlsx",
     "empty": "No companies",
-    "shownFirst": "Showing the first {shown} of {total} · pick a category.",
+    "shownFirst": "Showing the first {shown} of {total} · pick a category or search by name.",
     "added": "{name} added under {category}",
     "pendingTitle": "New companies to add",
     "pendingLine": "Lead {code} · added by {by}",
@@ -173,7 +173,10 @@
     "editTitle": "Edit «{name}»",
     "saved": "{name} updated",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "search": "Search by company name or number",
+    "pickCategory": "Pick the category",
+    "date": "date (last contact)"
   },
   "drafts": {
     "confirm": "Confirm",

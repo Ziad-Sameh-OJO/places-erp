@@ -154,7 +154,7 @@
     "fileEnding": "شركات عقدها قرّب يخلص.xlsx",
     "file": "شيت الشركات.xlsx",
     "empty": "مفيش شركات",
-    "shownFirst": "ظاهر أول {shown} من {total} · اختار كاتيجوري.",
+    "shownFirst": "ظاهر أول {shown} من {total} · اختار كاتيجوري أو دوّر بالاسم.",
     "added": "{name} اتضافت تحت {category}",
     "pendingTitle": "شركات جديدة محتاجة تتضاف",
     "pendingLine": "ليد {code} · أضافها {by}",
@@ -173,7 +173,10 @@
     "editTitle": "عدّل «{name}»",
     "saved": "اتعدّلت {name}",
     "save": "احفظ",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "search": "دوّر باسم الشركة أو الرقم",
+    "pickCategory": "اختار الكاتيجوري",
+    "date": "date (آخر تواصل)"
   },
   "drafts": {
     "confirm": "تأكيد",
