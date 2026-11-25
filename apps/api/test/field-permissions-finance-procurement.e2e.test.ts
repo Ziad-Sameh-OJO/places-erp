@@ -16,8 +16,8 @@ import { cleanFinance, fresh, runPrefix } from "./finance-helpers.ts";
 const START = new Date();
 const P = runPrefix("fields-fin");
 const stamp = START.getTime();
-const KEYS = { clerk: `e2e-fields-clerk-${stamp}`, viewer: `e2e-fields-viewer-${stamp}` };
-let admin: string, ahmed: string, mokhtar: string, clerk: string, viewer: string;
+const KEYS = { clerk: `e2e-fields-clerk-${stamp}`, viewer: `e2e-fields-viewer-${stamp}`, judge: `e2e-fields-judge-${stamp}` };
+let admin: string, ahmed: string, mokhtar: string, clerk: string, viewer: string, judge: string;
 const roleIds: string[] = [], userIds: string[] = [], purchases: string[] = [];
 let safe: { id: string }, safe2: { id: string }, line: { id: string };
 
@@ -34,6 +34,7 @@ before(async () => {
   };
   clerk = await person(KEYS.clerk, [{ module: "finance", actions: ["view", "create", "edit", "approve", "export"] }, { module: "procurement", actions: ["view", "create", "edit", "export"] }]);
   viewer = await person(KEYS.viewer, [{ module: "finance", actions: ["view", "export"] }, { module: "procurement", actions: ["view", "export"] }]);
+  judge = await person(KEYS.judge, [{ module: "procurement", actions: ["view", "approve"] }]);
   safe = await fresh(ahmed, P, "111", "خزينة", "50000");
   safe2 = await fresh(ahmed, P, "111", "خزينة تانية");
   line = await fresh(ahmed, P, "52", "بوفيه");
@@ -165,4 +166,22 @@ test("procurement: a hidden vendor / amount never leaves the API, the vendor fil
   const text = await xlsxText("/procurement/purchases/export", viewer);
   assert.doesNotMatch(text, /المورد|المبلغ/);
   assert.match(text, /الحاجة/);
+});
+
+test("procurement: an approver whose «سبب الرفض» is read only rejects without one (no box to write it); others still must write it", async () => {
+  const r = await call("/procurement/purchases", { method: "POST", cookie: mokhtar, body: { item: `${P} للرفض`, amount: "300", accountId: line.id } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  purchases.push(r.body.id);
+  const reject = (cookie: string) => call(`/procurement/purchases/${r.body.id}/decision`, { method: "POST", cookie, body: { decision: "Rejected" } });
+  assert.equal((await reject(judge)).status, 400); // every field shown: the reason is still required
+  assert.equal((await fields(KEYS.judge, { module: "procurement", rules: { rejectReason: "read" } })).status, 204);
+  const no = await call(`/procurement/purchases/${r.body.id}/decision`, { method: "POST", cookie: judge, body: { decision: "Rejected", reason: "مش هيتسجل" } });
+  assert.equal(no.status, 200, JSON.stringify(no.body));
+  assert.equal(no.body.status, "Rejected");
+  assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: r.body.id } })).rejectReason, "");
+  const r2 = await call("/procurement/purchases", { method: "POST", cookie: mokhtar, body: { item: `${P} للرفض 2`, amount: "300", accountId: line.id } });
+  purchases.push(r2.body.id);
+  assert.equal((await call(`/procurement/purchases/${r2.body.id}/decision`, { method: "POST", cookie: judge, body: { decision: "Rejected" } })).status, 200);
+  const n = await prisma.notification.findFirst({ where: { text: { startsWith: `${P} للرفض 2: اترفض` } }, select: { text: true } });
+  assert.equal(n?.text, `${P} للرفض 2: اترفض`); // no «undefined» after it
 });
