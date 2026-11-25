@@ -111,10 +111,11 @@ export const isTaskLate = (t: { status: string; dueOn: string }, now: Date): boo
 
 /**
  * M-03 2.4 · (21) · 2.17: a unit whose «last update» is over a month old gets a follow-up with its owner, unless one is
- * still open. Who calls the owner (2.1 step 10 «منار / رندا: ابديت دوري مع المالك»; the demo's split): Randa (resale)
- * for a Resale unit, Manar (inventory) for the rest.
+ * still open. Who calls the owner (2.1 step 10 «منار / رندا: ابديت دوري مع المالك»): Randa (resale) for Resale and
+ * Primary — she is the «resale & primary specialist» (1.2) and her KPI is «مفيش وحدة Resale/Primary تعدّي شهر من غير
+ * ابديت» (3.1) — Manar (inventory) for the rest.
  */
-export const followupRole = (unitType: string): string => (unitType === "Resale" ? "resale" : "inventory");
+export const followupRole = (unitType: string): string => (unitType === "Resale" || unitType === "Primary" ? "resale" : "inventory");
 export const needsFollowup = (u: { stale: boolean; openFollowup: boolean }): boolean => u.stale && !u.openFollowup;
 
 /**
