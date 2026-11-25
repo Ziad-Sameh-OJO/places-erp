@@ -163,17 +163,18 @@ export function pushRecipients(channels: readonly Channel[], people: readonly { 
   return people.filter((p) => channelsFor(channels, p, important).includes("push")).map((p) => p.id);
 }
 
+/** The browsers' push services (Chrome · Firefox · Safari · Edge): a device's push address is always on one of these. */
+const PUSH_SERVICES = ["googleapis.com", "push.services.mozilla.com", "push.apple.com", "notify.windows.com"];
+
 /**
- * M-14 (51): the API posts to a device's push address, so it may only be an https address on a public name (S6: SSRF).
- * Refused: IP literals (the URL parser already turns 2130706433 or 0x7f.1 into 127.0.0.1), single-label names
- * (localhost, redis, db), a trailing dot («localhost.»), user:pass@ and the reserved/local suffixes.
- * shortcut: a public name that resolves to a private IP still passes; an allowlist of push services would close that.
+ * M-14 (51): the API posts to a device's push address, so it may only be an https address of a browser push service
+ * (S6: SSRF). A name check alone let a public name that resolves to a private IP through; the allowlist closes that.
+ * `.invalid` never resolves (RFC 2606), so the e2e tests' fake devices can't reach anything either.
  */
 export function isPublicPushUrl(raw: string): boolean {
   let url: URL;
   try { url = new URL(raw); } catch { return false; }
-  if (url.protocol !== "https:" || url.username || url.password) return false;
-  const host = url.hostname.toLowerCase().replace(/\.+$/, "");
-  if (host.startsWith("[") || /^[\d.]+$/.test(host) || !host.includes(".")) return false;
-  return !/\.(localhost|local|localdomain|internal|lan|home|corp|intranet|private|arpa)$/.test(host);
+  if (url.protocol !== "https:" || url.username || url.password || url.port) return false;
+  const host = url.hostname.toLowerCase();
+  return [...PUSH_SERVICES, "invalid"].some((s) => host === s || host.endsWith(`.${s}`));
 }

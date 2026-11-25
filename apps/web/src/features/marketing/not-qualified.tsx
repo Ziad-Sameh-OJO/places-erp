@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { NOT_QUALIFIED_ROWS, type NotQualifiedView } from "@places/contracts";
 import { Card, Chip, Table } from "@/components/ui";
@@ -19,6 +19,9 @@ const KEY: Record<string, "noAnswer" | "notInterested" | "fresh" | "cancellation
 export function NotQualified({ filter }: { filter: Record<string, string> }) {
   const t = useTranslations("marketing.dashboard.notQualified");
   const [reason, setReason] = useState("");
+  // a new period / channel starts from «الكل»: the reason picked before may not be in it (L18f)
+  const filterKey = JSON.stringify(filter);
+  useEffect(() => setReason(""), [filterKey]);
   const qs = new URLSearchParams({ ...filter, ...(reason ? { reason } : {}) }).toString();
   const q = useQuery({ queryKey: ["marketing-not-qualified", qs], queryFn: () => api.get<NotQualifiedView>(`/marketing/campaigns/not-qualified?${qs}`), placeholderData: keepPreviousData });
   const d = q.data;
