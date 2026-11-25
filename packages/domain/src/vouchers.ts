@@ -44,6 +44,19 @@ export interface VoucherSides {
   returned?: Piasters;
 }
 
+/**
+ * Q3 (review) «رد فلوس للعميل»: a payment voucher to a client's own account (under 113) gives back only what that
+ * account holds in his favour — a credit balance, e.g. the cash of a cancelled deal (cancel reverses revenue, not cash).
+ * A client account is debit-natured, so what he's owed shows below zero.
+ */
+export const REFUND_LABEL = "رد فلوس للعميل";
+export function refundProblem(clientBalance: Piasters, amount: Piasters): string | null {
+  const credit = -clientBalance;
+  if (credit <= 0) return "مفيش رصيد للعميل ده يترد";
+  if (amount > credit) return `المبلغ أكبر من رصيد العميل (${formatEGP(credit)})`;
+  return null;
+}
+
 /** The voucher's journal lines: debit where the value goes, credit where it came from. */
 export function voucherLines(kind: VoucherKind, s: VoucherSides): EntryLine[] {
   const dr = (accountId: string, v: Piasters): EntryLine => ({ accountId, debit: v, credit: 0 });
@@ -113,6 +126,21 @@ export function billState(bill: { day: number; active: boolean }, thisMonth: "pa
   const day = Number(today.slice(8, 10));
   if (day >= bill.day) return "due";
   return bill.day - day <= 3 ? "soon" : "later";
+}
+
+/**
+ * 9.14 · 9.16 (review L14): the months whose once-a-month notice (pay day, a fixed bill's day) is due on `today`, a
+ * working day: last month and this one, from their day on (clamped to the month's end), after `lastNotified` and not
+ * before `since`. Last month counts too: when the 28th … month end are days off, its first working day is next month.
+ */
+export function noticeMonths(today: string, day: number, lastNotified: string | null, since: string): string[] {
+  const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));
+  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  return [prev, today.slice(0, 7)].filter((month) => {
+    const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
+    const due = `${month}-${String(Math.min(Math.max(day, 1), last)).padStart(2, "0")}`;
+    return due <= today && month >= since && (!lastNotified || month > lastNotified);
+  });
 }
 
 /* ---- payroll (9.14; the accountant's meeting, 4 Nov) ---- */

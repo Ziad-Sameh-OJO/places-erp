@@ -6,10 +6,12 @@
  * transaction as its Activity, audit and notification, so a rerun or the salesperson acting meanwhile wins.
  */
 import { areaPool, lockRouting, prisma, saveRouting, type Prisma } from "@places/db";
-import { LeadRouter, type LeadRules, OWNER, durationText, localDate, noAnswerStep } from "@places/domain";
+import { type Channel, LeadRouter, type LeadRules, OWNER, durationText, eventByKey, localDate, noAnswerStep } from "@places/domain";
 import { type Told, leadRules, ownerOf, tellRule } from "../leads.ts";
 
 const TELESALES = "telesales"; // role key (seed-data/roles.json)
+const OFF_EVENT = "lead.telesales_off";
+const OFF_DAY = "noAnswerTelesalesOff"; // the Cairo day Operations last heard it (Setting)
 
 interface Lead { id: string; code: string; name: string; area: string; assignedToId: string | null; naMarkedAt: Date | null; rotation: number }
 
@@ -21,15 +23,36 @@ export async function noAnswerTick(now = new Date(), pinned?: LeadRules): Promis
     where: { stage: "NO_ANSWER", ownedByTelesales: false, archivedAt: null, assignedToId: { not: null }, naMarkedAt: { lte: new Date(now.getTime() - rules.noAnswer.hours * 3_600_000) } },
     select: { id: true, code: true, name: true, area: true, assignedToId: true, naMarkedById: true, naMarkedAt: true, rotation: true },
   });
+  let off = false; // the chosen Telesales is gone and a lead needed him
   for (const lead of marked) {
     const step = noAnswerStep(lead, now, rules);
+    if (step === "telesales" && !off && rules.noAnswer.telesales) off = !(await prisma.employee.findFirst({ where: { ...activeTelesales, userId: rules.noAnswer.telesales }, select: { id: true } }));
     const next = step === "next" ? await toNextSalesperson(lead, rules, now) : null;
     const telesales = step === "telesales" ? await toTelesales(lead, rules, now) : null;
     if (next) done.next++;
     if (telesales) done.telesales++;
     await (next ?? telesales)?.push();
   }
+  if (off) await (await tellTelesalesOff(now))?.push();
   return done;
+}
+
+/**
+ * Review Q4: the Telesales in «قواعد الليدز» is disabled (or no longer Telesales): the leads go to the first active one
+ * (telesalesOf), or stay with the salesperson if there's none; Operations and the admins hear it once a Cairo day.
+ */
+async function tellTelesalesOff(now: Date): Promise<Told | null> {
+  const today = localDate(now), event = eventByKey(OFF_EVENT)!;
+  const fallback = await prisma.employee.findFirst({ where: activeTelesales, select: { name: true }, orderBy: { name: "asc" } });
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`INSERT INTO "system"."Setting" ("key", "value", "updatedAt") VALUES (${OFF_DAY}, '""'::jsonb, now()) ON CONFLICT ("key") DO NOTHING`;
+    const [row] = await tx.$queryRaw<Array<{ value: unknown }>>`SELECT "value" FROM "system"."Setting" WHERE "key" = ${OFF_DAY} FOR UPDATE`;
+    if (row?.value === today) return null; // already told today
+    await tx.setting.update({ where: { key: OFF_DAY }, data: { value: today } });
+    const rule = await tx.notificationRule.findUnique({ where: { event: OFF_EVENT } });
+    const text = `الـ Telesales اللي في قواعد الليدز (No Answer) متوقف · ${fallback ? `الليدز بتروح لـ ${fallback.name} لحد ما تختاروا حد تاني` : "مفيش Telesales شغال · الليدز فاضلة مع السيلز"}`;
+    return tellRule(tx, { to: rule?.toRoles ?? event.toRoles, ch: (rule?.channels ?? event.channels) as readonly Channel[] }, null, { text, link: "/settings", important: event.important, event: OFF_EVENT });
+  });
 }
 
 /** Demo: «No Answer: عدّى 24 ساعة عند فلان وراح لـ فلان (رجع Fresh)», and the new salesperson is told. */
@@ -74,16 +97,15 @@ async function record(tx: Prisma.TransactionClient, lead: Lead, text: string, to
     before: { assignedToId: lead.assignedToId, stage: "NO_ANSWER", rotation: lead.rotation }, after: { assignedToId: to, stage: "FRESH", rotation: lead.rotation + 1, to: kind } } });
 }
 
+const activeTelesales = { user: { status: { not: "DISABLED" as const }, roles: { some: { role: { key: TELESALES } } } } };
+
 /**
- * «الـ Telesales اللي بيستلم» from the rules (a user id); none chosen → the first person with the Telesales role (the
- * demo's Hadeer). Only someone still working here.
+ * «الـ Telesales اللي بيستلم» from the rules (a user id); none chosen — or the chosen one disabled (review Q4) → the
+ * first person with the Telesales role (the demo's Hadeer). Only someone still working here.
  */
 async function telesalesOf(tx: Prisma.TransactionClient, rules: LeadRules): Promise<{ id: string; name: string } | null> {
-  const active = { user: { status: { not: "DISABLED" as const }, roles: { some: { role: { key: TELESALES } } } } };
-  return tx.employee.findFirst({
-    where: rules.noAnswer.telesales ? { ...active, userId: rules.noAnswer.telesales } : active,
-    select: { id: true, name: true }, orderBy: { name: "asc" },
-  });
+  const pick = (where: Prisma.EmployeeWhereInput) => tx.employee.findFirst({ where, select: { id: true, name: true }, orderBy: { name: "asc" } });
+  return (rules.noAnswer.telesales ? await pick({ ...activeTelesales, userId: rules.noAnswer.telesales }) : null) ?? pick(activeTelesales);
 }
 
 const link = (lead: Lead) => `/leads?open=${lead.id}`;

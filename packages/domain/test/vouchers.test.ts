@@ -76,3 +76,25 @@ test("payroll: salary − attendance − the chosen advance; one balanced entry 
   assert.equal(entryProblem(lines), null);
   assert.deepEqual(lines.map((l) => [l.accountId, l.debit, l.credit]), [["5202", 11_538_46, 0], ["5301", 8_000_00, 0], ["13101", 0, 1_000_00], ["13102", 0, 500_00], ["11201", 0, 18_038_46]]);
 });
+
+test("L14: a month's notice fires on the first working day on/after its day, even when that day is next month (9.14 · 9.16)", async () => {
+  const { noticeMonths } = await import("../src/index.ts");
+  // pay day the 28th; Feb 2030: the 28th a holiday, Mar 1 a Friday → the first working day is Sat 2 March
+  assert.deepEqual(noticeMonths("2030-03-02", 28, "2030-01", "2029-01"), ["2030-02"]);
+  assert.deepEqual(noticeMonths("2030-03-02", 28, "2030-02", "2029-01"), [], "February already told; March's day is the 28th");
+  assert.deepEqual(noticeMonths("2030-03-28", 28, "2030-02", "2029-01"), ["2030-03"]);
+  assert.deepEqual(noticeMonths("2030-02-27", 28, "2030-01", "2029-01"), [], "not before its day");
+  assert.deepEqual(noticeMonths("2030-02-28", 31, "2030-01", "2029-01"), ["2030-02"], "a day past the month's end is its last day");
+  assert.deepEqual(noticeMonths("2030-01-02", 30, "2029-11", "2029-01"), ["2029-12"], "across the year");
+  assert.deepEqual(noticeMonths("2030-03-02", 28, null, "2030-03"), [], "nothing before `since` (a bill made this month)");
+  assert.deepEqual(noticeMonths("2030-03-05", 1, "2030-01", "2029-01"), ["2030-02", "2030-03"], "both, oldest first");
+});
+
+test("Q3 «رد فلوس للعميل»: only a credit balance on the client's account, up to it", async () => {
+  const { refundProblem } = await import("../src/index.ts");
+  assert.equal(refundProblem(-50_000_00, 50_000_00), null); // a cancelled deal left 50,000 collected on his account
+  assert.equal(refundProblem(-50_000_00, 20_000_00), null);
+  assert.match(refundProblem(-50_000_00, 50_000_01)!, /أكبر من رصيد العميل/);
+  assert.equal(refundProblem(0, 100_00), "مفيش رصيد للعميل ده يترد");
+  assert.equal(refundProblem(30_000_00, 100_00), "مفيش رصيد للعميل ده يترد"); // he still owes Places
+});

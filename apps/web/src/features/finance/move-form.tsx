@@ -41,6 +41,10 @@ export function MoveForm({ kind, cash, settle, prefill, onClose, onSaved }: { ki
       <select name={name} required={req} defaultValue={(name === "accountId" && prefill?.accountId) || ""}>
         <option value="" disabled>{t("common.choose")}</option>
         {cash.expenses.map((e) => <option key={e.id} value={e.id}>{e.code} · {serverText(e.name)}{e.left != null ? ` · ${t("move.budgetLeft", { amount: money(e.left) })}` : ""}</option>)}
+        {/* Q3: a payment to a client's account gives back what he has with us (a cancelled deal's cash) */}
+        {kind === "pay" && name === "accountId" && cash.refunds.length > 0 && <optgroup label={t("move.refundGroup")}>
+          {cash.refunds.map((r) => <option key={r.id} value={r.id}>{r.code} · {serverText(r.name)} · {t("move.refundCredit", { amount: money(r.credit) })}</option>)}
+        </optgroup>}
       </select>
     </Field>
   );

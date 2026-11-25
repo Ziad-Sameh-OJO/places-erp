@@ -100,6 +100,8 @@ export interface CashView {
   /** expense leaves (5…) with what's left of their budget, for «نوع المصروف» */
   expenses: { id: string; code: string; name: string; left: string | null }[];
   revenues: { id: string; code: string; name: string }[];
+  /** Q3 «رد فلوس للعميل»: client accounts (113…) with a credit balance, what a payment voucher may give back */
+  refunds: { id: string; code: string; name: string; credit: string }[];
   people: { userId: string; name: string }[];
 }
 

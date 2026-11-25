@@ -31,6 +31,13 @@ const pendingOf = (v: Prisma.JsonValue | null): Pending | null => (v && typeof v
  */
 @Injectable()
 export class TargetsService {
+  /**
+   * 5.8 (review L12): a changed target changes the TL's commission in the books too. DealsService posts it (it holds the
+   * ledger; kpis can't import finance: finance → hr → kpis) and registers here at start.
+   */
+  private tlRebook: ((tx: Prisma.TransactionClient, me: CurrentUser, salesIds: string[], months: string[]) => Promise<void>) | null = null;
+  onTargetChange(fn: NonNullable<TargetsService["tlRebook"]>) { this.tlRebook = fn; }
+
   constructor(
     @Inject(PRISMA) private readonly db: PrismaClient,
     private readonly repo: ReportsRepository,
@@ -192,7 +199,10 @@ export class TargetsService {
     if (waits) {
       const pending = { ...values, by: me.name };
       await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month, value: p.target, pending }, update: { pending } });
-    } else await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month, ...values }, update: { ...values, pending: Prisma.DbNull } });
+    } else {
+      await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month, ...values }, update: { ...values, pending: Prisma.DbNull } });
+      await this.tlRebook?.(tx, me, [p.id], [month]); // review L12: the TL's commission in the books follows the new target
+    }
     await this.audit.record({ module: MODULE, entity: "SalesTarget", entityId: `${p.id}:${month}`, action: "update", userId: me.id,
       before, after: { ...values, waits, summary: `تارجت ${p.name} (${monthLabel(month)}) ${waits ? "مستني موافقة" : "بقى"} ${value}` } }, tx);
     return value;
@@ -207,6 +217,7 @@ export class TargetsService {
     if (!p || !t || !pending) throw new NotFoundException("مفيش تغيير مستني موافقة");
     await this.db.$transaction(async (tx) => {
       await tx.salesTarget.update({ where: { id: t.id }, data: { value: pending.value, deals: pending.deals, visits: pending.visits, pending: Prisma.DbNull } });
+      await this.tlRebook?.(tx, me, [employeeId], [month]);
       await this.audit.record({ module: MODULE, entity: "SalesTarget", entityId: `${employeeId}:${month}`, action: "approve", userId: me.id,
         before: { value: t.value.toFixed(2), deals: t.deals, visits: t.visits }, after: { ...pending, summary: `اتوافق على تارجت ${p.name} (${monthLabel(month)}) ${pending.value}` } }, tx);
     });

@@ -216,3 +216,24 @@ test("1.18 the «كلّم» Alarm every 4 working hours while in No Answer; a lo
   // the summary carries the rules the question's note quotes
   assert.deepEqual(Object.keys((await call("/leads/summary?kind=client", { cookie: c1 })).body.noAnswerRules).sort(), ["hours", "remindH"]);
 });
+
+test("review Q4: the Telesales in the rules is disabled → the first active Telesales gets it; Operations hears it once a day", async () => {
+  const since = new Date();
+  const gone = { ...rules, noAnswer: { ...rules.noAnswer, telesales: s1.userId } }; // not an active Telesales (a salesperson)
+  const first = await prisma.employee.findFirstOrThrow({ where: { user: { status: { not: "DISABLED" }, roles: { some: { role: { key: "telesales" } } } } }, select: { id: true }, orderBy: { name: "asc" } });
+  const marked = { stage: "NO_ANSWER" as const, touched: true, rotation: 2, naMarkedById: s1.id, naMarkedAt: at("2021-01-24T10:00:00") };
+  const a = await lead(marked), b = await lead({ ...marked, naMarkedAt: at("2021-01-24T15:00:00") }); // b's 24 hours end later the same day
+  more.push(a, b);
+  const heard = () => prisma.notification.count({ where: { userId: heba.userId, event: "lead.telesales_off", createdAt: { gte: since } } });
+  try {
+    assert.equal((await noAnswerTick(at("2021-01-25T12:00:00"), gone)).telesales, 1);
+    const l = await get(a);
+    assert.equal(l.assignedToId, first.id, "not left with the salesperson");
+    assert.equal(l.ownedByTelesales, true);
+    assert.equal(await heard(), 1);
+    assert.equal((await noAnswerTick(at("2021-01-25T18:00:00"), gone)).telesales, 1);
+    assert.equal(await heard(), 1, "once a day");
+  } finally {
+    await prisma.notification.deleteMany({ where: { event: "lead.telesales_off", createdAt: { gte: since } } });
+  }
+});

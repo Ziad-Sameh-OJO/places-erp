@@ -61,7 +61,9 @@ export class DealsService {
     private readonly targets: TargetsService,
     private readonly settings: SettingsService,
     private readonly unitLocks: UnitsService,
-  ) {}
+  ) {
+    targets.onTargetChange((tx, me, salesIds, months) => this.tlDue(tx, me, salesIds, months, localDate(new Date())));
+  }
 
   /** M-02 4.1: a salesperson sees the deals they are on, a TL their team's, the managers all of them. */
   private scope(me: CurrentUser): Prisma.DealWhereInput {
@@ -248,6 +250,11 @@ export class DealsService {
       if (!diff) return;
       await this.repo.update(tx, id, next);
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "note", userId: me.id, ...diff }, tx);
+      // 5.8 (review L12): targetBase is what the team achieved, so the TL's commission of its collections' months moves too
+      if (next.targetBase !== (d.targetBase?.toFixed(2) ?? null)) {
+        const payments = await this.repo.payments(tx, id);
+        await this.tlDue(tx, me, d.participants.map((p) => p.employee.id), [...new Set(payments.map((p) => p.receivedAt.toISOString().slice(0, 7)))], localDate(new Date()));
+      }
     });
     return this.get(me, id);
   }
@@ -542,6 +549,7 @@ export class DealsService {
     for (const s of shares) {
       const acc = await this.ledger.partyAccount(me, SALES_COMMISSION_PARENT, { type: "sales", id: s.salesId, name: people.get(s.salesId)!.name }, tx);
       lines.push({ accountId: acc.id, debit: 0, credit: s.commission });
+      await this.repo.freezePct(tx, d.id, s.salesId, s.schemePercent); // Q1: his due follows this entry's %, not a later one
     }
     await this.ledger.post(me, { date, nature: "عمولة مبيعات مستحقة", source: "deal", sourceId: d.id, memo: `عمولة السيلز على ${d.code} · اتحصّلت بالكامل`, lines }, tx);
   }

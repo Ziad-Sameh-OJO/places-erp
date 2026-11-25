@@ -398,6 +398,8 @@
     "settleTitle": "Custody settlement · {name}",
     "custodyNow": "Custody now:",
     "expenseType": "Expense type (from the chart of accounts)",
+    "refundGroup": "Refund to a client",
+    "refundCredit": "owed {amount}",
     "recipient": "Recipient",
     "recipientPlaceholder": "Name of the person receiving the money",
     "ref": "Invoice / reference number",
