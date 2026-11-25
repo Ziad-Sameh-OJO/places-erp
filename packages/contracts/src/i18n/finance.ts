@@ -114,4 +114,14 @@ export default [
   // M-09 field permissions
   ["«{label}» قراية بس عندك · مينفعش تسجّله", "«{label}» is read only for you · you can't enter it"],
   ["«المبلغ» مخفي عندك · مينفعش تطبع المستند ده", "«Amount» is hidden for you · you can't print this document"],
+  // review (Nov 25): text added after the catalog
+  ["{month} {status} قبل كده", "{month} is already {status}"],
+  ["دمج ملفين", "Merge two files"],
+  ["دمج ملف {a} في {b}", "Merge file {a} into {b}"],
+  ["فيه طلب تغيير قيمة مستني", "A value change request is already waiting"],
+  ["{what} · فاضل {n} يوم", "{what} · {n} days left"],
+  ["{what} · اتأخر ومتحصّلش", "{what} · overdue and not collected"],
+  ["تصعيد: {what} · متأخر 7 أيام أو أكتر", "Escalation: {what} · 7 days or more overdue"],
+  ["ميعاد فاتورة {name} · {amount} · {vendor} · مستنية موافقتك", "Bill due: {name} · {amount} · {vendor} · waiting for your approval"],
+  ["ميعاد فاتورة {name} ({month}) · {amount} · {vendor} · مستنية موافقتك", "Bill due: {name} ({month}) · {amount} · {vendor} · waiting for your approval"],
 ] satisfies Pair[];

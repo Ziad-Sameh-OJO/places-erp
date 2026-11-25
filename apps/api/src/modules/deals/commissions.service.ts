@@ -62,17 +62,17 @@ export class CommissionsService {
       const due = row ? row.due : tlDue;
       const problem = payoutProblem(due, balance, amount);
       if (problem) throw new BadRequestException(problem);
-      const what = row ? `على ${row.code}` : "(Team Leader)";
+      const what = row ? `على ${row.code}` : "(Team Leader)"; // i18n-part: «عمولة / صرف عمولة … على …»
       const move = await this.vouchers.recordCommissionPayout(me, {
         fromId: input.fromId, accountId: account!.id, amount, party: emp.name, partyId: emp.userId, ...(row ? { ref: tcr ? `${row.code} · ${tcr.code}` : row.code } : {}),
-        memo: input.memo || `عمولة ${emp.name} ${what}`, date: input.date,
+        memo: input.memo || `عمولة ${emp.name} ${what}`, date: input.date, // i18n-part: «عمولة {name} على {code}»
       }, tx);
       const payout = await this.repo.addPayout(tx, { employeeId: emp.id, dealId: row?.dealId ?? null, tcrId: tcr?.id ?? null, amount: toDecimal(amount), moveId: move.id, createdById: me.id });
       await this.audit.record({ module: "deals", entity: "CommissionPayout", entityId: payout.id, action: "create", userId: me.id,
-        after: { employeeId: emp.id, deal: row?.code ?? null, tcr: tcr?.code ?? null, amount: toDecimal(amount), move: move.no, entry: move.entry, summary: `صرف عمولة ${emp.name} ${what}` } }, tx);
+        after: { employeeId: emp.id, deal: row?.code ?? null, tcr: tcr?.code ?? null, amount: toDecimal(amount), move: move.no, entry: move.entry, summary: `صرف عمولة ${emp.name} ${what}` } }, tx); // i18n-part: «صرف عمولة {name} على {code}»
       return { userId: emp.userId, what, tcr, result: { moveId: move.id, move: move.no, entry: move.entry, due: toDecimal(due - amount), signed: tcr ? tcr.signed : null } };
     });
-    const sign = out.tcr && !out.tcr.signed ? ` · امضي على ${out.tcr.code}` : "";
+    const sign = out.tcr && !out.tcr.signed ? ` · امضي على ${out.tcr.code}` : ""; // i18n-part: «اتصرفتلك عمولة … · امضي على …»
     await this.notifications.notify({ event: "finance.commission_paid", userIds: [out.userId], link: "/deals", text: `اتصرفتلك عمولة ${formatEGP(amount)} ${out.what} · ${out.result.move}${sign}` });
     return out.result;
   }

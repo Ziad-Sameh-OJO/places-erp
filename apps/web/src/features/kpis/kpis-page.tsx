@@ -170,7 +170,7 @@ function CardRow({ c, period, onOpen }: { c: KpiCardSummary; period: Period; onO
   return (
     <button className="kx-tr" onClick={onOpen}>
       <span className="kx-who"><Avatar id={c.employeeId} name={c.name} sm /><span><b>{c.name}</b><small>{serverText(c.title)}</small></span></span>
-      <span className="kx-mut" data-label={t("view.follower")}>{c.follower}</span>
+      <span className="kx-mut" data-label={t("view.follower")}>{serverText(c.follower)}</span>
       <span className={`kx-bar ${s.tone}`}>{score && <><span className="kx-track"><i style={{ width: `${Math.max(0, Math.min(100, s.score))}%` }} /></span><b className="num">{Math.round(s.score)}%</b></>}</span>
       <span>{c.below > 0 ? t("view.belowN", { count: c.below }) : <span className="kx-mut">—</span>}</span>
       <span className="kx-chips">{c.approved ? <Chip tone="ok" plain>{t("common.approved")}</Chip> : <Chip plain>{t("board.awaitingApproval")}</Chip>}{moneyChip(c.money)}</span>
@@ -318,7 +318,7 @@ function Log() {
   return (
     <Card title={t("log.title")} icon="clock" sub={t("log.sub")} extra={<Chip tone="info">{q.data?.length ?? 0}</Chip>}>
       <div className="timeline">
-        {q.data?.map((l, i) => <div key={i}>{serverText(l.text)}<small>{l.by} · {dayTime(l.at)}</small></div>)}
+        {q.data?.map((l, i) => <div key={i}>{serverText(l.text)}<small>{serverText(l.by)} · {dayTime(l.at)}</small></div>)}
         {q.data && !q.data.length && <Empty text={t("log.empty")} icon="clock" />}
       </div>
     </Card>

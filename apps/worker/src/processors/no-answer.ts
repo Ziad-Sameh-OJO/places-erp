@@ -50,7 +50,7 @@ async function tellTelesalesOff(now: Date): Promise<Told | null> {
     if (row?.value === today) return null; // already told today
     await tx.setting.update({ where: { key: OFF_DAY }, data: { value: today } });
     const rule = await tx.notificationRule.findUnique({ where: { event: OFF_EVENT } });
-    const text = `الـ Telesales اللي في قواعد الليدز (No Answer) متوقف · ${fallback ? `الليدز بتروح لـ ${fallback.name} لحد ما تختاروا حد تاني` : "مفيش Telesales شغال · الليدز فاضلة مع السيلز"}`;
+    const text = `الـ Telesales اللي في قواعد الليدز (No Answer) متوقف · ${fallback ? `الليدز بتروح لـ ${fallback.name} لحد ما تختاروا حد تاني` : "مفيش Telesales شغال · الليدز فاضلة مع السيلز"}`; // i18n-part: both endings have their pairs
     return tellRule(tx, { to: rule?.toRoles ?? event.toRoles, ch: (rule?.channels ?? event.channels) as readonly Channel[] }, null, { text, link: "/settings", important: event.important, event: OFF_EVENT });
   });
 }

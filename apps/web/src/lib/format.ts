@@ -6,6 +6,8 @@ const en = () => currentLocale() === "en";
 // «nu-latn»: the same 0-9 digits as every other number on the page (the sheet, the money), not ٠-٩ in dates only
 export const dateLocale = () => (en() ? "en-GB" : "ar-EG-u-nu-latn");
 export const egp = () => (en() ? "EGP" : "ج.م");
+/** Between the items of a list in a sentence: «،» in Arabic, «,» in English. */
+export const listSep = () => (en() ? ", " : "، ");
 
 const nf = new Intl.NumberFormat("en-US");
 export const num = (n: number) => nf.format(Math.round(n));

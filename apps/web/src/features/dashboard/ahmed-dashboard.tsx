@@ -6,7 +6,7 @@ import type { AhmedDashboard, AhmedTeam, Compared, PacedBar } from "@places/cont
 import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, toDecimal, type DashPeriod } from "@places/domain";
 import { Card, Chip, Empty, Icon } from "@/components/ui";
 import { PeriodPicker } from "@/components/period-picker";
-import { dateLocale, money, num, short } from "@/lib/format";
+import { dateLocale, money, num, short, listSep } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { ChannelDonut, Gauge, MoneyBars, TrendChart } from "./charts";
 import { Person, Tile } from "./dashboard-page";
@@ -186,7 +186,7 @@ function Channels({ d }: { d: AhmedDashboard }) {
   return (
     <Card title={t("title")} icon="megaphone" className={d.collections ? "b-3" : "b-4"}>
       {!total ? <p className="hint">{t("none")}</p> : <ChannelDonut rows={d.channels} center={t("center")} rest={t("rest")}
-        label={t("aria", { total, list: d.channels.map((c) => `${c.channel} ${c.leads}`).join("، ") })}
+        label={t("aria", { total, list: d.channels.map((c) => `${c.channel} ${c.leads}`).join(listSep()) })}
         hrefOf={(c) => `/leads?channel=${encodeURIComponent(c)}&from=${d.from}&to=${d.to}`} />}
     </Card>
   );

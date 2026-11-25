@@ -190,7 +190,7 @@ export class DealsService {
     // who hears of a new Done Deal and on which channels is «قواعد الليدز ← الإقفال» (1.29), like the demo
     const holder = await this.repo.account(closer);
     const to = ruleRecipients(close.notify, { ownerUserId: holder?.userId ?? null, ownerTlUserId: holder?.teamLeader?.userId ?? null });
-    const alarm = offTarget ? `Alarm: اتسجّلت وقت القفل (اتعملت واتقفلت في خلال ${close.alarmH} ساعة) · متدخلش في التارجت · ` : "";
+    const alarm = offTarget ? `Alarm: اتسجّلت وقت القفل (اتعملت واتقفلت في خلال ${close.alarmH} ساعة) · متدخلش في التارجت · ` : ""; // i18n-part: the whole deal.done text has its pair
     await this.notifications.notify({ event: "deal.done", link: link(created.id), to, channels: [...close.notify.ch], text: `${alarm}Done Deal جديدة ${created.code} مستنية مراجعتك · ${company}` });
     return this.get(me, created.id);
   }
@@ -591,9 +591,9 @@ export class DealsService {
     // M-09: the amount goes only to a Buyer whose deals rules show both expected commissions; the rest hear it without
     const sees = await Promise.all(userIds.map(async (u) => { const h = (await this.grants.currentUser(u)).fields.hidden("deals"); return !h.has("commissionOwner") && !h.has("commissionClient"); }));
     const text = `صفقة اتقفلت ${d.code} · ${d.company}`;
-    await this.notifications.notify({ event: "deal.approved", userIds: userIds.filter((_, i) => sees[i]), link: link(d.id), text: `${text} · العمولة ${formatEGP(commission)} · مستنية التحصيل` });
+    await this.notifications.notify({ event: "deal.approved", userIds: userIds.filter((_, i) => sees[i]), link: link(d.id), text: `${text} · العمولة ${formatEGP(commission)} · مستنية التحصيل` }); // i18n-part: «صفقة اتقفلت … · العمولة … · مستنية التحصيل»
     const blind = userIds.filter((_, i) => !sees[i]);
-    if (blind.length) await this.notifications.notify({ event: "deal.approved", to: [], userIds: blind, link: link(d.id), text: `${text} · مستنية التحصيل` });
+    if (blind.length) await this.notifications.notify({ event: "deal.approved", to: [], userIds: blind, link: link(d.id), text: `${text} · مستنية التحصيل` }); // i18n-part: «صفقة اتقفلت … · مستنية التحصيل»
     // M-02 2.1 step 7 · Q26 (4.9): marketing hears of it with the allowed fields only — location, space, company, type, the Buyer
     const space = input.space ?? d.space, type = input.type ?? d.type, location = input.location ?? d.location;
     await this.notifications.notify({ event: "deal.marketing", link: "/marketing?tab=deals",

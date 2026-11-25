@@ -80,4 +80,8 @@ export default [
   ["اتأخرت · اتصعّدت لمدير قسم {department}", "Late · escalated to the {department} manager"],
   // visit-alarm.ts
   ["Alarm: ميعاد الـ {kind} مع {name} جه · دوس Done", "Alarm: the {kind} with {name} is due · press Done"],
+  // review (Nov 25): text added after the catalog
+  ["الـ Telesales اللي في قواعد الليدز (No Answer) متوقف · مفيش Telesales شغال · الليدز فاضلة مع السيلز", "The Telesales in the lead rules (No Answer) is deactivated · no active Telesales · the leads stay with the salespeople"],
+  ["Alarm: {n} Not Interested / Cancellation مستنيين قرارك · {today} النهارده", "Alarm: {n} Not Interested / Cancellation waiting for your decision · {today} today"],
+  ["Alarm: {n} Not Interested / Cancellation مستنيين قرارك", "Alarm: {n} Not Interested / Cancellation waiting for your decision"],
 ] satisfies Pair[];

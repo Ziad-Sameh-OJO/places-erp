@@ -7,6 +7,7 @@ import { CompanyUpdate, type AddedCompany, type CompanyRow, type CompanySheet, t
 import { CONTRACT_ENDING_DAYS, OUTBOUND_WEEKLY_TARGET, keepsCompaniesSheet } from "@places/domain";
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
+import { serverText } from "@/lib/server-text";
 import { useMe } from "@/lib/me";
 import { DateInput, Card, ExportButton, Field, Icon, Modal, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { OldDataImport } from "../imports/old-data-import";
@@ -52,7 +53,7 @@ export function CompaniesSheet() {
       <div className="toolbar">
         <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={t("category")}>
           <option value="">{t("allCategories", { count: s?.categories.length ?? 0 })}</option>
-          {(s?.categories ?? []).map((c) => <option key={c.name} value={c.name}>{c.name} · {c.count}</option>)}
+          {(s?.categories ?? []).map((c) => <option key={c.name} value={c.name}>{serverText(c.name)} · {c.count}</option>)}
         </select>
         <label className="tog"><input type="checkbox" checked={soon} onChange={(e) => setSoon(e.target.checked)} /><span>{t("endingSoon", { days: CONTRACT_ENDING_DAYS })}</span></label>
         <span className="hint spacer">{t("count", { count: s?.total ?? 0 })}</span>
@@ -60,7 +61,7 @@ export function CompaniesSheet() {
         <ExportButton module="leads" path="/companies/export" query={filters} filename={soon ? t("fileEnding") : t("file")} label={t("export")} />
       </div>
       <Table className="wide" head={[...COLS.map(([, h]) => h), ...(category ? [] : ["category"])]}
-        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [c.category])])} empty={t("empty")}
+        rows={(s?.items ?? []).map((c) => [...COLS.map(([k]) => k === "contractEnd" && soon ? <span key={k} className="bad-t">{cell(c, k)}</span> : cell(c, k)), ...(category ? [] : [serverText(c.category)])])} empty={t("empty")}
         {...(keeper ? { onRow: (i: number) => setEditing(s?.items[i] ?? null) } : {})} />
       {keeper && (s?.items.length ?? 0) > 0 && <p className="hint">{t("editHint")}</p>}
       {editing && s && <EditCompany company={editing} categories={s.categories.map((c) => c.name)} onClose={() => setEditing(null)} />}
@@ -79,7 +80,7 @@ function PendingList({ categories }: { categories: string[] }) {
   if (!pending.length) return null;
   const add = (p: PendingCompany) => onFormSubmit((f) => run(async () => {
     const c = await api.post<AddedCompany>(`/companies/pending/${p.id}`, { category: String(f.get("category") ?? "") });
-    toast(t("added", { name: c.name, category: c.category }));
+    toast(t("added", { name: c.name, category: serverText(c.category) }));
     await qc.invalidateQueries({ queryKey: KEY });
   }));
   return (
@@ -87,7 +88,7 @@ function PendingList({ categories }: { categories: string[] }) {
       {pending.map((p) => (
         <form className="line-item" key={p.id} onSubmit={add(p)}>
           <span><span><b>{p.name}</b> · {t("pendingLine", { code: p.lead.code, by: p.by })}</span></span>
-          <select name="category" aria-label={t("categoryOf", { name: p.name })} style={{ maxWidth: 170 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
+          <select name="category" aria-label={t("categoryOf", { name: p.name })} style={{ maxWidth: 170 }}>{categories.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
           <button className="btn sm">{t("addToSheet")}</button>
         </form>
       ))}
@@ -116,7 +117,7 @@ function AddRow({ categories, outbound }: { categories: string[]; outbound: numb
     <>
     <form className="row" onSubmit={submit}>
       <input name="name" required maxLength={160} placeholder={t("newCompany")} aria-label={t("companyName")} value={name} onChange={(e) => setName(e.target.value)} />
-      <select name="category" aria-label={t("category")} style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c}>{c}</option>)}</select>
+      <select name="category" aria-label={t("category")} style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
       <input name="number" required maxLength={40} placeholder={t("number")} style={{ maxWidth: 130 }} aria-label={t("number")} />
       <button className="btn sm"><Icon name="plus" />{t("add")}</button>
       <span className="hint">{t.rich("outbound", { count: outbound, target: OUTBOUND_WEEKLY_TARGET, b: (c) => <b>{c}</b> })}</span>
@@ -160,7 +161,7 @@ function EditCompany({ company: c, categories, onClose }: { company: CompanyRow;
         <Field label="average current price rent"><input name="averageRent" inputMode="decimal" defaultValue={c.averageRent ? String(Number(c.averageRent)) : ""} /></Field>
         <Field label="annual escalation (%)"><input name="annualEscalation" type="number" min={0} max={100} step="0.01" defaultValue={c.annualEscalation ? String(Number(c.annualEscalation)) : ""} /></Field>
         <Field label={t("category")} req>
-          <select name="category" required defaultValue={c.category}>{(categories.includes(c.category) ? categories : [c.category, ...categories]).map((x) => <option key={x}>{x}</option>)}</select>
+          <select name="category" required defaultValue={c.category}>{(categories.includes(c.category) ? categories : [c.category, ...categories]).map((x) => <option key={x} value={x}>{serverText(x)}</option>)}</select>
         </Field>
         <div className="row end wide">
           <button type="button" className="btn ghost" onClick={onClose}>{t("cancel")}</button>

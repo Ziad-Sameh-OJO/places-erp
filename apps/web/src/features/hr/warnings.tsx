@@ -7,6 +7,7 @@ import { WARNING_TRIGGERS, type WarningRule } from "@places/domain";
 import { DateInput, Card, Chip, Empty, Field, Icon, Table, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
+import { serverText } from "@/lib/server-text";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const useRefresh = () => { const qc = useQueryClient(); return () => qc.invalidateQueries({ queryKey: ["hr"] }); };
@@ -35,7 +36,7 @@ export function Warnings() {
         extra={<select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} aria-label={t("common.employee")}><option value="">{t("warnings.allEmployees")}</option>{people.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}>
         {!list.data ? <Empty text={t("common.loading")} icon="clock" /> : (
           <Table head={[t("common.employee"), t("common.month"), t("warnings.reason"), t("warnings.type"), t("common.status"), ""]} empty={t("warnings.empty")}
-            rows={list.data.map((w) => [<b key="n">{w.name}</b>, w.month, w.reason,
+            rows={list.data.map((w) => [<b key="n">{w.name}</b>, w.month, serverText(w.reason),
               w.status === "due" ? <form key="t" id={`w-${w.id}`} onSubmit={issue(w.id)}><input name="type" defaultValue={w.type} required minLength={2} maxLength={120} aria-label={t("warnings.type")} /></form> : w.type,
               <Chip key="s" tone={WARN_TONE[w.status]}>{t(`warnings.status.${w.status}`)}{w.by ? ` · ${w.by}` : ""}</Chip>,
               <span key="a" className="row">

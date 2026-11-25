@@ -50,7 +50,7 @@ const dayName = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString
 
 /** The notice: «يوم <التاريخ>: <العنوان>», then the time and place when given; a reminder starts «بكره» / «النهارده». */
 export function funDayText(e: { title: string; date: string; time?: string | null; place?: string | null }, reminder?: FunDayReminder): string {
-  const lead = reminder === "dayBefore" ? "بكره · " : reminder === "morning" ? "النهارده · " : "";
+  const lead = reminder === "dayBefore" ? "بكره · " : reminder === "morning" ? "النهارده · " : ""; // i18n-part: «بكره / النهارده · يوم …: …»
   const more = [e.time && `الساعة ${e.time}`, e.place && `في ${e.place}`].filter(Boolean).join(" · ");
   return `${lead}يوم ${dayName(e.date)}: ${e.title}${more ? ` · ${more}` : ""}`;
 }

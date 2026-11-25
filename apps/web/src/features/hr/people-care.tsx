@@ -94,7 +94,7 @@ function Questions({ list }: { list: string[] }) {
   const save = (questions: string[]) => run(async () => { await api.put("/hr/one-on-one/questions", { questions }); await refresh(); }, t("common.saved"));
   return (
     <Card title={t("care.questionsTitle")} icon="list" sub={t("care.questionsSub")}>
-      {list.map((q, i) => <div key={i} className="line-item"><span>{i + 1}. {q}</span>{list.length > 1 && <button className="btn ghost sm" aria-label={t("care.removeQuestion")} onClick={() => void save(list.filter((_, j) => j !== i))}><Icon name="x" /></button>}</div>)}
+      {list.map((q, i) => <div key={i} className="line-item"><span>{i + 1}. {serverText(q)}</span>{list.length > 1 && <button className="btn ghost sm" aria-label={t("care.removeQuestion")} onClick={() => void save(list.filter((_, j) => j !== i))}><Icon name="x" /></button>}</div>)}
       <form className="row" onSubmit={onFormSubmit(async (f) => { const q = String(f.get("q") ?? "").trim(); if (q.length >= 2) await save([...list, q]); })}>
         <input name="q" placeholder={t("care.newQuestion")} required minLength={2} aria-label={t("care.newQuestion")} /><button className="btn ghost"><Icon name="plus" />{t("care.add")}</button>
       </form>
@@ -130,7 +130,7 @@ export function OneOnOneTab({ employeeId }: { employeeId: string }) {
         <form className="card flat grid" onSubmit={save}>
           <h3 className="mini-h wide"><Icon name="plus" /> {t("one.new")}</h3>
           <Field label={t("one.date")} req wide><DateInput name="heldOn" defaultValue={today()} max={today()} required /></Field>
-          {d.questions.map((x, i) => <Field key={x} label={x} wide><textarea name={`q${i}`} rows={2} /></Field>)}
+          {d.questions.map((x, i) => <Field key={x} label={serverText(x)} wide><textarea name={`q${i}`} rows={2} /></Field>)}
           <Field label={t("one.action")} wide><input value={action} onChange={(e) => setAction(e.target.value)} placeholder={t("one.actionPh")} /></Field>
           {action && <Field label={t("one.actionDue")} req wide><DateInput name="due" min={today()} required /></Field>}
           <div className="row end wide"><button className="btn">{t("one.save")}</button></div>

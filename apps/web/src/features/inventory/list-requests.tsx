@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ListRequestRow, ListRequests, UnitRow } from "@places/contracts";
 import { Chip, Empty, Field, Icon, Modal, Note, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { ago, num } from "@/lib/format";
+import { ago, num, listSep } from "@/lib/format";
 import { useUnits } from "./use-units";
 
 const KEY = ["list-requests"];
@@ -93,7 +93,7 @@ function SendListModal({ request, onClose }: { request: ListRequestRow; onClose:
   const toggle = (u: UnitRow) => setPicked(picked.some((p) => p.id === u.id) ? picked.filter((p) => p.id !== u.id) : [...picked, u]);
   const send = () => {
     const bad = picked.filter((u) => u.stale).map((u) => u.code);
-    if (bad.length && !window.confirm(t("confirmUnconfirmed", { codes: bad.join("، ") }))) return;
+    if (bad.length && !window.confirm(t("confirmUnconfirmed", { codes: bad.join(listSep()) }))) return;
     setBusy(true);
     void run(async () => {
       try {

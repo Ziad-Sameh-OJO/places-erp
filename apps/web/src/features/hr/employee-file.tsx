@@ -8,6 +8,7 @@ import { put } from "@/components/file-upload";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { day } from "@/lib/format";
+import { serverText } from "@/lib/server-text";
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
 const MIMES = [...FILE_KINDS.pdf.mimes, ...FILE_KINDS.image.mimes] as readonly string[];
@@ -61,7 +62,7 @@ export function EmployeeDocsTab({ employeeId }: { employeeId: string }) {
     <>
       <Card title={t("required")} icon="list" sub={d.missing ? t("missingCount", { n: d.missing }) : t("allThere")}>
         {d.required.map((r) => (
-          <div key={r.type} className="line-item"><span>{r.type}</span>
+          <div key={r.type} className="line-item"><span>{serverText(r.type)}</span>
             {r.docId ? <button className="btn ghost sm" onClick={() => void run(() => openEmployeeDoc(r.docId!))}><Icon name="check" />{t("open")}</button> : <Chip tone="warn">{t("missing")}</Chip>}</div>
         ))}
       </Card>
@@ -69,7 +70,7 @@ export function EmployeeDocsTab({ employeeId }: { employeeId: string }) {
         <form className="card flat grid" onSubmit={upload}>
           <h3 className="mini-h wide"><Icon name="upload" /> {t("upload")}</h3>
           <Field label={t("title")} req><input name="title" required minLength={2} maxLength={150} /></Field>
-          <Field label={t("type")}><select name="docType" defaultValue=""><option value="">{t("other")}</option>{d.required.map((r) => <option key={r.type} value={r.type}>{r.type}</option>)}</select></Field>
+          <Field label={t("type")}><select name="docType" defaultValue=""><option value="">{t("other")}</option>{d.required.map((r) => <option key={r.type} value={r.type}>{serverText(r.type)}</option>)}</select></Field>
           <Field label={t("file")} req wide><input name="file" type="file" required accept={MIMES.join(",")} /></Field>
           <span className="hint wide">{t("hint")}</span>
           <div className="row end wide"><button className="btn" disabled={busy}>{busy ? t("uploading") : t("save")}</button></div>
@@ -79,7 +80,7 @@ export function EmployeeDocsTab({ employeeId }: { employeeId: string }) {
         {!d.timeline.length ? <p className="hint">{t("empty")}</p> : (
           <div className="timeline">{d.timeline.map((x, i) => (
             <div key={i} className="row">
-              <span style={{ flex: 1, minWidth: 0 }}><Icon name={KIND_ICON[x.kind as keyof typeof KIND_ICON] ?? "file"} /> <b>{x.title}</b><small>{day(x.day)}{x.sub ? ` · ${x.sub}` : ""}</small></span>
+              <span style={{ flex: 1, minWidth: 0 }}><Icon name={KIND_ICON[x.kind as keyof typeof KIND_ICON] ?? "file"} /> <b>{serverText(x.title)}</b><small>{day(x.day)}{x.sub ? ` · ${serverText(x.sub)}` : ""}</small></span>
               {x.docId && <button className="btn ghost sm" onClick={() => void run(() => openEmployeeDoc(x.docId!))}><Icon name="download" />{t("download")}</button>}
               {x.docId && deletable.has(x.docId) && can("hr", "delete") && <button className="icon-btn sm" aria-label={t("delete")} onClick={() => void remove(x.docId!)}><Icon name="x" /></button>}
             </div>
@@ -99,7 +100,7 @@ function DocTypes() {
   const save = (types: string[]) => run(async () => { await api.put("/hr/employee-docs/types", { types }); await qc.invalidateQueries({ queryKey: ["hr"] }); }, t("saved"));
   return (
     <Card title={t("typesTitle")} icon="list" sub={t("typesSub")}>
-      {list.map((x, i) => <div key={x} className="line-item"><span>{i + 1}. {x}</span><button className="btn ghost sm" aria-label={t("delete")} onClick={() => void save(list.filter((y) => y !== x))}><Icon name="x" /></button></div>)}
+      {list.map((x, i) => <div key={x} className="line-item"><span>{i + 1}. {serverText(x)}</span><button className="btn ghost sm" aria-label={t("delete")} onClick={() => void save(list.filter((y) => y !== x))}><Icon name="x" /></button></div>)}
       <form className="row" onSubmit={onFormSubmit(async (f) => { const x = String(f.get("x") ?? "").trim(); if (x.length >= 2) await save([...list, x]); })}>
         <input name="x" placeholder={t("newType")} required minLength={2} aria-label={t("newType")} /><button className="btn ghost"><Icon name="plus" />{t("add")}</button>
       </form>

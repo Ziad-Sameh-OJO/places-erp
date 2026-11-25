@@ -6,7 +6,7 @@ import type { TicketView } from "@places/contracts";
 import { Fab, KpiTile } from "@/components/blocks";
 import { Avatar, Card, Empty, Field, Icon, Modal, Note, Tabs, onFormSubmit, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { ago, num } from "@/lib/format";
+import { ago, num, listSep } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { TicketChips } from "./ticket-bits";
 import { useTranslations } from "next-intl";
@@ -83,7 +83,7 @@ export function TicketsPage() {
             <div className="tk-side"><Avatar id={tk.from.id} name={tk.from.name} /></div>
             <div className="tk-main">
               <div className="row"><b className="spacer">{tk.title}</b><TicketChips t={tk} /></div>
-              <small>{t("rowMeta", { code: tk.code, from: tk.from.name, department: tk.forDepartment ? serverText(tk.department) : tk.assignees.map((a) => a.name).join("، "), ago: ago(tk.createdAt), events: num(tk.events) })}{tk.late && <> · <b className="bad-t">{t("lateEscalated")}</b></>}</small>
+              <small>{t("rowMeta", { code: tk.code, from: tk.from.name, department: tk.forDepartment ? serverText(tk.department) : tk.assignees.map((a) => a.name).join(listSep()), ago: ago(tk.createdAt), events: num(tk.events) })}{tk.late && <> · <b className="bad-t">{t("lateEscalated")}</b></>}</small>
             </div>
           </article>
         )) : <Empty text={t("empty")} icon="ticket" />}

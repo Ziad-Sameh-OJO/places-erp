@@ -42,7 +42,7 @@ export function Journal() {
         <>
           {fields.shows("amount") && <Note kind={d.totals.balanced ? "ok" : "warn"}>{t("journal.note", { debit: money(d.totals.debit), credit: money(d.totals.credit) })} · {d.totals.balanced ? t("common.balanced") : t("journal.unbalanced")}</Note>}
           <Table head={[t("journal.entry"), t("common.date"), t("journal.type"), ...(fields.shows("memo") ? [t("common.memo")] : []), ...(fields.shows("amount") ? [t("common.amount")] : []), t("journal.by")]} empty={t("journal.empty")} onRow={(i) => setOpen(d.items[i]!.id)}
-            rows={d.items.map((e) => [<b key="n" className="mono">{e.no}</b>, e.date.slice(0, 10), serverText(e.nature), ...(fields.shows("memo") ? [e.memo] : []), ...(fields.shows("amount") ? [money(e.debit)] : []), e.by])} />
+            rows={d.items.map((e) => [<b key="n" className="mono">{e.no}</b>, e.date.slice(0, 10), serverText(e.nature), ...(fields.shows("memo") ? [serverText(e.memo)] : []), ...(fields.shows("amount") ? [money(e.debit)] : []), e.by])} />
           {d.total > PAGE && (
             <div className="row">
               <button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("common.prev")}</button>
@@ -97,7 +97,7 @@ function EntryModal({ id, effect, onClose }: { id: string; effect?: MoveEffect[]
         <>
           <div ref={ref}><div className="pdf">
             <div className="pdf-head"><b>Places · {t("journal.journalEntry")}</b><span className="mono">{e.no}</span></div>
-            <p className="hint">{e.date.slice(0, 10)} · {serverText(e.nature)}{e.memo ? ` · ${e.memo}` : ""} · {e.by}</p>
+            <p className="hint">{e.date.slice(0, 10)} · {serverText(e.nature)}{e.memo ? ` · ${serverText(e.memo)}` : ""} · {e.by}</p>
             <table className="je">
               <thead><tr><th>{t("common.account")}</th><th>{t("common.debit")}</th><th>{t("common.credit")}</th></tr></thead>
               <tbody>

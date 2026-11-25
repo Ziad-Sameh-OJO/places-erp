@@ -67,7 +67,7 @@ export class VisitPostponeService {
       const ok = await tx.leadVisit.updateMany({ where: { id: visitId, postponeStatus: "pending" }, data: { postponeStatus: status, postponeDecidedBy: me.id, postponeDecidedAt: new Date() } });
       if (!ok.count) throw new BadRequestException("مفيش طلب تأجيل مستني هنا");
       const kind = kindOf(visit.kind);
-      const what = `${me.name} ${input.approve ? "وافق على" : "رفض"} تأجيل ${kind} ${lead.name} (${day(visit.at)}) · السبب: ${visit.postponeReason ?? "—"}`;
+      const what = `${me.name} ${input.approve ? "وافق على" : "رفض"} تأجيل ${kind} ${lead.name} (${day(visit.at)}) · السبب: ${visit.postponeReason ?? "—"}`; // i18n-part: «… وافق على / رفض تأجيل …»
       await this.repo.addActivity(tx, id, kind === "Meeting" ? "meeting" : "visit", `${what} · ${input.approve ? "اليوم ده من غير خصم" : "لازم يتعلّم Done أو معملتهاش"}`, me.id);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visitId, action: input.approve ? "postpone-approve" : "postpone-reject", userId: me.id,
         before: { leadId: id, postponeStatus: "pending" }, after: { leadId: id, postponeStatus: status } }, tx);

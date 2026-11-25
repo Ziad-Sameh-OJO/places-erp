@@ -375,7 +375,7 @@ export class ReportsService {
           const src = card?.items.find((x) => x.key === it.key);
           return { label: it.title, how: it.auto ? `السيستم بيملاه لوحده: ${METRICS[src?.metric ?? ""]?.label ?? ""} النهارده` : "بيكتبه هو (رقم)", goes: `بند «${it.title}» في الـ KPIs · ${src?.weight ?? 0}%`, fieldId: null };
         }),
-        ...form.fields.map((f) => ({ label: f.label, how: `بيكتبه هو (${f.type === "number" ? "رقم" : "كلام"})`, goes: "خانة إضافية · بتظهر في التقرير ومش مربوطة بالـ KPIs", fieldId: f.id })),
+        ...form.fields.map((f) => ({ label: f.label, how: `بيكتبه هو (${f.type === "number" ? "رقم" : "كلام"})`, goes: "خانة إضافية · بتظهر في التقرير ومش مربوطة بالـ KPIs", fieldId: f.id })), // i18n-part: «بيكتبه هو (رقم)» / «(كلام)»
         { label: "عملت إيه تاني النهارده؟", how: "بيكتبه هو (كلام)", goes: "بيظهر في التقرير بس", fieldId: null },
       ],
       can: { fields: w.edit || w.watcher }, to: who(r.recipients), late: who(r.lateNotify), time: r.time,

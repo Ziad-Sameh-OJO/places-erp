@@ -42,7 +42,7 @@ export function MyKpisCard() {
       {c.month && <PeriodSwitch value={period} onChange={setPeriod} />}
       {s.score != null && <Bar pct={s.score} tone={s.tone} />}
       {c.below.length
-        ? <ul className="plain">{c.below.map((it) => <li key={it.title}><Icon name="alert" /><span>{it.title} <small className="hint">· {now(it)}</small></span></li>)}</ul>
+        ? <ul className="plain">{c.below.map((it) => <li key={it.title}><Icon name="alert" /><span>{serverText(it.title)} <small className="hint">· {now(it)}</small></span></li>)}</ul>
         : <p className="hint">{t("allMet")}</p>}
       <div className="row end"><Link className="btn ghost sm" href={href(c.id)}>{t("openCard")}</Link></div>
     </Card>

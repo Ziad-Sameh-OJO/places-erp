@@ -279,7 +279,7 @@ function ReportCard({ r, d, onDone }: { r: ScheduledReportView; d: ReportsData; 
     </div>
   );
   return (
-    <Card title={x.name} icon={hand ? "upload" : "send"} extra={<label className="tog"><input type="checkbox" checked={x.on} disabled={!ed} onChange={(e) => set("on", e.target.checked)} /><span>{tr("sched.on")}</span></label>}>
+    <Card title={serverText(x.name)} icon={hand ? "upload" : "send"} extra={<label className="tog"><input type="checkbox" checked={x.on} disabled={!ed} onChange={(e) => set("on", e.target.checked)} /><span>{tr("sched.on")}</span></label>}>
       <p className="rule-says"><Icon name="bolt" /><span>
         {x.daily && tr("sched.dailySays")}
         {hand ? <>{tr.rich("sched.handSays", { b: bold, when: when(tr, x), prep: names(x.preparedBy), to: names(x.recipients), min: String(x.remindMin), late: names(x.lateNotify) })}{x.kpiItems.length ? tr("sched.kpiCounted", { items: x.kpiItems.map((k) => tr("sched.quote", { label: serverText(k.label) })).join(tr("sep")) }) : tr("sched.kpiNone")}</>

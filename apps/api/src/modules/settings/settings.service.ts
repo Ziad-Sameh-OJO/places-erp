@@ -61,7 +61,7 @@ export class SettingsService {
       const acts = listActions(s[key], after);
       const allowed = acts.length ? acts.every((a) => canChangeList(s.listEditors[key], a, who))
         : canChangeList(s.listEditors[key], "add", who) || canChangeList(s.listEditors[key], "off", who);
-      if (!allowed) throw new ForbiddenException(`مش مسموحلك ${acts.includes("add") && !canChangeList(s.listEditors[key], "add", who) ? "تضيف في" : "توقّف أو ترجّع قيم في"} «${listLabel(key)}»`);
+      if (!allowed) throw new ForbiddenException(`مش مسموحلك ${acts.includes("add") && !canChangeList(s.listEditors[key], "add", who) ? "تضيف في" : "توقّف أو ترجّع قيم في"} «${listLabel(key)}»`); // i18n-part: «مش مسموحلك تضيف في / توقّف أو ترجّع قيم في «…»»
       return this.set(me, key, after);
     }
     if (key === "channelTypes") {

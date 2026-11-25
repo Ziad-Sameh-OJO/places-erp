@@ -174,8 +174,8 @@ export class TasksService {
       if ((await this.repo.update(tx, t.id, t.status, data)).count === 0) throw new ConflictException(CHANGED);
       await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: m.undo ? "undo" : m.returned ? "return" : "status", userId: me.id, before: { status: from }, after: { status: input.status } }, tx);
     });
-    const what = m.undo ? "رجّعها للمهام (Undo)" : m.returned ? "رجّعها للتعديل" : `بقت ${TASK_STATUS_LABEL[input.status]}`;
-    await this.tell(me, t, `${me.name}: مهمة ${label(t)} ${what}`);
+    const what = m.undo ? "رجّعها للمهام (Undo)" : m.returned ? "رجّعها للتعديل" : `بقت ${TASK_STATUS_LABEL[input.status]}`; // i18n-part: «…: مهمة … بقت …»
+    await this.tell(me, t, `${me.name}: مهمة ${label(t)} ${what}`); // i18n-part: «…: مهمة … بقت / رجّعها …»
     await this.announce(me, t, input.status, m.returned);
     return this.get(me, id);
   }

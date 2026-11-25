@@ -6,8 +6,9 @@ import { Card, Chip, Empty, Note, Table } from "@/components/ui";
 import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { useTranslations } from "next-intl";
-import { money } from "@/lib/format";
+import { money, listSep } from "@/lib/format";
 import { useFields } from "@/lib/me";
+import { serverText } from "@/lib/server-text";
 
 const STATUS = { ideal: "ok", penalty: "bad", kpi: "warn" } as const;
 
@@ -19,9 +20,9 @@ export function IdealEmployee() {
   const group = (title: string, rows: IdealKpiRowView[], withTeam: boolean) => {
     const winners = rows.filter((r) => r.ideal);
     return (
-      <Card title={title} icon="star" sub={winners.length ? `${t("kpiIdeal.winner")}: ${winners.map((w) => w.name).join("، ")}` : t("kpiIdeal.nobody")}>
+      <Card title={title} icon="star" sub={winners.length ? `${t("kpiIdeal.winner")}: ${winners.map((w) => w.name).join(listSep())}` : t("kpiIdeal.nobody")}>
         <Table head={[t("kpiIdeal.rank"), t("common.employee"), ...(withTeam ? [t("kpiIdeal.team")] : []), t("kpiIdeal.score"), ""]} empty={t("kpiIdeal.empty")}
-          rows={rows.map((r) => [r.rank ?? "—", <b key="n">{r.name}</b>, ...(withTeam ? [r.team ?? "—"] : []),
+          rows={rows.map((r) => [r.rank ?? "—", <b key="n">{r.name}</b>, ...(withTeam ? [r.team ? serverText(r.team) : "—"] : []),
             r.score == null ? <span key="s" className="hint">{t("kpiIdeal.noCard")}</span> : <b key="s">{r.score}%</b>,
             r.ideal ? <Chip key="i" tone="ok">{t("kpiIdeal.winner")}</Chip> : ""])} />
       </Card>
@@ -54,14 +55,14 @@ export function EmployeeBox() {
       </div>
       <Table head={[t("ideal.team"), t("ideal.winner"), t("ideal.fund"), ""]} empty={t("ideal.noTeams")}
         rows={q.data.teams.map((x) => [
-          <span key="t"><b>{x.name}</b><span className="sub">{t("common.employeesCount", { count: x.rows.length })}</span></span>,
+          <span key="t"><b>{serverText(x.name)}</b><span className="sub">{t("common.employeesCount", { count: x.rows.length })}</span></span>,
           x.winner ? x.winner.name : <Chip key="w" tone="warn">{t("ideal.nobody")}</Chip>,
           fund ? money(x.fund) : "—",
           <button key="b" className="btn ghost sm" onClick={() => setOpen(open === x.name ? null : x.name)}>{open === x.name ? t("ideal.close") : t("ideal.details")}</button>,
         ])} />
       {team && (
         <>
-          <h4 className="mini-h">{team.name}</h4>
+          <h4 className="mini-h">{serverText(team.name)}</h4>
           <Table head={[t("common.employee"), t("ideal.earlyCol"), t("ideal.lateHoursCol"), t("ideal.absentCol"), t("ideal.kpisCol"), t("ideal.points"), ""]}
             rows={team.rows.map((r) => [r.name, r.earlyDays, r.lateHours.toFixed(1), r.absentDays, r.kpi == null ? "—" : `${r.kpi}%`, <b key="p">{r.points.toFixed(1)}</b>,
               r.status ? <Chip key="s" tone={STATUS[r.status]}>{t(`ideal.status.${r.status}`)}</Chip> : ""])} />
