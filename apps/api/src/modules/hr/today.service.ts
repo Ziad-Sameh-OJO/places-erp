@@ -30,7 +30,7 @@ export class HrTodayService {
       approves ? this.leaves.list(me) : [],
       approves ? this.excuses.list(me) : [],
       approves ? this.attendance.forgotWaiting(me) : [],
-      me.grants.can("hr", "edit") ? this.care.actions().then((a) => a.items) : [],
+      me.grants.can("hr", "edit") ? this.care.actions(me).then((a) => a.items) : [],
       decides ? this.attendance.day(me, today).then((d) => d.missing) : [],
       this.repo.deductionRules(),
       me.grants.can("hr", "edit") && me.grants.scope === "all" ? this.file.left(me) : [], // the month's last week: who has no 1-to-1 yet

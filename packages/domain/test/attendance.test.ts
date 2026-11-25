@@ -90,3 +90,23 @@ test("the month's deduction for payroll: attendance + approved penalty days at s
   assert.equal(monthDeduction({ salary: 2_600_00, attendanceDays: 20, penaltyDays: 9 }).amount, 2_600_00); // never above the salary
   assert.deepEqual(monthDeduction({ salary: 10_000_00, attendanceDays: 0, penaltyDays: 0 }), { days: 0, amount: 0 });
 });
+
+test("a penalty approved after its month's deductions were approved lands in the next open month, never lost (7.9)", async () => {
+  const { penaltyMonth } = await import("../src/attendance.ts");
+  const at = (s: string) => new Date(`${s}T12:00:00Z`);
+  const approved = new Map([["2026-10", at("2026-11-02")], ["2026-11", at("2026-12-01")]]);
+  assert.equal(penaltyMonth("2026-10-20", at("2026-10-25"), approved), "2026-10"); // decided before October was approved
+  assert.equal(penaltyMonth("2026-10-20", at("2026-11-05"), approved), "2026-11"); // October already approved → November
+  assert.equal(penaltyMonth("2026-10-20", at("2026-12-03"), approved), "2026-12"); // October and November approved → December
+  assert.equal(penaltyMonth("2026-11-10", at("2026-11-11"), approved), "2026-11");
+  assert.equal(penaltyMonth("2026-10-20", null, approved), "2026-10"); // an old row without a decision time
+});
+
+test("a confirmed Excuse never re-prices a day a Visit or approved outside work holds (7.3 · 7.4: same result in any order)", async () => {
+  const { excuseApplies } = await import("../src/attendance.ts");
+  assert.equal(excuseApplies({ kind: "CHECKIN", hasVisit: false }), true); // late by the fingerprint: the Excuse prices it
+  assert.equal(excuseApplies({ kind: "VISIT", hasVisit: true }), false); // a Visit done: deduction 0 stays
+  assert.equal(excuseApplies({ kind: "VISIT", hasVisit: false }), false); // a postponed Visit HR approved
+  assert.equal(excuseApplies({ kind: "CHECKIN", hasVisit: true }), false); // «Visit · معملهاش»: the Visit rule priced it
+  assert.equal(excuseApplies({ kind: "OUTSIDE_APPROVED", hasVisit: false }), false);
+});
