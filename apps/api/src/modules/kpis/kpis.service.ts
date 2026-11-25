@@ -46,6 +46,8 @@ type Quarter = { id: string; status: string; sheetsAt?: Date | null; sheetsById?
 
 const piasters = (d: Prisma.Decimal | null) => (d == null ? 0 : fromDecimal(d.toFixed(2)));
 const num = (d: Prisma.Decimal | null) => (d == null ? null : Number(d));
+/** where each band starts: what the page's scale draws (the percentages of money stay out) */
+const scaleOf = (b: Bands) => ({ low: b.low, partial: b.partial, full: b.full, top: b.top });
 const bandsOf = (b: { top: number; full: number; partial: number; low: number; rewardPct: number; cutPct: number }): Bands =>
   ({ top: b.top, full: b.full, partial: b.partial, low: b.low, rewardPercent: b.rewardPct, cutPercent: b.cutPct });
 
@@ -165,7 +167,7 @@ export class KpisService {
   private summary(w: Who, c: CardRecord, b: Bands): KpiCardSummary {
     const s = this.score(c);
     return hideScore(w, {
-      id: c.id, employeeId: c.employeeId, name: c.employee.name, title: c.employee.jobTitle, follower: c.follower?.name ?? "الملاك",
+      id: c.id, employeeId: c.employeeId, name: c.employee.name, title: c.employee.jobTitle, department: c.employee.department, follower: c.follower?.name ?? "الملاك",
       score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b),
       below: c.items.filter((it) => this.ach(it) < 1).length, approved: !!c.approvedAt, month: this.monthScore(c, b),
       money: w.noMoney || (w.noSalary && this.onSalary(c)) ? null : toDecimal(this.delta(c, s, b)),
@@ -187,7 +189,7 @@ export class KpisService {
     const [cards, bands, missing] = await Promise.all([this.repo.cards({ quarter: q.id, ...where }), this.repo.bands(),
       inv ? this.repo.invWithoutCard(q.id, INVENTORY_DEPARTMENT, me.employeeId!) : Promise.resolve([])]);
     const b = bandsOf(bands);
-    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all,
+    return { quarter: this.qView(q), cards: cards.map((c) => this.summary(w, c, b)).sort((x, y) => (w.noScore ? x.name.localeCompare(y.name, "ar") : x.score - y.score)), seesMoney: !w.noMoney, seesAll: w.all, scale: scaleOf(b),
       missing: missing.map((p) => ({ id: p.id, name: p.name, title: p.jobTitle })) };
   }
 
@@ -235,7 +237,7 @@ export class KpisService {
     return hideCard(w, {
       id: c.id, quarter: this.qView(q), employee: { id: c.employeeId, name: c.employee.name, title: c.employee.jobTitle },
       follower: { id: c.followerId, name: c.follower?.name ?? "الملاك" },
-      score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b), plan: c.plan,
+      score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b), plan: c.plan, scale: scaleOf(b),
       month: this.monthScore(c, b, month),
       approved: c.approvedAt ? { by: approver, at: c.approvedAt.toISOString() } : null,
       pay: w.noMoney ? null : {

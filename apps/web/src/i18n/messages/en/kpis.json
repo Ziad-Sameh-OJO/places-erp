@@ -16,7 +16,8 @@
     "all": "Whole company",
     "daily": "Daily reports",
     "log": "Reports & changes",
-    "ideal": "Ideal employee"
+    "ideal": "Ideal employee",
+    "settings": "Settings"
   },
   "board": {
     "note": "An <b>automatic</b> item is measured by the system from the modules, a <b>delivery</b> item is recorded by the employee, and a <b>manual</b> item is entered by the follower. Score = sum of (weight × achievement).",
@@ -273,6 +274,66 @@
     "remove": "Delete",
     "removed": "Figure deleted",
     "pickPerson": "Pick the employee",
-    "kinds": { "score": "KPI result %", "target": "Target (EGP)", "achieved": "Achieved (EGP)" }
+    "kinds": {
+      "score": "KPI result %",
+      "target": "Target (EGP)",
+      "achieved": "Achieved (EGP)"
+    }
+  },
+  "view": {
+    "toDate": "to date",
+    "thisMonth": "this month",
+    "resultIn": "Result in {quarter}",
+    "gap": "<b>{n}</b> points short of {v}%",
+    "atTop": "Above {v}%: the top band",
+    "ifClosedToday": "If the quarter closed today",
+    "under": "Under {v}%",
+    "items": "Items on the card",
+    "weights": "Weights add up to {n}%",
+    "below": "Under target",
+    "belowWeight": "{n}% of the card's weight",
+    "done": "Achieved",
+    "donePoints": "Brought {n} points",
+    "manual": "Manual items",
+    "manualSub": "Someone types the number",
+    "whereFrom": "Where did the {n}% come from?",
+    "stackHint": "Each item's width = its weight · dark = achieved",
+    "itemsTitle": "Items",
+    "filter": "Filter the items",
+    "f": {
+      "all": "All",
+      "below": "Under target",
+      "done": "Achieved"
+    },
+    "noneHere": "No items here",
+    "of": "of {n}",
+    "planNeeded": "Needed: the card is under the threshold",
+    "payByFollower": "Set by the follower",
+    "rules": "Bonus and deduction rules",
+    "quarterOpen": "Quarter open",
+    "quarterClosed": "Quarter closed",
+    "companyAvg": "Company average",
+    "teamAvg": "Team average",
+    "goal": "Target {v}%",
+    "allApproved": "All approved",
+    "waiting": "{n} waiting for the follower",
+    "haveBelow": "Have items short",
+    "haveBelowSub": "Under target",
+    "noCard": "Without a card",
+    "noCardSub": "Make their cards below",
+    "noCardNone": "Everyone has a card",
+    "whereStand": "Where does everyone stand?",
+    "pickBand": "Click a band to filter",
+    "find": "Search by employee or department",
+    "byDept": "By department",
+    "employee": "Employee",
+    "follower": "Followed by",
+    "result": "Result",
+    "belowCol": "Under target",
+    "approval": "Approval",
+    "groupInfo": "{n} cards",
+    "groupAvg": "average {v}%",
+    "belowN": "{count} items",
+    "noMatch": "Nobody matches this search"
   }
 }

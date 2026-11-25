@@ -3,7 +3,6 @@ import { type ReactNode, useEffect, useState } from "react";
 import type { KpiBandsInput, KpiCardSummary, KpiCompany, KpiSheetSetup } from "@places/contracts";
 import { SHEET_FIELD_KEYS, type SheetField } from "@places/domain";
 import { Avatar, Card, Chip, Empty, Icon, Note, Tabs, Table, onFormSubmit, useAction } from "@/components/ui";
-import { KpiTile } from "@/components/blocks";
 import { api } from "@/lib/api";
 import { dayTime, money } from "@/lib/format";
 import { useFields, useMe } from "@/lib/me";
@@ -12,11 +11,12 @@ import { serverText } from "@/lib/server-text";
 import { DailyBoard } from "@/features/reports/daily";
 import { IdealEmployee } from "../hr/ideal";
 import { KpiCardBody, KpiDrawer } from "./kpi-drawer";
+import { bandOf } from "./kpi-view";
 import { type Scope, useBoard, useCompany, useKpiLog, useRefreshKpis } from "./use-kpis";
 import { PeriodPicker } from "@/components/period-picker";
 import { HistoryFigures, HistoryTab } from "./history";
 
-type Tab = Scope | "log" | "daily" | "ideal" | "history";
+type Tab = Scope | "log" | "daily" | "ideal" | "history" | "settings";
 const barTone = (t: string) => (t === "ok" ? "" : t);
 export const Bar = ({ pct, tone }: { pct: number; tone: string }) => <div className={`bar ${barTone(tone)}`}><i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} /></div>;
 /** HR 15 Nov · «الربع» / «الشهر»: which progress a card shows (the API sends both). */
@@ -29,6 +29,8 @@ export function PeriodSwitch({ value, onChange }: { value: Period; onChange: (p:
     </div>
   );
 }
+const BAND = ["bad", "warn", "ok2", "ok"] as const;
+const bandTone = (score: number, s: { low: number; partial: number }) => (score < s.low ? "bad" : score < s.partial ? "warn" : "ok");
 export const moneyChip = (v: string | null) => (v && Number(v) ? <Chip tone={Number(v) > 0 ? "ok" : "bad"} plain>{Number(v) > 0 ? "+" : "−"}{money(v.replace("-", ""))}</Chip> : null);
 
 /** M-12 · مؤشرات الأداء (demo kpis.js): كارتي · فريقي · كل الشركة · التقارير والتغييرات. */
@@ -48,6 +50,8 @@ export function KpisPage() {
     ...(me.data?.seesMoney && can("hr", "view") ? [["ideal", t("tabs.ideal")] as [Tab, string]] : []),
     // 14.12: past quarters' figures typed by hand, by the admins and HR
     ...(can("kpis", "edit") || can("hr", "edit") ? [["history", t("history.tab")] as [Tab, string]] : []),
+    // the quarters, the money bands, the watcher and the sheet's lines: off the cards' page, in their own tab
+    ...(all ? [["settings", t("tabs.settings")] as [Tab, string]] : []),
   ];
   const [pick, setPick] = useState<Tab | null>(null);
   // 11.16: «افتح الكارت» from home and its KPI lines: «/kpis?card=<id>»
@@ -59,53 +63,80 @@ export function KpisPage() {
   return (
     <>
       <div className="row"><Tabs<Tab> items={tabs} value={tab} onChange={setPick} /></div>
-      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : tab === "ideal" ? <IdealEmployee /> : tab === "history" ? <HistoryTab /> : <Log />}
+      {tab === "me" && mine ? <MyCard id={mine.id} /> : tab === "team" ? <Board scope="team" /> : tab === "all" ? <Company /> : tab === "daily" ? <DailyBoard /> : tab === "ideal" ? <IdealEmployee /> : tab === "history" ? <HistoryTab /> : tab === "settings" ? <Settings /> : <Log />}
       {deep && <KpiDrawer id={deep} onClose={() => setDeep(null)} />}
     </>
   );
 }
 
 function MyCard({ id }: { id: string }) {
-  return <section className="card"><KpiCardBody id={id} /></section>;
+  return <KpiCardBody id={id} />;
 }
 
-function Board({ scope, note }: { scope: "team" | "all" | "mine"; note?: ReactNode }) {
+type Sort = "dept" | "low" | "high";
+function Board({ scope, note, extra }: { scope: "team" | "all" | "mine"; note?: ReactNode; extra?: { n: number; label: string; sub: string } | undefined }) {
   const t = useTranslations("kpis");
   const [pickedQuarter, setPickedQuarter] = useState(""); // 14.12: "" = the current quarter
   const q = useBoard(scope, true, pickedQuarter);
   const { can } = useMe();
   const [open, setOpen] = useState<string | null>(null);
-  const [sort, setSort] = useState<"low" | "high">("low");
+  const [sort, setSort] = useState<Sort>(scope === "all" ? "dept" : "low");
   const [period, setPeriod] = useState<Period>("quarter");
+  const [find, setFind] = useState("");
+  const [band, setBand] = useState<number | null>(null);
   const score = useFields("kpis").shows("score");
   if (!q.data) return <Empty text={t("common.loading")} />;
-  const { cards, quarter } = q.data;
+  const { cards, quarter, scale } = q.data;
   const shown = (c: KpiCardSummary) => (period === "month" ? c.month : c);
-  const sorted = period === "month" ? [...cards].sort((x, y) => x.month.score - y.month.score) : cards;
-  const list = sort === "low" ? sorted : [...sorted].reverse();
   const avg = cards.length ? cards.reduce((s, c) => s + shown(c).score, 0) / cards.length : 0;
   const approved = cards.filter((c) => c.approved).length;
+  const inBand = [0, 1, 2, 3].map((i) => cards.filter((c) => bandOf(shown(c).score, scale) === i).length);
+  const bandLabel = [t("view.under", { v: scale.low }), `${scale.low}–${scale.partial}%`, `${scale.partial}–${scale.full}%`, `+${scale.full}%`];
+  const word = find.trim().toLowerCase();
+  const list = cards
+    .filter((c) => (band == null || bandOf(shown(c).score, scale) === band) && (!word || [c.name, serverText(c.title), serverText(c.department), c.follower].some((x) => x.toLowerCase().includes(word))))
+    .sort((x, y) => (sort === "high" ? shown(y).score - shown(x).score : shown(x).score - shown(y).score));
+  // «بالقسم»: the departments by name, each one's people lowest first
+  const groups = sort === "dept" ? [...new Set(list.map((c) => c.department))].sort((x, y) => serverText(x).localeCompare(serverText(y), "ar")).map((d) => ({ d, rows: list.filter((c) => c.department === d) })) : [{ d: "", rows: list }];
+  const stat = (n: ReactNode, tone: string, label: string, sub: string) => <div className="kx-stat"><strong className={`num ${tone}`}>{n}</strong><span><b>{label}</b>{sub}</span></div>;
   return (
-    <>
-      <Note>{note ?? t.rich("board.note", { b: (x) => <b>{x}</b> })}</Note>
-      <div className="kpis sm">
-        <KpiTile label={t("board.cards")} value={cards.length} sub={scope === "all" ? t("tabs.all") : t("board.yourTeam")} icon="users" />
-        {score && <KpiTile label={t("board.average")} value={`${Math.round(avg)}%`} sub={period === "month" ? t("period.month") : serverText(quarter.label)} icon="chart" />}
-        <KpiTile label={t("common.approved")} value={t("board.approvedOf", { n: approved, total: cards.length })} sub={t("board.byFollower")} icon="check" tone={approved === cards.length ? "ok" : "warn"} />
-        <KpiTile label={t("board.quarter")} value={quarter.status === "open" ? t("board.open") : t("board.closed")} sub={quarter.status === "open" ? t("board.updating") : t("board.saved")} icon="clock" />
+    <div className="kx">
+      <div className="kx-strip">
+        {stat(cards.length, "", t("board.cards"), `${serverText(quarter.label)} · ${quarter.status === "open" ? t("view.quarterOpen") : t("view.quarterClosed")}`)}
+        {score && stat(`${Math.round(avg)}%`, bandTone(avg, scale), scope === "all" ? t("view.companyAvg") : t("view.teamAvg"), period === "month" ? t("period.month") : t("view.goal", { v: scale.partial }))}
+        {stat(<>{approved}<small> / {cards.length}</small></>, approved === cards.length && cards.length ? "ok" : "", t("common.approved"), approved === cards.length ? t("view.allApproved") : t("view.waiting", { n: cards.length - approved }))}
+        {extra ? stat(extra.n, extra.n ? "warn" : "", extra.label, extra.sub) : stat(cards.filter((c) => c.below > 0).length, "", t("view.haveBelow"), t("view.haveBelowSub"))}
       </div>
-      <div className="toolbar">
-        <PeriodPicker value={pickedQuarter || quarter.id} onChange={setPickedQuarter} />
-        <PeriodSwitch value={period} onChange={setPeriod} />
-        <div className="seg" role="group" aria-label={t("board.sort")}>
-          <button aria-pressed={sort === "low"} onClick={() => setSort("low")}>{t("board.lowFirst")}</button>
-          <button aria-pressed={sort === "high"} onClick={() => setSort("high")}>{t("board.highFirst")}</button>
+      {score && cards.length > 0 && (
+        <section className="kx-card">
+          <div className="kx-h"><h3>{t("view.whereStand")}</h3><small className="hint">{t("view.pickBand")}</small></div>
+          <div className="kx-dist" aria-hidden="true">{inBand.map((n, i) => n > 0 && <i key={i} className={BAND[i]} style={{ flex: n }} />)}</div>
+          <div className="kx-leg">
+            {inBand.map((n, i) => <button key={i} className={`kx-pill ${BAND[i]}`} aria-pressed={band === i} onClick={() => setBand(band === i ? null : i)}>{bandLabel[i]} · <b className="num">{n}</b></button>)}
+          </div>
+        </section>
+      )}
+      <section className="kx-card">
+        <div className="kx-tool">
+          <label className="search"><Icon name="search" /><input value={find} onChange={(e) => setFind(e.target.value)} placeholder={t("view.find")} aria-label={t("view.find")} /></label>
+          <PeriodPicker value={pickedQuarter || quarter.id} onChange={setPickedQuarter} bare />
+          <PeriodSwitch value={period} onChange={setPeriod} />
+          <div className="seg" role="group" aria-label={t("board.sort")}>
+            {(["dept", "low", "high"] as const).map((k) => <button key={k} aria-pressed={sort === k} onClick={() => setSort(k)}>{k === "dept" ? t("view.byDept") : k === "low" ? t("board.lowFirst") : t("board.highFirst")}</button>)}
+          </div>
         </div>
-      </div>
-      <div className="kpi-cards">
-        {list.map((c) => <CardTile key={c.id} c={c} period={period} onOpen={() => setOpen(c.id)} />)}
-        {!list.length && <Empty text={t("board.empty")} icon="chart" />}
-      </div>
+        <div className="kx-rows">
+          <div className="kx-tr hd"><span>{t("view.employee")}</span><span>{t("view.follower")}</span><span>{score ? t("view.result") : ""}</span><span>{t("view.belowCol")}</span><span>{t("view.approval")}</span><span /></div>
+          {groups.map((g) => (
+            <div key={g.d} className="kx-group">
+              {sort === "dept" && <div className="kx-grp">{serverText(g.d)}<small>· {t("view.groupInfo", { n: g.rows.length })}{score && ` · ${t("view.groupAvg", { v: Math.round(g.rows.reduce((s, c) => s + shown(c).score, 0) / g.rows.length) })}`}</small></div>}
+              {g.rows.map((c) => <CardRow key={c.id} c={c} period={period} onOpen={() => setOpen(c.id)} />)}
+            </div>
+          ))}
+          {!list.length && <Empty text={cards.length ? t("view.noMatch") : t("board.empty")} icon="chart" />}
+        </div>
+      </section>
+      <Note>{note ?? t.rich("board.note", { b: (x) => <b>{x}</b> })}</Note>
       {q.data.missing.length > 0 && (
         <Card title={t("inv.missing")} icon="users" extra={<Chip tone="warn">{q.data.missing.length}</Chip>}>
           {q.data.missing.map((p) => <NoCard key={p.id} p={p} onMade={setOpen} />)}
@@ -113,7 +144,7 @@ function Board({ scope, note }: { scope: "team" | "all" | "mine"; note?: ReactNo
       )}
       {pickedQuarter && (can("kpis", "edit") || can("hr", "edit")) && <HistoryFigures period={pickedQuarter} />}
       {open && <KpiDrawer id={open} onClose={() => setOpen(null)} />}
-    </>
+    </div>
   );
 }
 
@@ -131,19 +162,19 @@ export function InventoryKpis({ onBack }: { onBack: () => void }) {
   );
 }
 
-function CardTile({ c, period, onOpen }: { c: KpiCardSummary; period: Period; onOpen: () => void }) {
+/** One person on the board, as a line that reads across: who, who follows, the result, what is under target, approved. */
+function CardRow({ c, period, onOpen }: { c: KpiCardSummary; period: Period; onOpen: () => void }) {
   const t = useTranslations("kpis");
   const score = useFields("kpis").shows("score"); // M-09: a hidden result isn't shown (the API blanks it)
   const s = period === "month" ? c.month : c;
   return (
-    <button className="kpi-card" onClick={onOpen}>
-      <span className="row"><Avatar id={c.employeeId} name={c.name} /><span className="kc-who"><b>{c.name}</b><small>{serverText(c.title)} · {t("followedBy", { name: c.follower })}</small></span>{score && <b className={`num kc-score ${s.tone}`}>{Math.round(s.score)}%</b>}</span>
-      {score && <Bar pct={s.score} tone={s.tone} />}
-      <span className="row">
-        {score && <Chip tone={c.tone} plain>{serverText(c.tier)}</Chip>}{moneyChip(c.money)}
-        {c.below > 0 && <Chip tone="warn" plain>{t("board.below", { count: c.below })}</Chip>}
-        {c.approved ? <Chip tone="ok" plain>{t("common.approved")}</Chip> : <Chip plain>{t("board.awaitingApproval")}</Chip>}
-      </span>
+    <button className="kx-tr" onClick={onOpen}>
+      <span className="kx-who"><Avatar id={c.employeeId} name={c.name} sm /><span><b>{c.name}</b><small>{serverText(c.title)}</small></span></span>
+      <span className="kx-mut" data-label={t("view.follower")}>{c.follower}</span>
+      <span className={`kx-bar ${s.tone}`}>{score && <><span className="kx-track"><i style={{ width: `${Math.max(0, Math.min(100, s.score))}%` }} /></span><b className="num">{Math.round(s.score)}%</b></>}</span>
+      <span>{c.below > 0 ? t("view.belowN", { count: c.below }) : <span className="kx-mut">—</span>}</span>
+      <span className="kx-chips">{c.approved ? <Chip tone="ok" plain>{t("common.approved")}</Chip> : <Chip plain>{t("board.awaitingApproval")}</Chip>}{moneyChip(c.money)}</span>
+      <span className="kx-mut kx-go" aria-hidden="true">‹</span>
     </button>
   );
 }
@@ -152,19 +183,31 @@ function Company() {
   const t = useTranslations("kpis");
   const q = useCompany(true);
   const [open, setOpen] = useState<string | null>(null);
+  const none = q.data?.noCard ?? [];
   return (
     <>
-      <Board scope="all" />
-      {q.data && <Quarters c={q.data} />}
-      {q.data && q.data.noCard.length > 0 && (
-        <Card title={t("company.noCard")} icon="users" extra={<Chip tone="warn">{q.data.noCard.length}</Chip>}>
-          {q.data.noCard.map((p) => <NoCard key={p.id} p={p} onMade={setOpen} />)}
+      <Board scope="all" extra={q.data && { n: none.length, label: t("view.noCard"), sub: none.length ? t("view.noCardSub") : t("view.noCardNone") }} />
+      {none.length > 0 && (
+        <Card title={t("company.noCard")} icon="users" extra={<Chip tone="warn">{none.length}</Chip>}>
+          {none.map((p) => <NoCard key={p.id} p={p} onMade={setOpen} />)}
         </Card>
       )}
-      {q.data?.can.edit && <Watchers c={q.data} />}
-      {q.data?.bands && <Bands b={q.data.bands} edit={q.data.can.edit} />}
-      {q.data?.sheetSetup && <SheetSetup s={q.data.sheetSetup} edit={q.data.can.edit} />}
       {open && <KpiDrawer id={open} onClose={() => setOpen(null)} edit />}
+    </>
+  );
+}
+
+/** «الإعدادات»: the quarters, who runs the KPIs, the money bands and the sheet's lines (they sat under the company's cards). */
+function Settings() {
+  const q = useCompany(true);
+  const t = useTranslations("kpis");
+  if (!q.data) return <Empty text={t("common.loading")} />;
+  return (
+    <>
+      <Quarters c={q.data} />
+      {q.data.can.edit && <Watchers c={q.data} />}
+      {q.data.bands && <Bands b={q.data.bands} edit={q.data.can.edit} />}
+      {q.data.sheetSetup && <SheetSetup s={q.data.sheetSetup} edit={q.data.can.edit} />}
     </>
   );
 }

@@ -4,7 +4,7 @@ import { PRISMA } from "../../core/database/database.module";
 
 export const CARD = {
   include: {
-    employee: { select: { id: true, name: true, jobTitle: true, salary: true, userId: true, user: { select: { email: true } } } },
+    employee: { select: { id: true, name: true, jobTitle: true, department: true, salary: true, userId: true, user: { select: { email: true } } } },
     follower: { select: { id: true, name: true, userId: true } },
     items: { orderBy: { position: "asc" }, include: { deliveries: { orderBy: { at: "asc" } } } },
   },
