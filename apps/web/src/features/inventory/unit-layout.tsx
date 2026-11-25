@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { UnitDetail, UnitLayoutView } from "@places/contracts";
 import { fillsUnitFolder } from "@places/domain";
 import { Icon, Modal, Note, useAction, useToast } from "@/components/ui";
-import { api } from "@/lib/api";
+import { FILE_LINKS, api } from "@/lib/api";
 import { useFields, useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { dateLocale } from "@/lib/format";
@@ -39,7 +39,7 @@ function Folder({ u }: { u: U }) {
   const fields = useFields("inventory");
   const up = !!me && fillsUnitFolder(me.roles, { can }) && fields.edits("layout");
   const base = `/inventory/units/${u.id}/layout`;
-  const files = useQuery({ queryKey: ["unit-layout", u.id], queryFn: () => api.get<UnitLayoutView[]>(base) }).data ?? [];
+  const files = useQuery({ queryKey: ["unit-layout", u.id], queryFn: () => api.get<UnitLayoutView[]>(base), ...FILE_LINKS }).data ?? [];
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["unit-layout", u.id] }), qc.invalidateQueries({ queryKey: ["units"] }), qc.invalidateQueries({ queryKey: ["unit"] })]);
   const remove = (f: UnitLayoutView) => {
     if (!window.confirm(t("deleteConfirm"))) return;

@@ -6,6 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
+import JSZip from "jszip";
 import { API, session } from "./helpers.ts";
 
 const stamp = String(Date.now()).slice(-8);
@@ -104,4 +105,20 @@ test("companies: duplicate by name (any case) and number; sales 403", async () =
   const acme = await prisma.company.findFirstOrThrow({ where: { name: `${P} Acme`, number: "0222" } });
   assert.deepEqual([acme.currentSpace, acme.averageRent?.toFixed(2), acme.contractEnd?.toISOString().slice(0, 10)], [300, "200000.00", "2027-01-01"]);
   assert.deepEqual(await (await upload("companies", csv, admin)).json(), { imported: 0, duplicates: 3, skipped: 1 });
+});
+
+test("an .xlsx that unpacks past 50 MB (a zip bomb) is refused before ExcelJS reads it (S8)", async () => {
+  const zip = new JSZip();
+  zip.file("xl/worksheets/sheet1.xml", Buffer.alloc(60 * 1024 * 1024)); // 60 MB of zeros: ~60 KB packed
+  const bomb = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  assert.ok(bomb.length < 1024 * 1024);
+  const form = new FormData();
+  form.append("file", new Blob([bomb]), "sheet.xlsx");
+  const r = await fetch(`${API}/imports/companies/preview`, { method: "POST", body: form, headers: { cookie: admin } });
+  assert.equal(r.status, 400);
+  assert.match(JSON.stringify(await r.json()), /كبير أوي لما يتفك/);
+  // a normal sheet still goes through the same check
+  const ok = new FormData();
+  ok.append("file", new Blob([await (await fetch(`${API}/imports/companies/template`, { headers: { cookie: admin } })).arrayBuffer()]), "sheet.xlsx");
+  assert.equal((await fetch(`${API}/imports/companies/preview`, { method: "POST", body: ok, headers: { cookie: admin } })).status, 200);
 });

@@ -1,0 +1,24 @@
+# The Dockerfiles in infra/docker do `COPY . .` from the repo root: keep secrets, local data and build outputs out of the image.
+# Secrets (only the example stays)
+**/.env
+**/.env.*
+!.env.example
+# Local storage: outbox mails, uploaded files, the dev DB, binaries
+.local
+**/.local
+infra/docker/data
+# Installed and built in the image, never copied from a workstation
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+**/test-results
+**/playwright-report
+**/*.log
+# Repo and tooling metadata
+.git
+.github
+.claude
+**/.DS_Store
