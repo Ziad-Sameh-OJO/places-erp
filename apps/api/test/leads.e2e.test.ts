@@ -169,7 +169,8 @@ test("a new lead's Activity starts with who entered it and who it went to (demo 
   const r = await call(`/leads/${apiLeadId}`, { cookie: mohsen });
   const texts = r.body.activities.map((a: { text: string }) => a.text);
   assert.ok(texts.includes("اتعمل بواسطة Heba Salah · اتوزع لـ Mohamed Mohsen"), JSON.stringify(texts));
-  assert.ok(texts.includes("عايز مكتب قريب من التسعين"));
+  assert.ok(!texts.includes("عايز مكتب قريب من التسعين")); // the note is the Overview's quote, not a comment: a hidden note stays hidden (M-09)
+  assert.equal(r.body.note, "عايز مكتب قريب من التسعين");
   assert.equal(r.body.firstActionAt, null); // entering a lead isn't the salesperson's action
 });
 
@@ -196,12 +197,12 @@ test("lead codes come from the sequence: L-1001…, never shared even when creat
   }
 });
 
-test("a stage change is an action too: it stops the SLA clock and goes on top of the Activity; the TL can comment on his team's lead", async () => {
+test("a stage change goes on top of the Activity; the TL's doesn't stop his salesperson's SLA clock (Q4); the TL can comment on his team's lead", async () => {
   const id = await idOf(2); // the teammate's lead, untouched so far
   assert.equal((await call(`/leads/${id}`, { cookie: tl })).body.firstActionAt, null);
   assert.equal((await call(`/leads/${id}/stage`, { method: "PATCH", cookie: tl, body: { stage: "No Answer" } })).status, 200);
   const r = await call(`/leads/${id}`, { cookie: tl });
-  assert.ok(r.body.firstActionAt);
+  assert.equal(r.body.firstActionAt, null); // only the holder's own action stops it
   assert.equal(r.body.activities[0].kind, "stage");
   assert.equal(r.body.noAnswerCount, 1);
   assert.equal((await call(`/leads/${id}/comments`, { method: "POST", cookie: tl, body: { text: "x".repeat(2000) } })).status, 201);

@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { KEEP, ROTATION, TELESALES, type DraftKind, type DraftRow, type LeadSummary } from "@places/contracts";
@@ -71,8 +72,11 @@ function Decide({ kind, row }: { kind: DraftKind; row: DraftRow }) {
   const all = useLeadOptions().data?.assignable ?? [];
   const people = kind === "draft" ? all.filter((p) => p.id !== row.from?.id) : all;
   const name = (to: string) => (to === ROTATION ? t("nextInLine") : to === TELESALES ? "Telesales" : [...all, ...(row.from ? [row.from] : [])].find((p) => p.id === to)?.name ?? "");
+  // a choice is only made with «تأكيد»: on a phone the native picker can stop on the wrong name, and a send can't be undone
+  const [chosen, setChosen] = useState("");
   const pick = (to: string) => {
     if (!to) return;
+    setChosen("");
     void run(async () => {
       await api.post(`/leads/drafts/${row.id}/decide`, { to });
       await Promise.all([qc.invalidateQueries({ queryKey: key(kind) }), qc.invalidateQueries({ queryKey: ["leads-summary"] }), qc.invalidateQueries({ queryKey: ["leads"] })]);
@@ -81,7 +85,7 @@ function Decide({ kind, row }: { kind: DraftKind; row: DraftRow }) {
   return (
     <span className="row">
       {row.kept ? <span className="hint">{t("reviewedKept")}</span> : <DraftClock left={row.minutesLeft} />}
-      <select value="" onChange={(e) => pick(e.target.value)} aria-label={kind === "admin" ? t("decisionFor", { name: row.lead.name }) : t("sendLead", { name: row.lead.name })}>
+      <select value={chosen} onChange={(e) => setChosen(e.target.value)} aria-label={kind === "admin" ? t("decisionFor", { name: row.lead.name }) : t("sendLead", { name: row.lead.name })}>
         <option value="">{row.kept ? t("sendToSomeone") : t("pick")}</option>
         {!row.kept && <option value={KEEP}>{t("stayIn", { tab: t(`tab.${kind}`) })}</option>}
         <option value={ROTATION}>{t("rotationByArea")}</option>
@@ -89,6 +93,7 @@ function Decide({ kind, row }: { kind: DraftKind; row: DraftRow }) {
         {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         {kind === "draft" && row.from && <option value={row.from.id}>{t("giveBack", { name: row.from.name })}</option>}
       </select>
+      <button className="btn sm" disabled={!chosen} onClick={() => pick(chosen)}>{t("confirm")}</button>
     </span>
   );
 }

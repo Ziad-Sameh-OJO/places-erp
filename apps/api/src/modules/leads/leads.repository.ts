@@ -287,14 +287,18 @@ export class LeadsRepository {
     return this.db.leadCall.count({ where: { byUserId, at: { gte: since } } });
   }
 
-  /** Any action by the salesperson stops the SLA clock (M-01 «3 ساعات من غير أي أكشن»); only the first one is kept. */
-  markActed(tx: Prisma.TransactionClient, id: string, at: Date) {
-    return tx.lead.updateMany({ where: { id, firstActionAt: null }, data: { firstActionAt: at, touched: true } });
+  /**
+   * Any action by the salesperson stops the SLA clock (M-01 «3 ساعات من غير أي أكشن»); only the first one is kept.
+   * Only the one who holds the lead: a Team Leader's or Operations' comment doesn't stop their salesperson's clock.
+   */
+  markActed(tx: Prisma.TransactionClient, id: string, at: Date, byEmployeeId: string | null) {
+    if (!byEmployeeId) return { count: 0 };
+    return tx.lead.updateMany({ where: { id, firstActionAt: null, assignedToId: byEmployeeId }, data: { firstActionAt: at, touched: true } });
   }
 
   /** `except`: the lead being edited — its own mobiles aren't a duplicate of itself. */
-  findByPhone(phones: string[], except?: string) {
-    return this.db.lead.findFirst({ where: { phones: { hasSome: phones }, archivedAt: null, ...(except ? { id: { not: except } } : {}) }, select: { id: true, code: true } });
+  findByPhone(phones: string[], except?: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.lead.findFirst({ where: { phones: { hasSome: phones }, archivedAt: null, ...(except ? { id: { not: except } } : {}) }, select: { id: true, code: true } });
   }
 
   /** What «تعديل البيانات» changes, when the lead is in the caller's scope (M-01 «تعديل البيانات»). */
