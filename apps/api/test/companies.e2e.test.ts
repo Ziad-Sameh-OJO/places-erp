@@ -119,3 +119,32 @@ test("«عدّل» a company whose category was switched off: its feedback is sa
   assert.equal(moved.body.error, "الكاتيجوري دي مش في القايمة");
   assert.equal((await call(`/companies/${c.id}`, { method: "PATCH", cookie: hadeer, body: { ...body, category } })).body.category, category);
 });
+
+test("«أضف للشيت»: every lead that wrote the same new company points to it, not only the first", async () => {
+  const one = await newLead(mohsen, 5, { company: `${NAME} مكررة` });
+  const two = await newLead(mohsen, 6, { company: `${NAME} مكررة` });
+  const p = ((await call("/companies/pending", { cookie: hadeer })).body as { id: string; lead: { id: string } }[]).find((x) => x.lead.id === one.id)!;
+  assert.equal((await call(`/companies/pending/${p.id}`, { method: "POST", cookie: hadeer, body: { category } })).status, 201);
+  const leads = await prisma.lead.findMany({ where: { id: { in: [one.id, two.id] } }, include: { company: true } });
+  assert.deepEqual(leads.map((l) => l.company?.name), [`${NAME} مكررة`, `${NAME} مكررة`]);
+  assert.equal(await prisma.companyRequest.count({ where: { leadId: { in: [one.id, two.id] }, status: "pending" } }), 0);
+});
+
+test("a lead whose company changed before Telesales added the old one keeps its new company; the old request is gone", async () => {
+  const lead = await newLead(mohsen, 7, { company: `${NAME} قديمة` });
+  const r = await call(`/leads/${lead.id}`, { method: "PUT", cookie: mohsen, body: {
+    name: `${NAME} عميل 7`, kind: "client", company: `${NAME} أولى`, phones: [`0108${stamp.slice(-6)}7`], area: "التجمع الخامس", type: "Rent",
+  } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const inSheet = (await prisma.lead.findUniqueOrThrow({ where: { id: lead.id }, include: { company: true } })).company?.name;
+  assert.equal(inSheet, `${NAME} أولى`); // added by the Outbound test above
+  assert.equal(await prisma.companyRequest.count({ where: { leadId: lead.id, status: "pending" } }), 0);
+  assert.ok(!((await call("/companies/pending", { cookie: hadeer })).body as { lead: { id: string } }[]).some((x) => x.lead.id === lead.id));
+});
+
+test("«عدّل» the sheet's «date» (the last contact): Telesales writes it; empty falls back to when it was added", async () => {
+  const c = await prisma.company.create({ data: { name: `${NAME} date`, category, number: `0188${stamp.slice(-7)}`, createdById: hadeerUser } });
+  const body = { name: c.name, category, number: c.number, contactedOn: "2026-10-01" };
+  assert.equal((await call(`/companies/${c.id}`, { method: "PATCH", cookie: hadeer, body })).body.date, "2026-10-01");
+  assert.equal((await call(`/companies/${c.id}`, { method: "PATCH", cookie: hadeer, body: { ...body, contactedOn: null } })).body.date, c.createdAt.toISOString().slice(0, 10));
+});

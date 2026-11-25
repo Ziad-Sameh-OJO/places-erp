@@ -707,7 +707,7 @@ model CompanyRequest {
   leadId    String
   lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   byUserId  String
-  status    String   @default("pending") // pending · added
+  status    String   @default("pending") // pending · added · dropped (the lead changed its company first)
   companyId String?
   createdAt DateTime @default(now())
 
