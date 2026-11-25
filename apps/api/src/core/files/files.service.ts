@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
-import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { CopyObjectCommand, CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { StoredFile, UploadRequest, UploadTicket } from "@places/contracts";
@@ -11,6 +11,15 @@ import type { CurrentUser } from "../auth/current-user.decorator";
 
 /** Links live five minutes: long enough to upload 20 MB on a phone, short enough that a leaked link is useless. */
 const LINK_TTL = 300;
+/**
+ * S12 · each account's upload budget, so nobody can fill the disk with tickets: a few unfinished uploads at a time
+ * (a form with several photos), and 2 GB a day (10 of the biggest Content plan videos, 200 MB each).
+ */
+const MAX_PENDING = 20;
+const DAILY_BYTES = 2 * 1024 * 1024 * 1024;
+const DAY_MS = 24 * 3_600_000;
+/** Where a file lives once it's checked; the upload link writes to `incoming/`, so it can't touch a READY file (S12). */
+const finalKey = (id: string, ext: string, at: Date) => `${at.getUTCFullYear()}/${String(at.getUTCMonth() + 1).padStart(2, "0")}/${id}.${ext}`;
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf", "image/vnd.dwg": "dwg", "image/vnd.dxf": "dxf", "video/mp4": "mp4", "video/quicktime": "mov", "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx" };
 /** «المستندات»: a Word file only ever belongs to a document template or a document issued from one. */
 const WORD = ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
@@ -60,11 +69,17 @@ export class FilesService implements OnModuleInit {
   }
 
   async requestUpload(me: CurrentUser, f: UploadRequest): Promise<UploadTicket> {
+    const since = new Date(Date.now() - DAY_MS);
+    const [pending, today] = await Promise.all([
+      this.db.file.count({ where: { uploadedById: me.id, status: "PENDING", createdAt: { gte: since } } }),
+      this.db.file.aggregate({ where: { uploadedById: me.id, createdAt: { gte: since } }, _sum: { size: true } }),
+    ]);
+    if (pending >= MAX_PENDING) throw new HttpException("عندك ملفات كتير لسه بتترفع · كمّلها الأول", HttpStatus.TOO_MANY_REQUESTS);
+    if ((today._sum.size ?? 0) + f.size > DAILY_BYTES) throw new HttpException("وصلت لحد الرفع النهارده (2 جيجا) · جرّب بكره", HttpStatus.TOO_MANY_REQUESTS);
     const file = await this.db.$transaction(async (tx) => {
       const row = await tx.file.create({ data: { key: "", name: f.name, mime: f.mime, size: f.size, uploadedById: me.id } });
-      const now = new Date();
       // the key never comes from the uploaded name, so no path tricks and no clashes
-      const key = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${row.id}.${EXT[f.mime]}`;
+      const key = `incoming/${row.id}.${EXT[f.mime]}`;
       await this.audit.record({ module: "files", entity: "File", entityId: row.id, action: "create", userId: me.id, after: { name: f.name, mime: f.mime, size: f.size } }, tx);
       return tx.file.update({ where: { id: row.id }, data: { key } });
     });
@@ -86,9 +101,12 @@ export class FilesService implements OnModuleInit {
       const start = await this.s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key, Range: "bytes=0-11" }));
       ok = SIGNATURE[file.mime]?.(await start.Body!.transformToByteArray()) ?? false;
     }
-    if (!ok) await this.s3.send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key }));
+    // S12 · a checked file moves out of reach of its upload link (still valid for a few minutes): a second PUT can't swap it
+    const key = ok ? finalKey(file.id, EXT[file.mime]!, file.createdAt) : file.key;
+    if (ok) await this.s3.send(new CopyObjectCommand({ Bucket: env.S3_BUCKET, Key: key, CopySource: `${env.S3_BUCKET}/${file.key}`, CopySourceIfMatch: head.ETag }));
+    await this.s3.send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET, Key: file.key }));
     const done = await this.db.$transaction(async (tx) => {
-      const row = await tx.file.update({ where: { id }, data: { status: ok ? "READY" : "REJECTED" }, select: ROW });
+      const row = await tx.file.update({ where: { id }, data: { status: ok ? "READY" : "REJECTED", key }, select: ROW });
       await this.audit.record({ module: "files", entity: "File", entityId: id, action: "update", userId: me.id, before: { status: "PENDING" }, after: { status: row.status } }, tx);
       return row;
     });
@@ -100,8 +118,7 @@ export class FilesService implements OnModuleInit {
   async store(me: CurrentUser, f: { name: string; mime: string; body: Buffer; entity?: string; entityId?: string }) {
     const file = await this.db.$transaction(async (tx) => {
       const row = await tx.file.create({ data: { key: "", name: f.name, mime: f.mime, size: f.body.length, uploadedById: me.id, status: "READY", entity: f.entity ?? null, entityId: f.entityId ?? null } });
-      const now = new Date();
-      const key = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${row.id}.${EXT[f.mime] ?? "bin"}`;
+      const key = finalKey(row.id, EXT[f.mime] ?? "bin", new Date());
       await this.audit.record({ module: "files", entity: "File", entityId: row.id, action: "create", userId: me.id, after: { name: f.name, mime: f.mime, size: f.body.length, generated: true } }, tx);
       const saved = await tx.file.update({ where: { id: row.id }, data: { key } });
       // inside the transaction: if storage refuses, the record isn't kept either

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { TaskRow, UnitPhotoView } from "@places/contracts";
 import { MAX_UNIT_PHOTOS } from "@places/domain";
 import { Chip, Icon, Modal, Note, useAction } from "@/components/ui";
-import { api } from "@/lib/api";
+import { FILE_LINKS, api } from "@/lib/api";
 import { FolderUpload } from "../inventory/unit-photos";
 
 /**
@@ -28,7 +28,7 @@ function Folder({ task }: { task: TaskRow & { unit: NonNullable<TaskRow["unit"]>
   const qc = useQueryClient();
   const run = useAction();
   const base = `/tasks/${task.id}/photos`;
-  const photos = useQuery({ queryKey: ["task-photos", task.id], queryFn: () => api.get<UnitPhotoView[]>(base) }).data ?? [];
+  const photos = useQuery({ queryKey: ["task-photos", task.id], queryFn: () => api.get<UnitPhotoView[]>(base), ...FILE_LINKS }).data ?? [];
   const up = task.can.folder.upload;
   const added = (ids: string[]) => run(async () => {
     await api.post(base, { fileIds: ids });

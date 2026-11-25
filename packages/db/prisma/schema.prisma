@@ -1759,7 +1759,7 @@ enum FileStatus {
 /// Every stored object (photos, PDFs, receipts, sheets). The bytes live in S3/MinIO under `key`; this is the record.
 model File {
   id           String     @id @default(cuid())
-  key          String     @unique // <yyyy>/<mm>/<id>.<ext> in the bucket: never built from the uploaded name
+  key          String     @unique // <yyyy>/<mm>/<id>.<ext> in the bucket (incoming/<id>.<ext> until checked): never built from the uploaded name
   name         String     // the original file name, shown on download
   mime         String
   size         Int        // bytes, as declared before upload and checked after
