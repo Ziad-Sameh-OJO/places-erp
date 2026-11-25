@@ -1,0 +1,103 @@
+{
+  "loading": "Loading…",
+  "cancel": "Cancel",
+  "download": "Download",
+  "tabs": {
+    "request": "Request a document",
+    "mine": "My documents",
+    "approvals": "Waiting for me",
+    "templates": "Templates"
+  },
+  "request": {
+    "none": "No documents are available to you yet.",
+    "fields": "{count, plural, =0 {no fields} one {# field} other {# fields}}",
+    "needsApproval": "needs approval"
+  },
+  "fill": {
+    "approveNote": "This document needs approval. It goes for approval and you can download it from «My documents» once approved.",
+    "noFields": "This document has no fields. It comes out as it is.",
+    "emptyHint": "A field left empty stays as dots in the file, to fill by pen.",
+    "make": "Make the document",
+    "send": "Send for approval",
+    "ready": "The document is ready",
+    "sent": "Sent for approval"
+  },
+  "mine": {
+    "sub": "Everything you issued before",
+    "empty": "You haven't issued any document yet.",
+    "again": "Use again"
+  },
+  "cols": {
+    "code": "Code",
+    "doc": "Document",
+    "status": "Status",
+    "date": "Date",
+    "values": "What was written",
+    "by": "Requested by"
+  },
+  "status": {
+    "pending": "Waiting for approval",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "ready": "Ready",
+    "by": "· {name}"
+  },
+  "approvals": {
+    "sub": "Documents that need your approval, then the ones you decided",
+    "empty": "Nothing is waiting for you.",
+    "read": "Read it",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approved": "Approved; the requester was told",
+    "rejected": "Rejected; the requester was told",
+    "rejectTitle": "Reject {code}",
+    "why": "Why"
+  },
+  "templates": {
+    "sub": "Upload a Word file as it is, name its fields, choose who issues it",
+    "new": "New template",
+    "empty": "No templates yet. Upload the first Word file.",
+    "fieldsCol": "Fields",
+    "modeCol": "How",
+    "issued": "Issued",
+    "on": "On",
+    "off": "Off",
+    "setup": "Settings",
+    "file": "Original file",
+    "mode": {
+      "notify": "Notify only",
+      "approve": "Needs approval"
+    },
+    "name": "Document name",
+    "namePh": "e.g. Financial claim, Lease, Mandate",
+    "needFile": "Upload the Word file first",
+    "create": "Upload and continue",
+    "howTo": "The system finds the fields itself: any empty dots (……) or a name in braces {{Client name}}. For the stamp and signature, write {{الختم}} and {{الإمضا}} where they go.",
+    "setupOf": "«{name}» settings",
+    "fields": "Fields",
+    "fieldsHint": "Name each field as staff will see it. If those dots aren't a field, tick «Not a field».",
+    "noFields": "The file has no fields. Put dots (……) or {{field name}} where it's filled in, and upload it again.",
+    "context": "Field {n}: {text}",
+    "fieldName": "Field {n} name",
+    "skip": "Not a field",
+    "who": "Who issues this document",
+    "whoHint": "Pick roles or people. Nobody picked: everyone can issue it.",
+    "seePeople": "People",
+    "seePeopleAll": "Nobody by name",
+    "modeTitle": "When someone issues it",
+    "approvers": "Who approves",
+    "pick": "Pick",
+    "notify": "Who is told",
+    "nobody": "Nobody",
+    "stamp": "Print the stamp and signature",
+    "stampHas": "The file has a place for: {what}",
+    "stampWord": "the stamp",
+    "signatureWord": "the signature",
+    "stampHow": "The file has no {{الختم}} or {{الإمضا}}. Write them in Word where they go.",
+    "active": "The template is on (staff see it)",
+    "archive": "Delete the template",
+    "save": "Save",
+    "saved": "Saved",
+    "archived": "The template is gone; documents issued from it stay"
+  }
+}

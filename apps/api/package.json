@@ -27,6 +27,7 @@
     "cookie-parser": "^1.4.7",
     "exceljs": "4.4.0",
     "helmet": "^8.0.0",
+    "jszip": "3.10.2",
     "pdf-lib": "1.17.1",
     "pg": "8.23.1",
     "playwright-core": "1.65.1",

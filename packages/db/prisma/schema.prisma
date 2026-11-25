@@ -2013,6 +2013,48 @@ model Entity {
 }
 
 /// 12.12 · the admin's wording for a document; no row = the default in @places/domain (DOC_DEFAULTS).
+/// «المستندات» (client, 25 Nov): a Word file the manager uploads as it is; its blanks are the fields
+model WordTemplate {
+  id          String         @id @default(cuid())
+  name        String
+  fileId      String         // system.File: the .docx as uploaded
+  fields      Json           // [{ id, label, context, named, skip }] (domain templateFields + the manager's names)
+  seeRoles    String[]       @default([]) // who may issue it: these roles or these people; both empty = everyone
+  seeUserIds  String[]       @default([])
+  mode        String         @default("notify") // notify · approve (domain TEMPLATE_MODES)
+  approverIds String[]       @default([]) // access.User: one of them approves (mode approve)
+  notifyIds   String[]       @default([]) // access.User: told of every document issued from it
+  stamp       Boolean        @default(false) // fill {{الختم}} / {{الإمضا}} with the company's stamp and signature
+  active      Boolean        @default(true)
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  archivedAt  DateTime?
+  documents   WordDocument[]
+
+  @@schema("system")
+}
+
+/// A document someone issued from a template: «مستنداتي» keeps them all (client, 25 Nov: not on the lead)
+model WordDocument {
+  id           String       @id @default(cuid())
+  code         String       @unique // DOC-1001…
+  templateId   String
+  template     WordTemplate @relation(fields: [templateId], references: [id])
+  userId       String       // access.User who issued it
+  values       Json         // { [fieldId]: text }
+  status       String       // pending · approved · rejected · ready (no approval needed)
+  fileId       String?      // the filled .docx, once it may be downloaded
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@schema("system")
+}
+
 model DocTemplate {
   kind      String   @id // claim · receipt
   title     String

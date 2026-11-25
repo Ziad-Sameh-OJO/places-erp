@@ -1,8 +1,15 @@
 {
   "close": "Close",
   "error": "Something went wrong",
-  "table": { "empty": "No data", "sortHint": "<b>{n}</b> {n, plural, one {row} other {rows}} · click any column title to sort", "sortedBy": "<b>{n}</b> {n, plural, one {row} other {rows}} · sorted by «{col}»" },
-  "export": { "label": "Export Excel", "busy": "Preparing the file…" },
+  "table": {
+    "empty": "No data",
+    "sortHint": "<b>{n}</b> {n, plural, one {row} other {rows}} · click any column title to sort",
+    "sortedBy": "<b>{n}</b> {n, plural, one {row} other {rows}} · sorted by «{col}»"
+  },
+  "export": {
+    "label": "Export Excel",
+    "busy": "Preparing the file…"
+  },
   "import": {
     "done": "{imported} added · {duplicates} duplicates · {skipped} errors",
     "imported": "{imported, plural, one {# row} other {# rows}} imported",
@@ -42,9 +49,16 @@
     "minutes": "{count, plural, one {# minute} other {# minutes}} ago",
     "hours": "{count, plural, one {# hour} other {# hours}} ago"
   },
-  "drawer": { "prev": "Previous", "next": "Next" },
-  "kpi": { "delta": "Compared with the previous period" },
-  "fab": { "new": "New" },
+  "drawer": {
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "kpi": {
+    "delta": "Compared with the previous period"
+  },
+  "fab": {
+    "new": "New"
+  },
   "upload": {
     "failedRetry": "Upload failed · try again",
     "noStorage": "Can't reach the file storage",
@@ -55,7 +69,9 @@
     "pdf": "Upload PDF",
     "max": "Up to {max}",
     "progress": "Upload",
-    "done": "Uploaded · {name}"
+    "done": "Uploaded · {name}",
+    "needWord": "Upload a Word file (.docx)",
+    "word": "Upload a Word file"
   },
   "holidays": {
     "added": "Added",
@@ -73,7 +89,9 @@
     "toLabel": "To (leave empty for one day)",
     "add": "Add"
   },
-  "inbox": { "empty": "Nothing waiting for you. A quiet day!" },
+  "inbox": {
+    "empty": "Nothing waiting for you. A quiet day!"
+  },
   "claim": {
     "sent": "Sent to Finance",
     "title": "Request a claim",
@@ -94,7 +112,10 @@
     "cancel": "Cancel",
     "send": "Send to Finance"
   },
-  "periodPicker": { "label": "Year and quarter", "all": "All periods" },
+  "periodPicker": {
+    "label": "Year and quarter",
+    "all": "All periods"
+  },
   "pickDate": "Pick a date",
   "more": "More",
   "savedFilters": {

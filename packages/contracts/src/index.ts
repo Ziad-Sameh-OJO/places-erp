@@ -38,3 +38,4 @@ export * from "./employee-file.ts";
 export * from "./dashboard.ts";
 export * from "./period.ts";
 export * from "./lead-units.ts";
+export * from "./papers.ts";
