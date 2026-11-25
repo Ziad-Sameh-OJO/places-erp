@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { type Prisma, type PrismaClient, areaPool, lockRouting, saveRouting } from "@places/db";
 import type { LeadFilters } from "@places/contracts";
-import { dayStart, localDate, type RoutingState } from "@places/domain";
+import { dayStart, localDate, normalizePhone, type RoutingState } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 
 /**
@@ -438,7 +438,8 @@ function leadOrder(f: LeadQuery): Prisma.LeadOrderByWithRelationInput[] {
 }
 
 function leadWhere(scope: Prisma.LeadWhereInput, f: LeadQuery): Prisma.LeadWhereInput {
-  const digits = f.q?.replace(/\D/g, "") ?? "";
+  // a mobile typed any way («+20 100 …», «0100-…»): leads keep it as 01x…, as the clients' search already does
+  const digits = f.q ? normalizePhone(f.q) ?? f.q.replace(/\D/g, "") : "";
   return {
     // a lead in a Draft tab shows only there (1.26, demo): not in the list, the board or the counts
     // the cancel reason also finds the cancelled leads still waiting in the Draft Admin for Operations' decision
