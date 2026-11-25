@@ -398,6 +398,8 @@
     "settleTitle": "تسوية عهدة · {name}",
     "custodyNow": "العهدة دلوقتي:",
     "expenseType": "نوع المصروف (من شجرة الحسابات)",
+    "refundGroup": "رد فلوس للعميل",
+    "refundCredit": "ليه {amount}",
     "recipient": "المستلم",
     "recipientPlaceholder": "اسم اللي هيستلم الفلوس",
     "ref": "رقم الفاتورة / المرجع",

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import type { BudgetPatch, BudgetRow, BudgetView, CashView, MoveEffect, MoveFilters, MoveSaved, MoveView, MovesView, NewBudgetLine, NewMove } from "@places/contracts";
 import {
   ADVANCES_PARENT, BUDGET_PERIODS, CLIENTS_PARENT, CUSTODY_PARENT, monthOf, OTHER_REVENUE, VOUCHER_LABEL, budgetCrossed, budgetLevel, formatEGP, fromDecimal, localDate,
-  periodStart, reversalLines, toDecimal, voucherLines, voucherProblem, type BudgetPeriod, type Piasters, type VoucherKind, type VoucherSides,
+  periodStart, REFUND_LABEL, refundProblem, reversalLines, toDecimal, voucherLines, voucherProblem, type BudgetPeriod, type Piasters, type VoucherKind, type VoucherSides,
 } from "@places/domain";
 import { AuditService } from "../../core/audit/audit.service";
 import { esc, layout } from "../../core/documents/documents.service";
@@ -18,6 +18,8 @@ const CASH_KINDS = new Set(["treasury", "bank", "wallet"]);
 const COMMISSION_REVENUE = "41";
 const dec = (v: { toFixed(n: number): string } | null | undefined): Piasters => (v ? fromDecimal(v.toFixed(2)) : 0);
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
+/** A client's own account (9.12): a sub-account of «عملاء» (113). */
+const isClient = (a: AccountRow, accounts: AccountRow[]) => accounts.find((p) => p.id === a.parentId)?.code === CLIENTS_PARENT;
 type Run = <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 
 /** The procurement chain's posting (10.2 → 9.3 `recordExpense`): a settled purchase becomes a payment voucher. */
@@ -55,6 +57,8 @@ export class VouchersService {
       today: { count: today.length, paid: sum("pay"), received: sum("receive") },
       expenses: leaves.filter((a) => a.code.startsWith("5")).map((a) => ({ id: a.id, code: a.code, name: a.name, left: left(a.id) })),
       revenues: leaves.filter((a) => a.code.startsWith(OTHER_REVENUE)).map((a) => ({ id: a.id, code: a.code, name: a.name })),
+      // Q3 «رد فلوس للعميل»: the clients' own accounts with money in their favour (below zero on a debit account)
+      refunds: leaves.filter((a) => isClient(a, accounts) && (balance.get(a.id) ?? 0) < 0).map((a) => ({ id: a.id, code: a.code, name: a.name, credit: toDecimal(-(balance.get(a.id) ?? 0)) })),
       people,
     };
   }
@@ -152,7 +156,8 @@ export class VouchersService {
     const date = input.date ?? localDate(new Date());
     if (date > localDate(new Date())) throw new BadRequestException("مينفعش تاريخ بعد النهارده");
     // the safe the money leaves, and the custody a settlement draws down: both are checked against their balance
-    await this.ledger.lockBalances([input.fromId, kind === "settle" ? input.accountId : undefined], tx);
+    // (a refund draws down the client's account too: two at once can't both pass on the same credit)
+    await this.ledger.lockBalances([input.fromId, kind === "settle" || kind === "pay" ? input.accountId : undefined], tx);
     const { accounts, balance } = await this.ledger.balances(tx);
     const parents =new Set(accounts.map((a) => a.parentId));
     const leaf = (id: string | undefined, label: string, ok: (a: AccountRow) => boolean): AccountRow => {
@@ -166,7 +171,8 @@ export class VouchersService {
 
     let from: AccountRow | undefined, to: AccountRow | undefined, account: AccountRow | undefined, expense: AccountRow | undefined;
     let party = input.party?.trim() ?? "", partyId: string | undefined;
-    if (kind === "pay") { from = cash(input.fromId, "الخزنة / البنك"); account = leaf(input.accountId, "نوع المصروف", (a) => a.code.startsWith("5")); }
+    if (kind === "pay") { from = cash(input.fromId, "الخزنة / البنك"); account = leaf(input.accountId, "نوع المصروف", (a) => a.code.startsWith("5") || isClient(a, accounts)); }
+    const refund = kind === "pay" && !!account && isClient(account, accounts);
     if (kind === "receive") { to = cash(input.toId, "الخزنة / البنك"); account = leaf(input.accountId, "المصدر", (a) => a.code.startsWith(revenue)); }
     if (kind === "transfer") { from = cash(input.fromId, "الخزنة اللي هيتحوّل منها"); to = cash(input.toId, "الخزنة اللي هيتحوّل لها"); party = party || "تحويل داخلي"; }
     if (kind === "advance" || kind === "custody") {
@@ -195,14 +201,16 @@ export class VouchersService {
     const sides: VoucherSides = { amount, spent, returned, ...(from ? { from: from.id } : {}), ...(to ? { to: to.id } : {}), ...(account ? { account: account.id } : {}), ...(expense ? { expense: expense.id } : {}) };
     const problem = voucherProblem(kind, sides, { ...(from ? { from: balance.get(from.id) ?? 0, fromName: from.name } : {}), ...(kind === "settle" && account ? { custody: balance.get(account.id) ?? 0 } : {}) });
     if (problem) throw new BadRequestException(problem);
+    const refused = refund ? refundProblem(balance.get(account!.id) ?? 0, amount) : null;
+    if (refused) throw new BadRequestException(refused);
     const total = kind === "settle" ? spent + returned : amount;
 
     // the budget before this voucher (only payments and the spent part of a settlement touch an expense line)
-    const line = kind === "pay" ? account : expense;
+    const line = kind === "pay" && !refund ? account : expense;
     const bud = line ? await this.repo.budgetOf(line.id, tx) : null;
     const budBefore = bud && bud.active && dec(bud.budget) ? (await this.spent([{ accountId: line!.id, period: bud.period as BudgetPeriod }], tx)).get(line!.id) ?? 0 : null;
 
-    const entry = await this.ledger.post(me, { date, nature: VOUCHER_LABEL[kind], source: "voucher", memo: input.memo, lines: voucherLines(kind, sides) }, tx);
+    const entry = await this.ledger.post(me, { date, nature: refund ? REFUND_LABEL : VOUCHER_LABEL[kind], source: "voucher", memo: input.memo, lines: voucherLines(kind, sides) }, tx);
     const move = await this.repo.createMove({
       kind, date: day(date), fromId: from?.id ?? null, toId: to?.id ?? null, accountId: account?.id ?? null, expenseId: expense?.id ?? null,
       amount: toDecimal(total), spent: kind === "settle" ? toDecimal(spent) : null, returned: kind === "settle" ? toDecimal(returned) : null,
@@ -211,7 +219,7 @@ export class VouchersService {
     await this.ledger.linkEntry(entry.id, move.id, tx);
     if (bill) await this.repo.markBill({ billId: bill.id, month: monthOf(date), status: "paid", moveId: move.id, byId: me.id }, tx);
     await this.audit.record({ module: "finance", entity: "TreasuryMove", entityId: move.id, action: "create", userId: me.id,
-      after: { no: `MV-${move.no}`, kind, date, amount: toDecimal(total), from: from?.code, to: to?.code, account: account?.code, party, entry: entry.no } }, tx);
+      after: { no: `MV-${move.no}`, kind, date, amount: toDecimal(total), from: from?.code, to: to?.code, account: account?.code, party, entry: entry.no, ...(refund ? { refund: true } : {}) } }, tx);
 
     // «الأثر على شجرة الحسابات»: before → after for every account the entry touched
     const after = (await this.ledger.balances(tx)).balance;

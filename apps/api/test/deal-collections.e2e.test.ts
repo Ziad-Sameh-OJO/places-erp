@@ -180,3 +180,21 @@ test("12 · 9.6: cancelling the collected deal reverses its revenue and commissi
   assert.equal(await prisma.journalEntry.count({ where: { source: "reversal", sourceId: { in: posted } } }), 3);
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "cancel" } }));
 });
+
+test("review Q3 «رد فلوس للعميل»: finance pays the cancelled deal's cash back from the bank to the client's account, up to his credit", async () => {
+  const refund = (cookie: string, amount: string) => call("/finance/moves", { method: "POST", cookie, body: { kind: "pay", fromId: bankId, accountId: clientAccountId, amount, party: `${C} عميل`, memo: `${C} رد فلوس` } });
+  const offered = (await call("/finance/cash", { cookie: ashraf })).body.refunds.find((r: { id: string }) => r.id === clientAccountId);
+  assert.equal(offered?.credit, "100000.00"); // the pay voucher offers him with what he has with us
+  assert.equal((await refund(mohsen, "1000")).status, 403);
+  assert.equal((await refund(ashraf, "100000.01")).status, 400); // never above his credit
+  const r = await refund(ashraf, "40000");
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(await balance(ashraf, clientAccountId), -cents("60000"));
+  assert.equal(await balance(ashraf, bankId), cents("60000"));
+  const statement = (await call(`/finance/accounts/${clientAccountId}/ledger`, { cookie: ashraf })).body;
+  assert.ok(statement.lines.some((l: { nature: string; debit: string }) => l.nature === "رد فلوس للعميل" && l.debit === "40000.00"), "on his account statement");
+  assert.ok(await prisma.auditLog.findFirst({ where: { module: "finance", entity: "TreasuryMove", entityId: r.body.move.id } }));
+  // the rest, then nothing left to give back
+  assert.equal((await refund(ashraf, "60000")).status, 201);
+  assert.equal((await refund(ashraf, "1")).status, 400);
+});
