@@ -216,7 +216,8 @@ export class ReportsService {
     if ((await tx.reportHandIn.findUnique({ where: key }))?.at) throw new ConflictException("سلّمته قبل كده");
     await tx.reportHandIn.upsert({ where: key, create: { reportId: r.id, userId: me.id, period, at: now, note: note || null }, update: { at: now, note: note || null } });
     const onTime = now <= due, q = await this.kpiRepo.currentQuarter(tx);
-    const item = onTime && me.employeeId && q ? await this.repo.linkedItem(r.id, me.employeeId, q.id, tx) : null;
+    // a closed quarter's results are kept (11.4): a hand-in after the close no longer counts in its items
+    const item = onTime && me.employeeId && q?.status === "open" ? await this.repo.linkedItem(r.id, me.employeeId, q.id, tx) : null;
     const counted = !!item && item._count.deliveries < (item.required ?? 0);
     if (counted) await tx.kpiDelivery.create({ data: { itemId: item.id, byId: me.id } });
     await this.audit.record({ module: MODULE, entity: "ReportHandIn", entityId: r.id, action: "create", userId: me.id,
@@ -301,9 +302,11 @@ export class ReportsService {
    */
   async submitDaily(me: CurrentUser, input: DailyInput) {
     const [r, cal, users] = await Promise.all([this.dailyReport(), this.time.calendar(), this.repo.users()]);
-    const now = new Date(), today = localDate(now, cal), q = await this.quarter();
+    const now = new Date(), today = localDate(now, cal), cur = await this.kpiRepo.currentQuarter(), q = cur?.id;
     const [{ items }, fields] = await Promise.all([this.dayItems(me.employeeId, q), this.repo.fields(me.id)]);
     const mine = items.filter((it) => typed(it.metric));
+    // the day's report is kept either way; a closed quarter's items keep the figures they were closed on (11.4)
+    const counts = cur?.status === "open" ? mine : [];
     const kinds = new Map<string, string>([...mine.map((it) => [it.key, "number"] as const), ...fields.map((f) => [f.id, f.type] as const)]);
     for (const [k, v] of Object.entries(input.values)) {
       const kind = kinds.get(k);
@@ -316,7 +319,7 @@ export class ReportsService {
       await tx.dailyReport.create({ data: { userId: me.id, day: asDate(today), values: input.values, note: input.note, at: now } });
       const qStart = shift(today, -100); // covers the longest period an item adds up (a quarter); dailySumValue picks the days
       const days = (await this.repo.dailyReports(me.id, asDate(qStart), asDate(today), tx)).map((d) => ({ day: d.day.toISOString().slice(0, 10), values: d.values as Record<string, unknown> }));
-      for (const it of mine) {
+      for (const it of counts) {
         const series = days.flatMap((d) => (typeof d.values[it.key] === "number" ? [{ day: d.day, value: d.values[it.key] as number }] : []));
         const value = it.metric === "webAds" ? dailyAverage(series, today) : dailySumValue(series, today, it.params as MetricParams);
         await tx.kpiItem.update({ where: { id: it.id }, data: { value } });

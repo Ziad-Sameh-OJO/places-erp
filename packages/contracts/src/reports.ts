@@ -106,7 +106,7 @@ export const TargetMonthQuery = z.object({ month: month.optional(), ...PeriodQue
 export type TargetMonthQuery = z.infer<typeof TargetMonthQuery>;
 export const TargetInput = z.object({
   employeeId: Id, month,
-  value: Money,
+  value: Money.refine((m) => !m.startsWith("-"), "التارجت مايبقاش بالسالب"),
   deals: z.number().int().min(0, "مايبقاش سالب").max(1000),
   visits: z.number().int().min(0, "مايبقاش سالب").max(10_000),
 });
