@@ -32,6 +32,8 @@ before(async () => {
   assert.equal(r.status, 201, JSON.stringify(r.body));
   dealId = r.body.id;
   assert.equal((await call(`/deals/${dealId}/review`, { method: "POST", cookie: nancy, body: { decision: "approve" } })).status, 200);
+  // closed on 1 Nov: a collection is dated from the close day on (5.3), and this one is dated 2 Nov
+  await prisma.deal.update({ where: { id: dealId }, data: { closedAt: new Date("2026-11-01T10:00:00Z") } });
   bankId = (await fresh(ashraf, C, "112", "بنك")).id;
   revenueId = (await fresh(ashraf, C, "41", "عمولات")).id;
 });

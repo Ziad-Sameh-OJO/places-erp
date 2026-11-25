@@ -1,9 +1,11 @@
 "use client";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { TodayKind, TodayLine } from "@places/contracts";
 import type { IconName } from "@places/ui";
 import { api } from "@/lib/api";
+import { useAction } from "@/components/ui";
+import { useMe } from "@/lib/me";
 import { ago, day, dayTime, money } from "@/lib/format";
 import type { InboxLine } from "@/components/inbox";
 
@@ -48,7 +50,18 @@ export function useTodayLines(sources: TodaySources): InboxLine[] {
       queryKey: ["home", m], enabled: sources[m], refetchInterval: 60_000, queryFn: () => api.get<TodayLine[]>(`/home/${m}`),
     })),
   });
-  return results.flatMap((r) => r.data ?? []).map((x) => line(x, t));
+  const { can } = useMe();
+  const run = useAction();
+  const qc = useQueryClient();
+  // 5.4: Manar (inventory: approve) has no «deals: view», so the deal's page won't open for her: she approves on the line
+  const approveSeller = (x: TodayLine) => () => {
+    if (!window.confirm(t("dealSeller.confirm", { seller: String(x.values.seller ?? ""), code: String(x.values.code ?? "") }))) return;
+    void run(async () => { await api.post(`/deals/${x.id}/seller`, {}); await qc.invalidateQueries({ queryKey: ["home"] }); }, t("dealSeller.done"));
+  };
+  return results.flatMap((r) => r.data ?? []).map((x) => {
+    const l = line(x, t);
+    return x.kind === "dealSeller" && !can("deals", "view") ? { ...l, button: t("dealSeller.approve"), onClick: approveSeller(x) } : l;
+  });
 }
 
 type T = ReturnType<typeof useTranslations<"pages.home.today">>;

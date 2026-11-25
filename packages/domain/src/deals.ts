@@ -83,6 +83,23 @@ export function cancelProblem(status: DealStatus, reason: string): string | null
   return null;
 }
 
+/** 5.4: Manar approves a waiting Seller only on a live deal — a rejected or cancelled one has no share to give. */
+export function sellerApprovalProblem(status: DealStatus, waiting: number): string | null {
+  if (status === "Rejected" || status === "Cancelled") return "الصفقة دي اترفضت أو اتلغت · مفيش Seller يتوافق عليه";
+  if (!waiting) return "مفيش Seller مستني موافقة على الصفقة دي";
+  return null;
+}
+
+/**
+ * 5.3: a collection is dated from the day the deal closed up to today (Cairo days, YYYY-MM-DD); its month is the one
+ * the TL's commission (5.8) is booked in, so it can't be a month that hasn't come yet.
+ */
+export function collectionDateProblem(date: string, closedOn: string, today: string): string | null {
+  if (date > today) return "تاريخ التحصيل مينفعش يبقى بعد النهارده";
+  if (date < closedOn) return "تاريخ التحصيل مينفعش يبقى قبل يوم قفل الصفقة";
+  return null;
+}
+
 /** Only what really changed, old next to new (5.2: every amount change is audited with both values). */
 export function changes(before: Readonly<Record<string, unknown>>, after: Readonly<Record<string, unknown>>): { before: Record<string, unknown>; after: Record<string, unknown> } | null {
   const keys = Object.keys(after).filter((k) => after[k] !== undefined && JSON.stringify(before[k]) !== JSON.stringify(after[k]));
@@ -97,7 +114,9 @@ export const tcrCode = (n: number | bigint): string => `T${n}`;
  * M-02 2.3 · 3.2: every salesperson on the deal signs each TCR, once (a later collection makes a new TCR they sign
  * again). Returns what's wrong, or null when `me` may sign.
  */
-export function signProblem(signatures: ReadonlyArray<{ employeeId: string; signedAt: Date | null }>, me: string | null): string | null {
+export function signProblem(signatures: ReadonlyArray<{ employeeId: string; signedAt: Date | null }>, me: string | null, status: DealStatus): string | null {
+  // a cancelled deal's collections are reversed (9.6): its TCRs aren't signed any more
+  if (status === "Cancelled") return "الصفقة دي اتلغت · الـ TCR بتاعتها مبقتش بتتمضي";
   const s = signatures.find((x) => x.employeeId === me);
   if (!s) return "الـ TCR دي مش عليك";
   if (s.signedAt) return "مضيت عليها قبل كده";

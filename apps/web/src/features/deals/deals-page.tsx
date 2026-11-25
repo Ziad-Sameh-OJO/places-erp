@@ -11,7 +11,7 @@ import { serverText } from "@/lib/server-text";
 import { DealDrawer } from "./deal-drawer";
 import { DealForm } from "./deal-form";
 import { PeriodPicker } from "@/components/period-picker";
-import { LANES, ST_TONE, monthOf, names, onSheet, useAchievements, useDealSheet } from "./use-deals";
+import { LANES, ST_TONE, monthOf, names, onSheet, useAchievements, useDealSheet, useDealSheetRow } from "./use-deals";
 import { fromDecimal, localDate, toDecimal } from "@places/domain";
 
 type Tab = "me" | "board" | "sheet" | "split" | "achv";
@@ -47,7 +47,10 @@ export function DealsPage() {
   const inRange = (closedAt: string) => { const x = localDate(new Date(closedAt)); return (!range.from || x >= range.from) && (!range.to || x <= range.to); };
   const items = (sheet.data?.items ?? []).filter((d) => inRange(d.closedAt));
   const tot = sheet.data?.totals;
-  const openRow = items.find((d) => d.id === open);
+  // a link to a deal outside the loaded period / rows fetches that deal alone
+  const loaded = sheet.data?.items.find((d) => d.id === open);
+  const one = useDealSheetRow(open, !!sheet.data && !loaded);
+  const openRow = loaded ?? one.data?.items[0];
   const tabs: [Tab, string][] = [...(isSales ? [["me", tr("tabs.me")] as [Tab, string]] : []), ["board", "Done Deals board"], ["sheet", tr("tabs.sheet")], ...(fields.shows("shares") ? [["split", tr("tabs.split")] as [Tab, string]] : []), ["achv", "Achievements"]];
 
   return (
@@ -73,6 +76,7 @@ export function DealsPage() {
         {can("deals", "create") && <button className="btn" onClick={() => setCreating(true)}><Icon name="plus" />{tr("newDeal")}</button>}
       </div>
       {sheet.error && <Note kind="warn">{sheet.error.message}</Note>}
+      {open && one.data && !openRow && <Note kind="warn">{tr("notFound")}</Note>}
       {!sheet.data && !sheet.error && <Empty text={tr("loading")} icon="clock" />}
       {sheet.data && t === "board" && (
         <Kanban itemKey={(d) => d.id} onOpen={(d) => setOpen(d.id)}

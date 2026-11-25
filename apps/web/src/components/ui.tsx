@@ -201,10 +201,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
  * For <form onSubmit>. React 19's <form action> clears every uncontrolled field once the action returns —
  * even when we caught an error and showed it — so a refused form came back empty. This keeps what was typed.
  */
-export const onFormSubmit = (fn: (data: FormData) => unknown) => (e: FormEvent<HTMLFormElement>) => {
+export const onFormSubmit = (fn: (data: FormData) => unknown) => async (e: FormEvent<HTMLFormElement>) => {
   e.preventDefault();
-  void fn(new FormData(e.currentTarget));
+  const form = e.currentTarget;
+  // a double click (or Enter twice) sends once: the form takes no second submit until the first one answered
+  if (busyForms.has(form)) return;
+  busyForms.add(form);
+  try { await fn(new FormData(form)); } finally { busyForms.delete(form); }
 };
+const busyForms = new WeakSet<HTMLFormElement>();
 
 /** Runs a change: the API's error (or anything thrown) shows as a toast, `ok` shows when it worked. */
 export function useAction() {

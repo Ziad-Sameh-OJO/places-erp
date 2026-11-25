@@ -40,7 +40,10 @@
       "dealSeller": {
         "title": "Seller for deal {code}",
         "sub": "{seller} · Agent {unit} · needs your approval",
-        "button": "Review"
+        "button": "Review",
+        "approve": "Approve",
+        "confirm": "Approve {seller} as the Seller on deal {code}?",
+        "done": "Seller added to the deal"
       },
       "tcrSign": {
         "title": "Sign {tcr}",

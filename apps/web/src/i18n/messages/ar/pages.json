@@ -40,7 +40,10 @@
       "dealSeller": {
         "title": "Seller للصفقة {code}",
         "sub": "{seller} · Agent {unit} · محتاج موافقتك",
-        "button": "راجعي"
+        "button": "راجعي",
+        "approve": "وافقي",
+        "confirm": "توافقي إن {seller} يبقى Seller في الصفقة {code}؟",
+        "done": "الـ Seller اتسجّل في الصفقة"
       },
       "tcrSign": {
         "title": "امضي على {tcr}",

@@ -70,8 +70,9 @@ export function DealForm({ onClose, onSaved, leadId }: { onClose: () => void; on
         {only("type", <Field label={t("type")} req>
           <select key={unit?.id} name="type" defaultValue={unit?.type}>{DEAL_TYPES.map((x) => <option key={x} value={x}>{x}</option>)}</select>
         </Field>)}
-        {only("commissionOwner", <Field label={t("commOwner")}><input name="commissionOwner" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>)}
-        {only("commissionClient", <Field label={t("commClient")}><input name="commissionClient" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>)}
+        {/* the expected commission has no other source: «read only» locks it after registering, not here (the API agrees) */}
+        {fields.shows("commissionOwner") && <Field label={t("commOwner")}><input name="commissionOwner" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>}
+        {fields.shows("commissionClient") && <Field label={t("commClient")}><input name="commissionClient" inputMode="decimal" pattern="\d+(\.\d{1,2})?" defaultValue="0" /></Field>}
         <Field label={t("withMe")} wide>
           <div className="tag-picker">
             <select value="" onChange={(e) => e.target.value && setWithMe([...withMe, e.target.value])} aria-label={t("withMe")}>

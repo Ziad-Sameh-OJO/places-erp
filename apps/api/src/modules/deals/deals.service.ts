@@ -2,12 +2,13 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundEx
 import type { Prisma, PrismaClient } from "@places/db";
 import { periodOf } from "@places/contracts";
 import type { CancelDeal, CollectDeal, CreateDeal, EditCollection, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal, TodayLine } from "@places/contracts";
-import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, quarterBounds, collected, collectionEditProblem, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
+import { ACCRUED_PARENT, EXTERNAL_COMMISSION_DUE_NAME, EXTERNAL_COMMISSION_EXPENSE, OPS_COMMISSION_DUE, OPS_COMMISSION_EXPENSE, directCostLines, directCosts, CLIENTS_PARENT, SALES_COMMISSION_EXPENSE, SALES_COMMISSION_PARENT, TL_COMMISSION_EXPENSE, tlAdjustment, type DealMoney, type DealStatus, type DealType, type EntryLine, cancelProblem, changes, quarterBounds, collected, collectionDateProblem, collectionEditProblem, collectionProblem, collectionStatus, localDate, remaining, revenueOnCollection, splitDeal, closedTooSoon, dealCode, dealSides, executeProblem, expectsCommission, papersProblem, formatEGP, fromDecimal, reviewProblem, ruleRecipients, sellerApprovalProblem, signProblem, takesNote, tcrCode, toDecimal, type Piasters } from "@places/domain";
 import { esc, layout } from "../../core/documents/documents.service";
 import { DocumentsSetupService } from "../settings/documents-setup.service";
 import { SettingsService } from "../settings/settings.service";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
+import { GrantsService } from "../../core/authz/grants.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { ownedBy } from "../../core/authz/scope";
@@ -50,6 +51,7 @@ export class DealsService {
     private readonly repo: DealsRepository,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly grants: GrantsService,
     private readonly leads: LeadsService,
     private readonly inventory: InventoryService,
     private readonly rules: LeadRulesService,
@@ -139,9 +141,10 @@ export class DealsService {
    * the location and the Seller (the unit's agent, waiting for Manar) from the unit. It waits for the Office Manager (Q9).
    */
   async create(me: CurrentUser, sheet: CreateDeal): Promise<DealDetail> {
-    // M-09: what the person may not set starts empty (the commissions) or as the unit has it (type, space)
-    const fixed = me.fields.fixed("deals");
-    const owner = fixed.has("commissionOwner") ? 0 : fromDecimal(sheet.commissionOwner), client = fixed.has("commissionClient") ? 0 : fromDecimal(sheet.commissionClient);
+    // M-09: type and space the person may not set come from the unit. The expected commission has nowhere else to come
+    // from, so «read only» on it means «not changed after registering»: only a hidden one starts empty (review 13)
+    const fixed = me.fields.fixed("deals"), hidden = me.fields.hidden("deals");
+    const owner = hidden.has("commissionOwner") ? 0 : fromDecimal(sheet.commissionOwner), client = hidden.has("commissionClient") ? 0 : fromDecimal(sheet.commissionClient);
     if (!expectsCommission(owner, client)) throw new BadRequestException("اكتب العمولة المتوقعة من الـ Owner أو الـ Client");
     const [lead] = await this.leads.dealLeads(me, sheet.leadId);
     if (!lead) throw new NotFoundException("الليد ده مش موجود أو مبقاش معاك");
@@ -199,6 +202,7 @@ export class DealsService {
     const input: ReviewDeal = Object.fromEntries(Object.entries(sheet).filter(([k]) => !fixed.has(k))) as ReviewDeal;
     let lockNotify: (() => Promise<unknown>) | undefined;
     const result = await this.db.$transaction(async (tx) => {
+      await this.repo.lock(tx, id); // then read: an approve and a reject at once — the second sees it reviewed and is refused
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
       const problem = reviewProblem(label(d.status), input.decision, input.reason);
@@ -312,9 +316,9 @@ export class DealsService {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
       const money = toMoney(d, await this.repo.payments(tx, id));
-      const problem = collectionProblem(money, amount);
-      if (problem) throw new BadRequestException(problem);
       const date = input.date ?? localDate(new Date());
+      const problem = collectionProblem(money, amount, input.side) ?? collectionDateProblem(date, localDate(d.closedAt), localDate(new Date()));
+      if (problem) throw new BadRequestException(problem);
       const client = await this.clientAccount(tx, me, d);
       const revenue = revenueOnCollection(money);
       if (revenue) {
@@ -364,23 +368,30 @@ export class DealsService {
       if (!d || !t) throw new NotFoundException(NO_TCR);
       const money = toMoney(d, await this.repo.payments(tx, id));
       const old = fromDecimal(t.payment.amount.toFixed(2));
-      const problem = collectionEditProblem(money, old, amount, input.reason);
+      const problem = collectionEditProblem(money, old, amount, input.reason, t.payment.side as "owner" | "client");
       if (problem) throw new BadRequestException(problem);
       if (!t.payment.moveId) throw new BadRequestException("التحصيل ده مالوش سند قبض متسجّل · عدّله من القيود");
       const code = tcrCode(t.code);
       const posted = await this.vouchers.correctDealCollection(me, t.payment.moveId, amount, `تعديل تحصيل ${d.code} · ${code}: ${input.reason}`, tx);
       await this.repo.correctPayment(tx, t.payment.id, { amount: toDecimal(amount), editedFrom: toDecimal(old), editReason: input.reason });
+      // 5.12: a signature is for the amount signed; the corrected TCR goes back to everyone who had signed it
+      const resigners = t.signatures.filter((s) => s.signedAt).map((s) => s.employeeId);
+      if (resigners.length) await this.repo.resetSignatures(tx, tcrId);
       const after: DealMoney = { ...money, payments: [...money.payments.filter((_, i) => i !== money.payments.findIndex((p) => p.side === t.payment.side && p.amount === old)), { side: t.payment.side as "owner" | "client", amount }] };
       const status = collectionStatus(after);
       if (status !== money.status) await this.repo.update(tx, id, { status: toDb(status) as never });
       await this.audit.record({ module: "deals", entity: "Tcr", entityId: tcrId, action: "edit-collection", userId: me.id,
         before: { amount: toDecimal(old), status: d.status, collected: toDecimal(collected(money)) },
-        after: { amount: toDecimal(amount), status: toDb(status), collected: toDecimal(collected(after)), reason: input.reason, tcr: code, ...posted } }, tx);
+        after: { amount: toDecimal(amount), status: toDb(status), collected: toDecimal(collected(after)), reason: input.reason, tcr: code, ...posted, ...(resigners.length ? { signaturesReset: resigners } : {}) } }, tx);
       const date = localDate(new Date());
       if (status === "Fully Collected" && money.status !== "Fully Collected") await this.commissionsDue(tx, me, d, after, date);
       await this.tlDue(tx, me, [...after.buyers, ...after.sellers], [t.payment.receivedAt.toISOString().slice(0, 7)], date); // 5.8: the month's collections changed
-      return { full: status === "Fully Collected" && money.status !== "Fully Collected", code: d.code };
+      return { full: status === "Fully Collected" && money.status !== "Fully Collected", code: d.code, tcr: code, resigners };
     });
+    if (out.resigners.length) {
+      const userIds = (await this.repo.employeeNames(out.resigners)).map((e) => e.userId);
+      await this.notifications.notify({ event: "deal.tcr", userIds, link: link(id), text: `${out.tcr}: مبلغ الـ TCR على ${out.code} اتعدّل · امضي عليها تاني` });
+    }
     if (out.full) await this.notifications.notify({ event: "finance.commission_due", link: "/finance", text: `${out.code} اتحصّلت بالكامل · عمولات السيلز عليها بقت مستحقة` });
     return this.get(me, id);
   }
@@ -390,7 +401,7 @@ export class DealsService {
     await this.db.$transaction(async (tx) => {
       const t = await this.repo.tcr(this.scope(me), id, tcrId, tx);
       if (!t) throw new NotFoundException(NO_TCR);
-      const problem = signProblem(t.signatures, me.employeeId);
+      const problem = signProblem(t.signatures, me.employeeId, label(t.deal.status));
       if (problem) throw new BadRequestException(problem);
       const signedAt = new Date();
       if (!(await this.repo.sign(tx, tcrId, me.employeeId!, signedAt)).count) throw new BadRequestException("مضيت عليها قبل كده");
@@ -473,7 +484,8 @@ export class DealsService {
       const d = await this.repo.detail(this.scope(me), id, tx);
       if (!d) throw new NotFoundException(NO_DEAL);
       const waiting = d.participants.filter((p) => p.side === "SELLER" && !p.approved).map((p) => p.employee);
-      if (!waiting.length) throw new BadRequestException("مفيش Seller مستني موافقة على الصفقة دي");
+      const problem = sellerApprovalProblem(label(d.status), waiting.length);
+      if (problem) throw new BadRequestException(problem);
       await this.repo.approveSellers(tx, id);
       await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "approve-seller", userId: me.id,
         before: { sellersWaiting: waiting.map((s) => s.id) }, after: { sellersApproved: waiting.map((s) => s.id), summary: `${d.code}: منار وافقت على الـ Seller ${waiting.map((s) => s.name).join("، ")}` } }, tx);
@@ -566,7 +578,12 @@ export class DealsService {
       return;
     }
     const commission = fromDecimal(input.commissionOwner ?? d.commissionOwner.toFixed(2)) + fromDecimal(input.commissionClient ?? d.commissionClient.toFixed(2));
-    await this.notifications.notify({ event: "deal.approved", userIds, link: link(d.id), text: `صفقة اتقفلت ${d.code} · ${d.company} · العمولة ${formatEGP(commission)} · مستنية التحصيل` });
+    // M-09: the amount goes only to a Buyer whose deals rules show both expected commissions; the rest hear it without
+    const sees = await Promise.all(userIds.map(async (u) => { const h = (await this.grants.currentUser(u)).fields.hidden("deals"); return !h.has("commissionOwner") && !h.has("commissionClient"); }));
+    const text = `صفقة اتقفلت ${d.code} · ${d.company}`;
+    await this.notifications.notify({ event: "deal.approved", userIds: userIds.filter((_, i) => sees[i]), link: link(d.id), text: `${text} · العمولة ${formatEGP(commission)} · مستنية التحصيل` });
+    const blind = userIds.filter((_, i) => !sees[i]);
+    if (blind.length) await this.notifications.notify({ event: "deal.approved", to: [], userIds: blind, link: link(d.id), text: `${text} · مستنية التحصيل` });
     // M-02 2.1 step 7 · Q26 (4.9): marketing hears of it with the allowed fields only — location, space, company, type, the Buyer
     const space = input.space ?? d.space, type = input.type ?? d.type, location = input.location ?? d.location;
     await this.notifications.notify({ event: "deal.marketing", link: "/marketing?tab=deals",

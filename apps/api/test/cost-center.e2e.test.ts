@@ -35,7 +35,7 @@ before(async () => {
   const unitId = (await prisma.unit.create({ data: { code: `U-CC${stamp}`, type: "Rent", project: `${C} مشروع`, area: "التجمع الخامس", space: 200, condition: "Finished", pdfStatus: "confirmed" } })).id;
   dealId = (await prisma.deal.create({ data: {
     code: `D-CC${stamp}`, leadId, unitId, type: "Rent", space: 200, location: `${C} مشروع`, company: `${C} شركة`, source: "LinkedIn", status: "PENDING_REVIEW",
-    commissionOwner: 50_000, commissionClient: 50_000, closedAt: new Date(), createdById: "e2e",
+    commissionOwner: 40_000, commissionClient: 60_000, closedAt: new Date(), createdById: "e2e",
     participants: { create: [{ employeeId: buyer.id, side: "BUYER" }] },
   } })).id;
   bankId = (await fresh(ashraf, C, "112", "بنك")).id;

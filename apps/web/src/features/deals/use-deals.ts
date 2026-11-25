@@ -8,6 +8,8 @@ import { dateLocale } from "@/lib/format";
 
 /** `period` (14.12): "2025-Q4" = the deals closed in that quarter; "" = all. */
 export const useDealSheet = (period = "") => useQuery({ queryKey: ["deals", "sheet", period], queryFn: () => api.get<DealSheet>(`/deals/sheet${period ? `?${periodParams(period)}` : ""}`) });
+/** One deal as a sheet row (scope and field rules as the sheet): a link to a deal the loaded sheet doesn't hold. */
+export const useDealSheetRow = (id: string | null, enabled: boolean) => useQuery({ queryKey: ["deals", "sheet-row", id], queryFn: () => api.get<DealSheet>(`/deals/sheet?id=${encodeURIComponent(id!)}`), enabled: !!id && enabled, retry: false });
 export const useDeal = (id: string) => useQuery({ queryKey: ["deals", "one", id], queryFn: () => api.get<DealDetail>(`/deals/${id}`), retry: false });
 export const useAchievements = () => useQuery({ queryKey: ["deals", "achv"], queryFn: () => api.get<Achievements>("/deals/achievements") });
 export const useDealForm = () => useQuery({ queryKey: ["deals", "form"], queryFn: () => api.get<DealForm>("/deals/form") });

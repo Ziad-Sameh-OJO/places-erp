@@ -52,6 +52,10 @@ export const DealPapers = z.object({
 });
 export type DealPapers = z.infer<typeof DealPapers>;
 
+/** The sheet (5.9), or one deal of it: a link «/deals?open=…» to a deal outside the loaded period or rows. */
+export const DealSheetQuery = PeriodQuery.extend({ id: Id.optional() });
+export type DealSheetQuery = z.infer<typeof DealSheetQuery>;
+
 /** «تصدير الصفقات» (M-12: any table exports to Excel): the list as filtered on the screen. */
 export const DealExportQuery = z.object({
   q: z.string().trim().max(80).optional(),
