@@ -129,7 +129,7 @@
       "should": "Where we should be today: {amount}",
       "perDay": "We need {amount} a day",
       "mark": "Where we should be today",
-      "set": "Set the target",
+      "set": "Go to the targets page →",
       "aria": "{label}: {pct}% achieved, we should be at {mark}% today",
       "none": "No target set"
     },
