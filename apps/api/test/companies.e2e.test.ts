@@ -51,8 +51,9 @@ test("Outbound: added under its category, counted this week, audited; same name 
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.deepEqual([r.body.category, r.body.leadCode], [category, lead.code]);
   const after = (await call(`/companies?pageSize=5&category=${encodeURIComponent(category)}`, { cookie: hadeer })).body;
-  assert.equal(after.outboundThisWeek, before.outboundThisWeek + 1);
-  assert.equal(after.categories.find((c: { name: string }) => c.name === category).count, before.categories.find((c: { name: string }) => c.name === category).count + 1);
+  // counts across the whole sheet: another test file may add a company at the same moment, so at least ours
+  assert.ok(after.outboundThisWeek >= before.outboundThisWeek + 1);
+  assert.ok(after.categories.find((c: { name: string }) => c.name === category).count >= before.categories.find((c: { name: string }) => c.name === category).count + 1);
   assert.ok(after.items.some((c: { name: string; outbound: boolean }) => c.name === `${NAME} أولى` && c.outbound));
   assert.ok(await prisma.auditLog.findFirst({ where: { entity: "Company", entityId: r.body.id, action: "create" } }));
   assert.equal((await call("/companies", { method: "POST", cookie: hadeer, body: { name: `  ${NAME} أولى `.toUpperCase(), category, number: "01111111111" } })).status, 409);
