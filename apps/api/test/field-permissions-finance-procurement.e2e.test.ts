@@ -134,6 +134,14 @@ test("finance: a hidden amount blanks every balance, line and total, and leaves 
   assert.deepEqual([budget.totals.spent, budget.rows.find((r: { accountId: string }) => r.accountId === line.id).spent], ["", ""]);
   const income = (await call("/finance/statements/income", { cookie: viewer })).body;
   assert.deepEqual([income.net, income.revenue], ["", ""]);
+  // the insurance HR records is money too: payroll's column and Finance's read-only view
+  const payroll = (await call("/finance/payroll", { cookie: viewer })).body;
+  assert.deepEqual([payroll.totals.insurance, payroll.totals.net], ["", ""]);
+  assert.ok(payroll.rows.every((r: { insurance: string; salary: string }) => r.insurance === "" && r.salary === ""));
+  const ins = (await call("/finance/insurance", { cookie: viewer })).body;
+  assert.deepEqual([ins.totals.monthly, ins.totals.companyShare], ["", ""]);
+  assert.ok(ins.items.every((r: { monthly: string; name: string }) => r.monthly === "" && r.name !== undefined));
+  assert.notEqual((await call("/finance/insurance", { cookie: ahmed })).body.totals.monthly, "");
   assert.match(await xlsxText("/finance/budget/export", ahmed), /اتصرف/);
   assert.doesNotMatch(await xlsxText("/finance/budget/export", viewer), /اتصرف/);
   // the claim and its receipt are the amount: not printed for whom it's hidden

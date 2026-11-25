@@ -376,6 +376,8 @@
     "monthClosed": "{label} closed",
     "quarterClosed": "Quarter closed",
     "closeMonth": "Close month",
+    "closeMonthConfirm": "Close {label}? Nothing can be posted in it after that, and it can't be reopened.",
+    "closeQuarterConfirm": "Close the quarter up to {label}? Nothing can be posted in it after that, and it can't be reopened.",
     "closeQuarter": "Close quarter",
     "entryTitle": "Entry {no}",
     "theEntry": "Entry",
@@ -387,6 +389,8 @@
   "ledger": {
     "title": "Account statement",
     "balanceNow": "Balance now",
+    "periodMove": "Movement from {from} to {to}",
+    "today": "today",
     "balanceAfter": "Balance after",
     "empty": "No moves on this account",
     "print": "Print statement"

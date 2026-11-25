@@ -13,7 +13,7 @@ export const finance: readonly FieldDef[] = [
     key: "amount", label: "المبلغ", required: true,
     covers: ["balance", "debit", "credit", "spent", "returned", "budget", "left", "pct", "level", "alerts", "paid", "received", "before", "after",
       "assets", "liabilities", "equity", "revenue", "direct", "gross", "selling", "contribution", "admin", "other", "net", "value",
-      "salary", "attendance", "advance", "advanceLeft", "share", "schemePercent", "commission", "placesCommission", "tlDue", "marketing", "remaining"],
+      "salary", "attendance", "insurance", "monthly", "companyShare", "advance", "advanceLeft", "share", "schemePercent", "commission", "placesCommission", "tlDue", "marketing", "remaining"],
   },
   { key: "memo", label: "البيان", required: true },
   { key: "party", label: "الطرف", required: true },
