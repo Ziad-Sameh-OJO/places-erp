@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
+import { keepsCompaniesSheet, listedCategory } from "@places/domain";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CompanyImportRow, LeadImportRow } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
@@ -50,9 +51,19 @@ export class LeadImportService {
     });
   }
 
-  companies(me: CurrentUser, sheet: ParsedSheet<CompanyImportRow>, save: boolean) {
+  async companies(me: CurrentUser, sheet: ParsedSheet<CompanyImportRow>, save: boolean) {
+    // the sheet is Telesales' to add to (M-01 2.1), by hand or from the archive: «leads: import» alone (Operations) isn't enough
+    if (!keepsCompaniesSheet(me.roles)) throw new ForbiddenException("شيت الشركات بتضيف فيه Telesales بس");
+    // a category off the settings list would sit outside every category tab: the row is an error to fix, not a hidden company
+    const list = await this.sheet.categories();
+    const rows: typeof sheet.rows = [], errors = [...sheet.errors];
+    for (const row of sheet.rows) {
+      const category = listedCategory(row.data.category, list);
+      if (category) rows.push({ ...row, data: { ...row.data, category } });
+      else errors.push({ line: row.line, column: "الكاتيجوري", message: `«${row.data.category}» مش في قايمة الكاتيجوريز (الإعدادات)` });
+    }
     const seen = new Set<string>();
-    return this.each(sheet, save, async (tx, r) => {
+    return this.each({ ...sheet, rows, errors }, save, async (tx, r) => {
       const number = r.number ?? null;
       const key = `${r.name.toLowerCase()}|${number}`;
       if (seen.has(key) || (await tx.company.findFirst({ where: { name: { equals: r.name, mode: "insensitive" }, number }, select: { id: true } }))) return false;

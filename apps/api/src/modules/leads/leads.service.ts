@@ -569,6 +569,7 @@ export class LeadsService {
         name: after.name, kind: after.kind === "broker" ? "BROKER" : "CLIENT", phones: after.phones, area: after.area, type: after.type,
         propertyType: after.propertyType, space: after.space, condition: after.condition, budget: after.budget, note: after.note, ...(companyChanged ? { companyId: inSheet?.id ?? null } : {}),
       });
+      if (companyChanged) await this.companies.dropRequests(tx, id);
       const newCompany = companyChanged && company && !inSheet ? await this.companies.fromLead(tx, me, { id, code: lead.code }, company, undefined) : null;
       if (newCompany?.companyId) await this.repo.updateLead(tx, id, { companyId: newCompany.companyId });
       await this.repo.addActivity(tx, id, "edit", "اتعدّلت بيانات الليد", me.id); // a system line (Logs), not a comment

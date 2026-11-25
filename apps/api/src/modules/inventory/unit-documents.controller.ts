@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Res } from "@nestjs/common";
-import { ListOfOptionsInput } from "@places/contracts";
+import { ListOfOptionsInput, PdfConfirmInput } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import type { Response } from "express";
 import { Requires } from "../../core/authz/requires.decorator";
@@ -45,8 +45,8 @@ export class UnitDocumentsController {
   @Post("pdf/confirm")
   @HttpCode(204)
   @Requires("inventory", "approve")
-  confirm(@Me() me: CurrentUser, @Param("id") id: string) {
-    return this.docs.confirm(me, id);
+  confirm(@Me() me: CurrentUser, @Param("id") id: string, @Body(new ZodPipe(PdfConfirmInput)) body: PdfConfirmInput) {
+    return this.docs.confirm(me, id, body.seen);
   }
 
   private send(res: Response, doc: Promise<{ name: string; mime: string; body: Buffer }>) {
