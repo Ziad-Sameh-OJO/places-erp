@@ -47,7 +47,7 @@ after(async () => {
 const get = (id: string) => prisma.lead.findUniqueOrThrow({ where: { id } });
 const stayOf = (leadId: string) => prisma.leadDraft.findFirstOrThrow({ where: { leadId, kind: "admin" } });
 // Cancellation needs a reason from the client's list (22 Nov)
-const stage = (cookie: string, id: string, s: string) => call(`/leads/${id}/stage`, { method: "PATCH", cookie, body: { stage: s, ...(s === "Cancellation" ? { reason: "No Budget" } : {}) } });
+const stage = (cookie: string, id: string, s: string) => call(`/leads/${id}/stage`, { method: "PATCH", cookie, body: { stage: s, ...(s === "Cancellation" ? { reason: "Low Budget" } : {}) } });
 const decide = (cookie: string, id: string, to: string) => call(`/leads/drafts/${id}/decide`, { method: "POST", cookie, body: { to } });
 const adminTab = (cookie: string) => call("/leads/drafts?kind=admin", { cookie });
 
