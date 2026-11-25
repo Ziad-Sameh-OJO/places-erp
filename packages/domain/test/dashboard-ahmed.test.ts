@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { comparisonWindows, conversionRate, moneyBuckets, periodDays, sumIn, targetPace, teamTone, trendBuckets, workingDays } from "../src/dashboard-ahmed.ts";
+import { comparisonWindows, conversionRate, monthToSet, moneyBuckets, periodDays, sumIn, targetPace, teamTone, trendBuckets, workingDays } from "../src/dashboard-ahmed.ts";
 import { PLACES_CALENDAR } from "../src/business-time.ts";
 
 const EGP = 100; // piasters
@@ -124,4 +124,10 @@ test("sums and counts by bucket, the end excluded", () => {
     { at: at("2026-11-20T22:00:00Z"), value: 9 }, // next Saturday: outside
   ];
   assert.deepEqual(sumIn(rows, b), [2, 5, 0, 0, 0, 0, 0]);
+});
+
+test("«حدد التارجت» opens a month you can edit: this month if it's in the quarter, else the quarter's first", () => {
+  assert.equal(monthToSet("2026-Q4", "2026-11-25"), "2026-11");
+  assert.equal(monthToSet("2027-Q1", "2026-11-25"), "2027-01"); // a coming quarter
+  assert.equal(monthToSet("2026-Q2", "2026-11-25"), "2026-04"); // a past one (closed, but shown)
 });

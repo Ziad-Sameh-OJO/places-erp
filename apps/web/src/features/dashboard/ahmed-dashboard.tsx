@@ -3,7 +3,7 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { AhmedDashboard, AhmedTeam, Compared, PacedBar } from "@places/contracts";
-import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, toDecimal, type DashPeriod } from "@places/domain";
+import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, toDecimal, type DashPeriod, monthToSet } from "@places/domain";
 import { Card, Chip, Empty, Icon } from "@/components/ui";
 import { PeriodPicker } from "@/components/period-picker";
 import { dateLocale, money, num, short } from "@/lib/format";
@@ -114,19 +114,20 @@ function Funnel({ d }: { d: AhmedDashboard }) {
  */
 function Targets({ d, onQuarter }: { d: AhmedDashboard; onQuarter: (q: string) => void }) {
   const t = useTranslations("dashboard.ahmed.targets");
-  const href = `/reports?quarter=${d.targetQuarter}`;
+  // a gauge opens the quarter's targets added up; «حدد التارجت» a month, where each salesperson's target is edited
+  const href = `/reports?quarter=${d.targetQuarter}`, setHref = `/reports?month=${monthToSet(d.targetQuarter, localDate(new Date()))}`;
   return (
     <Card title={t("title")} icon="trend" className="b-4 target-a" extra={<PeriodPicker value={d.targetQuarter} onChange={(v) => v && onQuarter(v)} bare />}>
       <div className="gauges-a">
-        <Meter label={t("year", { year: d.year })} bar={d.targets.year} href={href} />
-        <Meter label={t("quarter", { quarter: d.targetQuarter.replace(/^(\d{4})-(Q\d)$/, "$2 $1") })} bar={d.targets.quarter} href={href} />
+        <Meter label={t("year", { year: d.year })} bar={d.targets.year} href={href} setHref={setHref} />
+        <Meter label={t("quarter", { quarter: d.targetQuarter.replace(/^(\d{4})-(Q\d)$/, "$2 $1") })} bar={d.targets.quarter} href={href} setHref={setHref} />
       </div>
     </Card>
   );
 }
 
 /** `href`: the targets of the card's quarter on «التقارير والتارجت», where each salesperson's month targets are set. */
-function Meter({ label, bar, href }: { label: string; bar: PacedBar; href: string }) {
+function Meter({ label, bar, href, setHref }: { label: string; bar: PacedBar; href: string; setHref: string }) {
   const t = useTranslations("dashboard.ahmed.targets");
   const goal = bar.goal === "" ? 0 : fromDecimal(bar.goal);
   if (!goal) return (
@@ -134,7 +135,7 @@ function Meter({ label, bar, href }: { label: string; bar: PacedBar; href: strin
       <svg viewBox="0 0 130 74" aria-hidden="true"><path d="M13 66 A52 52 0 0 1 117 66" /></svg>
       <small>{label}</small>
       <p>{t("none")}</p>
-      <Link className="btn ghost sm" href={href}><Icon name="plus" />{t("set")}</Link>
+      <Link className="btn ghost sm" href={setHref}><Icon name="plus" />{t("set")}</Link>
     </div>
   );
   const mark = bar.expected ? Math.round((fromDecimal(bar.expected) / goal) * 100) : null;
