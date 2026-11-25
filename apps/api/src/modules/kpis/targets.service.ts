@@ -89,7 +89,8 @@ export class TargetsService {
           value: toDecimal(goal), deals: mt.reduce((n, x) => n + (x?.deals ?? 0), 0), visits: mt.reduce((n, x) => n + (x?.visits ?? 0), 0), achieved: toDecimal(f.achieved), percent: Math.round(percent * 10) / 10,
           transactions: f.transactions, visitsDone: visitsOf(p.userId, "visit"), meetings: visitsOf(p.userId, "meeting"),
           inventory: units.find((u) => u.agentId === p.id)?._count._all ?? 0, farming: actsOf(p.id, "farming"), approach: actsOf(p.id, "approach"),
-          behind: live && behindPace(percent, gone, b.days), pending: pendingOf(t?.pending ?? null),
+          // no target (the TL's own row) is never «behind», as the TL's alert job (target-pace) reads it
+          behind: live && goal > 0 && behindPace(percent, gone, b.days), pending: pendingOf(t?.pending ?? null),
         },
         achieved: f.achieved,
       };
@@ -243,10 +244,13 @@ export class TargetsService {
     return deals.flatMap((d) => {
       const first = d.payments.reduce<Date | null>((min, p) => (!min || p.receivedAt < min ? p.receivedAt : min), null);
       if (!first || first < start || first >= end) return [];
+      // M-02: the Seller has no Transaction until the Inventory Manager approves him (domain sellersOf)
+      const sellerApproved = d.participants.filter((x) => x.side === "SELLER").every((x) => x.approved);
       return [{
         dealId: d.id, code: d.code, type: d.type, company: d.company, status: DEAL_STATUS[d.status] ?? d.status,
-        collected: hidesCollected ? "" : toDecimal(d.payments.reduce((s, p) => s + piasters(p.amount), 0)), firstAt: first.toISOString(),
-        people: d.participants.map((x) => `${names.get(x.employeeId) ?? "—"} (${x.side === "BUYER" ? "Buyer" : "Seller"})`).join("، "),
+        // what came in within the period asked for, not the deal's total
+        collected: hidesCollected ? "" : toDecimal(d.payments.filter((p) => p.receivedAt >= start && p.receivedAt < end).reduce((s, p) => s + piasters(p.amount), 0)), firstAt: first.toISOString(),
+        people: d.participants.filter((x) => x.side === "BUYER" || sellerApproved).map((x) => `${names.get(x.employeeId) ?? "—"} (${x.side === "BUYER" ? "Buyer" : "Seller"})`).join("، "),
       }];
     });
   }

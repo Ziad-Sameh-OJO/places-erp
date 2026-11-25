@@ -51,7 +51,8 @@ export function groupTargetPercent(
 }
 
 /** Demo clients.js «تحت المعدل»: below 60% of the share of the month gone by — the TL hears of it. */
-export const behindPace = (percent: number, dayOfMonth: number, daysInMonth: number): boolean => percent < (dayOfMonth / daysInMonth) * 100 * 0.6;
+// multiplied out, not divided: 25 ÷ 30 × 60 is 50.000…01 in floats, which flagged someone standing exactly on the line
+export const behindPace = (percent: number, dayOfMonth: number, daysInMonth: number): boolean => percent * daysInMonth < dayOfMonth * 60;
 
 /** «الترتيب»: highest achievement first; equal percentages share a rank. */
 export function ranked<T extends { percent: number }>(rows: readonly T[]): Array<T & { rank: number }> {
