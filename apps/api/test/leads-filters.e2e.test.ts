@@ -185,16 +185,16 @@ test("the client's filters (22 Nov): type, company, space, budget, duplicated, c
   const stage = (id: string, body: object) => call(`/leads/${id}/stage`, { method: "PATCH", cookie: ops, body });
   assert.equal((await stage(k2, { stage: "Cancellation" })).status, 400); // no reason
   assert.equal((await stage(k2, { stage: "Cancellation", reason: "Bored" })).status, 400); // not on the list
-  assert.equal((await stage(k2, { stage: "Hold", reason: "No Budget" })).status, 400); // a reason is for Cancellation only
-  const cancelled = await stage(k2, { stage: "Cancellation", reason: "No Budget", note: "الميزانية نصّ السعر" });
+  assert.equal((await stage(k2, { stage: "Hold", reason: "Low Budget" })).status, 400); // a reason is for Cancellation only
+  const cancelled = await stage(k2, { stage: "Cancellation", reason: "Low Budget", note: "الميزانية نصّ السعر" });
   assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
-  assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: k2 }, select: { cancelReason: true } })).cancelReason, "No Budget");
+  assert.equal((await prisma.lead.findUniqueOrThrow({ where: { id: k2 }, select: { cancelReason: true } })).cancelReason, "Low Budget");
   const line = await prisma.leadActivity.findFirstOrThrow({ where: { leadId: k2, kind: "stage" }, orderBy: { at: "desc" }, select: { text: true } });
-  assert.equal(line.text, "المرحلة بقت Cancellation · السبب: No Budget · الميزانية نصّ السعر");
+  assert.equal(line.text, "المرحلة بقت Cancellation · السبب: Low Budget · الميزانية نصّ السعر");
   const audit = await prisma.auditLog.findFirstOrThrow({ where: { entityId: k2, action: "stage" }, orderBy: { at: "desc" }, select: { after: true } });
-  assert.equal((audit.after as { cancelReason?: string }).cancelReason, "No Budget");
-  assert.deepEqual(await k("&cancelReason=No%20Budget"), ["2"]);
-  assert.deepEqual(await k("&cancelReason=Rented"), []);
+  assert.equal((audit.after as { cancelReason?: string }).cancelReason, "Low Budget");
+  assert.deepEqual(await k("&cancelReason=Low%20Budget"), ["2"]);
+  assert.deepEqual(await k("&cancelReason=Buy%20Outside"), []);
   // bulk can't cancel: each lead needs its own reason
   assert.equal((await call("/leads/batch", { method: "POST", cookie: ops, body: { ids: [k1], stage: "Cancellation" } })).status, 400);
 
