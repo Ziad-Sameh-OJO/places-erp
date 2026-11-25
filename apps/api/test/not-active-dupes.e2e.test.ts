@@ -79,6 +79,8 @@ test("«غيّر خانة منع التكرار»: the count before saving, then
   const q = `?columns=${encodeURIComponent(JSON.stringify(["المالك"]))}`;
   assert.deepEqual((await call(`/not-active/sheets/${id}/dedupe${q}`, { cookie: manar })).body, { marked: 4 });
   assert.equal((await call(`/not-active/sheets/${id}/dedupe${q}`, { cookie: sales })).status, 403);
+  // the count reads the whole file: Marwa only sees the rows sent to her
+  assert.equal((await call(`/not-active/sheets/${id}/dedupe${q}`, { cookie: marwa })).status, 403);
   assert.equal((await call(`/not-active/sheets/${id}/dedupe`, { method: "PUT", cookie: marwa, body: { columns: ["المالك"] } })).status, 403);
   assert.equal((await call(`/not-active/sheets/${id}/dedupe`, { method: "PUT", cookie: manar, body: { columns: ["مش موجودة"] } })).status, 400);
   assert.equal((await call(`/not-active/sheets/${id}/dedupe`, { method: "PUT", cookie: manar, body: { columns: [] } })).status, 400);

@@ -37,6 +37,7 @@ test("an empty picked cell can't be told apart: it goes in, never as a repeat; a
   assert.deepEqual([r.duplicates, r.noKey], [1, 2]);
   assert.equal(dedupeKey("  Cairo   Festival "), "cairo festival");
   assert.equal(dedupeKey("C-101"), "c-101");
+  assert.equal(dedupeKey("1012345678"), dedupeKey("01012345678")); // Excel's number cell drops the 0
   assert.equal(dedupeKey(undefined), "");
 });
 

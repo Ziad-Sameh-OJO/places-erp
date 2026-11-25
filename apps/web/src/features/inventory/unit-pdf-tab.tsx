@@ -17,8 +17,9 @@ export function UnitPdfTab({ u, canConfirm }: { u: UnitDetail; canConfirm: boole
   const base = `/api/v1/inventory/units/${u.id}`;
   const run = useAction();
   const confirm = () => void run(async () => {
-    await api.post(`/inventory/units/${u.id}/pdf/confirm`);
-    await Promise.all([qc.invalidateQueries({ queryKey: ["unit"] }), qc.invalidateQueries({ queryKey: ["units"] })]);
+    // Q19: what this screen shows, nothing newer; refused when the unit changed meanwhile, so it's loaded again either way
+    try { await api.post(`/inventory/units/${u.id}/pdf/confirm`, { seen: u.updatedAt }); }
+    finally { await Promise.all([qc.invalidateQueries({ queryKey: ["unit"] }), qc.invalidateQueries({ queryKey: ["units"] })]); }
   }, t("published"));
   return (
     <>
