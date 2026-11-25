@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { AccountLedger, AccountNode, ChartView, EntrySaved, EntryView, IncomeView, JournalFilters, JournalView, ManualEntry, MoveEffect, NewAccount, OpeningBalances, PeriodView } from "@places/contracts";
+import type { AccountLedger, AccountNode, LedgerQuery, ChartView, EntrySaved, EntryView, IncomeView, JournalFilters, JournalView, ManualEntry, MoveEffect, NewAccount, OpeningBalances, PeriodView } from "@places/contracts";
 import {
   PERIOD_STATUS_LABEL, RETAINED_EARNINGS, incomeStatement, YEAR_RESULT, balanceOf, closedProblem, entryProblem, monthLabel, monthOf, periodStatus, fromDecimal, localDate, natureOf, nextChildCode, openingLines, reversalLines, rollUp,
   toDecimal, nextQuarter, quarterDays, quarterLabel, type EntryLine, type Nature, type PeriodStatus, type Piasters,
@@ -99,7 +99,7 @@ export class LedgerService {
     const ids = new Map(accounts.map((a) => [a.code, a.id]));
     const v = (l: { code: string; name: string; value: Piasters }) => ({ id: ids.get(l.code) ?? "", code: l.code, name: l.name, value: toDecimal(l.value) });
     return {
-      range, from, label: period ? quarterLabel(period) : range === "month" ? monthLabel(monthOf(today)) : `من أول ${today.slice(0, 4)}`,
+      range, from, to: period ? quarterDays(period).to : null, label: period ? quarterLabel(period) : range === "month" ? monthLabel(monthOf(today)) : `من أول ${today.slice(0, 4)}`,
       revenue: toDecimal(st.revenue), direct: toDecimal(st.direct), gross: toDecimal(st.gross), selling: toDecimal(st.selling), contribution: toDecimal(st.contribution),
       admin: toDecimal(st.admin), other: toDecimal(st.other), net: toDecimal(st.net),
       lines: { revenue: st.lines.revenue.map(v), direct: st.lines.direct.map(v), selling: st.lines.selling.map(v), admin: st.lines.admin.map(v), other: st.lines.other.map((o) => ({ head: v(o.head), lines: o.lines.map(v) })) },
@@ -183,6 +183,11 @@ export class LedgerService {
    * Call before `balances(tx)` when money leaves these accounts: two vouchers at once would both read the same balance
    * and overdraw the safe; the second now waits for the first to commit and reads what it left.
    */
+  /** One at a time for `key` until the transaction ends (a payroll month, a recurring bill): the second waits, then sees the first. */
+  lock(key: string, tx: Tx) {
+    return this.repo.lock(key, tx);
+  }
+
   lockBalances(ids: (string | undefined)[], tx: Tx) {
     return this.repo.lockBalances(ids.filter((id): id is string => !!id), tx);
   }
@@ -368,6 +373,9 @@ export class LedgerService {
   /** The opening balances on the start date (9.5): one entry, the difference against retained earnings; only once. */
   async opening(me: CurrentUser, input: OpeningBalances, run: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>) {
     return run(async (tx) => {
+      // a second save (another tab, the form opened again) would double every balance; two at once can't both pass
+      await this.repo.lock("finance-opening", tx);
+      if (await this.repo.openingEntry(tx)) throw new BadRequestException("الأرصدة الافتتاحية اتسجّلت قبل كده · أي تصحيح بقيد يدوي");
       const accounts = await this.repo.accounts(tx);
       const byId = new Map(accounts.map((a) => [a.id, a]));
       const retained = accounts.find((a) => a.code === RETAINED_EARNINGS);
@@ -381,18 +389,23 @@ export class LedgerService {
     });
   }
 
-  async ledger(id: string): Promise<AccountLedger> {
-    const [{ accounts, balance }, lines] = await Promise.all([this.balances(), this.repo.accountLines(id)]);
+  /**
+   * «كشف حساب». With `from` / `to` (the income statement's drill-down, 9.7) only that period's lines, and the balance is
+   * the period's movement — the same number the statement shows for the line.
+   */
+  async ledger(id: string, range: LedgerQuery = {}): Promise<AccountLedger> {
+    const [{ accounts, balance }, lines] = await Promise.all([this.balances(), this.repo.accountLines(id, range)]);
     const a = accounts.find((x) => x.id === id);
     if (!a) throw new NotFoundException(NO_ACCOUNT);
     let running = 0;
+    const rows = lines.map((l) => {
+      running += balanceOf(a.nature as Nature, dec(l.debit), dec(l.credit));
+      return { entryId: l.entryId, no: entryNo(l.entry.no, l.entry.source), date: dayOf(l.entry.date), nature: l.entry.nature, memo: l.entry.memo, debit: toDecimal(dec(l.debit)), credit: toDecimal(dec(l.credit)), balance: toDecimal(running) };
+    });
     return {
       account: { id: a.id, code: a.code, name: a.name, path: this.path(a, accounts), nature: a.nature as Nature },
-      balance: toDecimal(balance.get(a.id) ?? 0),
-      lines: lines.map((l) => {
-        running += balanceOf(a.nature as Nature, dec(l.debit), dec(l.credit));
-        return { entryId: l.entryId, no: entryNo(l.entry.no, l.entry.source), date: dayOf(l.entry.date), nature: l.entry.nature, memo: l.entry.memo, debit: toDecimal(dec(l.debit)), credit: toDecimal(dec(l.credit)), balance: toDecimal(running) };
-      }),
+      balance: toDecimal(range.from || range.to ? running : balance.get(a.id) ?? 0),
+      lines: rows,
     };
   }
 

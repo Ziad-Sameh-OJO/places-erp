@@ -7,8 +7,7 @@
  * worker never sends it twice; a crash mid-send leaves it to be retried after the wait.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { createTransport } from "nodemailer";
-import { Prisma, prisma } from "@places/db";
+import { type MailEnv, Prisma, mailRoute, prisma } from "@places/db";
 import { MAIL_RETRY_MINUTES, afterMailFailure, eventByKey } from "@places/domain";
 import { pushEvent } from "../push.ts";
 
@@ -22,12 +21,15 @@ const attachmentsOf = (raw: unknown): OutgoingMail["attachments"] =>
 /** One minute's batch: a backlog drains over the next minutes instead of one long job. */
 const BATCH = 100;
 
-/** SMTP when configured; otherwise (development) the same .local/outbox/ the API writes to. */
-export function mailSender(cfg: { SMTP_URL?: string | undefined; MAIL_FROM: string }): SendMail {
-  if (cfg.SMTP_URL) {
-    const smtp = createTransport(cfg.SMTP_URL);
-    return async (m) => { await smtp.sendMail({ from: cfg.MAIL_FROM, ...m }); };
-  }
+/**
+ * Read each run (M-14 3.1): the server set on the notifications page, else SMTP_URL, so a change there works within
+ * the minute. With neither: in production every mail fails (the Super Admin is told), in development .local/outbox/.
+ */
+export async function mailSender(cfg: MailEnv & { NODE_ENV: string }): Promise<SendMail> {
+  const route = await mailRoute(prisma, cfg);
+  if (route && "problem" in route) return async () => { throw new Error(route.problem); };
+  if (route) return route.send;
+  if (cfg.NODE_ENV === "production") return async () => { throw new Error("مفيش سيرفر إيميل · ظبطه من صفحة الإشعارات والإيميل"); };
   return async (m) => {
     mkdirSync("../../.local/outbox", { recursive: true });
     const attachments = m.attachments?.map((a) => ({ filename: a.filename, bytes: a.content.length }));

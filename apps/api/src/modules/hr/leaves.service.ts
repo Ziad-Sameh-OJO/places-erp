@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Prisma, type PrismaClient, onLeave } from "@places/db";
 import type { BalancesQuery, LeaveAsk, LeaveBalance, LeaveBalancesView, LeaveCalendarView, LeaveStatusKey, LeaveView, MyLeaves } from "@places/contracts";
 import { afterReturn, daysWithin, isOutsideRequest, leaveDays, leaveProblem, localDate, OUTSIDE_REQUESTS } from "@places/domain";
@@ -6,6 +6,7 @@ import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
 import { NotificationsService } from "../../core/notifications/notifications.service";
+import { FilesService } from "../../core/files/files.service";
 import type { Tx } from "./hr.repository";
 
 const ANNUAL = "سنوية";
@@ -17,6 +18,13 @@ const day = (s: string) => new Date(`${s}T00:00:00Z`);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const ROW = { include: { employee: { select: { id: true, name: true, userId: true, department: true } } } } as const;
 type Row = Prisma.LeaveRequestGetPayload<typeof ROW>;
+/** Serialises one person's requests: the balance is read and spent under this lock. */
+const lock = (tx: Tx, employeeId: string) => tx.$queryRaw`SELECT id FROM hr."Employee" WHERE id = ${employeeId} FOR UPDATE`;
+/** Moves the request only from the status it was read in: a second click (or a second person) at the same moment loses. */
+async function claim(tx: Tx, id: string, status: string) {
+  const n = await tx.leaveRequest.updateMany({ where: { id, status: status as LeaveStatusKey }, data: { status: status as LeaveStatusKey } });
+  if (!n.count) throw new ConflictException("الطلب ده اتقرر قبل كده");
+}
 
 /**
  * M-05 · leaves (7.5 · 7.6): the employee asks; the Team Leader approves or rejects with a reason (final); HR records
@@ -25,7 +33,7 @@ type Row = Prisma.LeaveRequestGetPayload<typeof ROW>;
  */
 @Injectable()
 export class LeavesService {
-  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService) {}
+  constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly notifications: NotificationsService, private readonly files: FilesService) {}
 
   private async types(tx: Tx | PrismaClient = this.db): Promise<{ name: string; days: number }[]> {
     const s = await tx.setting.findUnique({ where: { key: "leaveTypes" } });
@@ -75,9 +83,9 @@ export class LeavesService {
     const saved = await run(async (tx) => {
       const e = await tx.employee.findUnique({ where: { userId: me.id }, select: { id: true, name: true, leaveBalance: true, teamLeader: { select: { userId: true } } } });
       if (!e) throw new NotFoundException("مالكش فايل موظف");
+      await lock(tx, e.id); // two requests sent at once mustn't both spend the same balance
       const types = await this.types(tx);
       if (!types.some((t) => t.name === a.type) && !isOutsideRequest(a.type)) throw new BadRequestException("نوع الإجازة مش موجود في الإعدادات");
-      if (a.documentId && !(await tx.file.findFirst({ where: { id: a.documentId, uploadedById: me.id, entityId: null } }))) throw new BadRequestException("المستند مش موجود");
       const bal = (await this.balances(e, a.from.slice(0, 4), tx, { pending: true })).find((b) => b.type === a.type) ?? { left: 0 }; // «شغل من بره / عذر غياب» have no balance
       const problem = leaveProblem({ type: a.type, from: a.from, to: a.to, today: localDate(new Date()), left: bal.left, hasDocument: !!a.documentId });
       if (problem) throw new BadRequestException(problem);
@@ -85,7 +93,8 @@ export class LeavesService {
       if (overlap) throw new BadRequestException("فيه طلب إجازة تاني في نفس الأيام");
       const tlUserId = e.teamLeader?.userId && e.teamLeader.userId !== me.id ? e.teamLeader.userId : null;
       const r = await tx.leaveRequest.create({ data: { employeeId: e.id, type: a.type, fromDay: day(a.from), toDay: day(a.to), reason: a.reason ?? null, days: leaveDays(a.from, a.to), documentId: a.documentId ?? null, tlUserId }, ...ROW });
-      if (a.documentId) await tx.file.update({ where: { id: a.documentId }, data: { entity: "LeaveRequest", entityId: r.id } });
+      // attach(): only my own finished upload that nothing holds yet (a pending or rejected file isn't a document)
+      if (a.documentId) await this.files.attach(me, [a.documentId], "LeaveRequest", r.id, tx);
       await this.audit.record({ module: "hr", entity: "LeaveRequest", entityId: r.id, action: "create", userId: me.id, after: { type: a.type, from: a.from, to: a.to, days: r.days } }, tx);
       return r;
     });
@@ -98,11 +107,23 @@ export class LeavesService {
     return (await this.db.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: "hr" } } } }, select: { id: true } })).map((u) => u.id);
   }
 
-  /** The list in scope: a TL sees his team's and the ones waiting for him; HR (scope all) sees everyone's. */
+  /** The requests in scope: a TL sees his team's and the ones waiting for him; HR (scope all) sees everyone's. */
+  private inScope(me: CurrentUser): Prisma.LeaveRequestWhereInput {
+    return me.grants.scope === "all" ? {} : { OR: [{ tlUserId: me.id }, { employee: me.grants.scope === "team" ? { id: { in: me.teamIds } } : me.grants.scope === "dept" && me.department ? { department: me.department } : { userId: me.id } }] };
+  }
+
   async list(me: CurrentUser): Promise<LeaveView[]> {
-    const scope: Prisma.LeaveRequestWhereInput = me.grants.scope === "all" ? {} : { OR: [{ tlUserId: me.id }, { employee: me.grants.scope === "team" ? { id: { in: me.teamIds } } : me.grants.scope === "dept" && me.department ? { department: me.department } : { userId: me.id } }] };
-    const rows = await this.db.leaveRequest.findMany({ where: scope, ...ROW, orderBy: { createdAt: "desc" }, take: 200 });
+    const rows = await this.db.leaveRequest.findMany({ where: this.inScope(me), ...ROW, orderBy: { createdAt: "desc" }, take: 200 });
     return rows.map((r) => this.view(r, me));
+  }
+
+  /** 0.9: the sick / emergency leave's document, for whoever sees the request (the TL deciding, HR recording it). Audited. */
+  async documentUrl(me: CurrentUser, id: string) {
+    const r = await this.db.leaveRequest.findFirst({ where: { AND: [{ id }, this.inScope(me)] }, select: { documentId: true } });
+    if (!r?.documentId) throw new NotFoundException("مفيش مستند للطلب ده");
+    const link = await this.files.downloadUrl(r.documentId);
+    await this.audit.record({ module: "hr", entity: "LeaveRequest", entityId: id, action: "download", userId: me.id, after: { documentId: r.documentId } });
+    return link;
   }
 
   /** TL approves (→ HR), or HR records it (→ closed). Only the person whose turn it is. */
@@ -112,11 +133,13 @@ export class LeavesService {
       if (!r) throw new NotFoundException("الطلب مش موجود");
       const turn = this.view(r, me).canDecide;
       if (!turn) throw new ForbiddenException("الطلب ده مش مستنيك");
+      await lock(tx, r.employeeId); // two of his requests approved at once mustn't both pass the balance check
       // each approval checks the balance again: another request may have spent the days since this one was asked
       const e = await tx.employee.findUniqueOrThrow({ where: { id: r.employeeId }, select: { id: true, leaveBalance: true } });
       const bal = (await this.balances(e, iso(r.fromDay).slice(0, 4), tx, { except: r.id })).find((b) => b.type === r.type);
       if (bal && !isOutsideRequest(r.type) && r.days > bal.left) throw new BadRequestException(`رصيد ${r.type} فاضل فيه ${bal.left} يوم بس والطلب ${r.days} يوم`);
       const data: Prisma.LeaveRequestUpdateInput = turn === "tl" ? { status: "APPROVED_BY_TL", tlDecidedAt: new Date(), ...(r.tlUserId ? {} : { tlUserId: me.id }) } : { status: "CLOSED_BY_HR", hrUserId: me.id, closedAt: new Date() };
+      await claim(tx, id, r.status);
       const out = await tx.leaveRequest.update({ where: { id }, data, ...ROW });
       // 7.3: outside work / an excused absence HR confirmed → those days without a deduction, even if the fingerprint says otherwise
       if (turn === "hr" && isOutsideRequest(r.type)) await tx.attendanceDay.updateMany({ where: { employeeId: r.employeeId, day: { gte: r.fromDay, lte: r.toDay } }, data: { kind: "OUTSIDE_APPROVED", deduction: 0 } });
@@ -134,6 +157,7 @@ export class LeavesService {
       const r = await tx.leaveRequest.findUnique({ where: { id }, ...ROW });
       if (!r) throw new NotFoundException("الطلب مش موجود");
       if (this.view(r, me).canDecide !== "tl") throw new ForbiddenException("الطلب ده مش مستنيك");
+      await claim(tx, id, r.status);
       const out = await tx.leaveRequest.update({ where: { id }, data: { status: "REJECTED", rejectReason: reason, tlDecidedAt: new Date() }, ...ROW });
       await this.audit.record({ module: "hr", entity: "LeaveRequest", entityId: id, action: "reject", userId: me.id, before: { status: r.status }, after: { status: "REJECTED", reason } }, tx);
       return out;

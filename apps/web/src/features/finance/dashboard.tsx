@@ -34,7 +34,7 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
   const [ledger, setLedger] = useState<string | null>(null);
   // M-09: a hidden amount comes blank, so what's summed here stays blank too (and the waterfall goes)
   const showsMoney = useFields("finance").shows("amount");
-  const d = (n: number) => (showsMoney ? n.toFixed(2) : "");
+  const d = (n: number) => (showsMoney ? toDecimal(n) : ""); // piasters
   if (!year.data || !cash.data) return <Empty text={t("common.loading")} icon="clock" />;
   const p = year.data, c = cash.data;
   // 9.19: the same lines as the home page; a finance tab opens in place, anything else (a deal) by its link
@@ -42,8 +42,9 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
     const inTab = x.href.startsWith("/finance?tab=") ? (x.href.slice("/finance?tab=".length) as FinanceTab) : undefined;
     return { tone: x.tone === "bad" ? "bad" : "warn", icon: x.icon, title: x.title, sub: x.sub, btn: x.button, ...(inTab ? { tab: inTab } : { href: x.href }) };
   });
-  const sa = Number(p.selling) + Number(p.admin) + Number(p.other);
-  const wf: [string, number, "acc" | "bad" | "ok"][] = [[t("dash.wf.revenue"), Number(p.revenue), "acc"], [t("dash.wf.direct"), -Number(p.direct), "bad"], [t("dash.wf.selling"), -Number(p.selling), "bad"], [t("dash.wf.admin"), -(Number(p.admin) + Number(p.other)), "bad"], [t("dash.wf.net"), Number(p.net), "ok"]];
+  const pi = (s: string) => (s ? fromDecimal(s) : 0); // a hidden amount (M-09) comes blank
+  const sa = pi(p.selling) + pi(p.admin) + pi(p.other), ao = pi(p.admin) + pi(p.other);
+  const wf: [string, number, "acc" | "bad" | "ok"][] = [[t("dash.wf.revenue"), pi(p.revenue), "acc"], [t("dash.wf.direct"), -pi(p.direct), "bad"], [t("dash.wf.selling"), -pi(p.selling), "bad"], [t("dash.wf.admin"), -ao, "bad"], [t("dash.wf.net"), pi(p.net), "ok"]];
   const max = Math.max(1, ...wf.map(([, v]) => Math.abs(v)));
   const total = c.accounts.reduce((s, a) => s + fromDecimal(a.balance), 0), adv = c.advances.reduce((s, h) => s + fromDecimal(h.balance), 0); // piasters, never floats
   return (
@@ -60,13 +61,13 @@ export function Dashboard({ go }: { go: (t: FinanceTab) => void }) {
       <div className="kpis">
         <KpiTile label={t("dash.netToDate")} value={money(p.net)} sub={t("dash.netSub")} icon="trend" tone="ok" onClick={() => go("pnl")} />
         <KpiTile label={t("dash.wf.revenue")} value={money(p.revenue)} sub={serverText(p.label)} icon="handshake" onClick={() => go("pnl")} />
-        <KpiTile label={t("dash.sellingAdmin")} value={money(d(sa))} sub={t("dash.sellingAdminSub", { selling: short(p.selling), admin: short(d(Number(p.admin) + Number(p.other))) })} icon="wallet" tone="warn" onClick={() => go("pnl")} />
+        <KpiTile label={t("dash.sellingAdmin")} value={money(d(sa))} sub={t("dash.sellingAdminSub", { selling: short(p.selling), admin: short(d(ao)) })} icon="wallet" tone="warn" onClick={() => go("pnl")} />
         <KpiTile label={t("common.employeeAdvances")} value={money(showsMoney ? toDecimal(adv) : "")} sub={t("dash.advancesSub")} icon="users" onClick={() => setAdvances(true)} />
       </div>
       <div className="cols wide">
         {showsMoney && <Card title={t("dash.wfTitle")} icon="chart" sub={t("dash.wfSub")}>
           <div className="waterfall">{wf.map(([l, v, tone]) => (
-            <div key={l} className="wf"><span>{l}</span><div className={`wf-bar ${tone}`} style={{ width: `${(Math.abs(v) / max) * 100}%` }} /><b className="num">{short(v.toFixed(2))}</b></div>
+            <div key={l} className="wf"><span>{l}</span><div className={`wf-bar ${tone}`} style={{ width: `${(Math.abs(v) / max) * 100}%` }} /><b className="num">{short(toDecimal(v))}</b></div>
           ))}</div>
         </Card>}
         <Card title={t("dash.safesTitle")} icon="bank" extra={<Chip tone="acc">{money(showsMoney ? toDecimal(total) : "")}</Chip>}>

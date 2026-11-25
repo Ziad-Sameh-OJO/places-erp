@@ -4,7 +4,7 @@ import { fieldAccess, fieldRuleProblem } from "../src/fields.ts";
 
 test("finance: a hidden «المبلغ» takes every balance and total with it; the number, date and account stay", () => {
   const a = fieldAccess({ finance: { amount: "hide", memo: "read" } });
-  for (const k of ["amount", "balance", "debit", "credit", "spent", "left", "net", "salary", "value"]) assert.ok(a.hidden("finance").has(k), k);
+  for (const k of ["amount", "balance", "debit", "credit", "spent", "left", "net", "salary", "value", "insurance", "monthly", "companyShare"]) assert.ok(a.hidden("finance").has(k), k);
   assert.ok(!a.hidden("finance").has("memo"));
   assert.ok(a.fixed("finance").has("memo"));
   assert.equal(fieldRuleProblem("finance", "account", "hide", false), "«الحساب» لازم يفضل ظاهر");

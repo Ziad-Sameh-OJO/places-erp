@@ -32,6 +32,9 @@ export type NewAccount = z.infer<typeof NewAccount>;
 
 export interface LedgerLineView { entryId: string; no: string; date: string; nature: string; memo: string; debit: string; credit: string; balance: string }
 export interface AccountLedger { account: { id: string; code: string; name: string; path: string[]; nature: "dr" | "cr" }; balance: string; lines: LedgerLineView[] }
+/** 9.7 drill-down: an income statement line opens its account for the statement's period only (days inclusive). */
+export const LedgerQuery = z.object({ from: CalendarDay.optional(), to: CalendarDay.optional() });
+export type LedgerQuery = z.infer<typeof LedgerQuery>;
 
 export interface EntryLineView { accountId: string; code: string; name: string; path: string[]; debit: string; credit: string }
 export interface EntryView { id: string; no: string; date: string; nature: string; source: string; sourceId: string | null; memo: string; by: string; lines: EntryLineView[]; debit: string; credit: string }
@@ -165,6 +168,8 @@ export type IncomeQuery = z.infer<typeof IncomeQuery>;
 export interface StatementLineView { id: string; code: string; name: string; value: string }
 export interface IncomeView {
   range: "month" | "year"; label: string; from: string;
+  /** the period's last day (a quarter), or null = up to today */
+  to: string | null;
   revenue: string; direct: string; gross: string; selling: string; contribution: string; admin: string; other: string; net: string;
   lines: { revenue: StatementLineView[]; direct: StatementLineView[]; selling: StatementLineView[]; admin: StatementLineView[]; other: { head: StatementLineView; lines: StatementLineView[] }[] };
 }
