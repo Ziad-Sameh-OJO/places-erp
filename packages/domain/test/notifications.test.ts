@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAIL_MAX_ATTEMPTS, afterMailFailure, channelsFor, eventByKey, eventChannels, eventLabel, mailStatus, pushRecipients } from "../src/notifications.ts";
+import { MAIL_MAX_ATTEMPTS, afterMailFailure, channelsFor, eventByKey, eventChannels, eventLabel, isPublicPushUrl, mailStatus, pushRecipients } from "../src/notifications.ts";
 
 const now = new Date("2026-11-05T09:00:00Z");
 
@@ -48,4 +48,16 @@ test("a job's notification reaches the phone exactly when the event's rule has p
   assert.deepEqual(pushRecipients(eventChannels(payroll, undefined), people, payroll.important), []);
   // a lead rule's own channels (SLA warn: app + push + email)
   assert.deepEqual(pushRecipients(["app", "push", "email"], people, true), ["u1", "u2"]);
+});
+
+test("a push address must be https on a public name: no loopback, private IPs or internal names (M-14 51 · S6)", () => {
+  for (const ok of ["https://fcm.googleapis.com/fcm/send/abc", "https://updates.push.services.mozilla.com/wpush/v2/x", "https://web.push.apple.com/Q", "https://wns2-par02p.notify.windows.com/w/?token=1"]) {
+    assert.equal(isPublicPushUrl(ok), true, ok);
+  }
+  for (const bad of [
+    "http://fcm.googleapis.com/x", "https://localhost/", "https://localhost./", "https://LOCALHOST../", "https://redis/", "https://redis./x", "https://db:5432/",
+    "https://127.0.0.1/", "https://127.1/", "https://2130706433/", "https://0x7f.0.0.1/", "https://0177.0.0.1/", "https://0.0.0.0/", "https://10.0.0.5/", "https://172.16.0.1/",
+    "https://192.168.1.1/", "https://169.254.169.254/latest/meta-data", "https://[::1]/", "https://[fc00::1]/", "https://[::ffff:127.0.0.1]/", "https://8.8.8.8/",
+    "https://api.local/", "https://s3.internal/", "https://router.lan/", "https://x.localhost/", "https://user:pw@fcm.googleapis.com/", "not a url",
+  ]) assert.equal(isPublicPushUrl(bad), false, bad);
 });

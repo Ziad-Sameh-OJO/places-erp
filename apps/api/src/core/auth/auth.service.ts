@@ -58,7 +58,9 @@ export class AuthService {
 
   private async sendOtp(userId: string, email: string) {
     const code = await this.tokens.issue(userId, "OTP");
-    await this.mail.send({ to: email, subject: `كود الدخول: ${code}`, text: `كود الدخول على Places ERP: ${code}\nصالح 10 دقايق. لو مش إنت اللي بتحاول تدخل، غيّر الباسورد.` });
+    // the code stays out of the subject (the send log lists subjects) and out of the log's copy of the text
+    const text = (c: string) => `كود الدخول على Places ERP: ${c}\nصالح 10 دقايق. لو مش إنت اللي بتحاول تدخل، غيّر الباسورد.`;
+    await this.mail.send({ to: email, subject: "كود الدخول · Places ERP", text: text(code), logText: text("••••••") });
   }
 
   /**
@@ -128,12 +130,14 @@ export class AuthService {
 
   async sendReset(userId: string, email: string) {
     const t = await this.tokens.issue(userId, "RESET");
-    await this.mail.send({ to: email, subject: "تغيير الباسورد · Places ERP", text: `علشان تعمل باسورد جديد افتح اللينك ده (صالح 30 دقيقة):\n${env.WEB_ORIGIN}/reset?token=${t}\nلو مش إنت اللي طلبت، تجاهل الإيميل.` });
+    const text = (token: string) => `علشان تعمل باسورد جديد افتح اللينك ده (صالح 30 دقيقة):\n${env.WEB_ORIGIN}/reset?token=${token}\nلو مش إنت اللي طلبت، تجاهل الإيميل.`;
+    await this.mail.send({ to: email, subject: "تغيير الباسورد · Places ERP", text: text(t), logText: text("•••") });
   }
 
   async sendInvite(userId: string, email: string, roleLabel: string) {
     const t = await this.tokens.issue(userId, "INVITE");
-    await this.mail.send({ to: email, subject: "فعّل حسابك على Places ERP", text: `اتعملك حساب بدور ${roleLabel}. افتح اللينك ده واعمل الباسورد بتاعك (صالح 7 أيام):\n${env.WEB_ORIGIN}/activate?token=${t}` });
+    const text = (token: string) => `اتعملك حساب بدور ${roleLabel}. افتح اللينك ده واعمل الباسورد بتاعك (صالح 7 أيام):\n${env.WEB_ORIGIN}/activate?token=${token}`;
+    await this.mail.send({ to: email, subject: "فعّل حسابك على Places ERP", text: text(t), logText: text("•••") });
   }
 
   /** 12.15 «حسابي» (demo auth.js V.profile): my mobile, department, Team Leader, last sign-in and last password change. */

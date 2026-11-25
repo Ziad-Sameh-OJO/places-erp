@@ -44,6 +44,9 @@ async function download(path: string, fallbackName: string, body?: unknown): Pro
   setTimeout(() => URL.revokeObjectURL(url), 1000); // Firefox / Safari cancel a download whose URL is revoked at once
 }
 
+/** L17 · a query whose rows carry signed file links (open / save): the API's links die after 5 minutes, so refetch before that. */
+export const FILE_LINKS = { refetchInterval: 4 * 60_000 } as const;
+
 export const api = {
   download,
   get: <T>(p: string) => request<T>("GET", p),

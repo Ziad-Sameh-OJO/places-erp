@@ -117,12 +117,19 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     const role = String(f.get("role"));
     const body = {
       name: f.get("name"), email: f.get("email") ?? undefined, phone: f.get("phone") || undefined, department: f.get("department") ?? undefined, role,
-      extraRoles: f.getAll("extra").map(String).filter((k) => k !== role), teamLeaderId: f.get("tl") || null, managerId: f.get("manager") || null,
+      // C1: a TL / manager the form doesn't carry (hidden or read-only) is left out, so the API keeps it
+      extraRoles: f.getAll("extra").map(String).filter((k) => k !== role),
+      teamLeaderId: f.has("tl") ? f.get("tl") || null : undefined, managerId: f.has("manager") ? f.get("manager") || null : undefined,
       endDate: f.get("endDate") || null, otpRequired: f.get("otp") === "on",
     };
     await run(async () => { await (user ? api.put(`/access/users/${user.id}`, body) : api.post("/access/users", body)); onSaved(); },
       user ? t("saved") : t("created", { email: String(body.email) }));
   }
+  // C1: the selects below are uncontrolled, so their defaultValue only takes when the options are already there
+  if ([roles, tls, everyone].some((q) => q.isPending)) return <Modal title={user ? t("editTitle", { name: user.employee?.name ?? "" }) : t("newTitle")} onClose={onClose}><p className="hint">{t("loading")}</p></Modal>;
+  /** The saved TL / manager stays chosen even when the list (first 50 / 100) doesn't have them. */
+  const keep = (id: string | null | undefined, listed: UserRow[]) => id && !listed.some((x) => x.employee?.id === id)
+    ? <option value={id}>{everyone.data?.items.find((x) => x.employee?.id === id)?.employee?.name ?? t("currentChoice")}</option> : null;
   return (
     <Modal title={user ? t("editTitle", { name: user.employee?.name ?? "" }) : t("newTitle")} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit(submit)}>
@@ -131,8 +138,8 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
         {only("phone", <Field label={t("phone")}><input name="phone" inputMode="tel" defaultValue={user?.phone ?? ""} /></Field>)}
         {only("department", <Field label={t("department")} req><input name="department" required defaultValue={user?.employee?.department ?? ""} /></Field>, true)}
         <Field label={t("primaryRole")} req><select name="role" defaultValue={primary}>{choosable.map((r) => <option key={r.key} value={r.key}>{serverText(r.label)}</option>)}</select></Field>
-        {only("teamLeader", <Field label={t("teamLeader")}><select name="tl" defaultValue={user?.employee?.teamLeaderId ?? ""}><option value="">—</option>{tls.data?.items.filter((x) => x.employee).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>)}
-        {only("manager", <Field label={t("manager")}><select name="manager" defaultValue={user?.employee?.managerId ?? ""}><option value="">{t("managerNone")}</option>{everyone.data?.items.filter((x) => x.employee && x.id !== user?.id).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>)}
+        {only("teamLeader", <Field label={t("teamLeader")}><select name="tl" defaultValue={user?.employee?.teamLeaderId ?? ""}><option value="">—</option>{keep(user?.employee?.teamLeaderId, tls.data?.items ?? [])}{tls.data?.items.filter((x) => x.employee).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>)}
+        {only("manager", <Field label={t("manager")}><select name="manager" defaultValue={user?.employee?.managerId ?? ""}><option value="">{t("managerNone")}</option>{keep(user?.employee?.managerId, everyone.data?.items ?? [])}{everyone.data?.items.filter((x) => x.employee && x.id !== user?.id).map((x) => <option key={x.id} value={x.employee!.id}>{x.employee!.name}</option>)}</select></Field>)}
         <fieldset className="field wide" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend><span>{t("extraRoles")}</span></legend>
           <div className="chips-edit">{choosable.map((r) => <label key={r.key} className="tog"><input type="checkbox" name="extra" value={r.key} defaultChecked={extra.has(r.key)} />{serverText(r.label)}</label>)}</div>

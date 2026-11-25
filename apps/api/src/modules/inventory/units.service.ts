@@ -33,6 +33,7 @@ export class UnitsService {
    */
   async lock(unitId: string, dealId: string, by: { type: UnitType; userId: string }, tx?: Tx): Promise<{ status: "pending" | "locked"; notify?: () => Promise<unknown> }> {
     const work = async (t: Tx) => {
+      await this.repo.lockRow(unitId, t);
       const u = await this.repo.sides(unitId, t);
       if (!u) throw new NotFoundException(NO_UNIT);
       const mine = await this.repo.lockOf(unitId, dealId, t);
@@ -64,6 +65,7 @@ export class UnitsService {
    */
   async release(unitId: string, dealId: string, by: { userId: string }, tx?: Tx): Promise<void> {
     const work = async (t: Tx) => {
+      await this.repo.lockRow(unitId, t);
       const lock = await this.repo.lockOf(unitId, dealId, t);
       if (!lock) return;
       const u = await t.unit.findUniqueOrThrow({ where: { id: unitId }, select: { type: true, status: true, alsoType: true, alsoStatus: true } });
@@ -79,6 +81,7 @@ export class UnitsService {
   /** Q16: Manar (Rent) or Randa (Resale / Income) confirms: that side is rented / sold, the other side stays open (Q17). */
   async confirm(me: CurrentUser, unitId: string, dealId: string): Promise<void> {
     await this.db.$transaction(async (tx) => {
+      await this.repo.lockRow(unitId, tx);
       const lock = await this.repo.lockOf(unitId, dealId, tx);
       if (!lock) throw new NotFoundException("مفيش Done Deal على الوحدة دي");
       if (!confirmsClose(me.roles, lock.type)) throw new ForbiddenException(`تأكيد قفل الـ ${lock.type} بتاع ${WHO[closeConfirmer(lock.type)]}`);
@@ -108,8 +111,8 @@ export class UnitsService {
    * A side with a Done Deal on it can't be taken off the unit or swapped by an edit (Q17): the deal is released first.
    * Returns the problem in Arabic, or null.
    */
-  async editBlocked(unitId: string, keeps: { type: UnitType; alsoType: UnitType | null }): Promise<string | null> {
-    const held = (await this.repo.locks(unitId)).find((l) => l.type !== keeps.type && l.type !== keeps.alsoType);
+  async editBlocked(unitId: string, keeps: { type: UnitType; alsoType: UnitType | null }, tx?: Tx): Promise<string | null> {
+    const held = (await this.repo.locks(unitId, tx)).find((l) => l.type !== keeps.type && l.type !== keeps.alsoType);
     return held ? `الـ ${held.type} عليه Done Deal ${held.deal.code} · مينفعش يتشال من الوحدة` : null;
   }
 }

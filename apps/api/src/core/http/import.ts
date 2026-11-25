@@ -1,5 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import { Readable } from "node:stream";
+import { inflateRawSync } from "node:zlib";
 import ExcelJS from "exceljs";
 import type { ZodType, ZodTypeDef } from "zod";
 import type { ImportError, ImportPreview } from "@places/contracts";
@@ -10,6 +11,9 @@ export interface UploadedSheet { buffer: Buffer; originalname: string; size: num
 /** Bigger sheets go in parts: one import is one transaction. */
 export const IMPORT_LIMIT = 5_000;
 export const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+/** S8 · a 5 MB .xlsx can unpack to gigabytes (a zip bomb): ExcelJS would hold all of it in memory. A real 5,000-row sheet is a few MB unpacked. */
+export const IMPORT_MAX_UNZIPPED = 50 * 1024 * 1024;
+const IMPORT_MAX_ENTRIES = 1_000;
 
 /** Column key → the header people see in the template (Arabic, same as the screens). */
 export type ImportColumns<K extends string> = Record<K, string>;
@@ -87,13 +91,7 @@ export async function readTable(file: UploadedSheet | undefined): Promise<SheetT
  */
 export async function parseBook<K extends string, T>(file: UploadedSheet | undefined, columns: ImportColumns<K>, fromTab: K, schema: ZodType<T, ZodTypeDef, unknown>, uniqueBy?: (row: T) => string): Promise<ParsedSheet<T>> {
   if (!file) throw new BadRequestException("ارفع ملف Excel أو CSV");
-  const book = new ExcelJS.Workbook();
-  try {
-    if (/\.csv$/i.test(file.originalname)) await book.csv.read(Readable.from(file.buffer), { map: (v: unknown) => v });
-    else await book.xlsx.load(file.buffer as unknown as ExcelJS.Buffer);
-  } catch {
-    throw new BadRequestException("الملف مش Excel (.xlsx) ولا CSV");
-  }
+  const book = await loadBook(file);
   const out: ParsedSheet<T> = { rows: [], errors: [], total: 0 };
   const seen = new Map<string, string>();
   for (const sheet of book.worksheets) {
@@ -137,16 +135,51 @@ export async function sheetTexts(file: UploadedSheet): Promise<string[]> {
   return out;
 }
 
-async function readFirstSheet(file: UploadedSheet) {
+async function loadBook(file: UploadedSheet) {
   const book = new ExcelJS.Workbook();
+  const csv = /\.csv$/i.test(file.originalname);
+  if (!csv) assertSmallZip(file.buffer);
   try {
     // CSV cells stay text: ExcelJS would turn "2026-04-10" into a local-time Date, a day early in UTC
-    if (/\.csv$/i.test(file.originalname)) return await book.csv.read(Readable.from(file.buffer), { map: (v: unknown) => v });
+    if (csv) await book.csv.read(Readable.from(file.buffer), { map: (v: unknown) => v });
     // ExcelJS's own Buffer type predates Node's generic Buffer
-    await book.xlsx.load(file.buffer as unknown as ExcelJS.Buffer);
+    else await book.xlsx.load(file.buffer as unknown as ExcelJS.Buffer);
   } catch {
     throw new BadRequestException("الملف مش Excel (.xlsx) ولا CSV");
   }
+  return book;
+}
+
+/**
+ * S8 · an .xlsx is a ZIP: walk its central directory and unpack every entry with a hard output cap before ExcelJS
+ * touches it, so the sizes the file declares can't lie. Throws the Arabic error when it's too big or not a ZIP.
+ */
+export function assertSmallZip(buf: Buffer) {
+  const notExcel = () => new BadRequestException("الملف مش Excel (.xlsx) ولا CSV");
+  const tooBig = () => new BadRequestException("الملف كبير أوي لما يتفك · قسّم الشيت أو احفظه من جديد كـ .xlsx");
+  const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (eocd < 0 || eocd + 22 > buf.length) throw notExcel();
+  const count = buf.readUInt16LE(eocd + 10);
+  if (count > IMPORT_MAX_ENTRIES) throw tooBig();
+  let at = buf.readUInt32LE(eocd + 16);
+  let left = IMPORT_MAX_UNZIPPED;
+  for (let i = 0; i < count; i++) {
+    if (at + 46 > buf.length || buf.readUInt32LE(at) !== 0x02014b50) throw notExcel();
+    const method = buf.readUInt16LE(at + 10), packed = buf.readUInt32LE(at + 20), local = buf.readUInt32LE(at + 42);
+    at += 46 + buf.readUInt16LE(at + 28) + buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+    if (local + 30 > buf.length || buf.readUInt32LE(local) !== 0x04034b50) throw notExcel();
+    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    const data = buf.subarray(start, start + packed);
+    if (method === 0) left -= data.length;
+    else if (method === 8) {
+      try { left -= inflateRawSync(data, { maxOutputLength: left + 1 }).length; } catch (e) { throw (e as { code?: string }).code === "ERR_BUFFER_TOO_LARGE" ? tooBig() : notExcel(); }
+    } else throw notExcel();
+    if (left < 0) throw tooBig();
+  }
+}
+
+async function readFirstSheet(file: UploadedSheet) {
+  const book = await loadBook(file);
   const sheet = book.worksheets[0];
   if (!sheet) throw new BadRequestException("الملف فاضي");
   return sheet;

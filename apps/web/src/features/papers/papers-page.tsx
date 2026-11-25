@@ -7,13 +7,18 @@ import { managesTemplates } from "@places/domain";
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
 import { useMe } from "@/lib/me";
-import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, Tabs, Tick, onFormSubmit, useAction, useToast } from "@/components/ui";
+import { Card, Chip, Empty, Field, Icon, Modal, Note, Table, Tabs, onFormSubmit, useAction, useToast } from "@/components/ui";
 import { FileUpload } from "@/components/file-upload";
 import { MultiPick } from "@/features/leads/multi-pick";
 
 type Tab = "request" | "mine" | "approvals" | "templates";
 const KEY = ["papers"] as const;
 const TONE = { pending: "warn", approved: "ok", ready: "ok", rejected: "bad" } as const;
+
+/** A checkbox with its words beside it (the house «tog», as the inventory's filters). */
+const Check = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
+  <label className="tog"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /><span>{label}</span></label>
+);
 
 /** Opens the filled Word file (a short link from the API, as an attachment). */
 async function download(id: string) {
@@ -87,7 +92,7 @@ function Fill({ card, values = {}, onClose, onIssued }: { card: TemplateCard; va
           } finally { setBusy(false); }
         }, card.mode === "approve" ? t("fill.sent") : t("fill.ready"));
       })}>
-        {card.mode === "approve" && <Note>{t("fill.approveNote")}</Note>}
+        {card.mode === "approve" && <div className="wide"><Note>{t("fill.approveNote")}</Note></div>}
         {card.fields.map((f) => (
           <Field key={f.id} label={f.label} wide><input name={`f${f.id}`} defaultValue={values[String(f.id)] ?? ""} maxLength={2000} /></Field>
         ))}
@@ -215,7 +220,7 @@ function NewTemplate({ onClose, onCreated }: { onClose: () => void; onCreated: (
       }))}>
         <Field label={t("name")} req wide><input name="name" required minLength={2} maxLength={80} placeholder={t("namePh")} /></Field>
         <div className="wide"><FileUpload kind="word" onUploaded={setFile} /></div>
-        <Note>{t("howTo")}</Note>
+        <div className="wide"><Note>{t("howTo")}</Note></div>
         <div className="row end wide"><button className="btn" disabled={!file}><Icon name="check" />{t("create")}</button></div>
       </form>
     </Modal>
@@ -254,7 +259,7 @@ function Setup({ v, onClose }: { v: TemplateView; onClose: () => void }) {
               <div className="row">
                 <input value={f.label} disabled={f.skip} maxLength={80} aria-label={t("fieldName", { n: f.id })}
                   onChange={(e) => setFields(fields.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
-                <Tick checked={f.skip} label={t("skip")} onChange={(skip) => setFields(fields.map((x, j) => (j === i ? { ...x, skip } : x)))} />
+                <Check label={t("skip")} checked={f.skip} onChange={(skip) => setFields(fields.map((x, j) => (j === i ? { ...x, skip } : x)))} />
               </div>
             </div>
           ))}
@@ -263,7 +268,7 @@ function Setup({ v, onClose }: { v: TemplateView; onClose: () => void }) {
           <b>{t("who")}</b>
           <p className="hint">{t("whoHint")}</p>
           <div className="row wrap">{opts.data?.roles.map((r) => (
-            <Tick key={r.key} label={r.name} checked={s.seeRoles.includes(r.key)} onChange={(on) => setS({ ...s, seeRoles: on ? [...s.seeRoles, r.key] : s.seeRoles.filter((x) => x !== r.key) })} />
+            <Check key={r.key} label={r.name} checked={s.seeRoles.includes(r.key)} onChange={(on) => setS({ ...s, seeRoles: on ? [...s.seeRoles, r.key] : s.seeRoles.filter((x) => x !== r.key) })} />
           ))}</div>
           <MultiPick label={t("seePeople")} all={t("seePeopleAll")} picked={s.seeUserIds} options={people} onChange={(x) => setS({ ...s, seeUserIds: x })} />
         </div>
@@ -276,9 +281,9 @@ function Setup({ v, onClose }: { v: TemplateView; onClose: () => void }) {
           <Field label={t("notify")} wide><MultiPick label={t("notify")} all={t("nobody")} picked={s.notifyIds} options={people} onChange={(x) => setS({ ...s, notifyIds: x })} /></Field>
         </div>
         <div className="wide">
-          <Tick label={t("stamp")} checked={s.stamp} onChange={(stamp) => setS({ ...s, stamp })} />
+          <Check label={t("stamp")} checked={s.stamp} onChange={(stamp) => setS({ ...s, stamp })} />
           <p className="hint">{v.marks.stamp || v.marks.signature ? t("stampHas", { what: [v.marks.stamp && t("stampWord"), v.marks.signature && t("signatureWord")].filter(Boolean).join(" · ") }) : t("stampHow")}</p>
-          <Tick label={t("active")} checked={s.active} onChange={(active) => setS({ ...s, active })} />
+          <Check label={t("active")} checked={s.active} onChange={(active) => setS({ ...s, active })} />
         </div>
         <div className="row end wide">
           <button type="button" className="btn ghost" onClick={archive}><Icon name="x" />{t("archive")}</button>

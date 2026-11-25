@@ -14,7 +14,7 @@
   "sep": ", ",
   "fmtInSystem": "In the system",
   "access": {"closed": "Reports and targets are for the heads only", "button": "Who sees the reports ({n})", "title": "Who sees reports and targets", "note": "Reports and targets are for the heads only (Ahmed Islam and Nancy). Tick anyone else who should see them; the change applies at once and is recorded in the Audit Log.", "on": "{name} now sees the reports", "off": "{name} no longer sees the reports"},
-  "tabs": { "targets": "Target and Transactions", "tl": "Team Leaders", "sched": "Reports and schedules" },
+  "tabs": { "targets": "Target and Transactions", "plan": "Target plan", "tl": "Team Leaders", "sched": "Reports and schedules" },
   "wd": { "sun": "Sunday", "mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday", "sat": "Saturday" },
   "freq": { "daily": "Every working day", "weekly": "Every week", "monthly": "Every month", "quarterly": "Every quarter" },
   "when": {
@@ -191,5 +191,44 @@
     "copy": "Copy the extra fields to everyone with the same role",
     "hint": "For a number they type to count in the KPIs: add an item to the card and set it to “typed in the daily report”.",
     "preview": "How it looks for them"
+  },
+  "plan": {
+    "title": "Target plan",
+    "sub": "Each salesperson's target for every month of the year; quarters and the year add up by themselves",
+    "loading": "Loading…",
+    "year": "Year",
+    "view": "View",
+    "wholeYear": "Whole year",
+    "metric": "Measure",
+    "metrics": {
+      "value": "Target (EGP)",
+      "deals": "Transactions",
+      "visits": "Visits"
+    },
+    "howQuarter": "Type each month's target, or the quarter's total and it's spread evenly over its months. «For all» puts the same number for every salesperson. Nothing is saved until «Save».",
+    "howYear": "Type each quarter's total and it's spread over its months, or the year's total over the 12 months. Past months don't change; the rest share what's left.",
+    "readOnly": "You can see the plan; changing it isn't in your permissions.",
+    "person": "Salesperson",
+    "forAll": "For all",
+    "forAllOf": "Same number for every salesperson in {col}",
+    "cellOf": "{name} · {col}",
+    "teamOf": "{team} · {tl}",
+    "quarterTotal": "Q{q} total",
+    "yearTotal": "{year} total",
+    "closed": "closed",
+    "needsApproval": "needs approval",
+    "standing": "standing target",
+    "pending": "waiting for approval · {by}",
+    "nobody": "No salespeople in your scope.",
+    "total": "Total",
+    "changes": "{n, plural, one {# unsaved change} other {# unsaved changes}}",
+    "undo": "Undo changes",
+    "save": "Save",
+    "discard": "There are unsaved changes. Leave them?",
+    "result": {
+      "saved": "{n} saved",
+      "pending": "{n} waiting for approval (this month)",
+      "skipped": "{n} in past months not changed"
+    }
   }
 }

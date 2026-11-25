@@ -15,6 +15,7 @@ const EDITOR = "ziad.medhat@places.com"; // given «marketing: view + edit» her
 let rahma: string, anas: string, editor: string, editorId: string, anasId: string, dealId: string, pending: string, basePdf: Buffer;
 const START = new Date();
 const files: string[] = [];
+const versions: string[] = []; // the versions made here without this deal (cleaned up too)
 
 before(async () => {
   editorId = (await prisma.user.findUniqueOrThrow({ where: { email: EDITOR } })).id;
@@ -34,7 +35,7 @@ before(async () => {
 
 after(async () => {
   // the versions this file made, then everything they point at (older versions from other runs stay)
-  const mine = dealId ? await prisma.companyProfileVersion.findMany({ where: { dealIds: { has: dealId } }, select: { id: true, fileId: true } }) : [];
+  const mine = dealId ? await prisma.companyProfileVersion.findMany({ where: { OR: [{ dealIds: { has: dealId } }, { id: { in: versions } }] }, select: { id: true, fileId: true } }) : [];
   await prisma.companyProfileVersion.deleteMany({ where: { id: { in: mine.map((v) => v.id) } } });
   await prisma.companyProfileLogo.deleteMany({ where: { dealId: { in: [dealId, pending] } } });
   await prisma.file.deleteMany({ where: { id: { in: [...files, ...mine.map((v) => v.fileId)] } } });
@@ -121,4 +122,30 @@ test("the flow: file → logo → Done → preview has «عملاؤنا» → Up
   // taking a logo back is a change: the next Update leaves it out
   assert.equal((await call(`/marketing/company-profile/logos/${dealId}/done`, { method: "DELETE", cookie: rahma })).status, 204);
   assert.ok((await call("/marketing/company-profile/admin", { cookie: rahma })).body.changes.removed >= 1);
+});
+
+test("L8: a deal cancelled after its logo was published is a change — the card and the Update agree, and it leaves «عملاؤنا»", async () => {
+  assert.equal((await call(`/marketing/company-profile/logos/${dealId}/done`, { method: "POST", cookie: rahma })).status, 204);
+  let card = (await call("/marketing/company-profile/admin", { cookie: rahma })).body;
+  if (card.changes.any) { // the flow above took it back: publish it again so it's on the newest version
+    const v = await call("/marketing/company-profile/publish", { method: "POST", cookie: rahma });
+    assert.equal(v.status, 201, JSON.stringify(v.body));
+    card = (await call("/marketing/company-profile/admin", { cookie: rahma })).body;
+  }
+  assert.ok(card.logos[dealId].published);
+  assert.equal(card.changes.any, false);
+  // versions are numbered by their place among all of them, not by the 20 shown
+  assert.equal(card.versions[0].number, await prisma.companyProfileVersion.count());
+
+  await prisma.deal.update({ where: { id: dealId }, data: { status: "CANCELLED" } });
+  card = (await call("/marketing/company-profile/admin", { cookie: rahma })).body;
+  assert.ok(card.changes.any && card.changes.removed >= 1, JSON.stringify(card.changes));
+  const v = await call("/marketing/company-profile/publish", { method: "POST", cookie: rahma });
+  assert.equal(v.status, 201, JSON.stringify(v.body));
+  versions.push(v.body.id);
+  const row = await prisma.companyProfileVersion.findUniqueOrThrow({ where: { id: v.body.id } });
+  assert.ok(!row.dealIds.includes(dealId));
+  // its logo is still Done, but the card no longer counts it: nothing new, and Update says so
+  assert.equal((await call("/marketing/company-profile/admin", { cookie: rahma })).body.changes.any, false);
+  assert.equal((await call("/marketing/company-profile/publish", { method: "POST", cookie: rahma })).status, 400);
 });

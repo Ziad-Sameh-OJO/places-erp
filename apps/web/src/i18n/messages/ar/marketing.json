@@ -227,6 +227,8 @@
     "note": "Qualified = أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتحسب أوتوماتيك هنا، وبيفضل محسوب حتى لو رجع Not Interested أو No Answer."
   },
   "deals": {
+    "prev": "السابق",
+    "next": "التالي",
     "note": "الـ Done Deals بتظهر هنا بعد موافقة الـ Office Manager. مسموح تشوفي: الـ location، والمساحة، واسم الشركة، والـ type، واسم الـ Buyer بس.",
     "head": { "buyer": "الـ Buyer", "company": "الشركة", "space": "المساحة", "logo": "اللوجو" },
     "empty": "مفيش صفقات لسه",

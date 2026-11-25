@@ -125,3 +125,4 @@ test("sums and counts by bucket, the end excluded", () => {
   ];
   assert.deepEqual(sumIn(rows, b), [2, 5, 0, 0, 0, 0, 0]);
 });
+

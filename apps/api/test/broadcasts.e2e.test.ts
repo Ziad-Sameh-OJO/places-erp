@@ -34,8 +34,10 @@ after(async () => {
   await prisma.$disconnect();
 });
 
+let sent = 0;
 async function send(cookie: string, extra: Record<string, unknown> = {}) {
-  const r = await call("/marketing/broadcasts", { method: "POST", cookie, body: { text: `E2E Broadcast ${stamp}`, hotUnitIds: [hot], ...extra } });
+  // each one its own text: the same text from the same sender within a minute is refused as a double click
+  const r = await call("/marketing/broadcasts", { method: "POST", cookie, body: { text: `E2E Broadcast ${stamp} ${++sent}`, hotUnitIds: [hot], ...extra } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   broadcasts.push(r.body.id);
   return r.body.id as string;
@@ -120,4 +122,12 @@ test("the Hot Inventory search reads like the sheet: by area too, with type, fin
   assert.equal(u.condition, "Finished");
   assert.equal(u.space, 401);
   assert.ok(!units.some((x) => x.id === draft)); // a draft isn't Hot Inventory
+});
+
+test("L10: a double click on «ابعت» makes one Broadcast — the second press is refused", async () => {
+  const body = { text: `E2E double ${stamp}`, hotUnitIds: [hot] };
+  const [a, b] = await Promise.all([1, 2].map(() => call("/marketing/broadcasts", { method: "POST", cookie: rahma, body })));
+  for (const r of [a!, b!]) if (r.status === 201) broadcasts.push(r.body.id);
+  assert.deepEqual([a!.status, b!.status].sort(), [201, 409], JSON.stringify([a!.body, b!.body]));
+  assert.equal(await prisma.broadcast.count({ where: { text: body.text } }), 1);
 });

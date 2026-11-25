@@ -44,9 +44,9 @@ export async function mailOutboxTick(send: SendMail, now = new Date()): Promise<
     });
     if (!claimed.count) continue;
     try {
-      await send({ to: m.to, subject: m.subject, text: m.text, attachments: attachmentsOf(m.attachments) });
-      // the files aren't kept once sent: the log needs the line, not the PDF
-      await prisma.mailLog.update({ where: { id: m.id }, data: { status: "sent", sentAt: now, error: null, attachments: Prisma.DbNull } });
+      await send({ to: m.to, subject: m.subject, text: m.secretText ?? m.text, attachments: attachmentsOf(m.attachments) });
+      // the files and the secret aren't kept once sent: the log needs the line, not the PDF or the sign-in link
+      await prisma.mailLog.update({ where: { id: m.id }, data: { status: "sent", sentAt: now, error: null, attachments: Prisma.DbNull, secretText: null } });
     } catch (err) {
       await failed(m, m.attempts + 1, err instanceof Error ? err.message : String(err), now);
     }
@@ -63,7 +63,7 @@ async function failed(m: { id: string; to: string; subject: string }, attempts: 
   const e = eventByKey("mail.failed")!;
   const text = `${e.label}: «${m.subject}» لـ ${m.to} · ${message}`;
   const told = await prisma.$transaction(async (tx) => {
-    await tx.mailLog.update({ where: { id: m.id }, data: { status: "failed", error: message } });
+    await tx.mailLog.update({ where: { id: m.id }, data: { status: "failed", error: message, secretText: null } }); // never sent: the secret goes too
     const rule = await tx.notificationRule.findUnique({ where: { event: e.key } });
     const admins = await tx.user.findMany({ where: { status: "ACTIVE", roles: { some: { role: { key: { in: rule?.toRoles ?? [...e.toRoles] } } } } }, select: { id: true } });
     // M-14 7.1 «إيميل موظف غلط»: the Super Admin hears of it; the person still has the notification in the bell.
