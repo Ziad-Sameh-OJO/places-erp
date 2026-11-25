@@ -138,3 +138,23 @@ export interface MailLogRow {
   id: string; to: string; subject: string; status: "queued" | "sent" | "read" | "failed"; attempts: number; error: string | null;
   createdAt: string; sentAt: string | null; readAt: string | null;
 }
+
+/**
+ * M-14 3.1 «إيميل الإرسال»: the mail server, set on the notifications page by the Super Admin. The app password is
+ * written only: left empty it keeps the saved one, and it never comes back to the browser.
+ */
+export const MailServerInput = z.object({
+  host: z.string().trim().min(1, "اكتب السيرفر").max(200),
+  port: z.coerce.number({ invalid_type_error: "البورت رقم" }).int("البورت رقم").min(1, "البورت من 1 لـ 65535").max(65535, "البورت من 1 لـ 65535"),
+  secure: z.boolean(),
+  user: z.string().trim().min(1, "اكتب الإيميل اللي بتدخل بيه").max(200),
+  password: z.string().max(200).default(""),
+  fromName: z.string().trim().max(100).default(""),
+  from: z.string().trim().email("إيميل الإرسال مش صح"),
+});
+export type MailServerInput = z.infer<typeof MailServerInput>;
+/** `source`: the page's server, the .env's SMTP_URL, or none (development writes to .local/outbox/). */
+export interface MailServerView {
+  host: string; port: number; secure: boolean; user: string; fromName: string; from: string; hasPassword: boolean;
+  source: "page" | "env" | "none";
+}

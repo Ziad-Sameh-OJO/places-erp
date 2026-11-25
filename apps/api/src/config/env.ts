@@ -13,6 +13,7 @@ const Env = z.object({
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(72).default(12),
   WEB_ORIGIN: z.string().url(), // also the base of links in emails (activation, password reset)
+  // M-14 3.1: the mail server is set on the notifications page; these stay as the fallback when it isn't
   SMTP_URL: z.string().url().optional(),
   MAIL_FROM: z.string().default("Places ERP <notifications@places.com>"),
   // M-14 (51) push notifications: the VAPID key pair (secrets). Empty = push is off and the rest works as before.
@@ -24,6 +25,6 @@ const Env = z.object({
   S3_BUCKET: z.string().min(3),
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(8),
-}).refine((e) => e.NODE_ENV !== "production" || !!e.SMTP_URL, { message: "SMTP_URL is required in production", path: ["SMTP_URL"] });
+});
 export type Env = z.infer<typeof Env>;
 export const env: Env = Env.parse(process.env);

@@ -109,11 +109,38 @@ test("opening balances close against retained earnings; an entry can't post to a
   const future = await call("/finance/opening", { method: "POST", cookie: ahmed, body: { date: tomorrow, lines: [{ accountId: find(chart.roots, "11101")!.id, amount: "1000" }] } });
   assert.equal(future.status, 400);
 
-  const ok = await call("/finance/opening", { method: "POST", cookie: ahmed, body: { date: "2026-11-01", lines: [{ accountId: find(chart.roots, "11104")!.id, amount: "9800" }] } });
-  assert.equal(ok.status, 201, JSON.stringify(ok.body));
-  entryIds.push(ok.body.id);
-  const entry = (await call(`/finance/journal/${ok.body.id}`, { cookie: ahmed })).body;
+  // only once: a second save (or two at once) would double every balance. A database that already has its opening refuses the first too.
+  const had = await prisma.journalEntry.findFirst({ where: { source: "opening", sourceId: null }, select: { id: true } });
+  const body = { date: "2026-11-01", lines: [{ accountId: find(chart.roots, "11104")!.id, amount: "9800" }] };
+  const [ok, twin] = await Promise.all([call("/finance/opening", { method: "POST", cookie: ahmed, body }), call("/finance/opening", { method: "POST", cookie: ahmed, body })]);
+  const posted = [ok, twin].filter((r) => r.status === 201);
+  for (const r of posted) entryIds.push(r.body.id);
+  assert.equal(posted.length, had ? 0 : 1, JSON.stringify([ok.body, twin.body]));
+  for (const r of [ok, twin].filter((x) => x.status !== 201)) {
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error, "الأرصدة الافتتاحية اتسجّلت قبل كده · أي تصحيح بقيد يدوي");
+  }
+  if (had) return;
+  const entry = (await call(`/finance/journal/${posted[0]!.body.id}`, { cookie: ahmed })).body;
   assert.equal(entry.debit, "9800.00");
   assert.equal(entry.credit, "9800.00");
   assert.equal(entry.lines.find((l: { code: string }) => l.code === "33").credit, "9800.00");
+});
+
+test("an income statement line opens its account for the statement's period only (9.7 drill-down)", async () => {
+  const roots = (await call("/finance/accounts", { cookie: ahmed })).body.roots;
+  const r = await call("/finance/accounts", { method: "POST", cookie: ahmed, body: { parentId: find(roots, "42")!.id, name: `${P} ايراد فترة`, opening: "300", date: "2026-11-01" } });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const all = (await call(`/finance/accounts/${r.body.id}/ledger`, { cookie: ahmed })).body;
+  assert.equal(all.lines.length, 1);
+  assert.equal(all.balance, "300.00");
+  const later = (await call(`/finance/accounts/${r.body.id}/ledger?from=2026-11-02`, { cookie: ahmed })).body;
+  assert.equal(later.lines.length, 0);
+  assert.equal(later.balance, "0.00"); // the period's movement, as the statement shows it
+  const that = (await call(`/finance/accounts/${r.body.id}/ledger?from=2026-11-01&to=2026-11-01`, { cookie: ahmed })).body;
+  assert.equal(that.lines.length, 1);
+  assert.equal(that.balance, "300.00");
+  assert.equal((await call(`/finance/accounts/${r.body.id}/ledger?from=2026-13-01`, { cookie: ahmed })).status, 400);
+  const pnl = (await call("/finance/statements/income?range=month", { cookie: ahmed })).body;
+  assert.equal(pnl.to, null);
 });

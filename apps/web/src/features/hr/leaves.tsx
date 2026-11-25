@@ -82,8 +82,9 @@ export function Leaves() {
   const refresh = useRefresh();
   if (!list.data) return <Empty text={t("common.loading")} icon="clock" />;
   const approve = (l: LeaveView) => run(async () => { await api.post(`/hr/leaves/${l.id}/approve`); await refresh(); }, l.canDecide === "tl" ? t("common.approvedToHr") : t("leaves.recordedOk"));
+  const openDoc = (l: LeaveView) => run(async () => { window.open((await api.get<{ url: string }>(`/hr/leaves/${l.id}/document`)).url, "_blank", "noopener"); });
   const mine = list.data.filter((l) => l.canDecide), rest = list.data.filter((l) => !l.canDecide);
-  const row = (l: LeaveView) => [<b key="n">{l.name}</b>, serverText(l.type), range(l), l.days, <span key="r">{l.reason ?? "—"}{l.hasDocument && <Chip tone="info">{t("leaves.doc")}</Chip>}</span>,
+  const row = (l: LeaveView) => [<b key="n">{l.name}</b>, serverText(l.type), range(l), l.days, <span key="r">{l.reason ?? "—"}{l.hasDocument && <button type="button" className="btn ghost sm" onClick={() => void openDoc(l)}><Icon name="download" />{t("leaves.doc")}</button>}</span>,
     <span key="s"><Chip tone={TONE[l.status]}>{serverText(l.statusLabel)}</Chip>{l.rejectReason && <span className="sub">{t("leaves.rejectedBecause", { reason: l.rejectReason })}</span>}</span>,
     l.canDecide ? <span key="a" className="row"><button className="btn sm" onClick={() => void approve(l)}>{l.canDecide === "tl" ? t("common.approve") : t("leaves.record")}</button>{l.canDecide === "tl" && <button className="btn ghost sm" onClick={() => setReject(l)}>{t("common.reject")}</button>}</span> : ""];
   const head = [t("common.employee"), t("common.type"), t("leaves.duration"), t("leaves.daysShort"), t("common.reason"), t("common.status"), ""];

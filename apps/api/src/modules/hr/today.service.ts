@@ -29,7 +29,7 @@ export class HrTodayService {
     const [leaves, excuses, forgot, actions, missing, rules, left, due, warnings, plans] = await Promise.all([
       approves ? this.leaves.list(me) : [],
       approves ? this.excuses.list(me) : [],
-      approves ? this.attendance.forgotWaiting(me) : [],
+      approves && me.grants.scope === "all" ? this.attendance.forgotWaiting(me) : [], // only HR confirms it
       me.grants.can("hr", "edit") ? this.care.actions(me).then((a) => a.items) : [],
       decides ? this.attendance.day(me, today).then((d) => d.missing) : [],
       this.repo.deductionRules(),
