@@ -22,6 +22,10 @@ test("M-03 1.1 · a number already in the main inventory is found however it's w
   assert.deepEqual([...m.entries()].map(([r, u]) => [r, u.code]), [["a", "U-101"], ["b", "U-102"]]);
   assert.equal(phoneKey("12"), "");
   assert.equal(phoneKey("01012345678"), "01012345678");
+  // Excel drops the 0 of a number typed in a number cell: still the owner's number
+  assert.equal(phoneKey("1012345678"), "01012345678");
+  assert.deepEqual([...inventoryMatches([{ id: "e", number: "1012345678" }], units).keys()], ["e"]);
+  assert.equal(phoneKey("2345678"), "2345678"); // a landline stays as written
 });
 
 test("the sheet's «Number» column, when it's named plainly", () => {

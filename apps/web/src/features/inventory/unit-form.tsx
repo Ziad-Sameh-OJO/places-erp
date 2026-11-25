@@ -164,13 +164,15 @@ export function UnitForm({ unit, options, tabs, onClose, onSaved, fromSheet }: {
           onSaved(unit.id);
         } else {
           const made = fromSheet ? await fromSheet.save(body) : await api.post<CreatedUnit>("/inventory/units", body);
-          await putAgreement(made.id);
-          await putLayouts(made.id);
           toast(t("form.created", { code: made.code }));
-          onSaved(made.id);
+          // the unit exists now: a failed Agreement / Layout upload shows its error, but the form closes on the unit —
+          // left open on «جديد», a second save would make a second unit
+          try { await putAgreement(made.id); await putLayouts(made.id); } finally { onSaved(made.id); }
         }
+      } finally {
+        setBusy(false);
         await Promise.all([qc.invalidateQueries({ queryKey: ["units"] }), qc.invalidateQueries({ queryKey: ["area-tabs"] }), qc.invalidateQueries({ queryKey: ["unit"] })]);
-      } finally { setBusy(false); }
+      }
     });
   };
 

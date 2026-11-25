@@ -59,8 +59,9 @@ test("4.12 · M-03 3.1: a Retouch carries the unit's photos; its designer upload
   assert.deepEqual(retouchFolder("photo", "todo", assignee), { open: false, upload: false });
 });
 
-test("M-03 2.4 · 2.17: a unit late on its owner update gets one follow-up — Randa for Resale, Manar for the rest", () => {
+test("M-03 2.4 · 2.17: a unit late on its owner update gets one follow-up — Randa for Resale and Primary, Manar for the rest", () => {
   assert.equal(followupRole("Resale"), "resale");
+  assert.equal(followupRole("Primary"), "resale"); // 1.2 «resale & primary specialist», her KPI (3.1)
   assert.equal(followupRole("Rent"), "inventory");
   assert.equal(followupRole("Income"), "inventory");
   assert.equal(needsFollowup({ stale: true, openFollowup: false }), true);

@@ -12,6 +12,8 @@ export const NOT_ACTIVE_STATUSES = ["No Answer", "Not True", "Done"] as const;
 export type NotActiveStatus = (typeof NOT_ACTIVE_STATUSES)[number];
 
 const PHONE_LIKE = /^[+\d\s\-()]+$/;
+/** Excel keeps 01012345678 typed in a number cell as 1012345678: an Egyptian mobile without its 0 is the same number. */
+const withLeadingZero = (digits: string): string => (/^1[0125]\d{8}$/.test(digits) ? `0${digits}` : digits);
 
 /**
  * The value two rows are compared by: case, spaces and a phone number's formatting don't make a new row
@@ -23,7 +25,7 @@ export function dedupeKey(value: string | undefined): string {
   if (PHONE_LIKE.test(v)) {
     const digits = v.replace(/\D/g, "");
     // an Egyptian number written with the country code is the same number
-    return digits.length >= 11 && digits.startsWith("20") ? `0${digits.slice(2)}` : digits;
+    return digits.length >= 11 && digits.startsWith("20") ? `0${digits.slice(2)}` : withLeadingZero(digits);
   }
   return v.toLowerCase();
 }
@@ -104,8 +106,9 @@ export function classifyProblem(status: string, feedback: string | null | undefi
 export function phoneKey(value: string | null | undefined): string {
   const digits = (value ?? "").replace(/\D/g, "");
   if (digits.length < 7) return "";
-  return digits.length >= 12 && digits.startsWith("20") ? `0${digits.slice(2)}` : digits;
+  return digits.length >= 12 && digits.startsWith("20") ? `0${digits.slice(2)}` : withLeadingZero(digits);
 }
+
 
 /** The header that holds the owner's number (M-03 1.1: «خانة الـ Number»), when the sheet names it plainly. */
 export const guessNumberColumn = (headers: readonly string[]): string | null =>

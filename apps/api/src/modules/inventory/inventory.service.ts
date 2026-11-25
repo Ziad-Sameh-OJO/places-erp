@@ -268,6 +268,9 @@ export class InventoryService {
    * audited, and marketing gets one Live Alert with how many units came in (4.4).
    */
   async importUnits(me: CurrentUser, sheet: ParsedSheet<UnitInput>, opts: UnitImportOptions, save: boolean): Promise<ImportReport & { merged: number; review: UnitImportReviewRow[] }> {
+    // M-09: a repeat told by a hidden column would say whose number / name it is (U-12's owner) — and «ادمج» would write it
+    const hidden = me.fields.hidden("inventory");
+    if (opts.dupBy.some((c) => hidden.has(c))) throw new BadRequestException("مينفعش تدوّر على التكرار بخانة مش ظاهرة لك");
     const errors = [...sheet.errors];
     const agents = new Map((await this.repo.agents()).map((a) => [a.name.trim().toLowerCase(), a.id]));
     const valid: { line: number; input: UnitInput }[] = [];
@@ -279,7 +282,6 @@ export class InventoryService {
       valid.push({ line, input });
     }
     const dups = findDuplicates(valid.map((v) => ({ line: v.line, ...v.input })), await this.repo.importKeys(), opts.dupBy);
-    const hidden = me.fields.hidden("inventory");
     const review = valid.map(({ line, input }, i): UnitImportReviewRow => ({
       line, project: input.project, space: input.space, floor: input.floor ?? null, building: input.building ?? null,
       ownerName: hidden.has("ownerName") ? null : input.ownerName ?? null, dupOf: dups[i] ?? null,
@@ -308,7 +310,8 @@ export class InventoryService {
     const price = input.pricePerSqm ? fromDecimal(input.pricePerSqm) : null;
     const data = {
       ...(price !== null ? { pricePerSqm: toDecimal(price), totalPrice: u.space ? toDecimal(unitTotal(price, u.space)) : null } : {}),
-      ...(input.ownerName ? { ownerName: input.ownerName } : {}),
+      // M-09: the owner's name is entered on a NEW unit even when it's read only (2.36); a merge edits an old one
+      ...(input.ownerName && !me.fields.fixed("inventory").has("ownerName") ? { ownerName: input.ownerName } : {}),
       lastOwnerUpdateAt: dayStart(localDate(new Date())), pdfStatus: "draft",
     };
     await tx.unit.update({ where: { id: u.id }, data });
@@ -359,6 +362,8 @@ export class InventoryService {
         before: Object.fromEntries(Object.entries(changed).map(([k, [b]]) => [k, b])),
         after: Object.fromEntries(Object.entries(changed).map(([k, [, a]]) => [k, a])),
       }, tx);
+      // a Last update typed in the form is the owner update too: its follow-up is done, or the next one never comes (2.17)
+      if ("lastOwnerUpdateAt" in changed && !isStale(data.lastOwnerUpdateAt, new Date())) await this.closeFollowups(tx, me, id, new Date());
     });
     return this.get(me, id);
   }
@@ -376,15 +381,19 @@ export class InventoryService {
       if (!u) throw new NotFoundException(NO_UNIT);
       await tx.unit.update({ where: { id }, data: { lastOwnerUpdateAt: now } });
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: id, action: "owner-update", userId: me.id, before: { lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { lastOwnerUpdateAt: now, comment: input.comment ?? null } }, tx);
-      // the task is the inventory's own (the stale-units job makes it); the tasks module imports this one, so it's closed here
-      const open = await tx.task.findMany({ where: { unitId: id, kind: "followup", status: { not: "done" } }, select: { id: true, status: true } });
-      await tx.task.updateMany({ where: { id: { in: open.map((t) => t.id) } }, data: { status: "done", doneAt: now } });
-      for (const t of open) await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: "status", userId: me.id, before: { status: t.status }, after: { status: "done" } }, tx);
+      await this.closeFollowups(tx, me, id, now);
       if (u.ownerId && !me.fields.fixed("clients").has("timeline")) {
         await this.clients.logOwnerUpdate(tx, me.id, u.ownerId, `${u.code} · ${u.project}${input.comment ? ` · ${input.comment}` : ""}`);
       }
     });
     return this.get(me, id);
+  }
+
+  /** The unit's open «متابعة مع المالك» tasks are done: the inventory's own (the stale-units job makes them; the tasks module imports this one). Audited. */
+  private async closeFollowups(tx: Prisma.TransactionClient, me: CurrentUser, unitId: string, now: Date) {
+    const open = await tx.task.findMany({ where: { unitId, kind: "followup", status: { not: "done" } }, select: { id: true, status: true } });
+    await tx.task.updateMany({ where: { id: { in: open.map((t) => t.id) } }, data: { status: "done", doneAt: now } });
+    for (const t of open) await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: "status", userId: me.id, before: { status: t.status }, after: { status: "done" } }, tx);
   }
 
   /**
@@ -402,6 +411,7 @@ export class InventoryService {
       await tx.unit.update({ where: { id }, data: { location, pdfStatus: "draft", lastOwnerUpdateAt: now } });
       await this.audit.record({ module: "inventory", entity: "Unit", entityId: id, action: "location", userId: me.id,
         before: { location: u.location, pdfStatus: u.pdfStatus, lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { location, pdfStatus: "draft", lastOwnerUpdateAt: now } }, tx);
+      await this.closeFollowups(tx, me, id, now); // its Last update is today now
     });
     return this.get(me, id);
   }
