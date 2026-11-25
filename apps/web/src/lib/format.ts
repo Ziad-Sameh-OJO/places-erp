@@ -10,8 +10,11 @@ export const egp = () => (en() ? "EGP" : "ج.م");
 const nf = new Intl.NumberFormat("en-US");
 export const num = (n: number) => nf.format(Math.round(n));
 
-/** Money comes as a decimal string («120000.00»): group the whole pounds as text, no float maths. */
-export const money = (s: string | null) => (s == null ? "—" : `${s.split(".")[0]!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")} ${egp()}`);
+/**
+ * Money comes as a decimal string («120000.00»): grouped as text, no float maths. The piasters show only when there are
+ * some («2750.50» → «2,750.50 ج.م», «120000.00» → «120,000 ج.م»): cutting them hid real money (an unpaid 0.50).
+ */
+export const money = (s: string | null) => (s == null ? "—" : `${amount(s)} ${egp()}`);
 
 /** Money with its piasters when it has some («3151.50» → «3,151.50 ج.م», «104500.00» → «104,500 ج.م»): a unit's total. */
 export const moneyExact = (s: string | null) => (s == null ? "—" : `${amount(s)} ${egp()}`);
