@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import {
   UnitFilters, type AhmedDashboard, type AhmedPerson, type AhmedQuery, type AttentionLine, type CompanyDashboard, type DashPerson, type DashboardLayoutView,
   type MyDashboard, type PacedBar, type PersonPerformance, type StageCount, type TargetBar,
@@ -55,6 +55,7 @@ export class DashboardService {
 
   /** 14.2 · 14.3: the company today, by stage, its inventory, targets, teams, finance, sales and marketing. */
   async company(me: CurrentUser, now = new Date()): Promise<CompanyDashboard> {
+    wholeCompany(me);
     const cal = await this.time.calendar(), r = ranges(now, cal), leads = leadScope(me) as never, can = (m: Parameters<typeof me.grants.can>[0]) => me.grants.can(m, "view");
     const [[newLeads, interested], stages, vToday, vQuarter, vYear, doneDeals, units, pulled, quarter, year] = await Promise.all([
       this.repo.leadsSince(leads, r.today.from), this.stages(leads), this.repo.visits({ leads }, r.today.from, now), this.repo.visits({ leads }, r.quarter.from, now),
@@ -104,6 +105,7 @@ export class DashboardService {
    * an attention line he may not see is left out.
    */
   async ahmed(me: CurrentUser, q: AhmedQuery, now = new Date()): Promise<AhmedDashboard> {
+    wholeCompany(me);
     const cal = await this.time.calendar(), today = localDate(now, cal), picked = q.year && q.quarter ? periodId(q.year, q.quarter) : undefined;
     const { current: cur, previous: prev } = comparisonWindows(q.period, now, cal, picked);
     const quarter = (q.period === "quarter" && picked) || quarterOfDay(today), qb = quarterBounds(quarter, cal);
@@ -285,6 +287,15 @@ export class DashboardService {
       },
     };
   }
+}
+
+/**
+ * The company dashboards count the whole company in places (late names, done deals, units, deals to approve): only for
+ * one who sees every record, as dashboardLayout gives them. A person a head listed for «التقارير» with his team's scope
+ * keeps the reports page in that scope, not these.
+ */
+function wholeCompany(me: CurrentUser) {
+  if (me.grants.scope !== "all") throw new ForbiddenException("الداشبورد ده للي بيشوف الشركة كلها");
 }
 
 /** Today, the office week, the month, the quarter and the year as [from, to) instants on the Cairo calendar. */
