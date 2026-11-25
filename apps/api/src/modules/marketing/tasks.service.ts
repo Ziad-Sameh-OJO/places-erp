@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { Prisma, PrismaClient } from "@places/db";
 import type { CreateTask, EditTask, MoveTask, TaskCreated, TaskFilters, TaskOptions, TaskRow, TaskSlaQuery, TaskSlaReport, TaskUnitOption, TodayLine, UnitPhotoView } from "@places/contracts";
 import {
-  IN_TEAM_KIND, TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, inTeamDepartments, isTaskLate, isTeamTask, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport, taskTone,
+  IN_TEAM_KIND, TASK_KINDS, TASK_STATUS_LABEL, type TaskActor, type TaskSide, type TaskStatus, dayStart, inTeamDepartments, isTaskLate, isTaskManager, isTeamTask, taskDueProblem, localDate, photoDayWarning, retouchFolder, taskNoteProblem, seesOwnerNumbers, taskKind, taskMove, taskMovesFor, taskSla, taskSlaReport, taskTone,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -126,6 +126,8 @@ export class TasksService {
     const inTeam = kind.key === IN_TEAM_KIND;
     await this.checkAssignee(me, kind.key, input.toUserId, input.department);
     if (inTeam && !input.title) throw new BadRequestException("اكتب المهمة");
+    const pastDay = taskDueProblem(input.dueOn, localDate(new Date()));
+    if (pastDay) throw new BadRequestException(pastDay);
     if (kind.withUnit && !input.unitId) throw new BadRequestException("اختار الوحدة");
     // 14.15: an in-team task names a unit only when it's about one
     const unitId = kind.withUnit || inTeam ? input.unitId ?? null : null;
@@ -201,6 +203,8 @@ export class TasksService {
     if (!actor(me, t).manager) throw new ForbiddenException("اللي إدّى المهمة أو مدير القسم بس اللي يعدّلها");
     if (t.status === "done") throw new BadRequestException("المهمة خلصت · Undo الأول");
     if (input.toUserId && input.toUserId !== t.toUserId) await this.checkAssignee(me, t.kind, input.toUserId);
+    const pastDay = input.dueOn && input.dueOn !== day(t.dueOn) ? taskDueProblem(input.dueOn, localDate(new Date())) : null;
+    if (pastDay) throw new BadRequestException(pastDay);
     const before = { toUserId: t.toUserId, dueOn: day(t.dueOn), note: t.note };
     // M-09: a note the person may not change keeps its stored value
     const after = { toUserId: input.toUserId ?? t.toUserId, dueOn: input.dueOn ?? day(t.dueOn), note: input.note === undefined || me.fields.fixed("tasks").has("note") ? t.note : input.note };
@@ -208,6 +212,8 @@ export class TasksService {
       const r = await this.repo.update(tx, t.id, t.status, { toUserId: after.toUserId, dueOn: dayStartUtc(after.dueOn), note: after.note });
       if (r.count === 0) throw new ConflictException(CHANGED);
       await this.audit.record({ module: "tasks", entity: "Task", entityId: t.id, action: after.toUserId !== before.toUserId ? "reassign" : "update", userId: me.id, before, after }, tx);
+      // 4.15: the KPI follows the task (the worker counts it by assignee): the new one gets the «المهام في ميعادها» item too
+      if (t.countsInKpi && after.toUserId !== before.toUserId) await this.kpis.countTask(tx, after.toUserId, t.byUserId, me.id);
     });
     if (after.toUserId !== before.toUserId) {
       await this.notifications.notify({ event: "task.new", text: `مهمة ${label(t)} اتحوّلت ليك من ${me.name}`, link: link(t.id), userIds: [after.toUserId] });
@@ -320,11 +326,11 @@ function mayGive(me: CurrentUser, kind: string): boolean {
   return !!by && me.grants.can("tasks", "create") && me.grants.can(by.module, by.action);
 }
 
-/** The assignee works it; whoever gave it, or sees the whole department's tasks, manages it; «tasks: approve» approves Retouch. */
+/** The assignee works it; whoever gave it, or sees the whole department's tasks, manages it (domain isTaskManager); «tasks: approve» approves Retouch. */
 function actor(me: CurrentUser, t: Pick<TaskRecord, "toUserId" | "byUserId">): TaskActor {
   return {
     assignee: t.toUserId === me.id,
-    manager: t.byUserId === me.id || me.grants.scope === "dept" || me.grants.scope === "all",
+    manager: isTaskManager({ id: me.id, scope: me.grants.scope }, t),
     approver: me.grants.can("tasks", "approve"),
   };
 }
