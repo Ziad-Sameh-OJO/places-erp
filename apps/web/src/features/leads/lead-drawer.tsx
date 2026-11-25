@@ -69,7 +69,7 @@ export function LeadDrawer({ ids, id, onGo, onClose, visit }: { ids: string[]; i
       ]} />
       {dealFor && <DealForm leadId={dealFor} onClose={() => setDealFor(null)} onSaved={() => { setDealFor(null); void refresh(dealFor); }} />}
       {tab === "overview" ? <Overview l={l} onDeal={openDeal} onArchived={onClose} /> : tab === "units" ? <LeadUnitsTab id={l.id} name={l.name} /> : tab === "visits" ? <Visits l={l} kind={visitKind} />
-        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity key={l.id} l={l} onDeal={openDeal} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
+        : tab === "logs" && l.canSeeLogs ? <Logs id={l.id} /> : <Activity key={l.id} l={l} onDeal={openDeal} onGone={onClose} onVisit={(k) => { setVisitKind(k); setTab("visits"); }} />}
     </Drawer>
   );
 }
@@ -149,7 +149,7 @@ function Reassign({ l }: { l: LeadDetail }) {
 }
 
 /** Demo «غيّر المرحلة». Visit / Meeting need a time and units first (1.9): they open «الزيارات» with that kind. */
-function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void }) {
+function StageCard({ l, onVisit, onDeal, onGone }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void; onGone: () => void }) {
   const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const run = useAction();
@@ -165,11 +165,14 @@ function StageCard({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit"
     // refreshed even when refused (e.g. the lead was taken away meanwhile): the drawer then shows why
     void run(async () => {
       try {
-        await api.patch(`/leads/${l.id}/stage`, { stage, ...extra });
+        const moved = await api.patch<{ toDraftAdmin?: boolean }>(`/leads/${l.id}/stage`, { stage, ...extra });
+        // 1.27: it left this person for Operations' Draft Admin — the drawer closes instead of turning into «مش موجود»
+        if (moved.toDraftAdmin) { onGone(); toast(t("stageToOps", { stage: serverText(stage) })); return; }
+        toast(qualifies ? t("stageQualified", { stage: serverText(stage) }) : t("stageNow", { stage: serverText(stage) }));
         if (stage === "No Answer") setAsk(true);
         if (stage === "Done Deal" && !l.hasDeal && can("deals", "create")) onDeal(l.id); // demo: Done Deal opens «سجّل صفقة»
       } finally { await refresh(l.id); }
-    }, qualifies ? t("stageQualified", { stage: serverText(stage) }) : t("stageNow", { stage: serverText(stage) }));
+    });
   };
   return (
     <section className="card flat">
@@ -239,7 +242,7 @@ function NewLeadAction({ l }: { l: LeadDetail }) {
 /** People's comments only; what the system records goes to «Logs» (client meeting, 4 Nov · 1.25). */
 const comments = (l: LeadDetail) => l.activities.filter((a) => a.kind === "comment");
 
-function Activity({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void }) {
+function Activity({ l, onVisit, onDeal, onGone }: { l: LeadDetail; onVisit: (k: "Visit" | "Meeting") => void; onDeal: (id: string) => void; onGone: () => void }) {
   const t = useTranslations("leads.drawer");
   const { can } = useMe();
   const run = useAction();
@@ -248,7 +251,7 @@ function Activity({ l, onVisit, onDeal }: { l: LeadDetail; onVisit: (k: "Visit" 
   const mine = comments(l);
   return (
     <>
-      {can("leads", "edit") && <StageCard l={l} onVisit={onVisit} onDeal={onDeal} />}
+      {can("leads", "edit") && <StageCard l={l} onVisit={onVisit} onDeal={onDeal} onGone={onGone} />}
       {can("leads", "edit") && (
         <form className="row" onSubmit={(e) => { e.preventDefault(); const body = text.trim(); if (body) void run(async () => { await add(l.id, body); setText(""); }); }}>
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t("commentPlaceholder")} required maxLength={2000} aria-label={t("comment")} />

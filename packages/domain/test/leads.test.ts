@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { PLACES_CALENDAR } from "../src/business-time.ts";
 import assert from "node:assert/strict";
 import { CANCEL_REASONS, LeadRouter, distributeEvenly, isQualifiedAfter, leadSla, mergeDuplicate, needsCancelReason, placeNewLead, slaView, canSeeLeadLogs, tlNoteUnseen, writesTlNote } from "../src/leads.ts";
 
@@ -22,6 +23,18 @@ test("SLA: on holidays it is wall-clock — warn after 22h, pull after 24h", () 
   const at = cairo("2026-10-23T10:00:00");
   assert.equal(leadSla(fresh(at), cairo("2026-10-24T08:00:00"), { holidayMode: true })?.level, "warn");
   assert.equal(leadSla(fresh(at), cairo("2026-10-24T10:00:00"), { holidayMode: true })?.level, "pull");
+});
+
+test("SLA: on a holiday the clock starts with the holiday, not at the last working evening's assignment", () => {
+  // Thursday 18:30 (30 working minutes used), Friday off, Saturday an official holiday (M-01 Q4)
+  const winter = (iso: string) => new Date(`${iso}+02:00`); // Cairo is UTC+2 after daylight saving ends
+  const calendar = { ...PLACES_CALENDAR, holidays: new Set(["2026-11-28"]) };
+  const at = winter("2026-11-26T18:30:00");
+  assert.equal(leadSla(fresh(at), winter("2026-11-28T00:30:00"), { holidayMode: true, calendar })?.level, "ok");
+  assert.equal(leadSla(fresh(at), winter("2026-11-28T00:30:00"), { holidayMode: true, calendar })?.elapsed, 30);
+  assert.equal(leadSla(fresh(at), winter("2026-11-28T22:00:00"), { holidayMode: true, calendar })?.level, "warn");
+  // a lead that arrived on the holiday itself counts from its own arrival
+  assert.equal(leadSla(fresh(winter("2026-11-28T10:00:00")), winter("2026-11-28T22:00:00"), { holidayMode: true, calendar })?.elapsed, 720);
 });
 
 test("SLA does not apply once the lead was touched or isn't Fresh", () => {

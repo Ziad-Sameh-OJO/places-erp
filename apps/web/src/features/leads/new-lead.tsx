@@ -52,7 +52,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
   const isTelesales = !!me?.roles.includes("telesales");
   const keepsSheet = keepsCompaniesSheet(me?.roles ?? []); // Telesales and the admin add to «شيت الشركات» (M-01 2.1); the API decides
   const ownLead = me?.scope === "own" && !isTelesales;
-  const byHand = can("leads", "approve") && !!options.data?.salespeople.length;
+  const byHand = can("leads", "approve") && !!options.data?.assignable.length; // the people the API takes (role sales), not every lead holder
   const campaigns = (options.data?.campaigns ?? []).filter((c) => c.channel === channel);
   const channelTypes = channelTypesOf(settings.data?.channelTypes ?? {}, channel);
   // demo «بتروح لـ: …» (1.30): who the area's rotation would send it to — not shown on a salesperson's own lead
@@ -134,7 +134,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
         {only("type", <Field label="Type"><select name="type">{TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>, true)}
         {only("propertyType", <Field label={t("propertyType")}><select name="propertyType"><option value="">—</option>{PROPERTY_TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>)}
         {only("space", <Field label={t("spaceM")}><input name="space" type="number" min="1" step="1" /></Field>)}
-        {only("condition", <Field label="Condition"><select name="condition">{activeValues(settings.data?.finishings ?? []).map((c) => <option key={c}>{c}</option>)}</select></Field>)}
+        {only("condition", <Field label="Condition"><select name="condition"><option value="">—</option>{activeValues(settings.data?.finishings ?? []).map((c) => <option key={c}>{c}</option>)}</select></Field>)}
         {only("budget", <Field label="Budget"><input name="budget" type="number" min="0" step="1" dir="ltr" /></Field>)}
         {only("channel", <Field label="Channel" req>
           <select name="channel" required value={channel} onChange={(e) => setChannel(e.target.value)}>
@@ -155,7 +155,7 @@ export function NewLead({ onClose, onOpenLead, kind = "client" }: { onClose: () 
         {ownLead && <p className="hint wide">{t("ownLead")}</p>}
         {byHand && (
           <Field label="Sales">
-            <select name="assignToId"><option value="">{t("autoByArea")}</option>{options.data!.salespeople.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            <select name="assignToId"><option value="">{t("autoByArea")}</option>{options.data!.assignable.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
             <small className="hint">{t("byHandNote")}</small>
           </Field>
         )}

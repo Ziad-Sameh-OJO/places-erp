@@ -176,6 +176,7 @@
     "cancel": "Cancel"
   },
   "drafts": {
+    "confirm": "Confirm",
     "tab": {
       "draft": "the Draft",
       "admin": "the Draft Admin"
@@ -308,6 +309,7 @@
     "setVisit": "Set the {kind} time and units",
     "stageQualified": "{stage} · marked Qualified for the campaign and channel",
     "stageNow": "Stage is now {stage}",
+    "stageToOps": "Stage is now {stage} · the lead went to Operations (Draft Admin)",
     "changeStage": "Change stage",
     "stageHint": "Once the lead reaches Interested or any later stage it's marked Qualified automatically, and stays counted for the campaign and channel. Visit opens the Visits tab to set the time and units.",
     "archived": "{name} archived",

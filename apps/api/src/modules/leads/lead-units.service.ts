@@ -57,7 +57,7 @@ export class LeadUnitsService {
       if (!(await this.leads.findInScope(leadScope(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
       const step = await this.repo.addStep(tx, id, "shortlist", input.unitIds, me.id);
       const activity = await this.leads.addActivity(tx, id, "comment", `Short list: ${codes.map((u) => u.code).join("، ")}`, me.id);
-      await this.leads.markActed(tx, id, activity.at);
+      await this.leads.markActed(tx, id, activity.at, me.employeeId);
       await this.leads.addSuggestedUnits(tx, id, input.unitIds, me.id);
       await this.audit.record({ module: "leads", entity: "LeadUnitStep", entityId: step.id, action: "shortlist", userId: me.id, after: { leadId: id, unitIds: input.unitIds } }, tx);
     });
@@ -80,7 +80,7 @@ export class LeadUnitsService {
       const step = await this.repo.addStep(tx, id, "list", input.unitIds, me.id);
       const text = `اتبعتله List of options فيها: ${input.unitIds.map((u) => codes.get(u)).join("، ")} · ${cairoDay(step.at)}`;
       const activity = await this.leads.addActivity(tx, id, "comment", text, me.id);
-      await this.leads.markActed(tx, id, activity.at);
+      await this.leads.markActed(tx, id, activity.at, me.employeeId);
       await this.leads.addSuggestedUnits(tx, id, input.unitIds, me.id);
       await this.audit.record({ module: "leads", entity: "LeadUnitStep", entityId: step.id, action: "list", userId: me.id, after: { leadId: id, unitIds: input.unitIds, text } }, tx);
     });
