@@ -3,11 +3,13 @@
  * The bell (demo app.js «notif»), M-14 5.1 · 5.3 · 12.11: updates the moment a notification is written (the API's
  * event stream; the slow refresh is only the fallback), and filters by type and by «الجديد».
  */
-import { useEffect, useState } from "react";
+import { type MouseEvent, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eventLabel } from "@places/domain";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { useMe } from "@/lib/me";
+import { NAV } from "@/lib/nav";
 import { dateLocale } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { Icon, Tabs, useToast } from "./ui";
@@ -53,7 +55,8 @@ export function useBell() {
   async function openBell() {
     setFresh(new Set((q.data?.items ?? []).filter((x) => !x.readAt).map((x) => x.id)));
     setOpen(true);
-    if (unread) { await api.post("/notifications/all/read"); void qc.invalidateQueries({ queryKey: ["notifications"] }); }
+    // M-14 2.1 · 2.3: an important one stays unread until it's opened (or «قراءة كل الإشعارات»)
+    if (unread) { await api.post("/notifications/seen"); void qc.invalidateQueries({ queryKey: ["notifications"] }); }
   }
   /** «قراءة كل الإشعارات» (client, 17 Nov): everything read now, and nothing left highlighted as new in the open panel. */
   async function readAll() {
@@ -67,6 +70,26 @@ export function useBell() {
     return () => window.removeEventListener(OPEN_BELL, on);
   });
   return { open, setOpen, openBell, readAll, unread, data: q.data, type, setType, fresh };
+}
+
+/**
+ * A notification's words: a link when it leads to a page I may open (one event can reach people whose roles don't
+ * open its page: HR on a lead's visit), and opening it reads it. A full load, as in the side menu's «فتحتها مؤخراً»:
+ * the page reads «?open=» only on load, so /leads → /leads?open=… needs one.
+ */
+export function NotifText({ n, onOpen }: { n: Pick<Notif, "id" | "text" | "link" | "readAt">; onOpen?: () => void }) {
+  const { opens } = useMe();
+  const page = n.link?.split(/[/?]/)[1] || "home";
+  if (!n.link || (page in NAV && !opens(page))) return <>{serverText(n.text)}</>;
+  const link = n.link;
+  const open = async (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; // a new tab: the browser's own
+    e.preventDefault();
+    onOpen?.();
+    if (!n.readAt) await api.post(`/notifications/${n.id}/read`).catch(() => undefined);
+    window.location.assign(link);
+  };
+  return <a href={link} onClick={(e) => void open(e)}>{serverText(n.text)}</a>;
 }
 
 export function BellPanel({ bell }: { bell: ReturnType<typeof useBell> }) {
@@ -93,8 +116,7 @@ export function BellPanel({ bell }: { bell: ReturnType<typeof useBell> }) {
       <div id="notifList">
         {items.length ? items.map((x) => (
           <div key={x.id} className={`ntf ${x.readAt && !bell.fresh.has(x.id) ? "" : "new"}`}>
-            {/* a plain link, as in the side menu's «فتحتها مؤخراً»: the page reads «?open=» only on load, so /leads → /leads?open=… needs one */}
-            {x.link ? <a href={x.link} onClick={() => bell.setOpen(false)}>{serverText(x.text)}</a> : serverText(x.text)}
+            <NotifText n={x} onOpen={() => bell.setOpen(false)} />
             <small>{serverText(eventLabel(x.event))} · {ago(x.createdAt, t)}</small>
           </div>
         )) : <p className="empty">{t("empty")}</p>}

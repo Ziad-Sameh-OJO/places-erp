@@ -27,6 +27,12 @@ export class NotificationsController {
     return this.stream.forUser(me.id);
   }
 
+  /** Opening the bell (M-14 2.1 · 2.3): the ordinary ones are read; an important one stays until it's opened or «اقرا الكل». */
+  @SignedIn() @Post("seen") @HttpCode(204)
+  seen(@Me() me: CurrentUser) {
+    return this.n.read(me.id, "all", { keepImportant: true });
+  }
+
   @SignedIn() @Post(":id/read") @HttpCode(204)
   read(@Me() me: CurrentUser, @Param("id") id: string) {
     return this.n.read(me.id, id);

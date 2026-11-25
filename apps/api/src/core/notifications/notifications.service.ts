@@ -95,9 +95,9 @@ export class NotificationsService {
     return { items, total, page: q.page, pageSize: q.pageSize, unread, types: types.map((t) => t.event!) };
   }
 
-  /** Only the owner can mark their own notifications. */
-  async read(userId: string, id: string | "all") {
-    await this.db.notification.updateMany({ where: { userId, readAt: null, ...(id === "all" ? {} : { id }) }, data: { readAt: new Date() } });
+  /** Only the owner can mark their own notifications. `keepImportant`: looking at the bell doesn't read the important ones. */
+  async read(userId: string, id: string | "all", o: { keepImportant?: boolean } = {}) {
+    await this.db.notification.updateMany({ where: { userId, readAt: null, ...(id === "all" ? {} : { id }), ...(o.keepImportant ? { important: false } : {}) }, data: { readAt: new Date() } });
   }
 
   /** M-14 3.1 · 3.3 · 6.1: the send log, newest first: اتبعت · اتقرا · الإيميل فشل · مستني. */
