@@ -249,6 +249,11 @@ export class InventoryRepository {
   }
 
   /** A unit's two sides, for closing one (Q16 · Q17). Archived units can't be closed. */
+  /** Holds the unit's row to the end of the transaction: an edit and a Done Deal's lock / confirm / release take turns (Q17). */
+  lockRow(unitId: string, tx: Prisma.TransactionClient) {
+    return tx.$queryRaw`SELECT 1 FROM inventory."Unit" WHERE id = ${unitId} FOR UPDATE`;
+  }
+
   sides(unitId: string, tx: Prisma.TransactionClient = this.db) {
     return tx.unit.findFirst({ where: { id: unitId, archivedAt: null }, select: { id: true, code: true, project: true, type: true, status: true, alsoType: true, alsoStatus: true } });
   }
@@ -258,8 +263,8 @@ export class InventoryRepository {
   }
 
   /** The Done Deals on a unit, with their codes (the drawer). */
-  locks(unitId: string) {
-    return this.db.unitLock.findMany({ where: { unitId }, include: { deal: { select: { code: true } } }, orderBy: { requestedAt: "asc" } });
+  locks(unitId: string, tx: Prisma.TransactionClient = this.db) {
+    return tx.unitLock.findMany({ where: { unitId }, include: { deal: { select: { code: true } } }, orderBy: { requestedAt: "asc" } });
   }
 }
 

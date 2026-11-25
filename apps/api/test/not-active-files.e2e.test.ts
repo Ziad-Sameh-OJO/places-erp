@@ -79,3 +79,25 @@ test("rename and move to another folder (audited), the sheet goes in later, and 
   assert.equal(hers?.pending, 1);
   assert.equal((await files(marwa)).some((x) => x.id === other.body.id), false);
 });
+
+test("an upload into a file with «من غير مقارنة» (numberBy empty) drops the file's number column; left out keeps it", async () => {
+  const name = `${NAME} Number`;
+  const send = async (numberBy: string | undefined, cookie = manar) => {
+    const form = new FormData();
+    form.append("file", new Blob([["رقم الوحدة,الرقم", `N-${Math.random()},01000000003`].join("\n")], { type: "text/csv" }), "n.csv");
+    form.append("name", name);
+    form.append("dedupeBy", "رقم الوحدة");
+    if (numberBy !== undefined) form.append("numberBy", numberBy);
+    const res = await fetch(`${API}/not-active/import`, { method: "POST", body: form, headers: { cookie } });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+  assert.equal((await send("الرقم", sales)).status, 403);
+  const first = await send("الرقم");
+  assert.ok(first.status < 300, JSON.stringify(first.body));
+  const numberBy = async () => (await prisma.notActiveSheet.findUniqueOrThrow({ where: { id: first.body.sheetId } })).numberBy;
+  assert.equal(await numberBy(), "الرقم");
+  assert.ok((await send(undefined)).status < 300);
+  assert.equal(await numberBy(), "الرقم");
+  assert.ok((await send("")).status < 300);
+  assert.equal(await numberBy(), null);
+});
