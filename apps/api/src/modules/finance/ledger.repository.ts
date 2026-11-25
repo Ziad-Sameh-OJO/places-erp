@@ -78,6 +78,14 @@ export class LedgerRepository {
     for (const id of [...new Set(ids)].sort()) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-balance:${id}`}))`;
   }
 
+  accountSums(accountId: string, tx: Tx) {
+    return tx.journalLine.aggregate({ where: { accountId }, _sum: { debit: true, credit: true } });
+  }
+
+  setParty(id: string, partyId: string, tx: Tx) {
+    return tx.account.update({ where: { id }, data: { partyId } });
+  }
+
   sourceSums(accountId: string, source: string, sourceId: string, tx: Tx) {
     return tx.journalLine.aggregate({ where: { accountId, entry: { source, sourceId } }, _sum: { debit: true, credit: true } });
   }

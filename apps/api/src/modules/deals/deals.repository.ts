@@ -55,7 +55,7 @@ export class DealsRepository {
   /** 0.18: the TCRs a salesperson is on and hasn't signed yet. */
   unsignedTcrs(scope: Prisma.DealWhereInput, employeeId: string) {
     return this.db.tcr.findMany({
-      where: { deal: scope, signatures: { some: { employeeId, signedAt: null } } },
+      where: { deal: { AND: [scope, { status: { not: "CANCELLED" } }] }, signatures: { some: { employeeId, signedAt: null } } }, // a cancelled deal's TCRs aren't signed
       select: { id: true, code: true, deal: { select: { id: true, code: true } }, payment: { select: { amount: true } } }, orderBy: { code: "asc" }, take: 100,
     });
   }
@@ -207,6 +207,11 @@ export class DealsRepository {
     return tx.payment.update({ where: { id }, data, select: { id: true } });
   }
 
+  /** 5.15 · 5.12: a corrected TCR is signed again by everyone on it. */
+  resetSignatures(tx: Prisma.TransactionClient, tcrId: string) {
+    return tx.tcrSignature.updateMany({ where: { tcrId, signedAt: { not: null } }, data: { signedAt: null } });
+  }
+
   nextTcr(tx: Prisma.TransactionClient) {
     return tx.$queryRaw<Array<{ n: bigint }>>`SELECT nextval('sales.tcr_code_seq') AS n`; // created by the 5.12 migration
   }
@@ -219,7 +224,7 @@ export class DealsRepository {
 
   /** A TCR of a deal in the caller's scope. */
   tcr(scope: Prisma.DealWhereInput, dealId: string, id: string, tx: Prisma.TransactionClient = this.db) {
-    return tx.tcr.findFirst({ where: { id, deal: { AND: [scope, { id: dealId }] } }, select: TCR });
+    return tx.tcr.findFirst({ where: { id, deal: { AND: [scope, { id: dealId }] } }, select: { ...TCR, deal: { select: { status: true } } } });
   }
 
   /** Only an unsigned line: two clicks at once sign once. */

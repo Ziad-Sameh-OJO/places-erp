@@ -118,16 +118,16 @@ test("a save keeps what the person may not change; a hidden field can't be set",
   assert.equal((await prisma.deal.findUniqueOrThrow({ where: { id: dealA } })).execDueAt, null);
 });
 
-test("a create starts the read-only fields empty (or as the unit has them); the review keeps them", async () => {
+test("a create takes a read-only commission as typed (nowhere else to get it) and a hidden space from the unit; the review keeps them", async () => {
   const r = await call("/deals", { method: "POST", cookie: person, body: { leadId: leadB, unitId: unitB, space: 5, type: "Rent", commissionOwner: "99999", commissionClient: "1000", withMe: [] } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   dealB = r.body.id;
   let d = await prisma.deal.findUniqueOrThrow({ where: { id: dealB } });
-  assert.deepEqual([d.commissionOwner.toFixed(2), d.commissionClient.toFixed(2), d.space], ["0.00", "1000.00", 0]); // the unit's space is hidden from them too
+  assert.deepEqual([d.commissionOwner.toFixed(2), d.commissionClient.toFixed(2), d.space], ["99999.00", "1000.00", 0]); // the unit's space is hidden from them too
   const v = await call(`/deals/${dealB}/review`, { method: "POST", cookie: person, body: { decision: "approve", space: 7, commissionOwner: "5", commissionClient: "2000", location: "X" } });
   assert.equal(v.status, 200, JSON.stringify(v.body));
   d = await prisma.deal.findUniqueOrThrow({ where: { id: dealB } });
-  assert.deepEqual([d.commissionOwner.toFixed(2), d.commissionClient.toFixed(2), d.space, d.location], ["0.00", "2000.00", 0, `${LOC} مشروع B`]);
+  assert.deepEqual([d.commissionOwner.toFixed(2), d.commissionClient.toFixed(2), d.space, d.location], ["99999.00", "2000.00", 0, `${LOC} مشروع B`]);
 });
 
 test("the deal form's unit picker follows the inventory's field rules", async () => {

@@ -148,7 +148,10 @@ test("5.15: finance corrects the 30,000 to 35,000 and back — the entry is reve
 });
 
 test("5.3 · 9.12: the rest → Fully Collected; each salesperson's commission is due under 21103; nothing more to collect", async () => {
-  const r = await collect(ashraf, { side: "owner", toId: bankId, amount: "70000" });
+  // each side up to its own commission: 70,000 from the owner is refused (the owner owes 50,000)
+  assert.equal((await collect(ashraf, { side: "owner", toId: bankId, amount: "70000" })).status, 400);
+  assert.equal((await collect(ashraf, { side: "client", toId: bankId, amount: "20000" })).status, 201);
+  const r = await collect(ashraf, { side: "owner", toId: bankId, amount: "50000" });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   assert.equal(r.body.status, "Fully Collected");
   assert.equal(await task(ashraf), undefined); // collected → off the accountant's list

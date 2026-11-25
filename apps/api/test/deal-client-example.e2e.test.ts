@@ -1,6 +1,6 @@
 /**
- * 5.14 · the client's example end to end against the real API and database: a 100,000 commission (50,000 owner +
- * 50,000 client) with two Buyers and one Seller (the unit's agent), everyone on a 30% scheme → shares 25,000 / 25,000 /
+ * 5.14 · the client's example end to end against the real API and database: a 100,000 commission (60,000 owner +
+ * 40,000 client, each side collected up to its own) with two Buyers and one Seller (the unit's agent), everyone on a 30% scheme → shares 25,000 / 25,000 /
  * 50,000, commissions 7,500 / 7,500 / 15,000 under 21103. People of our own (no TL) so no shared balance moves:
  * Buyer A closes it with Buyer B; Nancy (Office Manager) approves; Ahmed Ashraf collects; Manar approves the Seller
  * between the two collections; Nancy cancels and every balance goes back to 0.
@@ -76,7 +76,7 @@ const dues = async () => ({ a: await dueOf("a"), b: await dueOf("b"), seller: aw
 const lines = (t: { signatures: { id: string; side: string }[] }) => t.signatures.map((s) => `${s.side}:${s.id}`).sort();
 
 test("Done Deal: Buyer A closes 100,000 with Buyer B; the unit's agent is the Seller, waiting for Manar", async () => {
-  const r = await call("/deals", { method: "POST", cookie: people.a.cookie, body: { leadId, unitId, space: 250, type: "Rent", commissionOwner: "50000", commissionClient: "50000", withMe: [people.b.id] } });
+  const r = await call("/deals", { method: "POST", cookie: people.a.cookie, body: { leadId, unitId, space: 250, type: "Rent", commissionOwner: "60000", commissionClient: "40000", withMe: [people.b.id] } });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   dealId = r.body.id;
   assert.equal(r.body.status, "Pending Review");

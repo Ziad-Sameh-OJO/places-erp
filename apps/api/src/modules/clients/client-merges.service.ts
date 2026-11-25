@@ -1,11 +1,12 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { ClientMergeRow, DecideMerge, SuggestMerge } from "@places/contracts";
-import { mergedFile, normalizePhone } from "@places/domain";
+import { mergedFile, normalizePhone, seesOwnerNumbers } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
+import { LedgerService } from "../finance/ledger.service";
 import { ClientsRepository } from "./clients.repository";
 import { visibleTo } from "./clients.service";
 
@@ -23,6 +24,7 @@ export class ClientMergesService {
     private readonly repo: ClientsRepository,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly ledger: LedgerService,
   ) {}
 
   async pending(me: CurrentUser): Promise<ClientMergeRow[]> {
@@ -47,7 +49,8 @@ export class ClientMergesService {
       const keep = await tx.client.findFirst({ where: { AND: [visibleTo(me), { id: keepId }] }, select: { id: true, name: true } });
       if (!keep) throw new NotFoundException("الملف ده مش موجود أو مش معاك");
       const [other] = await this.repo.byPhones(tx, [phone]);
-      if (!other) throw new BadRequestException("مفيش ملف بالرقم ده");
+      // M-10 4.1: an owner's number is the same «not found» to someone who may not see owners' numbers
+      if (!other || (other.client.kind !== "client" && !seesOwnerNumbers(me.grants))) throw new BadRequestException("مفيش ملف بالرقم ده");
       if (other.client.id === keep.id) throw new BadRequestException("الرقم ده على نفس الملف");
       if (await this.repo.openMerge(tx, keep.id, other.client.id)) throw new BadRequestException("فيه طلب دمج للملفين دول مستني الأوبريشن");
       const m = await tx.clientMerge.create({ data: { keepId: keep.id, dropId: other.client.id, reason: `نفس الموبايل ${phone}`, suggestedById: me.id } });
@@ -72,11 +75,13 @@ export class ClientMergesService {
       if (!keep || !drop) throw new BadRequestException("واحد من الملفين اتدمج أو اتشال · ارفض الطلب ده");
       const after = mergedFile(keep, drop);
       await this.repo.moveInto(tx, drop.id, keep.id);
+      // 9.12: the client's receivable (113…) follows the file, so later collections settle the same account
+      const ledger = await this.ledger.mergeParty(me, { type: "client", fromId: drop.id, toId: keep.id, ref: id, memo: `دمج ملف ${drop.name} في ${keep.name}` }, tx);
       await tx.client.update({ where: { id: keep.id }, data: after });
       await tx.client.update({ where: { id: drop.id }, data: { archivedAt: new Date(), mergedIntoId: keep.id } });
       await tx.clientMerge.update({ where: { id }, data: { status: "approved", ...decided } });
       // before and after (M-10 2.2): both files as they were, and the kept file as it is now
-      await this.audit.record({ module: "clients", entity: "Client", entityId: keep.id, action: "merge", userId: me.id, before: { keep, drop }, after: { ...after, id: keep.id, mergedFrom: drop.id } }, tx);
+      await this.audit.record({ module: "clients", entity: "Client", entityId: keep.id, action: "merge", userId: me.id, before: { keep, drop }, after: { ...after, id: keep.id, mergedFrom: drop.id, ...(ledger ? { ledger } : {}) } }, tx);
     });
   }
 }

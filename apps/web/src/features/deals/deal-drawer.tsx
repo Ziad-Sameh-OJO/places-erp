@@ -94,7 +94,7 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
               <span className="row">
                 {left ? <Chip tone="warn">{t("waitingSigs", { count: String(left) })}</Chip> : <Chip tone="ok">{t("signed")}</Chip>}
                 <a className="btn ghost sm" href={`/api/v1/deals/${d.id}/tcrs/${x.id}/pdf`} target="_blank" rel="noreferrer"><Icon name="file" />TCR</a>
-                {mineOpen && <button className="btn sm" onClick={() => void post(`tcrs/${x.id}/sign`, {}, t("signedToast", { code: x.code }))}>{t("sign")}</button>}
+                {mineOpen && d.status !== "Cancelled" && <button className="btn sm" onClick={() => void post(`tcrs/${x.id}/sign`, {}, t("signedToast", { code: x.code }))}>{t("sign")}</button>}
                 {onSheet(d.status) && can("finance", "edit") && fields.edits("collected") && fields.shows("payments") && <button className="btn ghost sm" title={t("editTitle")} onClick={() => setEditing(x)}>{t("edit")}</button>}
               </span>
               {x.edited && <span className="sub hint" style={{ flexBasis: "100%" }}>{t("edited", { from: money(x.edited.from), to: money(x.amount), reason: x.edited.reason })}</span>}
@@ -107,7 +107,7 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
       </section>
       {editing && <EditCollection dealId={d.id} tcr={editing} onClose={() => setEditing(null)} onDone={refresh} />}
       {live(d.status) && can("deals", "delete") && (
-        <form className="card flat" onSubmit={onFormSubmit((f) => post("cancel", { reason: String(f.get("reason") ?? "") }, t("cancelled")))}>
+        <form className="card flat" onSubmit={onFormSubmit((f) => window.confirm(t("cancelConfirm", { code: d.code })) && post("cancel", { reason: String(f.get("reason") ?? "") }, t("cancelled")))}>
           <Head icon="x" title={t("cancel")} />
           <div className="row"><input name="reason" required placeholder={t("cancelReason")} aria-label={t("cancelReason")} /><button className="btn danger">{t("cancel")}</button></div>
         </form>
@@ -159,10 +159,11 @@ function Review({ d, post, busy }: { d: DealSheetRow; post: (path: string, body:
   const sales = useAchievements().data?.rows ?? [];
   const { only } = useOnly();
   const ref = useRef<HTMLFormElement>(null);
+  const [buyers, setBuyers] = useState(d.buyers.map((b) => b.id));
+  const people = new Map([...d.buyers.map((b) => [b.id, b.name] as const), ...sales.map((s) => [s.employeeId, s.name] as const)]);
   const send = (v: "approve" | "reject") => {
     const f = new FormData(ref.current!);
     if (v === "reject") return post("review", { decision: "reject", reason: String(f.get("reason") ?? "") }, t("rejected"));
-    const buyers = f.getAll("buyers").map(String);
     // a field she may not change has no (or a locked) input: it isn't sent, and the API keeps it
     const sent = (k: string) => (f.get(k) == null ? {} : { [k]: k === "space" ? Number(f.get(k)) : f.get(k) });
     return post("review", {
@@ -180,10 +181,21 @@ function Review({ d, post, busy }: { d: DealSheetRow; post: (path: string, body:
         {only("commissionOwner", <Field label={t("commOwner")}><input name="commissionOwner" inputMode="decimal" defaultValue={d.commissionOwner} /></Field>)}
         {only("commissionClient", <Field label={t("commClient")}><input name="commissionClient" inputMode="decimal" defaultValue={d.commissionClient} /></Field>)}
         <Field label={t("external")}><input name="externalCommission" inputMode="decimal" placeholder="0" /></Field>
-        <Field label={t("buyers")}>
-          <select name="buyers" multiple size={3} defaultValue={d.buyers.map((b) => b.id)}>
-            {[...new Map([...d.buyers.map((b) => [b.id, b.name] as const), ...sales.map((s) => [s.employeeId, s.name] as const)])].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
+        <Field label={t("buyers")} wide>
+          <div className="tag-picker">
+            <select value="" onChange={(e) => e.target.value && setBuyers([...buyers, e.target.value])} aria-label={t("buyersPick")}>
+              <option value="">{t("buyersPick")}</option>
+              {[...people].filter(([id]) => !buyers.includes(id)).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            {buyers.length > 0 && (
+              <div className="row wrap">
+                {buyers.map((id) => {
+                  const name = people.get(id) ?? "";
+                  return <span key={id} className="chip acc tag-chip">{name}<button type="button" onClick={() => setBuyers(buyers.filter((x) => x !== id))} aria-label={t("buyersRemove", { name })}><Icon name="x" /></button></span>;
+                })}
+              </div>
+            )}
+          </div>
         </Field>
       </div>
       <div className="row">
@@ -240,7 +252,7 @@ function Collect({ d, onDone }: { d: DealSheetRow; onDone: () => Promise<unknown
         <select name="toId" required defaultValue=""><option value="" disabled>{cash ? td("pick") : td("loading")}</option>{cash?.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
       </Field>
       <Field label={t("amountLeft", { left: money(d.remaining) })} req><input name="amount" inputMode="decimal" pattern="\d+(\.\d{1,2})?" required placeholder={t("amount")} /></Field>
-      <Field label={t("date")} req><DateInput name="date" defaultValue={localDate(new Date())} max={localDate(new Date())} required /></Field>
+      <Field label={t("date")} req><DateInput name="date" defaultValue={localDate(new Date())} min={localDate(new Date(d.closedAt))} max={localDate(new Date())} required /></Field>
       {first && (
         <Field label={t("revenue")} req wide>
           <select name="revenueId" required defaultValue=""><option value="" disabled>{td("pick")}</option>{incomes.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select>

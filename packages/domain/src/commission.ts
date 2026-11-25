@@ -54,11 +54,20 @@ export function collectionStatus(d: DealMoney): DealStatus {
   return c >= placesCommission(d) ? "Fully Collected" : c > 0 ? "Partially Collected" : "Approved";
 }
 
-/** 5.3: why a collection can't be recorded, or null — only on an approved deal not fully collected, never above what's left. */
-export function collectionProblem(d: DealMoney, amount: Piasters): string | null {
+const sideCommission = (d: DealMoney, side: "owner" | "client"): Piasters => (side === "owner" ? d.commissionOwner : d.commissionClient);
+const sideCollected = (d: DealMoney, side: "owner" | "client"): Piasters => d.payments.filter((p) => p.side === side).reduce((s, p) => s + p.amount, 0);
+const SIDE_NAME = { owner: "الـ Owner", client: "الـ Client" } as const;
+
+/**
+ * 5.3: why a collection can't be recorded, or null — only on an approved deal not fully collected, never above what's
+ * left, nor above what's left of that side's commission (the client file's balance and the sheet's columns read the side).
+ */
+export function collectionProblem(d: DealMoney, amount: Piasters, side: "owner" | "client"): string | null {
   if (d.status !== "Approved" && d.status !== "Partially Collected") return "التحصيل بيتسجّل على صفقة اتوافق عليها ولسه متحصّلتش بالكامل";
   if (!(amount > 0)) return "المبلغ لازم يبقى أكبر من صفر";
   if (amount > remaining(d)) return `المبلغ أكبر من الباقي (${formatEGP(remaining(d))})`;
+  const left = Math.max(0, sideCommission(d, side) - sideCollected(d, side));
+  if (amount > left) return `المبلغ أكبر من الباقي من عمولة ${SIDE_NAME[side]} (${formatEGP(left)})`;
   return null;
 }
 
@@ -67,13 +76,15 @@ export function collectionProblem(d: DealMoney, amount: Piasters): string | null
  * `amount` instead of `old`, or null. A reason is required, the deal's total never goes above its commission, and a
  * fully collected deal can't drop back: its salespeople's commission is already due (open question in the PR).
  */
-export function collectionEditProblem(d: DealMoney, old: Piasters, amount: Piasters, reason: string): string | null {
+export function collectionEditProblem(d: DealMoney, old: Piasters, amount: Piasters, reason: string, side: "owner" | "client"): string | null {
   if (d.status !== "Partially Collected" && d.status !== "Fully Collected") return "التعديل بيبقى على تحصيل صفقة شغالة";
   if (!reason.trim()) return "اكتب السبب";
   if (!(amount > 0)) return "المبلغ لازم يبقى أكبر من صفر";
   if (amount === old) return "ده نفس المبلغ";
   const total = collected(d) - old + amount;
   if (total > placesCommission(d)) return `المبلغ أكبر من الباقي (${formatEGP(placesCommission(d) - collected(d) + old)})`;
+  const left = sideCommission(d, side) - sideCollected(d, side) + old;
+  if (amount > left) return `المبلغ أكبر من الباقي من عمولة ${SIDE_NAME[side]} (${formatEGP(left)})`;
   if (d.status === "Fully Collected" && total < placesCommission(d)) return "الصفقة اتحصّلت بالكامل وعمولات السيلز اتثبتت عليها · مينفعش تقلّ";
   return null;
 }

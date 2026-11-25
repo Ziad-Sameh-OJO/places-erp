@@ -27,12 +27,27 @@ test("owners' numbers (M-10 4.1): hidden from sales and finance, shown to invent
 
 test("merge (M-10 2.2): the kept file keeps its name, fills what it lacks, both roles, active if either, latest contact", () => {
   const jan = new Date("2026-01-10T10:00:00Z"), oct = new Date("2026-10-01T10:00:00Z");
+  const none = { marketingConsent: null, deletionAskedAt: null, deletionAskedBy: null, deletionReason: null };
   const m = mergedFile(
-    { kind: "client", status: "inactive", company: null, preferredContact: "واتساب", lastContactAt: jan },
-    { kind: "owner", status: "active", company: "شركة النيل", preferredContact: "مكالمة", lastContactAt: oct },
+    { kind: "client", status: "inactive", company: null, preferredContact: "واتساب", lastContactAt: jan, ...none },
+    { kind: "owner", status: "active", company: "شركة النيل", preferredContact: "مكالمة", lastContactAt: oct, ...none },
   );
-  assert.deepEqual(m, { kind: "both", status: "active", company: "شركة النيل", preferredContact: "واتساب", lastContactAt: oct });
+  assert.deepEqual(m, { kind: "both", status: "active", company: "شركة النيل", preferredContact: "واتساب", lastContactAt: oct, ...none });
 });
+
+test("merge (M-10 3.1 · 2.3): a «no» to marketing wins, yes over not asked, and a deletion request survives (the older one)", () => {
+  const base = { kind: "client", status: "active", company: null, preferredContact: null, lastContactAt: new Date("2026-10-01T10:00:00Z"), marketingConsent: null, deletionAskedAt: null, deletionAskedBy: null, deletionReason: null } as const;
+  assert.equal(mergedFile({ ...base, marketingConsent: true }, { ...base, marketingConsent: false }).marketingConsent, false);
+  assert.equal(mergedFile({ ...base, marketingConsent: false }, { ...base, marketingConsent: true }).marketingConsent, false);
+  assert.equal(mergedFile({ ...base, marketingConsent: null }, { ...base, marketingConsent: true }).marketingConsent, true);
+  assert.equal(mergedFile(base, base).marketingConsent, null);
+  const early = { deletionAskedAt: new Date("2026-09-01T10:00:00Z"), deletionAskedBy: "u1", deletionReason: "مش عايز حد يكلمني" };
+  const late = { deletionAskedAt: new Date("2026-10-20T10:00:00Z"), deletionAskedBy: "u2", deletionReason: "تاني" };
+  assert.deepEqual(pick(mergedFile(base, { ...base, ...early })), early);
+  assert.deepEqual(pick(mergedFile({ ...base, ...late }, { ...base, ...early })), early);
+  assert.deepEqual(pick(mergedFile(base, base)), { deletionAskedAt: null, deletionAskedBy: null, deletionReason: null });
+});
+const pick = (m: ReturnType<typeof mergedFile>) => ({ deletionAskedAt: m.deletionAskedAt, deletionAskedBy: m.deletionAskedBy, deletionReason: m.deletionReason });
 import { egp } from "../src/money.ts";
 
 test("paid and remaining (M-10 3.2): each deal's due against what was paid on it; rejected / cancelled owe nothing", () => {

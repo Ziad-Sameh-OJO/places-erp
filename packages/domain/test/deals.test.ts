@@ -3,15 +3,32 @@ import assert from "node:assert/strict";
 import { egp, formatEGP } from "../src/money.ts";
 import { type DealMoney, awaitsCollection, collectionEditProblem, collectionProblem, payoutDue, payoutProblem, payoutState, collectionStatus, revenueOnCollection, splitDeal, targetAchieved, transactionsOf } from "../src/commission.ts";
 import { teamResult, tlAdjustment } from "../src/team-leader.ts";
-import { cancelProblem, changes, closedTooSoon, dealCode, dealSides, execState, executeProblem, expectsCommission, papersProblem, reviewProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
+import { cancelProblem, changes, closedTooSoon, collectionDateProblem, dealCode, dealSides, execState, executeProblem, expectsCommission, papersProblem, reviewProblem, sellerApprovalProblem, signProblem, takesNote, tcrCode } from "../src/deals.ts";
 
 test("5.12: the TCR code comes from one sequence (T180…), and each salesperson on it signs once", () => {
   assert.equal(tcrCode(181n), "T181");
   const sigs = [{ employeeId: "ahmed", signedAt: null }, { employeeId: "mohamed", signedAt: new Date("2026-11-05T10:00:00Z") }];
-  assert.equal(signProblem(sigs, "ahmed"), null);
-  assert.equal(signProblem(sigs, "mohamed"), "مضيت عليها قبل كده");
-  assert.equal(signProblem(sigs, "ziad"), "الـ TCR دي مش عليك");
-  assert.equal(signProblem(sigs, null), "الـ TCR دي مش عليك");
+  assert.equal(signProblem(sigs, "ahmed", "Partially Collected"), null);
+  assert.equal(signProblem(sigs, "mohamed", "Fully Collected"), "مضيت عليها قبل كده");
+  assert.equal(signProblem(sigs, "ziad", "Partially Collected"), "الـ TCR دي مش عليك");
+  assert.equal(signProblem(sigs, null, "Partially Collected"), "الـ TCR دي مش عليك");
+  assert.equal(signProblem(sigs, "ahmed", "Cancelled"), "الصفقة دي اتلغت · الـ TCR بتاعتها مبقتش بتتمضي");
+});
+
+test("5.4: Manar approves a waiting Seller on a live deal only", () => {
+  assert.equal(sellerApprovalProblem("Pending Review", 1), null);
+  assert.equal(sellerApprovalProblem("Fully Collected", 1), null);
+  assert.match(sellerApprovalProblem("Rejected", 1)!, /اترفضت أو اتلغت/);
+  assert.match(sellerApprovalProblem("Cancelled", 1)!, /اترفضت أو اتلغت/);
+  assert.equal(sellerApprovalProblem("Approved", 0), "مفيش Seller مستني موافقة على الصفقة دي");
+});
+
+test("5.3: a collection is dated between the deal's close day and today", () => {
+  assert.equal(collectionDateProblem("2026-11-10", "2026-11-01", "2026-11-25"), null);
+  assert.equal(collectionDateProblem("2026-11-01", "2026-11-01", "2026-11-25"), null);
+  assert.equal(collectionDateProblem("2026-11-25", "2026-11-01", "2026-11-25"), null);
+  assert.equal(collectionDateProblem("2026-11-26", "2026-11-01", "2026-11-25"), "تاريخ التحصيل مينفعش يبقى بعد النهارده");
+  assert.equal(collectionDateProblem("2026-10-31", "2026-11-01", "2026-11-25"), "تاريخ التحصيل مينفعش يبقى قبل يوم قفل الصفقة");
 });
 
 const deal = (over: Partial<DealMoney> = {}): DealMoney => ({
@@ -126,12 +143,16 @@ test("the note goes on a deal that is on the sheet only", () => {
 
 test("5.3 · a collection: approved deals only, above zero, never above what's left; revenue is the whole commission at the first one", () => {
   const none = deal({ payments: [] }), part = deal({ status: "Partially Collected", payments: [{ side: "client", amount: egp(30_000) }] });
-  assert.equal(collectionProblem(none, egp(30_000)), null);
-  assert.equal(collectionProblem(part, egp(70_000)), null);
-  assert.match(collectionProblem(part, egp(70_001))!, /أكبر من الباقي/);
-  assert.match(collectionProblem(none, 0)!, /أكبر من صفر/);
-  assert.match(collectionProblem(deal({ status: "Fully Collected" }), egp(1))!, /اتوافق عليها/);
-  assert.match(collectionProblem(deal({ status: "Pending Review", payments: [] }), egp(1))!, /اتوافق عليها/);
+  assert.equal(collectionProblem(none, egp(30_000), "client"), null);
+  assert.equal(collectionProblem(part, egp(50_000), "owner"), null);
+  assert.match(collectionProblem(part, egp(70_001), "owner")!, /أكبر من الباقي/);
+  assert.match(collectionProblem(none, 0, "client")!, /أكبر من صفر/);
+  assert.match(collectionProblem(deal({ status: "Fully Collected" }), egp(1), "client")!, /اتوافق عليها/);
+  assert.match(collectionProblem(deal({ status: "Pending Review", payments: [] }), egp(1), "client")!, /اتوافق عليها/);
+  // review 3: each side is capped by its own commission — 20,000 left from the client, 0 owed by an owner with no commission
+  assert.equal(collectionProblem(part, egp(20_000), "client"), null);
+  assert.equal(collectionProblem(part, egp(20_001), "client"), `المبلغ أكبر من الباقي من عمولة الـ Client (${formatEGP(egp(20_000))})`);
+  assert.match(collectionProblem(deal({ payments: [], commissionOwner: 0, commissionClient: egp(100_000) }), egp(1), "owner")!, /عمولة الـ Owner \(/);
   assert.equal(revenueOnCollection(none), egp(100_000));
   assert.equal(revenueOnCollection(part), 0);
 });
@@ -155,14 +176,15 @@ test("12 · 9.6: only a deal on the sheet is cancelled, once, with a reason", ()
 
 test("5.15 · finance corrects a collection: a reason, above zero, never above the commission, a fully collected deal can't drop back", () => {
   const part = deal({ status: "Partially Collected", payments: [{ side: "client", amount: egp(30_000) }, { side: "owner", amount: egp(20_000) }] });
-  assert.equal(collectionEditProblem(part, egp(30_000), egp(35_000), "المبلغ اتسجّل غلط"), null);
-  assert.equal(collectionEditProblem(part, egp(30_000), egp(80_000), "x"), null); // 80,000 + 20,000 = the whole 100,000
-  assert.equal(collectionEditProblem(part, egp(30_000), egp(80_001), "x"), `المبلغ أكبر من الباقي (${formatEGP(egp(80_000))})`);
-  assert.equal(collectionEditProblem(part, egp(30_000), egp(35_000), "  "), "اكتب السبب");
-  assert.equal(collectionEditProblem(part, egp(30_000), 0, "x"), "المبلغ لازم يبقى أكبر من صفر");
-  assert.equal(collectionEditProblem(part, egp(30_000), egp(30_000), "x"), "ده نفس المبلغ");
-  assert.match(collectionEditProblem(deal({ status: "Fully Collected" }), egp(50_000), egp(40_000), "x")!, /اتحصّلت بالكامل/);
-  assert.equal(collectionEditProblem(deal({ status: "Cancelled" }), egp(50_000), egp(40_000), "x"), "التعديل بيبقى على تحصيل صفقة شغالة");
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(35_000), "المبلغ اتسجّل غلط", "client"), null);
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(50_000), "x", "client"), null); // the client's whole 50,000
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(50_001), "x", "client"), `المبلغ أكبر من الباقي من عمولة الـ Client (${formatEGP(egp(50_000))})`);
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(80_001), "x", "client"), `المبلغ أكبر من الباقي (${formatEGP(egp(80_000))})`);
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(35_000), "  ", "client"), "اكتب السبب");
+  assert.equal(collectionEditProblem(part, egp(30_000), 0, "x", "client"), "المبلغ لازم يبقى أكبر من صفر");
+  assert.equal(collectionEditProblem(part, egp(30_000), egp(30_000), "x", "client"), "ده نفس المبلغ");
+  assert.match(collectionEditProblem(deal({ status: "Fully Collected" }), egp(50_000), egp(40_000), "x", "client")!, /اتحصّلت بالكامل/);
+  assert.equal(collectionEditProblem(deal({ status: "Cancelled" }), egp(50_000), egp(40_000), "x", "client"), "التعديل بيبقى على تحصيل صفقة شغالة");
 });
 
 test("9.15: commission is payable once fully collected, less what was paid; never above what's due or the 21103 balance", () => {
