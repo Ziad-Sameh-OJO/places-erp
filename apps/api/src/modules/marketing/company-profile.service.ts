@@ -1,5 +1,5 @@
 import { PLACES_LOGO_PNG } from "../../core/documents/places-logo";
-import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@places/db";
 import type { CompanyProfileAdmin, CompanyProfileBaseInput, CompanyProfileLatest, CompanyProfileVersionView, DealLogoInput } from "@places/contracts";
@@ -117,6 +117,10 @@ export class CompanyProfileService {
     const id = randomUUID();
     const stored = await this.files.store(me, { name: `Places Company Profile.pdf`, mime: "application/pdf", body: pdf, entity: BUILT, entityId: id });
     const v = await this.db.$transaction(async (tx) => {
+      // two «Update»s at once must not keep two versions and tell everyone twice: the second waits, then sees it's not the newest
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('company-profile-publish'))`;
+      const newest = await tx.companyProfileVersion.findFirst({ orderBy: { createdAt: "desc" }, select: { id: true } });
+      if ((newest?.id ?? null) !== (last?.id ?? null)) throw new ConflictException("اتعمل Update للـ Company Profile دلوقتي · حدّث الصفحة");
       const row = await tx.companyProfileVersion.create({ data: { id, baseFileId: base.id, fileId: stored.id, dealIds, createdById: me.id } });
       await this.audit.record({ module: "marketing", entity: "CompanyProfile", entityId: id, action: "publish", userId: me.id, before: { logos: last?.dealIds.length ?? 0 }, after: { logos: dealIds.length, file: base.name } }, tx);
       return row;

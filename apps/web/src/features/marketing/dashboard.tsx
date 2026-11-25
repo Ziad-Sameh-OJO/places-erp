@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { useFields } from "@/lib/me";
 import { NotQualified } from "./not-qualified";
-import { useCampaigns } from "./use-campaigns";
+import { useCampaigns, useChannels } from "./use-campaigns";
 import { CompetitorsReport } from "./competitors";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -52,7 +52,8 @@ export function Dashboard() {
   const q = useQuery({ queryKey: ["marketing-dashboard", qs], queryFn: () => api.get<MarketingDashboard>(`/marketing/campaigns/dashboard?${qs}`), placeholderData: keepPreviousData });
   const d = q.data;
   const fields = useFields("marketing"); // M-09: the money tiles go with a hidden «اتصرف»
-  const channels = [...new Set(campaigns.map((c) => c.channel))];
+  // every channel of the list (leads come on channels with no campaign too), plus a campaign's channel switched off since
+  const channels = [...new Set([...(useChannels().data ?? []), ...campaigns.map((c) => c.channel)])];
   const COST = { lead: "costPerLead", qualified: "costPerQualified", deal: "costPerDeal" } as const;
   return (
     <>

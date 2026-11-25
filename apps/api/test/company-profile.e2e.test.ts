@@ -140,8 +140,13 @@ test("L8: a deal cancelled after its logo was published is a change — the card
   await prisma.deal.update({ where: { id: dealId }, data: { status: "CANCELLED" } });
   card = (await call("/marketing/company-profile/admin", { cookie: rahma })).body;
   assert.ok(card.changes.any && card.changes.removed >= 1, JSON.stringify(card.changes));
-  const v = await call("/marketing/company-profile/publish", { method: "POST", cookie: rahma });
-  assert.equal(v.status, 201, JSON.stringify(v.body));
+  // two «Update»s at once: one new version (everyone told once), the other refused
+  const count = await prisma.companyProfileVersion.count();
+  const both = await Promise.all([1, 2].map(() => call("/marketing/company-profile/publish", { method: "POST", cookie: rahma })));
+  const codes = both.map((x) => x.status).sort();
+  assert.ok(codes[0] === 201 && [400, 409].includes(codes[1]!), JSON.stringify(both.map((x) => x.body))); // 400 if the second came after the first was saved
+  assert.equal(await prisma.companyProfileVersion.count(), count + 1);
+  const v = both.find((x) => x.status === 201)!;
   versions.push(v.body.id);
   const row = await prisma.companyProfileVersion.findUniqueOrThrow({ where: { id: v.body.id } });
   assert.ok(!row.dealIds.includes(dealId));

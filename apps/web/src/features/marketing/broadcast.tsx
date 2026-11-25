@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BroadcastBoard, BroadcastInput, HotUnitOption, MyBroadcast } from "@places/contracts";
 import { Avatar, Card, Chip, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
@@ -65,14 +65,16 @@ function NewBroadcast({ week }: { week: BroadcastBoard["week"] | undefined }) {
   const qc = useQueryClient();
   const [picked, setPicked] = useState<HotUnitOption[]>([]);
   const [images, setImages] = useState<File[]>([]);
+  const form = useRef<HTMLFormElement>(null);
   return (
     <Card title={t("title")} icon="megaphone" sub={t("sub")}>
-      <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
+      <form ref={form} className="grid" onSubmit={onFormSubmit((f) => run(async () => {
         const text = String(f.get("text") ?? "").trim();
         const body: BroadcastInput = { text, imageFileIds: await uploadBroadcastImages(images), hotUnitIds: picked.map((u) => u.id) };
         await api.post("/marketing/broadcasts", body);
         setPicked([]);
         setImages([]);
+        form.current?.reset(); // the text too: left there, a second «ابعت» a minute later is a second Broadcast to every salesperson
         await qc.invalidateQueries({ queryKey: ["broadcasts"] });
       }, t("sent")))}>
         <Field label={t("images.label")} wide><BroadcastImagePicker files={images} onChange={setImages} /></Field>

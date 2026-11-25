@@ -149,7 +149,10 @@
       "approved": "البوست اتوافق عليه",
       "approve": "موافقة",
       "publishedToast": "اتسجّل وقت النشر",
-      "published": "اتنشر"
+      "published": "اتنشر",
+      "remove": "امسح البوست",
+      "confirmRemove": "تمسح البوست ده من الـ Content plan؟ مش هيوصل له Reminder.",
+      "removed": "البوست اتمسح"
     },
     "new": {
       "title": "بوست في الـ Content plan",

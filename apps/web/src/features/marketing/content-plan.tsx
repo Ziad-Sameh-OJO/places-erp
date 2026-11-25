@@ -66,7 +66,7 @@ export function ContentPlan() {
               .map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
           </dl>
           <PostMediaFolder postId={open.id} />
-          <div className="row end"><PostActions p={open} onDone={() => setOpen(null)} /></div>
+          <div className="row end"><RemovePost p={open} onDone={() => setOpen(null)} /><span className="spacer" /><PostActions p={open} onDone={() => setOpen(null)} /></div>
         </Modal>
       )}
       {creating && <NewPost onClose={() => setCreating(false)} />}
@@ -116,6 +116,20 @@ function PostActions({ p, onDone }: { p: PostRow; onDone?: () => void }) {
   if (p.state === "published") return null;
   if (!p.approved) return can("marketing", "approve") ? <button className="btn sm" onClick={() => act("approve", t("approved"))}>{t("approve")}</button> : null;
   return can("marketing", "edit") ? <button className="btn ghost sm" onClick={() => act("published", t("publishedToast"))}>{t("published")}</button> : null;
+}
+
+/** A post planned by mistake leaves the plan (archived by the API, audited), so no Reminder goes out for it. */
+function RemovePost({ p, onDone }: { p: PostRow; onDone: () => void }) {
+  const t = useTranslations("marketing.content.actions");
+  const { can } = useMe();
+  const run = useAction();
+  const qc = useQueryClient();
+  if (!can("marketing", "delete") || p.state === "published") return null;
+  return (
+    <button type="button" className="btn ghost sm" onClick={() => { if (confirm(t("confirmRemove"))) void run(async () => { await api.del(`/marketing/posts/${p.id}`); await qc.invalidateQueries({ queryKey: ["posts"] }); onDone(); }, t("removed")); }}>
+      <Icon name="x" />{t("remove")}
+    </button>
+  );
 }
 
 /**
