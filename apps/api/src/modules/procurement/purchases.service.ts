@@ -203,7 +203,7 @@ export class PurchasesService {
     if (missing) throw new BadRequestException(missing);
     await this.db.$transaction(async (tx) => {
       const data = changed
-        ? { amount: s.amount, status: "Pending", decidedById: null, decidedAt: null, remindedAt: null, attachments }
+        ? { amount: s.amount, status: "Pending", decidedById: null, decidedAt: null, remindedAt: null, pendingSince: new Date(), attachments }
         : { status: "Settled", paidFromId: cash.id, settledById: me.id, settledAt: new Date(), attachments };
       if (!(await this.repo.move(id, { status: "Approved", amount: p.amount.toFixed(2) }, data, tx))) throw new ConflictException("الطلب اتغير · افتحه تاني");
       await this.files.attach(me, s.attachments.filter((f) => !p.attachments.includes(f)), "Purchase", id, tx);

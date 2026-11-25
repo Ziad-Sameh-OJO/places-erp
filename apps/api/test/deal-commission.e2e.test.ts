@@ -56,6 +56,8 @@ after(async () => {
   await prisma.unit.deleteMany({ where: { code: `U-M${stamp}` } });
   const users = Object.values(people).map((p) => p.userId);
   await prisma.notification.deleteMany({ where: { userId: { in: users } } });
+  await prisma.salesTarget.deleteMany({ where: { employeeId: { in: [people.buyer.id, people.seller.id] } } });
+  await prisma.auditLog.deleteMany({ where: { entity: "SalesTarget", entityId: { in: [people.buyer.id, people.seller.id].map((id) => `${id}:${new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 7)}`) } } });
   await prisma.employee.deleteMany({ where: { id: { in: [people.buyer.id, people.seller.id] } } });
   await prisma.employee.deleteMany({ where: { id: people.tl.id } });
   await prisma.user.deleteMany({ where: { id: { in: users } } });
@@ -107,6 +109,35 @@ test("5.4: the Seller approved after full collection gets their commission then,
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "deals", entityId: dealId, action: "approve-seller" } }));
   assert.ok(await prisma.notification.findFirst({ where: { userId: people.seller.userId, text: { contains: `D-M${stamp}` } } }));
   assert.equal((await approveSeller(manar)).status, 400); // nothing waiting any more
+});
+
+test("review Q1: his commission due keeps the % it was posted with, whatever his scheme is changed to later", async () => {
+  await prisma.employee.update({ where: { id: people.buyer.id }, data: { commissionPct: 50 } });
+  try {
+    const r = await call(`/finance/commissions/${people.buyer.id}`, { cookie: ashraf });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const row = r.body.deals.find((d: { dealId: string }) => d.dealId === dealId);
+    assert.equal(row.due, "15000.00"); // 30% × 50,000, like the entry — not 50%
+    assert.equal(row.shares[0].schemePercent, 30);
+    assert.equal(r.body.tlDue, "0.00");
+  } finally {
+    await prisma.employee.update({ where: { id: people.buyer.id }, data: { commissionPct: 30 } });
+  }
+});
+
+test("review L12: a changed target or a deal's «ملاحظة» amount moves the TL's commission in the books at once", async () => {
+  const month = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 7);
+  // targets 50,000 each: the team made 100,000 of 100,000 → the «وأكتر» tier, 6% × 100,000
+  for (const p of [people.buyer, people.seller]) {
+    const r = await call("/reports/targets", { method: "PUT", cookie: admin, body: { employeeId: p.id, month, value: "50000", deals: 1, visits: 1 } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.pending, false);
+  }
+  assert.equal(await dueOf(people.tl.id), cents("6000"));
+  // the Office Manager / finance counts only 20,000 of it in the targets: 20% → back to 4%
+  const n = await call(`/deals/${dealId}/note`, { method: "PUT", cookie: ashraf, body: { note: `${C} حالة خاصة`, targetBase: "20000" } });
+  assert.equal(n.status, 200, JSON.stringify(n.body));
+  assert.equal(await dueOf(people.tl.id), cents("4000"));
 });
 
 test("9.6 · 5.8: cancelling the deal books the TL's share back too", async () => {

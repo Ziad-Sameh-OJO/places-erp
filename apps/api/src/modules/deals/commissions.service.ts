@@ -84,8 +84,10 @@ export class CommissionsService {
     ]);
     const ids = [...new Set(deals.flatMap((d) => d.participants.map((p) => p.employee.id)))];
     const schemes = new Map((await this.repo.schemes(ids, tx)).map((e) => [e.id, Number(e.commissionPct ?? 0)]));
-    const schemeOf = (id: string) => schemes.get(id) ?? 0;
     const rows = deals.flatMap((d) => {
+      // Q1 (review): the % frozen when his commission was posted, like the entry; today's scheme only before that
+      const frozen = new Map(d.participants.filter((p) => p.commissionPct !== null).map((p) => [p.employee.id, Number(p.commissionPct)]));
+      const schemeOf = (id: string) => frozen.get(id) ?? schemes.get(id) ?? 0;
       const money = toMoney(d, d.payments);
       const shares = splitDeal(money, schemeOf).filter((s) => s.salesId === employeeId);
       if (!shares.length) return []; // a Seller still waiting for Manar (5.4)

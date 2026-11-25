@@ -138,6 +138,11 @@ export class DealsRepository {
     return tx.payment.findMany({ where: { dealId }, select: { side: true, amount: true, receivedAt: true } });
   }
 
+  /** Q1 (review): the scheme % his posted commission used, kept on the deal so a later change of his % doesn't move his due. */
+  freezePct(tx: Prisma.TransactionClient, dealId: string, employeeId: string, pct: number) {
+    return tx.dealParticipant.updateMany({ where: { dealId, employeeId }, data: { commissionPct: pct } });
+  }
+
   /** 5.4: Manar's approval puts the waiting Seller on the deal. */
   approveSellers(tx: Prisma.TransactionClient, dealId: string) {
     return tx.dealParticipant.updateMany({ where: { dealId, side: "SELLER", approved: false }, data: { approved: true } });
@@ -223,7 +228,8 @@ export class DealsRepository {
   commissionDeals(employeeId: string, tx: Prisma.TransactionClient = this.db) {
     return tx.deal.findMany({
       where: { participants: { some: { employeeId } }, status: { in: ["APPROVED", "PARTIALLY_COLLECTED", "FULLY_COLLECTED"] } },
-      select: { ...DEAL_DETAIL, payments: { select: { side: true, amount: true, receivedAt: true } } }, orderBy: { closedAt: "desc" },
+      select: { ...DEAL_DETAIL, payments: { select: { side: true, amount: true, receivedAt: true } },
+        participants: { select: { side: true, approved: true, commissionPct: true, employee: PERSON }, orderBy: { employee: { name: "asc" } } } }, orderBy: { closedAt: "desc" },
     });
   }
 

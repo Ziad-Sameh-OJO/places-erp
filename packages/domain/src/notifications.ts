@@ -26,6 +26,7 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "lead.new_lead", label: "New Lead من Telesales", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 2.3 · 1.17
   { key: "lead.draft_admin", label: "Not Interested / Cancellation راح الـ Draft Admin", to: "الأوبريشن (من قواعد الليدز)", toRoles: ["ops"], channels: ["app"], important: false }, // 1.27
   { key: "lead.draft_admin_alarm", label: "Alarm يومي: الـ Draft Admin مستني قرار", to: "الأوبريشن (من قواعد الليدز)", toRoles: ["ops"], channels: ["app"], important: true }, // 1.27
+  { key: "lead.telesales_off", label: "الـ Telesales اللي في قواعد الليدز متوقف", to: "الأوبريشن · الإدارة", toRoles: ["ops", "admin"], channels: ["app"], important: true }, // review Q4 · 1.17: once a day while No Answer leads need him
   { key: "lead.duplicate", label: "عميل مكرر", to: "الأوبريشن", toRoles: ["ops"], channels: ["app", "push"], important: false }, // M-01 Q7
   { key: "client.merge", label: "اقتراح دمج ملفين بنفس الموبايل", to: "الأوبريشن", toRoles: ["ops", "opshead"], channels: ["app", "push"], important: false }, // M-10 2.2
   { key: "client.deletion", label: "عميل طالب يمسح بياناته", to: "الإدارة", toRoles: ["admin"], channels: ["app", "email"], important: true }, // M-10 2.3

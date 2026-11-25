@@ -1,7 +1,8 @@
 /**
  * M-08 2.4: the approver answers a purchase request within one working day, or the approvers get a reminder — once per
  * request (remindedAt is claimed before anything is sent, so a retry or a second run sends nothing more).
- * The rule is approvalOverdue() from @places/domain; the working days and holidays come from the settings.
+ * The rule is approvalOverdue() from @places/domain; the working days and holidays come from the settings. The day
+ * counts from pendingSince: a request sent back to Pending (a different amount at settling) gets a fresh working day.
  * shortcut: in-app only (the worker has no mail sender yet); move it to the mail queue when that processor exists.
  */
 import { prisma } from "@places/db";
@@ -13,10 +14,10 @@ const EVENT = "procurement.reminder";
 
 export async function procurementReminderTick(now = new Date()): Promise<number> {
   const calendar = await workCalendar();
-  const pending = await prisma.purchase.findMany({ where: { status: "Pending", remindedAt: null }, select: { id: true, no: true, item: true, createdAt: true } });
+  const pending = await prisma.purchase.findMany({ where: { status: "Pending", remindedAt: null }, select: { id: true, no: true, item: true, pendingSince: true } });
   const event = eventByKey(EVENT)!;
   let sent = 0;
-  for (const p of pending.filter((x) => approvalOverdue(x.createdAt, now, calendar))) {
+  for (const p of pending.filter((x) => approvalOverdue(x.pendingSince, now, calendar))) {
     const text = `تذكير: طلب شراء PR-${p.no} (${p.item}) مستني موافقتك من يوم شغل`;
     const told = await prisma.$transaction(async (tx) => {
       const claimed = await tx.purchase.updateMany({ where: { id: p.id, status: "Pending", remindedAt: null }, data: { remindedAt: now } });

@@ -131,9 +131,13 @@ test("a rejection needs its reason and goes back to Mokhtar with it", async () =
 test("2.3 · a different amount when paying sends the request back for approval", async () => {
   const r = await ask({ amount: "5000" });
   await decide(r.body.id, nancy);
+  await prisma.purchase.update({ where: { id: r.body.id }, data: { createdAt: new Date(Date.now() - 7 * 86_400_000), pendingSince: new Date(Date.now() - 7 * 86_400_000) } });
   const s = await settle(r.body.id, "6000");
   assert.equal(s.status, 200, JSON.stringify(s.body));
   assert.equal(s.body.status, "Pending");
+  // 2.4 (review L11): back in Pending it gets a fresh working day, not «من يوم شغل» at once from its old createdAt
+  await procurementReminderTick(new Date());
+  assert.equal((await prisma.purchase.findUniqueOrThrow({ where: { id: r.body.id } })).remindedAt, null);
   assert.equal(s.body.amount, "6000.00");
   assert.equal(s.body.decidedBy, null);
   assert.equal((await decide(r.body.id, nancy)).body.status, "Approved");
@@ -182,7 +186,7 @@ test("the custody ceiling: finance sets it on a safe, procurement sees it next t
 
 test("2.4 · the approvers are reminded after one working day, once (the job run twice)", async () => {
   const r = await ask({ amount: "400" });
-  await prisma.purchase.update({ where: { id: r.body.id }, data: { createdAt: new Date(Date.now() - 7 * 86_400_000) } });
+  await prisma.purchase.update({ where: { id: r.body.id }, data: { pendingSince: new Date(Date.now() - 7 * 86_400_000) } });
   const now = new Date();
   assert.ok((await procurementReminderTick(now)) >= 1);
   await procurementReminderTick(now);

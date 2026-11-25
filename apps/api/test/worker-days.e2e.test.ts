@@ -70,7 +70,8 @@ test("M-05 7.8: «حل الـ HR» due on a Friday rings neither Friday nor the 
 
 test("M-07 9.16: a fixed bill whose day is a Friday is announced the next working day, once, with its event", async () => {
   const name = `${P} اشتراك`;
-  billId = (await prisma.recurringBill.create({ data: { name, vendor: "Property Finder", accountId: "e2e", fromId: "e2e", amount: "4500", day: 4, createdById: "e2e" } })).id;
+  // made in this file's January 2030: December 2029 is before it existed, nothing to catch up
+  billId = (await prisma.recurringBill.create({ data: { name, vendor: "Property Finder", accountId: "e2e", fromId: "e2e", amount: "4500", day: 4, createdById: "e2e", createdAt: at("2030-01-01") } })).id;
   const month = async () => (await prisma.recurringBill.findUniqueOrThrow({ where: { id: billId } })).notifiedFor;
   await recurringBillsTick(FRI);
   await recurringBillsTick(SAT);
@@ -82,6 +83,27 @@ test("M-07 9.16: a fixed bill whose day is a Friday is announced the next workin
   assert.ok(n.length >= 1, "the accountant heard");
   assert.ok(n.every((x) => x.event === "finance.bill_due"));
   assert.equal(new Set(n.map((x) => x.userId)).size, n.length, "once each");
+});
+
+test("review L14: a bill on the 28th whose 28th … month end are days off is announced on the next month's first working day", async () => {
+  // Feb 2030: Thu 28 a holiday (this test's), Fri 1 March off → Sat 2 March
+  const name = `${P} إيجار`;
+  await prisma.holiday.create({ data: { from: new Date("2030-02-28"), to: new Date("2030-02-28"), label: `${P} إجازة فبراير` } });
+  const id = (await prisma.recurringBill.create({ data: { name, vendor: "المالك", accountId: "e2e", fromId: "e2e", amount: "30000", day: 28, createdById: "e2e", createdAt: at("2030-02-01"), notifiedFor: "2030-01" } })).id;
+  try {
+    const month = async () => (await prisma.recurringBill.findUniqueOrThrow({ where: { id } })).notifiedFor;
+    await recurringBillsTick(at("2030-02-28"));
+    await recurringBillsTick(at("2030-03-01"));
+    assert.equal(await month(), "2030-01", "the holiday and the Friday rest");
+    await recurringBillsTick(at("2030-03-02"));
+    await recurringBillsTick(at("2030-03-02"));
+    assert.equal(await month(), "2030-02", "February's notice, in March, not lost");
+    const n = await prisma.notification.findMany({ where: { text: { contains: name }, createdAt: { gte: START } } });
+    assert.ok(n.length >= 1 && n.every((x) => x.text.includes("فبراير")), "it names the month it's for");
+    assert.equal(new Set(n.map((x) => x.userId)).size, n.length, "once each");
+  } finally {
+    await prisma.recurringBill.deleteMany({ where: { id } });
+  }
 });
 
 // under the KPI-quarter lock: the job measures the current quarter, Q4 2026, which kpis.e2e closes for a while

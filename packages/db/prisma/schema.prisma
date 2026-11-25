@@ -796,7 +796,9 @@ model DealParticipant {
   employeeId String
   side       DealSide
   approved   Boolean  @default(true) // the Seller waits for Manar's approval
-  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  /// Q1 (review): his scheme % frozen when his commission was posted (fully collected); later dues read this, not today's %
+  commissionPct Decimal? @db.Decimal(5, 2)
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
   employee   Employee @relation(fields: [employeeId], references: [id])
 
   @@id([dealId, employeeId])
@@ -1505,6 +1507,8 @@ model Purchase {
   postedById   String?
   postedAt     DateTime?
   remindedAt   DateTime? // the approvers' one-working-day reminder went out (2.4)
+  /// when it (re)entered Pending: the one working day of 2.4 counts from here, not from createdAt
+  pendingSince DateTime  @default(now())
   createdById  String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
