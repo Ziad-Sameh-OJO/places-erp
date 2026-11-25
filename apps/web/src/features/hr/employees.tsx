@@ -58,7 +58,7 @@ export function Employees() {
 /** The employee file (demo empDrawer): «الفايل» and «البيانات» (HR edits; the Super Admin only reads — Q49). */
 function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const tr = useTranslations("hr");
-  const { can } = useMe();
+  const { can, me } = useMe();
   const qc = useQueryClient();
   const run = useAction();
   const [tab, setTab] = useState<"file" | "one" | "docs" | "edit">("file");
@@ -95,7 +95,7 @@ function EmployeeDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   ] as [string, string, string][]).filter(([k]) => fields.shows(k)).map(([, k, v]) => [k, v] as const);
   return (
     <Drawer title={e.name} sub={`${serverText(e.department)} · ${tr("employees.file")}`} onClose={onClose} chips={e.partTime ? <Chip tone="info">Part-time</Chip> : <Chip plain>Full-time</Chip>}>
-      <Tabs items={[["file", tr("employees.tabFile")], ["one", "1-to-1"], ...(seesFile ? [["docs", tr("employeeFile.tab")] as ["docs", string]] : []), ...(can("hr", "edit") ? [["edit", tr("employees.tabData")] as ["edit", string]] : [])]} value={tab} onChange={setTab} />
+      <Tabs items={[["file", tr("employees.tabFile")], ...(e.userId !== me?.id ? [["one", "1-to-1"] as ["one", string]] : []), ...(seesFile ? [["docs", tr("employeeFile.tab")] as ["docs", string]] : []), ...(can("hr", "edit") ? [["edit", tr("employees.tabData")] as ["edit", string]] : [])]} value={tab} onChange={setTab} />
       {tab === "file" ? (
         <>
           {/* 7.16 (demo empDrawer): the month's numbers; three Excuses or more cost half a day each (Q31) */}

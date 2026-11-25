@@ -24,7 +24,7 @@ type BoardRow = Pick<AttendanceRowView, "employeeId" | "name" | "department"> & 
 /** M-05 · «حضور النهارده» (7.2 · 7.12, demo hr.js att()): the day's fingerprints through the tiers, who didn't check in, the sheet upload and the names to link. */
 export function AttendanceToday() {
   const t = useTranslations("hr");
-  const { can } = useMe();
+  const { can, me } = useMe();
   const amounts = useFields("hr").shows("deductionAmount"); // M-09: a hidden amount isn't shown (the API blanks it)
   const [day, setDay] = useState(today());
   const [q, setQ] = useState("");
@@ -92,7 +92,7 @@ export function AttendanceToday() {
             <span key="s"><Chip tone={STATUS_TONE[r?.status ?? "none"]}>{t(`attendance.st.${r?.status ?? "none"}`)}</Chip>{r && <span className="sub">{serverText(r.label)}</span>}</span>,
             r?.deduction ? <span key="d">{r.deduction === 1 ? t("common.fullDay") : r.deduction === 0.5 ? t("common.halfDay") : r.deduction === 0.25 ? t("common.quarterDay") : t("attendance.days", { n: r.deduction })}{amounts && <span className="sub">{money(r.deductionAmount)}</span>}</span> : r?.confirmForgot ? t("attendance.awaitingConfirm") : "—",
             <span key="e" className="row">
-              {r?.confirmForgot && can("hr", "approve") && <button className="btn sm" onClick={() => void run(async () => { await api.post(`/hr/attendance/${r.id}/confirm-forgot`, {}); await refresh(); }, t("attendance.confirmedOk"))}>{t("attendance.confirmBtn")}</button>}
+              {r?.confirmForgot && can("hr", "approve") && me?.scope === "all" && <button className="btn sm" onClick={() => void run(async () => { await api.post(`/hr/attendance/${r.id}/confirm-forgot`, {}); await refresh(); }, t("attendance.confirmedOk"))}>{t("attendance.confirmBtn")}</button>}
               {/* HR, 15 Nov: who didn't punch (or was decided already) gets HR's decision; a real fingerprint is corrected with «عدّل» */}
               {can("hr", "edit") && d.working && (!r || r.decided) && (
                 <select value="" aria-label={t("attendance.decideAria", { name: b.name })} onChange={(e) => e.target.value && pick({ ...b, row: r }, e.target.value)}>
@@ -102,7 +102,7 @@ export function AttendanceToday() {
               )}
               {can("hr", "edit") && r && !r.decided && <button className="btn ghost sm" onClick={() => setEntry({ employeeId: r.employeeId, name: r.name, ...(r.checkIn ? { checkIn: r.checkIn } : {}) })}>{t("common.edit")}</button>}
               {can("hr", "approve") && <button className="btn ghost sm" onClick={() => setPenalty(b.employeeId)}>{t("attendance.penaltyBtn")}</button>}
-              <button className="btn ghost sm" onClick={() => setOne({ employeeId: b.employeeId, name: b.name })}>1-to-1</button>
+              {b.employeeId !== me?.employeeId && <button className="btn ghost sm" onClick={() => setOne({ employeeId: b.employeeId, name: b.name })}>1-to-1</button>}
             </span>,
           ])} />
         </Card>

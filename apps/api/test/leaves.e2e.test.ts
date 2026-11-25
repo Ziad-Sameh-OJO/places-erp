@@ -102,3 +102,42 @@ test("the calendar, today's list and the monthly balances report with export (7.
   // the TL sees his team's requests
   assert.ok((await call("/hr/leaves", { cookie: tlA })).body.some((l: { employeeId: string }) => l.employeeId === employeeId));
 });
+
+test("admin review: two requests sent at once can't both spend the last day; a request approved twice at once lands once", async () => {
+  const e = await prisma.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { leaveBalance: true } });
+  const year = plus(40).slice(0, 4);
+  const held = (await prisma.leaveRequest.aggregate({ where: { employeeId, type: "سنوية", status: { in: ["PENDING_TL", "APPROVED_BY_TL", "CLOSED_BY_HR"] }, fromDay: { gte: new Date(`${year}-01-01`), lte: new Date(`${year}-12-31`) } }, _sum: { days: true } }))._sum.days ?? 0;
+  await prisma.employee.update({ where: { id: employeeId }, data: { leaveBalance: held + 1 } }); // one day left
+  try {
+    const both = await Promise.all([40, 42].map((n) => call("/hr/leaves", { method: "POST", cookie: mohsen, body: { type: "سنوية", from: plus(n), to: plus(n) } })));
+    assert.deepEqual(both.map((r) => r.status).sort(), [201, 400], JSON.stringify(both.map((r) => r.body)));
+    const ok = both.find((r) => r.status === 201)!.body;
+    const twice = await Promise.all([1, 2].map(() => call(`/hr/leaves/${ok.id}/approve`, { method: "POST", cookie: tlA })));
+    assert.equal(twice.filter((r) => r.status === 201).length, 1, JSON.stringify(twice.map((r) => r.body)));
+    assert.equal(await prisma.auditLog.count({ where: { entity: "LeaveRequest", entityId: ok.id, action: "approve" } }), 1);
+  } finally {
+    await prisma.employee.update({ where: { id: employeeId }, data: { leaveBalance: e.leaveBalance } });
+  }
+});
+
+test("admin review: the sick-leave document is attached only when it's a finished upload, and opens for the TL and HR only", async () => {
+  const me = (await prisma.user.findUniqueOrThrow({ where: { email: "m.mohsen@places.com" } })).id;
+  const mk = (status: "READY" | "PENDING") => prisma.file.create({ data: { key: `e2e/${START.getTime()}-${status}.pdf`, name: "تقرير طبي.pdf", mime: "application/pdf", size: 10, status, uploadedById: me } });
+  const [ready, pending] = await Promise.all([mk("READY"), mk("PENDING")]);
+  try {
+    assert.equal((await call("/hr/leaves", { method: "POST", cookie: mohsen, body: { type: "مرضية", from: plus(-30), to: plus(-30), documentId: pending.id } })).status, 400);
+    const r = await call("/hr/leaves", { method: "POST", cookie: mohsen, body: { type: "مرضية", from: plus(-30), to: plus(-30), documentId: ready.id } });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.hasDocument, true);
+    const tl = await call(`/hr/leaves/${r.body.id}/document`, { cookie: tlA });
+    assert.equal(tl.status, 200, JSON.stringify(tl.body));
+    assert.ok(tl.body.url);
+    assert.equal((await call(`/hr/leaves/${r.body.id}/document`, { cookie: basant })).status, 200);
+    assert.equal((await call(`/hr/leaves/${r.body.id}/document`, { cookie: tlB })).status, 404); // another team's TL
+    assert.equal((await call(`/hr/leaves/${r.body.id}/document`, { cookie: mohsen })).status, 403); // no hr: view
+    assert.ok(await prisma.auditLog.findFirst({ where: { entity: "LeaveRequest", entityId: r.body.id, action: "download" } }));
+  } finally {
+    await prisma.leaveRequest.deleteMany({ where: { documentId: { in: [ready.id, pending.id] } } });
+    await prisma.file.deleteMany({ where: { id: { in: [ready.id, pending.id] } } });
+  }
+});

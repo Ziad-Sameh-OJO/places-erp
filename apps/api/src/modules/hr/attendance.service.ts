@@ -122,6 +122,8 @@ export class AttendanceService {
 
   /** «Confirm خصم يوم» (7.3): HR confirms «نسي البصمة»; only then the day is deducted. */
   async confirmForgot(me: CurrentUser, id: string, run: Run): Promise<AttendanceRowView> {
+    // M-05 3.1 (124): the day's deduction is HR's to confirm — a Team Leader (hr: approve, his team) doesn't deduct a day
+    if (me.grants.scope !== "all") throw new ForbiddenException("تأكيد خصم نسيان البصمة للـ HR");
     return run(async (tx) => {
       const a = await tx.attendanceDay.findFirst({ where: { id, kind: "FORGOT", hrConfirmed: false, employee: this.scope(me) }, include: { employee: { select: EMP } } });
       if (!a) throw new NotFoundException("مفيش «نسي البصمة» مستني تأكيد هنا");

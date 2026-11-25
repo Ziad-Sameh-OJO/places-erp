@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { ExcuseAsk, ExcuseStatus, ExcuseView } from "@places/contracts";
 import { attendanceDay, excuseApplies, excuseDeduction, excuseNumber, excuseRefused, localDate, rulesFor, type DeductionRules, type DeductionTiers } from "@places/domain";
@@ -16,6 +16,11 @@ const COST = (n: number, r: DeductionRules) => (excuseRefused(n, r) ? "مرفو�
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 type Row = Prisma.ExcuseRequestGetPayload<object>;
+/** Moves the request only from the status it was read in: a second click (or a second person) at the same moment loses. */
+async function claim(tx: Tx, id: string, status: string) {
+  const n = await tx.excuseRequest.updateMany({ where: { id, status }, data: { status } });
+  if (!n.count) throw new ConflictException("الطلب ده اتقرر قبل كده");
+}
 
 /**
  * M-05 · the Excuse (7.4, Q31): a ticket (type «excuse», 8.1) to the Team Leader, then HR. Its number in the month
@@ -60,6 +65,8 @@ export class ExcusesService {
     const r = await run(async (tx) => {
       const e = await tx.employee.findUnique({ where: { userId: me.id }, select: { id: true, name: true, teamLeader: { select: { userId: true } } } });
       if (!e) throw new NotFoundException("مالكش فايل موظف");
+      // two sent at once mustn't get the same number (a 3rd counted as a free 2nd, a 5th let through as a 4th)
+      await tx.$queryRaw`SELECT id FROM hr."Employee" WHERE id = ${e.id} FOR UPDATE`;
       if (await tx.excuseRequest.findFirst({ where: { employeeId: e.id, day: day(a.day), status: { notIn: ["rejected"] } } })) throw new BadRequestException("فيه Excuse لليوم ده");
       const earlier = await tx.excuseRequest.count({ where: { employeeId: e.id, day: { gte: day(`${today.slice(0, 7)}-01`) }, status: { in: ["pending_tl", "approved_tl", "confirmed"] } } });
       const n = excuseNumber(earlier), refused = excuseRefused(n, await this.repo.deductionRules(tx));
@@ -82,6 +89,7 @@ export class ExcusesService {
       if (!r) throw new NotFoundException("الطلب مش موجود");
       const turn = (await this.view([r], me))[0]!.canDecide;
       if (!turn) throw new ForbiddenException("الطلب ده مش مستنيك");
+      await claim(tx, id, r.status);
       const out = await tx.excuseRequest.update({ where: { id }, data: turn === "tl" ? { status: "approved_tl", ...(r.tlUserId ? {} : { tlUserId: me.id }) } : { status: "confirmed", hrUserId: me.id, decidedAt: new Date() } });
       if (r.ticketId) {
         if (turn === "tl") await this.tickets.noteSystem(tx, r.ticketId, "الـ Team Leader وافق · مستني الـ HR", me.id, true);
@@ -99,6 +107,7 @@ export class ExcusesService {
       const r = await tx.excuseRequest.findUnique({ where: { id } });
       if (!r) throw new NotFoundException("الطلب مش موجود");
       if (!(await this.view([r], me))[0]!.canDecide) throw new ForbiddenException("الطلب ده مش مستنيك");
+      await claim(tx, id, r.status);
       const out = await tx.excuseRequest.update({ where: { id }, data: { status: "rejected", rejectReason: reason, decidedAt: new Date() } });
       if (r.ticketId) await this.tickets.settleSystem(tx, r.ticketId, `اترفض: ${reason}`, me.id);
       await this.audit.record({ module: "hr", entity: "ExcuseRequest", entityId: id, action: "reject", userId: me.id, before: { status: r.status }, after: { status: "rejected", reason } }, tx);
