@@ -12,8 +12,9 @@ import { api } from "@/lib/api";
 import { day, dayTime, money } from "@/lib/format";
 import { serverText } from "@/lib/server-text";
 import { Bar } from "@/features/kpis/kpis-page";
+import { TargetPlanner } from "./target-plan";
 
-type Tab = "targets" | "tl" | "sched";
+type Tab = "targets" | "plan" | "tl" | "sched";
 type T = ReturnType<typeof useTranslations<"reports">>;
 const FREQS: ReportInput["freq"][] = ["daily", "weekly", "monthly", "quarterly"];
 /** The formats as the API names them; the first («inside the system») is shown through `reports.fmtInSystem`. */
@@ -29,14 +30,23 @@ export function ReportsPage() {
   const tr = useTranslations("reports");
   const [tab, setTab] = useState<Tab>("targets");
   const { me, can, loading } = useMe();
+  // «روح لصفحة التارجت» on the dashboard opens the plan on its year and quarter («?tab=plan&year=2026&q=4»)
+  const [planAt, setPlanAt] = useState<{ year: number; q: number } | null>(null);
+  useEffect(() => {
+    const s = new URLSearchParams(window.location.search), now = new Date();
+    if (s.get("tab") !== "plan") return;
+    const y = Number(s.get("year")), q = Number(s.get("q"));
+    setPlanAt({ year: y >= 2020 && y <= 2100 ? y : now.getFullYear(), q: q >= 1 && q <= 4 ? q : Math.floor(now.getMonth() / 3) + 1 });
+    setTab("plan");
+  }, []);
   const head = isReportsHead(me?.roles ?? []);
   // 11.20: a link from before, or typed: whoever isn't a head or listed gets a plain «closed» (the API refuses anyway)
   if (!loading && !can("reports")) return <Card><Empty text={tr("access.closed")} icon="lock" /></Card>;
   return (
     <>
-      <div className="row"><Tabs<Tab> items={[["targets", tr("tabs.targets")], ["tl", tr("tabs.tl")], ["sched", tr("tabs.sched")]]} value={tab} onChange={setTab} />
+      <div className="row"><Tabs<Tab> items={[["targets", tr("tabs.targets")], ["plan", tr("tabs.plan")], ["tl", tr("tabs.tl")], ["sched", tr("tabs.sched")]]} value={tab} onChange={setTab} />
         <span className="spacer" />{head && <WhoSees />}</div>
-      {tab === "sched" ? <Schedules /> : <Targets tl={tab === "tl"} />}
+      {tab === "sched" ? <Schedules /> : tab === "plan" ? <TargetPlanner key={planAt?.year ?? 0} startYear={planAt?.year ?? new Date().getFullYear()} startQuarter={planAt?.q ?? Math.floor(new Date().getMonth() / 3) + 1} /> : <Targets tl={tab === "tl"} />}
     </>
   );
 }

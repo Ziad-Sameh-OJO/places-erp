@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import { periodOf } from "@places/contracts";
 import type { CancelDeal, CollectDeal, CreateDeal, EditCollection, DealCollected, DealDetail, DealExecution, DealFilters, DealForm, DealNote, DealPapers, DealRow, DealUnit, Paged, ReviewDeal, TodayLine } from "@places/contracts";
@@ -23,6 +23,8 @@ import { hideDetail, hideRow, mayChange } from "./deal-fields";
 
 /** Out of scope or gone: the same answer, so it doesn't tell whether the deal exists. */
 const NO_DEAL = "الصفقة دي مش موجودة";
+/** A second review that raced the first one (double click, two tabs): the same words as reviewProblem. */
+const REVIEWED = "الصفقة دي اتراجعت قبل كده";
 const NOT_SALES = "اختار سيلز من القايمة";
 const NO_TCR = "الـ TCR دي مش موجودة";
 /** Only the number is left-to-right: «ج.م» inside an LTR run would come out as «م.ج» (core/documents). */
@@ -207,13 +209,13 @@ export class DealsService {
       if (problem) throw new BadRequestException(problem);
       const reviewed = { reviewedById: me.id, reviewedAt: new Date() };
       if (input.decision === "reject") {
-        await this.repo.update(tx, id, { status: "REJECTED", reviewNote: input.reason!, ...reviewed });
+        if (!(await this.repo.review(tx, id, { status: "REJECTED", reviewNote: input.reason!, ...reviewed }))) throw new ConflictException(REVIEWED);
         await this.audit.record({ module: "deals", entity: "Deal", entityId: id, action: "reject", userId: me.id, before: { status: d.status }, after: { status: "REJECTED", reason: input.reason } }, tx);
         return d;
       }
       const edits = await this.corrections(d, input);
       const { buyers, ...fields } = edits?.after ?? {};
-      await this.repo.update(tx, id, { status: "APPROVED", ...reviewed, ...fields });
+      if (!(await this.repo.review(tx, id, { status: "APPROVED", ...reviewed, ...fields }))) throw new ConflictException(REVIEWED);
       if (buyers) await this.repo.setBuyers(tx, id, buyers as string[]);
       await this.clientAccount(tx, me, d); // 9.12: the client's own account under 113 opens with the approval
       // 5.5 · M-02 6.2 · Q16: the approved deal locks its unit's side; Manar (Rent) / Randa (Resale, Income) confirm the close

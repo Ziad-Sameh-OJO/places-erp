@@ -131,3 +131,4 @@ export function moneyBuckets(period: DashPeriod, now: Date, cal: WorkCalendar = 
 /** The sum of `value` of the rows dated inside each bucket (a count with value 1). */
 export const sumIn = (rows: readonly { at: Date; value: number }[], buckets: readonly Window[]): number[] =>
   buckets.map((b) => rows.reduce((s, r) => (r.at >= b.from && r.at < b.to ? s + r.value : s), 0));
+

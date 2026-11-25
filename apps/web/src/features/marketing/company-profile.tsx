@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UploadRequest, type CompanyProfileAdmin, type CompanyProfileLatest, type DealLogoView, type StoredFile, type UploadTicket } from "@places/contracts";
 import { Card, Chip, Icon, useAction } from "@/components/ui";
 import { put } from "@/components/file-upload";
-import { api } from "@/lib/api";
+import { FILE_LINKS, api } from "@/lib/api";
 import { ago, day } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
@@ -13,7 +13,7 @@ const ADMIN = ["company-profile-admin"];
 const LATEST = ["company-profile"];
 const PREVIEW = "/api/v1/marketing/company-profile/preview";
 
-export const useCompanyProfileAdmin = (enabled = true) => useQuery({ queryKey: ADMIN, queryFn: () => api.get<CompanyProfileAdmin>("/marketing/company-profile/admin"), enabled });
+export const useCompanyProfileAdmin = (enabled = true) => useQuery({ queryKey: ADMIN, queryFn: () => api.get<CompanyProfileAdmin>("/marketing/company-profile/admin"), enabled, ...FILE_LINKS });
 
 /** One file straight to storage, as the browser does everywhere: ask, PUT, complete. */
 async function uploadOne(file: File, purpose?: "profile"): Promise<string> {
@@ -93,7 +93,7 @@ export function CompanyProfileCard() {
             <ol>
               {data.versions.map((v, i) => (
                 <li key={v.id}>
-                  <span className="mono">v{data.versions.length - i}</span>
+                  <span className="mono">v{v.number}</span>
                   <span>{day(v.at)} · {v.by}</span>
                   <span className="hint">{t("logos", { n: v.logos })}</span>
                   {i === 0 && <Chip tone="ok">{t("current")}</Chip>}
@@ -147,7 +147,7 @@ export function DealLogoCell({ dealId, logo, company }: { dealId: string; logo: 
 /** Home, for everyone: the newest Company Profile to open or save and send (nothing until marketing's first Update). */
 export function CompanyProfileLink() {
   const t = useTranslations("marketing.profile.home");
-  const latest = useQuery({ queryKey: LATEST, queryFn: () => api.get<CompanyProfileLatest>("/marketing/company-profile") }).data?.latest;
+  const latest = useQuery({ queryKey: LATEST, queryFn: () => api.get<CompanyProfileLatest>("/marketing/company-profile"), ...FILE_LINKS }).data?.latest;
   if (!latest) return null;
   return (
     <Card title="Company Profile" icon="file" sub={t("sub", { when: day(latest.at) })}>

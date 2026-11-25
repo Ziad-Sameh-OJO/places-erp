@@ -67,7 +67,7 @@ export function DealDrawer({ d, onClose }: { d: DealSheetRow; onClose: () => voi
         {sellerWait && <p className="hint">{t("sellerHalf")}</p>}
       </section>}
       {d.status === "Rejected" && detail?.reviewNote && <Note kind="warn">{t("rejectReason", { reason: detail.reviewNote })}</Note>}
-      {d.status === "Pending Review" && (can("deals", "approve") ? <Review d={d} post={post} /> : <Note>{t("waitingReview")}</Note>)}
+      {d.status === "Pending Review" && (can("deals", "approve") ? <Review d={d} post={post} busy={run.busy} /> : <Note>{t("waitingReview")}</Note>)}
       {live(d.status) && (fields.shows("execution") || fields.shows("papers")) && <ExecPapers d={d} post={post} />}
       {live(d.status) && fields.shows("note") && (can("deals", "approve") || can("finance", "edit")) && (
         <form className="card flat" onSubmit={onFormSubmit((f) => post("note", { note: String(f.get("note") ?? ""), targetBase: String(f.get("targetBase") ?? "") || null }, t("noteForm.saved"), "put"))}>
@@ -154,7 +154,7 @@ function ExecPapers({ d, post }: { d: DealSheetRow; post: (path: string, body: u
 }
 
 /** Q9: the Office Manager may correct any field before approving; a rejection needs its reason. */
-function Review({ d, post }: { d: DealSheetRow; post: (path: string, body: unknown, ok: string) => Promise<void> }) {
+function Review({ d, post, busy }: { d: DealSheetRow; post: (path: string, body: unknown, ok: string) => Promise<void>; busy: boolean }) {
   const t = useTranslations("deals.review");
   const sales = useAchievements().data?.rows ?? [];
   const { only } = useOnly();
@@ -188,8 +188,8 @@ function Review({ d, post }: { d: DealSheetRow; post: (path: string, body: unkno
       </div>
       <div className="row">
         <input name="reason" placeholder={t("reasonPh")} aria-label={t("reason")} />
-        <button type="button" className="btn danger" onClick={() => void send("reject")}>{t("reject")}</button>
-        <button type="button" className="btn" onClick={() => void send("approve")}>{t("approve")}</button>
+        <button type="button" className="btn danger" disabled={busy} onClick={() => void send("reject")}>{t("reject")}</button>
+        <button type="button" className="btn" disabled={busy} onClick={() => void send("approve")}>{t("approve")}</button>
       </div>
     </form>
   );
@@ -224,15 +224,17 @@ function Collect({ d, onDone }: { d: DealSheetRow; onDone: () => Promise<unknown
   const cash = useCashAccounts(true).data;
   const first = d.payments.length === 0;
   const incomes = useCollectForm(first).data?.incomes ?? [];
+  const form = useRef<HTMLFormElement>(null);
   const send = onFormSubmit((f) => run(async () => {
     const r = await api.post<DealCollected>(`/deals/${d.id}/collections`, {
       side: f.get("side"), toId: f.get("toId"), amount: String(f.get("amount") ?? "").trim(), date: f.get("date"), ...(first ? { revenueId: f.get("revenueId") } : {}),
     });
+    form.current?.reset(); // saved: an empty form for the next one, not this one's amount pressed again
     await onDone();
     return r;
   }, t("saved")));
   return (
-    <form className="grid" onSubmit={send}>
+    <form className="grid" ref={form} onSubmit={send}>
       <Field label={t("from")} req><select name="side" defaultValue="client"><option value="client">{td("fromClient")}</option><option value="owner">{td("fromOwner")}</option></select></Field>
       <Field label={t("to")} req>
         <select name="toId" required defaultValue=""><option value="" disabled>{cash ? td("pick") : td("loading")}</option>{cash?.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
@@ -244,7 +246,7 @@ function Collect({ d, onDone }: { d: DealSheetRow; onDone: () => Promise<unknown
           <select name="revenueId" required defaultValue=""><option value="" disabled>{td("pick")}</option>{incomes.map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select>
         </Field>
       )}
-      <div className="row end wide"><button className="btn ghost"><Icon name="plus" />{t("submit")}</button></div>
+      <div className="row end wide"><button className="btn ghost" disabled={run.busy}><Icon name="plus" />{t("submit")}</button></div>
     </form>
   );
 }

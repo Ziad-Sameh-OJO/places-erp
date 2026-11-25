@@ -1,8 +1,8 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@places/db";
-import type { Achievements, TargetInput, TargetsView, TeamRow, TransactionRow } from "@places/contracts";
+import type { Achievements, TargetInput, TargetPlan, TargetPlanResult, TargetPlanSave, TargetsView, TeamRow, TransactionRow } from "@places/contracts";
 import {
-  behindPace, dayStart, quarterLabel, dealRowOf, fromDecimal, localDate, monthBounds, monthLabel, periodFigures, quarterMonths, ranked, targetPercent, teamResult, tlTiersOf, toDecimal,
+  behindPace, dayStart, monthLock, quarterLabel, yearMonths, dealRowOf, fromDecimal, localDate, monthBounds, monthLabel, periodFigures, quarterMonths, ranked, targetPercent, teamResult, tlTiersOf, toDecimal,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -96,7 +96,8 @@ export class TargetsService {
           value: toDecimal(goal), deals: mt.reduce((n, x) => n + (x?.deals ?? 0), 0), visits: mt.reduce((n, x) => n + (x?.visits ?? 0), 0), achieved: toDecimal(f.achieved), percent: Math.round(percent * 10) / 10,
           transactions: f.transactions, visitsDone: visitsOf(p.userId, "visit"), meetings: visitsOf(p.userId, "meeting"),
           inventory: units.find((u) => u.agentId === p.id)?._count._all ?? 0, farming: actsOf(p.id, "farming"), approach: actsOf(p.id, "approach"),
-          behind: live && behindPace(percent, gone, b.days), pending: pendingOf(t?.pending ?? null),
+          // no target (the TL's own row) is never «behind», as the TL's alert job (target-pace) reads it
+          behind: live && goal > 0 && behindPace(percent, gone, b.days), pending: pendingOf(t?.pending ?? null),
         },
         achieved: f.achieved,
       };
@@ -127,27 +128,84 @@ export class TargetsService {
   async setTarget(me: CurrentUser, input: TargetInput) {
     const p = (await this.repo.salespeople(this.scope(me))).find((x) => x.id === input.employeeId);
     if (!p) throw new NotFoundException("السيلز ده مش موجود أو مش من حقك");
-    const today = localDate(new Date(), await this.time.calendar()), cur = today.slice(0, 7);
-    if (input.month < cur) throw new ConflictException("الشهر ده خلص · مفيش تعديل");
-    const waits = input.month === cur && today.slice(8, 10) !== "01" && !me.grants.can("reports", "approve");
+    const today = localDate(new Date(), await this.time.calendar());
+    const lock = monthLock(input.month, today, me.grants.can("reports", "approve"));
+    if (lock === "closed") throw new ConflictException("الشهر ده خلص · مفيش تعديل");
     const before = (await this.repo.targets(input.month, [p.id]))[0] ?? null;
+    const waits = lock === "approval";
+    const value = await this.db.$transaction((tx) => this.apply(tx, me, p, input.month, before, { value: input.value, deals: input.deals, visits: input.visits }, waits));
+    if (waits) await this.notifications.notify({ event: "target.change", text: `${me.name} عايز يغيّر تارجت ${p.name} (${monthLabel(input.month)}) لـ ${value} · مستني موافقتك`, link: LINK });
+    return { pending: waits };
+  }
+
+  /** «خطة التارجت»: a year of my people's monthly targets; a month with none saved shows the standing target. */
+  async plan(me: CurrentUser, year: number): Promise<TargetPlan> {
+    const today = localDate(new Date(), await this.time.calendar()), approve = me.grants.can("reports", "approve");
+    const people = await this.repo.salespeople(this.scope(me)), months = yearMonths(year);
+    const saved = await this.db.salesTarget.findMany({ where: { month: { in: months }, employeeId: { in: people.map((p) => p.id) } } });
+    const hidesValue = me.fields.hidden(MODULE).has("value");
+    return {
+      year, months: months.map((m) => ({ month: m, lock: monthLock(m, today, approve) })),
+      people: people.map((p) => ({
+        employeeId: p.id, name: p.name, team: p.teamLeader?.team ?? p.team, tl: p.teamLeader?.name ?? null,
+        cells: Object.fromEntries(months.map((m) => {
+          const s = saved.find((x) => x.employeeId === p.id && x.month === m), pending = pendingOf(s?.pending ?? null);
+          return [m, {
+            value: hidesValue ? "" : (s?.value ?? p.target).toFixed(2), deals: s?.deals ?? 0, visits: s?.visits ?? 0, saved: !!s,
+            pending: pending && (hidesValue ? { ...pending, value: "" } : pending),
+          }];
+        })),
+      })),
+      can: { edit: me.grants.can("reports", "edit"), approve, value: !hidesValue && !me.fields.fixed(MODULE).has("value") },
+    };
+  }
+
+  /**
+   * Many cells of one metric in one go, each by the month rule (11.8): a closed month or a value the person may not change
+   * is skipped, the current month waits for approval, the rest is saved; one audit line per cell, one notification.
+   */
+  async savePlan(me: CurrentUser, input: TargetPlanSave): Promise<TargetPlanResult> {
+    if (input.metric === "value" && (me.fields.fixed(MODULE).has("value") || me.fields.hidden(MODULE).has("value"))) throw new ForbiddenException("مش من حقك تغيّر قيمة التارجت");
+    const people = new Map((await this.repo.salespeople(this.scope(me))).map((p) => [p.id, p]));
+    if (input.cells.some((c) => !people.has(c.employeeId))) throw new NotFoundException("فيه سيلز مش موجود أو مش من حقك");
+    const today = localDate(new Date(), await this.time.calendar()), approve = me.grants.can("reports", "approve");
+    const months = [...new Set(input.cells.map((c) => c.month))];
+    const stored = await this.db.salesTarget.findMany({ where: { month: { in: months }, employeeId: { in: [...people.keys()] } } });
+    let saved = 0, skipped = 0;
+    const waiting: string[] = [];
+    await this.db.$transaction(async (tx) => {
+      for (const c of input.cells) {
+        const lock = monthLock(c.month, today, approve);
+        if (lock === "closed") { skipped++; continue; }
+        const p = people.get(c.employeeId)!, before = stored.find((s) => s.employeeId === p.id && s.month === c.month) ?? null;
+        // the other two metrics stay as they are (or as they wait for approval)
+        const base = pendingOf(before?.pending ?? null) ?? { value: (before?.value ?? p.target).toFixed(2), deals: before?.deals ?? 0, visits: before?.visits ?? 0 };
+        const next = { value: base.value, deals: base.deals, visits: base.visits, [input.metric]: input.metric === "value" ? Number(c.amount).toFixed(2) : Number(c.amount) };
+        await this.apply(tx, me, p, c.month, before, next, lock === "approval");
+        if (lock === "approval") waiting.push(`${p.name} (${monthLabel(c.month)})`); else saved++;
+      }
+    }, { timeout: 60_000 });
+    if (waiting.length) await this.notifications.notify({ event: "target.change", text: `${me.name} عايز يغيّر تارجت ${waiting.slice(0, 5).join("، ")}${waiting.length > 5 ? ` و${waiting.length - 5} كمان` : ""} · مستني موافقتك`, link: LINK });
+    return { saved, pending: waiting.length, skipped };
+  }
+
+  /** One salesperson's month: saved, or kept aside for approval; audited either way. Returns the value written. */
+  private async apply(tx: Prisma.TransactionClient, me: CurrentUser, p: { id: string; name: string; target: Prisma.Decimal }, month: string,
+    before: { value: Prisma.Decimal; deals: number; visits: number } | null, input: { value: string; deals: number; visits: number }, waits: boolean) {
     // M-09: a value the person may not change stays as stored (or the salesperson's own target, for a new month)
     const value = me.fields.fixed(MODULE).has("value") ? (before?.value ?? p.target).toFixed(2) : input.value;
     const values = { value, deals: input.deals, visits: input.visits };
-    await this.db.$transaction(async (tx) => {
-      const where = { employeeId_month: { employeeId: p.id, month: input.month } };
-      if (waits) {
-        const pending = { ...values, by: me.name };
-        await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month: input.month, value: p.target, pending }, update: { pending } });
-      } else {
-        await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month: input.month, ...values }, update: { ...values, pending: Prisma.DbNull } });
-        await this.tlRebook?.(tx, me, [p.id], [input.month]);
-      }
-      await this.audit.record({ module: MODULE, entity: "SalesTarget", entityId: `${p.id}:${input.month}`, action: "update", userId: me.id,
-        before, after: { ...values, waits, summary: `تارجت ${p.name} (${monthLabel(input.month)}) ${waits ? "مستني موافقة" : "بقى"} ${value}` } }, tx);
-    });
-    if (waits) await this.notifications.notify({ event: "target.change", text: `${me.name} عايز يغيّر تارجت ${p.name} (${monthLabel(input.month)}) لـ ${value} · مستني موافقتك`, link: LINK });
-    return { pending: waits };
+    const where = { employeeId_month: { employeeId: p.id, month } };
+    if (waits) {
+      const pending = { ...values, by: me.name };
+      await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month, value: p.target, pending }, update: { pending } });
+    } else {
+      await tx.salesTarget.upsert({ where, create: { employeeId: p.id, month, ...values }, update: { ...values, pending: Prisma.DbNull } });
+      await this.tlRebook?.(tx, me, [p.id], [month]); // review L12: the TL's commission in the books follows the new target
+    }
+    await this.audit.record({ module: MODULE, entity: "SalesTarget", entityId: `${p.id}:${month}`, action: "update", userId: me.id,
+      before, after: { ...values, waits, summary: `تارجت ${p.name} (${monthLabel(month)}) ${waits ? "مستني موافقة" : "بقى"} ${value}` } }, tx);
+    return value;
   }
 
   /** The approval of a change in the middle of the month («reports: approve»). */
@@ -197,10 +255,13 @@ export class TargetsService {
     return deals.flatMap((d) => {
       const first = d.payments.reduce<Date | null>((min, p) => (!min || p.receivedAt < min ? p.receivedAt : min), null);
       if (!first || first < start || first >= end) return [];
+      // M-02: the Seller has no Transaction until the Inventory Manager approves him (domain sellersOf)
+      const sellerApproved = d.participants.filter((x) => x.side === "SELLER").every((x) => x.approved);
       return [{
         dealId: d.id, code: d.code, type: d.type, company: d.company, status: DEAL_STATUS[d.status] ?? d.status,
-        collected: hidesCollected ? "" : toDecimal(d.payments.reduce((s, p) => s + piasters(p.amount), 0)), firstAt: first.toISOString(),
-        people: d.participants.map((x) => `${names.get(x.employeeId) ?? "—"} (${x.side === "BUYER" ? "Buyer" : "Seller"})`).join("، "),
+        // what came in within the period asked for, not the deal's total
+        collected: hidesCollected ? "" : toDecimal(d.payments.filter((p) => p.receivedAt >= start && p.receivedAt < end).reduce((s, p) => s + piasters(p.amount), 0)), firstAt: first.toISOString(),
+        people: d.participants.filter((x) => x.side === "BUYER" || sellerApproved).map((x) => `${names.get(x.employeeId) ?? "—"} (${x.side === "BUYER" ? "Buyer" : "Seller"})`).join("، "),
       }];
     });
   }

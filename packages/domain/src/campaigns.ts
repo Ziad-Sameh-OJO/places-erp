@@ -73,6 +73,23 @@ export function campaignBudget(c: { startsOn: string; endsOn: string | null; dai
   return c.dailyBudget !== null ? c.dailyBudget * campaignDays(c, today) : c.budget;
 }
 
+/**
+ * 14.13 · Q6 (developer's decision): what a campaign spent within a period of Cairo days. Its spend is spread evenly over
+ * the days it ran (start to its end, or today while it still runs — `campaignDays`), and only the days inside the period
+ * count — so «النهارده» divides one day's share by today's leads, not the whole spend. No period = all of it. Rounded
+ * to the piaster.
+ */
+export function spentInPeriod(c: { startsOn: string; endsOn: string | null; spent: Piasters }, period: { from?: string | undefined; to?: string | undefined }, today: string): Piasters {
+  if (!period.from && !period.to) return c.spent;
+  const ran = campaignDays(c, today);
+  if (!ran) return 0;
+  const last = c.endsOn !== null && c.endsOn < today ? c.endsOn : today;
+  const from = period.from && period.from > c.startsOn ? period.from : c.startsOn;
+  const to = period.to && period.to < last ? period.to : last;
+  const inside = campaignDays({ startsOn: from, endsOn: to }, to);
+  return Math.round((c.spent * inside) / ran);
+}
+
 // ───────── 4.18 · the leads that never became Qualified, and why ─────────
 
 /** One thing that happened on a lead (sales.LeadActivity): `byUserId` null = the system. */

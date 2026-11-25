@@ -72,6 +72,14 @@ export class DealsRepository {
     return tx.deal.create({ data, select: { id: true } });
   }
 
+  /**
+   * The review's change, only while the deal still waits for it: a second press (or a second tab) that read it before the
+   * first one committed finds no row to change (Postgres re-checks the condition after the first one's lock).
+   */
+  async review(tx: Prisma.TransactionClient, id: string, data: Prisma.DealUncheckedUpdateManyInput): Promise<boolean> {
+    return (await tx.deal.updateMany({ where: { id, status: "PENDING_REVIEW" }, data })).count === 1;
+  }
+
   update(tx: Prisma.TransactionClient, id: string, data: Prisma.DealUncheckedUpdateInput) {
     return tx.deal.update({ where: { id }, data, select: { id: true } });
   }

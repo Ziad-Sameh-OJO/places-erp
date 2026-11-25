@@ -3,14 +3,14 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { BroadcastBoard, BroadcastInput, HotUnitOption, MyBroadcast } from "@places/contracts";
 import { Avatar, Card, Chip, Field, Icon, Note, Table, onFormSubmit, useAction } from "@/components/ui";
-import { api } from "@/lib/api";
+import { FILE_LINKS, api } from "@/lib/api";
 import { ago, num } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
 import { HotUnitPicker } from "./hot-unit-picker";
 import { BroadcastImagePicker, BroadcastImages, uploadBroadcastImages } from "./broadcast-images";
 
-export const useBroadcasts = (enabled = true) => useQuery({ queryKey: ["broadcasts"], queryFn: () => api.get<BroadcastBoard>("/marketing/broadcasts"), enabled });
+export const useBroadcasts = (enabled = true) => useQuery({ queryKey: ["broadcasts"], queryFn: () => api.get<BroadcastBoard>("/marketing/broadcasts"), enabled, ...FILE_LINKS });
 
 /** The demo's «Broadcast» tab (marketing.js): a new message for sales with its Hot Inventory, who sent it, other units. */
 export function Broadcast() {
@@ -79,7 +79,7 @@ function NewBroadcast({ week }: { week: BroadcastBoard["week"] | undefined }) {
         <Field label={t("text")} req wide><textarea name="text" required placeholder={t("textPlaceholder")} /></Field>
         <Field label={t("hot")} wide><HotUnitPicker picked={picked} onChange={setPicked} /></Field>
         <p className="hint wide">{t("schedule", { sent: week?.sent ?? 0, of: week?.of ?? 2 })}</p>
-        <div className="row end wide"><button className="btn"><Icon name="send" />{t("submit")}</button></div>
+        <div className="row end wide"><button className="btn" disabled={run.busy}><Icon name="send" />{t("submit")}</button></div>
       </form>
     </Card>
   );
@@ -91,7 +91,7 @@ export function MyBroadcasts() {
   const tb = useTranslations("marketing.broadcast");
   const run = useAction();
   const qc = useQueryClient();
-  const list = useQuery({ queryKey: ["my-broadcasts"], queryFn: () => api.get<MyBroadcast[]>("/marketing/broadcasts/mine") }).data ?? [];
+  const list = useQuery({ queryKey: ["my-broadcasts"], queryFn: () => api.get<MyBroadcast[]>("/marketing/broadcasts/mine"), ...FILE_LINKS }).data ?? [];
   const open = list.filter((b) => !b.doneAt);
   if (!open.length) return null;
   const done = (id: string, others: string) => void run(async () => {

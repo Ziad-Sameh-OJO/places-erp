@@ -46,17 +46,20 @@ export class CompanyProfileService {
 
   /** Marketing's card on «الصفقات». */
   async admin(): Promise<CompanyProfileAdmin> {
-    const [base, versions, logos] = await Promise.all([
+    const [base, versions, logos, total] = await Promise.all([
       this.base(),
       this.db.companyProfileVersion.findMany({ orderBy: { createdAt: "desc" }, take: VERSIONS_SHOWN }),
       this.db.companyProfileLogo.findMany(),
+      this.db.companyProfileVersion.count(),
     ]);
     const published = new Set(versions[0]?.dealIds ?? []);
     const links = new Map(await Promise.all(logos.map(async (l) => [l.fileId, await this.files.downloadUrl(l.fileId).then((x) => x.url, () => null)] as const)));
-    const c = profileChanges(profileLogos(logos).map((l) => l.dealId), versions[0] ?? null, base?.id ?? null);
+    // the same logos an «Update» would put on «عملاؤنا»: a deal cancelled since counts as a removal
+    const { shown } = await this.shownLogos(logos);
+    const c = profileChanges(shown.map((l) => l.dealId), versions[0] ?? null, base?.id ?? null);
     return {
       base: base && { id: base.id, name: base.name, at: base.createdAt.toISOString() },
-      versions: await this.views(versions),
+      versions: (await this.views(versions)).map((v, i) => ({ ...v, number: total - i })),
       logos: Object.fromEntries(logos.map((l) => [l.dealId, { url: links.get(l.fileId) ?? null, done: !!l.doneAt, published: published.has(l.dealId) }])),
       changes: { added: c.added.length, removed: c.removed.length, newBase: c.newBase, any: c.any },
     };
@@ -134,9 +137,7 @@ export class CompanyProfileService {
     const file = await this.files.bytes(baseFileId);
     if (!file) throw new ServiceUnavailableException("ملف الـ Company Profile مش متاح دلوقتي · جرّب تاني");
     const doc = await PDFDocument.load(file.body, { ignoreEncryption: true }).catch(() => { throw new BadRequestException("ملف الـ PDF ده مش سليم · ارفع نسخة تانية"); });
-    const logos = profileLogos(await this.db.companyProfileLogo.findMany({ where: { doneAt: { not: null } } }));
-    const names = await this.deals.names(logos.map((l) => l.dealId));
-    const shown = logos.filter((l) => names.has(l.dealId)); // a deal that left the sheet (cancelled) leaves «عملاؤنا» too
+    const { shown, names } = await this.shownLogos(await this.db.companyProfileLogo.findMany({ where: { doneAt: { not: null } } }));
     if (shown.length) {
       const pics = await Promise.all(shown.map((l) => this.files.dataUrl(l.fileId)));
       const cells = shown.map((l, i) => ({ name: names.get(l.dealId) ?? "", src: pics[i] ?? null }));
@@ -147,6 +148,13 @@ export class CompanyProfileService {
       for (const p of await doc.copyPages(extra, extra.getPageIndices())) doc.addPage(p);
     }
     return { pdf: Buffer.from(await doc.save()), dealIds: shown.map((l) => l.dealId) };
+  }
+
+  /** The Done logos whose deal is still on the sheet: a cancelled deal leaves «عملاؤنا». One rule for the card and the build. */
+  private async shownLogos<T extends { dealId: string; doneAt: Date | null }>(all: T[]) {
+    const logos = profileLogos(all);
+    const names = await this.deals.names(logos.map((l) => l.dealId));
+    return { shown: logos.filter((l) => names.has(l.dealId)), names };
   }
 
   private async views(rows: Array<{ id: string; fileId: string; dealIds: string[]; createdById: string; createdAt: Date }>): Promise<CompanyProfileVersionView[]> {

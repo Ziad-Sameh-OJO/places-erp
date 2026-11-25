@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PLACES_CALENDAR } from "../src/business-time.ts";
 import { dailyAverage, dailySumValue, dailyTotals, dayStatus, dueOf, handInState, handInStep, isOffPeriod, nextDue, pickPeople } from "../src/reports.ts";
-import { behindPace, dealRowOf, monthBounds, periodFigures, ranked, targetPercent, tlTiersOf, type DealRow } from "../src/targets.ts";
+import { behindPace, dealRowOf, groupTargetPercent, monthBounds, periodFigures, ranked, targetPercent, tlTiersOf, type DealRow } from "../src/targets.ts";
 
 // Cairo is UTC+2 in November 2026
 const at = (s: string) => new Date(s);
@@ -87,6 +87,20 @@ test("11.8 · 1.5M of a 3M target is 50%: only the month's collections, a Transa
   assert.deepEqual(periodFigures("s1", deals, at("2026-09-30T22:00:00Z"), nov[0]), { achieved: 25_000_000, share: 25_000_000, transactions: 1 });
 });
 
+test("M-12 · the KPI «التارجت» is the quarter's collections against its three months' targets, not one month's", () => {
+  const q4 = [at("2026-09-30T22:00:00Z"), at("2026-12-31T22:00:00Z")] as const;
+  // a deal closed in September and collected in October counts in Q4: the money came in Q4
+  const deals = [deal({ payments: [{ side: "owner", amount: 300_000_000, at: at("2026-10-05T10:00:00Z") }] }), // the Buyer side gets half
+    deal({ buyers: ["s2"], payments: [{ side: "owner", amount: 120_000_000, at: at("2026-11-05T10:00:00Z") }] })];
+  const months = ["2026-10", "2026-11", "2026-12"];
+  // s1: 1M a month standing, December raised to 2M → goal 4M, achieved 1.5M → 37.5%
+  const goal = (id: string, m: string) => (id === "s1" && m === "2026-12" ? 200_000_000 : undefined);
+  assert.equal(groupTargetPercent([{ id: "s1", standing: 100_000_000 }], months, goal, deals, ...q4), 37.5);
+  // a team (or the company) adds goals and achievements: (1.5M + 0.6M) ÷ (4M + 3M) = 30%
+  assert.equal(groupTargetPercent([{ id: "s1", standing: 100_000_000 }, { id: "s2", standing: 100_000_000 }], months, goal, deals, ...q4), 30);
+  assert.equal(groupTargetPercent([{ id: "s3", standing: 0 }], months, () => undefined, deals, ...q4), null);
+});
+
 test("11.8 · a «note» override counts once, in the month of the first collection", () => {
   const d = deal({ targetBase: 10_000_000, payments: [{ side: "owner", amount: 1_000_000, at: at("2026-10-10T10:00:00Z") }, { side: "client", amount: 1_000_000, at: at("2026-11-10T10:00:00Z") }] });
   assert.equal(periodFigures("s1", [d], at("2026-09-30T22:00:00Z"), at("2026-10-31T22:00:00Z")).achieved, 5_000_000);
@@ -96,6 +110,9 @@ test("11.8 · a «note» override counts once, in the month of the first collect
 test("11.8 · the TL hears of whoever is under 60% of the month gone by; the ranking shares equal places", () => {
   assert.equal(behindPace(20, 15, 30), true); // 50% of the month gone → the line is 30%
   assert.equal(behindPace(35, 15, 30), false);
+  // day 25 of 30: the line is 50%; standing exactly on it isn't behind (it used to be, by float rounding)
+  assert.equal(behindPace(50, 25, 30), false);
+  assert.equal(behindPace(49.9, 25, 30), true);
   assert.deepEqual(ranked([{ id: "a", percent: 40 }, { id: "b", percent: 90 }, { id: "c", percent: 40 }]).map((r) => [r.id, r.rank]), [["b", 1], ["a", 2], ["c", 2]]);
 });
 

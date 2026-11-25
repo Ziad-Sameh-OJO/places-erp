@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, No
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@places/db";
 import type { EmployeeFileDocs, EmployeeTimelineItem, NewEmployeeDocument, OneOnOneCoverage, OneOnOneRange, OneOnOneReportRow } from "@places/contracts";
-import { DEFAULT_DOC_TYPES, answersSummary, lastWeekOfMonth, localDate, missingDocs, monthLabel } from "@places/domain";
+import { DEFAULT_DOC_TYPES, answersSummary, lastWeekOfMonth, localDate, missingDocs, monthLabel, penaltyMonth } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -74,12 +74,16 @@ export class EmployeeFileService {
   async file(me: CurrentUser, employeeId: string): Promise<EmployeeFileDocs> {
     this.only(me);
     await this.employee(employeeId);
-    const [types, docs, ones, penalties] = await Promise.all([
+    const [types, docs, ones, penalties, approvals] = await Promise.all([
       this.docTypes(),
       this.db.employeeDocument.findMany({ where: { employeeId }, orderBy: { createdAt: "desc" } }),
       this.db.oneOnOne.findMany({ where: { employeeId }, orderBy: { heldOn: "desc" } }),
       this.db.penalty.findMany({ where: { employeeId }, orderBy: { day: "desc" } }),
+      this.db.deductionApproval.findMany({ select: { month: true, at: true } }),
     ]);
+    const approvedAt = new Map(approvals.map((a) => [a.month, a.at]));
+    // 7.9: a penalty approved after its month's deductions were goes with a later month's; say which
+    const lands = (p: (typeof penalties)[number]) => { const m = p.status === "approved" && Number(p.deductionDays) ? penaltyMonth(iso(p.day), p.decidedAt, approvedAt) : null; return m && m !== iso(p.day).slice(0, 7) ? `بيتخصم مع خصومات ${monthLabel(m)}` : null; };
     const by = await this.names([...docs.map((d) => d.byUserId), ...ones.map((o) => o.byUserId), ...penalties.map((p) => p.byUserId)]);
     const sheet = new Map(docs.filter((d) => d.kind === "one_on_one" && d.refId).map((d) => [d.refId!, d.id]));
     const timeline: EmployeeTimelineItem[] = [
@@ -87,7 +91,7 @@ export class EmployeeFileService {
       ...ones.map((o) => ({ kind: "one_on_one", day: iso(o.heldOn), title: `1-to-1 ${monthLabel(iso(o.heldOn).slice(0, 7))}`,
         sub: [by.get(o.byUserId ?? ""), o.hrAction && `حل الـ HR: ${o.hrAction}${o.hrActionDone ? " ✓" : ""}`].filter(Boolean).join(" · "), docId: sheet.get(o.id) ?? null })),
       ...penalties.map((p) => ({ kind: "penalty", day: iso(p.day), title: p.text,
-        sub: [Number(p.deductionDays) ? `خصم ${Number(p.deductionDays)} يوم` : "من غير خصم", PENALTY_STATUS[p.status] ?? p.status].join(" · "), docId: null })),
+        sub: [Number(p.deductionDays) ? `خصم ${Number(p.deductionDays)} يوم` : "من غير خصم", PENALTY_STATUS[p.status] ?? p.status, lands(p)].filter(Boolean).join(" · "), docId: null })),
     ].sort((a, b) => b.day.localeCompare(a.day));
     const uploaded = docs.filter((d) => d.kind === "upload");
     return {

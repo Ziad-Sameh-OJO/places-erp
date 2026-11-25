@@ -62,12 +62,12 @@ export class CampaignsRepository {
 
   /** Name, target and cost of these campaigns (archived ones too: their old leads still count). */
   byIds(ids: string[]) {
-    return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, target: true, spent: true } });
+    return this.db.campaign.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, target: true, spent: true, startsOn: true, endsOn: true } });
   }
 
   /** The campaigns the filter covers, for «صرف الكامبينز». */
   covered(where: Prisma.CampaignWhereInput) {
-    return this.db.campaign.findMany({ where: { AND: [where, { archivedAt: null }] }, select: { id: true, spent: true } });
+    return this.db.campaign.findMany({ where: { AND: [where, { archivedAt: null }] }, select: { id: true, spent: true, startsOn: true, endsOn: true } });
   }
 
   /**

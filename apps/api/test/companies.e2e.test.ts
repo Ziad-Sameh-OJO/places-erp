@@ -105,3 +105,17 @@ test("«عدّل»: Telesales edits every column; a name or number another compa
   assert.equal((await call(`/companies/${a}`, { method: "PATCH", cookie: mohsen, body })).status, 403);
   assert.equal(await prisma.auditLog.count({ where: { entity: "Company", entityId: a, action: "update" } }), 2);
 });
+
+test("«عدّل» a company whose category was switched off: its feedback is saved; moving it to an inactive category is 400", async () => {
+  const off = `E2E قديمة ${stamp}`; // a category no longer in the active list
+  const c = await prisma.company.create({ data: { name: `${NAME} off-cat`, category: off, number: `0177${stamp.slice(-7)}`, createdById: hadeerUser } });
+  const body = { name: c.name, category: off, number: c.number, feedback: "لسه بيدوروا" };
+  assert.equal((await call(`/companies/${c.id}`, { method: "PATCH", cookie: heba, body })).status, 403);
+  const r = await call(`/companies/${c.id}`, { method: "PATCH", cookie: hadeer, body });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual([r.body.category, r.body.feedback], [off, "لسه بيدوروا"]);
+  const moved = await call(`/companies/${c.id}`, { method: "PATCH", cookie: hadeer, body: { ...body, category: "مش موجودة" } });
+  assert.equal(moved.status, 400);
+  assert.equal(moved.body.error, "الكاتيجوري دي مش في القايمة");
+  assert.equal((await call(`/companies/${c.id}`, { method: "PATCH", cookie: hadeer, body: { ...body, category } })).body.category, category);
+});

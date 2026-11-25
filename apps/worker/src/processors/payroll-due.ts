@@ -1,12 +1,13 @@
 /**
- * M-07 9.14: on pay day (finance.payDay, default the 1st) the accountant hears once «اصرف مرتبات الشهر». Nothing is
+ * M-07 9.14: on pay day (finance.payDay, default the 1st) the accountant hears once «اصرف مرتبات الشهر» — the month
+ * payrollMonth() names (pay day 1 → on 1 Nov, October's). Nothing is
  * paid here — the accountant pays everyone at once from «المرتبات». Idempotent: `finance.payrollNotifiedFor` holds the
- * month already announced. Working days only: a pay day on a day off is announced the next working day, even when
- * that is next month (review L14: noticeMonths keeps last month's notice until it went out).
+ * month already announced. Working days only: a pay day on a day off is announced the next working day; the due date
+ * (payrollDueDate) may fall in the next month, so a month-end of days off doesn't lose the notice (review L14).
  */
 import { prisma } from "@places/db";
 import { pushEvent } from "../push.ts";
-import { eventByKey, formatEGP, fromDecimal, monthLabel, monthOf, noticeMonths } from "@places/domain";
+import { eventByKey, formatEGP, fromDecimal, monthLabel, payrollDueDate, payrollMonth } from "@places/domain";
 import { workingDay } from "../calendar.ts";
 
 const NOTIFIED = "finance.payrollNotifiedFor";
@@ -14,14 +15,9 @@ const NOTIFIED = "finance.payrollNotifiedFor";
 export async function payrollDueTick(now = new Date()): Promise<void> {
   const today = await workingDay(now);
   if (!today) return;
+  const month = payrollMonth(today); // the month the run pays now (up to the 15th: the previous one)
   const day = await prisma.setting.findUnique({ where: { key: "finance.payDay" } });
-  const saved = (await prisma.setting.findUnique({ where: { key: NOTIFIED } }))?.value;
-  const last = typeof saved === "string" && saved ? saved : null;
-  // never announced yet (a new install): from this month on, not a catch-up of last month
-  for (const month of noticeMonths(today, typeof day?.value === "number" ? day.value : 1, last, last ? "" : monthOf(today))) await announce(month);
-}
-
-async function announce(month: string): Promise<void> {
+  if (today < payrollDueDate(month, typeof day?.value === "number" ? day.value : 1)) return;
   if (await prisma.payrollRun.findUnique({ where: { month } })) return;
   const people = await prisma.employee.findMany({ where: { user: { status: "ACTIVE" }, salary: { gt: 0 } }, select: { salary: true } });
   if (!people.length) return;

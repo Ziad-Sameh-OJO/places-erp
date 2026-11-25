@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { DailyFieldInput, DailyInput, ReportsAccessInput, DayQuery, HandInInput, TargetMonthQuery, ReportInput, periodOf, TargetInput, TransactionsQuery } from "@places/contracts";
+import { DailyFieldInput, DailyInput, ReportsAccessInput, DayQuery, HandInInput, TargetMonthQuery, ReportInput, periodOf, TargetInput, TransactionsQuery, TargetPlanQuery, TargetPlanSave } from "@places/contracts";
 import { ZodPipe } from "../../core/http/zod.pipe";
 import { sendXlsx } from "../../core/http/excel";
 import { Requires, SignedIn } from "../../core/authz/requires.decorator";
@@ -128,6 +128,19 @@ export class ReportsController {
   @Requires("reports", "edit")
   setTarget(@Me() me: CurrentUser, @Body(new ZodPipe(TargetInput)) body: TargetInput) {
     return this.targets.setTarget(me, body);
+  }
+
+  /** «خطة التارجت»: a year of every salesperson's monthly targets, saved many cells at once. */
+  @Get("targets/plan")
+  @Requires("reports", "view")
+  plan(@Me() me: CurrentUser, @Query(new ZodPipe(TargetPlanQuery)) q: TargetPlanQuery) {
+    return this.targets.plan(me, q.year);
+  }
+
+  @Put("targets/plan")
+  @Requires("reports", "edit")
+  savePlan(@Me() me: CurrentUser, @Body(new ZodPipe(TargetPlanSave)) body: TargetPlanSave) {
+    return this.targets.savePlan(me, body);
   }
 
   @Post("targets/:employeeId/:month/approve")

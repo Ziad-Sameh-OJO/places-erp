@@ -47,7 +47,7 @@ export class AccessRepository {
   }
 
   rolesByKey(keys: string[]) {
-    return this.db.role.findMany({ where: { key: { in: keys } }, include: { permissions: true } });
+    return this.db.role.findMany({ where: { key: { in: keys } }, include: { permissions: true, fieldRules: true } });
   }
 
   audit(f: AuditFilters) {

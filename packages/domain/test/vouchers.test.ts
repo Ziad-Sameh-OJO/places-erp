@@ -1,7 +1,18 @@
 /** M-07 · vouchers and the budget, with the numbers from the issues (9.2: 1,000 buffet from the main safe; 9.11: 20,000 CIB → Nancy). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { budgetCrossed, budgetLevel, entryProblem, periodStart, voucherLines, voucherProblem } from "../src/index.ts";
+import { budgetCrossed, budgetLevel, entryProblem, payrollDueDate, payrollMonth, periodStart, voucherLines, voucherProblem } from "../src/index.ts";
+
+test("a payroll run in the first half of a month pays the month before; after the 15th, the month itself (review Q2)", () => {
+  assert.equal(payrollMonth("2026-11-01"), "2026-10"); // paying on 1 Nov = October, with October's deductions
+  assert.equal(payrollMonth("2026-11-15"), "2026-10");
+  assert.equal(payrollMonth("2026-11-16"), "2026-11");
+  assert.equal(payrollMonth("2026-01-05"), "2025-12"); // across the year
+  // pay day 1 → October's payroll falls due on 1 Nov; pay day 28 → on 28 Oct
+  assert.equal(payrollDueDate("2026-10", 1), "2026-11-01");
+  assert.equal(payrollDueDate("2026-12", 10), "2027-01-10");
+  assert.equal(payrollDueDate("2026-10", 28), "2026-10-28");
+});
 
 test("a payment of 1,000 on the buffet from the main safe: expense debit, safe credit, balanced (9.2)", () => {
   const lines = voucherLines("pay", { from: "11101", account: "5203", amount: 1_000_00 });

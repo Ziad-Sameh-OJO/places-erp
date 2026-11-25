@@ -96,7 +96,8 @@ export const bandTone = (score: number, b: Bands = DEFAULT_BANDS): "ok" | "warn"
 
 /** What one item counts toward its card: a report item is its hand-ins against the times required, the rest their value. */
 export function itemAchievement(it: { method: Method; direction: Direction; goal: number; value: number | null; required: number | null; delivered: number }): number {
-  return it.method === "report" ? achievement({ direction: "at-least", goal: it.required ?? 0 }, it.delivered) : achievement(it, it.value ?? 0);
+  // a hand-in item is done when every required time is in: more hand-ins (or a lowered «required») don't go past 100%
+  return it.method === "report" ? achievement({ direction: "at-least", goal: it.required ?? 0 }, Math.min(it.delivered, it.required ?? 0)) : achievement(it, it.value ?? 0);
 }
 
 /**
@@ -140,6 +141,13 @@ export const quarterLabel = (q: string): string => q.replace(/^(\d+)-Q(\d)$/, "Q
  * Who types a manual item (meeting 4 Nov): the names it lists — "follower" (the card's follower, the default), a role
  * key or a user id.
  */
+/**
+ * M-12 11.18 · «الشيتات في ميعادها» measures the previous quarter's sheets. The first quarter (2026-Q4) has none, so
+ * there the item is typed like a manual one by its follower, and the daily job leaves it alone (developer's decision).
+ */
+export const typedByHand = (it: { method: string; metric: string | null }, firstQuarter: boolean): boolean =>
+  it.method === "manual" || (firstQuarter && it.method === "system" && it.metric === "sheetsOnTime");
+
 export const canEnterManual = (enteredBy: readonly string[], who: { userId: string; roles: readonly string[]; isFollower: boolean }): boolean =>
   (enteredBy.length ? enteredBy : ["follower"]).some((x) => (x === "follower" ? who.isFollower : x === who.userId || who.roles.includes(x)));
 

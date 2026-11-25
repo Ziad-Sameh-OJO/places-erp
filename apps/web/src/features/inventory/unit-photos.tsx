@@ -6,12 +6,12 @@ import { FILE_KINDS, UploadRequest, uploadMime, type StoredFile, type UnitDetail
 import { MAX_UNIT_PHOTOS, fillsUnitFolder } from "@places/domain";
 import { put } from "@/components/file-upload";
 import { Chip, Icon, Modal, Note, useAction, useToast } from "@/components/ui";
-import { api } from "@/lib/api";
+import { FILE_LINKS, api } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { serverText } from "@/lib/server-text";
 import { dateLocale } from "@/lib/format";
 
-const usePhotos = (unitId: string) => useQuery({ queryKey: ["unit-photos", unitId], queryFn: () => api.get<UnitPhotoView[]>(`/inventory/units/${unitId}/photos`) });
+const usePhotos = (unitId: string) => useQuery({ queryKey: ["unit-photos", unitId], queryFn: () => api.get<UnitPhotoView[]>(`/inventory/units/${unitId}/photos`), ...FILE_LINKS });
 const when = (iso: string) => new Date(iso).toLocaleString(dateLocale(), { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" });
 
 /**

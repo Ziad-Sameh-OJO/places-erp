@@ -52,6 +52,9 @@ test("new account: created INVITED, gets the activation email, sets a password, 
   assert.equal((await call("/auth/activate", { method: "POST", body: { token: tokenIn(mail.text), password: "short1" } })).status, 400);
   assert.equal((await call("/auth/activate", { method: "POST", body: { token: tokenIn(mail.text), password: NEW_PW } })).status, 204);
   assert.equal((await call("/auth/activate", { method: "POST", body: { token: tokenIn(mail.text), password: NEW_PW } })).status, 400); // once
+  // S2: the send log keeps the mail without its activation link
+  const logged = await prisma.mailLog.findFirstOrThrow({ where: { to: email, subject: mail.subject }, orderBy: { createdAt: "desc" } });
+  assert.ok(!logged.text.includes(tokenIn(mail.text)) && logged.text.includes("token=•••"), logged.text);
   const me = await call("/auth/me", { cookie: await session(email, NEW_PW) });
   assert.equal(me.body.name, "تجربة E2E");
   assert.deepEqual(me.body.roles, ["sales"]);
@@ -73,6 +76,33 @@ test("search users by mobile and department (M-09 5.2); sales can't list departm
   assert.equal((await call("/access/users/departments", { cookie: sales })).status, 403);
   assert.equal((await call("/access/users?department=x", { cookie: sales })).status, 403);
   await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input() }); // back as it was
+});
+
+test("C1 · a save that leaves the Team Leader out keeps him; null clears him", async () => {
+  const noTl: Record<string, unknown> = input();
+  delete noTl.teamLeaderId;
+  assert.equal((await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: noTl })).status, 200);
+  assert.equal((await prisma.employee.findUniqueOrThrow({ where: { userId: newId } })).teamLeaderId, tlEmployeeId);
+  assert.equal((await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input({ teamLeaderId: null }) })).status, 200);
+  assert.equal((await prisma.employee.findUniqueOrThrow({ where: { userId: newId } })).teamLeaderId, null);
+  await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input() }); // back as it was
+});
+
+test("S5 · a new email on a not-yet-activated account: the old link dies, the new address gets a fresh one; sales 403", async () => {
+  const first = `e2e-moved-a-${stamp}@places.test`, second = `e2e-moved-b-${stamp}@places.test`;
+  const body = { name: "تجربة E2E", email: first, department: "المبيعات", role: "sales", extraRoles: [] };
+  let since = Date.now();
+  const r = await call("/access/users", { method: "POST", cookie: nancy, body });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const oldToken = tokenIn(lastMail(first, since).text);
+  assert.equal((await call(`/access/users/${r.body.id}`, { method: "PUT", cookie: sales, body: { ...body, email: second } })).status, 403);
+  since = Date.now();
+  assert.equal((await call(`/access/users/${r.body.id}`, { method: "PUT", cookie: nancy, body: { ...body, email: second } })).status, 200);
+  assert.equal((await call("/auth/activate", { method: "POST", body: { token: oldToken, password: NEW_PW } })).status, 400);
+  const fresh = lastMail(second, since);
+  assert.match(fresh.subject, /فعّل حسابك/);
+  assert.equal((await call("/auth/activate", { method: "POST", body: { token: tokenIn(fresh.text), password: NEW_PW } })).status, 204);
+  assert.equal((await login(second, NEW_PW)).status, 200);
 });
 
 test("the same email can't get two accounts", async () => {
@@ -185,7 +215,12 @@ test("OTP on for one person: no session until the emailed code", async () => {
   const since = Date.now();
   const r = await login(email, "Another12345");
   assert.deepEqual([r.status, r.body.otpRequired, r.cookie], [200, true, undefined]);
-  const code = lastMail(email, since).subject.match(/\d{6}/)![0];
+  const mail = lastMail(email, since);
+  const code = mail.text.match(/\d{6}/)![0];
+  // S2: the code is in the mail itself only: not its subject, not the send log (the integrations admins read it)
+  assert.doesNotMatch(mail.subject, /\d{6}/);
+  const logged = await prisma.mailLog.findFirstOrThrow({ where: { to: email, subject: mail.subject }, orderBy: { createdAt: "desc" } });
+  assert.ok(!logged.text.includes(code) && logged.text.includes("••••••"), logged.text);
   assert.equal((await call("/auth/otp", { method: "POST", body: { email, code: code === "000000" ? "111111" : "000000" } })).status, 401);
   const ok = await call("/auth/otp", { method: "POST", body: { email, code } });
   assert.equal(ok.status, 200);
@@ -200,7 +235,7 @@ test("OTP «ابعت تاني» (M-09 2.4): refused before a minute, then a new 
   assert.equal((await resend("m.mohsen@places.com")).status, 400);
   const since = Date.now();
   await login(email, "Another12345");
-  const first = lastMail(email, since).subject.match(/\d{6}/)![0];
+  const first = lastMail(email, since).text.match(/\d{6}/)![0];
   const early = await resend();
   assert.equal(early.status, 429);
   assert.match(early.body.error, /بعد \d+ ثانية/);
@@ -208,7 +243,7 @@ test("OTP «ابعت تاني» (M-09 2.4): refused before a minute, then a new 
   await prisma.authToken.updateMany({ where: { userId: newId, kind: "OTP" }, data: { createdAt: new Date(Date.now() - 61_000) } });
   const again = Date.now();
   assert.equal((await resend()).status, 204);
-  const second = lastMail(email, again).subject.match(/\d{6}/)![0];
+  const second = lastMail(email, again).text.match(/\d{6}/)![0];
   assert.equal((await resend()).status, 429); // the minute starts over
   if (first !== second) assert.equal((await call("/auth/otp", { method: "POST", body: { email, code: first } })).status, 401);
   assert.equal((await call("/auth/otp", { method: "POST", body: { email, code: second } })).status, 200);
@@ -227,6 +262,16 @@ test("roles: copy, edit the matrix, built-in and in-use roles can't be deleted",
   assert.equal((await call(`/access/roles/${key}`, { method: "DELETE", cookie: nancy })).status, 400);
   await call(`/access/users/${newId}`, { method: "PUT", cookie: nancy, body: input() });
   assert.equal((await call(`/access/roles/${key}`, { method: "DELETE", cookie: nancy })).status, 204);
+});
+
+test("Q5 · a copied role hides what the original hides (field rules copied, not the defaults); sales 403", async () => {
+  const body = { label: "E2E Inventory Copy", tier: "Executive Staff", scope: "own", copyFrom: "inventory" };
+  assert.equal((await call("/access/roles", { method: "POST", cookie: sales, body })).status, 403);
+  const r = await call("/access/roles", { method: "POST", cookie: nancy, body });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const fields = async (k: string) => (await call(`/access/roles/${k}/fields`, { cookie: nancy })).body;
+  assert.deepEqual(await fields(r.body.key), await fields("inventory"));
+  assert.equal((await call(`/access/roles/${r.body.key}`, { method: "DELETE", cookie: nancy })).status, 204);
 });
 
 test("every change is in the audit log", async () => {
@@ -294,7 +339,8 @@ test("who changes which list (#186): its own roles / people, add apart from swit
 
 test("each department's settings for its manager only, the money rules for the Super Admin only (12.8 · M-13 4.1 · 2.2)", async () => {
   const [hr, marketing, manar] = await Promise.all([session("basant.elsawy@places.com"), session("rahma.hassan@places.com"), session("manar.ahmed@places.com")]);
-  const s = (await call("/settings", { cookie: sales })).body;
+  // read as the Super Admin: sales no longer get the money rules (S3), and the test saves every key back as it was
+  const s = (await call("/settings", { cookie: admin })).body;
   // saving today's value back: the permission is what's tested, nothing other tests read changes
   const put = (key: string, cookie: string, value: unknown = s[key]) => call(`/settings/${key}`, { method: "PUT", cookie, body: { value } });
   assert.equal((await put("leaveTypes", hr)).status, 200);

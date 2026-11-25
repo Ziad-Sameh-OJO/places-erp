@@ -36,8 +36,23 @@ export function periodFigures(salesId: string, deals: readonly DealRow[], from: 
 
 export const targetPercent = (achieved: Piasters, goal: Piasters): number => (goal > 0 ? (achieved / goal) * 100 : 0);
 
+/**
+ * M-12 · the KPI items «التارجت», «تارجت الفريق», «تارجت الشركة»: Σ achieved ÷ Σ goals over the months, as the targets
+ * page reads a quarter (11.18): each month's goal is its own target, else the person's standing one. null = no goal.
+ */
+export function groupTargetPercent(
+  people: readonly { readonly id: string; readonly standing: Piasters }[], months: readonly string[],
+  goalOf: (id: string, month: string) => Piasters | undefined, deals: readonly DealRow[], from: Date, to: Date,
+): number | null {
+  const goal = people.reduce((s, p) => s + months.reduce((n, m) => n + (goalOf(p.id, m) ?? p.standing), 0), 0);
+  if (!goal) return null;
+  const got = people.reduce((s, p) => s + periodFigures(p.id, deals, from, to).achieved, 0);
+  return Math.round(targetPercent(got, goal) * 10) / 10;
+}
+
 /** Demo clients.js «تحت المعدل»: below 60% of the share of the month gone by — the TL hears of it. */
-export const behindPace = (percent: number, dayOfMonth: number, daysInMonth: number): boolean => percent < (dayOfMonth / daysInMonth) * 100 * 0.6;
+// multiplied out, not divided: 25 ÷ 30 × 60 is 50.000…01 in floats, which flagged someone standing exactly on the line
+export const behindPace = (percent: number, dayOfMonth: number, daysInMonth: number): boolean => percent * daysInMonth < dayOfMonth * 60;
 
 /** «الترتيب»: highest achievement first; equal percentages share a rank. */
 export function ranked<T extends { percent: number }>(rows: readonly T[]): Array<T & { rank: number }> {

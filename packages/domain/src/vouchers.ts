@@ -150,6 +150,22 @@ const SALES_ROLES = new Set(["sales", "tl", "telesales"]);
 /** Which salaries account a person's pay goes to (demo salLine): sales roles → 5301, everyone else → 5202. */
 export const salaryLine = (roles: readonly string[]): "sales" | "admin" => (roles.some((r) => SALES_ROLES.has(r)) ? "sales" : "admin");
 
+const shiftMonth = (month: string, by: number): string => {
+  const d = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 + by, 1));
+  return d.toISOString().slice(0, 7);
+};
+export const nextMonth = (month: string): string => shiftMonth(month, 1);
+
+/**
+ * Which month a payroll run pays (and whose deductions HR approves): in the first half of a month (day ≤ 15) the
+ * previous one — paying on 1 Nov pays October with October's deductions — otherwise the current one (developer's
+ * decision on the review, 25 Nov).
+ */
+export const payrollMonth = (today: string): string => (Number(today.slice(8, 10)) <= 15 ? shiftMonth(today.slice(0, 7), -1) : today.slice(0, 7));
+
+/** The day a month's payroll falls due: a pay day ≤ 15 is in the month after it (paid as «last month»), a later one in the month itself. */
+export const payrollDueDate = (month: string, payDay: number): string => `${payDay <= 15 ? nextMonth(month) : month}-${String(payDay).padStart(2, "0")}`;
+
 /** Where the employees' insurance deductions are owed until paid to the insurer (chart: «تامينات اجتماعية مستحقة»). */
 export const INSURANCE_DUE = "21105";
 export interface PayRowInput { salary: Piasters; attendance: Piasters; advanceLeft: Piasters; advancePlan: Piasters | null; insurance?: Piasters }

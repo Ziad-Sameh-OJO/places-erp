@@ -28,7 +28,8 @@ export interface DealLogoView { url: string | null; done: boolean; published: bo
 /** Marketing's card: the file, the versions (newest first), each deal's logo and what «Update» would change. */
 export interface CompanyProfileAdmin {
   base: { id: string; name: string; at: string } | null;
-  versions: CompanyProfileVersionView[];
+  /** number = the version's place among all of them (v1 = the first «Update»), past the ones shown too */
+  versions: Array<CompanyProfileVersionView & { number: number }>;
   logos: Record<string, DealLogoView>;
   changes: { added: number; removed: number; newBase: boolean; any: boolean };
 }

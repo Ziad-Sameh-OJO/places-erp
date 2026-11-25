@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allowedValue, asListValues, canChangeList, canEditSetting, defaultListEditors, listActions, listChangeProblem } from "../src/lists.ts";
+import { allowedValue, asListValues, canChangeList, canEditSetting, defaultListEditors, listActions, listChangeProblem, readableSettings } from "../src/lists.ts";
 
 const on = (value: string) => ({ value, active: true });
 const off = (value: string) => ({ value, active: false });
@@ -88,4 +88,10 @@ test("«مين يعدّل» starts from the list's department, else from today's
   assert.deepEqual(defaultListEditors("channels", ["hr", "marketing", "officemgr"]), ["admin", "marketing"]);
   assert.deepEqual(defaultListEditors("areas", ["hr", "marketing"]), ["admin"]);
   assert.deepEqual(defaultListEditors("vendors", ["hr", "officemgr"]), ["hr", "officemgr"]);
+});
+
+test("the money / people settings reach only who works with them (M-13 2.2)", () => {
+  const s = { areas: [on("أكتوبر")], tlTiers: [{ below: 70, percent: 4 }], opsCommissionPct: 5, externalCommissionPct: 0, procurementBigApprovers: ["a@x.com"] };
+  assert.deepEqual(readableSettings(s, false), { areas: [on("أكتوبر")] });
+  assert.deepEqual(readableSettings(s, true), s);
 });

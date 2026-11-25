@@ -120,7 +120,7 @@
   "deductions": {
     "approvedOk": "Deductions approved and posted to Finance",
     "payroll": "Payroll budget / month",
-    "monthDeductions": "This month's deductions",
+    "monthDeductions": "Deductions of {label}",
     "monthDeductionsSub": "Lateness, absence and missed fingerprints",
     "net": "Salaries after deductions",
     "netSub": "Reflected in Finance M-07",

@@ -40,5 +40,6 @@ export function allocate(total: Piasters, parts: number): Piasters[] {
 /** A percentage of an amount, rounded half-up to the piaster. `percent` is e.g. 30 for 30%. */
 export const percentOf = (amount: Piasters, percent: number): Piasters => Math.round((amount * percent) / 100);
 
+/** An amount in a message: Arabic words but 0-9 digits («2,750.50 ج.م.»), like every number on the screens. */
 export const formatEGP = (p: Piasters): string =>
-  new Intl.NumberFormat("ar-EG", { style: "currency", currency: "EGP", maximumFractionDigits: 2 }).format(toPounds(p));
+  new Intl.NumberFormat("ar-EG-u-nu-latn", { style: "currency", currency: "EGP", maximumFractionDigits: 2 }).format(toPounds(p));

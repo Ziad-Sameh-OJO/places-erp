@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
-import { call, session } from "./helpers.ts";
+import { call, cleanLeaveNotices, session } from "./helpers.ts";
 
 const START = new Date();
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
@@ -63,4 +63,38 @@ test("the 5th Excuse in a month is refused at once and management is alerted (Q3
   assert.equal(r.body.status, "refused");
   assert.ok(await prisma.notification.findFirst({ where: { text: { contains: "Excuse خامس" }, createdAt: { gte: START } } }));
   assert.equal((await call("/hr/excuses", { cookie: eid })).status, 403); // HR's list
+});
+
+test("review L13: an Excuse confirmed on a day of approved outside work leaves the day as it is (same as the other order)", async () => {
+  // another member of the same Team Leader's team, so Mohsen's day above stays his
+  const mate = await prisma.employee.findFirstOrThrow({ where: { teamLeader: { user: { email: "abdallah.sleem@places.com" } }, id: { not: mohsenEmp }, user: { status: "ACTIVE" } }, select: { id: true, user: { select: { email: true } } } });
+  const day = new Date(`${today()}T00:00:00Z`);
+  const clean = async () => {
+    const ex = await prisma.excuseRequest.findMany({ where: { employeeId: mate.id, day: { gte: new Date(`${today().slice(0, 7)}-01T00:00:00Z`) } } });
+    const lv = await prisma.leaveRequest.findMany({ where: { employeeId: mate.id, createdAt: { gte: START } } });
+    const att = await prisma.attendanceDay.findMany({ where: { employeeId: mate.id, day } });
+    await prisma.auditLog.deleteMany({ where: { entityId: { in: [...ex.map((x) => x.id), ...ex.map((x) => x.ticketId ?? ""), ...lv.map((x) => x.id), ...att.map((a) => a.id)] } } });
+    await prisma.ticket.deleteMany({ where: { id: { in: ex.map((x) => x.ticketId ?? "") } } });
+    await prisma.excuseRequest.deleteMany({ where: { id: { in: ex.map((x) => x.id) } } });
+    await prisma.leaveRequest.deleteMany({ where: { id: { in: lv.map((x) => x.id) } } });
+    await prisma.attendanceDay.deleteMany({ where: { id: { in: att.map((a) => a.id) } } });
+  };
+  await clean();
+  try {
+    const cookie = await session(mate.user!.email);
+    assert.equal((await call("/hr/attendance", { method: "PUT", cookie: basant, body: { employeeId: mate.id, day: today(), checkIn: "12:15" } })).body.deduction, 1);
+    const out = await call("/hr/leaves", { method: "POST", cookie, body: { type: "شغل من بره", from: today(), to: today(), reason: "E2E عند عميل" } });
+    assert.equal(out.status, 201, JSON.stringify(out.body));
+    assert.equal((await call(`/hr/leaves/${out.body.id}/approve`, { method: "POST", cookie: tl })).status, 201);
+    assert.equal((await call(`/hr/leaves/${out.body.id}/approve`, { method: "POST", cookie: basant })).status, 201);
+    const ex = await call("/hr/excuses", { method: "POST", cookie, body: { day: today(), reason: "E2E" } });
+    assert.equal(ex.status, 201, JSON.stringify(ex.body));
+    assert.equal((await call(`/hr/excuses/${ex.body.id}/approve`, { method: "POST", cookie: tl })).status, 201);
+    assert.equal((await call(`/hr/excuses/${ex.body.id}/approve`, { method: "POST", cookie: basant })).body.status, "confirmed");
+    const a = await prisma.attendanceDay.findUniqueOrThrow({ where: { employeeId_day: { employeeId: mate.id, day } } });
+    assert.deepEqual([a.kind, Number(a.deduction)], ["OUTSIDE_APPROVED", 0]);
+  } finally {
+    await clean();
+    await cleanLeaveNotices(mate.id, START);
+  }
 });

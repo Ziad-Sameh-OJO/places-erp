@@ -1735,7 +1735,8 @@ model MailLog {
   id             String        @id @default(cuid())
   to             String
   subject        String
-  text           String
+  text           String // what the send log keeps: a secret (sign-in code, activation / reset link) is masked here
+  secretText     String? // the real text when `text` is masked, kept only until the worker sends it
   attachments    Json? // [{ filename, base64 }]: the quarterly PDF and the like, kept until the worker sends them
   status         String        @default("queued") // queued · sent · failed
   attempts       Int           @default(0)
@@ -1763,7 +1764,7 @@ enum FileStatus {
 /// Every stored object (photos, PDFs, receipts, sheets). The bytes live in S3/MinIO under `key`; this is the record.
 model File {
   id           String     @id @default(cuid())
-  key          String     @unique // <yyyy>/<mm>/<id>.<ext> in the bucket: never built from the uploaded name
+  key          String     @unique // <yyyy>/<mm>/<id>.<ext> in the bucket (incoming/<id>.<ext> until checked): never built from the uploaded name
   name         String     // the original file name, shown on download
   mime         String
   size         Int        // bytes, as declared before upload and checked after
