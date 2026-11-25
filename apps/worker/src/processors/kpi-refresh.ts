@@ -10,7 +10,7 @@ import {
   type DealMoney, type DealStatus, type MetricParams, type Method, type WorkCalendar,
   type Nature, type BudgetPeriod, closedInSla, endOfLocalDay, fromDecimal, isTicketLate, pettyCapScore, rollUp, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
   kpiPeriodStart, monthKind, salesAttendance, staleBefore, targetAchieved, tasksOnTime, timedTasks, timeliness,
-  monthCloseDeadline, monthlyOnTime, payrollDeadline, periodStart, previousQuarter, quarterMonths, sheetsOnTime, twiceWeekly,
+  monthBounds, monthCloseDeadline, monthlyOnTime, payrollDeadline, periodStart, previousQuarter, quarterMonths, quarterTarget, sheetsOnTime, twiceWeekly,
 } from "@places/domain";
 import { workCalendar } from "../calendar.ts";
 
@@ -38,8 +38,8 @@ const verifiedAt = (v: Prisma.JsonValue): Date | null => {
 };
 
 /** The deals of the quarter as the commission rules read them (M-02). */
-async function dealMoney(from: Date): Promise<DealMoney[]> {
-  const deals = await prisma.deal.findMany({ where: { closedAt: { gte: from } }, include: { participants: true, payments: true } });
+async function dealMoney(from: Date, to: Date): Promise<DealMoney[]> {
+  const deals = await prisma.deal.findMany({ where: { closedAt: { gte: from, lte: to } }, include: { participants: true, payments: true } });
   return deals.map((d) => ({
     status: STATUS[d.status]!, commissionOwner: fromDecimal(d.commissionOwner.toFixed(2)), commissionClient: fromDecimal(d.commissionClient.toFixed(2)),
     payments: d.payments.map((x) => ({ side: x.side === "client" ? "client" : "owner", amount: fromDecimal(x.amount.toFixed(2)) })),
@@ -50,11 +50,17 @@ async function dealMoney(from: Date): Promise<DealMoney[]> {
   }));
 }
 
-/** Σ achieved ÷ Σ targets (commission shares, M-02) for these people, in percent. */
+/**
+ * Σ achieved in the quarter ÷ Σ quarter targets (commission shares, M-02) for these people, in percent. The target is
+ * the quarter's three months, as the quarterly sheet (11.18): Employee.target is one month's.
+ */
 async function targetShare(c: Ctx, people: Array<{ id: string; target: Prisma.Decimal }>): Promise<number | null> {
-  const goal = people.reduce((s, x) => s + fromDecimal(x.target.toFixed(2)), 0);
+  const months = quarterMonths(c.quarter);
+  const set = await prisma.salesTarget.findMany({ where: { employeeId: { in: people.map((x) => x.id) }, month: { in: months } }, select: { employeeId: true, month: true, value: true } });
+  const money = (d: Prisma.Decimal) => fromDecimal(d.toFixed(2));
+  const goal = people.reduce((s, x) => s + quarterTarget(c.quarter, set.filter((t) => t.employeeId === x.id).map((t) => ({ month: t.month, value: money(t.value) })), money(x.target)), 0);
   if (!goal) return null;
-  const deals = await dealMoney(c.qStart);
+  const deals = await dealMoney(c.qStart, c.now);
   const schemes = new Map((await prisma.employee.findMany({ select: { id: true, commissionPct: true } })).map((e) => [e.id, Number(e.commissionPct)]));
   const got = people.reduce((s, x) => s + targetAchieved(x.id, deals, (id) => schemes.get(id) ?? 0), 0);
   return pct(got, goal);
@@ -64,7 +70,7 @@ async function targetShare(c: Ctx, people: Array<{ id: string; target: Prisma.De
 const teamOf = async (who: Who) => (await prisma.employee.findMany({ where: { teamLeaderId: who.id }, select: { id: true } })).map((e) => e.id);
 
 async function ticketsOnTime(c: Ctx, where: Prisma.TicketWhereInput) {
-  const t = await prisma.ticket.findMany({ where: { createdAt: { gte: c.qStart }, ...where } });
+  const t = await prisma.ticket.findMany({ where: { createdAt: { gte: c.qStart, lte: c.now }, ...where } });
   return onTimeShare(t.map((x) => (isTicketLate(x, c.now, c.cal) || (x.resolvedAt && !closedInSla(x, c.cal)) ? "late" : x.resolvedAt ? "ok" : "waiting")));
 }
 
@@ -78,15 +84,15 @@ async function fresh(c: Ctx, where: Prisma.UnitWhereInput) {
 }
 
 /** 11.15 · the same rows the KPI card lists under the item (kpis.repository). */
-async function newLeadTasks(from: Date, userId: string) {
+async function newLeadTasks(from: Date, to: Date, userId: string) {
   const l = await prisma.lead.findMany({
-    where: { archivedAt: null, newLeadRequestedAt: { gte: from }, OR: [{ newLeadRoutedById: null }, { newLeadRoutedById: userId }] },
+    where: { archivedAt: null, newLeadRequestedAt: { gte: from, lte: to }, OR: [{ newLeadRoutedById: null }, { newLeadRoutedById: userId }] },
     select: { name: true, newLeadRequestedAt: true, newLeadRoutedAt: true },
   });
   return l.map((x) => ({ name: x.name, at: x.newLeadRequestedAt!, doneAt: x.newLeadRoutedAt }));
 }
-async function draftTasks(from: Date) {
-  const d = await prisma.leadDraft.findMany({ where: { at: { gte: from } }, select: { kind: true, at: true, keptAt: true, decidedAt: true, lead: { select: { name: true } } } });
+async function draftTasks(from: Date, to: Date) {
+  const d = await prisma.leadDraft.findMany({ where: { at: { gte: from, lte: to } }, select: { kind: true, at: true, keptAt: true, decidedAt: true, lead: { select: { name: true } } } });
   // «يفضل» or sending it on, whichever came first, is the decision
   return d.map((x) => ({ name: x.lead.name, tag: x.kind === "admin" ? "Draft Admin" : "Draft", at: x.at, doneAt: x.keptAt ?? x.decidedAt }));
 }
@@ -120,38 +126,38 @@ export const MEASURES: Record<string, Measure> = {
     return averageDailyCalls([...days.values()], workingDaysSince(from, c.now, c.cal));
   },
   // the approved Broadcasts he marked as sent (demo kpis.js broadcasts)
-  broadcasts: async (c, p, from, who) => prisma.broadcastSend.count({ where: { userId: who.userId, doneAt: { gte: from }, broadcast: { approved: true } } }),
+  broadcasts: async (c, p, from, who) => prisma.broadcastSend.count({ where: { userId: who.userId, doneAt: { gte: from, lte: c.now }, broadcast: { approved: true } } }),
   // TL «التزام الفريق بالـ SLA (أول أكشن خلال ساعتين ونص)»: a lead whose TL got the 2h30 warning (M-01) missed it; one with
   // neither a first action nor a warning yet isn't counted
   teamSla: async (c, p, from, who) => {
     const ids = await teamOf(who);
     if (!ids.length) return null;
-    const leads = await prisma.lead.findMany({ where: { assignedToId: { in: ids }, assignedAt: { gte: from } }, select: { firstActionAt: true, slaWarnedAt: true } });
+    const leads = await prisma.lead.findMany({ where: { assignedToId: { in: ids }, assignedAt: { gte: from, lte: c.now } }, select: { firstActionAt: true, slaWarnedAt: true } });
     return onTimeShare(leads.map((l) => (l.slaWarnedAt ? "late" : l.firstActionAt ? "ok" : "waiting")), null);
   },
   // Bayoumi: the photo from the unit's entry, the Retouch from its task, and the ones never sent back (M-04 · Task.returned)
   photo72: async (c, p, from, who) => {
-    const t = await prisma.task.findMany({ where: { kind: "photo", toUserId: who.userId, unit: { enteredAt: { gte: c.qStart } } }, select: { doneAt: true, unit: { select: { enteredAt: true } } } });
+    const t = await prisma.task.findMany({ where: { kind: "photo", toUserId: who.userId, unit: { enteredAt: { gte: c.qStart, lte: c.now } } }, select: { doneAt: true, unit: { select: { enteredAt: true } } } });
     return onTimeShare(t.map((x) => timeliness(x.doneAt, new Date(x.unit!.enteredAt.getTime() + 72 * HOUR), c.now)), null);
   },
   retouch48: async (c, p, from, who) => {
-    const t = await prisma.task.findMany({ where: { kind: "retouch", toUserId: who.userId, createdAt: { gte: c.qStart } }, select: { createdAt: true, doneAt: true } });
+    const t = await prisma.task.findMany({ where: { kind: "retouch", toUserId: who.userId, createdAt: { gte: c.qStart, lte: c.now } }, select: { createdAt: true, doneAt: true } });
     return onTimeShare(t.map((x) => timeliness(x.doneAt, new Date(x.createdAt.getTime() + 48 * HOUR), c.now)), null);
   },
   tasksFirstTime: async (c, p, from, who) => {
-    const t = await prisma.task.findMany({ where: { kind: { in: ["photo", "retouch"] }, toUserId: who.userId, doneAt: { gte: c.qStart } }, select: { returned: true } });
+    const t = await prisma.task.findMany({ where: { kind: { in: ["photo", "retouch"] }, toUserId: who.userId, doneAt: { gte: c.qStart, lte: c.now } }, select: { returned: true } });
     return pct(t.filter((x) => x.returned === 0).length, t.length);
   },
   // Manar «عدد الإنفنتوري الجديد في الربع» (every unit) · Randa (the ones she entered, «by: me»)
-  unitsEntered: async (c, p, from, who) => prisma.unit.count({ where: { enteredAt: { gte: from }, ...(p.by === "me" ? { createdById: who.userId } : {}) } }),
-  unitsBrought: async (c, p, from, who) => prisma.unit.count({ where: { agentId: who.id, enteredAt: { gte: from }, ...(p.type ? { type: p.type as "Rent" } : {}) } }),
+  unitsEntered: async (c, p, from, who) => prisma.unit.count({ where: { enteredAt: { gte: from, lte: c.now }, ...(p.by === "me" ? { createdById: who.userId } : {}) } }),
+  unitsBrought: async (c, p, from, who) => prisma.unit.count({ where: { agentId: who.id, enteredAt: { gte: from, lte: c.now }, ...(p.type ? { type: p.type as "Rent" } : {}) } }),
   firstAction: async (c, p, from, who) => {
     const limit = (Number(p.min) || 30) * MIN;
-    const leads = await prisma.lead.findMany({ where: { assignedToId: who.id, arrivedAt: { gte: from } }, select: { arrivedAt: true, firstActionAt: true } });
+    const leads = await prisma.lead.findMany({ where: { assignedToId: who.id, arrivedAt: { gte: from, lte: c.now } }, select: { arrivedAt: true, firstActionAt: true } });
     return onTimeShare(leads.map((l) => timeliness(l.firstActionAt, new Date(l.arrivedAt.getTime() + limit), c.now)));
   },
   qualifiedRate: async (c, p, from, who) => {
-    const where = { assignedToId: who.id, createdAt: { gte: from } };
+    const where = { assignedToId: who.id, createdAt: { gte: from, lte: c.now } };
     const [all, q] = await Promise.all([prisma.lead.count({ where }), prisma.lead.count({ where: { ...where, qualified: true } })]);
     return pct(q, all, 0);
   },
@@ -159,18 +165,18 @@ export const MEASURES: Record<string, Measure> = {
     // counted on the day it happened, not the day it was reported (demo)
     where: { employeeId: who.id, status: "done", at: { gte: from, lte: c.now }, ...(p.akind ? { kind: String(p.akind) } : {}) },
   }), from, c.now),
-  dealsCount: async (c, p, from, who) => prisma.deal.count({ where: { status: NOT_DONE_DEAL, closedAt: { gte: from }, participants: { some: { employeeId: who.id, side: "BUYER" } } } }),
+  dealsCount: async (c, p, from, who) => prisma.deal.count({ where: { status: NOT_DONE_DEAL, closedAt: { gte: from, lte: c.now }, participants: { some: { employeeId: who.id, side: "BUYER" } } } }),
   ownTarget: async (c, p, from, who) => targetShare(c, [who]),
   // the team is its salespeople (domain team-leader.ts, demo tlStats): the Team Leader's own target and deals stay out
   teamTarget: async (c, p, from, who) => targetShare(c, await prisma.employee.findMany({ where: { teamLeaderId: who.id }, select: { id: true, target: true } })),
   att: async (c, p, from, who) => {
     // a day off HR gave someone who didn't punch (HR, 15 Nov) is neither a good day nor a bad one
-    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(from, c) }, kind: { not: "DAY_OFF" } }, select: { deduction: true } });
+    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(from, c), lte: dateOnly(c.now, c) }, kind: { not: "DAY_OFF" } }, select: { deduction: true } });
     return pct(days.filter((d) => Number(d.deduction) === 0).length, days.length);
   },
   attSales: async (c, p, from, who) => {
     const month = localDate(c.now, c.cal).slice(0, 7);
-    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(c.qStart, c) } }, select: { day: true, kind: true, lateMinutes: true } });
+    const days = await prisma.attendanceDay.findMany({ where: { employeeId: who.id, day: { gte: dateOnly(c.qStart, c), lte: dateOnly(c.now, c) } }, select: { day: true, kind: true, lateMinutes: true } });
     if (!days.length) return null;
     const late = days.filter((d) => day(d.day).startsWith(month)).reduce((s, d) => s + d.lateMinutes, 0);
     return salesAttendance(days.filter((d) => d.kind === "ABSENT").length, late / 60);
@@ -179,24 +185,24 @@ export const MEASURES: Record<string, Measure> = {
   company: async (c) => targetShare(c, await prisma.employee.findMany({ where: { target: { gt: 0 } }, select: { id: true, target: true } })),
   secondCalls: async (c, p, from) => {
     const leads = await prisma.lead.findMany({
-      where: { createdAt: { gte: from }, archivedAt: null, selfEntered: false, ownedByTelesales: false, channel: { notIn: secondCallExcluded(p) } },
+      where: { createdAt: { gte: from, lte: c.now }, archivedAt: null, selfEntered: false, ownedByTelesales: false, channel: { notIn: secondCallExcluded(p) } },
       select: { createdAt: true, verification: true },
     });
     return onTimeShare(leads.map((l) => timeliness(verifiedAt(l.verification), endOfLocalDay(l.createdAt, c.cal), c.now)));
   },
   // 11.15: the requests this person routed, and the ones still waiting (demo newLeadReqs)
-  newLeadRoute: async (c, p, from, who) => timedTasks(await newLeadTasks(from, who.userId), (Number(p.min) || 30) * MIN, c.now, "min").value,
-  draftAction: async (c, p, from) => timedTasks(await draftTasks(from), (Number(p.hours) || 24) * HOUR, c.now, "hour").value,
+  newLeadRoute: async (c, p, from, who) => timedTasks(await newLeadTasks(from, c.now, who.userId), (Number(p.min) || 30) * MIN, c.now, "min").value,
+  draftAction: async (c, p, from) => timedTasks(await draftTasks(from, c.now), (Number(p.hours) || 24) * HOUR, c.now, "hour").value,
   call30: async (c) => {
-    const leads = await prisma.lead.findMany({ where: { arrivedAt: { gte: c.qStart } }, select: { arrivedAt: true, firstCallAt: true } });
+    const leads = await prisma.lead.findMany({ where: { arrivedAt: { gte: c.qStart, lte: c.now } }, select: { arrivedAt: true, firstCallAt: true } });
     return onTimeShare(leads.map((l) => timeliness(l.firstCallAt, new Date(l.arrivedAt.getTime() + 30 * MIN), c.now)));
   },
-  qualifiedN: async (c) => prisma.lead.count({ where: { qualified: true, createdAt: { gte: c.qStart } } }),
-  outbound: async (c) => prisma.company.count({ where: { outbound: true, createdAt: { gte: kpiPeriodStart("week", c.now, c.quarter) } } }),
+  qualifiedN: async (c) => prisma.lead.count({ where: { qualified: true, createdAt: { gte: c.qStart, lte: c.now } } }),
+  outbound: async (c) => prisma.company.count({ where: { outbound: true, createdAt: { gte: kpiPeriodStart("week", c.now, c.quarter), lte: c.now } } }),
   big500: async (c, p, from) => {
     const [deals, leads] = await Promise.all([
-      prisma.deal.count({ where: { status: NOT_DONE_DEAL, space: { gte: 500 }, closedAt: { gte: from } } }),
-      prisma.lead.count({ where: { qualified: true, space: { gte: 500 }, createdAt: { gte: from } } }),
+      prisma.deal.count({ where: { status: NOT_DONE_DEAL, space: { gte: 500 }, closedAt: { gte: from, lte: c.now } } }),
+      prisma.lead.count({ where: { qualified: true, space: { gte: 500 }, createdAt: { gte: from, lte: c.now } } }),
     ]);
     return pct(deals, leads);
   },
@@ -207,40 +213,40 @@ export const MEASURES: Record<string, Measure> = {
     const value = (d: (typeof due)[number]) => fromDecimal(d.commissionOwner.toFixed(2)) + fromDecimal(d.commissionClient.toFixed(2));
     return pct(due.filter((d) => d.executedAt && d.executedAt <= d.execDueAt!).reduce((s, d) => s + value(d), 0), due.reduce((s, d) => s + value(d), 0));
   },
-  paperErrors: async (c) => prisma.deal.count({ where: { papersOk: false, closedAt: { gte: c.qStart } } }),
+  paperErrors: async (c) => prisma.deal.count({ where: { papersOk: false, closedAt: { gte: c.qStart, lte: c.now } } }),
   verified: async (c) => fresh(c, available()),
   resaleFresh: async (c) => fresh(c, available("Resale")),
   in24: async (c, p) => {
-    const u = await prisma.unit.findMany({ where: { receivedAt: { not: null }, enteredAt: { gte: c.qStart }, ...(p.type ? { type: p.type as "Rent" } : {}) }, select: { receivedAt: true, enteredAt: true } });
+    const u = await prisma.unit.findMany({ where: { receivedAt: { not: null }, enteredAt: { gte: c.qStart, lte: c.now }, ...(p.type ? { type: p.type as "Rent" } : {}) }, select: { receivedAt: true, enteredAt: true } });
     return pct(u.filter((x) => x.enteredAt.getTime() - x.receivedAt!.getTime() <= 24 * HOUR).length, u.length);
   },
   drive24: async (c) => {
-    const u = await prisma.unit.findMany({ where: { enteredAt: { gte: c.qStart } }, select: { enteredAt: true, mediaUploadedAt: true } });
+    const u = await prisma.unit.findMany({ where: { enteredAt: { gte: c.qStart, lte: c.now } }, select: { enteredAt: true, mediaUploadedAt: true } });
     return onTimeShare(u.map((x) => timeliness(x.mediaUploadedAt, new Date(x.enteredAt.getTime() + 24 * HOUR), c.now)), null);
   },
   lists24: async (c) => {
-    const l = await prisma.listRequest.findMany({ where: { createdAt: { gte: c.qStart } }, select: { createdAt: true, doneAt: true } });
+    const l = await prisma.listRequest.findMany({ where: { createdAt: { gte: c.qStart, lte: c.now } }, select: { createdAt: true, doneAt: true } });
     return onTimeShare(l.map((x) => timeliness(x.doneAt, new Date(x.createdAt.getTime() + 24 * HOUR), c.now)), null);
   },
   listsClean: async (c) => {
-    const l = await prisma.listRequest.findMany({ where: { createdAt: { gte: c.qStart }, doneAt: { not: null } }, select: { unconfirmed: true } });
+    const l = await prisma.listRequest.findMany({ where: { createdAt: { gte: c.qStart, lte: c.now }, doneAt: { not: null } }, select: { unconfirmed: true } });
     return pct(l.filter((x) => x.unconfirmed === 0).length, l.length);
   },
   // 4.15: the tasks sent to this person with «تتحسب في الـ KPIs», of the quarter (by their day)
   tasksOnTime: async (c, p, from, who) => {
     // «tkind»: every task of that kind (Manar's daily tasks to her team, the photo plan), not only «تتحسب في الـ KPIs»
     const kind = p.tkind ? { kind: String(p.tkind) } : { countsInKpi: true };
-    const t = await prisma.task.findMany({ where: { toUserId: who.userId, ...kind, dueOn: { gte: dateOnly(c.qStart, c) } }, select: { dueOn: true, doneAt: true } });
+    const t = await prisma.task.findMany({ where: { toUserId: who.userId, ...kind, dueOn: { gte: dateOnly(c.qStart, c), lte: dateOnly(c.now, c) } }, select: { dueOn: true, doneAt: true } });
     return tasksOnTime(t.map((x) => ({ dueOn: day(x.dueOn), doneAt: x.doneAt })), c.now, c.cal);
   },
   tickets: async (c, p) => ticketsOnTime(c, { type: p.ttype ? String(p.ttype) : { not: "dispute" }, ...(p.dept ? { department: String(p.dept) } : {}) }),
   disputes: async (c) => ticketsOnTime(c, { type: "dispute" }),
   proc48: async (c) => {
-    const p = await prisma.purchase.findMany({ where: { createdAt: { gte: c.qStart }, settledAt: { not: null } }, select: { createdAt: true, settledAt: true } });
+    const p = await prisma.purchase.findMany({ where: { createdAt: { gte: c.qStart, lte: c.now }, settledAt: { not: null } }, select: { createdAt: true, settledAt: true } });
     return pct(p.filter((x) => x.settledAt!.getTime() - x.createdAt.getTime() <= 48 * HOUR).length, p.length);
   },
   receipts: async (c) => {
-    const p = await prisma.purchase.findMany({ where: { createdAt: { gte: c.qStart }, amount: { gt: 10_000 }, status: { not: "Rejected" } }, select: { attachments: true } });
+    const p = await prisma.purchase.findMany({ where: { createdAt: { gte: c.qStart, lte: c.now }, amount: { gt: 10_000 }, status: { not: "Rejected" } }, select: { attachments: true } });
     return pct(p.filter((x) => x.attachments.length > 0).length, p.length, 100);
   },
   // Rahma: the content plan (M-04 · posts published on their day) and the Broadcast twice a week with Hot Inventory
@@ -248,14 +254,14 @@ export const MEASURES: Record<string, Measure> = {
     const posts = await prisma.post.findMany({ where: { approved: true, archivedAt: null, at: { gte: c.qStart, lte: c.now } }, select: { at: true, publishedAt: true } });
     return onTimeShare(posts.map((x) => timeliness(x.publishedAt, endOfLocalDay(x.at, c.cal), c.now)), null);
   },
-  broadcastPlan: async (c) => twiceWeekly(await prisma.broadcast.count({ where: { approved: true, hotUnitIds: { isEmpty: false }, createdAt: { gte: c.qStart } } }), c.qStart, c.now),
+  broadcastPlan: async (c) => twiceWeekly(await prisma.broadcast.count({ where: { approved: true, hotUnitIds: { isEmpty: false }, createdAt: { gte: c.qStart, lte: c.now } } }), c.qStart, c.now),
   // CEO «الميزانية»: spent ÷ budget over the active lines, each in its own period (M-07 9.2, as the budget page)
   budgetUse: async (c) => {
     const lines = await prisma.budgetLine.findMany({ where: { active: true, accountId: { not: null }, budget: { gt: 0 } }, select: { accountId: true, budget: true, period: true } });
     let spent = 0, budget = 0;
     for (const l of lines) {
       const s = await prisma.journalLine.aggregate({
-        where: { accountId: l.accountId!, entry: { date: { gte: new Date(`${periodStart(l.period as BudgetPeriod, localDate(c.now, c.cal))}T00:00:00Z`) } } }, _sum: { debit: true, credit: true },
+        where: { accountId: l.accountId!, entry: { date: { gte: new Date(`${periodStart(l.period as BudgetPeriod, localDate(c.now, c.cal))}T00:00:00Z`), lte: dateOnly(c.now, c) } } }, _sum: { debit: true, credit: true },
       });
       spent += fromDecimal((s._sum.debit ?? 0).toFixed(2)) - fromDecimal((s._sum.credit ?? 0).toFixed(2));
       budget += fromDecimal(l.budget.toFixed(2));
@@ -273,7 +279,7 @@ export const MEASURES: Record<string, Measure> = {
   },
   // «حساب العمولة في نفس يوم ظهور التحصيل في الحساب · تاريخ تسجيل التحصيل والـ TCR» (M-02)
   commissionSameDay: async (c) => {
-    const p = await prisma.payment.findMany({ where: { receivedAt: { gte: c.qStart } }, select: { receivedAt: true, tcr: { select: { createdAt: true } } } });
+    const p = await prisma.payment.findMany({ where: { receivedAt: { gte: c.qStart, lte: c.now } }, select: { receivedAt: true, tcr: { select: { createdAt: true } } } });
     return onTimeShare(p.map((x) => timeliness(x.tcr?.createdAt ?? null, endOfLocalDay(x.receivedAt, c.cal), c.now)), null);
   },
   // Nancy: the last quarter's employee sheets (11.7 · 11.18) sent on this quarter's first working day; none yet = not measured
@@ -306,6 +312,9 @@ export const MEASURES: Record<string, Measure> = {
 /** Company-wide metrics are the same on every card: measured once per run and settings. */
 const PER_PERSON = new Set(["callsDaily", "broadcasts", "teamSla", "photo72", "retouch48", "tasksFirstTime", "unitsEntered", "tasksOnTime", "newLeadRoute", "calls", "visitsDone", "unitsBrought", "firstAction", "qualifiedRate", "activitiesDone", "dealsCount", "ownTarget", "teamTarget", "att", "attSales"]);
 
+/** Metrics read from today's state, not from dated events: they can't be capped at the quarter's end. */
+const SNAPSHOT = new Set(["verified", "resaleFresh", "pettyCap"]);
+
 /** `only`: write just these people's cards (a test, or re-running one person); everything is still measured for «team». */
 export async function kpiRefreshTick(now = new Date(), only?: readonly string[]): Promise<number> {
   const cal = await workCalendar();
@@ -313,6 +322,9 @@ export async function kpiRefreshTick(now = new Date(), only?: readonly string[])
   if (!isWorkingDay(localDate(now, cal), cal)) return 0;
   const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
   if (!q || q.status !== "open") return 0;
+  // a quarter closed a few days late is measured up to its own end, never on the next month's data
+  const end = new Date(monthBounds(quarterMonths(q.id)[2], cal).to.getTime() - 1), past = now > end;
+  if (past) now = end;
   const c: Ctx = { now, quarter: q.id, qStart: kpiPeriodStart("quarter", now, q.id, cal), cal };
   // HR 15 Nov «الشهر»: the same measure from the 1st of this month (domain monthKind says which items have one)
   const month = localDate(now, cal).slice(0, 7), mStart = kpiPeriodStart("month", now, q.id, cal);
@@ -327,7 +339,8 @@ export async function kpiRefreshTick(now = new Date(), only?: readonly string[])
   for (const card of cards) {
     for (const it of card.items) {
       const m = it.method === "system" && it.metric ? MEASURES[it.metric] : undefined;
-      if (!m) continue;
+      // a balance as it stands today can't be read back at the quarter's end: it keeps its last figure
+      if (!m || (past && SNAPSHOT.has(it.metric!))) continue;
       const p = (it.params ?? {}) as MetricParams;
       const measure = async (from: Date, tag: string) => {
         const key = `${tag}${it.metric}:${JSON.stringify(p)}`;
