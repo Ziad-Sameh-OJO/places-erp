@@ -8,7 +8,7 @@ import type nav from "@/i18n/messages/ar/nav.json";
  */
 export type NavSection = "" | "sales" | "ops" | "admin" | "system";
 /** A page in the menu: one with words in nav.modules — a module, or «companies» (the companies sheet, 1.20). */
-export type NavKey = keyof typeof nav.modules & (ModuleKey | "companies" | "events" | "dashboard");
+export type NavKey = keyof typeof nav.modules & (ModuleKey | "companies" | "events" | "dashboard" | "papers");
 export const NAV: Record<NavKey, { code: string; icon: IconName; section: NavSection }> = {
   home: { code: "Today", icon: "home", section: "" },
   dashboard: { code: "M-00", icon: "chart", section: "" }, // management's first page (14.1); everyone signed in has his role's
@@ -17,6 +17,7 @@ export const NAV: Record<NavKey, { code: string; icon: IconName; section: NavSec
   deals: { code: "M-02", icon: "handshake", section: "sales" },
   clients: { code: "M-10", icon: "id", section: "sales" },
   contracts: { code: "M-11", icon: "file", section: "sales" },
+  papers: { code: "Docs", icon: "folder", section: "sales" }, // «المستندات» (client, 25 Nov): everyone signed in; each template says who sees it
   inventory: { code: "M-03", icon: "building", section: "ops" },
   companies: { code: "M-01", icon: "board", section: "ops" }, // «شيت الشركات» under the units (client, 11 Nov)
   notactive: { code: "M-03", icon: "layers", section: "ops" },

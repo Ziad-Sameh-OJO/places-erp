@@ -11,7 +11,9 @@ import type { CurrentUser } from "../auth/current-user.decorator";
 
 /** Links live five minutes: long enough to upload 20 MB on a phone, short enough that a leaked link is useless. */
 const LINK_TTL = 300;
-const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf", "image/vnd.dwg": "dwg", "image/vnd.dxf": "dxf", "video/mp4": "mp4", "video/quicktime": "mov" };
+const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf", "image/vnd.dwg": "dwg", "image/vnd.dxf": "dxf", "video/mp4": "mp4", "video/quicktime": "mov", "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx" };
+/** «المستندات»: a Word file only ever belongs to a document template or a document issued from one. */
+const WORD = ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
 /** 4.21 · videos only ever belong to a Content plan post. */
 const VIDEO = ["video/mp4", "video/quicktime"];
 /** An ISO-BMFF box type at bytes 4–8: mp4 starts with «ftyp»; a QuickTime file may start with any of these. */
@@ -22,6 +24,8 @@ const SIGNATURE: Record<string, (b: Uint8Array) => boolean> = {
   "image/png": (b) => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((x, i) => b[i] === x),
   "image/webp": (b) => ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP",
   "application/pdf": (b) => ascii(b, 0, 5) === "%PDF-",
+  // a .docx is a ZIP: «PK\x03\x04»; whether it really is a Word file is checked when the template reads it
+  [WORD[0]!]: (b) => b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04,
   // 2.35 · AutoCAD: a DWG starts with its version («AC1032»…); a DXF is text that opens with group code 0, or binary
   "image/vnd.dwg": (b) => ascii(b, 0, 4) === "AC10",
   "image/vnd.dxf": (b) => /^\s*0\s*\r?\n/.test(ascii(b, 0, 12)) || ascii(b, 0, 12) === "AutoCAD Bina",
@@ -139,7 +143,7 @@ export class FilesService implements OnModuleInit {
   async attach(me: CurrentUser, ids: string[], entity: string, entityId: string, tx: Prisma.TransactionClient) {
     const unique = [...new Set(ids)];
     if (!unique.length) return;
-    const kind = entity === "Post" ? {} : { mime: { notIn: VIDEO } };
+    const kind = entity === "Post" ? { mime: { notIn: WORD } } : entity === "WordTemplate" ? { mime: { in: WORD } } : { mime: { notIn: [...VIDEO, ...WORD] } };
     // M-04: a PDF past the usual 20 MB (purpose "profile") is the Company Profile's file and nothing else's
     const size = entity === "CompanyProfileBase" ? {} : { NOT: { mime: "application/pdf", size: { gt: FILE_KINDS.pdf.maxBytes } } };
     const n = await tx.file.updateMany({ where: { id: { in: unique }, uploadedById: me.id, status: "READY", entity: null, ...kind, ...size }, data: { entity, entityId } });

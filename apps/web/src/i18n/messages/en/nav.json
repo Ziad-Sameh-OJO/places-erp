@@ -115,6 +115,11 @@
       "label": "Fun days & celebrations",
       "short": "Celebrations",
       "sub": "The year's fun days and celebrations · when and for whom"
+    },
+    "papers": {
+      "label": "Documents",
+      "short": "Documents",
+      "sub": "Contracts, receipts, mandates · pick one, fill it in, download it"
     }
   }
 }

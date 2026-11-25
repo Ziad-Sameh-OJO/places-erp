@@ -1,8 +1,15 @@
 {
   "close": "قفل",
   "error": "حصل خطأ",
-  "table": { "empty": "مفيش بيانات", "sortHint": "<b>{n}</b> صف · دوس على عنوان أي عمود عشان ترتّب", "sortedBy": "<b>{n}</b> صف · مترتب بـ «{col}»" },
-  "export": { "label": "تصدير Excel", "busy": "بيجهّز الملف…" },
+  "table": {
+    "empty": "مفيش بيانات",
+    "sortHint": "<b>{n}</b> صف · دوس على عنوان أي عمود عشان ترتّب",
+    "sortedBy": "<b>{n}</b> صف · مترتب بـ «{col}»"
+  },
+  "export": {
+    "label": "تصدير Excel",
+    "busy": "بيجهّز الملف…"
+  },
   "import": {
     "done": "اتضاف {imported} · متكرر {duplicates} · أخطاء {skipped}",
     "imported": "اتستورد {imported} صف",
@@ -42,9 +49,16 @@
     "minutes": "من {count} دقيقة",
     "hours": "من {count} ساعة"
   },
-  "drawer": { "prev": "السابق", "next": "التالي" },
-  "kpi": { "delta": "مقارنة بالفترة اللي قبلها" },
-  "fab": { "new": "جديد" },
+  "drawer": {
+    "prev": "السابق",
+    "next": "التالي"
+  },
+  "kpi": {
+    "delta": "مقارنة بالفترة اللي قبلها"
+  },
+  "fab": {
+    "new": "جديد"
+  },
   "upload": {
     "failedRetry": "الرفع فشل · جرّب تاني",
     "noStorage": "مفيش اتصال بمكان التخزين",
@@ -55,7 +69,9 @@
     "pdf": "ارفع PDF",
     "max": "لحد {max}",
     "progress": "الرفع",
-    "done": "اترفع · {name}"
+    "done": "اترفع · {name}",
+    "needWord": "ارفع ملف Word (.docx)",
+    "word": "ارفع ملف Word"
   },
   "holidays": {
     "added": "اتضافت",
@@ -73,7 +89,9 @@
     "toLabel": "لحد (لو يوم واحد سيبها فاضية)",
     "add": "إضافة"
   },
-  "inbox": { "empty": "مفيش حاجة مستنياك. يوم هادي!" },
+  "inbox": {
+    "empty": "مفيش حاجة مستنياك. يوم هادي!"
+  },
   "claim": {
     "sent": "اتبعتت للمالية",
     "title": "اطلب مطالبة",
@@ -94,7 +112,10 @@
     "cancel": "إلغاء",
     "send": "ابعت للمالية"
   },
-  "periodPicker": { "label": "السنة والربع", "all": "كل الفترات" },
+  "periodPicker": {
+    "label": "السنة والربع",
+    "all": "كل الفترات"
+  },
   "pickDate": "اختار تاريخ",
   "more": "أكتر",
   "savedFilters": {

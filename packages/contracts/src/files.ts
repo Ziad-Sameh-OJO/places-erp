@@ -9,6 +9,8 @@ export const FILE_KINDS = {
   drawing: { mimes: ["image/vnd.dwg", "image/vnd.dxf"], maxBytes: 50 * MB, label: "ملف الـ DWG", max: "50 ميجا" },
   // 4.21 · a Content plan post's video (mp4 / mov): only with `purpose: "post"`, and only a post takes it (FilesService.attach)
   video: { mimes: ["video/mp4", "video/quicktime"], maxBytes: 200 * MB, label: "الفيديو", max: "200 ميجا" },
+  // «المستندات» (client, 25 Nov): a Word template, only with `purpose: "template"`, and only a template takes it
+  word: { mimes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"], maxBytes: 20 * MB, label: "ملف الوورد", max: "20 ميجا" },
 } as const;
 /** M-04 · the Company Profile brochure: a PDF this big only with `purpose: "profile"`, and only the Company Profile takes it */
 export const PROFILE_PDF_MAX = { maxBytes: 80 * MB, max: "80 ميجا" } as const;
@@ -27,11 +29,12 @@ export const UploadRequest = z.object({
   /** 2.35 · the only place a DWG / DXF may go */
   folder: z.literal("layout").optional(),
   /** what it's for: "post" also allows a video (4.21); "profile" a PDF up to 80 MB (M-04 Company Profile) */
-  purpose: z.enum(["post", "profile"]).optional(),
+  purpose: z.enum(["post", "profile", "template"]).optional(),
 }).superRefine((f, ctx) => {
   const kind = fileKind(f.mime);
   if (kind === "video" && f.purpose !== "post") return ctx.addIssue({ code: "custom", path: ["mime"], message: "نوع الملف مش مسموح · صور jpg/png/webp أو PDF" });
   if (!kind) return ctx.addIssue({ code: "custom", path: ["mime"], message: "نوع الملف مش مسموح · صور jpg/png/webp أو PDF" });
+  if (kind === "word" && f.purpose !== "template") return ctx.addIssue({ code: "custom", path: ["mime"], message: "ملفات الوورد لقوالب المستندات بس" });
   if (kind === "drawing" && f.folder !== "layout") return ctx.addIssue({ code: "custom", path: ["mime"], message: "ملفات الـ DWG / DXF لفولدر الـ Layout بس" });
   if (kind === "pdf" && f.purpose === "profile") {
     if (f.size > PROFILE_PDF_MAX.maxBytes) ctx.addIssue({ code: "custom", path: ["size"], message: `الملف أكبر من ${PROFILE_PDF_MAX.max}` });

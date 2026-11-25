@@ -59,3 +59,4 @@ export * from "./dashboard-ahmed.ts";
 export * from "./period.ts";
 export * from "./lead-transfer.ts";
 export * from "./unit-journey.ts";
+export * from "./word-templates.ts";

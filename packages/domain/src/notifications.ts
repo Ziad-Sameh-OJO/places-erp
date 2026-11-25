@@ -77,6 +77,10 @@ export const NOTIFICATION_EVENTS: readonly NotificationEvent[] = [
   { key: "finance.commission_due", label: "عمولات سيلز مستحقة (صفقة اتحصّلت بالكامل)", to: "المحاسب", toRoles: ["accountant"], channels: ["app"], important: false }, // M-07 9.15
   { key: "finance.commission_paid", label: "اتصرفتلك عمولة", to: "السيلز", toRoles: [], channels: ["app", "push"], important: false }, // M-07 9.15
   { key: "finance.claim", label: "مطالبة / فاتورة إلكترونية / إيصال مطلوب", to: "المحاسب", toRoles: ["accountant"], channels: ["app", "email"], important: false }, // M-07 9.17
+  // «المستندات» (client, 25 Nov): who is told and who approves is set per template
+  { key: "paper.request", label: "مستند مستني موافقتك", to: "اللي بيوافقوا على القالب", toRoles: [], channels: ["app", "push"], important: true },
+  { key: "paper.decided", label: "مستندك اتوافق عليه / اترفض", to: "اللي طلب المستند", toRoles: [], channels: ["app", "push"], important: false },
+  { key: "paper.issued", label: "حد طلّع مستند", to: "اللي بيتبلغوا من القالب", toRoles: [], channels: ["app"], important: false },
   { key: "finance.claim_ready", label: "مطالبتك اتعملت / اترفضت / إيصالها جاهز", to: "اللي طلب المطالبة", toRoles: [], channels: ["app", "push"], important: false }, // M-07 9.17
   { key: "contract.value", label: "تغيير قيمة عقد مستني موافقة", to: "الإدارة", toRoles: ["admin"], channels: ["app", "email"], important: false }, // M-11 2.2
   { key: "contract.renewal", label: "تجديد عقد (90/60/30)", to: "السيلز · المالية", toRoles: ["accountant"], channels: ["app", "email"], important: false },

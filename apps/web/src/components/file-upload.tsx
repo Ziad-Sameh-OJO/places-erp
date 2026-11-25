@@ -38,10 +38,11 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
 
   const pick = async (file: File | undefined) => {
     if (!file) return;
-    const req = { name: file.name, mime: file.type, size: file.size };
+    // a Word file is only ever a document template («المستندات»)
+    const req = { name: file.name, mime: file.type, size: file.size, ...(kind === "word" ? { purpose: "template" as const } : {}) };
     const check = UploadRequest.safeParse(req);
     if (!check.success || !(FILE_KINDS[kind].mimes as readonly string[]).includes(file.type)) {
-      return toast(check.success ? t(kind === "image" ? "needImage" : "needPdf") : check.error.issues[0]!.message, "bad");
+      return toast(check.success ? t(kind === "image" ? "needImage" : kind === "word" ? "needWord" : "needPdf") : check.error.issues[0]!.message, "bad");
     }
     setDone(null);
     setPreview(kind === "image" ? URL.createObjectURL(file) : null);
@@ -62,7 +63,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
   return (
     <div className="upload">
       <label className="btn ghost">
-        <Icon name={kind === "image" ? "camera" : "file"} />{label ?? (kind === "image" ? t("image") : t("pdf"))}
+        <Icon name={kind === "image" ? "camera" : "file"} />{label ?? (kind === "image" ? t("image") : kind === "word" ? t("word") : t("pdf"))}
         <input type="file" hidden accept={FILE_KINDS[kind].mimes.join(",")} disabled={pct !== null} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
       </label>
       <span className="hint">{t("max", { max: serverText(FILE_KINDS[kind].max) })}</span>
