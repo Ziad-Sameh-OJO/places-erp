@@ -81,8 +81,11 @@ export const KpiScope = z.object({ scope: z.enum(["me", "team", "mine", "all"]).
 export type KpiScope = z.infer<typeof KpiScope>;
 
 export interface KpiQuarterView { id: string; label: string; status: "open" | "closed" }
+/** The score where each band starts (11.4), for the scale a card and the board draw. No money in it. */
+export interface KpiScale { low: number; partial: number; full: number; top: number }
 export interface KpiCardSummary {
-  id: string; employeeId: string; name: string; title: string; follower: string;
+  /** `department`: the board groups its rows by it */
+  id: string; employeeId: string; name: string; title: string; department: string; follower: string;
   score: number; tone: "ok" | "warn" | "bad"; tier: string; below: number; approved: boolean;
   /** HR 15 Nov «الشهر»: the same weighting on this month's figures (KpiMonth) */
   month: KpiMonthScore;
@@ -92,7 +95,7 @@ export interface KpiCardSummary {
 /** HR 15 Nov «الشهر»: a card's score on this month's figures (an item without one counts its quarter figure). */
 export interface KpiMonthScore { score: number; tone: "ok" | "warn" | "bad" }
 export interface KpiBoard {
-  quarter: KpiQuarterView; cards: KpiCardSummary[]; seesMoney: boolean; seesAll: boolean;
+  quarter: KpiQuarterView; cards: KpiCardSummary[]; seesMoney: boolean; seesAll: boolean; scale: KpiScale;
   /** 11.19 · scope «mine» for the Inventory Manager: her team's people without a card this quarter (else empty) */
   missing: { id: string; name: string; title: string }[];
 }
@@ -127,7 +130,7 @@ export interface KpiPerson { id: string; userId: string; name: string }
 export interface KpiCardView {
   id: string; quarter: KpiQuarterView; employee: { id: string; name: string; title: string };
   follower: { id: string | null; name: string };
-  score: number; tone: "ok" | "warn" | "bad"; tier: string; plan: string | null;
+  score: number; tone: "ok" | "warn" | "bad"; tier: string; plan: string | null; scale: KpiScale;
   month: KpiMonthScore;
   approved: { by: string; at: string } | null;
   /** null for whoever doesn't see money (11.14) */
