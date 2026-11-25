@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import type { Prisma, PrismaClient } from "@places/db";
 import { NOT_QUALIFIED_ROWS, type CampaignInput, type CampaignRow, type CampaignUnitOption, type DashboardQuery, type MarketingDashboard, type NotQualifiedQuery, type NotQualifiedView, type PageNameRow } from "@places/contracts";
 import {
-  LEAD_STAGES, allowedValue, campaignBudget, campaignDays, channelTree, countByReason, qualificationRate, costPer, costPerLead, dayStart, dealsByLeadArrival, fromDecimal, isCampaignLive, lastSalesAct, leadsByPost, localDate, pageNameProblem, toDecimal,
+  LEAD_STAGES, allowedValue, campaignBudget, campaignDays, channelTree, countByReason, qualificationRate, costPer, costPerLead, dayStart, dealsByLeadArrival, fromDecimal, isCampaignLive, lastSalesAct, leadsByPost, localDate, pageNameProblem, spentInPeriod, toDecimal,
   type CostCounts, type CostMetric, type Piasters,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -56,7 +56,11 @@ export class CampaignsService {
    * M-04 3.2 · 6.1: channel → campaign → post, leads and Qualified with the rate, for a period of Cairo days and an
    * optional channel / campaign. Every arrival counts, the duplicates too (Q22), so the numbers match the leads' arrivals.
    */
-  async dashboard(me: CurrentUser, q: DashboardQuery): Promise<MarketingDashboard> {
+  async dashboard(me: CurrentUser, q: DashboardQuery, now = new Date()): Promise<MarketingDashboard> {
+    const today = localDate(now);
+    // Q6: only the share of each campaign's spend that falls on the period's days (spread evenly over the days it ran)
+    const spentOf = (c: { spent: Prisma.Decimal; startsOn: Date; endsOn: Date | null }) =>
+      spentInPeriod({ startsOn: day(c.startsOn), endsOn: c.endsOn ? day(c.endsOn) : null, spent: fromDecimal(money(c.spent)) }, q, today);
     const hidden = me.fields.hidden("marketing"), h = (k: string) => hidden.has(k);
     const rows = await this.repo.arrivals(arrivalsIn(q));
     const arrivals = rows.map((r) => ({ channel: r.channel, campaignId: r.campaignId, qualified: r.lead.qualified, post: r.lead.post }));
@@ -65,7 +69,7 @@ export class CampaignsService {
     const scope = q.campaignId ? { id: q.campaignId } : q.channel ? { channel: q.channel } : {};
     // 14.13: the spend of the campaigns that ran in the period (a campaign's spend isn't kept per month)
     const covered = await this.repo.covered({ ...scope, ...ranIn(q) });
-    const spent = covered.reduce((s, c) => s + fromDecimal(money(c.spent)), 0);
+    const spent = covered.reduce((s, c) => s + spentOf(c), 0);
     // 14.13: a deal counts for the period and the campaign its lead came in, whenever it closed
     const dealRows = await this.repo.dealLeads(q.campaignId ? { campaignId: q.campaignId } : q.channel ? { channel: q.channel } : {});
     const deals = dealsByLeadArrival(dealRows.map((d) => ({ leadArrivedOn: localDate(d.lead!.arrivedAt), campaignId: d.lead!.campaignId, closedOn: localDate(d.closedAt) })), q);
@@ -85,7 +89,7 @@ export class CampaignsService {
           const none = { costPerLead: null, costPerQualified: null, costPerDeal: null };
           return {
             id: x.campaignId, name: info?.name ?? "—", target: h("target") ? null : info?.target ?? null, leads: x.leads, qualified: x.qualified, rate: x.rate, deals: n.deals,
-            ...(info ? costs(fromDecimal(money(info.spent)), n) : none),
+            ...(info ? costs(spentOf(info), n) : none),
           };
         }),
       })),

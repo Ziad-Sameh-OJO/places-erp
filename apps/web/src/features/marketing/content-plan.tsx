@@ -1,6 +1,6 @@
 "use client";
 import { useNewParam } from "@/lib/new-param";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PostInput, PostRow } from "@places/contracts";
 import { Chip, Field, Icon, Modal, Note, Table, onFormSubmit, useAction, useToast } from "@/components/ui";
@@ -129,6 +129,8 @@ function NewPost({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const qc = useQueryClient();
   const channels = useChannels().data ?? [];
+  // the post once it's saved: pressing «حفظ» again after a failed upload retries the upload on it, never a second post
+  const saved = useRef<string | null>(null);
   return (
     <Modal title={t("title")} onClose={onClose}>
       <form className="grid" onSubmit={onFormSubmit((f) => run(async () => {
@@ -136,8 +138,8 @@ function NewPost({ onClose }: { onClose: () => void }) {
         const files = f.getAll("media").filter((x): x is File => x instanceof File && x.size > 0);
         if (files.some((x) => !/^(image|video)\//.test(x.type))) throw new Error(tm("onlyMedia"));
         const body: PostInput = { title: text("title"), channel: text("channel"), at: text("at"), ...(text("description") ? { description: text("description") } : {}) };
-        const { id } = await api.post<{ id: string }>("/marketing/posts", body);
-        // the post is saved first; a failed upload leaves it scheduled, and «ضيف صورة / فيديو» in it tries again
+        const id = saved.current ?? (saved.current = (await api.post<{ id: string }>("/marketing/posts", body)).id);
+        // the post is saved first; a failed upload leaves it scheduled, and «حفظ» here (or «ضيف صورة / فيديو» in it) tries again
         const n = await uploadPostMedia(id, files, tm("onlyMedia")).finally(() => qc.invalidateQueries({ queryKey: ["posts"] }));
         onClose();
         toast(n ? t("scheduledWith", { n }) : t("scheduled"));
@@ -147,7 +149,7 @@ function NewPost({ onClose }: { onClose: () => void }) {
         <Field label={t("at")} req wide><input name="at" type="datetime-local" required /></Field>
         <Field label={t("description")} wide><textarea name="description" /></Field>
         <Field label={t("media")} wide><input name="media" type="file" multiple accept="image/*,video/*" /></Field>
-        <div className="row end wide"><button className="btn">{t("save")}</button></div>
+        <div className="row end wide"><button className="btn" disabled={run.busy}>{t("save")}</button></div>
       </form>
     </Modal>
   );

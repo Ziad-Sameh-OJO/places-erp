@@ -14,6 +14,8 @@ const NO_BROADCAST = "الـ Broadcast ده مش موجود";
 /** M-04 1.2 · 4.1: the Broadcast goes to sales; they see only their own Broadcast tasks. */
 const SALES_ROLE = "sales";
 const BOARD_SIZE = 50;
+/** The same text from the same sender within a minute is a double click, not a second message. */
+const DUPLICATE_MS = 60_000;
 /** system.File.entity of a Broadcast's images (M-04 2.1 step 7 «صورة»). */
 const BROADCAST = "Broadcast";
 
@@ -73,8 +75,13 @@ export class BroadcastsService {
     if (pics.some((f) => !f.mime.startsWith("image/"))) throw new BadRequestException("الـ Broadcast بياخد صور بس");
     const approved = me.grants.can("marketing", "approve");
     const b = await this.db.$transaction(async (tx) => {
+      // a double click on «ابعت» must not make two Broadcasts (two tasks for every salesperson, two of the week's sends):
+      // the sender's requests wait for each other, and the same text from them a moment ago is the same message
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`broadcast:${me.id}`}))`;
       const created = await tx.broadcast.create({ data: { text: input.text, hotUnitIds: [...new Set(input.hotUnitIds)], approved, createdById: me.id }, select: { id: true } });
       await this.files.attach(me, input.imageFileIds, BROADCAST, created.id, tx); // the sender's own finished uploads, or it fails
+      const twin = await tx.broadcast.findFirst({ where: { id: { not: created.id }, createdById: me.id, text: input.text, createdAt: { gte: new Date(Date.now() - DUPLICATE_MS) } }, select: { id: true } });
+      if (twin) throw new ConflictException("الـ Broadcast ده اتبعت خلاص");
       await this.audit.record({ module: "marketing", entity: "Broadcast", entityId: created.id, action: "create", userId: me.id, after: { ...input, images: pics.map((f) => f.name), approved } }, tx);
       return created;
     });

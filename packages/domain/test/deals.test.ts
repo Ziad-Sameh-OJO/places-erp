@@ -199,3 +199,9 @@ test("M-02 3.1: Finance marks the papers «سليمة», or «فيها خطأ» 
   assert.equal(papersProblem("Approved", false, "  "), "اكتب الخطأ إيه");
   assert.equal(papersProblem("Cancelled", true, undefined), "مراجعة الأوراق بتبقى على صفقة اتوافق عليها بس");
 });
+
+test("formatEGP: messages use the screens' 0-9 digits and keep the piasters", () => {
+  const s = formatEGP(275_050);
+  assert.match(s, /2,750\.50/);
+  assert.doesNotMatch(s, /[٠-٩]/);
+});

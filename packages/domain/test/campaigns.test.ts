@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { campaignBudget, campaignDays, channelTree, costPer, costPerLead, countByReason, dealsByLeadArrival, type DealOfLead, isCampaignLive, lastSalesAct, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
+import { campaignBudget, campaignDays, spentInPeriod, channelTree, costPer, costPerLead, countByReason, dealsByLeadArrival, type DealOfLead, isCampaignLive, lastSalesAct, leadsByPost, pageNameProblem, qualificationRate } from "../src/campaigns.ts";
 import { fromDecimal, toDecimal } from "../src/money.ts";
 
 test("M-04 3.2: qualification rate = Qualified ÷ Total × 100 (campaign «X» 120 leads, 30 Qualified → 25%)", () => {
@@ -92,4 +92,21 @@ test("14.13: a deal counts for the month its lead came in — a June lead closed
   assert.equal(costPer("deal", fromDecimal("60000"), { ...juneN, deals: 0 }), null);
   // «الكل»: no period → both
   assert.equal(dealsByLeadArrival(deals, {}).size, 2);
+});
+
+test("Q6: a campaign's spend spreads over the days it ran; a period counts only its own days", () => {
+  // 10 days (1–10 Nov), 10,000 spent → 1,000 a day
+  const c = { startsOn: "2026-11-01", endsOn: "2026-11-10", spent: fromDecimal("10000") };
+  assert.equal(toDecimal(spentInPeriod(c, {}, "2026-11-20")), "10000.00");
+  assert.equal(toDecimal(spentInPeriod(c, { from: "2026-11-05", to: "2026-11-05" }, "2026-11-20")), "1000.00");
+  assert.equal(toDecimal(spentInPeriod(c, { from: "2026-11-08", to: "2026-11-30" }, "2026-11-20")), "3000.00");
+  assert.equal(toDecimal(spentInPeriod(c, { from: "2026-10-01", to: "2026-10-31" }, "2026-11-20")), "0.00");
+  // still running (no end): today is its 5th day → «النهارده» = a fifth of what it spent so far
+  const live = { startsOn: "2026-11-16", endsOn: null, spent: fromDecimal("5000") };
+  assert.equal(toDecimal(spentInPeriod(live, { from: "2026-11-20", to: "2026-11-20" }, "2026-11-20")), "1000.00");
+  assert.equal(toDecimal(spentInPeriod(live, { from: "2026-11-01" }, "2026-11-20")), "5000.00");
+  // 3 days, 100 spent: a day's share rounds to the piaster
+  assert.equal(toDecimal(spentInPeriod({ startsOn: "2026-11-01", endsOn: "2026-11-03", spent: fromDecimal("100") }, { to: "2026-11-01" }, "2026-11-20")), "33.33");
+  // not started yet
+  assert.equal(spentInPeriod({ ...live, startsOn: "2026-12-01" }, { from: "2026-11-20" }, "2026-11-20"), 0);
 });
