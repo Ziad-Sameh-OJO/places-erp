@@ -416,3 +416,23 @@ test("0.15 sort by a column in the API, across pages (Area 60 < 95 < 400, empty 
   assert.equal((await call("/inventory/units?sort=ownerPhone", { cookie: manar })).status, 400);
   assert.equal((await call("/inventory/units?sort=space", { cookie: hr })).status, 403);
 });
+
+test("«Last update» is a day: the same day sent back (or none) is no change — the PDF stays confirmed, no audit line", async () => {
+  const u = await create(manar, rent({ project: `${P} Same day` }));
+  // «اتكلمت مع المالك» stores the time; the form shows and sends the Cairo day only
+  assert.equal((await call(`/inventory/units/${u.id}/owner-update`, { method: "POST", cookie: manar, body: {} })).status, 200);
+  const stored = (await prisma.unit.findUniqueOrThrow({ where: { id: u.id } })).lastOwnerUpdateAt;
+  const day = stored.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  await confirm(u.id);
+  assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: manar, body: rent({ project: `${P} Same day`, lastOwnerUpdateAt: day }) })).status, 200);
+  assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: randa, body: rent({ project: `${P} Same day` }) })).status, 200);
+  const after = await prisma.unit.findUniqueOrThrow({ where: { id: u.id } });
+  assert.equal(after.pdfStatus, "confirmed");
+  assert.equal(after.lastOwnerUpdateAt.getTime(), stored.getTime());
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Unit", entityId: u.id, action: "update" } }), 0);
+  // another day is a change; sales still can't edit
+  assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: sales, body: rent({ project: `${P} Same day`, lastOwnerUpdateAt: "2026-01-05" }) })).status, 403);
+  assert.equal((await call(`/inventory/units/${u.id}`, { method: "PUT", cookie: manar, body: rent({ project: `${P} Same day`, lastOwnerUpdateAt: "2026-01-05" }) })).status, 200);
+  assert.equal((await prisma.unit.findUniqueOrThrow({ where: { id: u.id } })).pdfStatus, "draft");
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Unit", entityId: u.id, action: "update" } }), 1);
+});

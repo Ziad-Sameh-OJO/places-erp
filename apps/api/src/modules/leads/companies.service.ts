@@ -91,10 +91,11 @@ export class CompaniesService {
   /** «عدّل» a company in the sheet: its keepers only; name + number stay unique; audited with what changed. */
   async update(me: CurrentUser, id: string, input: CompanyUpdate): Promise<CompanyRow> {
     if (!keepsCompaniesSheet(me.roles)) throw new ForbiddenException(KEEPERS_ONLY);
-    await this.checkCategory(input.category);
     const c = await this.db.$transaction(async (tx) => {
       const before = await tx.company.findUnique({ where: { id } });
       if (!before) throw new NotFoundException("الشركة دي مش في الشيت");
+      // a category switched off in the settings stays on the companies that have it: only a new choice must be active
+      if (input.category !== before.category) await this.checkCategory(input.category);
       if (await this.findSame(input.name, input.number, tx, id)) throw new ConflictException("فيه شركة تانية في الشيت بنفس الاسم أو الرقم");
       const day = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`) : null);
       const after = await tx.company.update({ where: { id }, data: {

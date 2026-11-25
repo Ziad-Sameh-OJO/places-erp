@@ -32,7 +32,8 @@ export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
   const [name, setName] = useState(into?.name ?? sheets[0]?.name ?? "");
   const [cols, setCols] = useState<string[]>([]);
   const [skip, setSkip] = useState(false);
-  const [numberCol, setNumberCol] = useState("");
+  // the «Number» column the person picked ("" = «من غير مقارنة»); null = not picked yet, the file's / the guessed one shows
+  const [picked, setPicked] = useState<string | null>(null);
   const [p, setP] = useState<NotActivePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const latest = useRef(0); // only the last check's answer is shown
@@ -44,7 +45,6 @@ export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
       const r = await api.post<NotActivePreview>("/not-active/preview", form(f, { name: n.trim(), ...(c.length ? { dedupeBy: JSON.stringify(c) } : {}) }));
       if (at !== latest.current) return;
       setCols(r.dedupeBy);
-      setNumberCol((x) => (x && r.headers.includes(x) ? x : r.numberGuess ?? ""));
       setP(r);
     });
   };
@@ -56,8 +56,11 @@ export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
     setCols(next);
     if (next.length && file) void look(file, name, next);
   };
+  const numberCol = picked !== null && (picked === "" || p?.headers.includes(picked)) ? picked : p?.numberGuess ?? "";
   const merge = () => step(async () => {
-    const r = await api.post<NotActiveImportDone>("/not-active/import", form(file!, { name: name.trim(), dedupeBy: JSON.stringify(cols), numberBy: numberCol, skipDupes: String(skip) }));
+    const body = form(file!, { name: name.trim(), dedupeBy: JSON.stringify(cols), skipDupes: String(skip) });
+    body.append("numberBy", numberCol); // sent even empty: "" is «من غير مقارنة», not «keep the file's old column»
+    const r = await api.post<NotActiveImportDone>("/not-active/import", body);
     await qc.invalidateQueries({ queryKey: ["not-active"] });
     const dup = r.skipped ? ` · ${t("upload.skipped", { count: num(r.skipped) })}` : r.marked ? ` · ${t("upload.markedCount", { count: num(r.marked) })}` : "";
     toast(`${t("upload.added", { count: num(r.added) })}${dup}${r.inInventory ? ` · ${t("upload.inInventory", { count: num(r.inInventory) })}` : ""}`);
@@ -95,7 +98,7 @@ export function UploadSheet({ sheets, onClose, onDone, file: into, initial }: {
           </Field>
           {/* M-03 1.1: the «Number» column is compared with the owners' numbers in the inventory */}
           <Field label={t("upload.numberBy")}>
-            <select value={numberCol} onChange={(e) => setNumberCol(e.target.value)}>
+            <select value={numberCol} onChange={(e) => setPicked(e.target.value)}>
               <option value="">{t("upload.noCompare")}</option>
               {p.headers.map((h) => <option key={h} value={h}>{h}</option>)}
             </select>

@@ -131,7 +131,7 @@ function PayBox({ c }: { c: KpiCardView }) {
             onBlur={(e) => { const v = e.target.value.trim(); if ((v || null) !== (p.amount ? String(Number(p.amount)) : null)) save({ amount: v ? Number(v).toFixed(2) : null }); }} /></label>
           : <span className="hint">{t("pay.salaryIs", { salary: money(p.salary) })}</span>}
       </div>
-      <p>{d > 0 ? t.rich("pay.reward", { amount: money(p.delta), base, b: (x) => <b className="num">{x}</b> }) : d < 0 ? t.rich("pay.cut", { amount: money(p.delta.replace("-", "")), base, b: (x) => <b className="num">{x}</b> }) : t("pay.fullBase", { base })} · {t(`pay.${p.period}`)}</p>
+      {p.delta != null && <p>{d > 0 ? t.rich("pay.reward", { amount: money(p.delta), base, b: (x) => <b className="num">{x}</b> }) : d < 0 ? t.rich("pay.cut", { amount: money(p.delta.replace("-", "")), base, b: (x) => <b className="num">{x}</b> }) : t("pay.fullBase", { base })} · {t(`pay.${p.period}`)}</p>}
       {c.tone === "bad" && <Plan c={c} />}
       <small className="hint">{t("pay.rules")}</small>
     </section>

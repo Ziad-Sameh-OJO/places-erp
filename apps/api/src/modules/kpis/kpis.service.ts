@@ -7,8 +7,8 @@ import {
 } from "@places/contracts";
 import {
   INVENTORY_DEPARTMENT, INVENTORY_MANAGER, canManageCard, invManagerMakesCard,
-  type Bands, type LeadClocks, type MetricParams, type Method, kpiTodayLines, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, taskCardFollower, timedTasks, toDecimal, TASKS_ON_TIME_ITEM, type ActivityKind,
-  type SheetField, SHEET_FIELDS, SHEET_FIELD_KEYS, dealRowOf, monthBounds, quarterMonths, sheetFigures, localDate, monthItem,
+  type Bands, type LeadClocks, type MetricParams, type Method, kpiTodayLines, leadClocks, bandLabel, bandTone, calcText, canEnterManual, closeAlert, dayStart, fromDecimal, itemAchievement, kpiPeriodStart, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, taskCardFollower, timedTasks, toDecimal, typedByHand, TASKS_ON_TIME_ITEM, type ActivityKind,
+  type SheetField, SHEET_FIELDS, SHEET_FIELD_KEYS, dealRowOf, monthBounds, quarterMonths, quarterTarget, sheetFigures, localDate, monthItem,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -41,7 +41,7 @@ function hideCard(w: Who, v: KpiCardView): KpiCardView {
 const thisMonth = () => localDate(new Date()).slice(0, 7);
 
 /** `noScore` / `noPlan` / `fixedMoney` / `fixedPlan`: the person's M-09 field rules on the card (`noMoney` covers them too). */
-export interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean; noScore: boolean; noPlan: boolean; fixedMoney: boolean; fixedPlan: boolean }
+export interface Who { me: CurrentUser; watcher: boolean; edit: boolean; approve: boolean; all: boolean; noMoney: boolean; noSalary: boolean; noScore: boolean; noPlan: boolean; fixedMoney: boolean; fixedPlan: boolean }
 type Quarter = { id: string; status: string; sheetsAt?: Date | null; sheetsById?: string | null };
 
 const piasters = (d: Prisma.Decimal | null) => (d == null ? 0 : fromDecimal(d.toFixed(2)));
@@ -82,6 +82,8 @@ export class KpisService {
     // M-09 field permissions only hide more: a hidden «money» is the watcher's view of it (11.14), everywhere money goes
     const hidden = me.fields.hidden("kpis"), fixed = me.fields.fixed("kpis");
     return { me, watcher, edit, approve, all: edit || approve || watcher, noMoney: (watcher && !edit && !approve) || hidden.has("money"),
+      // HR's «salary» field rule (M-09) hides it here too, as on the quarterly sheet (sheetHidden)
+      noSalary: me.fields.hidden("hr").has("salary"),
       noScore: hidden.has("score"), noPlan: hidden.has("plan"), fixedMoney: fixed.has("money"), fixedPlan: fixed.has("plan") };
   }
 
@@ -148,6 +150,11 @@ export class KpisService {
     return { score: Math.round(s * 10) / 10, tone: bandTone(s, b) };
   }
 
+  /** The amount is the salary, or a bonus left at one month's salary: its reward or deduction gives the salary away. */
+  private onSalary(c: CardRecord) {
+    return c.payBase === "salary" || c.payAmount == null;
+  }
+
   /** 11.4: reward (+) or deduction (−) on the salary or the bonus (the bonus defaults to one month's salary). */
   private delta(c: CardRecord, score: number, b: Bands) {
     const salary = piasters(c.employee.salary);
@@ -161,7 +168,7 @@ export class KpisService {
       id: c.id, employeeId: c.employeeId, name: c.employee.name, title: c.employee.jobTitle, follower: c.follower?.name ?? "الملاك",
       score: Math.round(s * 10) / 10, tone: bandTone(s, b), tier: w.noMoney ? levelLabel(s, b) : bandLabel(s, b),
       below: c.items.filter((it) => this.ach(it) < 1).length, approved: !!c.approvedAt, month: this.monthScore(c, b),
-      money: w.noMoney ? null : toDecimal(this.delta(c, s, b)),
+      money: w.noMoney || (w.noSalary && this.onSalary(c)) ? null : toDecimal(this.delta(c, s, b)),
     });
   }
 
@@ -219,7 +226,7 @@ export class KpisService {
   }
 
   private async view(w: Who, c: CardRecord, q: Quarter): Promise<KpiCardView> {
-    const [bands, people, roles, reports] = await Promise.all([this.repo.bands(), this.repo.people(), this.repo.roles(), this.repo.reportNames()]);
+    const [bands, people, roles, reports, first] = await Promise.all([this.repo.bands(), this.repo.people(), this.repo.roles(), this.repo.reportNames(), this.firstQuarter(q.id)]);
     const b = bandsOf(bands), s = this.score(c), open = q.status === "open", month = thisMonth();
     const names = new Map<string, string>([...people.map((p) => [p.userId, p.name] as const), ...roles.map((r) => [r.key, r.label] as const)]);
     const follower = this.isFollower(w, c), mine = c.employeeId === w.me.employeeId, manage = open && this.canManage(w, c);
@@ -233,7 +240,8 @@ export class KpisService {
       approved: c.approvedAt ? { by: approver, at: c.approvedAt.toISOString() } : null,
       pay: w.noMoney ? null : {
         base: c.payBase === "salary" ? "salary" : "bonus", period: c.payPeriod === "month" ? "month" : "quarter",
-        amount: c.payAmount?.toFixed(2) ?? null, salary: c.employee.salary.toFixed(2), delta: toDecimal(this.delta(c, s, b)),
+        amount: c.payAmount?.toFixed(2) ?? null, salary: w.noSalary ? null : c.employee.salary.toFixed(2),
+        delta: w.noSalary && this.onSalary(c) ? null : toDecimal(this.delta(c, s, b)),
       },
       items: c.items.map((it) => {
         const a = this.ach(it), m = this.month(it, month);
@@ -247,7 +255,7 @@ export class KpisService {
           calc: calcText({ ...it, method: it.method as Method, params: params as MetricParams, report: it.report && (reports.find((r) => r.id === it.report)?.name ?? it.report) }, (x) => names.get(x) ?? x),
           achievement: Math.round(a * 1000) / 10, contribution: Math.round(it.weight * a * 10) / 10,
           month: m && { goal: Math.round(m.goal * 10) / 10, value: m.value, achievement: Math.round(m.achievement * 1000) / 10, contribution: Math.round(it.weight * m.achievement * 10) / 10 },
-          canEnter: open && it.method === "manual" && canEnterManual(it.enteredBy, { userId: w.me.id, roles: w.me.roles, isFollower: follower }),
+          canEnter: open && typedByHand(it, first) && canEnterManual(it.method === "manual" ? it.enteredBy : [], { userId: w.me.id, roles: w.me.roles, isFollower: follower }),
           canDeliver: open && mine && it.method === "report" && !it.report && it.deliveries.length < (it.required ?? 0),
         };
       }),
@@ -310,13 +318,19 @@ export class KpisService {
     return this.view(w, (await this.repo.card(id))!, q);
   }
 
+  /** No quarter before this one in the system: «الشيتات في ميعادها» has nothing to measure (typedByHand). */
+  private async firstQuarter(id: string) {
+    return !(await this.repo.quarter(previousQuarter(id)));
+  }
+
   /** 11.3: a manual item, typed by whoever the item names (the follower by default). */
   async setValue(me: CurrentUser, id: string, itemId: string, value: number) {
     const w = await this.who(me);
-    const { c } = await this.openCard(w, id);
+    const { c, q } = await this.openCard(w, id);
     const it = c.items.find((x) => x.id === itemId);
-    if (!it || it.method !== "manual") throw new NotFoundException("البند ده مش يدوي أو مش في الكارت");
-    if (!canEnterManual(it.enteredBy, { userId: me.id, roles: me.roles, isFollower: this.isFollower(w, c) })) throw new ForbiddenException("الرقم ده بيدخّله اللي البند بيحدده");
+    if (!it || !typedByHand(it, await this.firstQuarter(q.id))) throw new NotFoundException("البند ده مش يدوي أو مش في الكارت");
+    // a system item typed by hand (typedByHand) is its follower's, like a manual item with nobody named
+    if (!canEnterManual(it.method === "manual" ? it.enteredBy : [], { userId: me.id, roles: me.roles, isFollower: this.isFollower(w, c) })) throw new ForbiddenException("الرقم ده بيدخّله اللي البند بيحدده");
     await this.db.$transaction(async (tx) => {
       await tx.kpiItem.update({ where: { id: itemId }, data: { value } });
       await this.audit.record({ module: MODULE, entity: "KpiItem", entityId: itemId, action: "update", userId: me.id,
@@ -334,6 +348,9 @@ export class KpisService {
     if (!it || it.method !== "report" || it.report) throw new BadRequestException("البند ده بيتسلّم من التقرير بتاعه مش من الكارت");
     if (it.deliveries.length >= (it.required ?? 0)) throw new ConflictException("كل المرات المطلوبة اتسلّمت");
     await this.db.$transaction(async (tx) => {
+      // a double click: the item row is locked and the hand-ins counted again under the lock, so the second one waits and stops
+      await tx.$queryRaw`SELECT id FROM kpi."KpiItem" WHERE id = ${itemId} FOR UPDATE`;
+      if ((await tx.kpiDelivery.count({ where: { itemId } })) >= (it.required ?? 0)) throw new ConflictException("كل المرات المطلوبة اتسلّمت");
       const d = await tx.kpiDelivery.create({ data: { itemId, byId: me.id, link: input.link ?? null, fileId: input.fileId ?? null } });
       if (input.fileId) await this.files.attach(me, [input.fileId], "KpiDelivery", d.id, tx);
       await this.audit.record({ module: MODULE, entity: "KpiDelivery", entityId: d.id, action: "create", userId: me.id,
@@ -625,7 +642,7 @@ export class KpisService {
     if (!keys.length) return "";
     const months = quarterMonths(quarter), from = monthBounds(months[0]).from, to = monthBounds(months[2]).to;
     const [m, rules] = await Promise.all([this.repo.sheetMoney(c.employeeId, months, from, to), this.repo.bonusRules()]);
-    const goal = months.reduce((sum, mo) => sum + piasters(m.targets.find((t) => t.month === mo)?.value ?? m.target), 0);
+    const goal = quarterTarget(quarter, m.targets.map((t) => ({ month: t.month, value: piasters(t.value) })), piasters(m.target));
     const deals = m.deals.map((d) => dealRowOf({ ...d, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2), targetBase: d.targetBase?.toFixed(2) ?? null,
       payments: d.payments.map((p) => ({ side: p.side, amount: p.amount.toFixed(2), receivedAt: p.receivedAt })) }));
     const scheme = Number(m.commissionPct), f = sheetFigures(c.employeeId, deals, from, to, goal, scheme, rules.map((r) => ({ minPct: r.minPct, amount: piasters(r.amount) })));
@@ -654,7 +671,7 @@ export class KpisService {
     const lines = await this.sheetLines(c, quarter, bands.sheetFields, hidden);
     const s = c.finalScore != null ? Number(c.finalScore) : this.score(c);
     const amount = c.finalAmount != null ? piasters(c.finalAmount) : this.delta(c, s, b);
-    const money = `${amount > 0 ? "مكافأة" : amount < 0 ? "خصم" : "—"} <span class="num">${toDecimal(Math.abs(amount))}</span> ج.م`;
+    const money = hidden.has("salary") && this.onSalary(c) ? "—" : `${amount > 0 ? "مكافأة" : amount < 0 ? "خصم" : "—"} <span class="num">${toDecimal(Math.abs(amount))}</span> ج.م`;
     const pct = (n: number) => `<span class="num">${Math.round(n * 10) / 10}%</span>`;
     const rows = c.items.map((it) => { const a = this.ach(it); return `<tr><td>${esc(it.title)}</td><td>${pct(it.weight)}</td><td>${esc(it.targetText)}</td><td>${pct(a * 100)}</td><td>${pct(it.weight * a)}</td></tr>`; }).join("");
     const title = `ورقة ${quarterLabel(quarter)} · ${c.employee.name}`;

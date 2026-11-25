@@ -23,7 +23,7 @@ const cairoDay = (offsetDays: number) => new Date(`${localDate(new Date(now.getT
 const task = (w: Who, kind: string, extra: object) =>
   prisma.task.create({ data: { kind, toUserId: w.userId, byUserId: "e2e", dueOn: cairoDay(0), status: "todo", note: `E2E-T34 ${stamp}`, ...extra } });
 const unit = (n: number, extra: object) => prisma.unit.create({
-  data: { code: `U-T34${stamp}${n}`, type: "Rent", project: `E2E-T34 ${stamp}`, area: "التجمع الخامس", space: 100 + n, condition: "Finished", ...extra },
+  data: { code: `U-T34${stamp}${n}`, type: "Rent", project: `E2E-T34 ${stamp}`, area: "التجمع الخامس", space: 100 + n, condition: "Finished", enteredAt: ago(60_000), ...extra },
 });
 
 after(async () => {
@@ -91,7 +91,7 @@ test("Randa's and Manar's new units, Hadeer's calls a day, a salesperson's Broad
   // the approved Broadcast he marked as sent counts, the one still waiting for Rahma's review doesn't
   const s = who(7);
   for (const approved of [true, false]) {
-    await prisma.broadcast.create({ data: { text: `E2E-T34 ${stamp} ${approved}`, hotUnitIds: ["x"], approved, createdById: "e2e", sends: { create: { userId: s.userId } } } });
+    await prisma.broadcast.create({ data: { text: `E2E-T34 ${stamp} ${approved}`, hotUnitIds: ["x"], approved, createdById: "e2e", createdAt: ago(60_000), sends: { create: { userId: s.userId, doneAt: ago(60_000) } } } });
   }
   assert.equal(await measure("broadcasts", {}, s), 1);
   assert.ok(Number(await measure("broadcastPlan")) > 0, "Rahma's twice a week has this Broadcast with Hot Inventory");

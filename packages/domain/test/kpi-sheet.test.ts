@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_SHEET_FIELDS, SHEET_FIELD_KEYS, bonusFor, quarterMonths, sheetFigures } from "../src/kpi-sheet.ts";
+import { DEFAULT_SHEET_FIELDS, SHEET_FIELD_KEYS, bonusFor, quarterMonths, quarterTarget, sheetFigures } from "../src/kpi-sheet.ts";
 import type { DealRow } from "../src/targets.ts";
 
 const at = (s: string) => new Date(s);
@@ -36,4 +36,11 @@ test("11.18 · a quarter: 3.6M achieved of a 3M target is 120% → 10,000; commi
   assert.deepEqual(f, { target: 300_000_000, achieved: 360_000_000, percent: 120, commission: 108_000_000, transactions: 1, bonus: 1_000_000 });
   // no target (not a salesperson): no award whatever came in
   assert.equal(sheetFigures("s1", deals, ...q4, 0, 30, RULES).bonus, 0);
+});
+
+test("the quarter's target is its three months (review C2): monthly 300,000 → 900,000, 450,000 achieved = 50%", () => {
+  assert.equal(quarterTarget("2026-Q4", [], 30_000_000), 90_000_000);
+  assert.equal(Math.round((45_000_000 / quarterTarget("2026-Q4", [], 30_000_000)) * 100), 50);
+  // a month with its own target replaces the standing one; another quarter's month doesn't count
+  assert.equal(quarterTarget("2026-Q4", [{ month: "2026-11", value: 40_000_000 }, { month: "2027-01", value: 99_000_000 }], 30_000_000), 100_000_000);
 });

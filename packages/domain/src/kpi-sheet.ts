@@ -30,6 +30,14 @@ export function quarterMonths(q: string): [string, string, string] {
   return [m(1), m(2), m(3)];
 }
 
+/**
+ * The quarter's target: each month's own target (SalesTarget) or, for a month without one, the standing monthly target
+ * (Employee.target). Monthly 300,000 with nothing set → 900,000. The sheet and the «تحقيق التارجت» items both use it.
+ */
+export function quarterTarget(q: string, monthly: ReadonlyArray<{ month: string; value: Piasters }>, standing: Piasters): Piasters {
+  return quarterMonths(q).reduce((sum, m) => sum + (monthly.find((t) => t.month === m)?.value ?? standing), 0);
+}
+
 /** His commission in [from, to): his share of what was collected on his deals × his scheme (M-02 splitDeal). */
 export function periodCommission(salesId: string, deals: readonly DealRow[], from: Date, to: Date, schemePercent: number): Piasters {
   return deals.map((d) => inPeriod(d, from, to)).filter(countsAsRevenue)

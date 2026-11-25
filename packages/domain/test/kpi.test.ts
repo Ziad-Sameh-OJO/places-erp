@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bandLabel, calcText, canEnterManual, canManageCard, invManagerMakesCard, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness, tasksOnTime, taskCardFollower, METRICS, monthItem, monthKind } from "../src/kpi.ts";
+import { bandLabel, calcText, canEnterManual, canManageCard, invManagerMakesCard, closeAlert, itemAchievement, levelLabel, metricProblem, nextQuarter, payoutDelta, previousQuarter, quarterLabel, quarterMidpoint, endOfLocalDay, onTimeShare, pettyCapScore, secondCallExcluded, pct, perWeek, kpiPeriodStart, salesAttendance, timedTasks, timeliness, tasksOnTime, taskCardFollower, typedByHand, METRICS, monthItem, monthKind } from "../src/kpi.ts";
 import { monthDeduction } from "../src/attendance.ts";
 
 test("11.6 · the client's bands reach payroll: 102% on a 10,000 bonus → +1,500, 65% on a 12,000 salary → −1,800", () => {
@@ -187,4 +187,17 @@ test("HR 15 Nov · «الشهر»: 300 calls a quarter → 100 this month; 100 d
   assert.equal(monthItem({ ...calls, method: "manual", metric: null }, 5), null);
   assert.equal(monthItem({ ...calls, metric: "ownTarget" }, 5), null);
   assert.equal(monthItem({ ...calls, params: { per: "month" } }, 5), null);
+});
+
+test("a hand-in item stops at 100%: a second «سلّم» or a lowered «required» doesn't push it over (review L10)", () => {
+  assert.equal(itemAchievement({ method: "report", direction: "at-least", goal: 0, value: null, required: 1, delivered: 2 }), 1);
+  assert.equal(itemAchievement({ method: "report", direction: "at-least", goal: 0, value: null, required: 0, delivered: 3 }), 1);
+});
+
+test("«الشيتات في ميعادها» is typed by hand only in the first quarter (review L6)", () => {
+  const item = { method: "system", metric: "sheetsOnTime" };
+  assert.equal(typedByHand(item, true), true);
+  assert.equal(typedByHand(item, false), false);
+  assert.equal(typedByHand({ method: "system", metric: "calls" }, true), false);
+  assert.equal(typedByHand({ method: "manual", metric: null }, false), true);
 });
