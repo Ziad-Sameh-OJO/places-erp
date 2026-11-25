@@ -18,6 +18,8 @@ test("Arabic number words: units, tens, thousands, millions", () => {
 
 test("template words fill in; an unknown word stays visible", () => {
   assert.equal(fillTemplate("السادة / {الشركة} · {المبلغ} · {غلط}", { الشركة: "شركة س", المبلغ: "100,000 ج.م" }), "السادة / شركة س · 100,000 ج.م · {غلط}");
+  // a word that is a JS object's own property name stays as written, it doesn't print Object's source
+  assert.equal(fillTemplate("{constructor} {toString}", { الشركة: "س" }), "{constructor} {toString}");
 });
 
 test("the claim's states: requested → issued → approved → einvoice → paid; a rejected one stops", () => {

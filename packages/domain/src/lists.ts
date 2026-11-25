@@ -10,10 +10,16 @@ export function listChangeProblem(before: readonly ListValue[], after: readonly 
   const now = new Map(after.map((i) => [i.value, i]));
   const removed = before.find((i) => !now.has(i.value));
   if (removed) return `«${removed.value}» ماتتمسحش · وقّفها بدل ما تشيلها، عشان البيانات القديمة`;
+  // «Mivida» and «mivida» (or a double space) would split the same place in two in filters and reports; only new values are checked, so an old list still saves
+  const had = new Set(before.map((i) => i.value));
+  const twin = after.find((i, n) => !had.has(i.value) && after.some((j, m) => m !== n && sameValue(i.value, j.value)));
+  if (twin) return `«${twin.value}» موجودة في القايمة بالفعل`;
   const off = locked.find((v) => now.get(v)?.active === false || (!now.has(v) && before.some((i) => i.value === v)));
   if (off) return `«${off}» السيستم بيحسب عليها · ماتتوقفش`;
   return null;
 }
+
+const sameValue = (a: string, b: string) => a.trim().replace(/\s+/g, " ").toLowerCase() === b.trim().replace(/\s+/g, " ").toLowerCase();
 
 /** A list saved before values could be switched off (plain text) as the current shape: every value active. */
 export const asListValues = (raw: unknown): ListValue[] =>

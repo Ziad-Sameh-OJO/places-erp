@@ -15,7 +15,8 @@ export const usePurchases = (f: PurchaseFilter, page: number) => {
 export const usePurchase = (id: string | null) => useQuery({ queryKey: ["procurement", "one", id], queryFn: () => api.get<PurchaseView>(`/procurement/purchases/${id}`), enabled: !!id });
 export const useOverview = () => useQuery({ queryKey: ["procurement", "overview"], queryFn: () => api.get<ProcurementOverview>("/procurement/overview") });
 /** «لستة الموردين من الإعدادات» (M-13 lists): the active ones. */
-export const useVendors = () => useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings"), select: (s) => activeValues(s.vendors) });
+/** `withOff`: a filter also lists the vendors switched off since, their old purchases still filter by them (M-13 3.3). */
+export const useVendors = (withOff = false) => useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings"), select: (s) => (withOff ? s.vendors.map((v) => v.value) : activeValues(s.vendors)) });
 
 export const useRefreshProcurement = () => {
   const qc = useQueryClient();
