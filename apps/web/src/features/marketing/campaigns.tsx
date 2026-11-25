@@ -173,7 +173,8 @@ function CampaignForm({ campaign: c, onClose }: { campaign: CampaignRow | null; 
         const body: CampaignInput = {
           name: text("name"), channel: text("channel"), startsOn: text("startsOn"), endsOn, ...(pageName ? { page: pageName } : {}),
           budget: c && !c.dailyBudget ? c.budget || "0" : "0", ...(text("daily") ? { dailyBudget: text("daily") } : {}), spent: text("spent") || (c ? c.spent || "0" : "0"),
-          unitIds: units, ...(!units.length && c?.target ? { target: c.target } : {}),
+          // a campaign from before the unit picker keeps its typed target; one whose units were all taken off has none left
+          unitIds: units, ...(!units.length && !c?.units.length && c?.target ? { target: c.target } : {}),
           ...(text("adUrl") ? { adUrl: text("adUrl") } : {}), ...(text("note") ? { note: text("note") } : {}),
         };
         await save(c?.id ?? null, body);

@@ -61,7 +61,10 @@ test("M-04 7.1: a post at its time → the Reminder reaches Rahma once; a later 
   await postReminderTick(); // the worker may run twice: still one
   assert.equal(await reminders(rahmaId, "بوست دلوقتي"), 1);
 
-  assert.equal((await call(`/marketing/posts/${now}/published`, { method: "POST", cookie: rahma })).status, 204);
+  // two clicks on «اتنشر» at once: one records the time, the other is refused (the time isn't overwritten, one audit entry)
+  const clicks = (await Promise.all([1, 2].map(() => call(`/marketing/posts/${now}/published`, { method: "POST", cookie: rahma })))).map((c) => c.status);
+  assert.equal(clicks.filter((s) => s === 204).length, 1, JSON.stringify(clicks));
+  assert.ok(clicks.every((s) => [204, 400, 409].includes(s)), JSON.stringify(clicks));
   const p = await prisma.post.findUniqueOrThrow({ where: { id: now } });
   assert.ok(p.publishedAt && Math.abs(p.publishedAt.getTime() - Date.now()) < 60_000);
   assert.equal((await call(`/marketing/posts/${now}/published`, { method: "POST", cookie: rahma })).status, 400);

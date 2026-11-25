@@ -39,7 +39,7 @@ test("sales and the photographer get 403 (M-04 4.1: the analytics aren't theirs)
 
 test("refusals: a channel not in the list, the end before the start, a bad amount, a bad link", async () => {
   assert.ok(channel, "the seed has channels");
-  for (const bad of [{ channel: "قناة مش موجودة" }, { endsOn: "2026-10-01" }, { budget: "12.345" }, { adUrl: "مش لينك" }, { name: "" }]) {
+  for (const bad of [{ channel: "قناة مش موجودة" }, { endsOn: "2026-10-01" }, { budget: "12.345" }, { adUrl: "مش لينك" }, { adUrl: "javascript:alert(1)" }, { adUrl: "data:text/html,x" }, { name: "" }]) {
     assert.equal((await call("/marketing/campaigns", { method: "POST", cookie: rahma, body: body(bad) })).status, 400, JSON.stringify(bad));
   }
 });

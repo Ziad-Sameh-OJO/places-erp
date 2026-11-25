@@ -149,7 +149,10 @@
       "approved": "Post approved",
       "approve": "Approve",
       "publishedToast": "Publish time recorded",
-      "published": "Published"
+      "published": "Published",
+      "remove": "Delete post",
+      "confirmRemove": "Delete this post from the Content plan? No Reminder will go out for it.",
+      "removed": "Post deleted"
     },
     "new": {
       "title": "Post in the Content plan",
