@@ -7,20 +7,16 @@
 import { prisma, type Prisma } from "@places/db";
 import {
   TELESALES_CHANNEL, averageDailyCalls, workingDaysSince, type CallDay,
-  type DealMoney, type DealStatus, type MetricParams, type Method, type WorkCalendar,
+  type MetricParams, type Method, type WorkCalendar, dealRowOf, groupTargetPercent, monthBounds,
   type Nature, type BudgetPeriod, closedInSla, endOfLocalDay, fromDecimal, isTicketLate, pettyCapScore, rollUp, isWorkingDay, itemAchievement, localDate, onTimeShare, pct, perWeek, secondCallExcluded,
-  kpiPeriodStart, monthKind, salesAttendance, staleBefore, targetAchieved, tasksOnTime, timedTasks, timeliness,
-  monthBounds, monthCloseDeadline, monthlyOnTime, payrollDeadline, periodStart, previousQuarter, quarterMonths, quarterTarget, sheetsOnTime, twiceWeekly,
+  kpiPeriodStart, monthKind, salesAttendance, staleBefore, tasksOnTime, timedTasks, timeliness,
+  monthCloseDeadline, monthlyOnTime, payrollDeadline, periodStart, previousQuarter, quarterMonths, sheetsOnTime, twiceWeekly,
 } from "@places/domain";
 import { workCalendar } from "../calendar.ts";
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 const MIN = 60_000, HOUR = 60 * MIN;
 const NOT_DONE_DEAL = { notIn: ["REJECTED", "CANCELLED"] } as Prisma.EnumDealStatusFilter;
-const STATUS: Record<string, DealStatus> = {
-  PENDING_REVIEW: "Pending Review", APPROVED: "Approved", PARTIALLY_COLLECTED: "Partially Collected", FULLY_COLLECTED: "Fully Collected",
-  REJECTED: "Rejected", CANCELLED: "Cancelled",
-};
 
 /** dailySum and webAds (the website ads count, 11.9: no website hook) are typed in the daily report, which writes them (11.12). */
 export const UNBUILT = ["dailySum", "webAds"];
@@ -37,33 +33,21 @@ const verifiedAt = (v: Prisma.JsonValue): Date | null => {
   return typeof at === "string" ? new Date(at) : null;
 };
 
-/** The deals of the quarter as the commission rules read them (M-02). */
-async function dealMoney(from: Date, to: Date): Promise<DealMoney[]> {
-  const deals = await prisma.deal.findMany({ where: { closedAt: { gte: from, lte: to } }, include: { participants: true, payments: true } });
-  return deals.map((d) => ({
-    status: STATUS[d.status]!, commissionOwner: fromDecimal(d.commissionOwner.toFixed(2)), commissionClient: fromDecimal(d.commissionClient.toFixed(2)),
-    payments: d.payments.map((x) => ({ side: x.side === "client" ? "client" : "owner", amount: fromDecimal(x.amount.toFixed(2)) })),
-    buyers: d.participants.filter((x) => x.side === "BUYER").map((x) => x.employeeId),
-    sellers: d.participants.filter((x) => x.side === "SELLER").map((x) => x.employeeId),
-    sellerApproved: d.participants.filter((x) => x.side === "SELLER").every((x) => x.approved),
-    targetBase: d.targetBase == null ? null : fromDecimal(d.targetBase.toFixed(2)), offTarget: d.offTarget,
-  }));
-}
-
 /**
- * Σ achieved in the quarter ÷ Σ quarter targets (commission shares, M-02) for these people, in percent. The target is
- * the quarter's three months, as the quarterly sheet (11.18): Employee.target is one month's.
+ * Σ achieved ÷ Σ targets for these people over the quarter, in percent: the same figure as the targets page's quarter
+ * (the three months' targets, the deals collected in the quarter, M-02 shares).
  */
 async function targetShare(c: Ctx, people: Array<{ id: string; target: Prisma.Decimal }>): Promise<number | null> {
-  const months = quarterMonths(c.quarter);
-  const set = await prisma.salesTarget.findMany({ where: { employeeId: { in: people.map((x) => x.id) }, month: { in: months } }, select: { employeeId: true, month: true, value: true } });
-  const money = (d: Prisma.Decimal) => fromDecimal(d.toFixed(2));
-  const goal = people.reduce((s, x) => s + quarterTarget(c.quarter, set.filter((t) => t.employeeId === x.id).map((t) => ({ month: t.month, value: money(t.value) })), money(x.target)), 0);
-  if (!goal) return null;
-  const deals = await dealMoney(c.qStart, c.now);
-  const schemes = new Map((await prisma.employee.findMany({ select: { id: true, commissionPct: true } })).map((e) => [e.id, Number(e.commissionPct)]));
-  const got = people.reduce((s, x) => s + targetAchieved(x.id, deals, (id) => schemes.get(id) ?? 0), 0);
-  return pct(got, goal);
+  const months = quarterMonths(c.quarter), to = monthBounds(months[2], c.cal).to, ids = people.map((p) => p.id);
+  const [targets, deals] = await Promise.all([
+    prisma.salesTarget.findMany({ where: { month: { in: months }, employeeId: { in: ids } }, select: { employeeId: true, month: true, value: true } }),
+    prisma.deal.findMany({ where: { status: { not: "CANCELLED" }, participants: { some: { employeeId: { in: ids } } }, payments: { some: { receivedAt: { gte: c.qStart, lt: to } } } },
+      include: { participants: true, payments: true } }),
+  ]);
+  const goalOf = (id: string, m: string) => { const t = targets.find((x) => x.employeeId === id && x.month === m); return t && fromDecimal(t.value.toFixed(2)); };
+  const rows = deals.map((d) => dealRowOf({ ...d, commissionOwner: d.commissionOwner.toFixed(2), commissionClient: d.commissionClient.toFixed(2),
+    targetBase: d.targetBase?.toFixed(2) ?? null, payments: d.payments.map((p) => ({ ...p, amount: p.amount.toFixed(2) })) }));
+  return groupTargetPercent(people.map((p) => ({ id: p.id, standing: fromDecimal(p.target.toFixed(2)) })), months, goalOf, rows, c.qStart, to);
 }
 
 /** The salespeople a Team Leader leads (domain team-leader.ts): his own leads stay out. */

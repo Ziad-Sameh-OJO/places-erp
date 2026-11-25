@@ -91,6 +91,39 @@ test("someone else's file can't be completed or downloaded; signed out gets 401"
   assert.equal((await call("/files/uploads", { method: "POST", body: { name: "x.png", mime: "image/png", size: 10 } })).status, 401);
 });
 
+test("a READY file can't be swapped through its upload link, still valid for a few minutes (S12)", { skip }, async () => {
+  const t = await ask({ name: "keep.png", mime: "image/png", size: PNG.length });
+  await fetch(t.body.url, { method: "PUT", headers: t.body.headers, body: PNG });
+  assert.equal((await call(`/files/${t.body.id}/complete`, { method: "POST", cookie: admin })).status, 200);
+  const other = Buffer.from(PNG); other[PNG.length - 1] ^= 0xff; // same size and type, other bytes
+  await fetch(t.body.url, { method: "PUT", headers: t.body.headers, body: other });
+  const got = await fetch((await call(`/files/${t.body.id}/url`, { cookie: admin })).body.url);
+  assert.deepEqual(Buffer.from(await got.arrayBuffer()), PNG);
+  const { key } = await prisma.file.findUniqueOrThrow({ where: { id: t.body.id } });
+  assert.doesNotMatch(key, /^incoming\//);
+});
+
+test("each account has an upload budget: 20 unfinished uploads at a time and 2 GB a day (S12)", async () => {
+  // rows made straight in the DB for someone no other test signs in as, removed right after
+  const mamdouh = await session("m.mamdouh@places.com");
+  const { id: userId } = await prisma.user.findUniqueOrThrow({ where: { email: "m.mamdouh@places.com" } });
+  const fill = (n: number, size: number, status: "PENDING" | "READY") => prisma.file.createManyAndReturn({ data: Array.from({ length: n }, () => ({ key: `test/${crypto.randomUUID()}`, name: "x.png", mime: "image/png", size, status, uploadedById: userId })), select: { id: true } });
+  const pending = await fill(20, 10, "PENDING");
+  ids.push(...pending.map((f) => f.id));
+  const busy = await ask({ name: "x.png", mime: "image/png", size: 10 }, mamdouh);
+  await prisma.file.deleteMany({ where: { id: { in: pending.map((f) => f.id) } } });
+  assert.equal(busy.status, 429);
+  assert.match(busy.body.error, /كتير لسه بتترفع/);
+
+  const big = await fill(2, 1100 * 1024 * 1024, "READY"); // size is an Int: two of 1.1 GB
+  ids.push(...big.map((f) => f.id));
+  const over = await ask({ name: "x.png", mime: "image/png", size: 10 }, mamdouh);
+  await prisma.file.deleteMany({ where: { id: { in: big.map((f) => f.id) } } });
+  assert.equal(over.status, 429);
+  assert.match(over.body.error, /حد الرفع النهارده/);
+  assert.equal((await ask({ name: "x.png", mime: "image/png", size: 10 }, mamdouh)).status, 201);
+});
+
 test("an upload never completed is removed from storage and rejected after 24 hours, once (#209)", { skip }, async () => {
   const t = await ask({ name: "half.png", mime: "image/png", size: PNG.length });
   await fetch(t.body.url, { method: "PUT", headers: t.body.headers, body: PNG });

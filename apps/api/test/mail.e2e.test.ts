@@ -119,3 +119,13 @@ test("the worker sends the queue; a failing address is retried, then «الإي�
   assert.equal(failed.status, "failed");
   assert.match(failed.error, /550/);
 });
+
+test("S2 · a mail with a secret: the worker sends the real text, the log keeps only the masked copy", async () => {
+  const to = `e2e-mail-secret-${stamp}@places.test`;
+  await prisma.mailLog.create({ data: { to, subject: `E2E ${stamp} secret`, text: "افتح /activate?token=•••", secretText: "افتح /activate?token=real-one" } });
+  const sent: string[] = [];
+  await mailOutboxTick(async (m) => { if (m.to === to) sent.push(m.text); }, new Date(Date.now() + 2_000));
+  assert.deepEqual(sent, ["افتح /activate?token=real-one"]);
+  const row = await prisma.mailLog.findFirstOrThrow({ where: { to } });
+  assert.deepEqual([row.status, row.text, row.secretText], ["sent", "افتح /activate?token=•••", null]);
+});

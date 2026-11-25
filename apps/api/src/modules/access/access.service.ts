@@ -96,8 +96,12 @@ export class AccessService {
     await this.guardSuperAdmin(me, id);
     const before = await this.getUser(id);
     // M-09 field permissions: what the person may not change keeps its value (the form leaves it out or sends it as shown)
-    const b = wholeUser(keepUser(sent, before, me.fields.fixed("access")));
+    // a TL / manager left out of the save keeps its value (null clears it): a form without the field must not wipe it
+    const kept = { ...sent, teamLeaderId: sent.teamLeaderId === undefined ? before.employee?.teamLeaderId ?? null : sent.teamLeaderId,
+      managerId: sent.managerId === undefined ? before.employee?.managerId ?? null : sent.managerId };
+    const b = wholeUser(keepUser(kept, before, me.fields.fixed("access")));
     if (!b) throw new BadRequestException("اكتب الإيميل والقسم");
+    const emailChanged = b.email !== before.email;
     const roleKeys = this.roleKeys(me, b, before.roles.map((r) => r.role.key));
     const roles = await this.checkRoles(roleKeys);
     const clash = await this.db.user.findUnique({ where: { email: b.email } });
@@ -107,9 +111,13 @@ export class AccessService {
       await tx.userRole.deleteMany({ where: { userId: id } });
       await tx.userRole.createMany({ data: roleKeys.map((k, i) => ({ userId: id, roleId: roles.get(k)!.id, primary: i === 0 })) });
       await tx.employee.update({ where: { userId: id }, data: this.employeeData(b, roles.get(roleKeys[0]!)!.label) });
+      // a new email: links and codes sent to the old address stop working, and so do the account's sessions
+      if (emailChanged) { await tx.authToken.deleteMany({ where: { userId: id } }); await tx.session.deleteMany({ where: { userId: id } }); }
       await this.audit.record({ module: "access", entity: "User", entityId: id, action: "update", userId: me.id, before, after: b }, tx);
       await this.keepSelfAdmin(me, tx);
     });
+    // not activated yet: the activation link goes to the new address instead
+    if (emailChanged && before.status === "INVITED") await this.auth.sendInvite(id, b.email, roles.get(roleKeys[0]!)!.label);
     const was = before.roles.map((r) => r.role.key).join(",");
     if (was !== roleKeys.join(",")) {
       const labels = roleKeys.map((k) => roles.get(k)!.label).join(" + ");
@@ -228,7 +236,9 @@ export class AccessService {
       const r = await tx.role.create({ data: { key, label: b.label, tier: b.tier, scope: up(b.scope), behavesLike: b.behavesLike ?? from?.behavesLike ?? from?.key ?? "sales" } });
       const perms = from ? from.permissions.map((p) => ({ roleId: r.id, module: p.module, actions: p.actions })) : [{ roleId: r.id, module: "home", actions: ["view"] }];
       await tx.rolePermission.createMany({ data: perms });
-      await tx.roleFieldRule.createMany({ data: defaultFieldRules(key).map((f) => ({ roleId: r.id, ...f })) }); // 2.36: the unit's owner and agent stay hidden
+      // a copy hides what the original hides; a new role starts from the defaults (2.36: the unit's owner and agent stay hidden)
+      const rules = from ? from.fieldRules.map(({ module, field, mode }) => ({ module, field, mode })) : defaultFieldRules(key);
+      if (rules.length) await tx.roleFieldRule.createMany({ data: rules.map((f) => ({ roleId: r.id, ...f })) });
       await this.audit.record({ module: "access", entity: "Role", entityId: r.id, action: "create", userId: me.id, after: b }, tx);
       return r;
     });

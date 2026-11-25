@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UploadRequest, type PostMedia, type StoredFile, type UploadTicket } from "@places/contracts";
 import { Icon, useAction } from "@/components/ui";
 import { put } from "@/components/file-upload";
-import { api } from "@/lib/api";
+import { FILE_LINKS, api } from "@/lib/api";
 import { day } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { useTranslations } from "next-intl";
@@ -37,7 +37,7 @@ export function PostMediaFolder({ postId }: { postId: string }) {
   const run = useAction();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const media = useQuery({ queryKey: ["post-media", postId], queryFn: () => api.get<PostMedia[]>(`/marketing/posts/${postId}/media`) });
+  const media = useQuery({ queryKey: ["post-media", postId], queryFn: () => api.get<PostMedia[]>(`/marketing/posts/${postId}/media`), ...FILE_LINKS });
   const list = media.data ?? [];
   const up = can("marketing", "create");
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["post-media", postId] }), qc.invalidateQueries({ queryKey: ["posts"] })]);

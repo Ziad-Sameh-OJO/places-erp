@@ -153,6 +153,8 @@
     "teamLeader": "Team Leader (for sales)",
     "manager": "Direct manager",
     "managerNone": "— (the Team Leader for sales)",
+    "currentChoice": "(current choice)",
+    "loading": "Loading…",
     "extraRoles": "Extra roles (if they do more than one job)",
     "endDate": "Last working day (the account stops after it)",
     "otp": "OTP code by email on every sign-in",
