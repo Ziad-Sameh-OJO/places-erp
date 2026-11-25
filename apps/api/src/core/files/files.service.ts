@@ -186,7 +186,8 @@ export class FilesService implements OnModuleInit {
 
   /** The generic endpoint only serves your own uploads (the preview right after uploading). */
   async ownDownloadUrl(me: CurrentUser, id: string) {
-    if (!(await this.db.file.count({ where: { id, uploadedById: me.id } }))) throw new NotFoundException("الملف مش موجود");
+    // unattached only: once a record holds the file (a document waiting for approval…), its own endpoint decides
+    if (!(await this.db.file.count({ where: { id, uploadedById: me.id, entity: null } }))) throw new NotFoundException("الملف مش موجود");
     return this.downloadUrl(id);
   }
 }

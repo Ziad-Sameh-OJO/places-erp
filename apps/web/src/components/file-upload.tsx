@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { FILE_KINDS, UploadRequest, type FileKind, type StoredFile, type UploadTicket } from "@places/contracts";
+import { FILE_KINDS, UploadRequest, uploadMime, type FileKind, type StoredFile, type UploadTicket } from "@places/contracts";
 import { createTranslator, useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 import { messages } from "@/i18n/messages";
@@ -39,9 +39,10 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
   const pick = async (file: File | undefined) => {
     if (!file) return;
     // a Word file is only ever a document template («المستندات»)
-    const req = { name: file.name, mime: file.type, size: file.size, ...(kind === "word" ? { purpose: "template" as const } : {}) };
+    const mime = uploadMime(file.name, file.type); // a .docx some phones give no type
+    const req = { name: file.name, mime, size: file.size, ...(kind === "word" ? { purpose: "template" as const } : {}) };
     const check = UploadRequest.safeParse(req);
-    if (!check.success || !(FILE_KINDS[kind].mimes as readonly string[]).includes(file.type)) {
+    if (!check.success || !(FILE_KINDS[kind].mimes as readonly string[]).includes(mime)) {
       return toast(check.success ? t(kind === "image" ? "needImage" : kind === "word" ? "needWord" : "needPdf") : check.error.issues[0]!.message, "bad");
     }
     setDone(null);
@@ -64,7 +65,7 @@ export function FileUpload({ kind, label, onUploaded }: { kind: FileKind; label?
     <div className="upload">
       <label className="btn ghost">
         <Icon name={kind === "image" ? "camera" : "file"} />{label ?? (kind === "image" ? t("image") : kind === "word" ? t("word") : t("pdf"))}
-        <input type="file" hidden accept={FILE_KINDS[kind].mimes.join(",")} disabled={pct !== null} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
+        <input type="file" hidden accept={[...FILE_KINDS[kind].mimes, ...(kind === "word" ? [".docx"] : [])].join(",")} disabled={pct !== null} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
       </label>
       <span className="hint">{t("max", { max: serverText(FILE_KINDS[kind].max) })}</span>
       {preview && <img src={preview} alt="" style={{ display: "block", maxWidth: 220, maxHeight: 160, borderRadius: 10, marginTop: 10, objectFit: "cover" }} />}
