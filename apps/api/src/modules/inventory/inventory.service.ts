@@ -329,25 +329,31 @@ export class InventoryService {
   /** The whole sheet is sent back; only what changed is audited (prices too, 2.2), and the PDF waits for Manar again (Q19). */
   async update(me: CurrentUser, id: string, sheet: UnitInput): Promise<UnitDetail> {
     const s = this.scope(me);
-    const before = await this.repo.detail(s, id);
-    if (!before) throw new NotFoundException(NO_UNIT);
-    // M-09 field permissions: what the person may not change keeps its value (the form sends the whole sheet)
-    const input = keepFixed(sheet, before, me.fields.fixed("inventory"));
-    await this.check(input, before);
-    const blocked = await this.units.editBlocked(id, { type: input.type, alsoType: input.alsoType ?? null });
-    if (blocked) throw new BadRequestException(blocked);
-    // Q17: each type keeps its own state (rented / sold) through the edit
-    const data = { ...toData(input), ...carrySides(before, { type: input.type, alsoType: input.alsoType ?? null }) };
-    const changed = diff(before, data);
-    const receivedAt = input.receivedAt ? new Date(input.receivedAt) : undefined;
-    if (receivedAt && before.receivedAt?.getTime() !== receivedAt.getTime()) changed.receivedAt = [before.receivedAt, receivedAt];
-    if (!Object.keys(changed).length) return this.get(me, id);
+    // read, check and write under the unit's row lock: a Done Deal locked or confirmed meanwhile is seen, not overwritten (Q17)
     await this.db.$transaction(async (tx) => {
+      await this.repo.lockRow(id, tx);
+      const before = await this.repo.detail(s, id, tx);
+      if (!before) throw new NotFoundException(NO_UNIT);
+      // M-09 field permissions: what the person may not change keeps its value (the form sends the whole sheet)
+      const input = keepFixed(sheet, before, me.fields.fixed("inventory"));
+      await this.check(input, before);
+      const blocked = await this.units.editBlocked(id, { type: input.type, alsoType: input.alsoType ?? null }, tx);
+      if (blocked) throw new BadRequestException(blocked);
+      // Q17: each type keeps its own state (rented / sold) through the edit
+      const data = { ...toData(input), ...carrySides(before, { type: input.type, alsoType: input.alsoType ?? null }) };
+      // «Last update» is a day: the same Cairo day (or none sent) keeps the stored time, so an unchanged save changes nothing
+      if (!input.lastOwnerUpdateAt || input.lastOwnerUpdateAt === localDate(before.lastOwnerUpdateAt)) data.lastOwnerUpdateAt = before.lastOwnerUpdateAt;
+      const changed = diff(before, data);
+      const receivedAt = input.receivedAt ? new Date(input.receivedAt) : undefined;
+      if (receivedAt && before.receivedAt?.getTime() !== receivedAt.getTime()) changed.receivedAt = [before.receivedAt, receivedAt];
+      if (!Object.keys(changed).length) return;
+      // only what changed is written (a status the edit didn't touch stays whatever it is)
+      const write = Object.fromEntries(Object.keys(changed).filter((k) => k in data).map((k) => [k, data[k as keyof UnitData]])) as Partial<UnitData>;
       // a new owner number moves the unit to that number's file (made if new); a removed number unlinks it (2.11)
       const owner = "ownerPhone" in changed
         ? { ownerId: data.ownerPhone ? await this.clients.joinAsOwner(tx, me.id, { name: data.ownerName, phone: data.ownerPhone }) : null }
         : {};
-      await tx.unit.update({ where: { id }, data: { ...data, ...owner, ...(receivedAt ? { receivedAt } : {}), pdfStatus: "draft" } });
+      await tx.unit.update({ where: { id }, data: { ...write, ...owner, ...(receivedAt ? { receivedAt } : {}), pdfStatus: "draft" } });
       await this.audit.record({
         module: "inventory", entity: "Unit", entityId: id, action: "update", userId: me.id,
         before: Object.fromEntries(Object.entries(changed).map(([k, [b]]) => [k, b])),

@@ -22,7 +22,8 @@ const yes = z.preprocess((v) => v === true || v === "true" || v === "skip", z.bo
 export const NotActiveImport = z.object({
   name: z.string({ required_error: "اكتب اسم الشيت", invalid_type_error: "اكتب اسم الشيت" }).trim().min(1, "اكتب اسم الشيت").max(60, "اسم الشيت طويل"),
   dedupeBy: columns,
-  numberBy: z.preprocess((v) => (v === "" ? undefined : v), column("اختار خانة الرقم").optional()),
+  /** "" = «من غير مقارنة» (null) · left out = the file keeps the column it has */
+  numberBy: z.preprocess((v) => (v === "" ? null : v), column("اختار خانة الرقم").nullable().optional()),
   /** 2.40 · «الصفوف المكررة»: false = they go in, marked (the default) · true = «متدخلش» */
   skipDupes: yes.default(false),
 });

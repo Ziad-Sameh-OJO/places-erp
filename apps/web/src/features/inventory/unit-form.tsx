@@ -56,7 +56,8 @@ function fromUnit(u: UnitDetail): Form {
   return {
     ...f, alsoType: u.alsoType ?? "", project: u.project, area: u.area, space: s(u.space), condition: u.condition, floor: s(u.floor), building: s(u.building),
     parking: s(u.parking), agentId: u.agent?.id ?? "", areaTabId: s(u.areaTabId), location: s(u.location),
-    receivedAt: u.receivedAt ? localStamp(new Date(u.receivedAt)) : "", lastOwnerUpdateAt: cairoDay(new Date(u.lastOwnerUpdateAt)),
+    receivedAt: u.receivedAt ? localStamp(new Date(u.receivedAt)) : "", // hidden from the role it comes as "": left empty, so it isn't sent and the API keeps the stored day
+    lastOwnerUpdateAt: u.lastOwnerUpdateAt ? cairoDay(new Date(u.lastOwnerUpdateAt)) : "",
     divisible: u.divisible ? "yes" : "no", minSplit: s(u.minSplit), splitNote: s(u.splitNote), ownerName: s(u.ownerName), ownerPhone: s(u.ownerPhone),
     pricePerSqm: s(u.pricePerSqm), leasePerSqm: s(u.leasePerSqm), maintenance: s(u.maintenance), commission: s(u.commission),
     paymentMethod: s(u.paymentMethod), comment: s(u.comment), ...Object.fromEntries(DETAIL_KEYS.map((k) => [k, s(u.details[k])])),
