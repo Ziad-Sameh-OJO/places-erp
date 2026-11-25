@@ -67,6 +67,7 @@ export default [
   ["الأرصدة الافتتاحية", "Opening balances"],
   // payroll
   ["مرتبات الشهر ده اتصرفت قبل كده", "This month's salaries have already been paid"],
+  ["الـ HR لسه ماعتمدش خصومات شهر {month}", "HR hasn't approved the deductions of {month} yet"],
   ["الموظف ده مالوش مرتب", "This employee has no salary"],
   ["المبلغ مايبقاش بالسالب", "The amount can't be negative"],
   ["عليه {amount} بس", "They only owe {amount}"],

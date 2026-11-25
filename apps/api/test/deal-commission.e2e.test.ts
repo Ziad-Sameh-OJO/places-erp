@@ -76,7 +76,10 @@ test("5.8: the TL tiers are the Super Admin's setting; they must run from the lo
   assert.equal((await call("/settings/tlTiers", { method: "PUT", cookie: admin, body: { value: [{ below: 70, percent: 4 }, { below: 50, percent: 6 }] } })).status, 400);
   const r = await call("/settings/tlTiers", { method: "PUT", cookie: admin, body: { value: tiers } }); // the seeded value, so other files see no change
   assert.ok(r.status < 300, JSON.stringify(r.body));
-  assert.deepEqual((await call("/settings", { cookie: mohsen })).body.tlTiers, tiers);
+  assert.deepEqual((await call("/settings", { cookie: admin })).body.tlTiers, tiers);
+  // review S3: the commission rules stay with the settings screen and finance; a salesperson's read has the lists only
+  const sales = (await call("/settings", { cookie: mohsen })).body;
+  assert.ok(sales.areas && !("tlTiers" in sales) && !("procurementBigApprovers" in sales));
 });
 
 test("5.4: only Manar («inventory: approve») approves the Seller", async () => {

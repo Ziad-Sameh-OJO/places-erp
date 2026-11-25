@@ -174,10 +174,10 @@ export class PeopleCareService {
     });
   }
 
-  /** Open «حل الـ HR» items, the late ones first. */
-  async actions(): Promise<HrActionsView> {
+  /** Open «حل الـ HR» items, the late ones first. 13.3: in the caller's scope, as oneOnOnes() (a TL with hr: edit sees his team's only). */
+  async actions(me: CurrentUser): Promise<HrActionsView> {
     const today = localDate(new Date());
-    const rows = await this.db.oneOnOne.findMany({ where: { hrAction: { not: null }, hrActionDone: false }, include: { employee: { select: { id: true, name: true } } }, orderBy: { hrActionDue: "asc" } });
+    const rows = await this.db.oneOnOne.findMany({ where: { hrAction: { not: null }, hrActionDone: false, employee: this.scope(me) }, include: { employee: { select: { id: true, name: true } } }, orderBy: { hrActionDue: "asc" } });
     return { items: rows.map((r) => ({ id: r.id, employeeId: r.employeeId, name: r.employee.name, action: r.hrAction!, due: r.hrActionDue ? iso(r.hrActionDue) : today, late: !!r.hrActionDue && iso(r.hrActionDue) < today })) };
   }
 }

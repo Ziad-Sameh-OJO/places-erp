@@ -120,7 +120,7 @@
   "deductions": {
     "approvedOk": "الخصومات اتعتمدت واترحّلت للمالية",
     "payroll": "موازنة المرتبات / شهر",
-    "monthDeductions": "الخصومات الشهر ده",
+    "monthDeductions": "خصومات {label}",
     "monthDeductionsSub": "تأخير وغياب ونسيان بصمة",
     "net": "المرتبات بعد الخصم",
     "netSub": "بتسمع في المالية M-07",

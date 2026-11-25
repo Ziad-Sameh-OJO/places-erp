@@ -8,12 +8,16 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { prisma } from "@places/db";
+import { monthLabel, nextMonth, payrollMonth } from "@places/domain";
 import { call, session } from "./helpers.ts";
 import { balance, cleanFinance, fresh, runPrefix } from "./finance-helpers.ts";
 
 const START = new Date();
 const P = runPrefix("payroll");
-const month = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 7);
+const TODAY = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+// review Q2: the month a run pays now (up to the 15th: the previous one), and a day inside it for the penalties
+const month = payrollMonth(TODAY);
+const penaltyDay = month === TODAY.slice(0, 7) ? TODAY : `${month}-28`;
 let ahmed: string, sales: string, admin: string, basant: string, tl: string;
 let bank: { id: string }, safe: { id: string };
 let mokhtar: { id: string; userId: string; salary: unknown }, mohsen: { id: string; userId: string; salary: unknown };
@@ -81,13 +85,18 @@ test("the advance deduction: default = all that's left, the accountant picks 1,0
 });
 
 test("7.9: HR approves the month's deductions once; payroll reads exactly those; a TL, the admin and sales can't approve", async () => {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
   const before = (await call("/finance/payroll", { cookie: ahmed })).body;
   assert.equal(before.deductionsApproved, false);
+  assert.equal(before.month, month);
+  // review Q2: no run before HR approves the month's deductions (the money waits rather than going out without them)
+  const early = await call("/finance/payroll/run", { method: "POST", cookie: ahmed, body: { fromId: bank.id } });
+  assert.equal(early.status, 400);
+  assert.equal(early.body.error, `الـ HR لسه ماعتمدش خصومات شهر ${monthLabel(month)}`);
   assert.ok(before.rows.every((r: { attendance: string }) => r.attendance === "0.00")); // nothing until HR approves
   // an approved one-day penalty on Mokhtar (12,000 → 461.54 a day) joins his line
-  assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: today, type: "سلوك", text: `${P} جزاء`, deductionDays: 1 } })).status, 201);
+  assert.equal((await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: penaltyDay, type: "سلوك", text: `${P} جزاء`, deductionDays: 1 } })).status, 201);
   const live = (await call("/hr/deductions", { cookie: basant })).body;
+  assert.equal(live.month, month); // HR's screen shows the month payroll pays
   const line = live.rows.find((r: { employeeId: string }) => r.employeeId === mokhtar.id);
   assert.ok(line.penaltyDays >= 1);
   // (+ a closed KPI quarter's amount, 11.6: the KPI test may close one meanwhile)
@@ -101,8 +110,13 @@ test("7.9: HR approves the month's deductions once; payroll reads exactly those;
   assert.equal((await call("/hr/deductions/approve", { method: "POST", cookie: basant })).body.error, "خصومات الشهر ده اتعتمدت قبل كده");
 
   // frozen: a penalty after the approval doesn't change what was approved
-  await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: today, type: "سلوك", text: `${P} بعد الاعتماد`, deductionDays: 1 } });
+  const nextBefore = (await call(`/hr/deductions?month=${nextMonth(month)}`, { cookie: basant })).body.rows.find((x: { employeeId: string }) => x.employeeId === mokhtar.id).penaltyDays;
+  await call("/hr/penalties", { method: "POST", cookie: basant, body: { employeeId: mokhtar.id, day: penaltyDay, type: "سلوك", text: `${P} بعد الاعتماد`, deductionDays: 1 } });
   const approved = (await call("/hr/deductions", { cookie: basant })).body.rows.find((x: { employeeId: string }) => x.employeeId === mokhtar.id);
+  assert.equal(approved.penaltyDays, line.penaltyDays);
+  // review L7: … and it isn't lost: it lands in the next month's deductions
+  const nextAfter = (await call(`/hr/deductions?month=${nextMonth(month)}`, { cookie: basant })).body.rows.find((x: { employeeId: string }) => x.employeeId === mokhtar.id).penaltyDays;
+  assert.equal(nextAfter, nextBefore + 1);
   const pay = (await call("/finance/payroll", { cookie: ahmed })).body;
   assert.equal(pay.deductionsApproved, true);
   const row = pay.rows.find((x: { userId: string }) => x.userId === mokhtar.userId);

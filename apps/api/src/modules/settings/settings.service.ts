@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import { LIST_DEFAULTS, LIST_GROUPS, LOCKED_VALUES, ListEditors, SETTINGS, type HolidayInput, type HolidayView, type ImportDone, type ListKey, type SettingKey, type Settings } from "@places/contracts";
-import { DEFAULT_RECOMMEND_TOLERANCE_PCT, DEFAULT_STALE_NEAR_CLOSE_DAYS, LEAD_STAGES, SETTING_OWNERS, asListValues, canChangeList, canEditSetting, isQualifiedAfter, listActions, listChangeProblem, channelTypesChange, type SettingEditor } from "@places/domain";
+import { DEFAULT_RECOMMEND_TOLERANCE_PCT, DEFAULT_STALE_NEAR_CLOSE_DAYS, LEAD_STAGES, SETTING_OWNERS, asListValues, canChangeList, canEditSetting, isQualifiedAfter, listActions, listChangeProblem, channelTypesChange, readableSettings, type SettingEditor } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -36,6 +36,11 @@ export class SettingsService {
     const rows = await this.db.setting.findMany({ where: { key: { in: Object.keys(SETTINGS) } } });
     // a list written before values could be switched off is read as all active (the migration converts them too)
     return { ...DEFAULTS, ...Object.fromEntries(rows.map((r) => [r.key, isList(r.key as SettingKey) ? asListValues(r.value) : r.value])) } as Settings;
+  }
+
+  /** GET /settings: the money / people rules only for the settings screen and finance (M-13 2.2 · PRIVATE_SETTINGS). */
+  async forReader(me: CurrentUser) {
+    return readableSettings(await this.all(), me.grants.can("master", "view") || me.grants.can("finance", "view"));
   }
 
   /**

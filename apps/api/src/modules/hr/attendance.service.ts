@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Prisma, type PrismaClient, clockOn, dayVisits } from "@places/db";
 import type { AttendanceDayView, AttendanceEntry, DecideDay, AttendanceExport, AttendanceHistoryView, AttendanceRange, AttendanceRowView, DeductionRowView, DeductionsView, FingerprintDone, FingerprintRow, WeeklyDelayView, IdealView, IdealKpiView } from "@places/contracts";
-import { attendanceDay, dayStart, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionRules, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, rankByKpi, rulesFor, type MemberMonth, WORK_START } from "@places/domain";
+import { attendanceDay, dayStart, payrollMonth, penaltyMonth, type DayVisit, deductionAmount, fingerprintDay, OUTSIDE_REQUESTS, pickDayVisit, visitDay, formatEGP, minutesAfterStart, fromDecimal, isWorkingDay, localDate, monthDeduction, monthOf, normName, normTime, toDecimal, type DeductionRules, type DeductionTiers, MIN_KPI_FOR_IDEAL, idealEmployee, rankByKpi, rulesFor, type MemberMonth, WORK_START } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { BusinessTimeService } from "../../core/business-time/business-time.service";
@@ -207,23 +207,29 @@ export class AttendanceService {
    * and (11.6) the KPI reward or deduction of a quarter closed this month.
    */
   private async liveDeductions(month: string, tx: Tx | PrismaClient = this.db): Promise<DeductionLine[]> {
-    const within = { gte: asDay(`${month}-01`), lt: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)) };
-    const [emps, days, pens, kpis] = await Promise.all([
+    const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+    const within = { gte: asDay(`${month}-01`), lt: new Date(Date.UTC(y, m, 1)) };
+    const [emps, days, pens, approvals, kpis] = await Promise.all([
       tx.employee.findMany({ where: { user: { status: "ACTIVE" }, salary: { gt: 0 } }, select: { id: true, userId: true, name: true, salary: true }, orderBy: { name: "asc" } }),
       tx.attendanceDay.groupBy({ by: ["employeeId"], where: { day: within }, _sum: { deduction: true, lateMinutes: true } }),
-      tx.penalty.groupBy({ by: ["employeeId"], where: { day: within, status: "approved" }, _sum: { deductionDays: true } }),
+      // this month's penalties, and earlier ones approved after their month was (penaltyMonth): those were decided after the last month's approval, so not before its start
+      tx.penalty.findMany({ where: { status: "approved", day: { lt: within.lt }, OR: [{ day: { gte: within.gte } }, { decidedAt: { gte: new Date(Date.UTC(y, m - 2, 1)) } }] }, select: { employeeId: true, day: true, decidedAt: true, deductionDays: true } }),
+      tx.deductionApproval.findMany({ select: { month: true, at: true } }),
       this.kpis.payrollAmounts(month, tx),
     ]);
+    const approvedAt = new Map(approvals.map((a) => [a.month, a.at]));
+    const penaltyDaysOf = new Map<string, number>();
+    for (const p of pens) if (penaltyMonth(isoDay(p.day), p.decidedAt, approvedAt) === month) penaltyDaysOf.set(p.employeeId, (penaltyDaysOf.get(p.employeeId) ?? 0) + Number(p.deductionDays));
     return emps.map((e) => {
-      const a = days.find((x) => x.employeeId === e.id)?._sum, p = pens.find((x) => x.employeeId === e.id)?._sum;
-      const salary = fromDecimal(e.salary.toFixed(2)), attendanceDays = Number(a?.deduction ?? 0), penaltyDays = Number(p?.deductionDays ?? 0), kpi = kpis.get(e.id) ?? 0;
+      const a = days.find((x) => x.employeeId === e.id)?._sum;
+      const salary = fromDecimal(e.salary.toFixed(2)), attendanceDays = Number(a?.deduction ?? 0), penaltyDays = penaltyDaysOf.get(e.id) ?? 0, kpi = kpis.get(e.id) ?? 0;
       return { employeeId: e.id, userId: e.userId, name: e.name, salary: toDecimal(salary), attendanceDays, penaltyDays, lateMinutes: a?.lateMinutes ?? 0, kpi: toDecimal(kpi),
         amount: toDecimal(monthDeduction({ salary, attendanceDays, penaltyDays, kpi }).amount) };
     });
   }
 
-  /** «التوفير» (7.9): the month's deductions, live until HR approves them, then exactly what was approved. */
-  async deductions(me: CurrentUser, month = monthOf(localDate(new Date()))): Promise<DeductionsView> {
+  /** «التوفير» (7.9): the month's deductions, live until HR approves them, then exactly what was approved. By default the month payroll pays now (payrollMonth). */
+  async deductions(me: CurrentUser, month = payrollMonth(localDate(new Date()))): Promise<DeductionsView> {
     const [ok, mine] = await Promise.all([this.db.deductionApproval.findUnique({ where: { month } }), this.db.employee.findMany({ where: this.scope(me), select: { id: true } })]);
     const ids = new Set(mine.map((e) => e.id));
     const lines = (ok ? (ok.lines as DeductionLine[]) : await this.liveDeductions(month)).filter((l) => ids.has(l.employeeId));
@@ -299,10 +305,13 @@ export class AttendanceService {
     return { quarter, sales: group((k) => k.has("sales") && !k.has("tl")), teamLeaders: group((k) => k.has("tl")) };
   }
 
-  /** «اعتمد الخصومات وابعتها للمالية» (7.9, M-05 (32)): once a month, by HR; payroll reads these numbers from then on. */
+  /**
+   * «اعتمد الخصومات وابعتها للمالية» (7.9, M-05 (32)): once a month, by HR; payroll reads these numbers from then on.
+   * The month is the one payroll pays now (payrollMonth): approving on 2 Nov approves October, which the 1 Nov run waits for.
+   */
   async approveDeductions(me: CurrentUser, run: Run): Promise<DeductionsView> {
     if (me.grants.scope !== "all" || !me.grants.can("hr", "approve")) throw new ForbiddenException("اعتماد الخصومات للـ HR");
-    const month = monthOf(localDate(new Date()));
+    const month = payrollMonth(localDate(new Date()));
     const total = await run(async (tx) => {
       if (await tx.deductionApproval.findUnique({ where: { month } })) throw new BadRequestException("خصومات الشهر ده اتعتمدت قبل كده");
       const lines = await this.liveDeductions(month, tx);

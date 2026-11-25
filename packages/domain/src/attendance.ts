@@ -3,6 +3,8 @@
  * up to 11:16 on time · 11:17–11:29 quarter day · 11:30–11:59 half day · 12:00+ full day.
  * Weekly Delay counts every minute after 11:16, whatever the reason (Excuse, Visit…), without exception.
  */
+import { nextMonth } from "./vouchers.ts";
+
 export interface DeductionTiers {
   /** check-in minute (after 11:00) from which each deduction starts */
   readonly quarterFrom: number;
@@ -83,6 +85,13 @@ export function attendanceDay(day: DayKind, rules: DeductionTiers | DeductionRul
     }
   }
 }
+
+/**
+ * 7.3 · 7.4: may a confirmed Excuse re-price a day already written? Not when something ranks above it in the day's
+ * order (outside work HR confirmed → the day's Visit, done, not done or postponed), so the result never depends on
+ * which was decided first. `kind` as stored (AttendanceKind); `hasVisit`: the day has a Visit at a time.
+ */
+export const excuseApplies = (d: { kind: string; hasVisit: boolean }): boolean => !d.hasVisit && d.kind !== "OUTSIDE_APPROVED" && d.kind !== "VISIT";
 
 /** One day's pay: salary ÷ 26 working days. */
 export const dayRate = (monthlySalary: number): number => monthlySalary / 26;
@@ -172,6 +181,16 @@ export function monthDeduction(i: { salary: number; attendanceDays: number; pena
 export const penaltyDaysOk = (d: number): boolean => d >= 0 && d <= 3 && Number.isInteger(d * 4);
 /** A penalty reaches the deductions only once HR approved it. */
 export const penaltyCounts = (status: string): boolean => status === "approved";
+/**
+ * 7.9: the month whose deductions take an approved penalty — its own day's month, unless HR had already approved that
+ * month's deductions when the penalty was approved: then the first month still open at that moment (never lost).
+ * `approvedAt`: each approved month (YYYY-MM) → when HR approved it. `decidedAt` null = an old row, its own month.
+ */
+export function penaltyMonth(day: string, decidedAt: Date | null, approvedAt: ReadonlyMap<string, Date>): string {
+  let m = day.slice(0, 7);
+  for (let at = approvedAt.get(m); decidedAt && at && at <= decidedAt; at = approvedAt.get(m)) m = nextMonth(m);
+  return m;
+}
 /** «Employee Box» (HR, 15 Nov): any penalty this month that wasn't rejected (pending too) rules the person out. */
 export const penaltyBlocksIdeal = (status: string): boolean => status !== "rejected";
 /** The 1-to-1 is monthly (M-05): the next one is due in the month after the last (25/10 → November). */

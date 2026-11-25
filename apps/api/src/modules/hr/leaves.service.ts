@@ -32,10 +32,15 @@ export class LeavesService {
     return (s?.value as { name: string; days: number }[] | null) ?? [{ name: "سنوية", days: 21 }];
   }
 
-  private async balances(employee: { id: string; leaveBalance: number }, year: string, tx: Tx | PrismaClient = this.db): Promise<LeaveBalance[]> {
+  /**
+   * `held`: also take the requests still waiting (asking, so two requests can't both spend the same days), and leave
+   * out `except` (approving it: what's left without the request itself).
+   */
+  private async balances(employee: { id: string; leaveBalance: number }, year: string, tx: Tx | PrismaClient = this.db, held: { pending?: boolean; except?: string } = {}): Promise<LeaveBalance[]> {
+    const status: LeaveStatusKey[] = held.pending ? ["PENDING_TL", ...COUNTED] : COUNTED;
     const [types, taken] = await Promise.all([
       this.types(tx),
-      tx.leaveRequest.groupBy({ by: ["type"], where: { employeeId: employee.id, status: { in: COUNTED }, fromDay: { gte: day(`${year}-01-01`), lte: day(`${year}-12-31`) } }, _sum: { days: true } }),
+      tx.leaveRequest.groupBy({ by: ["type"], where: { employeeId: employee.id, status: { in: status }, fromDay: { gte: day(`${year}-01-01`), lte: day(`${year}-12-31`) }, ...(held.except ? { id: { not: held.except } } : {}) }, _sum: { days: true } }),
     ]);
     return types.map((t) => {
       const total = t.name === "سنوية" ? employee.leaveBalance : t.days, used = taken.find((x) => x.type === t.name)?._sum.days ?? 0;
@@ -73,7 +78,7 @@ export class LeavesService {
       const types = await this.types(tx);
       if (!types.some((t) => t.name === a.type) && !isOutsideRequest(a.type)) throw new BadRequestException("نوع الإجازة مش موجود في الإعدادات");
       if (a.documentId && !(await tx.file.findFirst({ where: { id: a.documentId, uploadedById: me.id, entityId: null } }))) throw new BadRequestException("المستند مش موجود");
-      const bal = (await this.balances(e, a.from.slice(0, 4), tx)).find((b) => b.type === a.type) ?? { left: 0 }; // «شغل من بره / عذر غياب» have no balance
+      const bal = (await this.balances(e, a.from.slice(0, 4), tx, { pending: true })).find((b) => b.type === a.type) ?? { left: 0 }; // «شغل من بره / عذر غياب» have no balance
       const problem = leaveProblem({ type: a.type, from: a.from, to: a.to, today: localDate(new Date()), left: bal.left, hasDocument: !!a.documentId });
       if (problem) throw new BadRequestException(problem);
       const overlap = await tx.leaveRequest.findFirst({ where: { employeeId: e.id, status: { in: ["PENDING_TL", ...COUNTED] }, fromDay: { lte: day(a.to) }, toDay: { gte: day(a.from) } } });
@@ -107,6 +112,10 @@ export class LeavesService {
       if (!r) throw new NotFoundException("الطلب مش موجود");
       const turn = this.view(r, me).canDecide;
       if (!turn) throw new ForbiddenException("الطلب ده مش مستنيك");
+      // each approval checks the balance again: another request may have spent the days since this one was asked
+      const e = await tx.employee.findUniqueOrThrow({ where: { id: r.employeeId }, select: { id: true, leaveBalance: true } });
+      const bal = (await this.balances(e, iso(r.fromDay).slice(0, 4), tx, { except: r.id })).find((b) => b.type === r.type);
+      if (bal && !isOutsideRequest(r.type) && r.days > bal.left) throw new BadRequestException(`رصيد ${r.type} فاضل فيه ${bal.left} يوم بس والطلب ${r.days} يوم`);
       const data: Prisma.LeaveRequestUpdateInput = turn === "tl" ? { status: "APPROVED_BY_TL", tlDecidedAt: new Date(), ...(r.tlUserId ? {} : { tlUserId: me.id }) } : { status: "CLOSED_BY_HR", hrUserId: me.id, closedAt: new Date() };
       const out = await tx.leaveRequest.update({ where: { id }, data, ...ROW });
       // 7.3: outside work / an excused absence HR confirmed → those days without a deduction, even if the fingerprint says otherwise
