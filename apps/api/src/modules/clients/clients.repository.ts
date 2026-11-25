@@ -43,9 +43,9 @@ export class ClientsRepository {
   }
 
   /** The deals of these files: as the client (through their leads) or as the owner (on their units). */
-  dealsOf(ids: string[]) {
+  dealsOf(ids: string[], scope: Prisma.DealWhereInput) {
     return this.db.deal.findMany({
-      where: { OR: [{ lead: { clientId: { in: ids } } }, { unit: { ownerId: { in: ids } } }] },
+      where: { AND: [scope, { OR: [{ lead: { clientId: { in: ids } } }, { unit: { ownerId: { in: ids } } }] }] },
       select: DEAL_OF_FILE, orderBy: { closedAt: "desc" },
     });
   }
@@ -96,7 +96,10 @@ export class ClientsRepository {
   snapshot(tx: Tx, id: string) {
     return tx.client.findFirst({
       where: { id, archivedAt: null },
-      select: { id: true, name: true, kind: true, status: true, company: true, preferredContact: true, lastContactAt: true, phones: { select: { phone: true } } },
+      select: {
+        id: true, name: true, kind: true, status: true, company: true, preferredContact: true, lastContactAt: true, phones: { select: { phone: true } },
+        marketingConsent: true, deletionAskedAt: true, deletionAskedBy: true, deletionReason: true,
+      },
     });
   }
 

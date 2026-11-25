@@ -63,19 +63,33 @@ export interface MergeSide {
   readonly company: string | null;
   readonly preferredContact: string | null;
   readonly lastContactAt: Date;
+  /** M-10 3.1: null = not asked yet */
+  readonly marketingConsent: boolean | null;
+  /** M-10 2.3: the open «امسحوا بياناتي» request, if any */
+  readonly deletionAskedAt: Date | null;
+  readonly deletionAskedBy: string | null;
+  readonly deletionReason: string | null;
 }
 
 /**
  * M-10 2.2: the file kept after Operations approves a merge. It keeps its own name; what it lacks it takes from the
  * other file; both roles survive; it's Active if either was, and its last contact is the later of the two.
+ * Data protection (3.1 · 2.3): a «no» to marketing from either file wins over a «yes» (and a yes over not asked), and
+ * a deletion request on either file stays on the kept one (the older one, if both asked).
  */
 export function mergedFile(keep: MergeSide, drop: MergeSide): MergeSide {
+  const consent = keep.marketingConsent === false || drop.marketingConsent === false ? false : keep.marketingConsent ?? drop.marketingConsent;
+  const asked = [keep, drop].filter((x) => x.deletionAskedAt).sort((a, b) => a.deletionAskedAt!.getTime() - b.deletionAskedAt!.getTime())[0];
   return {
     kind: mergedKind(keep.kind, drop.kind),
     status: keep.status === "active" || drop.status === "active" ? "active" : "inactive",
     company: keep.company ?? drop.company,
     preferredContact: keep.preferredContact ?? drop.preferredContact,
     lastContactAt: keep.lastContactAt > drop.lastContactAt ? keep.lastContactAt : drop.lastContactAt,
+    marketingConsent: consent,
+    deletionAskedAt: asked?.deletionAskedAt ?? null,
+    deletionAskedBy: asked?.deletionAskedBy ?? null,
+    deletionReason: asked?.deletionReason ?? null,
   };
 }
 

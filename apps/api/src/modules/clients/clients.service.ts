@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { AskDeletion, ClientDeal, ClientFile, ClientFilters, ClientRow, ClientSummary, LogInteraction, Paged, SetConsent, TimelineItem } from "@places/contracts";
-import { allowedValue, fromDecimal, isStale, normalizePhone, partyBalance, seesOwnerNumbers, showsNumbers, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
+import { allowedValue, fromDecimal, isStale, keepsInventory, normalizePhone, partyBalance, seesOwnerNumbers, showsNumbers, staleBefore, toDecimal, withRole, type ClientRole, type DealStatus } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -34,7 +34,7 @@ export class ClientsService {
 
   async list(me: CurrentUser, f: ClientFilters): Promise<Paged<ClientRow>> {
     const [rows, total] = await this.repo.list(visibleTo(me), shownFilters(f, me), staleBefore(new Date()), searchable(me));
-    const deals = await this.repo.dealsOf(rows.map((r) => r.id));
+    const deals = await this.repo.dealsOf(rows.map((r) => r.id), dealScope(me));
     return { items: rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me)), total, page: f.page, pageSize: f.pageSize };
   }
 
@@ -44,7 +44,7 @@ export class ClientsService {
    */
   async exportRows(me: CurrentUser, f: ClientFilters): Promise<ClientRow[]> {
     const [rows] = await this.repo.list(visibleTo(me), { ...shownFilters(f, me), page: 1, pageSize: EXPORT_LIMIT }, staleBefore(new Date()), searchable(me));
-    const deals = await this.repo.dealsOf(rows.map((r) => r.id));
+    const deals = await this.repo.dealsOf(rows.map((r) => r.id), dealScope(me));
     await this.audit.record({ module: "clients", entity: "Client", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
     return rows.map((r) => toRow(r, deals.filter((d) => belongs(d, r.id)).length, me));
   }
@@ -59,7 +59,7 @@ export class ClientsService {
     const c = await this.repo.file(visibleTo(me), id);
     if (!c) throw new NotFoundException(NO_CLIENT);
     const now = new Date();
-    const deals = (await this.repo.dealsOf([id])).map((d) => toDeal(d, id));
+    const deals = (await this.repo.dealsOf([id], dealScope(me))).map((d) => toDeal(d, id));
     const contracts = await this.repo.contracts(deals.map((d) => d.id));
     const names = new Map((await this.repo.userNames([...new Set([...c.interactions.map((i) => i.byId), ...(c.deletionAskedBy ? [c.deletionAskedBy] : [])])])).map((e) => [e.userId, e.name]));
     const balance = partyBalance(deals.map((d) => ({ status: d.status as DealStatus, due: fromDecimal(d.due), paid: fromDecimal(d.paid) })));
@@ -94,7 +94,8 @@ export class ClientsService {
       await this.audit.record({ module: "clients", entity: "ClientInteraction", entityId: row.id, action: "create", userId: me.id, after: row }, tx);
       // demo clients.js: «ابديت مع المالك» is the owner's monthly update (M-10 2.4 = M-03 «last update») for all their units
       // …unless the reader may not change the units' last update (M-09 inventory rules): then the contact is only logged
-      if (input.kind === OWNER_UPDATE && !me.fields.fixed("inventory").has("lastOwnerUpdateAt")) {
+      // and the update itself is the inventory's job (M-10 1.2 · 2.4: Manar / Randa), like the unit's own button (2.29)
+      if (input.kind === OWNER_UPDATE && keepsInventory(me.grants) && !me.fields.fixed("inventory").has("lastOwnerUpdateAt")) {
         const units = await this.repo.touchOwnerUnits(tx, id, row.at);
         for (const u of units) {
           await this.audit.record({ module: "inventory", entity: "Unit", entityId: u.id, action: "update", userId: me.id, before: { lastOwnerUpdateAt: u.lastOwnerUpdateAt }, after: { lastOwnerUpdateAt: row.at } }, tx);
@@ -207,6 +208,15 @@ export function visibleTo(me: CurrentUser): Prisma.ClientWhereInput {
   return { archivedAt: null, ...(Object.keys(own).length ? { leads: { some: own } } : {}) };
 }
 
+/**
+ * The file's deals as the deals module shows them (M-02 4.1): a salesperson the deals they are on, a TL their team's,
+ * the managers all of them — the file doesn't open a wider window on deals than the sheet does.
+ */
+function dealScope(me: CurrentUser): Prisma.DealWhereInput {
+  const own = ownedBy(me, "employeeId");
+  return Object.keys(own).length ? { participants: { some: own } } : {};
+}
+
 /** PENDING_REVIEW → «Pending Review»: the deal statuses the team uses (M-02). */
 const dealStatus = (db: string) => db.toLowerCase().split("_").map((w) => w[0]!.toUpperCase() + w.slice(1)).join(" ") as DealStatus;
 const normalized = (phones: string[]) => [...new Set(phones.map(normalizePhone).filter((p): p is string => p !== null))];
@@ -228,13 +238,16 @@ function toRow(r: ClientRowRecord, deals: number, me: CurrentUser): ClientRow {
 
 /** M-09 · the rest of the file: what's hidden in «clients» is blank or gone; its units follow the reader's «inventory» rules too. */
 function hideFile(f: ClientFile, me: CurrentUser): ClientFile {
-  const h = me.fields.hidden("clients"), inv = me.fields.hidden("inventory");
-  if (!h.size && !inv.size) return f;
+  const h = me.fields.hidden("clients"), inv = me.fields.hidden("inventory"), dl = me.fields.hidden("deals");
+  // the deals' money follows the reader's deals rules too: the commission due, and what was collected
+  const noDue = dl.has("commissionOwner") || dl.has("commissionClient"), noPaid = dl.has("collected");
+  if (!h.size && !inv.size && !noDue && !noPaid) return f;
+  const money = h.has("balance") || noDue || noPaid;
   return {
     ...f,
     units: h.has("units") ? [] : f.units.map((u) => ({ ...u, space: inv.has("space") ? 0 : u.space, lastOwnerUpdateAt: inv.has("lastOwnerUpdateAt") ? "" : u.lastOwnerUpdateAt, stale: inv.has("stale") ? false : u.stale })),
-    deals: h.has("deals") ? [] : h.has("balance") ? f.deals.map((d) => ({ ...d, due: "", paid: "" })) : f.deals,
-    balance: h.has("balance") ? { paid: "", remaining: "" } : f.balance,
+    deals: h.has("deals") ? [] : f.deals.map((d) => ({ ...d, due: h.has("balance") || noDue ? "" : d.due, paid: h.has("balance") || noPaid ? "" : d.paid })),
+    balance: money ? { paid: "", remaining: "" } : f.balance,
     contracts: h.has("contracts") ? [] : f.contracts,
     marketingConsent: h.has("marketingConsent") ? null : f.marketingConsent,
     deletionAsked: h.has("deletionAsked") ? null : f.deletionAsked,

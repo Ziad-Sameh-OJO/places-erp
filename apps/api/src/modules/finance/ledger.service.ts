@@ -297,6 +297,30 @@ export class LedgerService {
     return account;
   }
 
+  /**
+   * M-10 2.2 · 9.12: two client files merged keep one account. The dropped file's account becomes the kept file's when
+   * that has none; otherwise its balance moves over in one entry (source «client-merge»). Returns what was done, for the
+   * merge's audit; null when the dropped file had no account.
+   */
+  async mergeParty(me: CurrentUser, m: { type: "client"; fromId: string; toId: string; ref: string; memo: string }, tx: Tx) {
+    const from = await this.repo.partyAccount(m.type, m.fromId, tx);
+    if (!from) return null;
+    const to = await this.repo.partyAccount(m.type, m.toId, tx);
+    if (!to) {
+      await this.repo.setParty(from.id, m.toId, tx);
+      await this.audit.record({ module: "finance", entity: "Account", entityId: from.id, action: "update", userId: me.id, before: { partyId: m.fromId }, after: { partyId: m.toId } }, tx);
+      return { account: from.code };
+    }
+    const s = await this.repo.accountSums(from.id, tx);
+    const net = dec(s._sum.debit) - dec(s._sum.credit);
+    if (!net) return { account: to.code, from: from.code };
+    const lines = net > 0
+      ? [{ accountId: to.id, debit: net, credit: 0 }, { accountId: from.id, debit: 0, credit: net }]
+      : [{ accountId: from.id, debit: -net, credit: 0 }, { accountId: to.id, debit: 0, credit: -net }];
+    const entry = await this.post(me, { date: localDate(new Date()), nature: "دمج ملفين", source: "client-merge", sourceId: m.ref, memo: m.memo, lines }, tx);
+    return { account: to.code, from: from.code, entry: entry.no };
+  }
+
   /** 9.15: a salesperson's own 21103 account, if it was opened, with its balance (what's owed to them). */
   async partyBalance(type: "client" | "sales", id: string, tx?: Tx): Promise<{ account: AccountRow | null; balance: Piasters }> {
     const account = await this.repo.partyAccount(type, id, tx);
