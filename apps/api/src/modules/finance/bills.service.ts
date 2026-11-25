@@ -61,6 +61,7 @@ export class BillsService {
   /** «مش الشهر ده»: the reason is kept; the bill comes back next month. */
   async skip(me: CurrentUser, id: string, input: SkipBill, run: Run) {
     return run(async (tx) => {
+      await this.ledger.lock(`bill:${id}`, tx); // not while it's being paid
       const b = await this.found(id, tx), month = monthOf(localDate(new Date()));
       if (b.months.some((m) => m.month === month)) throw new BadRequestException("الفاتورة دي اتقفلت الشهر ده خلاص");
       await this.repo.markBill({ billId: id, month, status: "skipped", reason: input.reason, byId: me.id }, tx);

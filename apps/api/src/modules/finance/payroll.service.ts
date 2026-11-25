@@ -86,6 +86,7 @@ export class PayrollService {
   async planAdvance(me: CurrentUser, userId: string, amount: string, run: Run) {
     return run(async (tx) => {
       const month = payrollMonth(localDate(new Date()));
+      await this.ledger.lock(`payroll:${month}`, tx); // not while the month is being paid
       if (await tx.payrollRun.findUnique({ where: { month } })) throw new BadRequestException("مرتبات الشهر ده اتصرفت قبل كده");
       const row = (await this.rows(month, tx)).find((r) => r.userId === userId);
       if (!row) throw new BadRequestException("الموظف ده مالوش مرتب");
@@ -105,6 +106,7 @@ export class PayrollService {
     // review Q2: the month this run pays (the previous one up to the 15th), and only with HR's approved deductions
     const today = localDate(new Date()), month = payrollMonth(today), date = input.date ?? today;
     const result = await run(async (tx) => {
+      await this.ledger.lock(`payroll:${month}`, tx); // two «اصرف المرتبات» at once: the second waits, then is refused here
       if (await tx.payrollRun.findUnique({ where: { month } })) throw new BadRequestException("مرتبات الشهر ده اتصرفت قبل كده");
       if (!(await tx.deductionApproval.findUnique({ where: { month }, select: { id: true } }))) throw new BadRequestException(`الـ HR لسه ماعتمدش خصومات شهر ${monthLabel(month)}`);
       const rows = await this.rows(month, tx);

@@ -47,6 +47,25 @@ test("a bill due today: «وافق واصرف» posts a voucher and marks the mo
   assert.equal(again.body.error, "الفاتورة دي اتصرفت الشهر ده");
 });
 
+test("a bill paid and skipped at the same moment: one wins, the other gets a clear 400, never a 500 (9.16)", async () => {
+  const r = await bill("سباق", 1);
+  const b = (await call("/finance/bills", { cookie: ahmed })).body.items.find((x: { id: string }) => x.id === r.body.id);
+  const pay = { kind: "pay", billId: b.id, fromId: b.from.id, accountId: b.account.id, amount: "100", party: b.vendor, memo: `${b.name} · سباق` };
+  const [x, y, z] = await Promise.all([
+    call("/finance/moves", { method: "POST", cookie: ahmed, body: pay }),
+    call("/finance/moves", { method: "POST", cookie: ahmed, body: pay }),
+    call(`/finance/bills/${b.id}/skip`, { method: "POST", cookie: ahmed, body: { reason: "سباق" } }),
+  ]);
+  const statuses = [x.status, y.status, z.status].sort();
+  assert.deepEqual(statuses, [201, 400, 400], JSON.stringify([x.body, y.body, z.body]));
+  assert.equal(await prisma.recurringBillMonth.count({ where: { billId: b.id } }), 1);
+});
+
+test("an amount past Decimal(14,2) is a 400 from the contract, not a database 500", async () => {
+  const huge = await call("/finance/moves", { method: "POST", cookie: ahmed, body: { kind: "pay", fromId: bank.id, accountId: line.id, amount: "1000000000000", party: "x", memo: `${P} كبير` } });
+  assert.equal(huge.status, 400);
+});
+
 test("«مش الشهر ده» keeps the reason; stop / start (9.16)", async () => {
   const r = await bill("إنترنت", 1);
   assert.equal((await call(`/finance/bills/${r.body.id}/skip`, { method: "POST", cookie: ahmed, body: { reason: "اتدفعت مع الشهر اللي فات" } })).status, 201);

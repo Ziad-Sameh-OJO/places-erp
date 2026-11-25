@@ -59,7 +59,7 @@ export function IncomeStatement() {
         {row(t("pnl.net"), s.net, "total grand", explain(t("pnl.net"), [[t("pnl.contribution"), s.contribution], [t("pnl.lessAdmin"), `-${s.admin}`], [t("pnl.lessOther"), `-${s.other}`]], s.net, t("pnl.path.net")))}
       </tbody></table></div>
       <Note>{t("pnl.note")}</Note>
-      {ledger && <LedgerModal id={ledger} onClose={() => setLedger(null)} />}
+      {ledger && <LedgerModal id={ledger} range={{ from: s.from, to: s.to }} onClose={() => setLedger(null)} />}
       {why && (
         <Modal title={why.title} onClose={() => setWhy(null)}>
           <Table head={[t("pnl.computedFrom"), t("common.amount")]} empty={t("pnl.emptyPeriod")} rows={[...why.rows.map(([l, v]) => [l, money(v)]), [<b key="t">{why.total[0]}</b>, <b key="v">{money(why.total[1])}</b>]]} />
