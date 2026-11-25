@@ -182,7 +182,8 @@ export class NotActiveService {
     if (!table.rows.length) throw new BadRequestException("الشيت مفيهوش صفوف");
     const done = await this.db.$transaction(async (tx) => {
       const found = await this.repo.sheetByName(input.name, tx);
-      const numberBy = input.numberBy ?? found?.numberBy ?? null;
+      // «من غير مقارنة» comes as null and is kept; only a field left out falls back to the file's column
+      const numberBy = input.numberBy === undefined ? found?.numberBy ?? null : input.numberBy;
       const sheet = found ?? await this.repo.createSheet(tx, input.name, input.dedupeBy, numberBy, table.headers, me.id);
       const existing = found ? (await this.repo.rowData(sheet.id, tx)).map((r) => cells(r.data)) : [];
       // 2.40: every row goes in and the repeats show marked, or «متدخلش» leaves the repeats out (the first of each goes in)

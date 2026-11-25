@@ -1731,7 +1731,8 @@ model MailLog {
   id             String        @id @default(cuid())
   to             String
   subject        String
-  text           String
+  text           String // what the send log keeps: a secret (sign-in code, activation / reset link) is masked here
+  secretText     String? // the real text when `text` is masked, kept only until the worker sends it
   attachments    Json? // [{ filename, base64 }]: the quarterly PDF and the like, kept until the worker sends them
   status         String        @default("queued") // queued · sent · failed
   attempts       Int           @default(0)
