@@ -38,6 +38,8 @@ export class CompaniesService {
 
   /** 1.21 · the report as Excel (M-01 6.1): the same filters as the screen, audited. */
   async exportRows(me: CurrentUser, f: CompanyFilters) {
+    // the sheet is for whoever may see it («leads: import», the controller's GET): «leads: export» alone isn't a way around that
+    if (!me.grants.can("leads", "import")) throw new ForbiddenException("شيت الشركات مش من حقك تشوفه");
     const rows = await this.repo.all(f, ending(f), await this.matching(f.q), EXPORT_LIMIT);
     await this.audit.record({ module: "leads", entity: "Company", entityId: "report", action: "export", userId: me.id, after: { rows: rows.length, category: f.category ?? null, endingWithin: f.endingWithin ?? null } });
     return rows.map(toRow);
@@ -99,7 +101,7 @@ export class CompaniesService {
       if (await this.findSame(input.name, input.number, tx, id)) throw new ConflictException("فيه شركة تانية في الشيت بنفس الاسم أو الرقم");
       const day = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`) : null);
       const after = await tx.company.update({ where: { id }, data: {
-        ...input, contractStart: day(input.contractStart), contractEnd: day(input.contractEnd),
+        ...input, contractStart: day(input.contractStart), contractEnd: day(input.contractEnd), contactedOn: day(input.contactedOn),
       } });
       await this.audit.record({ module: "leads", entity: "Company", entityId: id, action: "update", userId: me.id, before, after }, tx);
       return after;
@@ -121,13 +123,16 @@ export class CompaniesService {
     return this.db.$transaction(async (tx) => {
       const req = await tx.companyRequest.findUnique({ where: { id }, select: { id: true, name: true, status: true, leadId: true } });
       if (!req) throw new NotFoundException("الطلب ده مش موجود");
-      if (req.status !== "pending") throw new ConflictException("الشركة دي اتضافت خلاص");
+      // claimed while still pending: two clicks (or two Telesales) at once can't both add the company
+      if (req.status !== "pending" || (await tx.companyRequest.updateMany({ where: { id, status: "pending" }, data: { status: "added" } })).count === 0) {
+        throw new ConflictException("الشركة دي اتضافت خلاص");
+      }
       const same = await this.findSame(req.name, null, tx);
       const company = same ?? await tx.company.create({ data: { name: req.name, category, createdById: me.id } });
-      await tx.lead.update({ where: { id: req.leadId }, data: { companyId: company.id } });
-      // every request for the same name goes with it
-      const sameRequests = (await this.repo.pendingRequestNames(tx)).filter((r) => sameName(r.name, req.name)).map((r) => r.id);
-      await tx.companyRequest.updateMany({ where: { id: { in: [req.id, ...sameRequests] } }, data: { status: "added", companyId: company.id } });
+      // every request for the same name goes with it, and each of their leads points to the company — not only the first
+      const sameRequests = (await this.repo.pendingRequestNames(tx)).filter((r) => sameName(r.name, req.name));
+      await tx.companyRequest.updateMany({ where: { id: { in: [req.id, ...sameRequests.map((r) => r.id)] } }, data: { status: "added", companyId: company.id } });
+      await tx.lead.updateMany({ where: { id: { in: [req.leadId, ...sameRequests.map((r) => r.leadId)] } }, data: { companyId: company.id } });
       await this.audit.record({ module: "leads", entity: "Company", entityId: company.id, action: same ? "link" : "create", userId: me.id, after: { name: company.name, category: same ? undefined : category, from: id } }, tx);
       return { id: company.id, name: company.name, category: same ? (await tx.company.findUniqueOrThrow({ where: { id: company.id } })).category : category, leadCode: null };
     });
@@ -148,8 +153,21 @@ export class CompaniesService {
     return { companyId: null, notify: true };
   }
 
+  /**
+   * The lead's company was changed: what it asked Telesales to add before is no longer its company, so adding it later
+   * mustn't overwrite the lead's new one. Called by the leads module inside the lead's transaction.
+   */
+  async dropRequests(tx: Prisma.TransactionClient, leadId: string) {
+    await tx.companyRequest.updateMany({ where: { leadId, status: "pending" }, data: { status: "dropped" } });
+  }
+
   notifyNew(name: string, code: string) {
     return this.notifications.notify({ event: "lead.new_company", text: `شركة جديدة «${name}» اتضافت في ليد ${code} · محتاجة تتضاف لشيت الشركات`, link: "/companies" });
+  }
+
+  /** The active categories of the settings list (M-13), as the archive import matches them. */
+  async categories(): Promise<string[]> {
+    return activeValues((await this.settings.all()).companyCategories);
   }
 
   private async checkCategory(category: string) {

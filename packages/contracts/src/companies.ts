@@ -38,6 +38,8 @@ export const CompanyUpdate = z.object({
   averageRent: opt(Money),
   annualEscalation: opt(z.number({ invalid_type_error: "الزيادة رقم" }).min(0).max(100, "الزيادة نسبة لحد 100")),
   feedback: opt(z.string().trim().max(2000)),
+  /** the sheet's «date»: the last contact (Telesales writes it, M-01 «تاريخ آخر تواصل / إضافة»); empty = when it was added */
+  contactedOn: opt(CalendarDay),
 }).refine((c) => !c.contractStart || !c.contractEnd || c.contractStart <= c.contractEnd, { path: ["contractEnd"], message: "نهاية العقد قبل بدايته" });
 export type CompanyUpdate = z.infer<typeof CompanyUpdate>;
 

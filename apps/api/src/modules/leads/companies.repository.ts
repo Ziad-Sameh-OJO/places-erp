@@ -48,7 +48,7 @@ export class CompaniesRepository {
   }
 
   pendingRequestNames(tx: Tx) {
-    return tx.companyRequest.findMany({ where: { status: "pending" }, select: { id: true, name: true } });
+    return tx.companyRequest.findMany({ where: { status: "pending" }, select: { id: true, name: true, leadId: true } });
   }
 
   /** A lead that has this number as one of its mobiles («رقم الشركة بيتقارن بأرقام الليدز»). */

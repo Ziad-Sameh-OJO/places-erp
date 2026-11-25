@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { followupRole, inTeamDepartments, isTaskLate, isTeamTask, taskNoteProblem, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
+import { followupRole, inTeamDepartments, isTaskLate, isTaskManager, isTeamTask, taskDueProblem, taskNoteProblem, needsFollowup, photoDayWarning, retouchFolder, taskKind, taskMove, taskMovesFor, type TaskActor } from "../src/tasks.ts";
 
 const assignee: TaskActor = { assignee: true, manager: false, approver: false };
 const manar: TaskActor = { assignee: false, manager: true, approver: true };
@@ -109,4 +109,21 @@ test("14.15 a task inside the team: any person of the department, the unit optio
   assert.deepEqual(inTeamDepartments("dept", "Marketing", all), ["Marketing"]); // Rahma: her own team only
   assert.deepEqual(inTeamDepartments("all", "Operations", all), all); // the Super Admin / ops head picks the department
   assert.deepEqual(inTeamDepartments("own", null, all), []); // no employee record, no team
+});
+
+test("who manages a task: its sender, or a department head — not on a task someone else gave them (M-04 2.4, 4.15)", () => {
+  const manar = { id: "manar", scope: "dept" }, randa = { id: "randa", scope: "dept" }, bayoumi = { id: "bayoumi", scope: "own" };
+  assert.equal(isTaskManager(manar, { byUserId: "manar", toUserId: "randa" }), true); // she gave it
+  assert.equal(isTaskManager(manar, { byUserId: "rahma", toUserId: "bayoumi" }), true); // her department's tasks
+  assert.equal(isTaskManager(randa, { byUserId: "manar", toUserId: "randa" }), false); // Randa can't push Manar's deadline on her
+  assert.equal(isTaskManager({ id: "admin", scope: "all" }, { byUserId: "x", toUserId: "admin" }), false);
+  assert.equal(isTaskManager(randa, { byUserId: null, toUserId: "randa" }), true); // the month job's follow-up: she hands it on
+  assert.equal(isTaskManager(bayoumi, { byUserId: "manar", toUserId: "bayoumi" }), false);
+  assert.equal(isTaskManager(bayoumi, { byUserId: "bayoumi", toUserId: "bayoumi" }), true);
+});
+
+test("M-04 2.4: a task's day can't be one that already passed", () => {
+  assert.equal(taskDueProblem("2026-11-24", "2026-11-25"), "الميعاد ده عدّى · اختار النهارده أو بعده");
+  assert.equal(taskDueProblem("2026-11-25", "2026-11-25"), null);
+  assert.equal(taskDueProblem("2026-12-01", "2026-11-25"), null);
 });
