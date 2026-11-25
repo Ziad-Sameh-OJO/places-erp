@@ -175,7 +175,7 @@ test("the Kanban: the picked stages in order; a dropped stage's lane only while 
 });
 
 test("Cancellation needs a reason from the client's list (22 Nov); no other stage does", () => {
-  assert.deepEqual([...CANCEL_REASONS], ["Not Interested", "No Budget", "Destination", "No Answer", "Rented"]);
+  assert.deepEqual([...CANCEL_REASONS], ["Not Interested", "Low Budget", "Destination", "No Answer", "Rent Outside", "Buy Outside"]);
   assert.equal(needsCancelReason("Cancellation"), true);
   for (const s of ["Fresh", "Not Interested", "No Answer", "Hold", "Done Deal"]) assert.equal(needsCancelReason(s), false, s);
 });

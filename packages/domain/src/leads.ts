@@ -25,10 +25,10 @@ export const PICKABLE_STAGES: readonly LeadStage[] = [...STAGE_PICKER.main, ...S
 export const isPickableStage = (s: string): boolean => (PICKABLE_STAGES as readonly string[]).includes(s);
 
 /**
- * Client, 22 Nov: Cancellation isn't saved straight away; the salesperson picks one of these reasons (and may add a
+ * Client, 22 Nov (the list as she wrote it on 25 Nov): Cancellation isn't saved straight away; the salesperson picks one of these reasons (and may add a
  * comment). The reason is kept on the lead: «سبب الإلغاء» filters the leads by it.
  */
-export const CANCEL_REASONS = ["Not Interested", "No Budget", "Destination", "No Answer", "Rented"] as const;
+export const CANCEL_REASONS = ["Not Interested", "Low Budget", "Destination", "No Answer", "Rent Outside", "Buy Outside"] as const;
 export type CancelReason = (typeof CANCEL_REASONS)[number];
 export const needsCancelReason = (stage: string): boolean => stage === "Cancellation";
 
