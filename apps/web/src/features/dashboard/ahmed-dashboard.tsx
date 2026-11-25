@@ -3,7 +3,7 @@ import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { AhmedDashboard, AhmedTeam, Compared, PacedBar } from "@places/contracts";
-import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, toDecimal, type DashPeriod, monthToSet } from "@places/domain";
+import { DASH_PERIODS, fromDecimal, localDate, quarterOfDay, teamTone, toDecimal, type DashPeriod } from "@places/domain";
 import { Card, Chip, Empty, Icon } from "@/components/ui";
 import { PeriodPicker } from "@/components/period-picker";
 import { dateLocale, money, num, short } from "@/lib/format";
@@ -114,8 +114,8 @@ function Funnel({ d }: { d: AhmedDashboard }) {
  */
 function Targets({ d, onQuarter }: { d: AhmedDashboard; onQuarter: (q: string) => void }) {
   const t = useTranslations("dashboard.ahmed.targets");
-  // a gauge opens the quarter's targets added up; «حدد التارجت» a month, where each salesperson's target is edited
-  const href = `/reports?quarter=${d.targetQuarter}`, setHref = `/reports?month=${monthToSet(d.targetQuarter, localDate(new Date()))}`;
+  // a gauge opens the quarter's targets added up; «روح لصفحة التارجت» the plan, on the card's year and quarter
+  const href = `/reports?quarter=${d.targetQuarter}`, setHref = `/reports?tab=plan&year=${d.year}&q=${d.targetQuarter.slice(-1)}`;
   return (
     <Card title={t("title")} icon="trend" className="b-4 target-a" extra={<PeriodPicker value={d.targetQuarter} onChange={(v) => v && onQuarter(v)} bare />}>
       <div className="gauges-a">

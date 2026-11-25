@@ -60,3 +60,4 @@ export * from "./period.ts";
 export * from "./lead-transfer.ts";
 export * from "./unit-journey.ts";
 export * from "./word-templates.ts";
+export * from "./target-plan.ts";

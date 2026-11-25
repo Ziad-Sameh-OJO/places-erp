@@ -111,6 +111,31 @@ export const TargetInput = z.object({
   visits: z.number().int().min(0, "مايبقاش سالب").max(10_000),
 });
 export type TargetInput = z.infer<typeof TargetInput>;
+
+/** «خطة التارجت» (management, 25 Nov): a year of every salesperson's monthly targets, edited in one grid. */
+export const TARGET_METRICS = ["value", "deals", "visits"] as const;
+export type TargetMetric = (typeof TARGET_METRICS)[number];
+export const TargetPlanQuery = z.object({ year: z.coerce.number().int().min(2020).max(2100) });
+export type TargetPlanQuery = z.infer<typeof TargetPlanQuery>;
+/** Many cells at once, one metric: money as a decimal string, Transactions and visits as whole numbers. */
+export const TargetPlanSave = z.object({
+  metric: z.enum(TARGET_METRICS),
+  cells: z.array(z.object({ employeeId: Id, month, amount: z.string().regex(/^\d+(\.\d{1,2})?$/, "رقم موجب") })).min(1).max(1200),
+}).refine((b) => b.metric === "value" || b.cells.every((c) => /^\d+$/.test(c.amount) && Number(c.amount) <= 10_000), { path: ["cells"], message: "العدد لازم يبقى رقم صحيح" });
+export type TargetPlanSave = z.infer<typeof TargetPlanSave>;
+export interface TargetPlanCell {
+  value: string; deals: number; visits: number;
+  /** false = no target saved for that month: the value shown is the salesperson's standing target */
+  saved: boolean;
+  pending: { value: string; deals: number; visits: number; by: string } | null;
+}
+export interface TargetPlan {
+  year: number;
+  months: Array<{ month: string; lock: "closed" | "approval" | "open" }>;
+  people: Array<{ employeeId: string; name: string; team: string | null; tl: string | null; cells: Record<string, TargetPlanCell> }>;
+  can: { edit: boolean; approve: boolean; value: boolean };
+}
+export interface TargetPlanResult { saved: number; pending: number; skipped: number }
 export const TransactionsQuery = z.object({ from: day, to: day });
 export type TransactionsQuery = z.infer<typeof TransactionsQuery>;
 
