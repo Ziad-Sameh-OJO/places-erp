@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { ContractCalendar, ContractSummary } from "@places/contracts";
 import { Card, Chip, Icon, Table, Tabs } from "@/components/ui";
 import { Fab, KpiTile } from "@/components/blocks";
@@ -20,8 +21,15 @@ export function ContractsView() {
   const s = useSummary();
   const [tab, setTab] = useState<Tab>("list");
   const [open, setOpen] = useState<string | null>(null);
-  // a link opens one contract: a notification («قيمة العقد…») or the client's file «افتح» (3.7)
-  useEffect(() => { const id = new URLSearchParams(window.location.search).get("open"); if (id) setOpen(id); }, []);
+  // a link opens one contract: a notification («قيمة العقد…») or the client's file «افتح» (3.7) — also when the page is
+  // already open (it stays mounted); the param is dropped once read, so the same link works again
+  const linked = useSearchParams().get("open");
+  const router = useRouter();
+  useEffect(() => {
+    if (!linked) return;
+    setOpen(linked);
+    router.replace("/contracts", { scroll: false });
+  }, [linked, router]);
   const [form, setForm] = useState(false);
   const fields = useFields("contracts");
   // M-09: a contract can't be uploaded without its value, table and PDF, so a role that may not set them doesn't get the form

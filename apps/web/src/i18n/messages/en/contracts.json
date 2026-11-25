@@ -95,6 +95,13 @@
     "every": "Installment every (months)",
     "file": "Contract file (PDF)",
     "hint": "Installment = value ÷ number of installments, from the contract's first day.",
+    "custom": "Custom table (each installment with its date and amount)",
+    "customHint": "The installments must add up to the contract's value, each date within the contract.",
+    "lineDate": "Installment {n} date",
+    "lineAmount": "Installment {n} amount",
+    "removeLine": "Remove the installment",
+    "addLine": "Add an installment",
+    "total": "Total {total} of {value}",
     "submit": "Save contract"
   },
   "actions": {

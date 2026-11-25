@@ -25,6 +25,9 @@ test("M-11 2.4 · 7.1: reminder 3 days before, late the day after, escalation at
   assert.deepEqual(a("2026-10-29", ["reminder", "late"]), ["escalated"]); // 7.1 «قسط اتأخر 7 أيام → تصعيد للإدارة»
   assert.deepEqual(a("2026-10-01"), ["late", "escalated"]);
   assert.deepEqual(a("2026-10-01", ["late", "escalated"]), []);
+  // M-11 3.2: an ended or terminated contract still owes its arrears: late and escalated, never reminded
+  assert.deepEqual(installmentAlerts("2026-10-01", "2026-11-05", [], false), ["late", "escalated"]);
+  assert.deepEqual(installmentAlerts("2026-11-08", "2026-11-05", [], false), []);
 });
 
 test("M-11 2.4 · 7.1: renewal alerts at 90, 60 and 30 days, each once; a late look sends only the nearest", () => {

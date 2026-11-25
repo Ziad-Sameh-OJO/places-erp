@@ -138,11 +138,13 @@ export const INSTALLMENT_ESCALATION_DAYS = 7;
 /**
  * The alerts an unpaid installment is due today and hasn't had yet. A missed reminder is dropped once it's late (it
  * would announce a day that passed), but a late alert and an escalation reached together both go: different people.
+ * Arrears are «due − collected» whatever the contract's status (3.2), so an ended or terminated contract's unpaid
+ * installment still goes late and escalates; only the reminder to collect is for a contract still running.
  */
-export function installmentAlerts(dueOn: string, today: string, sent: readonly string[]): InstallmentAlert[] {
+export function installmentAlerts(dueOn: string, today: string, sent: readonly string[], active = true): InstallmentAlert[] {
   const late = daysBetween(dueOn, today);
   const reached: InstallmentAlert[] = late >= 1
     ? ["late", ...(late >= INSTALLMENT_ESCALATION_DAYS ? ["escalated" as const] : [])]
-    : -late <= INSTALLMENT_REMINDER_DAYS ? ["reminder"] : [];
+    : active && -late <= INSTALLMENT_REMINDER_DAYS ? ["reminder"] : [];
   return reached.filter((a) => !sent.includes(a));
 }
