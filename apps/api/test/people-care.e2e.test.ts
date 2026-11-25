@@ -84,6 +84,13 @@ test("an «hr: edit» exception on a team-scope account doesn't reach people out
     const cookie = await session(email);
     assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie, body: { heldOn: today(), answers: {} } })).status, 404);
     assert.equal(await prisma.oneOnOne.count({ where: { byUserId: u.id } }), 0);
+    // review S4: «حل الـ HR» list is in scope too — HR sees Mohsen's open action, the team-scope account doesn't
+    const one = await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie: basant, body: { heldOn: today(), answers: {}, hrAction: `${P} حل سري`, hrActionDue: today() } });
+    assert.equal(one.status, 201, JSON.stringify(one.body));
+    assert.ok((await call("/hr/one-on-one/actions", { cookie: basant })).body.items.some((x: { id: string }) => x.id === one.body.id));
+    const mine = await call("/hr/one-on-one/actions", { cookie });
+    assert.equal(mine.status, 200);
+    assert.ok(!mine.body.items.some((x: { id: string }) => x.id === one.body.id));
   } finally {
     await prisma.auditLog.deleteMany({ where: { OR: [{ userId: u.id }, { entityId: u.id }] } });
     await prisma.user.delete({ where: { id: u.id } });

@@ -339,7 +339,8 @@ test("who changes which list (#186): its own roles / people, add apart from swit
 
 test("each department's settings for its manager only, the money rules for the Super Admin only (12.8 · M-13 4.1 · 2.2)", async () => {
   const [hr, marketing, manar] = await Promise.all([session("basant.elsawy@places.com"), session("rahma.hassan@places.com"), session("manar.ahmed@places.com")]);
-  const s = (await call("/settings", { cookie: sales })).body;
+  // read as the Super Admin: sales no longer get the money rules (S3), and the test saves every key back as it was
+  const s = (await call("/settings", { cookie: admin })).body;
   // saving today's value back: the permission is what's tested, nothing other tests read changes
   const put = (key: string, cookie: string, value: unknown = s[key]) => call(`/settings/${key}`, { method: "PUT", cookie, body: { value } });
   assert.equal((await put("leaveTypes", hr)).status, 200);

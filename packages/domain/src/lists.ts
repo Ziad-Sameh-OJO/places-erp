@@ -75,6 +75,17 @@ export const SETTING_OWNERS: Readonly<Record<string, SettingOwner>> = {
   listEditors: "access",
 };
 
+/**
+ * The settings that are money or people (M-13 2.2): read only by who works with them, the settings screen
+ * («master: view», where the TL tiers show) and finance («finance: view», the cost center's rates). Everyone else
+ * gets the lists every form needs, without these.
+ */
+export const PRIVATE_SETTINGS = ["procurementBigApprovers", "tlTiers", "opsCommissionPct", "externalCommissionPct"] as const;
+export function readableSettings<T extends Record<string, unknown>>(s: T, seesPrivate: boolean): Partial<T> {
+  if (seesPrivate) return s;
+  return Object.fromEntries(Object.entries(s).filter(([k]) => !(PRIVATE_SETTINGS as readonly string[]).includes(k))) as Partial<T>;
+}
+
 export interface SettingEditor { readonly roles: readonly string[]; readonly masterEdit: boolean; readonly accessEdit: boolean }
 
 /** May this person change this setting? For a list, this is who changes it until its own editors are set up (#186). */

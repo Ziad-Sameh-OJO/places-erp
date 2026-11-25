@@ -38,6 +38,8 @@ mark("E2E نقل"); // «نانسي إسلام طالب نقل … E2E نقل le
 after(async () => {
   const ids = [leaver.userId, heir.userId];
   await prisma.notification.deleteMany({ where: { userId: { in: ids } } });
+  const leadIds = (await prisma.lead.findMany({ where: { code: { startsWith: `L-HO${stamp}` } }, select: { id: true } })).map((l) => l.id);
+  await prisma.auditLog.deleteMany({ where: { module: "leads", action: "handover", entityId: { in: leadIds } } });
   await prisma.leadActivity.deleteMany({ where: { lead: { code: { startsWith: `L-HO${stamp}` } } } });
   await prisma.lead.deleteMany({ where: { code: { startsWith: `L-HO${stamp}` } } });
   await prisma.task.deleteMany({ where: { toUserId: { in: ids } } });
@@ -72,6 +74,12 @@ test("HR asks, only the direct manager decides, and approving moves the open lea
 
   const leads = await prisma.lead.findMany({ where: { code: { startsWith: `L-HO${stamp}` } }, orderBy: { code: "asc" } });
   assert.deepEqual(leads.map((l) => l.assignedToId), [heir.employeeId, heir.employeeId, leaver.employeeId]);
+  // each moved lead has its own leads/Lead audit row («Assign from / to», its Logs) and the heir starts without the old comments (14.7)
+  const moved = leads.slice(0, 2);
+  const rows = await prisma.auditLog.findMany({ where: { module: "leads", entity: "Lead", action: "handover", entityId: { in: moved.map((l) => l.id) } } });
+  assert.deepEqual(rows.map((x) => [(x.before as { assignedToId: string }).assignedToId, (x.after as { assignedToId: string }).assignedToId]),
+    [[leaver.employeeId, heir.employeeId], [leaver.employeeId, heir.employeeId]]);
+  assert.ok(moved.every((l) => l.commentsFrom && l.commentsFrom.getTime() === l.assignedAt?.getTime()));
   assert.equal(await prisma.task.count({ where: { toUserId: heir.userId, status: "todo" } }), 1);
   assert.equal(await prisma.task.count({ where: { toUserId: leaver.userId, status: "done" } }), 1);
   const log = await prisma.auditLog.findFirst({ where: { entity: "Handover", entityId: id, action: "handover-approved" } });

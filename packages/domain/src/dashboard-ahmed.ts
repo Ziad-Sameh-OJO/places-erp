@@ -9,7 +9,6 @@ import type { LeadStage } from "./leads.ts";
 import type { Piasters } from "./money.ts";
 import { quarterBounds, quarterDays, quarterOfDay } from "./period.ts";
 import { monthBounds } from "./targets.ts";
-import { quarterMonths } from "./kpi-sheet.ts";
 
 export const DASH_PERIODS = ["today", "week", "month", "quarter"] as const;
 export type DashPeriod = (typeof DASH_PERIODS)[number];
@@ -133,11 +132,3 @@ export function moneyBuckets(period: DashPeriod, now: Date, cal: WorkCalendar = 
 export const sumIn = (rows: readonly { at: Date; value: number }[], buckets: readonly Window[]): number[] =>
   buckets.map((b) => rows.reduce((s, r) => (r.at >= b.from && r.at < b.to ? s + r.value : s), 0));
 
-/**
- * «حدد التارجت» on the target card (22 Nov): targets are set per salesperson per month, and the quarter view only
- * adds them up — so the link opens a month: today's if it's in the card's quarter, else the quarter's first.
- */
-export function monthToSet(quarter: string, today: string): string {
-  const months = quarterMonths(quarter), now = today.slice(0, 7);
-  return months.includes(now) ? now : months[0];
-}

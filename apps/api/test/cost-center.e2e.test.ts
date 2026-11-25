@@ -71,9 +71,12 @@ test("9.6: the operations and external rates are the Super Admin's settings (5% 
   assert.equal((await call("/settings/opsCommissionPct", { method: "PUT", cookie: admin, body: { value: 101 } })).status, 400);
   const r = await call("/settings/opsCommissionPct", { method: "PUT", cookie: admin, body: { value: 5 } }); // the default, so other files see no change
   assert.ok(r.status < 300, JSON.stringify(r.body));
-  const s = (await call("/settings", { cookie: mohsen })).body;
+  const s = (await call("/settings", { cookie: ashraf })).body; // the accountant: «finance: view» reads the rates (cost center)
   assert.equal(s.opsCommissionPct, 5);
   assert.equal(s.externalCommissionPct, 0);
+  // review S3: a salesperson doesn't
+  const sales = (await call("/settings", { cookie: mohsen })).body;
+  assert.ok(!("opsCommissionPct" in sales) && !("externalCommissionPct" in sales));
 });
 
 test("9.6: the external commission is written on the review and audited", async () => {

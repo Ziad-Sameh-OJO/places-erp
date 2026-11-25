@@ -79,7 +79,7 @@ function NewBroadcast({ week }: { week: BroadcastBoard["week"] | undefined }) {
         <Field label={t("text")} req wide><textarea name="text" required placeholder={t("textPlaceholder")} /></Field>
         <Field label={t("hot")} wide><HotUnitPicker picked={picked} onChange={setPicked} /></Field>
         <p className="hint wide">{t("schedule", { sent: week?.sent ?? 0, of: week?.of ?? 2 })}</p>
-        <div className="row end wide"><button className="btn"><Icon name="send" />{t("submit")}</button></div>
+        <div className="row end wide"><button className="btn" disabled={run.busy}><Icon name="send" />{t("submit")}</button></div>
       </form>
     </Card>
   );

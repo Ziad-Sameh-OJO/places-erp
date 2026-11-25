@@ -148,11 +148,15 @@ test("Q9: only the Office Manager reviews; she corrects the amount (audited old 
 test("Q9: a rejection goes back to the salespeople with its reason", async () => {
   const r = await register(mohsen, dealBody({ unitId: unit2Id, withMe: [], commissionOwner: "0", commissionClient: "20000" }));
   assert.equal(r.status, 201, JSON.stringify(r.body));
-  const rej = await review(nancy, r.body.id, { decision: "reject", reason: `${C} المساحة غلط` });
-  assert.equal(rej.status, 200);
+  // a double click: both presses at once — one rejects, the other is refused, and the salespeople hear it once
+  const [one, two] = await Promise.all([1, 2].map(() => review(nancy, r.body.id, { decision: "reject", reason: `${C} المساحة غلط` })));
+  const [rej, lost] = one!.status === 200 ? [one!, two!] : [two!, one!];
+  assert.equal(rej.status, 200, `${one!.status} ${two!.status}`);
+  assert.ok([400, 409].includes(lost.status), `${one!.status} ${two!.status}`); // 409 if it read the deal before the first committed
+  assert.equal(await prisma.auditLog.count({ where: { module: "deals", entityId: r.body.id, action: "reject" } }), 1);
   assert.equal(rej.body.status, "Rejected");
   assert.equal(rej.body.reviewNote, `${C} المساحة غلط`);
-  assert.ok((await unread(emp.mohsen!.userId)).some((n) => n.text.includes(r.body.code) && n.text.includes("اترفضت")));
+  assert.equal((await unread(emp.mohsen!.userId)).filter((n) => n.text.includes(r.body.code) && n.text.includes("اترفضت")).length, 1);
   assert.equal((await review(nancy, r.body.id, { decision: "approve" })).status, 400);
 });
 

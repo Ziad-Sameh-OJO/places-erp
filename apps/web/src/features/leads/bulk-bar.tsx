@@ -45,7 +45,7 @@ export function BulkBar({ ids, onDone }: { ids: string[]; onDone: () => void }) 
   return createPortal(
     <div className="bulk" role="toolbar" aria-label={t("label")}>
       <b className="num">{ids.length}</b><span>{t("selected")}</span>
-      {can("leads", "approve") && (
+      {people.length > 0 && ( // whoever may move leads (14.7: the Team Leader too, to his team); the API checks again
         <select value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("moveTo")}>
           <option value="">{t("moveToSales")}</option>{people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>

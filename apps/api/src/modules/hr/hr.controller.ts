@@ -272,8 +272,8 @@ export class HrController {
 
   @Get("one-on-one/actions")
   @Requires("hr", "edit")
-  actions() {
-    return this.care.actions();
+  actions(@Me() me: CurrentUser) {
+    return this.care.actions(me);
   }
 
   @Post("one-on-one/:id/done")

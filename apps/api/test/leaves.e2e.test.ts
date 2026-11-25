@@ -58,6 +58,29 @@ test("refusals: the same days twice, annual in the past, above the balance, sick
   assert.equal((await call(`/hr/leaves/${r.body.id}/approve`, { method: "POST", cookie: basant })).status, 403); // final
 });
 
+test("review L1: a waiting request holds its days, and each approval checks the balance again", async () => {
+  const e = await prisma.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { leaveBalance: true } });
+  const year = plus(20).slice(0, 4);
+  const used = (await prisma.leaveRequest.aggregate({ where: { employeeId, type: "سنوية", status: { in: ["APPROVED_BY_TL", "CLOSED_BY_HR"] }, fromDay: { gte: new Date(`${year}-01-01`), lte: new Date(`${year}-12-31`) } }, _sum: { days: true } }))._sum.days ?? 0;
+  await prisma.employee.update({ where: { id: employeeId }, data: { leaveBalance: used + 2 } }); // 2 days left
+  try {
+    const a = await call("/hr/leaves", { method: "POST", cookie: mohsen, body: { type: "سنوية", from: plus(20), to: plus(21) } });
+    assert.equal(a.status, 201, JSON.stringify(a.body));
+    // the 2 days are held by the waiting request: a third day is refused at asking
+    assert.match((await call("/hr/leaves", { method: "POST", cookie: mohsen, body: { type: "سنوية", from: plus(23), to: plus(23) } })).body.error, /الرصيد/);
+    // HR lowered the balance meanwhile: the TL's approval is refused, nothing changes
+    await prisma.employee.update({ where: { id: employeeId }, data: { leaveBalance: used + 1 } });
+    const no = await call(`/hr/leaves/${a.body.id}/approve`, { method: "POST", cookie: tlA });
+    assert.equal(no.status, 400);
+    assert.equal(no.body.error, "رصيد سنوية فاضل فيه 1 يوم بس والطلب 2 يوم");
+    assert.equal((await prisma.leaveRequest.findUniqueOrThrow({ where: { id: a.body.id } })).status, "PENDING_TL");
+    await prisma.employee.update({ where: { id: employeeId }, data: { leaveBalance: used + 2 } });
+    assert.equal((await call(`/hr/leaves/${a.body.id}/approve`, { method: "POST", cookie: tlA })).status, 201);
+  } finally {
+    await prisma.employee.update({ where: { id: employeeId }, data: { leaveBalance: e.leaveBalance } });
+  }
+});
+
 test("the calendar, today's list and the monthly balances report with export (7.6); sales 403", async () => {
   const month = plus(7).slice(0, 7);
   const cal = (await call(`/hr/leaves/calendar?month=${month}`, { cookie: basant })).body;

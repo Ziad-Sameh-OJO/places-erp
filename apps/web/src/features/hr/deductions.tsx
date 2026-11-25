@@ -10,6 +10,8 @@ import { moneyChip } from "../kpis/kpis-page";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { DeductionSettings } from "./deduction-settings";
+import { monthLabel } from "@places/domain";
+import { serverText } from "@/lib/server-text";
 
 /** M-05 · «التوفير» (7.9): the month's deductions (attendance + approved penalties); HR approves them once and they go to payroll. */
 export function Deductions() {
@@ -38,7 +40,7 @@ export function Deductions() {
     <>
       <div className="kpis">
         {fields.shows("salary") && <KpiTile label={t("deductions.payroll")} value={money(d.totals.salary)} sub={t("common.employeesCount", { count: d.totals.people })} icon="id" />}
-        {fields.shows("amount") && <KpiTile label={t("deductions.monthDeductions")} value={money(d.totals.amount)} sub={t("deductions.monthDeductionsSub")} icon="wallet" tone="bad" />}
+        {fields.shows("amount") && <KpiTile label={t("deductions.monthDeductions", { label: serverText(monthLabel(d.month)) })} value={money(d.totals.amount)} sub={t("deductions.monthDeductionsSub")} icon="wallet" tone="bad" />}
         {fields.shows("net") && <KpiTile label={t("deductions.net")} value={money(d.totals.net)} sub={t("deductions.netSub")} icon="bank" tone="ok" />}
         {fields.shows("salary") && fields.shows("amount") && <KpiTile label={t("deductions.saved")} value={`${saved}%`} sub={t("deductions.savedSub")} icon="trend" tone="warn" />}
       </div>

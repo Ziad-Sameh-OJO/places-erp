@@ -77,7 +77,7 @@ export class DraftsService {
       if (picked && !tele) router.assignedByHand(picked.id); // a hand-picked person, the old one too, uses up their turn (Q2)
       const now = new Date();
       // from the Draft Admin the lead starts over («رجع Fresh», demo); from the Draft it keeps its stage
-      const fresh = kind === "admin" ? { stage: "FRESH" as const, touched: false, firstActionAt: null, rotation: 1, ownedByTelesales: !!tele } : {};
+      const fresh = kind === "admin" ? { stage: "FRESH" as const, touched: false, firstActionAt: null, rotation: 1, ownedByTelesales: !!tele, cancelReason: null } : {}; // a Fresh lead is under no «سبب الإلغاء»
       const moved = await tx.lead.updateMany({ where: { id: d.lead.id, draft: kind }, data: { draft: null, assignedToId: to, assignedAt: now, slaWarnedAt: null, ...fresh } });
       if (!moved.count) throw new ConflictException("القرار ده اتاخد قبل كده");
       await this.repo.saveRouting(tx, router.snapshot());

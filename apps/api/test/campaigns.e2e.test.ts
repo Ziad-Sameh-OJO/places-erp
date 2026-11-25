@@ -77,8 +77,13 @@ test("Rahma adds a campaign → leads and Qualified per campaign, every arrival 
   const dash = await call(`/marketing/campaigns/dashboard?campaignId=${id}&from=${today}&to=${today}`, { cookie: rahma });
   assert.equal(dash.status, 200, JSON.stringify(dash.body));
   assert.deepEqual(dash.body.total, { leads: 3, qualified: 1, rate: 33.3, deals: 0 });
-  assert.equal(dash.body.spent, "1500.00");
-  assert.equal(dash.body.costPerQualified, "1500.00");
+  // Q6: «النهارده» carries one day's share of the 1,500 (spread over 1 Nov → today), not all of it
+  const last = today < "2026-12-15" ? today : "2026-12-15";
+  const ran = (Date.parse(last) - Date.parse("2026-11-01")) / 86_400_000 + 1;
+  const share = today <= "2026-12-15" ? (Math.round(150_000 / ran) / 100).toFixed(2) : "0.00";
+  assert.equal(dash.body.spent, share);
+  assert.equal(dash.body.costPerQualified, share);
+  assert.equal((await call(`/marketing/campaigns/dashboard?campaignId=${id}`, { cookie: rahma })).body.spent, "1500.00"); // no period: all of it
   const node = dash.body.channels.find((x: { channel: string }) => x.channel === channel);
   assert.deepEqual(node.campaigns.map((x: { id: string; leads: number; qualified: number }) => [x.id, x.leads, x.qualified]), [[id, 3, 1]]);
   assert.deepEqual(dash.body.posts, [{ post: `E2E بوست ${stamp}`, leads: 1 }]);

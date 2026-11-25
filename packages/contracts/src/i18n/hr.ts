@@ -14,6 +14,8 @@ export default [
   ["فريق {name}", "{name}'s team"],
   ["اعتماد الخصومات للـ HR", "Approving deductions is for HR"],
   ["خصومات الشهر ده اتعتمدت قبل كده", "This month's deductions have already been approved"],
+  ["رصيد {type} فاضل فيه {left} يوم بس والطلب {days} يوم", "Only {left} days of {type} left and the request is {days} days"],
+  ["بيتخصم مع خصومات {month}", "Deducted with the deductions of {month}"],
   ["الـ HR اعتمدت خصومات {month} ({amount}) · اترحّلت للمرتبات", "HR approved the {month} deductions ({amount}) · moved to payroll"],
   ["الشيت فيه {n} خطأ · صلّحهم وارفعه تاني", "The sheet has {n} errors · fix them and upload it again"],
   ["الشيت مفيهوش صفوف", "The sheet has no rows"],

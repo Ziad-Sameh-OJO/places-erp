@@ -1,5 +1,5 @@
 /** M-01 · lead stages, the Qualified flag, the SLA clock, and round-robin routing by area. */
-import { type WorkCalendar, PLACES_CALENDAR, wallClockMinutesBetween, workingMinutesBetween } from "./business-time.ts";
+import { type WorkCalendar, PLACES_CALENDAR, dayStart, localDate, wallClockMinutesBetween, workingMinutesBetween } from "./business-time.ts";
 
 /**
  * 14.5 (management meeting, 15 Nov): the stages in the client's order; «Follow up to / after Visit / Meeting» are gone
@@ -128,11 +128,26 @@ export function leadSla(
 ): SlaState | null {
   if (lead.stage !== "Fresh" || lead.touched || lead.ownedByTelesales) return null;
   const r = opts.rules ?? DEFAULT_SLA;
-  const elapsed = opts.holidayMode ? wallClockMinutesBetween(lead.assignedAt, now) : workingMinutesBetween(lead.assignedAt, now, opts.calendar ?? PLACES_CALENDAR);
+  const cal = opts.calendar ?? PLACES_CALENDAR;
+  const elapsed = opts.holidayMode ? wallClockMinutesBetween(holidayClockStart(lead.assignedAt, now, cal), now) : workingMinutesBetween(lead.assignedAt, now, cal);
   const warn = opts.holidayMode ? r.holidayWarnAfter : r.warnAfter;
   const pull = opts.holidayMode ? r.holidayPullAfter : r.pullAfter;
   const level: SlaLevel = elapsed >= pull ? "pull" : elapsed >= warn ? "warn" : "ok";
   return { level, elapsed, minutesLeft: Math.max(0, pull - elapsed) };
+}
+
+/**
+ * The holiday clock is for «ليد دخل يوم إجازة» (M-01 Q4): it counts from the assignment or from the start of the run of
+ * official holidays `now` is in, whichever is later, so a lead from the last working evening isn't pulled at midnight.
+ * A calendar that doesn't list today as a holiday keeps the assignment.
+ */
+function holidayClockStart(assignedAt: Date, now: Date, cal: WorkCalendar): Date {
+  let day = localDate(now, cal);
+  if (!cal.holidays.has(day)) return assignedAt;
+  const before = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  for (let n = 0; n < 366 && cal.holidays.has(before(day)); n++) day = before(day);
+  const start = dayStart(day, cal);
+  return start > assignedAt ? start : assignedAt;
 }
 
 /** What the list and the Kanban show (demo: the SLA bar and the card colour): the clock plus how far along it is. */

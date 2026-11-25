@@ -242,7 +242,14 @@ test("11.8 · targets: the TL sees his team only, 1.5M of 3M is 50%, a mid-month
   assert.deepEqual([h.value, h.achieved, h.percent, h.transactions, h.rank], ["3000000.00", "1500000.00", 50, 1, 1]);
   assert.equal(v.body.teams.length, 1);
   const tx = await call(`/reports/transactions?from=${month}-01&to=${today}`, { cookie: tlC });
-  assert.ok(tx.body.some((r: { code: string }) => r.code === RUN));
+  const row = tx.body.find((r: { code: string }) => r.code === RUN);
+  assert.equal(row.collected, "3000000.00");
+  assert.match(row.people, /\(Seller\)/);
+  // a Seller still waiting for the Inventory Manager has no Transaction yet, so he isn't named
+  await prisma.dealParticipant.update({ where: { dealId_employeeId: { dealId: deal.id, employeeId: ids.amrEmp } }, data: { approved: false } });
+  const waiting = (await call(`/reports/transactions?from=${month}-01&to=${today}`, { cookie: tlC })).body.find((r: { code: string }) => r.code === RUN);
+  assert.doesNotMatch(waiting.people, /\(Seller\)/);
+  await prisma.dealParticipant.update({ where: { dealId_employeeId: { dealId: deal.id, employeeId: ids.amrEmp } }, data: { approved: true } });
   // a change waiting for approval: Nancy («reports: approve») accepts it, the TL can't
   await prisma.salesTarget.update({ where: { employeeId_month: { employeeId: ids.hosny, month } }, data: { pending: { value: "2000000.00", deals: 2, visits: 10, by: "test" } } });
   assert.equal((await call(`/reports/targets/${ids.hosny}/${month}/approve`, { method: "POST", cookie: tlC })).status, 403);

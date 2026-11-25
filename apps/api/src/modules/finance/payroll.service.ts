@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { PayrollRunInput, PayrollView } from "@places/contracts";
 import {
-  ADMIN_SALARIES, ADVANCES_PARENT, INSURANCE_DUE, SALES_SALARIES, VOUCHER_LABEL, formatEGP, fromDecimal, localDate, monthLabel, monthOf, payRow, payrollLines, salaryLine, toDecimal,
+  ADMIN_SALARIES, ADVANCES_PARENT, INSURANCE_DUE, SALES_SALARIES, VOUCHER_LABEL, formatEGP, fromDecimal, localDate, monthLabel, payRow, payrollDueDate, payrollMonth, payrollLines, salaryLine, toDecimal,
   type Piasters,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
@@ -61,12 +61,12 @@ export class PayrollService {
   }
 
   async view(): Promise<PayrollView> {
-    const today = localDate(new Date()), month = monthOf(today);
+    const today = localDate(new Date()), month = payrollMonth(today);
     const [day, rows, run, approved] = await Promise.all([this.payDay(), this.rows(month), this.db.payrollRun.findUnique({ where: { month } }), this.attendance.approvedDeductions(month)]);
     const move = run ? await this.db.treasuryMove.findUnique({ where: { id: run.moveId }, select: { id: true, no: true, from: { select: { name: true } } } }) : null;
     const t = (k: "salary" | "attendance" | "insurance" | "advance" | "net") => toDecimal(rows.reduce((s, r) => s + r[k], 0));
     return {
-      month, label: monthLabel(month), payDay: day, deductionsApproved: !!approved, due: !run && Number(today.slice(8, 10)) >= day,
+      month, label: monthLabel(month), payDay: day, deductionsApproved: !!approved, due: !run && today >= payrollDueDate(month, day),
       run: run && move ? { id: run.id, at: run.at.toISOString(), net: toDecimal(dec(run.net)), gross: toDecimal(dec(run.gross)), from: move.from?.name ?? "", move: { id: move.id, no: `MV-${move.no}` } } : null,
       rows: rows.map((r) => ({ userId: r.userId, name: r.name, line: r.line, salary: toDecimal(r.salary), attendance: toDecimal(r.attendance), advanceLeft: toDecimal(r.advanceLeft), advance: toDecimal(r.advance), insurance: toDecimal(r.insurance), net: toDecimal(r.net), advanceAccountId: r.advanceAccountId })),
       totals: { salary: t("salary"), attendance: t("attendance"), insurance: t("insurance"), advance: t("advance"), net: t("net"), people: rows.length },
@@ -85,7 +85,7 @@ export class PayrollService {
   /** «يتخصم كام الشهر ده» (9.3): not more than what's left on the advance. */
   async planAdvance(me: CurrentUser, userId: string, amount: string, run: Run) {
     return run(async (tx) => {
-      const month = monthOf(localDate(new Date()));
+      const month = payrollMonth(localDate(new Date()));
       if (await tx.payrollRun.findUnique({ where: { month } })) throw new BadRequestException("مرتبات الشهر ده اتصرفت قبل كده");
       const row = (await this.rows(month, tx)).find((r) => r.userId === userId);
       if (!row) throw new BadRequestException("الموظف ده مالوش مرتب");
@@ -102,9 +102,11 @@ export class PayrollService {
 
   /** «اصرف المرتبات كلها»: one voucher, one entry; refused twice in a month or above the safe's balance. */
   async run(me: CurrentUser, input: PayrollRunInput, run: Run) {
-    const today = localDate(new Date()), month = monthOf(today), date = input.date ?? today;
+    // review Q2: the month this run pays (the previous one up to the 15th), and only with HR's approved deductions
+    const today = localDate(new Date()), month = payrollMonth(today), date = input.date ?? today;
     const result = await run(async (tx) => {
       if (await tx.payrollRun.findUnique({ where: { month } })) throw new BadRequestException("مرتبات الشهر ده اتصرفت قبل كده");
+      if (!(await tx.deductionApproval.findUnique({ where: { month }, select: { id: true } }))) throw new BadRequestException(`الـ HR لسه ماعتمدش خصومات شهر ${monthLabel(month)}`);
       const rows = await this.rows(month, tx);
       if (!rows.length) throw new BadRequestException("مفيش مرتبات متسجلة · الـ HR بتدخّلها من فايل الموظف");
       await this.ledger.lockBalances([input.fromId], tx); // a voucher from the same safe at the same moment can't overdraw it

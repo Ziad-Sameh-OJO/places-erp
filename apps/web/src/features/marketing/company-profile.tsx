@@ -93,7 +93,7 @@ export function CompanyProfileCard() {
             <ol>
               {data.versions.map((v, i) => (
                 <li key={v.id}>
-                  <span className="mono">v{data.versions.length - i}</span>
+                  <span className="mono">v{v.number}</span>
                   <span>{day(v.at)} · {v.by}</span>
                   <span className="hint">{t("logos", { n: v.logos })}</span>
                   {i === 0 && <Chip tone="ok">{t("current")}</Chip>}

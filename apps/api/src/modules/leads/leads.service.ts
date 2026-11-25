@@ -24,6 +24,9 @@ import { CompaniesService } from "./companies.service";
 import { AttendanceService } from "../hr/attendance.service";
 import { ClientsService } from "../clients/clients.service";
 
+/** «PATCH /leads/:id/stage» when the lead went to the Draft Admin, out of the caller's scope (the drawer closes). */
+type StageMovedAway = { id: string; stage: LeadStage; toDraftAdmin: true };
+
 /** Out of scope or gone: the same answer, so it doesn't tell whether the lead exists. */
 const NO_LEAD = "الليد ده مش موجود أو مبقاش معاك";
 const openOf = (employeeId: string): Prisma.LeadWhereInput => ({ assignedToId: employeeId, archivedAt: null, stage: { notIn: ["DONE_DEAL", "NOT_INTERESTED", "CANCELLATION"] } });
@@ -237,7 +240,7 @@ export class LeadsService {
       const lead = await this.repo.findInScope(leadScope(me) as never, id, tx);
       if (!lead) throw new NotFoundException(NO_LEAD);
       const activity = await this.repo.addActivity(tx, id, "comment", input.text, me.id);
-      await this.repo.markActed(tx, id, activity.at);
+      await this.repo.markActed(tx, id, activity.at, me.employeeId);
       await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "comment", userId: me.id, after: { leadId: id, text: input.text } }, tx);
     });
     return this.get(me, id);
@@ -247,10 +250,10 @@ export class LeadsService {
   async logCall(me: CurrentUser, id: string) {
     await this.db.$transaction(async (tx) => {
       const lead = await this.repo.findInScope(leadScope(me) as never, id, tx);
-      if (!lead) throw new NotFoundException();
+      if (!lead) throw new NotFoundException(NO_LEAD);
       const call = await this.repo.addCall(tx, id, me.id);
       await this.repo.addActivity(tx, id, "call", "مكالمة اتسجّلت", me.id);
-      await this.repo.markActed(tx, id, call.at);
+      await this.repo.markActed(tx, id, call.at, me.employeeId);
       await this.repo.markFirstCall(tx, id, call.at);
       await this.audit.record({ module: "leads", entity: "LeadCall", entityId: call.id, action: "call", userId: me.id, after: { leadId: id } }, tx);
     });
@@ -313,7 +316,7 @@ export class LeadsService {
       if (!(await this.repo.findInScope(leadScope(me) as never, id, tx))) throw new NotFoundException(NO_LEAD);
       const text = unitListLine(units, hidden);
       const activity = await this.repo.addActivity(tx, id, "comment", text, me.id);
-      await this.repo.markActed(tx, id, activity.at);
+      await this.repo.markActed(tx, id, activity.at, me.employeeId);
       await this.repo.addSuggestedUnits(tx, id, units.map((u) => u.id), me.id);
       await this.unitSteps.addStep(tx, id, "list", units.map((u) => u.id), me.id); // 14.8: in the units log
       await this.audit.record({ module: "leads", entity: "LeadActivity", entityId: activity.id, action: "unit-list", userId: me.id,
@@ -403,9 +406,14 @@ export class LeadsService {
     if (input.assignToId) {
       if (me.grants.scope === "own") throw new BadRequestException("الليد اللي بتدخّله بيفضل معاك · التحويل للأوبريشن");
       if (!(await this.repo.routingPeople()).some((p) => p.id === input.assignToId)) throw new BadRequestException("اختار سيلز من القايمة");
+      if (!transferTargetAllowed(me.grants.scope, me.teamIds, input.assignToId)) throw new ForbiddenException("التيم ليدر بيحوّل لحد من التيم بتاعه بس"); // 14.7
     }
+    let lateDup: { id: string; code: string } | null = null;
     const created = await this.db.$transaction(async (tx) => {
       const router = new LeadRouter(await this.repo.lockRouting(tx)); // first: leads created at the same moment take their turns one after the other
+      // again under the lock: two creates of the same mobile at the same moment would both pass the check above (Q7)
+      lateDup = await this.repo.findByPhone(input.phones, undefined, tx);
+      if (lateDup) return null;
       const placement = placeNewLead(
         { employeeId: me.employeeId, isTelesales: me.roles.includes(TELESALES), ownScope: me.grants.scope === "own" },
         { assignToId: input.assignToId, keep: input.keep },
@@ -430,7 +438,6 @@ export class LeadsService {
       });
       await this.repo.addArrival(tx, { leadId: lead.id, channel: lead.channel, campaignId: lead.campaignId, duplicate: false, byUserId: me.id });
       await this.repo.addActivity(tx, lead.id, "assign", await this.createdText(tx, me, placement, assignedToId), me.id);
-      if (input.note) await this.repo.addActivity(tx, lead.id, "comment", input.note, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: lead.id, action: "create", userId: me.id, after: lead }, tx);
       // a company that isn't in the sheet (1.20, M-01 2.1 · 6.1): Telesales adds it right here, anyone else's goes to her
       const newCompany = input.company && !company ? await this.companies.fromLead(tx, me, { id: lead.id, code: lead.code }, input.company, input.companyCategory) : null;
@@ -438,6 +445,10 @@ export class LeadsService {
       const [to] = assignedToId ? await this.repo.employeeNames([assignedToId], tx) : [];
       return { id: lead.id, code: lead.code, ownedByTelesales: lead.ownedByTelesales, assignedTo: to ?? null, placement: placement.kind, name: lead.name, area: lead.area, newCompany: newCompany?.notify ? input.company ?? null : null };
     });
+    if (!created) {
+      await this.duplicates.record(me, lateDup!, input);
+      throw new ConflictException(`العميل ده موجود (${lateDup!.code}) · اتبعت للأوبريشن تقرر`);
+    }
     // «ليد جديد اتوزع» (1.29 rules, default: the salesperson and the Team Leaders): a lead that went to someone by
     // the rotation or by Operations' hand — not one Telesales keeps or a salesperson entered for themselves (demo)
     if (created.assignedTo && (created.placement === "route" || created.placement === "hand")) await this.notifyAssigned(created.id, created.name, created.area, created.assignedTo.id);
@@ -474,8 +485,14 @@ export class LeadsService {
     const ids = (await tx.lead.findMany({ where: openOf(fromId), select: { id: true } })).map((l) => l.id);
     if (!ids.length) return ids;
     const [from] = await this.repo.employeeNames([fromId], tx);
-    await tx.lead.updateMany({ where: { id: { in: ids } }, data: { assignedToId: toId, assignedAt: new Date(), touched: false, firstActionAt: null, slaWarnedAt: null } });
-    for (const id of ids) await this.repo.addActivity(tx, id, "assign", `اتنقل من ${from?.name ?? ""} (الحساب اتوقف)`, byUserId);
+    const now = new Date();
+    // 14.7: the new holder starts without the leaver's comments, as on every other automatic move
+    await tx.lead.updateMany({ where: { id: { in: ids } }, data: { assignedToId: toId, assignedAt: now, touched: false, firstActionAt: null, slaWarnedAt: null, commentsFrom: now } });
+    for (const id of ids) {
+      await this.repo.addActivity(tx, id, "assign", `اتنقل من ${from?.name ?? ""} (الحساب اتوقف)`, byUserId);
+      // per lead, so «Assign from / Assign to» and the lead's Logs see the move (they read leads/Lead audit rows)
+      await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "handover", userId: byUserId, before: { assignedToId: fromId }, after: { assignedToId: toId } }, tx);
+    }
     return ids;
   }
 
@@ -536,7 +553,8 @@ export class LeadsService {
       const input = keepFixedUpdate(typed, { phones: lead.phones, area: lead.area, type: lead.type, propertyType: lead.propertyType, company: lead.company?.name ?? null, space: lead.space,
         condition: lead.condition, budget: lead.budget?.toFixed(2) ?? null, note: lead.note }, me.fields.fixed("leads"));
       const added = input.phones.filter((p) => !lead.phones.includes(p));
-      const dup = added.length ? await this.repo.findByPhone(added, id) : null;
+      if (added.length) await this.repo.lockRouting(tx); // the lock new leads take: a create of the same mobile can't slip in between (Q7)
+      const dup = added.length ? await this.repo.findByPhone(added, id, tx) : null;
       if (dup) throw new ConflictException(`الرقم ده موجود في ليد تاني (${dup.code}) · العميل ده مكرر والأوبريشن هي اللي تقرر`);
       const company = input.company || null;
       const before = { name: lead.name, kind: lead.kind === "BROKER" ? "broker" : "client", company: lead.company?.name ?? null, phones: lead.phones, area: lead.area,
@@ -583,7 +601,8 @@ export class LeadsService {
    * A lead already with that salesperson / in that stage is left as it is (demo). What failed is reported, not hidden.
    */
   async batch(me: CurrentUser, input: LeadBatch): Promise<LeadBatchResult> {
-    if (input.to && !me.grants.can("leads", "approve")) throw new ForbiddenException("التحويل لسيلز للأوبريشن ومدير المبيعات والإدارة بس");
+    // the same people as «حوّله» on one lead (14.7: the Team Leader too); assign() checks his team for each lead
+    if (input.to && !transfersLeads(me.roles, me.grants.can("leads", "approve"))) throw new ForbiddenException("التحويل للأوبريشن ومدير المبيعات والإدارة والتيم ليدر بس");
     const now = await this.repo.batchState(leadScope(me) as never, input.ids);
     return this.eachLead(input.ids, async (id) => {
       const lead = now.get(id);
@@ -627,7 +646,7 @@ export class LeadsService {
    * Stage change: Qualified is sticky (isQualifiedAfter), the SLA clock stops on the first action. No Answer records
    * who marked it and when: the No Answer job moves it 24 hours later, only if it was the salesperson's own mark (1.17).
    */
-  async changeStage(me: CurrentUser, id: string, input: ChangeStage) {
+  async changeStage(me: CurrentUser, id: string, input: ChangeStage): Promise<LeadDetail | StageMovedAway> {
     const rules = await this.rules.get();
     const moved = await this.db.$transaction(async (tx) => {
       const lead = await tx.lead.findFirst({ where: { AND: [leadScope(me) as never, { id, archivedAt: null }] } }); // an archived lead has left every list
@@ -635,24 +654,31 @@ export class LeadsService {
       const noAnswer = input.stage === "No Answer";
       // 1.27: Not Interested / Cancellation leaves whoever had it for the Draft Admin, where Operations decides
       const toAdmin = goesToDraftAdmin(input.stage, rules, lead);
+      // the reason belongs to a Cancellation only: a lead that moves on doesn't stay under the «سبب الإلغاء» filter
+      const cancelReason = input.stage === "Cancellation" ? input.reason ?? lead.cancelReason : null;
+      const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.reason ? ` · السبب: ${input.reason}` : ""}${input.note ? ` · ${input.note}` : ""}`, me.id);
+      // the Cancellation modal's «تعليق» is read on the Activity tab like any comment (the stage line is a system line)
+      if (input.note) await this.repo.addActivity(tx, id, "comment", input.note, me.id);
+      await this.repo.markActed(tx, id, activity.at, me.employeeId); // before the lead may leave the salesperson for the Draft Admin
       const next = await tx.lead.update({
         where: { id },
-        data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), touched: true,
+        data: { stage: toDb(input.stage), qualified: isQualifiedAfter(lead.qualified, input.stage), cancelReason,
           ...(noAnswer ? { noAnswerCount: { increment: 1 }, naMarkedAt: new Date(), naMarkedById: me.employeeId, naRemindedAt: null } : {}),
-          ...(input.reason ? { cancelReason: input.reason } : {}), // client, 22 Nov: the Cancellation's reason, kept for the filter
           ...(toAdmin ? { draft: "admin", assignedToId: null, ownedByTelesales: false } : {}) },
+        select: { id: true, code: true, name: true, stage: true },
       });
-      const activity = await this.repo.addActivity(tx, id, "stage", `المرحلة بقت ${input.stage}${input.reason ? ` · السبب: ${input.reason}` : ""}${input.note ? ` · ${input.note}` : ""}`, me.id);
-      await this.repo.markActed(tx, id, activity.at);
+      const reasonChanged = cancelReason !== lead.cancelReason;
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "stage", userId: me.id,
-        before: { stage: lead.stage, ...(input.reason ? { cancelReason: lead.cancelReason } : {}), ...(toAdmin ? { assignedToId: lead.assignedToId } : {}) },
-        after: { stage: next.stage, ...(input.reason ? { cancelReason: input.reason } : {}), ...(toAdmin ? { assignedToId: null, draft: "admin" } : {}) } }, tx);
+        before: { stage: lead.stage, ...(reasonChanged ? { cancelReason: lead.cancelReason } : {}), ...(toAdmin ? { assignedToId: lead.assignedToId } : {}) },
+        after: { stage: next.stage, ...(reasonChanged ? { cancelReason } : {}), ...(toAdmin ? { assignedToId: null, draft: "admin" } : {}) } }, tx);
       if (input.stage === "Done Deal") await this.clientFile(tx, me, id);
       if (toAdmin) await tx.leadDraft.create({ data: { leadId: id, kind: "admin", fromId: lead.assignedToId, stage: toDb(input.stage) } });
       return { next, toAdmin, from: lead.assignedToId };
     });
     if (moved.toAdmin) await this.notifyDraftAdmin(moved.next, input.stage, moved.from, rules);
-    return moved.next;
+    // M-09: never the raw row (hidden fields). A lead that just left the caller for the Draft Admin isn't theirs to open any more.
+    if (moved.toAdmin && !(await this.repo.findInScope(leadScope(me) as never, id))) return { id, stage: input.stage, toDraftAdmin: true };
+    return this.get(me, id);
   }
 
   /** Demo: «… بقى Not Interested عند فلان · راح الـ Draft Admin», to the people of draftAdmin.notify (1.27). */
@@ -728,7 +754,7 @@ export class LeadsService {
       const at = new Date(input.at);
       const visit = await this.repo.addVisit(tx, id, { kind: input.kind.toLowerCase(), at, extra: input.extra ?? null, unitIds: input.unitIds }, me.id);
       const activity = await this.repo.addActivity(tx, id, input.kind === "Meeting" ? "meeting" : "visit", visitText(input, at, units), me.id);
-      await this.repo.markActed(tx, id, activity.at);
+      await this.repo.markActed(tx, id, activity.at, me.employeeId);
       await this.audit.record({ module: "leads", entity: "LeadVisit", entityId: visit.id, action: "create", userId: me.id,
         after: { leadId: id, kind: input.kind, at: input.at, unitIds: input.unitIds, extra: input.extra ?? null } }, tx);
       await this.moveStage(tx, me, id, lead, visitStage(stageOf(lead.stage), input.kind));
@@ -837,6 +863,7 @@ function auditText(a: { entity: string; action: string; before: unknown; after: 
     case "Lead:update": return "اتعدّلت بيانات الليد";
     case "Lead:archive": return "الليد اتأرشف";
     case "Lead:stage": return `المرحلة اتغيرت من ${stage(a.before)} لـ ${stage(a.after)}`; // words, not an arrow: RTL flips «←» between two English names
+    case "Lead:handover": return "اتنقل لحد تاني (الحساب اتوقف)";
     case "Lead:duplicate-decision": return "قرار الأوبريشن في التكرار";
     case "Lead:reassign": return field(a.before, "name") && field(a.before, "name") !== "null" ? `اتسحب يدوي من ${field(a.before, "name")} لـ ${field(a.after, "name")}` : `اتحوّل يدوي لـ ${field(a.after, "name")}`;
     case "LeadActivity:comment": return `كومنت: ${field(a.after, "text")}`;

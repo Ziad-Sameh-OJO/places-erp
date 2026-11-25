@@ -110,6 +110,9 @@ test("11.8 · a «note» override counts once, in the month of the first collect
 test("11.8 · the TL hears of whoever is under 60% of the month gone by; the ranking shares equal places", () => {
   assert.equal(behindPace(20, 15, 30), true); // 50% of the month gone → the line is 30%
   assert.equal(behindPace(35, 15, 30), false);
+  // day 25 of 30: the line is 50%; standing exactly on it isn't behind (it used to be, by float rounding)
+  assert.equal(behindPace(50, 25, 30), false);
+  assert.equal(behindPace(49.9, 25, 30), true);
   assert.deepEqual(ranked([{ id: "a", percent: 40 }, { id: "b", percent: 90 }, { id: "c", percent: 40 }]).map((r) => [r.id, r.rank]), [["b", 1], ["a", 2], ["c", 2]]);
 });
 

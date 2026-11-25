@@ -444,7 +444,7 @@
     "lineAdmin": "Administrative salaries (5202)",
     "advanceOf": "Advance deduction for {name}",
     "deductionsApproved": "Deductions were approved by HR and posted. Salaries after deductions are charged to expenses automatically.",
-    "deductionsPending": "This month's deductions are still waiting for HR approval, so they aren't counted here.",
+    "deductionsPending": "This month's deductions are still waiting for HR approval; payroll can't be paid until they are.",
     "commissionsNote": "Commissions aren't here: they're paid per deal against its TCR. The default advance deduction = everything owed, and next month starts with your same choice.",
     "payTitle": "Pay {label} salaries",
     "payNote": "All salaries at once. The system creates one «Payroll payment» voucher with its entry, and every employee gets a notification with their net salary.",

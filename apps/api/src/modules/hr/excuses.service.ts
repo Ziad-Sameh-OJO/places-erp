@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { ExcuseAsk, ExcuseStatus, ExcuseView } from "@places/contracts";
-import { attendanceDay, excuseDeduction, excuseNumber, excuseRefused, localDate, rulesFor, type DeductionRules, type DeductionTiers } from "@places/domain";
+import { attendanceDay, excuseApplies, excuseDeduction, excuseNumber, excuseRefused, localDate, rulesFor, type DeductionRules, type DeductionTiers } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import type { CurrentUser } from "../../core/auth/current-user.decorator";
@@ -116,6 +116,7 @@ export class ExcusesService {
   private async applyToDay(tx: Tx, employeeId: string, dayIso: string) {
     const a = await tx.attendanceDay.findUnique({ where: { employeeId_day: { employeeId, day: day(dayIso) } } });
     if (!a?.checkInAt) return; // not fingerprinted yet: attendance applies it when the day arrives
+    if (!excuseApplies({ kind: a.kind, hasVisit: !!a.visitAt })) return; // a Visit / approved outside work keeps the day as attendance wrote it
     const e = await tx.employee.findUniqueOrThrow({ where: { id: employeeId }, select: { deductionTiers: true } });
     const n = (await this.confirmedFor(employeeId, dayIso, tx))!;
     const rules = rulesFor((e.deductionTiers as DeductionTiers | null) ?? null, await this.repo.deductionRules(tx));

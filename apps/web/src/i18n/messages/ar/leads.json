@@ -176,6 +176,7 @@
     "cancel": "إلغاء"
   },
   "drafts": {
+    "confirm": "تأكيد",
     "tab": {
       "draft": "الـ Draft",
       "admin": "الـ Draft Admin"
@@ -308,6 +309,7 @@
     "setVisit": "حدد ميعاد الـ {kind} والوحدات",
     "stageQualified": "{stage} · واتعلّم Qualified في الكامبين والـ channel",
     "stageNow": "المرحلة بقت {stage}",
+    "stageToOps": "المرحلة بقت {stage} · الليد راح للأوبريشن (Draft Admin)",
     "changeStage": "غيّر المرحلة",
     "stageHint": "أول ما الليد يوصل Interested أو أي مرحلة بعدها بيتعلّم Qualified أوتوماتيك، ويفضل محسوب في الكامبين والـ channel. Visit بتفتح تاب الزيارات عشان تحدد الميعاد والوحدات.",
     "archived": "{name} اتأرشف",

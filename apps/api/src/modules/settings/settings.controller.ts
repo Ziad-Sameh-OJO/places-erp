@@ -24,7 +24,7 @@ export class SettingsController {
   constructor(private readonly settings: SettingsService, private readonly docs: DocumentsSetupService, private readonly pdf: DocumentsService) {}
 
   @Get() @SignedIn()
-  all() { return this.settings.all(); }
+  all(@Me() me: CurrentUser) { return this.settings.forReader(me); }
 
   @Get("stages") @SignedIn()
   stages() { return this.settings.stages(); }

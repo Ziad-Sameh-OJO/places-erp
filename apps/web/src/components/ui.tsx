@@ -4,7 +4,7 @@
  * them as-is: Icon, Chip, Card, Tabs, Table (cards on phones), Field, Note, Empty, Modal (bottom sheet on phones),
  * Tick, Avatar, and a toast.
  */
-import { Children, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
+import { Children, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { nextSort, sortOrder, type Action, type ModuleKey, type SortDir } from "@places/domain";
 import type { ImportDone, ImportPreview } from "@places/contracts";
@@ -211,14 +211,24 @@ export const onFormSubmit = (fn: (data: FormData) => unknown) => async (e: FormE
 };
 const busyForms = new WeakSet<HTMLFormElement>();
 
-/** Runs a change: the API's error (or anything thrown) shows as a toast, `ok` shows when it worked. */
+/**
+ * Runs a change: the API's error (or anything thrown) shows as a toast, `ok` shows when it worked. A second call while
+ * one is still running is ignored (a double click never sends twice); `run.busy` is there to disable the button.
+ */
 export function useAction() {
   const toast = useToast();
   const t = useTranslations("ui");
-  return useCallback(async (fn: () => Promise<unknown>, ok?: string): Promise<void> => {
+  const running = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const run = useCallback(async (fn: () => Promise<unknown>, ok?: string): Promise<void> => {
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
     try { await fn(); if (ok) toast(ok); }
     catch (e) { toast(e instanceof Error ? e.message : t("error"), "bad"); }
+    finally { running.current = false; setBusy(false); }
   }, [toast, t]);
+  return useMemo(() => Object.assign((fn: () => Promise<unknown>, ok?: string) => run(fn, ok), { busy }), [run, busy]);
 }
 
 /**
