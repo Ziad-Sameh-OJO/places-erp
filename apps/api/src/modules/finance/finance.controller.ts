@@ -5,7 +5,7 @@ import { sendXlsx } from "../../core/http/excel";
 import { BillsService } from "./bills.service";
 import { PayrollService } from "./payroll.service";
 import type { PrismaClient } from "@places/db";
-import { AdvancePlan, BudgetPatch, type BudgetRow, ClosePeriod, IncomeQuery, PayDay, periodOf, PayrollRunInput, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
+import { AdvancePlan, BudgetPatch, type BudgetRow, ClosePeriod, IncomeQuery, LedgerQuery, PayDay, periodOf, PayrollRunInput, JournalFilters, ManualEntry, NewBill, NewBudgetLine, SkipBill, MoveFilters, NewAccount, NewMove, OpeningBalances } from "@places/contracts";
 import { PRISMA } from "../../core/database/database.module";
 import { DocumentsService, sendPdf } from "../../core/documents/documents.service";
 import { ZodPipe } from "../../core/http/zod.pipe";
@@ -37,8 +37,8 @@ export class FinanceController {
 
   @Get("accounts/:id/ledger")
   @Requires("finance", "view")
-  async accountLedger(@Me() me: CurrentUser, @Param("id") id: string) {
-    return show(me, await this.ledger.ledger(id));
+  async accountLedger(@Me() me: CurrentUser, @Param("id") id: string, @Query(new ZodPipe(LedgerQuery)) range: LedgerQuery) {
+    return show(me, await this.ledger.ledger(id, range));
   }
 
   @Post("accounts")

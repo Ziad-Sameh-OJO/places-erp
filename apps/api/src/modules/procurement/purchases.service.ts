@@ -170,17 +170,20 @@ export class PurchasesService {
     const p = await this.repo.find(id, {});
     if (!p) throw new NotFoundException(NOT_FOUND);
     if (p.status !== "Pending") throw new ConflictException("الطلب ده اتاخد فيه قرار قبل كده");
+    // M-09: an approver whose «سبب الرفض» is read only / hidden has no box to write it in, so he rejects without one
+    const noReason = fixed(me).has("rejectReason");
+    if (d.decision === "Rejected" && !noReason && !d.reason) throw new BadRequestException("اكتب سبب الرفض");
     if (d.decision === "Approved") {
       const problem = approvalProblem({ amount: dec(p.amount), createdById: p.createdById, budgetLeft: (await this.budgetLeft()).get(p.accountId) ?? null }, (await this.approver(me))!);
       if (problem) throw new ForbiddenException(problem);
     }
     await this.db.$transaction(async (tx) => {
-      const data = { status: d.decision, decidedById: me.id, decidedAt: new Date(), rejectReason: d.decision === "Rejected" ? (fixed(me).has("rejectReason") ? "" : d.reason!) : null };
+      const data = { status: d.decision, decidedById: me.id, decidedAt: new Date(), rejectReason: d.decision === "Rejected" ? (noReason ? "" : d.reason!) : null };
       if (!(await this.repo.move(id, { status: "Pending", amount: p.amount.toFixed(2) }, data, tx))) throw new ConflictException("الطلب اتغير · افتحه تاني");
       await this.audit.record({ module: MODULE, entity: "Purchase", entityId: id, action: d.decision === "Approved" ? "approve" : "reject", userId: me.id,
         before: { status: "Pending" }, after: { status: d.decision, amount: p.amount.toFixed(2), reason: data.rejectReason } }, tx);
     });
-    const text = d.decision === "Approved" ? `${p.item}: اتوافق عليه · جاهز للصرف` : `${p.item}: اترفض · ${d.reason}`;
+    const text = d.decision === "Approved" ? `${p.item}: اتوافق عليه · جاهز للصرف` : `${p.item}: اترفض${noReason ? "" : ` · ${d.reason}`}`;
     await this.notifications.notify({ event: "procurement.decided", text, link: LINK, userIds: [p.createdById] });
     return this.get(me, id);
   }

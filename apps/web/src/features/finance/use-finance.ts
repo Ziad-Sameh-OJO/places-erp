@@ -6,8 +6,12 @@ import { periodParams } from "@/components/period-picker";
 
 /** M-07 · the chart with live balances (9.1). */
 export const useChart = () => useQuery({ queryKey: ["finance", "chart"], queryFn: () => api.get<ChartView>("/finance/accounts") });
-/** One account's movements, while its ledger is open. */
-export const useLedger = (id: string | null) => useQuery({ queryKey: ["finance", "ledger", id], queryFn: () => api.get<AccountLedger>(`/finance/accounts/${id}/ledger`), enabled: !!id });
+/** One account's movements, while its ledger is open; `range` = only a period's (the income statement's drill-down). */
+export interface LedgerRange { from: string; to: string | null }
+export function useLedger(id: string | null, range?: LedgerRange) {
+  const qs = range ? `?from=${range.from}${range.to ? `&to=${range.to}` : ""}` : "";
+  return useQuery({ queryKey: ["finance", "ledger", id, qs], queryFn: () => api.get<AccountLedger>(`/finance/accounts/${id}/ledger${qs}`), enabled: !!id });
+}
 
 export interface JournalQuery { from?: string; to?: string; q?: string }
 export function useJournal(f: JournalQuery, page: number, pageSize: number) {

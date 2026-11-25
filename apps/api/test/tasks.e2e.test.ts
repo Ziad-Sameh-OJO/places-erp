@@ -13,7 +13,7 @@ let admin: string, manar: string, rahma: string, bayoumi: string, randa: string,
 let bayoumiId: string, rahmaId: string, randaId: string, unitId: string;
 const tasks: string[] = [];
 const userId = async (email: string) => (await prisma.user.findUniqueOrThrow({ where: { email } })).id;
-const today = new Date().toISOString().slice(0, 10);
+const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }); // the API's day (a past one is refused)
 
 before(async () => {
   [admin, manar, rahma, bayoumi, randa, sales] = await Promise.all(
@@ -119,12 +119,12 @@ test("Retouch (M-04 2.2): Done only through Manar's approval; sent back → To D
 
 test("a marketing task from Rahma; reassigning is audited and tells the new assignee; the photographer can't reassign", async () => {
   const id = await give(rahma, { kind: "marketing", toUserId: bayoumiId, title: "Website leasing" });
-  assert.equal((await call(`/tasks/${id}`, { method: "PATCH", cookie: bayoumi, body: { dueOn: "2026-12-01" } })).status, 403);
+  assert.equal((await call(`/tasks/${id}`, { method: "PATCH", cookie: bayoumi, body: { dueOn: "2031-12-01" } })).status, 403);
   assert.equal((await call(`/tasks/${id}`, { method: "PATCH", cookie: rahma, body: {} })).status, 400);
-  const moved = await call(`/tasks/${id}`, { method: "PATCH", cookie: rahma, body: { toUserId: rahmaId, dueOn: "2026-12-01" } });
+  const moved = await call(`/tasks/${id}`, { method: "PATCH", cookie: rahma, body: { toUserId: rahmaId, dueOn: "2031-12-01" } });
   assert.equal(moved.status, 200, JSON.stringify(moved.body));
   assert.equal(moved.body.to.id, rahmaId);
-  assert.equal(moved.body.dueOn, "2026-12-01");
+  assert.equal(moved.body.dueOn, "2031-12-01");
   assert.equal(await prisma.auditLog.count({ where: { entity: "Task", entityId: id, action: "reassign" } }), 1);
   // Bayoumi no longer has it on his board; filters by kind and assignee
   assert.ok(!(await board(bayoumi)).some((t) => t.id === id));
@@ -248,5 +248,49 @@ test("4.15 «تتحسب في الـ KPIs؟»: Skip by default; «أيوه» adds
   } finally {
     if (before) await prisma.kpiItem.deleteMany({ where: { cardId: before.id, metric: "tasksOnTime", id: { notIn: before.items.map((i) => i.id) } } });
     else await prisma.kpiCard.deleteMany({ where: { quarter: q!.id, employeeId: emp.id } });
+  }
+});
+
+test("the assignee can't edit a task given to them (Randa, a department head, on Manar's hand-off); the sender can", async () => {
+  const id = await give(manar, { kind: "toResale", toUserId: randaId, unitId });
+  assert.equal((await board(randa) as Array<{ id: string; can: { edit: boolean } }>).find((t) => t.id === id)?.can.edit, false);
+  const pushed = await call(`/tasks/${id}`, { method: "PATCH", cookie: randa, body: { dueOn: "2031-12-02" } });
+  assert.equal(pushed.status, 403, JSON.stringify(pushed.body));
+  assert.equal((await prisma.task.findUniqueOrThrow({ where: { id } })).dueOn.toISOString().slice(0, 10), today);
+  assert.equal((await call(`/tasks/${id}`, { method: "PATCH", cookie: manar, body: { dueOn: "2031-12-02" } })).status, 200);
+  assert.equal((await move(randa, id, "progress")).status, 200); // she still works it
+});
+
+test("M-04 2.4: a task can't be given or moved to a day that already passed", async () => {
+  const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const r = await call("/tasks", { method: "POST", cookie: manar, body: { kind: "photo", toUserId: bayoumiId, dueOn: yesterday, unitId, note: "E2E" } });
+  assert.equal(r.status, 400);
+  assert.match(JSON.stringify(r.body), /الميعاد ده عدّى/);
+  const id = await give(manar, { kind: "photo", toUserId: bayoumiId, unitId });
+  assert.equal((await call(`/tasks/${id}`, { method: "PATCH", cookie: manar, body: { dueOn: yesterday } })).status, 400);
+  assert.equal((await call(`/tasks/${id}`, { method: "PATCH", cookie: manar, body: { note: "E2E اتغيّرت" } })).status, 200); // its own day untouched
+});
+
+test("4.15: a «تتحسب في الـ KPIs» task reassigned brings «المهام في ميعادها» to the new assignee's card", async () => {
+  const q = await prisma.kpiQuarter.findFirst({ orderBy: { id: "desc" } });
+  assert.equal(q?.status, "open", "the seed opens the current quarter");
+  // both cards as they were, put back after: Bayoumi's gets the item on «أيوه», Rahma's on the reassign
+  const snap = async (userId: string) => {
+    const emp = await prisma.employee.findUniqueOrThrow({ where: { userId } });
+    return { emp, card: await prisma.kpiCard.findUnique({ where: { quarter_employeeId: { quarter: q!.id, employeeId: emp.id } }, include: { items: true } }) };
+  };
+  const cards = [await snap(bayoumiId), await snap(rahmaId)];
+  const plain = (i: { metric: string | null; params: unknown }) => i.metric === "tasksOnTime" && !(i.params as { tkind?: string } | null)?.tkind;
+  try {
+    const title = (await call("/tasks/options", { cookie: rahma })).body.marketingTypes[0];
+    const id = await give(rahma, { kind: "marketing", toUserId: bayoumiId, title, countsInKpi: true });
+    assert.equal((await call(`/tasks/${id}`, { method: "PATCH", cookie: rahma, body: { toUserId: rahmaId } })).status, 200);
+    const items = (await prisma.kpiItem.findMany({ where: { metric: "tasksOnTime", card: { quarter: q!.id, employeeId: cards[1]!.emp.id } } })).filter(plain);
+    assert.equal(items.length, 1);
+  } finally {
+    for (const { emp, card } of cards) {
+      if (card) await prisma.kpiItem.deleteMany({ where: { cardId: card.id, metric: "tasksOnTime", id: { notIn: card.items.map((i) => i.id) } } });
+      else await prisma.kpiCard.deleteMany({ where: { quarter: q!.id, employeeId: emp.id } });
+    }
   }
 });

@@ -69,6 +69,16 @@ export class LedgerRepository {
     return tx.journalEntry.update({ where: { id: entryId }, data: { sourceId } });
   }
 
+  /** Until the transaction ends: one at a time for `key` (a payroll month, a bill, the opening balances). */
+  lock(key: string, tx: Tx) {
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+  }
+
+  /** The bulk opening entry (9.5), if it was posted; an account's own opening carries its id. */
+  openingEntry(tx: Tx) {
+    return tx.journalEntry.findFirst({ where: { source: "opening", sourceId: null }, select: { id: true } });
+  }
+
   lockChildren(parentCode: string, tx: Tx) {
     return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`account-children:${parentCode}`}))`;
   }
@@ -144,8 +154,9 @@ export class LedgerRepository {
     return tx.journalEntry.findUnique({ where: { id }, include: { lines: { orderBy: { debit: "desc" } } } });
   }
 
-  accountLines(accountId: string) {
-    return this.db.journalLine.findMany({ where: { accountId }, include: { entry: true }, orderBy: [{ entry: { date: "asc" } }, { entry: { no: "asc" } }] });
+  accountLines(accountId: string, range: { from?: string | undefined; to?: string | undefined } = {}) {
+    const date = { ...(range.from ? { gte: new Date(`${range.from}T00:00:00Z`) } : {}), ...(range.to ? { lte: new Date(`${range.to}T00:00:00Z`) } : {}) };
+    return this.db.journalLine.findMany({ where: { accountId, ...(range.from || range.to ? { entry: { date } } : {}) }, include: { entry: true }, orderBy: [{ entry: { date: "asc" } }, { entry: { no: "asc" } }] });
   }
 
   names(userIds: string[]) {

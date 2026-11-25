@@ -68,7 +68,8 @@ function Periods() {
   const q = useQuery({ queryKey: ["finance", "periods"], queryFn: () => api.get<PeriodView[]>("/finance/periods") });
   if (!q.data) return null;
   const cur = q.data.at(-1)!;
-  const close = (kind: "month" | "quarter") => run(async () => { await api.post("/finance/periods/close", { kind }); await refresh(); }, kind === "month" ? t("journal.monthClosed", { label: serverText(cur.label) }) : t("journal.quarterClosed"));
+  // there is no reopening: one click must not lock the month for everyone
+  const close = (kind: "month" | "quarter") => window.confirm(t(kind === "month" ? "journal.closeMonthConfirm" : "journal.closeQuarterConfirm", { label: serverText(cur.label) })) && run(async () => { await api.post("/finance/periods/close", { kind }); await refresh(); }, kind === "month" ? t("journal.monthClosed", { label: serverText(cur.label) }) : t("journal.quarterClosed"));
   return (
     <div className="row">
       {q.data.map((p) => <Chip key={p.month} tone={p.status === "open" ? "warn" : "ok"}>{serverText(p.label)} · {serverText(p.statusLabel)}</Chip>)}

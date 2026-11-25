@@ -8,6 +8,7 @@ import { sendXlsx } from "../../core/http/excel";
 import { Requires } from "../../core/authz/requires.decorator";
 import { Me, type CurrentUser } from "../../core/auth/current-user.decorator";
 import { InsuranceService } from "./insurance.service";
+import { blankHidden } from "../finance/hidden-fields";
 import type { Tx } from "./hr.repository";
 
 /** HTTP only. M-05 · «التأمينات» (HR, 15 Nov): HR's list and edits, and Finance's read-only view. */
@@ -61,7 +62,8 @@ export class InsuranceController {
 
   @Get("finance/insurance")
   @Requires("finance", "view")
-  finance() {
-    return this.insurance.forFinance();
+  async finance(@Me() me: CurrentUser) {
+    // M-09: read under finance, so a hidden finance «المبلغ» blanks the monthly amounts too
+    return blankHidden(await this.insurance.forFinance(), me.fields.hidden("finance"));
   }
 }

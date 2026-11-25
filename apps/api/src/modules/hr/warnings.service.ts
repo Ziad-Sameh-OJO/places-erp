@@ -101,7 +101,10 @@ export class WarningsService {
       const r = await tx.warning.findUnique({ where: { id } });
       if (!r) throw new NotFoundException("الإنذار مش موجود");
       if (r.status !== "due") throw new BadRequestException("الإنذار ده اتقرر قبل كده");
-      const o = await tx.warning.update({ where: { id }, data: { status: "dismissed", byUserId: me.id } });
+      // only from «due»: a dismiss racing an «issue» mustn't overwrite the warning that was just issued
+      const n = await tx.warning.updateMany({ where: { id, status: "due" }, data: { status: "dismissed", byUserId: me.id } });
+      if (!n.count) throw new BadRequestException("الإنذار ده اتقرر قبل كده");
+      const o = await tx.warning.findUniqueOrThrow({ where: { id } });
       await this.audit.record({ module: "hr", entity: "Warning", entityId: id, action: "dismiss", userId: me.id, before: { status: r.status }, after: { status: "dismissed", reason: r.reason } }, tx);
       return o;
     });

@@ -5,7 +5,7 @@
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { prisma } from "@places/db";
+import { openSecret, prisma } from "@places/db";
 import { MAIL_RETRY_MINUTES } from "@places/domain";
 import { call, session } from "./helpers.ts";
 import { mailOutboxTick, type OutgoingMail } from "../../worker/src/processors/mail-outbox.ts";
@@ -128,4 +128,40 @@ test("S2 · a mail with a secret: the worker sends the real text, the log keeps 
   assert.deepEqual(sent, ["افتح /activate?token=real-one"]);
   const row = await prisma.mailLog.findFirstOrThrow({ where: { to } });
   assert.deepEqual([row.status, row.text, row.secretText], ["sent", "افتح /activate?token=•••", null]);
+});
+
+test("M-14 3.1 · «إيميل الإرسال»: the Super Admin saves the server; the App Password is sealed, never returned, not in the audit; the test mail tells a failure at once", async () => {
+  const keys = ["mailServer", "notificationsFrom"];
+  const saved = await prisma.setting.findMany({ where: { key: { in: keys } } });
+  const pass = `e2e-app-pass-${stamp}`;
+  try {
+    assert.equal((await call("/notifications/mail/server", { cookie: sales })).status, 403);
+    assert.equal((await call("/notifications/mail/server", { method: "PUT", cookie: sales, body: {} })).status, 403);
+    await prisma.setting.deleteMany({ where: { key: "mailServer" } });
+    // a nothing-reachable server: port 1 on this machine refuses at once
+    const body = { host: "127.0.0.1", port: 1, secure: false, user: `e2e-${stamp}@places.test`, password: "", fromName: `E2E ${stamp}`, from: `e2e-from-${stamp}@places.test` };
+    assert.equal((await call("/notifications/mail/server", { method: "PUT", cookie: admin, body })).status, 400, "the first save needs the App Password");
+    const r = await call("/notifications/mail/server", { method: "PUT", cookie: admin, body: { ...body, password: pass } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual([r.body.source, r.body.hasPassword, r.body.from, "password" in r.body], ["page", true, body.from, false]);
+    const row = await prisma.setting.findUniqueOrThrow({ where: { key: "mailServer" } });
+    const stored = (row.value as { password: string }).password;
+    assert.ok(!JSON.stringify(row.value).includes(pass), "sealed, not stored as typed");
+    assert.equal(openSecret(stored, process.env.SESSION_SECRET!), pass);
+    // saving again without a password keeps the saved one
+    assert.equal((await call("/notifications/mail/server", { method: "PUT", cookie: admin, body: { ...body, port: 2 } })).status, 200);
+    assert.equal(((await prisma.setting.findUniqueOrThrow({ where: { key: "mailServer" } })).value as { password: string }).password, stored);
+    const trail = await prisma.auditLog.findMany({ where: { entity: "Setting", entityId: "mailServer", at: { gte: new Date(stamp) } } });
+    assert.equal(trail.length, 2);
+    assert.ok(trail.every((a) => { const s = JSON.stringify([a.before, a.after]); return !s.includes(pass) && !s.includes(stored); }), "no password in the audit");
+    const test = await call("/notifications/mail/test", { method: "POST", cookie: admin });
+    assert.equal(test.status, 400, JSON.stringify(test.body));
+    const failed = await prisma.mailLog.findFirst({ where: { to: "ahmed.islam@places.com", subject: "إيميل تجربة · Places ERP", status: "failed", createdAt: { gte: new Date(stamp) } } });
+    assert.ok(failed?.error, "the failure is in the send log with its reason");
+  } finally {
+    await prisma.setting.deleteMany({ where: { key: { in: keys } } });
+    for (const s of saved) await prisma.setting.create({ data: { key: s.key, value: s.value as never } });
+    await prisma.mailLog.deleteMany({ where: { to: "ahmed.islam@places.com", subject: "إيميل تجربة · Places ERP", createdAt: { gte: new Date(stamp) } } });
+    await prisma.auditLog.deleteMany({ where: { entity: "Setting", entityId: "mailServer", at: { gte: new Date(stamp) } } });
+  }
 });

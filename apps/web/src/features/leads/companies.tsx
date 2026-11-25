@@ -1,6 +1,6 @@
 "use client";
 import { CloseCompanies } from "./company-names";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useDeferredValue, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { CompanyUpdate, type AddedCompany, type CompanyRow, type CompanySheet, type PendingCompany } from "@places/contracts";
@@ -40,7 +40,10 @@ export function CompaniesSheet() {
   const [category, setCategory] = useState("");
   const [soon, setSoon] = useState(false); // 1.21 «عقدهم بيخلص خلال 90 يوم»
   const [editing, setEditing] = useState<CompanyRow | null>(null);
-  const filters = new URLSearchParams({ ...(category ? { category } : {}), ...(soon ? { endingWithin: String(CONTRACT_ENDING_DAYS) } : {}) });
+  // «بحث» by name (any spelling, #588) or number: only the first 100 rows show, so the rest are reached by searching
+  const [q, setQ] = useState("");
+  const query = useDeferredValue(q.trim());
+  const filters = new URLSearchParams({ ...(category ? { category } : {}), ...(soon ? { endingWithin: String(CONTRACT_ENDING_DAYS) } : {}), ...(query ? { q: query } : {}) });
   const sheet = useQuery({
     queryKey: [...KEY, filters.toString()], placeholderData: keepPreviousData,
     queryFn: () => api.get<CompanySheet>(`/companies?pageSize=${PAGE}&${filters}`),
@@ -51,6 +54,7 @@ export function CompaniesSheet() {
       {keeper && <PendingList categories={s?.categories.map((c) => c.name) ?? []} />}
       {keeper && s && <AddRow categories={s.categories.map((c) => c.name)} outbound={s.outboundThisWeek} />}
       <div className="toolbar">
+        <label className="search"><Icon name="search" /><input type="search" value={q} onChange={(e) => setQ(e.target.value)} maxLength={120} placeholder={t("search")} aria-label={t("search")} /></label>
         <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label={t("category")}>
           <option value="">{t("allCategories", { count: s?.categories.length ?? 0 })}</option>
           {(s?.categories ?? []).map((c) => <option key={c.name} value={c.name}>{serverText(c.name)} · {c.count}</option>)}
@@ -88,7 +92,7 @@ function PendingList({ categories }: { categories: string[] }) {
       {pending.map((p) => (
         <form className="line-item" key={p.id} onSubmit={add(p)}>
           <span><span><b>{p.name}</b> · {t("pendingLine", { code: p.lead.code, by: p.by })}</span></span>
-          <select name="category" aria-label={t("categoryOf", { name: p.name })} style={{ maxWidth: 170 }}>{categories.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
+          <select name="category" required defaultValue="" aria-label={t("categoryOf", { name: p.name })} style={{ maxWidth: 170 }}><option value="" disabled>{t("pickCategory")}</option>{categories.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
           <button className="btn sm">{t("addToSheet")}</button>
         </form>
       ))}
@@ -117,7 +121,7 @@ function AddRow({ categories, outbound }: { categories: string[]; outbound: numb
     <>
     <form className="row" onSubmit={submit}>
       <input name="name" required maxLength={160} placeholder={t("newCompany")} aria-label={t("companyName")} value={name} onChange={(e) => setName(e.target.value)} />
-      <select name="category" aria-label={t("category")} style={{ maxWidth: 160 }}>{categories.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
+      <select name="category" required defaultValue="" aria-label={t("category")} style={{ maxWidth: 160 }}><option value="" disabled>{t("pickCategory")}</option>{categories.map((c) => <option key={c} value={c}>{serverText(c)}</option>)}</select>
       <input name="number" required maxLength={40} placeholder={t("number")} style={{ maxWidth: 130 }} aria-label={t("number")} />
       <button className="btn sm"><Icon name="plus" />{t("add")}</button>
       <span className="hint">{t.rich("outbound", { count: outbound, target: OUTBOUND_WEEKLY_TARGET, b: (c) => <b>{c}</b> })}</span>
@@ -135,12 +139,14 @@ function EditCompany({ company: c, categories, onClose }: { company: CompanyRow;
   const save = (f: FormData) => run(async () => {
     const text = (k: string) => { const v = String(f.get(k) ?? "").trim(); return v || null; };
     const number = (k: string) => { const v = text(k); return v === null ? null : Number(v); };
-    const body = CompanyUpdate.parse({
+    const check = CompanyUpdate.safeParse({
       name: text("name") ?? "", category: text("category") ?? "", number: text("number") ?? "", contactName: text("contactName"), contactTitle: text("contactTitle"),
       email: text("email"), currentLocation: text("currentLocation"), currentSpace: number("currentSpace"), contractStart: text("contractStart"), contractEnd: text("contractEnd"),
-      averageRent: text("averageRent"), annualEscalation: number("annualEscalation"), feedback: text("feedback"),
+      averageRent: text("averageRent"), annualEscalation: number("annualEscalation"), feedback: text("feedback"), contactedOn: text("contactedOn"),
     });
-    await api.patch(`/companies/${c.id}`, body);
+    // the field's own words («الإيميل غلط»), not the whole ZodError as JSON
+    if (!check.success) throw new Error(check.error.issues[0]!.message);
+    await api.patch(`/companies/${c.id}`, check.data);
     await qc.invalidateQueries({ queryKey: KEY });
     onClose();
   }, t("saved", { name: String(f.get("name") ?? "") }));
@@ -159,6 +165,7 @@ function EditCompany({ company: c, categories, onClose }: { company: CompanyRow;
         <Field label="start contract date"><DateInput name="contractStart" defaultValue={v(c.contractStart)} /></Field>
         <Field label="end contract date"><DateInput name="contractEnd" defaultValue={v(c.contractEnd)} /></Field>
         <Field label="average current price rent"><input name="averageRent" inputMode="decimal" defaultValue={c.averageRent ? String(Number(c.averageRent)) : ""} /></Field>
+        <Field label={t("date")}><DateInput name="contactedOn" defaultValue={c.date} /></Field>
         <Field label="annual escalation (%)"><input name="annualEscalation" type="number" min={0} max={100} step="0.01" defaultValue={c.annualEscalation ? String(Number(c.annualEscalation)) : ""} /></Field>
         <Field label={t("category")} req>
           <select name="category" required defaultValue={c.category}>{(categories.includes(c.category) ? categories : [c.category, ...categories]).map((x) => <option key={x} value={x}>{serverText(x)}</option>)}</select>

@@ -35,13 +35,12 @@ import { funDayRemindersTick } from "./processors/fun-day-reminders.ts";
 import { warningCheckTick } from "./processors/warning-check.ts";
 
 const connection = { url: env.REDIS_URL };
-const sendMail = mailSender(env);
 // M-14 (51) · 12.10: the jobs' notifications reach the phone too, with the API's VAPID keys (none = push off)
 usePushSender(pushSender(prisma, webPushTransport({ publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT })));
 
 const JOBS: Array<{ name: string; pattern: string; processor: Processor }> = [
   { name: "lead-sla", pattern: "* * * * *", processor: () => leadSlaTick() }, // every minute (M-01 2.4)
-  { name: "mail-outbox", pattern: "* * * * *", processor: () => mailOutboxTick(sendMail) }, // every minute: «الإيميل يتبعت خلال دقيقة» (M-14 2.4)
+  { name: "mail-outbox", pattern: "* * * * *", processor: async () => mailOutboxTick(await mailSender(env)) }, // every minute: «الإيميل يتبعت خلال دقيقة» (M-14 2.4)
   { name: "no-answer", pattern: "*/5 * * * *", processor: () => noAnswerTick() }, // every 5 minutes: 24 hours after the mark (M-01 Q5 · 1.17)
   { name: "no-answer-reminder", pattern: "*/5 * * * *", processor: () => noAnswerReminderTick() }, // the «كلّم» Alarm every 4 working hours (M-01 Q5 · 1.18)
   { name: "draft", pattern: "10 * * * *", processor: () => draftTick() }, // hourly: 7 days without a touch → the Draft (1.26)

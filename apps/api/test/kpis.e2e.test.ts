@@ -114,7 +114,10 @@ test("11.3 · my team: the follower types the manual items, writes the plan and 
   assert.equal((await call(`/kpis/cards/${card.id}/plan`, { method: "PATCH", cookie: mokhtar, body: { plan: "x" } })).status, 403);
   assert.equal((await call(`/kpis/cards/${card.id}/plan`, { method: "PATCH", cookie: nancy, body: { plan: "متابعة أسبوعية" } })).status, 204);
   assert.equal((await call(`/kpis/cards/${card.id}/approve`, { method: "POST", cookie: mokhtar })).status, 403);
-  assert.equal((await call(`/kpis/cards/${card.id}/approve`, { method: "POST", cookie: nancy })).status, 204);
+  // two clicks at once: one approval, one audit line
+  const approved = await Promise.all([1, 2].map(() => call(`/kpis/cards/${card.id}/approve`, { method: "POST", cookie: nancy })));
+  assert.deepEqual(approved.map((r) => r.status).sort(), [204, 409]);
+  assert.equal(await prisma.auditLog.count({ where: { entity: "KpiCard", entityId: card.id, action: "approve", at: { gte: start } } }), 1);
   assert.equal((await call(`/kpis/cards/${card.id}/approve`, { method: "POST", cookie: nancy })).status, 409);
   const again = (await call(`/kpis/cards/${card.id}`, { cookie: nancy })).body;
   assert.equal(again.items.find((it: { id: string }) => it.id === manual.id).value, 92);
@@ -165,6 +168,7 @@ test("11.4 · 11.11 · a card for someone without one, the editor, the follower 
   assert.ok((await board(nancy, "team")).body.cards.some((c: { id: string }) => c.id === ids.testCard));
 
   assert.equal((await call(`/kpis/cards/${ids.testCard}/pay`, { method: "PATCH", cookie: hadeer, body: { base: "bonus", period: "quarter", amount: "6000" } })).status, 403);
+  assert.equal((await call(`/kpis/cards/${ids.testCard}/pay`, { method: "PATCH", cookie: nancy, body: { base: "bonus", period: "quarter", amount: "-6000" } })).status, 400); // a bonus is never negative
   assert.equal((await call(`/kpis/cards/${ids.testCard}/pay`, { method: "PATCH", cookie: nancy, body: { base: "bonus", period: "quarter", amount: "6000" } })).status, 204);
   const paid = (await call(`/kpis/cards/${ids.testCard}`, { cookie: nancy })).body;
   assert.equal(paid.pay.amount, "6000.00");
@@ -289,7 +293,10 @@ async function closeAndStartNext() {
   assert.equal(early.status, 409);
   assert.equal(early.body.error, "اقفل الربع الحالي الأول");
   assert.equal((await call("/kpis/quarter/close", { method: "POST", cookie: heba })).status, 403);
-  assert.equal((await call("/kpis/quarter/close", { method: "POST", cookie: nancy })).status, 204);
+  // two «اقفل الربع» at once: closed once, its alerts sent once
+  const closes = await Promise.all([1, 2].map(() => call("/kpis/quarter/close", { method: "POST", cookie: nancy })));
+  assert.deepEqual(closes.map((r) => r.status).sort(), [204, 409]);
+  assert.equal(await prisma.auditLog.count({ where: { entity: "KpiQuarterClose", entityId: "2026-Q4", at: { gte: start } } }), 1);
   assert.equal((await call(`/kpis/cards/${ids.testCard}/plan`, { method: "PATCH", cookie: admin, body: { plan: "x" } })).status, 409);
   const closed = await prisma.kpiCard.findUniqueOrThrow({ where: { id: ids.testCard } });
   assert.notEqual(closed.finalScore, null);

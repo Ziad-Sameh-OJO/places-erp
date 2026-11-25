@@ -5,8 +5,9 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
+import { hash } from "@node-rs/argon2";
 import { prisma } from "@places/db";
-import { API, call, session } from "./helpers.ts";
+import { API, PW, call, session } from "./helpers.ts";
 
 const stamp = String(Date.now());
 const NAME = `E2E-R ${stamp}`;
@@ -91,4 +92,30 @@ test("a one-tab sheet with the category column still works as 13.1's template; a
   assert.equal((await send("companies/preview", file, mohsen)).status, 403);
   await send("companies", file, hadeer);
   assert.equal((await prisma.company.findFirstOrThrow({ where: { name: `${NAME} د` } })).category, cats[4]);
+});
+
+test("the archive's tab must be a category of the list (any case → the list's spelling); Operations can't import into Telesales' sheet", async () => {
+  const file = await archive([[cats[5]!.toUpperCase(), [row("و")]], ["مش كاتيجوري", [row("ز")]]]);
+  const p = await (await send("companies/preview", file, hadeer)).json();
+  assert.equal(p.valid, 1);
+  assert.ok(p.errors.some((e: { message: string }) => e.message.includes("«مش كاتيجوري» مش في قايمة الكاتيجوريز")), JSON.stringify(p.errors));
+  assert.equal((await send("companies/preview", file, heba)).status, 403); // «leads: import», but adding to the sheet is Telesales'
+  assert.equal((await send("companies", file, heba)).status, 403);
+  assert.equal((await (await send("companies", file, hadeer)).json()).imported, 1);
+  assert.equal((await prisma.company.findFirstOrThrow({ where: { name: `${NAME} و` } })).category, cats[5]);
+  assert.equal(await prisma.company.count({ where: { name: `${NAME} ز` } }), 0);
+});
+
+test("«leads: export» alone (the ops head) doesn't open the sheet through its Excel", async () => {
+  const role = await prisma.role.findUniqueOrThrow({ where: { key: "opshead" } });
+  const email = `companies-export-${stamp}@places.test`;
+  const user = await prisma.user.create({ data: { email, status: "ACTIVE", passwordHash: await hash(PW), roles: { create: { roleId: role.id, primary: true } } } });
+  try {
+    const head = await session(email);
+    assert.equal((await call("/companies", { cookie: head })).status, 403);
+    assert.equal((await fetch(`${API}/companies/export`, { headers: { cookie: head } })).status, 403);
+  } finally {
+    await prisma.auditLog.deleteMany({ where: { OR: [{ userId: user.id }, { entityId: user.id }] } });
+    await prisma.user.delete({ where: { id: user.id } });
+  }
 });
