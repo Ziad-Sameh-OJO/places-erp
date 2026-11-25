@@ -377,6 +377,8 @@
     "quarterClosed": "الربع اتقفل",
     "closeMonth": "اقفل الشهر",
     "closeQuarter": "اقفل الربع",
+    "closeMonthConfirm": "تقفل {label}؟ بعد القفل مفيش أي حركة تتسجّل فيه، ومفيش فتح تاني.",
+    "closeQuarterConfirm": "تقفل الربع لحد {label}؟ بعد القفل مفيش أي حركة تتسجّل فيه، ومفيش فتح تاني.",
     "entryTitle": "قيد {no}",
     "theEntry": "القيد",
     "journalEntry": "قيد يومية",
@@ -387,6 +389,8 @@
   "ledger": {
     "title": "كشف حساب",
     "balanceNow": "الرصيد دلوقتي",
+    "periodMove": "حركة الفترة من {from} لـ {to}",
+    "today": "النهارده",
     "balanceAfter": "الرصيد بعدها",
     "empty": "مفيش حركات على الحساب ده",
     "print": "اطبع الكشف"

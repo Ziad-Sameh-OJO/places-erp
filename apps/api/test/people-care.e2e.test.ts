@@ -83,6 +83,8 @@ test("an «hr: edit» exception on a team-scope account doesn't reach people out
   try {
     const cookie = await session(email);
     assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie, body: { heldOn: today(), answers: {} } })).status, 404);
+    // admin review: the questions are company-wide, HR's like the deduction rules
+    assert.equal((await call("/hr/one-on-one/questions", { method: "PUT", cookie, body: { questions: ["سؤال من برا الـ HR"] } })).status, 403);
     assert.equal(await prisma.oneOnOne.count({ where: { byUserId: u.id } }), 0);
     // review S4: «حل الـ HR» list is in scope too — HR sees Mohsen's open action, the team-scope account doesn't
     const one = await call(`/hr/employees/${mohsen}/one-on-one`, { method: "POST", cookie: basant, body: { heldOn: today(), answers: {}, hrAction: `${P} حل سري`, hrActionDue: today() } });
@@ -95,4 +97,30 @@ test("an «hr: edit» exception on a team-scope account doesn't reach people out
     await prisma.auditLog.deleteMany({ where: { OR: [{ userId: u.id }, { entityId: u.id }] } });
     await prisma.user.delete({ where: { id: u.id } });
   }
+});
+
+test("admin review: a TL doesn't read his own 1-to-1s nor confirm «نسي البصمة»; a penalty decided twice at once lands once", async () => {
+  const own = (await prisma.employee.findFirstOrThrow({ where: { user: { email: "abdallah.sleem@places.com" } } })).id;
+  assert.equal((await call(`/hr/employees/${own}/one-on-one`, { cookie: tl })).status, 404);
+  assert.equal((await call(`/hr/employees/${mohsen}/one-on-one`, { cookie: tl })).status, 200); // his team's still
+  assert.equal((await call(`/hr/employees/${own}/one-on-one`, { cookie: basant })).status, 200);
+
+  const day = new Date("2001-01-02T00:00:00Z");
+  const forgot = await prisma.attendanceDay.create({ data: { employeeId: mohsen, day, kind: "FORGOT", source: "sheet", checkOutAt: new Date("2001-01-02T16:00:00Z") } });
+  try {
+    assert.equal((await call(`/hr/attendance/${forgot.id}/confirm-forgot`, { method: "POST", cookie: tl })).status, 403);
+    assert.equal(Number((await prisma.attendanceDay.findUniqueOrThrow({ where: { id: forgot.id } })).deduction), 0);
+    const ok = await call(`/hr/attendance/${forgot.id}/confirm-forgot`, { method: "POST", cookie: basant });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.equal(ok.body.deduction, 1);
+  } finally {
+    await prisma.auditLog.deleteMany({ where: { entityId: forgot.id } });
+    await prisma.attendanceDay.delete({ where: { id: forgot.id } });
+  }
+
+  const prop = await call("/hr/penalties", { method: "POST", cookie: tl, body: { employeeId: mohsen, day: today(), type: "سلوك", text: `${P} سباق`, deductionDays: 0.5 } });
+  assert.equal(prop.body.status, "pending");
+  const both = await Promise.all([`/hr/penalties/${prop.body.id}/approve`, `/hr/penalties/${prop.body.id}/reject`].map((p) => call(p, { method: "POST", cookie: basant })));
+  assert.equal(both.filter((r) => r.status === 201).length, 1, JSON.stringify(both.map((r) => r.body)));
+  assert.equal(await prisma.auditLog.count({ where: { entity: "Penalty", entityId: prop.body.id, action: { in: ["approve", "reject"] } } }), 1);
 });

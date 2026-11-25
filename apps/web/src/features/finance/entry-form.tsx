@@ -36,7 +36,8 @@ export function EntryForm({ entry, onClose, onSaved }: { entry?: EntryView; onCl
   const set = (i: number, k: keyof Line, v: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const body = { date, memo, lines: lines.filter((l) => l.accountId || l.debit || l.credit).map((l) => ({ accountId: l.accountId, debit: l.debit || "0", credit: l.credit || "0" })) };
+    // a locked memo starts empty on a new entry: the API saves it empty (M-09), but the contract needs one
+    const body = { date, memo: !entry && !fields.edits("memo") ? "—" : memo, lines: lines.filter((l) => l.accountId || l.debit || l.credit).map((l) => ({ accountId: l.accountId, debit: l.debit || "0", credit: l.credit || "0" })) };
     setBusy(true);
     await run(async () => {
       const r = entry ? await api.put<EntrySaved>(`/finance/journal/${entry.id}`, body) : await api.post<EntrySaved>("/finance/journal", body);

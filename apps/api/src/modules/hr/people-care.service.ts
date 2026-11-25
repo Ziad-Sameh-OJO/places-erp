@@ -81,7 +81,9 @@ export class PeopleCareService {
       if (!r) throw new NotFoundException("الجزاء مش موجود");
       if (r.status !== "pending") throw new BadRequestException("الجزاء ده اتقرر قبل كده");
       const status = approve ? "approved" : "rejected";
-      await tx.penalty.update({ where: { id }, data: { status, approvedById: me.id, decidedAt: new Date() } });
+      // only from «pending»: an approve and a reject at the same moment can't both land
+      const n = await tx.penalty.updateMany({ where: { id, status: "pending" }, data: { status, approvedById: me.id, decidedAt: new Date() } });
+      if (!n.count) throw new BadRequestException("الجزاء ده اتقرر قبل كده");
       await this.audit.record({ module: "hr", entity: "Penalty", entityId: id, action: approve ? "approve" : "reject", userId: me.id, before: { status: r.status }, after: { status } }, tx);
       return { id, status };
     });
@@ -130,6 +132,7 @@ export class PeopleCareService {
   }
 
   async setQuestions(me: CurrentUser, questions: string[], run: Run) {
+    if (!this.isHr(me)) throw new ForbiddenException("أسئلة الـ 1-to-1 بيحددها الـ HR"); // company-wide, like the deduction rules
     return run(async (tx) => {
       const before = await this.questions();
       await tx.setting.upsert({ where: { key: QUESTIONS }, create: { key: QUESTIONS, value: questions }, update: { value: questions } });
@@ -138,8 +141,14 @@ export class PeopleCareService {
     });
   }
 
+  /**
+   * M-05 4.1: the 1-to-1 notes are about the person, never for them — a Team Leader's scope (his team) includes his own
+   * file, so his own sessions (and HR's action on him) are taken out here.
+   */
+  private notMine = (me: CurrentUser): Prisma.EmployeeWhereInput => ({ NOT: { userId: me.id } });
+
   async oneOnOnes(me: CurrentUser, employeeId: string): Promise<OneOnOnesView> {
-    const e = await this.db.employee.findFirst({ where: { AND: [{ id: employeeId }, this.scope(me)] }, select: { id: true } });
+    const e = await this.db.employee.findFirst({ where: { AND: [{ id: employeeId }, this.scope(me), this.notMine(me)] }, select: { id: true } });
     if (!e) throw new NotFoundException("الموظف مش موجود");
     const [rows, questions] = await Promise.all([this.db.oneOnOne.findMany({ where: { employeeId }, orderBy: { heldOn: "desc" } }), this.questions()]);
     const by = await this.names(rows.map((r) => r.byUserId ?? ""));
@@ -154,7 +163,7 @@ export class PeopleCareService {
     if (o.heldOn > localDate(new Date())) throw new BadRequestException("مينفعش يوم بعد النهارده");
     const saved = await run(async (tx) => {
       // 13.3: only someone in the caller's scope, as oneOnOnes() reads (an hr: edit override on a TL stays on his team)
-      const e = await tx.employee.findFirst({ where: { AND: [{ id: employeeId }, this.scope(me)] }, select: { id: true, name: true } });
+      const e = await tx.employee.findFirst({ where: { AND: [{ id: employeeId }, this.scope(me), this.notMine(me)] }, select: { id: true, name: true } });
       if (!e) throw new NotFoundException("الموظف مش موجود");
       const r = await tx.oneOnOne.create({ data: { employeeId, heldOn: day(o.heldOn), answers: o.answers, hrAction: o.hrAction || null, hrActionDue: o.hrActionDue ? day(o.hrActionDue) : null, byUserId: me.id } });
       await this.audit.record({ module: "hr", entity: "OneOnOne", entityId: r.id, action: "create", userId: me.id, after: { employee: e.name, heldOn: o.heldOn, hrAction: o.hrAction ?? null, hrActionDue: o.hrActionDue ?? null } }, tx);
@@ -166,7 +175,7 @@ export class PeopleCareService {
 
   async actionDone(me: CurrentUser, id: string, run: Run) {
     return run(async (tx) => {
-      const r = await tx.oneOnOne.findFirst({ where: { id, employee: this.scope(me) } });
+      const r = await tx.oneOnOne.findFirst({ where: { id, employee: { AND: [this.scope(me), this.notMine(me)] } } });
       if (!r || !r.hrAction) throw new NotFoundException("مفيش حل HR في الجلسة دي");
       await tx.oneOnOne.update({ where: { id }, data: { hrActionDone: true } });
       await this.audit.record({ module: "hr", entity: "OneOnOne", entityId: id, action: "action-done", userId: me.id, after: { hrAction: r.hrAction } }, tx);
@@ -177,7 +186,7 @@ export class PeopleCareService {
   /** Open «حل الـ HR» items, the late ones first. 13.3: in the caller's scope, as oneOnOnes() (a TL with hr: edit sees his team's only). */
   async actions(me: CurrentUser): Promise<HrActionsView> {
     const today = localDate(new Date());
-    const rows = await this.db.oneOnOne.findMany({ where: { hrAction: { not: null }, hrActionDone: false, employee: this.scope(me) }, include: { employee: { select: { id: true, name: true } } }, orderBy: { hrActionDue: "asc" } });
+    const rows = await this.db.oneOnOne.findMany({ where: { hrAction: { not: null }, hrActionDone: false, employee: { AND: [this.scope(me), this.notMine(me)] } }, include: { employee: { select: { id: true, name: true } } }, orderBy: { hrActionDue: "asc" } });
     return { items: rows.map((r) => ({ id: r.id, employeeId: r.employeeId, name: r.employee.name, action: r.hrAction!, due: r.hrActionDue ? iso(r.hrActionDue) : today, late: !!r.hrActionDue && iso(r.hrActionDue) < today })) };
   }
 }

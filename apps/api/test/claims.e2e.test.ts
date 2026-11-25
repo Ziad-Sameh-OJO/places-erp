@@ -128,6 +128,21 @@ test("9.17 the whole claim: requested → issued → client approved → e-invoi
   assert.equal(await prisma.auditLog.count({ where: { entity: "Claim", entityId: id } }), 6);
 });
 
+test("9.17 two different claims collected at the same moment: both go through with two receipt numbers (no 500)", async () => {
+  const ids: string[] = [];
+  for (const n of [1, 2]) {
+    const c = await call("/claims", { method: "POST", cookie: sales, body: { company: `${P} سباق ${n}`, unit: `U-${n}`, unitInfo: "x", amount: "1000", side: "client", kind: "عمولة بيع", entityId: "places" } });
+    assert.equal(c.status, 201);
+    assert.equal((await call(`/claims/${c.body.id}/issue`, { method: "POST", cookie: acc })).status, 204);
+    ids.push(c.body.id);
+  }
+  const done = await Promise.all(ids.map((id) => call(`/claims/${id}/collect`, { method: "POST", cookie: acc, body: { toId: safe.id, accountId: income.id } })));
+  assert.deepEqual(done.map((r) => r.status), [204, 204], JSON.stringify(done.map((r) => r.body)));
+  const nos = (await prisma.claim.findMany({ where: { id: { in: ids } }, select: { receiptNo: true } })).map((c) => c.receiptNo);
+  assert.equal(new Set(nos).size, 2);
+  assert.ok(nos.every((n) => n !== null));
+});
+
 test("9.17 a rejected claim stops there, with the reason to the one who asked", async () => {
   const c = await call("/claims", { method: "POST", cookie: sales, body: { company: `${P} مرفوضة`, unit: "U-1", unitInfo: "x", amount: "5000", side: "owner", kind: "عمولة بيع", entityId: "zrain" } });
   assert.equal((await call(`/claims/${c.body.id}/reject`, { method: "POST", cookie: acc, body: { why: "" } })).status, 400);
