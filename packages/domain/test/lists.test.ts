@@ -95,3 +95,12 @@ test("the money / people settings reach only who works with them (M-13 2.2)", ()
   assert.deepEqual(readableSettings(s, false), { areas: [on("أكتوبر")] });
   assert.deepEqual(readableSettings(s, true), s);
 });
+
+test("a value already in the list with other capitals or spaces is refused; an old list with twins still saves (M-13 2.1)", () => {
+  const list = [on("Mivida"), off("Sodic West")];
+  assert.match(listChangeProblem(list, [...list, on("mivida")])!, /موجودة/);
+  assert.match(listChangeProblem(list, [...list, on(" sodic  west")])!, /موجودة/);
+  assert.equal(listChangeProblem(list, [...list, on("Mivida Gardens")]), null);
+  const old = [on("Zayed"), on("zayed")];
+  assert.equal(listChangeProblem(old, [on("Zayed"), off("zayed")]), null);
+});
