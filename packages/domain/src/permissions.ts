@@ -1,3 +1,5 @@
+import { dayStart } from "./business-time.ts";
+
 /**
  * M-09 · permissions. Every role has, per module, a set of actions; a person can hold several roles (Q48: the union
  * applies) and can have per-person overrides that replace their roles' set for one module. Plus a data scope.
@@ -69,6 +71,16 @@ export function gateReports(g: Grants, roles: readonly string[], listed: boolean
     can: (m, a) => (m === "reports" ? reports.has(a) : g.can(m, a)),
     actions: (m) => (m === "reports" ? reports : g.actions(m)),
   };
+}
+
+/**
+ * M-09 2.4 «الحساب يتوقف في نفس يوم آخر يوم شغل»: the account works through its last working day (a Cairo calendar day,
+ * stored as that date's UTC midnight) and stops when the next Cairo day starts — not at UTC midnight, 2–3 hours late.
+ */
+export function accountEnded(endDate: Date | null, now: Date): boolean {
+  if (!endDate) return false;
+  const next = new Date(endDate.getTime() + 864e5).toISOString().slice(0, 10);
+  return now.getTime() >= dayStart(next).getTime();
 }
 
 /**

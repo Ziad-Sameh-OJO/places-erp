@@ -3,7 +3,7 @@ import type { Prisma, PrismaClient } from "@places/db";
 import type { AuditFilters, Matrix, Overrides, RoleFieldsInput, RoleInput, RoleUpdate, UserFilters, UserInput, UserStatusCounts, UserUpdate } from "@places/contracts";
 import {
   ACTIONS, ACTION_LABEL, type Action, type DataScope, MODULES, MODULE_LABEL, type ModuleKey, OPS_HEAD, effectiveGrants, keepsAccessAdmin,
-  type FieldMode, type FieldRules, canSendReset, defaultFieldRules, fieldRuleProblem, normalizeActions, teamUnder, withinOwnPermissions,
+  type FieldMode, type FieldRules, canSendReset, defaultFieldRules, fieldRuleProblem, normalizeActions, teamUnder, withinOwnPermissions, withoutFields,
 } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
@@ -79,6 +79,7 @@ export class AccessService {
     const b = { ...sent, ...keepUser(sent, null, me.fields.fixed("access")), email: sent.email, department: sent.department };
     const roleKeys = this.roleKeys(me, b, []);
     const roles = await this.checkRoles(roleKeys);
+    this.giveOnlyMine(me, roleKeys, [], roles);
     if (await this.db.user.findUnique({ where: { email: b.email } })) throw new ConflictException("الإيميل ده عليه حساب قبل كده");
     const user = await this.db.$transaction(async (tx) => {
       const u = await tx.user.create({ data: { email: b.email, phone: b.phone ?? null, otpRequired: b.otpRequired, endDate: b.endDate ?? null } });
@@ -104,6 +105,7 @@ export class AccessService {
     const emailChanged = b.email !== before.email;
     const roleKeys = this.roleKeys(me, b, before.roles.map((r) => r.role.key));
     const roles = await this.checkRoles(roleKeys);
+    this.giveOnlyMine(me, roleKeys, before.roles.map((r) => r.role.key), roles);
     const clash = await this.db.user.findUnique({ where: { email: b.email } });
     if (clash && clash.id !== id) throw new ConflictException("الإيميل ده عليه حساب تاني");
     await this.db.$transaction(async (tx) => {
@@ -136,7 +138,8 @@ export class AccessService {
     await this.db.$transaction(async (tx) => {
       await tx.user.update({ where: { id }, data: active ? { status: u.passwordHash ? "ACTIVE" : "INVITED", endDate: null, failedLogins: 0 } : { status: "DISABLED" } });
       if (!active) { await tx.session.deleteMany({ where: { userId: id } }); await tx.authToken.deleteMany({ where: { userId: id } }); } // a live reset / invite link must not reopen it
-      await this.audit.record({ module: "access", entity: "User", entityId: id, action: active ? "enable" : "disable", userId: me.id }, tx);
+      await this.audit.record({ module: "access", entity: "User", entityId: id, action: active ? "enable" : "disable", userId: me.id,
+        before: { status: u.status }, after: { status: active ? (u.passwordHash ? "ACTIVE" : "INVITED") : "DISABLED" } }, tx);
     });
   }
 
@@ -198,7 +201,7 @@ export class AccessService {
     await this.guardSuperAdmin(me, id);
     const reach = await this.editReach(me, id);
     if (!reach) throw new ForbiddenException(me.roles.includes(OPS_HEAD) ? "بتعدّل صلاحيات فريقك بس" : undefined);
-    const { fromRoles, effective } = await this.permissionsOf(id);
+    const { fromRoles, effective, overrides } = await this.permissionsOf(id);
     if (reach === "team") {
       const outside = (Object.keys(changes) as ModuleKey[]).filter((m) => {
         const next = changes[m];
@@ -213,7 +216,9 @@ export class AccessService {
         if (norm === null || norm.join() === (fromRoles[module] ?? []).join()) await tx.permissionOverride.deleteMany({ where: { userId: id, module } });
         else await tx.permissionOverride.upsert({ where: { userId_module: { userId: id, module } }, create: { userId: id, module, actions: norm }, update: { actions: norm } });
       }
-      await this.audit.record({ module: "access", entity: "PermissionOverride", entityId: id, action: "update", userId: me.id, after: changes }, tx);
+      // Q50: the old value too — the modules' exceptions before the change (null = none)
+      const was = Object.fromEntries(Object.keys(changes).map((m) => [m, overrides[m] ?? null]));
+      await this.audit.record({ module: "access", entity: "PermissionOverride", entityId: id, action: "update", userId: me.id, before: was, after: changes }, tx);
       if (reach === "all") await this.keepSelfAdmin(me, tx); // the Operations Head never edits himself (not in his own team)
     });
     await this.tellSuperAdmin(me, `صلاحيات ${target.employee?.name ?? target.email} اتعدّلت: ${Object.keys(changes).map((m) => MODULE_LABEL[m as ModuleKey] ?? m).join("، ")}`);
@@ -261,11 +266,14 @@ export class AccessService {
     const r = await this.role(key);
     if (key === ADMIN && !me.roles.includes(ADMIN)) throw new ForbiddenException("دور الـ Super Admin بيتعدّل من Super Admin بس");
     await this.db.$transaction(async (tx) => {
+      // Q50: the old value too — the role's actions in the modules sent
+      const old = await tx.rolePermission.findMany({ where: { roleId: r.id, module: { in: Object.keys(matrix) } } });
+      const before = Object.fromEntries(Object.keys(matrix).map((m) => [m, old.find((p) => p.module === m)?.actions ?? []]));
       for (const [module, actions] of Object.entries(matrix)) {
         const norm = normalizeActions(actions);
         await tx.rolePermission.upsert({ where: { roleId_module: { roleId: r.id, module } }, create: { roleId: r.id, module, actions: norm }, update: { actions: norm } });
       }
-      await this.audit.record({ module: "access", entity: "Role", entityId: r.id, action: "permissions", userId: me.id, after: matrix }, tx);
+      await this.audit.record({ module: "access", entity: "Role", entityId: r.id, action: "permissions", userId: me.id, before, after: matrix }, tx);
       await this.keepSelfAdmin(me, tx);
     });
     await this.tellSuperAdmin(me, `صلاحيات دور «${r.label}» اتعدّلت: ${Object.keys(matrix).map((m) => MODULE_LABEL[m as ModuleKey] ?? m).join("، ")}`);
@@ -316,18 +324,18 @@ export class AccessService {
 
   /* ---------------- audit log ---------------- */
 
-  async auditLog(f: AuditFilters) {
-    const [items, total] = await this.repo.audit(f);
+  async auditLog(me: CurrentUser, f: AuditFilters) {
+    const [items, total] = await this.repo.audit(f, unseenModules(me));
     // BigInt ids don't serialise to JSON
-    return { items: items.map((x) => ({ ...x, id: x.id.toString() })), total, page: f.page, pageSize: f.pageSize };
+    return { items: items.map((x) => ({ ...seenRecord(me, x), id: x.id.toString() })), total, page: f.page, pageSize: f.pageSize };
   }
 
   /** The filtered log for the Excel export (Q0.11 · M-09 6.1), with names; the export itself is audited. */
   async auditForExport(me: CurrentUser, f: AuditFilters) {
-    const [rows, people] = await Promise.all([this.repo.allAudit(f, EXPORT_LIMIT), this.repo.names()]);
+    const [rows, people] = await Promise.all([this.repo.allAudit(f, EXPORT_LIMIT, unseenModules(me)), this.repo.names()]);
     const name = new Map(people.map((p) => [p.userId, p.name]));
     await this.audit.record({ module: "access", entity: "AuditLog", entityId: "export", action: "export", userId: me.id, after: { filters: f, rows: rows.length } });
-    return rows.map((x) => ({ ...x, who: x.userId ? name.get(x.userId) ?? x.userId : "السيستم", on: x.entity === "User" ? name.get(x.entityId) ?? x.entityId : x.entityId }));
+    return rows.map((x) => ({ ...seenRecord(me, x), who: x.userId ? name.get(x.userId) ?? x.userId : "السيستم", on: x.entity === "User" ? name.get(x.entityId) ?? x.entityId : x.entityId }));
   }
 
   /**
@@ -367,6 +375,16 @@ export class AccessService {
     return keys;
   }
 
+  /**
+   * M-09 4.1: HR adds accounts but may not change permissions, so a role given to someone may hold on «الأدوار والصلاحيات»
+   * only what the giver holds — else HR makes an Office Manager account for an address she controls and has it all.
+   */
+  private giveOnlyMine(me: CurrentUser, keys: string[], had: string[], roles: Map<string, { label: string; permissions: { module: string; actions: string[] }[] }>) {
+    const over = keys.filter((k) => !had.includes(k)).map((k) => roles.get(k)!)
+      .filter((r) => !withinOwnPermissions(me.grants, "access", [], (r.permissions.find((p) => p.module === "access")?.actions ?? []) as Action[]));
+    if (over.length) throw new ForbiddenException(`مش في حدود صلاحياتك: ${over.map((r) => `«${r.label}»`).join("، ")} بيعدّل في الصلاحيات`);
+  }
+
   /** A Super Admin's account, and `me` isn't one. */
   private async isProtected(me: CurrentUser, id: string) {
     return !me.roles.includes(ADMIN) && (await this.db.userRole.count({ where: { userId: id, role: { key: ADMIN } } })) > 0;
@@ -402,6 +420,14 @@ export class AccessService {
     const after = await this.grants.currentUser(me.id, tx);
     if (!keepsAccessAdmin(after.grants)) throw new ForbiddenException("مينفعش تشيل من نفسك صلاحية تعديل الصلاحيات");
   }
+}
+
+/** The Audit Log reaches only the modules the reader may open (M-09 4.1: the Operations Head and HR don't see finance). */
+const unseenModules = (me: CurrentUser): string[] => MODULES.filter((m) => !me.grants.can(m, "view"));
+/** …and a record's before / after lose the fields hidden from the reader in its module (M-09 field permissions). */
+function seenRecord<T extends { module: string; before: unknown; after: unknown }>(me: CurrentUser, x: T): T {
+  const hidden = (MODULES as readonly string[]).includes(x.module) ? me.fields.hidden(x.module as ModuleKey) : new Set<string>();
+  return hidden.size ? { ...x, before: withoutFields(x.before, hidden), after: withoutFields(x.after, hidden) } : x;
 }
 
 const up = (s: string) => s.toUpperCase() as "OWN" | "TEAM" | "DEPT" | "ALL";

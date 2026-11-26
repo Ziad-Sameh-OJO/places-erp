@@ -1,4 +1,5 @@
 "use client";
+import { useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
@@ -16,6 +17,7 @@ export default function ProfilePage() {
   const qc = useQueryClient();
   const run = useAction();
   const { me } = useMe();
+  const pwForm = useRef<HTMLFormElement>(null); // cleared once the password changed: the old and new ones don't stay on screen
   if (!me) return <p className="hint">{t("loading")}</p>;
   return (
     <div className="cols">
@@ -39,9 +41,9 @@ export default function ProfilePage() {
       </Card>
       <PushCard />
       <Card title={t("profile.passwordTitle")} icon="lock" sub={t("profile.passwordSub")}>
-        <form className="form" onSubmit={onFormSubmit((f) => {
+        <form ref={pwForm} className="form" onSubmit={onFormSubmit((f) => {
           if (f.get("next") !== f.get("next2")) return void run(async () => { throw new Error(t("profile.mismatch")); });
-          void run(async () => { await api.post("/auth/password", { current: f.get("current"), next: f.get("next") }); await qc.invalidateQueries({ queryKey: ["me"] }); }, t("profile.changed"));
+          void run(async () => { await api.post("/auth/password", { current: f.get("current"), next: f.get("next") }); pwForm.current?.reset(); await qc.invalidateQueries({ queryKey: ["me"] }); }, t("profile.changed"));
         })}>
           <Field label={t("profile.current")} req><input name="current" type="password" autoComplete="current-password" required /></Field>
           <Field label={t("profile.next")} req><input name="next" type="password" autoComplete="new-password" required minLength={10} /></Field>
