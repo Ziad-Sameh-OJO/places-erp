@@ -50,7 +50,7 @@ test("a job's notification reaches the phone exactly when the event's rule has p
   assert.deepEqual(pushRecipients(["app", "push", "email"], people, true), ["u1", "u2"]);
 });
 
-test("a push address must be https on a public name: no loopback, private IPs or internal names (M-14 51 · S6)", () => {
+test("a push address must be https on a browser push service: nothing else, so no private host is reachable (M-14 51 · S6)", () => {
   for (const ok of ["https://fcm.googleapis.com/fcm/send/abc", "https://updates.push.services.mozilla.com/wpush/v2/x", "https://web.push.apple.com/Q", "https://wns2-par02p.notify.windows.com/w/?token=1"]) {
     assert.equal(isPublicPushUrl(ok), true, ok);
   }
@@ -59,5 +59,6 @@ test("a push address must be https on a public name: no loopback, private IPs or
     "https://127.0.0.1/", "https://127.1/", "https://2130706433/", "https://0x7f.0.0.1/", "https://0177.0.0.1/", "https://0.0.0.0/", "https://10.0.0.5/", "https://172.16.0.1/",
     "https://192.168.1.1/", "https://169.254.169.254/latest/meta-data", "https://[::1]/", "https://[fc00::1]/", "https://[::ffff:127.0.0.1]/", "https://8.8.8.8/",
     "https://api.local/", "https://s3.internal/", "https://router.lan/", "https://x.localhost/", "https://user:pw@fcm.googleapis.com/", "not a url",
+    "https://10.0.0.5.nip.io/", "https://evil.example.com/", "https://fcm.googleapis.com.evil.com/", "https://fcm.googleapis.com:8443/", "https://localhost.invalid.evil.com/",
   ]) assert.equal(isPublicPushUrl(bad), false, bad);
 });

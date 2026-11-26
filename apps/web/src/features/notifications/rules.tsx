@@ -23,6 +23,7 @@ export function NotificationRules() {
   const ed = can("integrations", "edit");
   const rules = useQuery({ queryKey: ["notif-rules"], queryFn: () => api.get<Rule[]>("/notifications/rules") });
   const s = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/settings") });
+  // each save sends the whole row: the ticks wait for it, so a quick second tick isn't sent from a stale row (L18e)
   const toggle = (r: Rule, c: Channel, on: boolean) => run(async () => {
     await api.put(`/notifications/rules/${r.key}`, { channels: on ? [...r.channels, c] : r.channels.filter((x) => x !== c) });
     await qc.invalidateQueries({ queryKey: ["notif-rules"] });
@@ -53,7 +54,7 @@ export function NotificationRules() {
       <Card title={t("title")} icon="bell" sub={t("sub")}>
         <Table head={[t("head.event"), t("head.to"), ...CH.map(chLabel)]} rows={(rules.data ?? []).map((r) => [
           <b key="l">{serverText(r.label)}{r.important && t("important")}</b>, serverText(r.to),
-          ...CH.map((c) => <Tick key={c} checked={r.channels.includes(c)} disabled={!ed} label={`${serverText(r.label)} ${chLabel(c)}`} onChange={(v) => toggle(r, c, v)} />),
+          ...CH.map((c) => <Tick key={c} checked={r.channels.includes(c)} disabled={!ed || run.busy} label={`${serverText(r.label)} ${chLabel(c)}`} onChange={(v) => toggle(r, c, v)} />),
         ])} />
         <Note>{t("pushNote")}</Note>
       </Card>
