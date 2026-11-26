@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@places/db";
 import type { HandoverDecision, HandoverInput, HandoverRow } from "@places/contracts";
-import { handoverRefusal } from "@places/domain";
+import { accountEnded, handoverRefusal } from "@places/domain";
 import { PRISMA } from "../../core/database/database.module";
 import { AuditService } from "../../core/audit/audit.service";
 import { NotificationsService } from "../../core/notifications/notifications.service";
@@ -34,7 +34,7 @@ export class HandoverService {
     const pending = !!(await this.db.handover.count({ where: { fromUserId: id, status: "pending" } }));
     const refusal = handoverRefusal({
       leaving: from.status === "DISABLED" || !!from.endDate, managerUserId: manager?.userId ?? null, fromId: id, toId: b.to,
-      toActive: to.status === "ACTIVE" && (!to.endDate || to.endDate > new Date()), pending,
+      toActive: to.status === "ACTIVE" && !accountEnded(to.endDate, new Date()), pending, // the same day as sign-in (M-09 2.4)
     });
     if (refusal) throw new BadRequestException(refusal);
     const h = await this.db.$transaction(async (tx) => {

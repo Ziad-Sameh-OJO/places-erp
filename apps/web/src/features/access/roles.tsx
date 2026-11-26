@@ -34,7 +34,7 @@ export function RolesTab() {
   if (!roles.data) return <p className="hint">{t("loading")}</p>;
   return (
     <div className="access-grid">
-      <Card title={t("title")} icon="users" extra={can("access", "create") && <button className="btn sm" onClick={() => setForm({ mode: "new" })}>{t("newRole")}</button>}>
+      <Card title={t("title")} icon="users" extra={can("access", "edit") && <button className="btn sm" onClick={() => setForm({ mode: "new" })}>{t("newRole")}</button>}>
         <div className="role-list">
           {roles.data.map((r) => (
             <button key={r.key} aria-pressed={r.key === role?.key} onClick={() => setPick(r.key)}>
@@ -47,7 +47,7 @@ export function RolesTab() {
         <Card title={serverText(role.label)} icon="lock" sub={`${role.tier} · ${t("people", { count: role.users })}${role.builtIn ? t("builtIn") : ""}`}
           extra={<div className="matrix-tools">
             {editable && <button className="btn ghost sm" onClick={() => setForm({ mode: "edit", role })}>{t("edit")}</button>}
-            {can("access", "create") && <button className="btn ghost sm" onClick={() => setForm({ mode: "copy", role })}>{t("copy")}</button>}
+            {can("access", "edit") && <button className="btn ghost sm" onClick={() => setForm({ mode: "copy", role })}>{t("copy")}</button>}
             {can("access", "delete") && !role.builtIn && <button className="btn danger sm" disabled={role.users > 0} title={role.users ? t("hasPeople") : ""}
               onClick={() => confirm(t("confirmDelete", { label: serverText(role.label) })) && run(async () => { await api.del(`/access/roles/${role.key}`); setPick(null); await refresh(); }, t("deleted"))}>{t("delete")}</button>}
           </div>}>

@@ -105,3 +105,13 @@ export function fieldRuleProblem(module: ModuleKey, key: string, mode: FieldMode
   if (f.required && mode === "hide" && roleCreates) return `«${f.label}» إجباري في الإضافة: الدور ده بيضيف، فمينفعش يتخفى عنه`;
   return null;
 }
+
+/**
+ * M-09 field permissions in the Audit Log: a record's before / after carry the entity's fields, so the ones hidden from
+ * the reader go, at any depth (the log mustn't show what the module's own screens keep from them).
+ */
+export function withoutFields(value: unknown, hidden: ReadonlySet<string>): unknown {
+  if (!hidden.size || value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((v) => withoutFields(v, hidden));
+  return Object.fromEntries(Object.entries(value).filter(([k]) => !hidden.has(k)).map(([k, v]) => [k, withoutFields(v, hidden)]));
+}

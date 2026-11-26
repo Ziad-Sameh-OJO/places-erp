@@ -101,7 +101,7 @@ export class AccessController {
   deleteRole(@Me() me: CurrentUser, @Param("key") key: string) { return this.access.deleteRole(me, key); }
 
   @Get("audit") @Requires("access", "view")
-  audit(@Query(new ZodPipe(AuditFilters)) f: AuditFilters) { return this.access.auditLog(f); }
+  audit(@Me() me: CurrentUser, @Query(new ZodPipe(AuditFilters)) f: AuditFilters) { return this.access.auditLog(me, f); }
 
   /** M-09 6.1: «Audit Log قابل للتصدير», with the same filters as the screen. */
   @Get("audit/export") @Requires("access", "export")

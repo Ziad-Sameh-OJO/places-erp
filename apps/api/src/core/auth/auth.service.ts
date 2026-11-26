@@ -10,6 +10,10 @@ import { PushService } from "../notifications/push.service";
 import { env } from "../../config/env";
 import { hashPassword, verifyPassword } from "./password";
 import { TokensService, sha256 } from "./tokens.service";
+import { accountEnded } from "@places/domain";
+
+/** An unknown or stopped account still costs one argon2 check, so the answer's timing doesn't tell which emails exist. */
+const DUMMY_HASH = hashPassword(randomBytes(16).toString("hex"));
 
 const MAX_FAILED = 5; // M-09: the account locks after 5 wrong passwords
 type Meta = { ip?: string | undefined; userAgent?: string | undefined };
@@ -34,7 +38,7 @@ export class AuthService {
     const user = await this.db.user.findUnique({ where: { email } });
     // same message whatever went wrong: don't reveal which emails exist
     const fail = () => new UnauthorizedException("الإيميل أو الباسورد غلط");
-    if (!user || !user.passwordHash || user.status === "DISABLED" || user.status === "INVITED" || ended(user.endDate)) throw fail();
+    if (!user || !user.passwordHash || user.status === "DISABLED" || user.status === "INVITED" || ended(user.endDate)) { await verifyPassword(await DUMMY_HASH, password); throw fail(); }
     if (user.status === "LOCKED") throw new UnauthorizedException("الحساب مقفول · كلّم الأدمن");
     if (!(await verifyPassword(user.passwordHash, password))) {
       const failed = user.failedLogins + 1;
@@ -163,5 +167,5 @@ export class AuthService {
   }
 }
 
-/** The last working day is inclusive: the account stops the day after. */
-const ended = (endDate: Date | null) => !!endDate && endDate.getTime() + 24 * 36e5 <= Date.now();
+/** The last working day is inclusive: the account stops when the next Cairo day starts (M-09 2.4). */
+const ended = (endDate: Date | null) => accountEnded(endDate, new Date());
