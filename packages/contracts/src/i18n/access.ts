@@ -47,6 +47,7 @@ export default [
   ["الحساب مش متفعّل", "The account isn't activated"],
   ["بتعدّل صلاحيات فريقك بس", "You only edit your team's permissions"],
   ["مش في حدود صلاحياتك: {modules}", "Outside your permissions: {modules}"],
+  ["مش في حدود صلاحياتك: {roles} بيعدّل في الصلاحيات", "Outside your permissions: {roles} can change permissions"],
   ["الدور اللي بتنسخ منه مش موجود", "The role you're copying from doesn't exist"],
   ["دور الـ Super Admin بيتعدّل من Super Admin بس", "The Super Admin role is edited by a Super Admin only"],
   ["ده دور أساسي من الركوايرمنتس، مينفعش يتمسح", "This is a core role from the requirements, it can't be deleted"],
