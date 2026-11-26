@@ -1,6 +1,6 @@
 import { BadRequestException, HttpException, HttpStatus, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
-import type { PrismaClient } from "@places/db";
+import type { Prisma, PrismaClient } from "@places/db";
 import { otpResendWait } from "@places/domain";
 import { PRISMA } from "../database/database.module";
 import { AuditService } from "../audit/audit.service";
@@ -41,16 +41,7 @@ export class AuthService {
     if (!user || !user.passwordHash || user.status === "DISABLED" || user.status === "INVITED" || ended(user.endDate)) { await verifyPassword(await DUMMY_HASH, password); throw fail(); }
     if (user.status === "LOCKED") throw new UnauthorizedException("الحساب مقفول · كلّم الأدمن");
     if (!(await verifyPassword(user.passwordHash, password))) {
-      const failed = user.failedLogins + 1;
-      // the lock and its audit row together: never a locked account without its trail
-      await this.db.$transaction(async (tx) => {
-        await tx.user.update({ where: { id: user.id }, data: { failedLogins: failed, status: failed >= MAX_FAILED ? "LOCKED" : user.status } });
-        if (failed >= MAX_FAILED) await this.audit.record({ module: "access", entity: "User", entityId: user.id, action: "locked", userId: null, ip: meta.ip, before: { status: user.status }, after: { status: "LOCKED" } }, tx);
-      });
-      if (failed >= MAX_FAILED) {
-        // M-09 6.1 «دخول غريب»: the only suspicious sign-in the requirements define so far is the 5-wrong-passwords lock (2.4)
-        await this.notifications.notify({ event: "access.suspicious", link: "/access", text: `دخول غريب: حساب ${user.email} اتقفل بعد ${MAX_FAILED} محاولات دخول غلط${meta.ip ? ` من ${meta.ip}` : ""}` });
-      }
+      await this.failed(user, meta);
       throw fail();
     }
     if (user.otpRequired) {
@@ -58,6 +49,23 @@ export class AuthService {
       return { token: null, otpRequired: true };
     }
     return { token: await this.openSession(user.id, meta), otpRequired: false };
+  }
+
+  /**
+   * A wrong password or OTP code (M-09 2.4): 5 in a row lock the account. The OTP step counts too, else a stolen
+   * password allows guessing the 6-digit code forever (S: OTP). Only a session opening resets the count.
+   */
+  private async failed(user: Pick<Prisma.UserGetPayload<object>, "id" | "email" | "failedLogins" | "status">, meta: Meta) {
+    const failed = user.failedLogins + 1;
+    // the lock and its audit row together: never a locked account without its trail
+    await this.db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: user.id }, data: { failedLogins: failed, status: failed >= MAX_FAILED ? "LOCKED" : user.status } });
+      if (failed >= MAX_FAILED) await this.audit.record({ module: "access", entity: "User", entityId: user.id, action: "locked", userId: null, ip: meta.ip, before: { status: user.status }, after: { status: "LOCKED" } }, tx);
+    });
+    if (failed >= MAX_FAILED) {
+      // M-09 6.1 «دخول غريب»: the only suspicious sign-in the requirements define so far is the 5-wrong-passwords lock (2.4)
+      await this.notifications.notify({ event: "access.suspicious", link: "/access", text: `دخول غريب: حساب ${user.email} اتقفل بعد ${MAX_FAILED} محاولات دخول غلط${meta.ip ? ` من ${meta.ip}` : ""}` });
+    }
   }
 
   private async sendOtp(userId: string, email: string) {
@@ -85,7 +93,10 @@ export class AuthService {
   async verifyOtp(email: string, code: string, meta: Meta) {
     const user = await this.db.user.findUnique({ where: { email } });
     const userId = user && user.status === "ACTIVE" ? await this.tokens.consume(code, "OTP", user.id) : null;
-    if (!userId) throw new UnauthorizedException("الكود غلط أو خلص");
+    if (!userId) {
+      if (user && user.status === "ACTIVE" && (await this.tokens.liveSince(user.id, "OTP"))) await this.failed(user, meta);
+      throw new UnauthorizedException("الكود غلط أو خلص");
+    }
     return this.openSession(userId, meta);
   }
 
@@ -154,9 +165,12 @@ export class AuthService {
     };
   }
 
-  async changePassword(userId: string, current: string, next: string, keepToken: string) {
+  async changePassword(userId: string, current: string, next: string, keepToken: string, meta: Meta = {}) {
     const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
-    if (!user.passwordHash || !(await verifyPassword(user.passwordHash, current))) throw new BadRequestException("الباسورد الحالي غلط");
+    if (!user.passwordHash || !(await verifyPassword(user.passwordHash, current))) {
+      await this.failed(user, meta); // a device left open can't guess its way to a new password (M-09 2.4)
+      throw new BadRequestException("الباسورد الحالي غلط");
+    }
     const passwordHash = await hashPassword(next);
     await this.db.$transaction(async (tx) => {
       await tx.user.update({ where: { id: userId }, data: { passwordHash, passwordChangedAt: new Date() } });

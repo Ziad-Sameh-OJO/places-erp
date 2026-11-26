@@ -78,3 +78,36 @@ test("5 wrong passwords lock the account, even the right one is refused after th
     await prisma.$disconnect();
   }
 });
+
+test("5 wrong OTP codes lock the account: a known password can't guess its way past the code (M-09 2.4)", async () => {
+  const email = `otp-lock-${Date.now()}@places.test`;
+  mark(email);
+  const u = await prisma.user.create({ data: { email, status: "ACTIVE", otpRequired: true, passwordHash: await hash(PW) } });
+  try {
+    assert.equal((await login(email)).body.otpRequired, true);
+    for (let i = 0; i < 5; i++) assert.equal((await call("/auth/otp", { method: "POST", body: { email, code: String(100000 + i) } })).status, 401);
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).status, "LOCKED");
+    assert.equal((await login(email)).status, 401);
+  } finally {
+    await prisma.auditLog.deleteMany({ where: { entityId: u.id } });
+    await prisma.user.delete({ where: { id: u.id } });
+  }
+});
+
+test("5 wrong current passwords on «غيّر الباسورد» lock the account and end its sessions (M-09 2.4)", async () => {
+  const email = `pw-lock-${Date.now()}@places.test`;
+  mark(email);
+  const u = await prisma.user.create({ data: { email, status: "ACTIVE", passwordHash: await hash(PW) } });
+  try {
+    const cookie = (await login(email)).cookie;
+    for (let i = 0; i < 4; i++) assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: "wrong-password-1", next: "New-password-123" } })).status, 400);
+    assert.equal((await call("/auth/me", { cookie })).status, 200, "4 wrong ones still leave the account open");
+    assert.equal((await call("/auth/password", { method: "POST", cookie, body: { current: "wrong-password-1", next: "New-password-123" } })).status, 400);
+    assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: u.id } })).status, "LOCKED");
+    assert.equal((await call("/auth/me", { cookie })).status, 401);
+  } finally {
+    await prisma.auditLog.deleteMany({ where: { entityId: u.id } });
+    await prisma.session.deleteMany({ where: { userId: u.id } });
+    await prisma.user.delete({ where: { id: u.id } });
+  }
+});

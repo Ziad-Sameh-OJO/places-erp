@@ -65,9 +65,9 @@ export class AuthController {
       profile: await this.auth.profile(me.id) };
   }
 
-  @SignedIn() @Post("password") @HttpCode(204)
+  @SignedIn() @Post("password") @HttpCode(204) @Throttle(SIGN_IN_LIMIT)
   changePassword(@Me() me: CurrentUser, @Body(new ZodPipe(ChangePassword)) b: z.infer<typeof ChangePassword>, @Req() req: Request) {
-    return this.auth.changePassword(me.id, b.current, b.next, req.cookies?.[SESSION_COOKIE]);
+    return this.auth.changePassword(me.id, b.current, b.next, req.cookies?.[SESSION_COOKIE], meta(req));
   }
 
   @SignedIn() @Post("logout") @HttpCode(204)
