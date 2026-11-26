@@ -78,3 +78,19 @@ test("the bell filters by type and unread; the types I have are listed (M-14 5.3
   assert.ok(!(await call("/notifications?event=ticket.late&pageSize=100", { cookie: hr })).body.items.some((n: { text: string }) => n.text.includes(`E2E ${stamp}`)));
   assert.equal((await call(`/notifications?event=${"x".repeat(61)}`, { cookie: sales })).status, 400);
 });
+
+test("opening the bell reads the ordinary ones; an important one stays until it's opened (M-14 2.1 · 2.3); never someone else's", async () => {
+  const [plain, important] = await Promise.all([
+    prisma.notification.create({ data: { userId: salesId, text: `E2E ${stamp} عادي`, event: "lead.assigned" } }),
+    prisma.notification.create({ data: { userId: salesId, text: `E2E ${stamp} مهم`, event: "lead.visit_due", important: true } }),
+  ]);
+  const readAt = async (id: string) => (await prisma.notification.findUniqueOrThrow({ where: { id } })).readAt;
+  assert.equal((await call("/notifications/seen", { method: "POST" })).status, 401);
+  assert.equal((await call("/notifications/seen", { method: "POST", cookie: sales })).status, 204);
+  assert.notEqual(await readAt(plain.id), null);
+  assert.equal(await readAt(important.id), null, "the important one is still unread");
+  assert.equal((await call(`/notifications/${important.id}/read`, { method: "POST", cookie: hr })).status, 204);
+  assert.equal(await readAt(important.id), null, "HR can't read the salesperson's notification");
+  assert.equal((await call(`/notifications/${important.id}/read`, { method: "POST", cookie: sales })).status, 204);
+  assert.notEqual(await readAt(important.id), null);
+});

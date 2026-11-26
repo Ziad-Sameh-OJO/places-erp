@@ -49,6 +49,8 @@ test("sales find their own lead only, by name or by mobile; operations at most 5
   assert.deepEqual(await leads(mohsen, P), [`${P} عميل 1`]);
   assert.deepEqual(await leads(mohsen, phone(2)), []); // someone else's lead: not found
   assert.deepEqual(await leads(mohsen, phone(1)), [`${P} عميل 1`]);
+  // the same mobile written with the country code and spaces
+  assert.deepEqual(await leads(mohsen, `+20 ${phone(1).slice(1, 4)} ${phone(1).slice(4)}`), [`${P} عميل 1`]);
   assert.equal((await leads(ops, P)).length, 5);
   const hit = (await find(ops, `${P} عميل 2`)).find((h) => h.kind === "lead")!;
   assert.ok(hit.sub.includes(`L-E2EQ${stamp}2`));
