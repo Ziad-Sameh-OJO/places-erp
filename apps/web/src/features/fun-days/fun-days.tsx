@@ -9,6 +9,7 @@ import { FileUpload } from "@/components/file-upload";
 import { api } from "@/lib/api";
 import { dateLocale } from "@/lib/format";
 import { useMe } from "@/lib/me";
+import { serverText } from "@/lib/server-text";
 
 const KEY = ["fun-days"];
 const cairoYear = () => Number(new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 4));
@@ -22,7 +23,7 @@ function FunDayLine({ e, children }: { e: FunDayView; children?: ReactNode }) {
     <div className="visit" id={`fd-${e.id}`} style={e.cancelled ? { opacity: 0.6 } : undefined}>
       <span className="v-date"><b>{fmt(e.date, { day: "numeric" })}</b><small>{fmt(e.date, { month: "short" })}</small></span>
       <div className="v-main">
-        <b>{e.title}</b>
+        <b>{serverText(e.title)}</b>
         <small>
           <Icon name="calendar" />{fmt(e.date, { weekday: "long" })}{e.time && ` · ${e.time}`}
           {e.place && <> · <Icon name="pin" />{e.place}</>}
@@ -33,7 +34,7 @@ function FunDayLine({ e, children }: { e: FunDayView; children?: ReactNode }) {
           {e.cancelled && <Chip tone="bad">{t("cancelled")}</Chip>}
         </span>
       </div>
-      {e.image && <img src={e.image} alt={e.title} style={{ width: 120, height: 80, objectFit: "cover", borderRadius: 10 }} />}
+      {e.image && <img src={e.image} alt={serverText(e.title)} style={{ width: 120, height: 80, objectFit: "cover", borderRadius: 10 }} />}
       {children}
     </div>
   );
@@ -75,7 +76,7 @@ export function FunDaysPage() {
   }, [events.length]);
 
   const cancel = (e: FunDayView) => {
-    if (!window.confirm(t("cancelConfirm", { title: e.title }))) return;
+    if (!window.confirm(t("cancelConfirm", { title: serverText(e.title) }))) return;
     void run(async () => { await api.post(`/hr/fun-days/${e.id}/cancel`); await refresh(); }, t("cancelledToast"));
   };
 
@@ -115,7 +116,7 @@ function Starters({ plan, onPick }: { plan: FunDayPlan; onPick: (d: Draft) => vo
       <div className="row">
         {plan.starters.map((s) => (
           <button key={s.key} type="button" className="btn ghost sm" onClick={() => onPick({ title: s.title, date: s.date ?? "" })}>
-            {planned.has(s.title) ? <Icon name="check" /> : <Icon name="plus" />}{s.title}
+            {planned.has(s.title) ? <Icon name="check" /> : <Icon name="plus" />}{serverText(s.title)}
             <small className="hint">{s.date ? fmt(s.date, { day: "numeric", month: "short" }) : t("pickDate")}</small>
           </button>
         ))}

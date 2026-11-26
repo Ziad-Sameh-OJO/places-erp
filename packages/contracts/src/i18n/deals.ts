@@ -92,4 +92,11 @@ export default [
   ["المحصّل (owner side / client side / net commission)", "Collected (owner side / client side / net commission)"],
   ["نصيب كل سيلز وعمولته (buyer % / seller %)", "Each salesperson's share and commission (buyer % / seller %)"],
   ["مش مسموحلك تغيّر «{field}» في الصفقات", "You aren't allowed to change «{field}» on deals"],
+  // review (Nov 25): text added after the catalog
+  ["Alarm: اتسجّلت وقت القفل (اتعملت واتقفلت في خلال {h} ساعة) · متدخلش في التارجت · Done Deal جديدة {code} مستنية مراجعتك · {company}", "Alarm: recorded at closing (created and closed within {h} hours) · not counted in the target · New Done Deal {code} waiting for your review · {company}"],
+  ["{tcr}: مبلغ الـ TCR على {code} اتعدّل · امضي عليها تاني", "{tcr}: the TCR amount on {code} changed · sign it again"],
+  ["صفقة اتقفلت {code} · {company} · مستنية التحصيل", "Deal closed {code} · {company} · waiting for collection"],
+  ["اتصرفتلك عمولة {amount} {what} · {move} · امضي على {tcr}", "Commission paid to you: {amount} {what} · {move} · sign {tcr}"],
+  ["اتصرفتلك عمولة {amount} {what} · {move}", "Commission paid to you: {amount} {what} · {move}"],
+  ["(Team Leader)", "(Team Leader)"],
 ] satisfies Pair[];

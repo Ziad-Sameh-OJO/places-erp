@@ -85,7 +85,7 @@ export class WarningsService {
 <table><tr><th>التاريخ</th><td><span class="num">${esc(localDate(now))}</span></td></tr><tr><th>الموظف</th><td>${esc(e.name)}</td></tr><tr><th>الوظيفة</th><td>${esc(e.jobTitle)} · ${esc(e.department)}</td></tr><tr><th>السبب</th><td>${esc(r.reason)}</td></tr><tr><th>نوع الإنذار</th><td>${esc(type)}</td></tr></table>
 <p>${esc(fillWarning(template, type)).replace(/\n/g, "<br>")}</p>
 <table style="margin-top:36pt"><tr><th>توقيع الموظف بالاستلام</th><th>الموارد البشرية</th></tr><tr><td style="height:48pt"></td><td></td></tr></table>`);
-    const file = await this.docs.save(me, `إنذار ${e.name} ${localDate(now)}.pdf`, html, { entity: "Warning", entityId: id });
+    const file = await this.docs.save(me, `إنذار ${e.name} ${localDate(now)}.pdf`, html, { entity: "Warning", entityId: id }); // ar-only: the PDF file name
     const out = await run(async (tx) => {
       const claimed = await tx.warning.updateMany({ where: { id, status: "due" }, data: { status: "issued", type, issuedAt: now, byUserId: me.id, fileId: file.id } });
       if (!claimed.count) throw new BadRequestException("الإنذار ده اتقرر قبل كده");

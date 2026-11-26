@@ -72,12 +72,12 @@ export class LeadTagsService {
       const won = await tx.leadTag.updateMany({ where: { id, status: "PENDING" }, data: { status, decidedAt: new Date(), decidedById: me.id } });
       if (!won.count) throw new ConflictException("الطلب ده اتقرر قبل كده");
       const [who] = await tx.employee.findMany({ where: { id: tag.employeeId }, select: { name: true } });
-      await tx.leadActivity.create({ data: { leadId: tag.leadId, kind: "tag", text: `${input.approve ? "اتوافق على" : "اترفض"} الـ Tag لـ ${who?.name ?? ""}`, byUserId: me.id } });
+      await tx.leadActivity.create({ data: { leadId: tag.leadId, kind: "tag", text: `${input.approve ? "اتوافق على" : "اترفض"} الـ Tag لـ ${who?.name ?? ""}`, byUserId: me.id } }); // i18n-part: «اتوافق على / اترفض الـ Tag لـ …»
       await this.audit.record({ module: "leads", entity: "LeadTag", entityId: id, action: input.approve ? "approve" : "reject", userId: me.id, before: { status: "PENDING" }, after: { status } }, tx);
     });
     const tagged = await this.db.employee.findUnique({ where: { id: tag.employeeId }, select: { userId: true } });
     await this.notifications.notify({
-      event: "lead.tag_decided", text: `${input.approve ? "اتوافق على" : "اترفض"} الـ Tag على ليد ${tag.lead.code} · ${tag.lead.name}`,
+      event: "lead.tag_decided", text: `${input.approve ? "اتوافق على" : "اترفض"} الـ Tag على ليد ${tag.lead.code} · ${tag.lead.name}`, // i18n-part: «اتوافق على / اترفض الـ Tag على ليد …»
       link: input.approve ? `/leads?open=${tag.leadId}` : "/leads?tags=1", userIds: [tag.byUserId, ...(input.approve && tagged ? [tagged.userId] : [])],
     });
     return this.list(me, {});

@@ -62,7 +62,7 @@ export function Cash() {
       {m && <Table head={[t("cash.move"), t("common.date"), t("cash.type"), t("cash.fromTo"), ...(fields.shows("party") ? [t("cash.party")] : []), ...(fields.shows("memo") ? [t("common.memo")] : []), ...(fields.shows("amount") ? [t("common.amount")] : [])]} empty={t("cash.empty")} onRow={(i) => setOpen(m.items[i]!.id)}
         rows={m.items.map((x) => [<span key="n" className="mono">{x.no}</span>, x.date, <Chip key="k" tone={KIND[x.kind as MoveKind] ?? ""}>{serverText(x.label)}</Chip>,
           `${x.from ? serverText(x.from.name) : "—"}${x.to ? `${t("common.pathSep")}${serverText(x.to.name)}` : ""}`,
-          ...(fields.shows("party") ? [x.party] : []), ...(fields.shows("memo") ? [x.memo] : []), ...(fields.shows("amount") ? [money(x.amount)] : [])])} />}
+          ...(fields.shows("party") ? [x.party] : []), ...(fields.shows("memo") ? [serverText(x.memo)] : []), ...(fields.shows("amount") ? [money(x.amount)] : [])])} />}
       {m && m.total > m.pageSize && (
         <div className="row"><button className="btn ghost sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>{t("common.prev")}</button><span className="hint">{t("common.pageOf", { page: String(page), pages: String(Math.ceil(m.total / m.pageSize)) })}</span><button className="btn ghost sm" disabled={page * m.pageSize >= m.total} onClick={() => setPage(page + 1)}>{t("common.next")}</button></div>
       )}

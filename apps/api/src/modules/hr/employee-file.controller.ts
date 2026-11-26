@@ -76,7 +76,7 @@ export class EmployeeFileController {
   @Requires("hr", "export")
   async exportReport(@Me() me: CurrentUser, @Query(new ZodPipe(OneOnOneRange)) r: OneOnOneRange, @Res() res: Response) {
     const rows = await this.file.report(me, r);
-    await sendXlsx(res, `تقرير الـ 1-to-1 ${r.from} - ${r.to}.xlsx`, [
+    await sendXlsx(res, `تقرير الـ 1-to-1 ${r.from} - ${r.to}.xlsx`, [ // ar-only: the Excel file name
       { header: "الموظف", value: (x) => x.name, width: 24 },
       { header: "التاريخ", value: (x) => x.heldOn },
       { header: "اللي عمله", value: (x) => x.by, width: 20 },

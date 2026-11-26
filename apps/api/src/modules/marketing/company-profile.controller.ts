@@ -60,7 +60,7 @@ export class CompanyProfileController {
   @Get("preview")
   @Requires("marketing", "view")
   async preview(@Res() res: Response) {
-    sendPdf(res, "Places Company Profile (معاينة).pdf", await this.profile.preview());
+    sendPdf(res, "Places Company Profile (معاينة).pdf", await this.profile.preview()); // ar-only: the PDF file name
   }
 
   @Post("publish")

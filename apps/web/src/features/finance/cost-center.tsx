@@ -6,6 +6,7 @@ import { type CostCenterView, type Settings } from "@places/contracts";
 import { DateInput, Card, Empty, Note, onFormSubmit, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
+import { serverText } from "@/lib/server-text";
 import { money } from "./money";
 
 type Filters = Partial<Record<"channel" | "salesId" | "area" | "campaignId" | "from" | "to", string>>;
@@ -32,7 +33,7 @@ export function CostCenter() {
         {sel("channel", t("cost.allChannels"), (s?.channels ?? []).map(({ value }) => [value, value]), t("cost.channel"))}
         {sel("campaignId", t("cost.allCampaigns"), (v?.options.campaigns ?? []).map((c) => [c.id, c.name]), t("cost.campaign"))}
         {sel("salesId", t("cost.allSales"), (v?.options.sales ?? []).map((p) => [p.id, p.name]), t("cost.sales"))}
-        {sel("area", t("cost.allAreas"), (s?.areas ?? []).map(({ value }) => [value, value]), t("cost.area"))}
+        {sel("area", t("cost.allAreas"), (s?.areas ?? []).map(({ value }) => [value, serverText(value)]), t("cost.area"))}
         <label className="date-f"><span>{t("common.from")}</span><DateInput value={f.from ?? ""} onChange={set("from")} /></label>
         <label className="date-f"><span>{t("common.until")}</span><DateInput value={f.to ?? ""} onChange={set("to")} /></label>
       </div>
@@ -50,7 +51,7 @@ export function CostCenter() {
         </Card>
         <Table head={[t("cost.deal"), t("cost.channelCampaign"), t("cost.sales"), t("cost.area"), t("cost.revenue"), t("cost.marketing"), t("cost.commission"), t("cost.net")]}
           rows={v.rows.map((r) => [
-            <span key="c" className="mono">{r.code}</span>, <span key="ch">{r.channel}<span className="sub">{r.campaign ?? "—"}</span></span>, r.sales.join(t("common.listSep")), r.area ?? "—",
+            <span key="c" className="mono">{r.code}</span>, <span key="ch">{r.channel}<span className="sub">{r.campaign ?? "—"}</span></span>, r.sales.join(t("common.listSep")), r.area ? serverText(r.area) : "—",
             <span key="r" className="n">{money(r.revenue)}</span>, <span key="m" className="n">{money(r.marketing)}</span>, <span key="k" className="n">{money(r.commission)}</span>, <b key="t" className="n">{money(r.net)}</b>,
           ])} />
         <Note>{t("cost.note")}</Note>

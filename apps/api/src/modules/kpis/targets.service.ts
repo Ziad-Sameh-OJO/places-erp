@@ -204,7 +204,7 @@ export class TargetsService {
       await this.tlRebook?.(tx, me, [p.id], [month]); // review L12: the TL's commission in the books follows the new target
     }
     await this.audit.record({ module: MODULE, entity: "SalesTarget", entityId: `${p.id}:${month}`, action: "update", userId: me.id,
-      before, after: { ...values, waits, summary: `تارجت ${p.name} (${monthLabel(month)}) ${waits ? "مستني موافقة" : "بقى"} ${value}` } }, tx);
+      before, after: { ...values, waits, summary: `تارجت ${p.name} (${monthLabel(month)}) ${waits ? "مستني موافقة" : "بقى"} ${value}` } }, tx); // i18n-part: «تارجت … مستني موافقة / بقى …» both have pairs
     return value;
   }
 

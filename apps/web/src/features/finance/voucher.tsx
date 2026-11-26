@@ -22,7 +22,7 @@ export function Voucher({ move, effect, onClose }: { move: MoveView; effect?: Mo
     ...(move.to ? [[t("common.to"), acct(move.to)] as [string, string]] : []),
     ...(move.party ? [[t("cash.party"), move.party] as [string, string]] : []), ...(move.account ? [[t("common.account"), acct(move.account)] as [string, string]] : []),
     ...(move.kind === "settle" ? [[t("voucher.spent"), money(move.spent ?? "0")], [t("voucher.returned"), money(move.returned ?? "0")]] as [string, string][] : []),
-    ...(move.memo ? [[t("common.memo"), move.memo] as [string, string]] : []), [t("voucher.by"), move.by],
+    ...(move.memo ? [[t("common.memo"), serverText(move.memo)] as [string, string]] : []), [t("voucher.by"), move.by],
   ];
   return (
     <Modal title={`${label} · ${move.no}`} onClose={onClose}>

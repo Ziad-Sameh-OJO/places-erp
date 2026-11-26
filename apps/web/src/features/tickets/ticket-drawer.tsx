@@ -5,7 +5,7 @@ import { TICKET_STATUSES } from "@places/domain";
 import { Drawer, Stepper } from "@/components/blocks";
 import { Avatar, Empty, Icon, Note, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
-import { dayTime } from "@/lib/format";
+import { dayTime, listSep } from "@/lib/format";
 import { usePriority, TicketChips } from "./ticket-bits";
 import { useTranslations } from "next-intl";
 import { serverText } from "@/lib/server-text";
@@ -29,7 +29,7 @@ export function TicketDrawer({ id, onClose }: { id: string; onClose: () => void 
   const replyAfter = t.firstReplyAt ? Math.round((Date.parse(t.firstReplyAt) - Date.parse(t.createdAt)) / 60000) : null;
   const kv: [string, ReactNode][] = [
     [tr("kv.from"), t.from.name], [tr("kv.department"), serverText(t.department)],
-    [tr("kv.assignees"), t.assignees.length ? t.assignees.map((a) => a.name).join("، ") : t.forDepartment ? tr("kv.wholeDepartment") : "—"], [tr("kv.type"), serverText(t.typeLabel)], [tr("kv.priority"), priority(t.priority)],
+    [tr("kv.assignees"), t.assignees.length ? t.assignees.map((a) => a.name).join(listSep()) : t.forDepartment ? tr("kv.wholeDepartment") : "—"], [tr("kv.type"), serverText(t.typeLabel)], [tr("kv.priority"), priority(t.priority)],
     [tr("kv.opened"), dayTime(t.createdAt)], [tr("kv.firstReply"), replyAfter === null ? tr("kv.notYet") : tr("kv.after", { minutes: replyAfter })],
   ];
   return (

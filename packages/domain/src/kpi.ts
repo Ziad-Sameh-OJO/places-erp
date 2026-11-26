@@ -302,7 +302,7 @@ export function calcText(
   nameOf: (x: string) => string,
 ): string {
   if (it.method === "system") return it.metric && METRICS[it.metric] ? METRICS[it.metric]!.describe(it.params) : "لسه ماتحددش بيتحسب من إيه";
-  if (it.method === "report") return `${it.report ? `تسليم «${it.report}» في ميعاده` : "بيسلّمه بنفسه من الكارت"} · مطلوب ${it.required ?? 0} مرة في الربع`;
+  if (it.method === "report") return `${it.report ? `تسليم «${it.report}» في ميعاده` : "بيسلّمه بنفسه من الكارت"} · مطلوب ${it.required ?? 0} مرة في الربع`; // i18n-part: «تسليم «…» في ميعاده / بيسلّمه بنفسه من الكارت · مطلوب … مرة في الربع»
   const by = (it.enteredBy.length ? it.enteredBy : ["follower"]).map((x) => (x === "follower" ? "المتابع" : nameOf(x)));
   return `بيدخّله ${by.join(" أو ")} بإيده${it.source ? ` · من ${it.source}` : ""}`;
 }

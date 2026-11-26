@@ -85,7 +85,7 @@ export class NewLeadsService {
       await this.repo.saveRouting(tx, router.snapshot());
       const [salesperson] = await this.repo.employeeNames([to], tx);
       const took = Math.floor((now.getTime() - lead.newLeadRequestedAt!.getTime()) / 60_000);
-      const late = took > newLeadMin ? ` (اتأخر عن ${newLeadMin} دقيقة)` : "";
+      const late = took > newLeadMin ? ` (اتأخر عن ${newLeadMin} دقيقة)` : ""; // i18n-part: «… من استلامه (اتأخر عن … دقيقة)»
       await this.repo.addActivity(tx, id, "assign", `الأوبريشن بعتت الليد كـ New Lead لـ ${salesperson?.name ?? "—"} · بعد ${took} دقيقة من استلامه${late}`, me.id);
       await this.audit.record({ module: "leads", entity: "Lead", entityId: id, action: "new-lead-route", userId: me.id,
         before: { assignedToId: lead.assignedToId, ownedByTelesales: true }, after: { assignedToId: to, by: picked ? "hand" : "rotation", minutes: took } }, tx);

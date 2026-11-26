@@ -41,7 +41,11 @@ export function translate(text: string, locale: ServerLocale): string {
     out = t.en.replace(PART, (_, n: string) => { const v = parts[n] ?? ""; return exact.get(v) ?? v; });
     break;
   }
+  // no pair for the whole line: a «name · label · …» line has each part looked up on its own
+  if (out === text && text.includes(" · ")) out = text.split(" · ").map((p) => translate(p, locale)).join(" · ");
   out = out.replace(/(\d) ج\.م/g, "$1 EGP"); // formatEGP's amounts inside any message
+  // a list the server joined with «،» («Heba Salah، Ahmed Islam»): once nothing Arabic is left, an English comma
+  if (!/[؀-ۿ]/.test(out.replace(/،/g, ""))) out = out.replace(/\s*،\s*/g, ", ");
   memo.set(text, out);
   return out;
 }

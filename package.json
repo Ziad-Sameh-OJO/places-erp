@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "lint": "eslint . && node scripts/i18n-check.mjs",
+    "lint": "eslint . && node scripts/i18n-check.mjs && node scripts/server-text-check.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "db:migrate": "pnpm --filter @places/db migrate:dev",

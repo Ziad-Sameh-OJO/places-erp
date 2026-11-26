@@ -62,7 +62,7 @@ export function Hero({ c, period, onPeriod }: { c: KpiCardView; period: Period; 
         <div className="kx-h"><h2>{t("view.resultIn", { quarter: serverText(c.quarter.label) })}</h2><PeriodSwitch value={period} onChange={onPeriod} /></div>
         <p>
           {next == null ? t("view.atTop", { v: c.scale.full }) : t.rich("view.gap", { n: Math.ceil((next - s.score) * 10) / 10, v: next, b: (x) => <b className="num">{x}</b> })}
-          {" · "}{t("followedBy", { name: c.follower.name })}{" · "}
+          {" · "}{t("followedBy", { name: serverText(c.follower.name) })}{" · "}
           {c.approved ? <Chip tone="ok" plain>{t("card.approvedBy", { by: c.approved.by })}</Chip> : <Chip plain>{t("board.awaitingApproval")}</Chip>}
         </p>
         {period === "month" && <small className="hint">{t("period.monthNote")}</small>}

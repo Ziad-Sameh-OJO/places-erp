@@ -29,7 +29,7 @@ export class InsuranceController {
   @Requires("hr", "export")
   async export(@Me() me: CurrentUser, @Query(new ZodPipe(InsuranceFilters)) f: InsuranceFilters, @Res() res: Response) {
     const { items } = await this.insurance.list(me, f);
-    await sendXlsx<InsuranceRow>(res, "التأمينات.xlsx", [
+    await sendXlsx<InsuranceRow>(res, "التأمينات.xlsx", [ // ar-only: the Excel file name
       { header: "الموظف", value: (r) => r.name, width: 24 },
       { header: "القسم", value: (r) => r.department, width: 16 },
       { header: "متأمن عليه", value: (r) => (r.insured ? "أيوه" : "لأ") },

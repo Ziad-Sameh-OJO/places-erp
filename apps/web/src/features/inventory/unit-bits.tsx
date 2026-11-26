@@ -47,8 +47,8 @@ const OWNER_KEYS = new Set(["ownerName", "ownerPhone", "deal"]);
 export const columnsFor = (type: UnitTypeName | "all" | "closed", insider: boolean, t: InventoryT, hidden: ReadonlySet<string> = new Set()): [key: string, label: string][] =>
   COLS[type].filter(([k]) => (insider || !OWNER_KEYS.has(k)) && !hidden.has(k)).map(([k, l]) => [k, typeof l === "string" ? l : t(`cols.${l.w}`)]);
 
-// English values sit in <bdi> so «1,5 Month» keeps its order in the RTL table
-const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : <bdi>{String(v)}</bdi>);
+// English values sit in <bdi> so «1,5 Month» keeps its order in the RTL table; a value from a default list («كاش») in the reader's language
+const text = (v: unknown): ReactNode => (v == null || v === "" ? "—" : <bdi>{serverText(String(v))}</bdi>);
 
 /** One cell, as the demo's cell(): money grouped, late updates in red, the map link, Income's figures. */
 export function cell(u: UnitRow, key: string, t: InventoryT): ReactNode {
