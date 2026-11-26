@@ -140,7 +140,8 @@ export class AuthService {
   /** Always answers the same, whether the email exists or not. A locked account is unlocked by its reset. */
   async forgot(email: string) {
     const user = await this.db.user.findUnique({ where: { email } });
-    if (user && user.status !== "DISABLED" && user.status !== "INVITED") await this.sendReset(user.id, user.email);
+    // past the last working day the account can't sign in, so a reset link would only be a dead end (M-09 2.4)
+    if (user && user.status !== "DISABLED" && user.status !== "INVITED" && !ended(user.endDate)) await this.sendReset(user.id, user.email);
   }
 
   async sendReset(userId: string, email: string) {

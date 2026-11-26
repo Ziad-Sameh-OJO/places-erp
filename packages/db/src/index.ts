@@ -9,8 +9,10 @@ import type { Piasters } from "@places/domain";
 export * from "./push.ts";
 export * from "./mail-server.ts";
 
-// Prisma 7 has no built-in engine: it talks to Postgres through the node-postgres driver adapter
-export const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }), log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"] });
+// Prisma 7 has no built-in engine: it talks to Postgres through the node-postgres driver adapter.
+// The session runs in UTC whatever the server's zone: columns are `timestamp` without zone, so a Cairo-zoned
+// Postgres would stamp `@default(now())` two hours ahead of the UTC times the code writes (OTP resend never opened).
+export const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL, options: "-c TimeZone=UTC" }), log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"] });
 export { Prisma };
 
 export const toPiasters = (d: Prisma.Decimal | null | undefined): Piasters => (d ? Math.round(d.mul(100).toNumber()) : 0);
