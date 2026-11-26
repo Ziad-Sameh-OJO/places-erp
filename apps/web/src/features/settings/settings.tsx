@@ -50,27 +50,27 @@ export function SettingsPage() {
         <SlaSummary />
         <Card title={t("leave.title")} icon="calendar">
           <form onSubmit={onFormSubmit((f) => set("leaveTypes", d.leaveTypes.map((x, i) => ({ ...x, days: +f.get(`d${i}`)! }))))}>
-            <Table head={[t("leave.type"), t("leave.balance")]} rows={d.leaveTypes.map((x, i) => [serverText(x.name), <input key="d" name={`d${i}`} type="number" min={0} max={60} defaultValue={x.days} disabled={!edLeave} style={{ maxWidth: 90 }} aria-label={t("leave.balanceOf", { name: serverText(x.name) })} />])} />
+            <Table head={[t("leave.type"), t("leave.balance")]} rows={d.leaveTypes.map((x, i) => [serverText(x.name), <input key="d" name={`d${i}`} type="number" min={0} max={60} defaultValue={x.days} disabled={!edLeave} required style={{ maxWidth: 90 }} aria-label={t("leave.balanceOf", { name: serverText(x.name) })} />])} />
             {edLeave && <div className="row end"><button className="btn sm">{t("save")}</button></div>}
           </form>
         </Card>
         <Card title={t("whatsapp.title")} icon="megaphone">
           <form className="row" onSubmit={onFormSubmit((f) => set("whatsappDailyLimit", +f.get("lim")!))}>
-            <input name="lim" type="number" min={0} defaultValue={d.whatsappDailyLimit} disabled={!edWa} style={{ maxWidth: 120 }} aria-label={t("whatsapp.limit")} /><span className="hint">{t("whatsapp.perDay")}</span>
+            <input name="lim" type="number" min={0} defaultValue={d.whatsappDailyLimit} disabled={!edWa} required style={{ maxWidth: 120 }} aria-label={t("whatsapp.limit")} /><span className="hint">{t("whatsapp.perDay")}</span>
             {edWa && <button className="btn ghost sm">{t("save")}</button>}
           </form>
         </Card>
         {/* M-03 7.2: «قريبة من» is proposed as ±20% and waits for the client, so it's editable here (2.12) */}
         <Card title={t("recommend.title")} icon="building" sub={t("recommend.sub")}>
           <form className="row" onSubmit={onFormSubmit((f) => set("recommendTolerancePct", +f.get("tol")!))}>
-            <span className="hint">±</span><input name="tol" type="number" min={0} max={100} defaultValue={d.recommendTolerancePct} disabled={!edTol} style={{ maxWidth: 90 }} aria-label={t("recommend.tolerance")} /><span className="hint">{t("recommend.ofArea")}</span>
+            <span className="hint">±</span><input name="tol" type="number" min={0} max={100} defaultValue={d.recommendTolerancePct} disabled={!edTol} required style={{ maxWidth: 90 }} aria-label={t("recommend.tolerance")} /><span className="hint">{t("recommend.ofArea")}</span>
             {edTol && <button className="btn ghost sm">{t("save")}</button>}
           </form>
         </Card>
         {/* Ahmed's dashboard «محتاج انتباهك»: Near to Close this many days without a stage change (proposed 14) */}
         <Card title={t("staleNearClose.title")} icon="alert" sub={t("staleNearClose.sub")}>
           <form className="row" onSubmit={onFormSubmit((f) => set("dashboardStaleNearClose", +f.get("days")!))}>
-            <input name="days" type="number" min={1} max={365} defaultValue={d.dashboardStaleNearClose} disabled={!edStale} style={{ maxWidth: 90 }} aria-label={t("staleNearClose.days")} /><span className="hint">{t("staleNearClose.days")}</span>
+            <input name="days" type="number" min={1} max={365} defaultValue={d.dashboardStaleNearClose} disabled={!edStale} required style={{ maxWidth: 90 }} aria-label={t("staleNearClose.days")} /><span className="hint">{t("staleNearClose.days")}</span>
             {edStale && <button className="btn ghost sm">{t("save")}</button>}
           </form>
         </Card>

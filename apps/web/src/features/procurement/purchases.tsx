@@ -78,7 +78,7 @@ function Kpis({ o }: { o: ProcurementOverview }) {
 
 function Toolbar({ f, o, onChange, onNew }: { f: PurchaseFilter; o: ProcurementOverview | undefined; onChange: (k: keyof PurchaseFilter, v: string) => void; onNew: (() => void) | undefined }) {
   const t = useTranslations("procurement");
-  const vendors = useVendors();
+  const vendors = useVendors(true);
   const fields = useFields("procurement");
   const on = (k: keyof PurchaseFilter) => (e: { target: { value: string } }) => onChange(k, e.target.value);
   return (
