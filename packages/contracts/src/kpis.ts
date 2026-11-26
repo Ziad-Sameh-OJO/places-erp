@@ -49,7 +49,7 @@ export type KpiFollowerInput = z.infer<typeof KpiFollowerInput>;
 export const KpiPlanInput = z.object({ plan: z.string().trim().max(2000, "الخطة طويلة") });
 export type KpiPlanInput = z.infer<typeof KpiPlanInput>;
 /** 11.4: what the result moves, how often, and the bonus (null = one month's salary). */
-export const KpiPayInput = z.object({ base: z.enum(["salary", "bonus"]), period: z.enum(["month", "quarter"]), amount: Money.nullable() });
+export const KpiPayInput = z.object({ base: z.enum(["salary", "bonus"]), period: z.enum(["month", "quarter"]), amount: Money.refine((m) => !m.startsWith("-"), "البونص مايبقاش بالسالب").nullable() });
 export type KpiPayInput = z.infer<typeof KpiPayInput>;
 
 const pct = z.number({ invalid_type_error: "رقم" }).int().min(0).max(200);

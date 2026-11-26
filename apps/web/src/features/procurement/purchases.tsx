@@ -78,12 +78,12 @@ function Kpis({ o }: { o: ProcurementOverview }) {
 
 function Toolbar({ f, o, onChange, onNew }: { f: PurchaseFilter; o: ProcurementOverview | undefined; onChange: (k: keyof PurchaseFilter, v: string) => void; onNew: (() => void) | undefined }) {
   const t = useTranslations("procurement");
-  const vendors = useVendors();
+  const vendors = useVendors(true);
   const fields = useFields("procurement");
   const on = (k: keyof PurchaseFilter) => (e: { target: { value: string } }) => onChange(k, e.target.value);
   return (
     <div className="toolbar">
-      <select value={f.status ?? ""} onChange={on("status")} aria-label={t("list.status")}><option value="">{t("toolbar.allStatuses")}</option>{PURCHASE_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
+      <select value={f.status ?? ""} onChange={on("status")} aria-label={t("list.status")}><option value="">{t("toolbar.allStatuses")}</option>{PURCHASE_STATUS.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}</select>
       {fields.shows("account") && <select value={f.accountId ?? ""} onChange={on("accountId")} aria-label={t("common.line")}><option value="">{t("toolbar.allLines")}</option>{(o?.lines ?? []).filter((l) => l.budget).map((l) => <option key={l.accountId} value={l.accountId}>{serverText(l.name)}</option>)}</select>}
       {fields.shows("account") && <select value={f.group ?? ""} onChange={on("group")} aria-label={t("toolbar.group")}><option value="">{t("toolbar.allGroups")}</option>{(o?.groups ?? []).map((g) => <option key={g.code} value={g.code}>{serverText(g.name)}</option>)}</select>}
       {fields.shows("vendor") && <select value={f.vendor ?? ""} onChange={on("vendor")} aria-label={t("common.vendor")}><option value="">{t("toolbar.allVendors")}</option>{(vendors.data ?? []).map((v) => <option key={v} value={v}>{v}</option>)}</select>}

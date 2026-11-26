@@ -62,6 +62,12 @@ test("14.14: the report's competitors — Rahma adds one, rates it «قوي», s
   const rows = (await call(`/marketing/competitors-report/rows?month=${month}`, { cookie: rahma })).body as { id: string; strong: boolean | null }[];
   assert.equal(rows.find((x) => x.id === id)?.strong, true);
   assert.equal((await call(`/marketing/competitors-report/rows/${id}`, { method: "DELETE", cookie: rahma })).status, 204);
+  // the same name added twice at once: one row, the other a clear 409 (not a 500 from the unique index)
+  const twice = await Promise.all([1, 2].map(() => call("/marketing/competitors-report/rows", { method: "POST", cookie: rahma, body: { month, name: `${name} 2` } })));
+  assert.deepEqual(twice.map((x) => x.status).sort(), [201, 409], JSON.stringify(twice.map((x) => x.body)));
+  const again = twice.find((x) => x.status === 201)!.body.id as string;
+  await prisma.competitor.delete({ where: { id: again } });
+  await prisma.auditLog.deleteMany({ where: { entity: "Competitor", entityId: again } });
   assert.equal((await call(`/marketing/competitors-report/rows/${id}`, { method: "PATCH", cookie: rahma, body: { strong: false } })).status, 404);
   assert.deepEqual((await prisma.auditLog.findMany({ where: { entity: "Competitor", entityId: id }, orderBy: { at: "asc" } })).map((a) => a.action), ["create", "rate", "delete"]);
   await prisma.auditLog.deleteMany({ where: { entity: "Competitor", entityId: id } });

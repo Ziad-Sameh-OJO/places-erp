@@ -53,6 +53,9 @@ export function TasksPage() {
   useEffect(() => { setFocus(new URLSearchParams(window.location.search).get("id")); }, []);
   useEffect(() => { if (focus && tasks.data) document.querySelector(".tcard.selected")?.scrollIntoView({ block: "center" }); }, [focus, tasks.data]);
   const [side, setSide] = useState<TaskSide>("team");
+  // the linked task may be on the other side (Manar's shoot is «لناس خارجية» on the photographer's board): open that side
+  const focusedSide = focus ? tasks.data?.find((x) => x.id === focus)?.side : undefined;
+  useEffect(() => { if (focusedSide) { setSide(focusedSide); setKind(""); setTo(""); } }, [focusedSide]);
   const [teamTask, setTeamTask] = useState(false);
   const units = useTaskUnits("", teamTask).data ?? [];
   // 4.14 (demo `tkSide`): the two sides with their counts on top; the kind tabs below count the chosen side only

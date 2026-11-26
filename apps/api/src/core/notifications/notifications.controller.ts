@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query, Sse, type MessageEvent } from "@nestjs/common";
 import type { Observable } from "rxjs";
 import { z } from "zod";
-import { MailLogQuery, Page, Preferences, PushEndpointInput, PushSubscriptionInput, RuleInput } from "@places/contracts";
+import { MailLogQuery, MailServerInput, Page, Preferences, PushEndpointInput, PushSubscriptionInput, RuleInput } from "@places/contracts";
 import { ZodPipe } from "../http/zod.pipe";
 import { Requires, SignedIn } from "../authz/requires.decorator";
 import { Me, type CurrentUser } from "../auth/current-user.decorator";
@@ -25,6 +25,12 @@ export class NotificationsController {
   @SignedIn() @Sse("stream")
   live(@Me() me: CurrentUser): Observable<MessageEvent> {
     return this.stream.forUser(me.id);
+  }
+
+  /** Opening the bell (M-14 2.1 · 2.3): the ordinary ones are read; an important one stays until it's opened or «اقرا الكل». */
+  @SignedIn() @Post("seen") @HttpCode(204)
+  seen(@Me() me: CurrentUser) {
+    return this.n.read(me.id, "all", { keepImportant: true });
   }
 
   @SignedIn() @Post(":id/read") @HttpCode(204)
@@ -63,6 +69,17 @@ export class NotificationsController {
   @Requires("integrations", "view") @Post("mail/test") @HttpCode(200)
   mailTest(@Me() me: CurrentUser) {
     return this.n.sendTestMail(me);
+  }
+
+  /** M-14 3.1 «إيميل الإرسال»: the mail server (never its password), for whoever sets the rules; saving is the Super Admin's. */
+  @Requires("integrations", "edit") @Get("mail/server")
+  mailServer() {
+    return this.n.mailServer();
+  }
+
+  @Requires("integrations", "edit") @Put("mail/server")
+  setMailServer(@Me() me: CurrentUser, @Body(new ZodPipe(MailServerInput)) body: MailServerInput) {
+    return this.n.setMailServer(me, body);
   }
 
   /** The send log is the Super Admin's (M-14 2.3 · 6.1: «تقرير بالإيميلات اللي فشلت»): whoever sets the rules. */

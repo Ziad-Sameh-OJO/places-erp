@@ -163,6 +163,12 @@ export class HrController {
     return this.leaves.list(me);
   }
 
+  @Get("leaves/:id/document")
+  @Requires("hr", "view")
+  leaveDocument(@Me() me: CurrentUser, @Param("id") id: string) {
+    return this.leaves.documentUrl(me, id);
+  }
+
   @Post("leaves/:id/approve")
   @Requires("hr", "approve")
   approve(@Me() me: CurrentUser, @Param("id") id: string) {

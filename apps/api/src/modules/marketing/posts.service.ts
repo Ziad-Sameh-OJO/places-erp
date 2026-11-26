@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@places/db";
 import type { PostInput, PostMedia, PostQuery, PostRow, TodayLine } from "@places/contracts";
 import { allowedValue, dayStart, localDate, postState } from "@places/domain";
@@ -90,7 +90,7 @@ export class PostsService {
   async approve(me: CurrentUser, id: string) {
     const p = await this.find(id);
     if (p.approved) throw new BadRequestException("البوست ده اتوافق عليه قبل كده");
-    await this.change(me, id, { approved: true }, "approve", { approved: false }, { approved: true });
+    await this.change(me, id, { approved: false }, { approved: true }, "approve", { approved: false }, { approved: true }, "البوست ده اتوافق عليه قبل كده");
   }
 
   /** «اتنشر»: the actual publish time, for the KPI «في الميعاد ÷ المخطط». */
@@ -99,17 +99,22 @@ export class PostsService {
     if (p.publishedAt) throw new BadRequestException("البوست ده اتسجّل إنه اتنشر");
     if (!p.approved) throw new BadRequestException("البوست لسه مستني موافقة مدير التسويق");
     const now = new Date();
-    await this.change(me, id, { publishedAt: now }, "published", { publishedAt: null }, { publishedAt: now.toISOString() });
+    await this.change(me, id, { publishedAt: null }, { publishedAt: now }, "published", { publishedAt: null }, { publishedAt: now.toISOString() }, "البوست ده اتسجّل إنه اتنشر");
   }
 
   async archive(me: CurrentUser, id: string) {
     const p = await this.find(id);
-    await this.change(me, id, { archivedAt: new Date() }, "archive", { title: p.title, at: p.at.toISOString() }, null);
+    await this.change(me, id, {}, { archivedAt: new Date() }, "archive", { title: p.title, at: p.at.toISOString() }, null, NO_POST);
   }
 
-  private async change(me: CurrentUser, id: string, data: Prisma.PostUncheckedUpdateInput, action: string, before: unknown, after: unknown) {
+  /**
+   * Conditional on the state checked (`when`): of two clicks at once only one approves / records «اتنشر», so the actual
+   * publish time (the KPI's) isn't overwritten and the audit has one entry.
+   */
+  private async change(me: CurrentUser, id: string, when: Prisma.PostWhereInput, data: Prisma.PostUncheckedUpdateManyInput, action: string, before: unknown, after: unknown, lost: string) {
     await this.db.$transaction(async (tx) => {
-      await tx.post.update({ where: { id }, data });
+      const won = await tx.post.updateMany({ where: { ...when, id, archivedAt: null }, data });
+      if (!won.count) throw new ConflictException(lost);
       await this.audit.record({ module: "marketing", entity: "Post", entityId: id, action, userId: me.id, before, after }, tx);
     });
   }

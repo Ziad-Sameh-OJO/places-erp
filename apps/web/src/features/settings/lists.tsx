@@ -62,8 +62,8 @@ function ListCard({ listKey, label, items, canAdd, canOff, editors, channelTypes
   const locked = new Set(LOCKED_VALUES[listKey] ?? []);
   const active = items.filter((i) => i.active), off = items.filter((i) => !i.active);
   const save = (next: ListItem[], ok: string) => run(async () => {
-    await api.put(`/settings/${listKey}`, { value: next });
-    await qc.invalidateQueries({ queryKey: ["settings"] });
+    // refused or not, reload: a save refused because someone else changed the list meanwhile works on the next try
+    try { await api.put(`/settings/${listKey}`, { value: next }); } finally { await qc.invalidateQueries({ queryKey: ["settings"] }); }
   }, ok);
   const toggle = (value: string, on: boolean) =>
     save(items.map((i) => (i.value === value ? { ...i, active: on } : i)), on ? t("back", { value }) : t("off", { value }));
@@ -176,8 +176,7 @@ function ChannelTypesEditor({ channel, all, canAdd, canOff, onClose }: { channel
   const items = all[channel] ?? [];
   const active = items.filter((i) => i.active), off = items.filter((i) => !i.active);
   const save = (next: ListItem[], ok: string) => run(async () => {
-    await api.put("/settings/channelTypes", { value: { ...all, [channel]: next } });
-    await qc.invalidateQueries({ queryKey: ["settings"] });
+    try { await api.put("/settings/channelTypes", { value: { ...all, [channel]: next } }); } finally { await qc.invalidateQueries({ queryKey: ["settings"] }); }
   }, ok);
   const toggle = (value: string, on: boolean) => save(items.map((i) => (i.value === value ? { ...i, active: on } : i)), on ? t("back", { value }) : t("off", { value }));
   const add = (form: HTMLFormElement, raw: string) => {

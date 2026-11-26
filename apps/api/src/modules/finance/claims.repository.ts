@@ -36,8 +36,9 @@ export class ClaimsRepository {
     return tx.entity.findUnique({ where: { id } });
   }
 
-  /** The next receipt serial (RC-<n>); the unique index refuses a twin if two are collected at the same instant. */
+  /** The next receipt serial (RC-<n>): one collection at a time takes it, so two at once get n and n+1, not a unique-index error. */
   async nextReceiptNo(tx: Tx) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('claim-receipt-no'))`;
     return ((await tx.claim.aggregate({ _max: { receiptNo: true } }))._max.receiptNo ?? 0) + 1;
   }
 

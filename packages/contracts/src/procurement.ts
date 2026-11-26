@@ -18,11 +18,11 @@ export const NewPurchase = z.object({
 });
 export type NewPurchase = z.infer<typeof NewPurchase>;
 
-/** «قرارك»: موافقة، أو رفض بالسبب. */
+/** «قرارك»: موافقة، أو رفض بالسبب. The reason is required by the API unless «سبب الرفض» is read only for the approver (M-09). */
 export const PurchaseDecision = z.object({
   decision: z.enum(["Approved", "Rejected"]),
   reason: z.string().trim().max(300).optional(),
-}).refine((d) => d.decision === "Approved" || !!d.reason, { path: ["reason"], message: "اكتب سبب الرفض" });
+});
 export type PurchaseDecision = z.infer<typeof PurchaseDecision>;
 
 /** «التسوية»: اتدفع من (معلومة للمالية) · المبلغ وقت الدفع. A different amount sends it back for approval;

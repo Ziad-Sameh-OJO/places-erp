@@ -14,6 +14,8 @@ import { VouchersRepository, type MoveRow } from "./vouchers.repository";
 import { blankHidden } from "./hidden-fields";
 
 const CASH_KINDS = new Set(["treasury", "bank", "wallet"]);
+/** Vouchers whose money leaves the company's safes («صرف» today); a transfer and a settlement stay inside. */
+const MONEY_OUT = new Set(["pay", "advance", "custody", "payroll", "commission"]);
 /** ايرادات النشاط الرئيسي (عمولات تسويق عقاري …), the chart's 41 */
 const COMMISSION_REVENUE = "41";
 const dec = (v: { toFixed(n: number): string } | null | undefined): Piasters => (v ? fromDecimal(v.toFixed(2)) : 0);
@@ -50,11 +52,11 @@ export class VouchersService {
     const spent = await this.spent(budgets.map((b) => ({ accountId: b.accountId!, period: b.period as BudgetPeriod })));
     const left = (id: string) => { const b = budgets.find((x) => x.accountId === id && x.active && dec(x.budget)); return b ? toDecimal(dec(b.budget) - (spent.get(id) ?? 0)) : null; };
     const holder = (h: { id: string; code: string; name: string; holderId: string | null }) => ({ accountId: h.id, code: h.code, userId: h.holderId, name: h.name, balance: bal(h.id) });
-    const sum = (k: string) => toDecimal(today.filter((m) => m.kind === k).reduce((s, m) => s + dec(m.amount), 0));
+    const sum = (kinds: Set<string>) => toDecimal(today.filter((m) => kinds.has(m.kind)).reduce((s, m) => s + dec(m.amount), 0));
     return {
       accounts: leaves.filter((a) => a.kind && CASH_KINDS.has(a.kind)).map((a) => ({ id: a.id, code: a.code, name: a.name, kind: a.kind!, balance: bal(a.id) })),
       custody: custody.map(holder), advances: advances.map(holder),
-      today: { count: today.length, paid: sum("pay"), received: sum("receive") },
+      today: { count: today.length, paid: sum(MONEY_OUT), received: sum(new Set(["receive"])) },
       expenses: leaves.filter((a) => a.code.startsWith("5")).map((a) => ({ id: a.id, code: a.code, name: a.name, left: left(a.id) })),
       revenues: leaves.filter((a) => a.code.startsWith(OTHER_REVENUE)).map((a) => ({ id: a.id, code: a.code, name: a.name })),
       // Q3 «رد فلوس للعميل»: the clients' own accounts with money in their favour (below zero on a debit account)
@@ -191,6 +193,7 @@ export class VouchersService {
     }
     if (!party) throw new BadRequestException("اكتب اسم اللي هيستلم الفلوس");
     // a recurring bill (9.16): once a month, paid or skipped
+    if (input.billId) await this.ledger.lock(`bill:${input.billId}`, tx); // paid / skipped twice at once: the second sees the first
     const bill = input.billId ? await this.repo.bill(input.billId, tx) : null;
     if (input.billId) {
       if (!bill || kind !== "pay") throw new BadRequestException("الفاتورة مش موجودة");

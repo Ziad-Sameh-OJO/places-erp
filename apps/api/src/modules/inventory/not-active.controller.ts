@@ -75,8 +75,8 @@ export class NotActiveController {
   /** 2.40 · «غيّر خانة منع التكرار»: the count first (`?columns=["…"]`), then saving it. */
   @Get("sheets/:id/dedupe")
   @Requires("notactive", "view")
-  dedupePreview(@Param("id", new ZodPipe(Id)) id: string, @Query(new ZodPipe(NotActiveDedupe)) q: NotActiveDedupe) {
-    return this.notActive.dedupePreview(id, q.columns);
+  dedupePreview(@Me() me: CurrentUser, @Param("id", new ZodPipe(Id)) id: string, @Query(new ZodPipe(NotActiveDedupe)) q: NotActiveDedupe) {
+    return this.notActive.dedupePreview(me, id, q.columns);
   }
 
   @Put("sheets/:id/dedupe")

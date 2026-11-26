@@ -7,6 +7,7 @@ import type { CurrentUser } from "../../core/auth/current-user.decorator";
 
 const ROW = { id: true, month: true, name: true, note: true, strong: true } as const;
 const NOT_FOUND = "المنافس ده مش موجود";
+const TWICE = "المنافس ده متضاف للشهر ده";
 
 /**
  * 14.14 · the monthly competitors report's rows: who, what they put out, and the marketing manager's «قوي / مش قوي».
@@ -21,11 +22,14 @@ export class CompetitorsService {
   }
 
   async add(me: CurrentUser, input: CompetitorInput): Promise<CompetitorRow> {
-    if (await this.db.competitor.findUnique({ where: { month_name: { month: input.month, name: input.name } } })) throw new ConflictException("المنافس ده متضاف للشهر ده");
+    if (await this.db.competitor.findUnique({ where: { month_name: { month: input.month, name: input.name } } })) throw new ConflictException(TWICE);
     return this.db.$transaction(async (tx) => {
       const row = await tx.competitor.create({ data: { month: input.month, name: input.name, note: input.note || null, createdById: me.id }, select: ROW });
       await this.audit.record({ module: "marketing", entity: "Competitor", entityId: row.id, action: "create", userId: me.id, after: { ...row, summary: `تقرير المنافسين ${row.month}: ${row.name}` } }, tx);
       return row;
+    }).catch((e: unknown) => {
+      if ((e as { code?: unknown } | null)?.code === "P2002") throw new ConflictException(TWICE); // two adds at once: the unique (month, name) caught the second
+      throw e;
     });
   }
 

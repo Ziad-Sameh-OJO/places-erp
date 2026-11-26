@@ -13,7 +13,7 @@ let admin: string, manar: string, rahma: string, bayoumi: string, sales: string;
 let bayoumiId: string, saraId: string, marwaId: string, unitId: string;
 const tasks: string[] = [];
 const userId = async (email: string) => (await prisma.user.findUniqueOrThrow({ where: { email } })).id;
-const today = new Date().toISOString().slice(0, 10);
+const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }); // the API's day (a past one is refused)
 const departments = async (cookie: string) =>
   (await call("/tasks/options", { cookie })).body.departments as Array<{ name: string; people: Array<{ id: string }> }>;
 
@@ -52,13 +52,13 @@ test("the departments: Rahma her own team only; the Super Admin any department",
 });
 
 test("the flow: Rahma → Bayoumi without a unit, with a deadline; told; audited; on «مهام الفريق»", async () => {
-  const r = await send(rahma, { department: "Marketing", toUserId: bayoumiId, title: `بوست الويك إند ${stamp}`, dueOn: "2026-12-31" });
+  const r = await send(rahma, { department: "Marketing", toUserId: bayoumiId, title: `بوست الويك إند ${stamp}`, dueOn: "2031-12-31" });
   assert.equal(r.status, 201, JSON.stringify(r.body));
   tasks.push(r.body.id);
   const t = await prisma.task.findUniqueOrThrow({ where: { id: r.body.id } });
   assert.equal(t.unitId, null); // «مهمة من غير وحدة بتتحفظ»
   assert.equal(t.title, `بوست الويك إند ${stamp}`);
-  assert.equal(t.dueOn.toISOString().slice(0, 10), "2026-12-31");
+  assert.equal(t.dueOn.toISOString().slice(0, 10), "2031-12-31");
   assert.equal(t.countsInKpi, false); // Skip unless «أيوه»
   assert.ok(await prisma.auditLog.findFirst({ where: { module: "tasks", entityId: t.id, action: "create" } }));
   assert.ok(await prisma.notification.findFirst({ where: { userId: bayoumiId, link: { contains: t.id }, text: { contains: `بوست الويك إند ${stamp}` } } }));

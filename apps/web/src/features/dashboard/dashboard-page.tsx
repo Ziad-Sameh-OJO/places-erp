@@ -153,8 +153,9 @@ function Targets({ d }: { d: CompanyDashboard }) {
   return (
     <Card title={t("title")} icon="trend">
       <div style={{ display: "grid", gap: 18 }}>
-        <Goal label={t("quarter", { quarter: d.quarter })} bar={d.targets.quarter} href="/reports" />
-        <Goal label={t("year", { year: d.year })} bar={d.targets.year} href="/reports" />
+        {/* each bar opens its own figures: the quarter's targets, the year's plan (as on Ahmed's target card) */}
+        <Goal label={t("quarter", { quarter: d.quarter })} bar={d.targets.quarter} href={`/reports?quarter=${d.quarter}`} />
+        <Goal label={t("year", { year: d.year })} bar={d.targets.year} href={`/reports?tab=plan&year=${d.year}`} />
       </div>
     </Card>
   );

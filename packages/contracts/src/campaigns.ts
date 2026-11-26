@@ -17,7 +17,8 @@ export const CampaignInput = z.object({
   spent: Money.default("0"), // what it actually cost: Finance and the cost center read it
   target: z.string().trim().max(200).optional(), // «المشروع / الوحدات المستهدفة»
   page: z.string().trim().max(60).optional().or(z.literal("").transform(() => undefined)), // «Page name» from «أسماء الصفحات» (4.19)
-  adUrl: z.string().trim().url("لينك الإعلان مش مظبوط").max(500).optional().or(z.literal("").transform(() => undefined)),
+  // http(s) only: the link is opened from the campaigns table, so a «javascript:» / «data:» one must never be kept
+  adUrl: z.string().trim().url("لينك الإعلان مش مظبوط").regex(/^https?:\/\//i, "لينك الإعلان لازم يبدأ بـ http أو https").max(500).optional().or(z.literal("").transform(() => undefined)),
   note: z.string().trim().max(1000).optional(),
 }).refine((c) => c.endsOn === null || c.endsOn >= c.startsOn, { message: "النهاية لازم تبقى بعد البداية", path: ["endsOn"] });
 export type CampaignInput = z.infer<typeof CampaignInput>;

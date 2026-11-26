@@ -405,7 +405,9 @@ export class KpisService {
     if (c.approvedAt) throw new ConflictException("النتيجة اتعتمدت قبل كده");
     const score = Math.round(this.score(c));
     await this.db.$transaction(async (tx) => {
-      await tx.kpiCard.update({ where: { id }, data: { approvedBy: me.id, approvedAt: new Date() } });
+      // a double click or two tabs: only the first approval is kept and audited
+      const done = await tx.kpiCard.updateMany({ where: { id, approvedAt: null }, data: { approvedBy: me.id, approvedAt: new Date() } });
+      if (!done.count) throw new ConflictException("النتيجة اتعتمدت قبل كده");
       await this.audit.record({ module: MODULE, entity: "KpiCard", entityId: id, action: "approve", userId: me.id, after: { summary: `اتعتمد KPI ${c.employee.name} · ${score}%` } }, tx);
     });
     await this.tell(me, `${me.name} اعتمد KPI ${c.employee.name} · ${score}%`);
@@ -543,13 +545,15 @@ export class KpisService {
 
   /** Saves each card's result and closes the quarter. With money (the close) the amounts too. */
   private async finish(me: CurrentUser, quarter: string, tx: Prisma.TransactionClient, money: boolean) {
+    // claimed first: a second «اقفل الربع» at the same moment stops here instead of closing (and alerting) twice
+    const claimed = await tx.kpiQuarter.updateMany({ where: { id: quarter, status: "open" }, data: { status: "closed", closedAt: new Date(), closedById: me.id } });
+    if (!claimed.count) throw new ConflictException("الربع ده اتقفل قبل كده");
     const [cards, bands] = await Promise.all([this.repo.cards({ quarter }, tx), this.repo.bands(tx)]);
     const b = bandsOf(bands);
     for (const c of cards) {
       const s = this.score(c);
       await tx.kpiCard.update({ where: { id: c.id }, data: { finalScore: Math.round(s * 100) / 100, ...(money ? { finalAmount: toDecimal(this.delta(c, s, b)) } : {}) } });
     }
-    await tx.kpiQuarter.update({ where: { id: quarter }, data: { status: "closed", closedAt: new Date(), closedById: me.id } });
     await this.audit.record({ module: MODULE, entity: money ? "KpiQuarterClose" : "KpiQuarter", entityId: quarter, action: "update", userId: me.id,
       after: { summary: `${quarterLabel(quarter)} اتقفل · النتايج اتحفظت`, cards: cards.length } }, tx);
     return { cards, b };

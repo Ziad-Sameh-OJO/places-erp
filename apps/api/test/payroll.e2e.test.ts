@@ -129,8 +129,12 @@ test("7.9: HR approves the month's deductions once; payroll reads exactly those;
 test("«اصرف المرتبات كلها»: one voucher, one balanced entry; once a month; everyone notified (9.14)", async () => {
   const view = (await call("/finance/payroll", { cookie: ahmed })).body;
   const bank0 = await balance(ahmed, bank.id);
-  const r = await call("/finance/payroll/run", { method: "POST", cookie: ahmed, body: { fromId: bank.id } });
-  assert.equal(r.status, 201, JSON.stringify(r.body));
+  // pressed twice at once (two tabs / two people): one run; the other waits and gets the refusal, not a 500
+  const both = await Promise.all([1, 2].map(() => call("/finance/payroll/run", { method: "POST", cookie: ahmed, body: { fromId: bank.id } })));
+  const r = both.find((x) => x.status === 201)!, lost = both.find((x) => x !== r)!;
+  assert.ok(r, JSON.stringify(both.map((x) => x.body)));
+  assert.equal(lost.status, 400, JSON.stringify(lost.body));
+  assert.equal(lost.body.error, "مرتبات الشهر ده اتصرفت قبل كده");
   // the run's own net, not the view's: the KPI file gives Youssef a salary for a moment, and may do it in between
   const run = await prisma.payrollRun.findUniqueOrThrow({ where: { month } });
   assert.equal(await balance(ahmed, bank.id), bank0 - Math.round(Number(run.net) * 100));

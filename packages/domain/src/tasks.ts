@@ -111,10 +111,11 @@ export const isTaskLate = (t: { status: string; dueOn: string }, now: Date): boo
 
 /**
  * M-03 2.4 · (21) · 2.17: a unit whose «last update» is over a month old gets a follow-up with its owner, unless one is
- * still open. Who calls the owner (2.1 step 10 «منار / رندا: ابديت دوري مع المالك»; the demo's split): Randa (resale)
- * for a Resale unit, Manar (inventory) for the rest.
+ * still open. Who calls the owner (2.1 step 10 «منار / رندا: ابديت دوري مع المالك»): Randa (resale) for Resale and
+ * Primary — she is the «resale & primary specialist» (1.2) and her KPI is «مفيش وحدة Resale/Primary تعدّي شهر من غير
+ * ابديت» (3.1) — Manar (inventory) for the rest.
  */
-export const followupRole = (unitType: string): string => (unitType === "Resale" ? "resale" : "inventory");
+export const followupRole = (unitType: string): string => (unitType === "Resale" || unitType === "Primary" ? "resale" : "inventory");
 export const needsFollowup = (u: { stale: boolean; openFollowup: boolean }): boolean => u.stale && !u.openFollowup;
 
 /**
@@ -133,3 +134,18 @@ export type TaskSide = (typeof TASK_SIDES)[number];
 export const IN_TEAM_KIND = "inTeam";
 export const inTeamDepartments = (scope: string, own: string | null, all: readonly string[]): string[] =>
   scope === "all" ? [...all] : own ? [own] : [];
+
+/**
+ * Who manages a task (reassign it, move its day, rewrite its note): whoever gave it, or someone who sees the whole
+ * department's / company's tasks — but never a task someone else gave *them*: the assignee pushing their own deadline
+ * would hide a late task and, with «تتحسب في الـ KPIs», rewrite their own «المهام في ميعادها» (M-04 2.4, 4.15).
+ * The system's tasks (no sender: the month's follow-up) stay the department head's to hand on, even when they're hers.
+ */
+export function isTaskManager(me: { id: string; scope: string }, t: { byUserId: string | null; toUserId: string }): boolean {
+  if (t.byUserId === me.id) return true;
+  if (me.scope !== "dept" && me.scope !== "all") return false;
+  return t.toUserId !== me.id || t.byUserId === null;
+}
+
+/** M-04 2.4 «المهام اليومية لازم تخلص في يومها»: a task can't be given (or moved) to a day that already passed — it'd be born late. */
+export const taskDueProblem = (dueOn: string, today: string): string | null => (dueOn < today ? "الميعاد ده عدّى · اختار النهارده أو بعده" : null);
