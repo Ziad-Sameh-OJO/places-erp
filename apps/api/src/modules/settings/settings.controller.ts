@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Res, Uploade
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Response } from "express";
 import { DocTemplateInput, EntityPatch, HolidayInput, HolidayRow, Id, SettingKeyParam, StampInput, type SettingKey } from "@places/contracts";
-import { DOC_KINDS, type DocKind } from "@places/domain";
+import { DOC_KINDS, localDate, type DocKind } from "@places/domain";
 import { z } from "zod";
 import { DocumentsService, sendPdf } from "../../core/documents/documents.service";
 import { DocumentsSetupService } from "./documents-setup.service";
@@ -81,7 +81,7 @@ export class SettingsController {
   /** «شوف شكلها»: the saved template on a made-up claim, with the stamp, as the PDF. */
   @Get("templates/:kind/preview") @Requires("master", "view")
   async preview(@Param("kind", new ZodPipe(DocKindParam)) kind: DocKind, @Res() res: Response) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate(new Date()); // Cairo's day: the UTC one is yesterday until 2 am
     const { title, html } = await this.docs.render(kind, { no: kind === "claim" ? "CL-000" : "RC-000", claimNo: "CL-000", date: today, entityId: "places", company: "شركة النيل للتكنولوجيا",
       unit: "U-101", unitInfo: "Mivida Business Park · مبنى B4 · الدور 2 · 95 م² · متشطب", amount: "100000.00", kind: "عمولة تأجير", einvoiceNo: "EG-2026-000000",
       contractNo: "C-000", installment: "القسط 1 من 12" });
