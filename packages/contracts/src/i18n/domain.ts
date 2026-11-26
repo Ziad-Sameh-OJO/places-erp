@@ -310,6 +310,7 @@ export default [
 
   // lists.ts
   ["«{value}» ماتتمسحش · وقّفها بدل ما تشيلها، عشان البيانات القديمة", "«{value}» can't be deleted · turn it off instead, to keep the old data"],
+  ["«{value}» موجودة في القايمة بالفعل", "«{value}» is already in the list"],
   ["«{value}» السيستم بيحسب عليها · ماتتوقفش", "«{value}» is used by the system's calculations · it can't be turned off"],
 
   // not-active.ts

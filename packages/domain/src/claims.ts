@@ -36,7 +36,7 @@ export type TemplateWord = (typeof TEMPLATE_WORDS)[number];
 
 /** {الشركة} → its value; an unknown word stays as written so a typo shows on the preview. */
 export const fillTemplate = (text: string, values: Partial<Record<TemplateWord, string>>): string =>
-  text.replace(/\{([^}]+)\}/g, (m, k: string) => values[k as TemplateWord] ?? m);
+  text.replace(/\{([^}]+)\}/g, (m, k: string) => (Object.hasOwn(values, k) ? values[k as TemplateWord] : undefined) ?? m); // own keys only: «{constructor}» stays a typo, not Object's source
 
 /** The claim and its cash receipt (9.17), and the receipt of a contract installment's payment (M-11 2.1 step 4 · 6.7). */
 export const DOC_KINDS = ["claim", "receipt", "installment"] as const;

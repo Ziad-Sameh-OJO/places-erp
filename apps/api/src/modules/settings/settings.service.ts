@@ -32,8 +32,8 @@ const DEFAULTS: Settings = {
 export class SettingsService {
   constructor(@Inject(PRISMA) private readonly db: PrismaClient, private readonly audit: AuditService, private readonly time: BusinessTimeService) {}
 
-  async all(): Promise<Settings> {
-    const rows = await this.db.setting.findMany({ where: { key: { in: Object.keys(SETTINGS) } } });
+  async all(db: Pick<PrismaClient, "setting"> = this.db): Promise<Settings> {
+    const rows = await db.setting.findMany({ where: { key: { in: Object.keys(SETTINGS) } } });
     // a list written before values could be switched off is read as all active (the migration converts them too)
     return { ...DEFAULTS, ...Object.fromEntries(rows.map((r) => [r.key, isList(r.key as SettingKey) ? asListValues(r.value) : r.value])) } as Settings;
   }
@@ -54,29 +54,38 @@ export class SettingsService {
       await this.checkNames(ListEditors.parse(value));
       return this.set(me, key, value, "access");
     }
+    // the checks run inside set()'s lock, against what the save before this one wrote (two saves at once)
     if (isList(key)) {
-      const s = await this.all();
       const after = SETTINGS[key].parse(value);
-      const who = { id: me.id, roles: me.roles, masterEdit: canEditSetting(key, editorOf(me)) };
-      const acts = listActions(s[key], after);
-      const allowed = acts.length ? acts.every((a) => canChangeList(s.listEditors[key], a, who))
-        : canChangeList(s.listEditors[key], "add", who) || canChangeList(s.listEditors[key], "off", who);
-      if (!allowed) throw new ForbiddenException(`مش مسموحلك ${acts.includes("add") && !canChangeList(s.listEditors[key], "add", who) ? "تضيف في" : "توقّف أو ترجّع قيم في"} «${listLabel(key)}»`); // i18n-part: «مش مسموحلك تضيف في / توقّف أو ترجّع قيم في «…»»
-      return this.set(me, key, after);
+      return this.set(me, key, after, "master", (s) => {
+        const who = { id: me.id, roles: me.roles, masterEdit: canEditSetting(key, editorOf(me)) };
+        const acts = listActions(s[key], after);
+        const allowed = acts.length ? acts.every((a) => canChangeList(s.listEditors[key], a, who))
+          : canChangeList(s.listEditors[key], "add", who) || canChangeList(s.listEditors[key], "off", who);
+        if (!allowed) throw new ForbiddenException(`مش مسموحلك ${acts.includes("add") && !canChangeList(s.listEditors[key], "add", who) ? "تضيف في" : "توقّف أو ترجّع قيم في"} «${listLabel(key)}»`); // i18n-part: «مش مسموحلك تضيف في / توقّف أو ترجّع قيم في «…»»
+      });
     }
     if (key === "channelTypes") {
       // the types under each channel: who adds to / switches off in the channels list does the same here (#186)
-      const s = await this.all();
       const after = SETTINGS.channelTypes.parse(value);
-      const { problem, actions } = channelTypesChange(s.channelTypes, after, s.channels.map((c) => c.value));
-      if (problem) throw new BadRequestException(problem);
-      const who = { id: me.id, roles: me.roles, masterEdit: canEditSetting("channels", editorOf(me)) };
-      const allowed = actions.length ? actions.every((a) => canChangeList(s.listEditors.channels, a, who))
-        : canChangeList(s.listEditors.channels, "add", who) || canChangeList(s.listEditors.channels, "off", who);
-      if (!allowed) throw new ForbiddenException("مش مسموحلك تعدّل أنواع الـ Channels");
-      return this.set(me, key, after);
+      return this.set(me, key, after, "master", (s) => {
+        const { problem, actions } = channelTypesChange(s.channelTypes, after, s.channels.map((c) => c.value));
+        if (problem) throw new BadRequestException(problem);
+        const who = { id: me.id, roles: me.roles, masterEdit: canEditSetting("channels", editorOf(me)) };
+        const allowed = actions.length ? actions.every((a) => canChangeList(s.listEditors.channels, a, who))
+          : canChangeList(s.listEditors.channels, "add", who) || canChangeList(s.listEditors.channels, "off", who);
+        if (!allowed) throw new ForbiddenException("مش مسموحلك تعدّل أنواع الـ Channels");
+      });
     }
     this.mustOwn(me, key);
+    if (key === "leaveTypes") {
+      // leave requests and balances are kept by the type's name (M-05 7.5): a type is never dropped or renamed, like a list value (M-13 2.1)
+      const after = SETTINGS.leaveTypes.parse(value);
+      return this.set(me, key, after, "master", (s) => {
+        const problem = listChangeProblem(s.leaveTypes.map((t) => ({ value: t.name, active: true })), after.map((t) => ({ value: t.name, active: true })));
+        if (problem) throw new BadRequestException(problem);
+      });
+    }
     return this.set(me, key, value, SETTING_OWNERS[key] === "access" ? "access" : "master");
   }
 
@@ -109,16 +118,22 @@ export class SettingsService {
     if (Object.values(editors).some((e) => [...e.add, ...e.off].some((x) => !known.has(x)))) throw new BadRequestException("فيه دور أو شخص مش موجود");
   }
 
-  /** `module`: where the change was made, for the audit log (the Logs roles are set from a lead, under «access»). */
-  async set(me: CurrentUser, key: SettingKey, value: unknown, module = "master") {
+  /**
+   * `module`: where the change was made, for the audit log (the Logs roles are set from a lead, under «access»).
+   * `check`: the caller's rule, given the settings as they are under the lock. One save of a key at a time, so a
+   * save made on an older copy of a list is refused («ماتتمسحش») instead of silently dropping what the other one added.
+   */
+  async set(me: CurrentUser, key: SettingKey, value: unknown, module = "master", check?: (now: Settings) => void) {
     const parsed = SETTINGS[key].parse(value);
-    const before = (await this.db.setting.findUnique({ where: { key } }))?.value ?? DEFAULTS[key];
-    if (isList(key)) {
-      // M-13 2.1: values are switched off, never removed; the ones the system posts on stay on
-      const problem = listChangeProblem(asListValues(before), parsed as Settings[ListKey], LOCKED_VALUES[key]);
-      if (problem) throw new BadRequestException(problem);
-    }
     await this.db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`setting:${key}`}))`;
+      check?.(await this.all(tx));
+      const before = (await tx.setting.findUnique({ where: { key } }))?.value ?? DEFAULTS[key];
+      if (isList(key)) {
+        // M-13 2.1: values are switched off, never removed; the ones the system posts on stay on
+        const problem = listChangeProblem(asListValues(before), parsed as Settings[ListKey], LOCKED_VALUES[key]);
+        if (problem) throw new BadRequestException(problem);
+      }
       await tx.setting.upsert({ where: { key }, create: { key, value: parsed }, update: { value: parsed } });
       await this.audit.record({ module, entity: "Setting", entityId: key, action: "update", userId: me.id, before, after: parsed }, tx);
     });

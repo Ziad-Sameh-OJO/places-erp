@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { activeValues, type CostCenterView, type Settings } from "@places/contracts";
+import { type CostCenterView, type Settings } from "@places/contracts";
 import { DateInput, Card, Empty, Note, onFormSubmit, Table, useAction } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useMe } from "@/lib/me";
@@ -30,10 +30,10 @@ export function CostCenter() {
   return (
     <>
       <div className="toolbar">
-        {sel("channel", t("cost.allChannels"), activeValues(s?.channels ?? []).map((c) => [c, c]), t("cost.channel"))}
+        {sel("channel", t("cost.allChannels"), (s?.channels ?? []).map(({ value }) => [value, value]), t("cost.channel"))}
         {sel("campaignId", t("cost.allCampaigns"), (v?.options.campaigns ?? []).map((c) => [c.id, c.name]), t("cost.campaign"))}
         {sel("salesId", t("cost.allSales"), (v?.options.sales ?? []).map((p) => [p.id, p.name]), t("cost.sales"))}
-        {sel("area", t("cost.allAreas"), activeValues(s?.areas ?? []).map((a) => [a, serverText(a)]), t("cost.area"))}
+        {sel("area", t("cost.allAreas"), (s?.areas ?? []).map(({ value }) => [value, serverText(value)]), t("cost.area"))}
         <label className="date-f"><span>{t("common.from")}</span><DateInput value={f.from ?? ""} onChange={set("from")} /></label>
         <label className="date-f"><span>{t("common.until")}</span><DateInput value={f.to ?? ""} onChange={set("to")} /></label>
       </div>
